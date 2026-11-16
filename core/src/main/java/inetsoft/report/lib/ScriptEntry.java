@@ -96,7 +96,7 @@ public interface ScriptEntry {
             LOG.warn("Failed to get user signature, I/O error reading script function", ex);
          }
 
-         Pattern p = Pattern.compile("function[ ]+" + name + "[(].*[)]");
+         Pattern p = Pattern.compile("function[ ]+" + Pattern.quote(name) + "[(].*[)]");
          Matcher matcher = p.matcher(bufInSingleLine);
          final String signature;
 

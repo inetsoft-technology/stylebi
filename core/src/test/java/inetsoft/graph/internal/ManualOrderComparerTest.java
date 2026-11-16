@@ -275,4 +275,14 @@ class ManualOrderComparerTest {
       // Both not in empty list → delegates to default comparator
       assertTrue(comparer.compare("a", "b") < 0);
    }
+
+   @Test
+   void longComparisonDoesNotOverflow() {
+      ManualOrderComparer comparer = new ManualOrderComparer(new Object[]{"A"});
+
+      assertTrue(comparer.compare(3000000000L, 0L) > 0);
+      assertTrue(comparer.compare(0L, 3000000000L) < 0);
+      assertTrue(comparer.compare(Long.MIN_VALUE, Long.MAX_VALUE) < 0);
+      assertEquals(0, comparer.compare(5L, 5L));
+   }
 }

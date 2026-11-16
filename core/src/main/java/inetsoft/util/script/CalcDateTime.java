@@ -284,10 +284,16 @@ public class CalcDateTime {
    /**
     * Get the quarter from the date value
     * @param date input date
-    * @return quarter number, 1, 2, 3, 4.
+    * @return quarter number, 1, 2, 3, 4, or -1 if the date is null.
     */
    public static int quarter(Object date) {
-      return (month(date) - 1) / 3 + 1;
+      int month = month(date);
+
+      if(month < 0) {
+         return -1;
+      }
+
+      return (month - 1) / 3 + 1;
    }
 
    /**
