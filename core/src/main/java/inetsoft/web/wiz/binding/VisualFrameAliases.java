@@ -833,6 +833,12 @@ public final class VisualFrameAliases {
 
       StaticColorModel model = new StaticColorModel();
       model.setColor(normalizeColor(color));
+      // ColorFrameModelFactory ends its update with setChanged(model.isChanged()), so a model left
+      // at the default false stores the colour as "not set by the user". GraphGenerator then
+      // darkens point/line elements (and a Gantt milestone) by 0.75 and keeps a per-measure
+      // legend. An agent write is by definition a deliberate change, as the Composer's colour
+      // pane sends changed=true.
+      model.setChanged(true);
       return model;
    }
 

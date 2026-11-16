@@ -53,6 +53,16 @@ class VisualFrameAliasesTest {
    }
 
    @Test
+   void staticColorFrameIsMarkedAsChangedByTheUser() {
+      // an unchanged flag makes ColorFrameModelFactory store the colour as a default, so the
+      // renderer darkens point/line marks and keeps a per-measure legend (Bug #81447)
+      VisualFrameModel frame = VisualFrameAliases.create(
+         "color", spec("type", "static", "color", "#ff0000"));
+
+      assertTrue(((StaticColorModel) frame).isChanged());
+   }
+
+   @Test
    void buildsACategoricalColorFrameFromAColourList() {
       VisualFrameModel frame = VisualFrameAliases.create(
          "color", spec("type", "categorical", "colors", java.util.List.of("#4e79a7", "f28e2c")));
