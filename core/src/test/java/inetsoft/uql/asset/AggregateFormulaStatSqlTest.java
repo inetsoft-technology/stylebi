@@ -113,13 +113,9 @@ class AggregateFormulaStatSqlTest {
       "oracle|POPULATION_VARIANCE|var_pop(x)",
       "oracle|CORRELATION|corr(x, y)",
       "oracle|COVARIANCE|covar_pop(x, y)",
-      "mysql|STANDARD_DEVIATION|stddev_samp(x)",
       "mysql|POPULATION_STANDARD_DEVIATION|stddev_pop(x)",
-      "mysql|VARIANCE|var_samp(x)",
       "mysql|POPULATION_VARIANCE|var_pop(x)",
-      "sql server|STANDARD_DEVIATION|stdev(x)",
       "sql server|POPULATION_STANDARD_DEVIATION|stdevp(x)",
-      "sql server|VARIANCE|var(x)",
       "sql server|POPULATION_VARIANCE|varp(x)",
       "db2|CORRELATION|correlation(x, y)",
       "db2|COVARIANCE|covariance(x, y)"
@@ -128,6 +124,25 @@ class AggregateFormulaStatSqlTest {
       AggregateFormula formula = formula(field);
       boolean two = expected.contains(",");
       String expression = formula.getExpression("x", two ? "y" : null, new DbHelper(database));
+      assertEquals(expected, expression.toLowerCase(Locale.ROOT), database + " " + field);
+   }
+
+   // Bug #80342: the sample variance / standard deviation functions return NULL for one value
+   // on most databases, so they are wrapped to give 0 like the MV and in-memory formulas;
+   // Oracle already gives 0 and is not wrapped
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource(delimiter = '|', value = {
+      "mysql|STANDARD_DEVIATION|case when count(x) = 1 then 0.0e0 else stddev_samp(x) end",
+      "mysql|VARIANCE|case when count(x) = 1 then 0.0e0 else var_samp(x) end",
+      "sql server|STANDARD_DEVIATION|case when count(x) = 1 then 0.0e0 else stdev(x) end",
+      "sql server|VARIANCE|case when count(x) = 1 then 0.0e0 else var(x) end",
+      "access|STANDARD_DEVIATION|iif(count(x) = 1, 0.0, stdev(x))",
+      "access|VARIANCE|iif(count(x) = 1, 0.0, var(x))"
+   })
+   void nativeSampleFunctionGivesZeroForOneValue(String database, String field, String expected)
+      throws Exception
+   {
+      String expression = formula(field).getExpression("x", null, new DbHelper(database));
       assertEquals(expected, expression.toLowerCase(Locale.ROOT), database + " " + field);
    }
 
@@ -259,7 +274,9 @@ class AggregateFormulaStatSqlTest {
 
    private static Double sampleVariance(Double[] x) {
       List<Double> values = present(x);
-      return values.size() < 2 ? null : sumOfSquares(values) / (values.size() - 1);
+      // Bug #80342: one value gives 0 (like the MV and in-memory formulas), no value NULL
+      return values.isEmpty() ? null :
+         values.size() == 1 ? Double.valueOf(0) : sumOfSquares(values) / (values.size() - 1);
    }
 
    private static Double populationVariance(Double[] x) {
