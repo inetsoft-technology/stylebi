@@ -135,4 +135,15 @@ public class TextVSAScriptableTest {
       assertEquals("inetsoft.report.painter.QRCodePresenter",
                    textVSAssemblyInfo.getFormat().getUserDefinedFormat().getPresenter().getName());
    }
+
+   @Test
+   void popAlphaScriptValueIsRevertedToDesignValueOnReset() {
+      textVSAssemblyInfo.setAlphaValue("30");
+      textVSAssemblyInfo.setAlpha("70");
+      assertEquals("70", textVSAssemblyInfo.getAlpha());
+
+      textVSAssemblyInfo.resetRuntimeValues();
+
+      assertEquals("30", textVSAssemblyInfo.getAlpha());
+   }
 }

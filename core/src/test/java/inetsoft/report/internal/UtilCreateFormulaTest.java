@@ -23,7 +23,6 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AggregateFormula;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -212,7 +211,6 @@ class UtilCreateFormulaTest {
       assertEquals("a", one.getResult());
    }
 
-   @Disabled("Bug #81211: Util.createFormula turns a negative n into a SumFormula")
    @Test
    @DisplayName("A negative n is read like n = 1, not as a Sum")
    void negativeN() {

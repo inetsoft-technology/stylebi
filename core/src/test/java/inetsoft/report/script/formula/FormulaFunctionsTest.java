@@ -692,6 +692,18 @@ public class FormulaFunctionsTest {
       assertTrue(FormulaFunctions.inArray(new Object[]{3.0}, 3));
    }
 
+   /**
+    * Bug #81460: a null argument is an empty set, so duplicates are still removed.
+    */
+   @Test
+   void testUnionWithNullArgumentRemovesDuplicates() {
+      Object[] dup = {1, 1};
+      assertArrayEquals(new Object[]{1}, (Object[]) FormulaFunctions.union(null, dup, null));
+      assertArrayEquals(new Object[]{1}, (Object[]) FormulaFunctions.union(dup, null, null));
+      assertArrayEquals(new Object[]{1}, (Object[]) FormulaFunctions.union(new Object[0], dup, null));
+      assertEquals(0, ((Object[]) FormulaFunctions.union(null, null, null)).length);
+   }
+
    private static Stream<Arguments> provideUnionArrayTestCases() {
       // Return a stream of arguments for the unionArray method
       return Stream.of(

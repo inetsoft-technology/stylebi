@@ -111,6 +111,19 @@ class ModeFormulaTest {
       assertNull(mode.getResult());
    }
 
+   @Test
+   @DisplayName("getDoubleResult is 0 for a non-numeric text mode and parses a numeric text mode")
+   void getDoubleResult_textValues() {
+      ModeFormula mode = new ModeFormula();
+      addAll(mode, "abc", "abc", "x");
+      assertEquals("abc", mode.getResult());
+      assertEquals(0.0, mode.getDoubleResult());
+
+      ModeFormula numeric = new ModeFormula();
+      addAll(numeric, "2.5", "2.5", "x");
+      assertEquals(2.5, numeric.getDoubleResult());
+   }
+
    @Disabled("Bug #81205: ModeFormula.clone() returns a NthMostFrequentFormula")
    @Test
    @DisplayName("The clone of a Mode formula is a Mode formula")
