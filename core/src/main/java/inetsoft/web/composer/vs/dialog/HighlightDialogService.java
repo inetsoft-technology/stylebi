@@ -30,8 +30,10 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.filter.CrossFilter;
 import inetsoft.report.filter.Highlight;
 import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.internal.binding.Field;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.sree.security.ResourceAction;
@@ -59,6 +61,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.function.Supplier;
 
 @Service
 @ClusterProxy
@@ -123,9 +126,17 @@ public class HighlightDialogService {
          if(assembly instanceof CrosstabVSAssembly) {
             VSCrosstabInfo cinfo = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
             boolean cellSupplied = row != null || col != null;
-            int[] resolved = resolveStackedMeasureCell(cinfo.getRuntimeAggregates(),
+            DataRef[] aggregates = cinfo.getRuntimeAggregates();
+            Object tableData = box.get().getData(objectId);
+            VSTableLens vsLens = lens;
+            Supplier<String[]> listedNames = memoize(
+               () -> listedMeasureNames(
+                  tableData, vsLens.getTableDataPath(vsLens.getHeaderRowCount(),
+                                                     vsLens.getHeaderColCount()),
+                  aggregates.length));
+            int[] resolved = resolveStackedMeasureCell(aggregates,
                cinfo.isSummarySideBySide(), lens.getHeaderRowCount(), lens.getHeaderColCount(),
-               colName, cellSupplied);
+               colName, cellSupplied, listedNames);
 
             if(resolved != null) {
                row = resolved[0];
@@ -133,9 +144,10 @@ public class HighlightDialogService {
             }
             else if(colName != null && !cellSupplied) {
                throw new IllegalArgumentException(
-                  "colName '" + colName + "' does not name a measure of '" + objectId +
-                  "' that resolves to a data cell; use row/col to address header or dimension " +
-                  "cells.");
+                  "colName '" + colName + "' is not one of the measures of '" + objectId +
+                  "' that resolve to a data cell (" +
+                  String.join(", ", resolvableMeasureNames(aggregates, listedNames)) +
+                  "); use row/col to address header, dimension or total cells.");
             }
          }
          else if(colName != null) {
@@ -471,6 +483,26 @@ public class HighlightDialogService {
                                           int headerRowCount, int headerColCount, String colName,
                                           boolean cellSupplied)
    {
+      return resolveStackedMeasureCell(runtimeAggregates, summarySideBySide, headerRowCount,
+                                       headerColCount, colName, cellSupplied, null);
+   }
+
+   /**
+    * @param listedNames the names the rendered lens lists for the measures, one per runtime
+    *                    aggregate and in the same order (see {@link #listedMeasureNames}), or
+    *                    {@code null} when unavailable. A measure whose lens name differs from its
+    *                    runtime ref's own name -- one with a calculator ("Change from previous
+    *                    year of ...: Sum(X).1"), or a duplicate of an earlier measure ("Sum(X).1") --
+    *                    is the name {@code list_highlights} advertises, so it is matched too, but
+    *                    only after no runtime ref name matched, so a {@code colName} accepted
+    *                    without it resolves exactly as before. A {@code colName} naming two
+    *                    measures' lens names is refused as ambiguous rather than resolved to the
+    *                    first (bug 81483).
+    */
+   static int[] resolveStackedMeasureCell(DataRef[] runtimeAggregates, boolean summarySideBySide,
+                                          int headerRowCount, int headerColCount, String colName,
+                                          boolean cellSupplied, Supplier<String[]> listedNames)
+   {
       if(colName == null || runtimeAggregates == null || runtimeAggregates.length == 0 ||
          runtimeAggregates.length < 2 && cellSupplied)
       {
@@ -494,6 +526,26 @@ public class HighlightDialogService {
          }
       }
 
+      if(index < 0 && listedNames != null) {
+         String[] listed = listedNames.get();
+
+         if(listed != null && listed.length == runtimeAggregates.length) {
+            for(int i = 0; i < listed.length; i++) {
+               if(runtimeAggregates[i] instanceof VSAggregateRef &&
+                  !VSUtil.isFake(runtimeAggregates[i]) && Tool.equals(listed[i], colName))
+               {
+                  if(index >= 0) {
+                     throw new IllegalArgumentException(
+                        "colName '" + colName + "' names more than one measure of the crosstab; " +
+                        "use row/col to address the cell.");
+                  }
+
+                  index = i;
+               }
+            }
+         }
+      }
+
       if(index < 0) {
          return null;
       }
@@ -501,6 +553,83 @@ public class HighlightDialogService {
       return summarySideBySide
          ? new int[] { headerRowCount, headerColCount + index }
          : new int[] { headerRowCount + index, headerColCount };
+   }
+
+   /**
+    * The names the crosstab lens lists for its measures -- the names {@code list_highlights}
+    * advertises -- one per measure, in measure order, read from the first data cell. {@code null}
+    * when the lens does not list exactly {@code aggregateCount} measures there (an active date
+    * comparison inserts columns the runtime aggregates do not map to one by one), so no name can be
+    * paired with a measure by position.
+    */
+   static String[] listedMeasureNames(Object tableData, TableDataPath firstDataCell,
+                                      int aggregateCount)
+   {
+      if(!(tableData instanceof TableLens)) {
+         return null;
+      }
+
+      TableLens table = (TableLens) tableData;
+      CrossFilter cross = Util.getCrossFilter(table);
+
+      if(cross == null || cross.getDataIndexes() == null ||
+         cross.getDataIndexes().length != aggregateCount)
+      {
+         return null;
+      }
+
+      Field[] fields = TableHighlightAttr.getAvailableFields(table, firstDataCell);
+
+      // the measures are listed last, after the row and column headers of the cell
+      if(fields == null || fields.length < aggregateCount) {
+         return null;
+      }
+
+      String[] names = new String[aggregateCount];
+
+      for(int i = 0; i < aggregateCount; i++) {
+         names[i] = fields[fields.length - aggregateCount + i].getName();
+      }
+
+      return names;
+   }
+
+   /** The measure names a crosstab {@code colName} resolves to a data cell, for an error message. */
+   static List<String> resolvableMeasureNames(DataRef[] runtimeAggregates,
+                                              Supplier<String[]> listedNames)
+   {
+      Set<String> names = new LinkedHashSet<>();
+      String[] listed = listedNames == null ? null : listedNames.get();
+
+      for(int i = 0; runtimeAggregates != null && i < runtimeAggregates.length; i++) {
+         if(runtimeAggregates[i] instanceof VSAggregateRef &&
+            !VSUtil.isFake(runtimeAggregates[i]))
+         {
+            names.add("'" + ((VSAggregateRef) runtimeAggregates[i]).getFullName() + "'");
+
+            if(listed != null && listed.length == runtimeAggregates.length) {
+               names.add("'" + listed[i] + "'");
+            }
+         }
+      }
+
+      return new ArrayList<>(names);
+   }
+
+   private static <T> Supplier<T> memoize(Supplier<T> supplier) {
+      Object[] holder = new Object[1];
+      boolean[] done = new boolean[1];
+
+      return () -> {
+         if(!done[0]) {
+            holder[0] = supplier.get();
+            done[0] = true;
+         }
+
+         @SuppressWarnings("unchecked")
+         T value = (T) holder[0];
+         return value;
+      };
    }
 
    /**
