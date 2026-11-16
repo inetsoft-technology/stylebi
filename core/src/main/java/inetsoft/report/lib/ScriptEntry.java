@@ -54,37 +54,65 @@ public interface ScriptEntry {
          try {
             // trim the spaces and the comments
             while((line = reader.readLine()) != null) {
-               int idx = line.indexOf("//");
+               StringBuilder code = new StringBuilder();
+               int pos = 0;
+               int len = line.length();
 
-               if(idx != -1) {
-                  line = line.substring(0, idx);
-               }
+               // scan the line so that several comments, or a block comment that opens
+               // and closes on the same line, are removed correctly
+               while(pos < len) {
+                  if(isMultiLineComment) {
+                     int end = line.indexOf("*/", pos);
 
-               if(!isMultiLineComment) {
-                  idx = line.indexOf("/*");
+                     if(end == -1) {
+                        pos = len;
+                     }
+                     else {
+                        isMultiLineComment = false;
+                        pos = end + 2;
 
-                  if(idx != -1) {
-                     isMultiLineComment = true;
-                     line = line.substring(0, idx);
-                  }
-               }
-               else {
-                  idx = line.indexOf("*/");
+                        // do not leave a gap before the separator that follows the comment
+                        int next = pos;
 
-                  if(idx != -1) {
-                     isMultiLineComment = false;
-                     line = line.substring(idx + 2);
+                        while(next < len && Character.isWhitespace(line.charAt(next))) {
+                           next++;
+                        }
+
+                        if(next < len && (line.charAt(next) == ',' ||
+                           line.charAt(next) == ')'))
+                        {
+                           int end2 = code.length();
+
+                           while(end2 > 0 && Character.isWhitespace(code.charAt(end2 - 1))) {
+                              end2--;
+                           }
+
+                           code.setLength(end2);
+                           pos = next;
+                        }
+                     }
                   }
                   else {
-                     continue;
+                     int lineComment = line.indexOf("//", pos);
+                     int blockComment = line.indexOf("/*", pos);
+
+                     if(lineComment != -1 && (blockComment == -1 || lineComment < blockComment)) {
+                        code.append(line, pos, lineComment);
+                        pos = len;
+                     }
+                     else if(blockComment != -1) {
+                        code.append(line, pos, blockComment);
+                        isMultiLineComment = true;
+                        pos = blockComment + 2;
+                     }
+                     else {
+                        code.append(line, pos, len);
+                        pos = len;
+                     }
                   }
                }
 
-               idx = line.indexOf("//");
-
-               if(idx != -1) {
-                  line = line.substring(0, idx);
-               }
+               line = code.toString();
 
                String content = line.trim();
                bufInSingleLine.append(content);
