@@ -54,6 +54,12 @@ public class CloseWorksheetService extends WorksheetControllerService {
       // processing for this AssetQuerySandbox when the worksheet is closed.
       if(box != null) {
          box.cancelTableLens();
+
+         // cancel the queries still running for this sandbox, like the Cancel button does
+         // (CancelLoadingService)
+         if(box.getQueryManager() != null) {
+            box.getQueryManager().cancel();
+         }
       }
 
       getWorksheetEngine().closeWorksheet(runtimeId, principal);
