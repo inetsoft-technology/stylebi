@@ -4423,13 +4423,17 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       Viewsheet before = rvs.getViewsheet() == null ? null : rvs.getViewsheet().clone();
-      boolean undone = sessions.restoreCheckpoint(rvs, user, linkUri, true);
+      ViewsheetSessionService.CheckpointRestore restored =
+         sessions.restoreCheckpoint(rvs, user, linkUri, true);
+      boolean undone = restored.moved();
 
       if(undone) {
          broadcast.broadcastRemovedAssemblies(rvs, rvs.getID(), user, before);
       }
 
-      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user);
+      // the restored tables' cells reach the paired canvas only as LoadTableDataCommand (#81305)
+      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user,
+                                 restored.tableData());
       return undoState("undone", undone, rvs);
    }
 
@@ -4442,13 +4446,17 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       Viewsheet before = rvs.getViewsheet() == null ? null : rvs.getViewsheet().clone();
-      boolean redone = sessions.restoreCheckpoint(rvs, user, linkUri, false);
+      ViewsheetSessionService.CheckpointRestore restored =
+         sessions.restoreCheckpoint(rvs, user, linkUri, false);
+      boolean redone = restored.moved();
 
       if(redone) {
          broadcast.broadcastRemovedAssemblies(rvs, rvs.getID(), user, before);
       }
 
-      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user);
+      // the restored tables' cells reach the paired canvas only as LoadTableDataCommand (#81305)
+      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user,
+                                 restored.tableData());
       return undoState("redone", redone, rvs);
    }
 

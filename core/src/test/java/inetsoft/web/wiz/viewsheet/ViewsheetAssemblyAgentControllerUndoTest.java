@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetAgentFeature;
 import inetsoft.web.wiz.pairing.SheetType;
@@ -28,6 +29,7 @@ import org.mockito.InOrder;
 
 import java.lang.reflect.Constructor;
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -51,6 +53,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
    private final Viewsheet current = mock(Viewsheet.class);
    private final Viewsheet snapshot = mock(Viewsheet.class);
    private final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+   private final List<CommandDispatcher.Command> tableData = List.of(mock(CommandDispatcher.Command.class));
 
    private void arrange(boolean applied, boolean redo) throws Exception {
       when(current.clone()).thenReturn(snapshot);
@@ -62,7 +65,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
       // so the runtime (a Form table's pending edits) is refreshed too
       when(sessions.restoreCheckpoint(eq(rvs), eq(user), any(), eq(!redo))).thenAnswer(inv -> {
          live.set(mock(Viewsheet.class));
-         return applied;
+         return new ViewsheetSessionService.CheckpointRestore(applied, tableData);
       });
    }
 
@@ -75,7 +78,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
       assertEquals(true, result.get("undone"));
       InOrder order = inOrder(broadcast);
       order.verify(broadcast).broadcastRemovedAssemblies(rvs, "vs-1", user, snapshot);
-      order.verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user);
+      order.verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user, tableData);
    }
 
    @Test
@@ -87,7 +90,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
       assertEquals(true, result.get("redone"));
       InOrder order = inOrder(broadcast);
       order.verify(broadcast).broadcastRemovedAssemblies(rvs, "vs-1", user, snapshot);
-      order.verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user);
+      order.verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user, tableData);
    }
 
    @Test
@@ -97,7 +100,19 @@ class ViewsheetAssemblyAgentControllerUndoTest {
       controller.undo("tok", user, "");
 
       verify(broadcast, never()).broadcastRemovedAssemblies(any(), any(), any(), any());
-      verify(broadcast).broadcastRefresh(eq(rvs), eq(SheetType.VIEWSHEET), eq("vs-1"), eq(user));
+      verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user, tableData);
+   }
+
+   @Test
+   void undoAndRedoForwardTheRestoredTablesData() throws Exception {
+      arrange(true, false);
+      controller.undo("tok", user, "");
+      verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user, tableData);
+
+      clearInvocations(broadcast);
+      arrange(true, true);
+      controller.redo("tok", user, "");
+      verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user, tableData);
    }
 
    @Test
