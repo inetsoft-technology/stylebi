@@ -15,12 +15,21 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
+<ng-template #hiddenTooltip>
+  <div class="compact-p">
+    @for (card of cards; track $index) {
+      <div [ngClass]="tooltipClass"
+           [style.background-color]="card.fill"
+           [style.color]="card.color"
+           [innerHTML]="card.html"></div>
+    }
+  </div>
+</ng-template>
 @if (content) {
   <div
     class="vs-annotation__hidden-icon"
     (click)="toggleAnnotationStatus()"
-    [wTooltip]="content"
-    [tooltipCSS]="tooltipClass">
+    [wTooltip]="hiddenTooltip">
     @if (!transcluded) {
       <span
         class="annotation-icon"

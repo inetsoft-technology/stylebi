@@ -15,10 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { NgClass } from "@angular/common";
 import { ChangeDetectionStrategy, Component, ContentChild, Input } from "@angular/core";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ToggleAnnotationStatusEvent } from "../../event/annotation/toggle-annotation-status-event";
 import { VSAnnotationModel } from "../../model/annotation/vs-annotation-model";
+import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
+import { annotationTooltipColor, annotationTooltipFill } from "./annotation-tooltip-style";
 import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 
 
@@ -27,27 +30,42 @@ import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
     templateUrl: "vs-hidden-annotation.component.html",
     styleUrls: ["vs-hidden-annotation.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TooltipDirective]
+    imports: [TooltipDirective, NgClass]
 })
 export class VSHiddenAnnotation {
    @Input()
    set annotations(annotations: VSAnnotationModel[]) {
-      this.content = annotations &&
-         annotations.filter((annotation) => annotation != null)
-                    .filter((annotation) => annotation.hidden)
-                    .map((annotation) => annotation.contentModel.content)
-                    .join("\n");
+      const hidden = (annotations || [])
+         .filter((annotation) => annotation != null)
+         .filter((annotation) => annotation.hidden);
+
+      // the icon is shown only when there is content to show
+      this.content = hidden.map((annotation) => annotation.contentModel.content).join("\n");
+
+      // one card per annotation: trusted content keeps the author's inline colors, drawn on the
+      // annotation's own fill (a joined string has no single fill)
+      this.cards = hidden.map((annotation) => {
+         const fill = annotationTooltipFill(annotation);
+         return {
+            html: this.domSanitizer.bypassSecurityTrustHtml(annotation.contentModel.content),
+            fill: fill,
+            color: annotationTooltipColor(fill)
+         };
+      });
    }
 
    @ContentChild("customIcon") transcluded: any;
 
    public content: string;
+   public cards: { html: SafeHtml, fill: string, color: string }[] = [];
 
-   constructor(protected viewsheetClient: ViewsheetClientService) {
+   constructor(protected viewsheetClient: ViewsheetClientService,
+               private domSanitizer: DomSanitizer)
+   {
    }
 
    get tooltipClass(): string[] {
-      return ["hidden__annotation-tooltip", "compact-p", "bg-white-inet"];
+      return ["hidden__annotation-tooltip", "compact-p"];
    }
 
    /**
