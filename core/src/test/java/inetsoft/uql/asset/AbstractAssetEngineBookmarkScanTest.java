@@ -166,6 +166,36 @@ class AbstractAssetEngineBookmarkScanTest {
       assertEquals(List.of(id("alice")), engine.getBookmarkUsers(outside));
    }
 
+   @Test
+   void aFolderDeleteThatFailsMidwayDoesNotLeaveItsIndexOnTheThread() throws Exception {
+      AssetEntry folder = addFolder(prefix + "folder");
+      AssetEntry dash1 = addSheet(folder, prefix + "d1");
+      AssetEntry dash2 = addSheet(folder, prefix + "d2");
+      addBookmark(dash1, id("alice"));
+      addBookmark(dash2, id("alice"));
+      AssetEntry outside = addSheet(null, prefix + "outside");
+      addBookmark(outside, id("alice"));
+      engine.failOn = dash2.getPath();
+
+      assertThrows(Exception.class, () -> engine.removeFolder0(folder, storage, true));
+
+      // a bookmark added after the failed delete must be seen by the next lookup, which
+      // happens only if the thread-local index was dropped
+      addBookmark(outside, id("bob"));
+      storage.scans.set(0);
+      List<IdentityID> expected = new ArrayList<>(List.of(id("alice"), id("bob")));
+      Collections.sort(expected);
+
+      assertEquals(expected, engine.getBookmarkUsers(outside));
+      assertEquals(1, storage.scans.get());
+
+      // and the next folder delete builds a fresh index
+      engine.failOn = null;
+      addBookmark(dash2, id("carol"));
+      engine.removeFolder0(folder, storage, true);
+      assertTrue(engine.getBookmarkUsers(dash2).isEmpty());
+   }
+
    private IdentityID id(String name) {
       return new IdentityID(name, orgId);
    }
@@ -225,6 +255,19 @@ class AbstractAssetEngineBookmarkScanTest {
          scopes = new int[] { GLOBAL_SCOPE, REPORT_SCOPE, USER_SCOPE };
          Arrays.sort(scopes);
       }
+
+      @Override
+      protected void removeSheet0(AssetEntry entry, IndexedStorage storage, boolean isFolder)
+         throws Exception
+      {
+         if(failOn != null && failOn.equals(entry.getPath())) {
+            throw new Exception("injected failure");
+         }
+
+         super.removeSheet0(entry, storage, isFolder);
+      }
+
+      volatile String failOn;
 
       @Override
       public boolean checkPermission(Principal principal, ResourceType type, String resource,
