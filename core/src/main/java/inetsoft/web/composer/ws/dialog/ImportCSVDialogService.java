@@ -436,7 +436,14 @@ public class ImportCSVDialogService {
       return oldTypes;
    }
 
-   private int getMaxRow(boolean isNewTable, EmbeddedTableAssembly assembly, boolean isHeader) {
+   /**
+    * The most data rows an import may load: the organization's max row setting when set,
+    * otherwise 10000 for a replace of a non-snapshot embedded table and unlimited ({@code -1})
+    * for a new table or a snapshot. Shared with the agent import so both enforce the same cap.
+    */
+   public static int getMaxRow(boolean isNewTable, EmbeddedTableAssembly assembly,
+                               boolean isHeader)
+   {
       if(Util.getOrganizationMaxRow() > 0) {
          return isHeader ? Util.getOrganizationMaxRow() + 1 : Util.getOrganizationMaxRow();
       }

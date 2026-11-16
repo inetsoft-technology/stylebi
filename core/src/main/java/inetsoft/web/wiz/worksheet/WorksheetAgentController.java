@@ -86,6 +86,7 @@ import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.WSCollectVariablesCommand;
 import inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy;
+import inetsoft.web.composer.ws.dialog.ImportCSVDialogService;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -3403,6 +3404,21 @@ public class WorksheetAgentController {
    }
 
    /**
+    * The row limit a replace of {@code tableName} is held to: the Composer's own
+    * {@link ImportCSVDialogService#getMaxRow}, or 0 (no limit) when the target is unlimited or is
+    * not an embedded table, which {@link #replaceEmbeddedTable} then refuses by name.
+    */
+   private int replaceRowLimit(String sessionToken, Principal user, String tableName,
+                               boolean firstRowAsHeader)
+      throws Exception
+   {
+      int limit = editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws ->
+         rws.getWorksheet().getAssembly(tableName) instanceof EmbeddedTableAssembly assembly
+            ? ImportCSVDialogService.getMaxRow(false, assembly, firstRowAsHeader) : 0);
+      return Math.max(limit, 0);
+   }
+
+   /**
     * The one CSV import path, shared by both transports.
     *
     * <p>Delegates to {@link CSVLoader#readCSV}, the same loader the Composer's own import dialog
@@ -3424,6 +3440,10 @@ public class WorksheetAgentController {
       throws Exception
    {
       requireNotBothNameAndReplaceTarget(name, replaceTable);
+
+      // A replace is capped like the Composer's Import Data File caps it; a new table is not.
+      int replaceRowLimit = replaceTable != null && !replaceTable.isBlank()
+         ? replaceRowLimit(sessionToken, user, replaceTable, settings.firstRowAsHeader()) : 0;
 
       boolean wantsStringColumns = (stringColumns != null && !stringColumns.isEmpty())
          || (stringColumnIndexes != null && !stringColumnIndexes.isEmpty());
@@ -3483,8 +3503,24 @@ public class WorksheetAgentController {
          XSwappableTable loaded = CSVLoader.readCSV(
             temp, settings.encoding(), settings.removeQuotes(), settings.delimiter(),
             settings.firstRowAsHeader(), settings.unpivot(), oldTypes, types,
-            settings.detectType(), null, CSV_TYPE_SCAN_ROWS, 0,
+            settings.detectType(), null, CSV_TYPE_SCAN_ROWS,
+            // One row past the limit, so a file that exceeds it is told apart from one that
+            // holds exactly the limit.
+            replaceRowLimit > 0 ? replaceRowLimit + 1 : 0,
             Util.getOrganizationMaxColumn(), parseInfo);
+
+         // Row 0 of the loaded table is the header; the data rows follow it.
+         if(loaded != null && replaceRowLimit > 0 && loaded.getRowCount() - 1 > replaceRowLimit) {
+            loaded.dispose();
+
+            throw new ResponseStatusException(
+               HttpStatus.BAD_REQUEST,
+               "Replacing table '" + replaceTable + "' is refused: the file has more than " +
+               replaceRowLimit + " data rows, the most a replace may import (the Composer's " +
+               "Import Data File truncates a replace at the same limit). The table is " +
+               "unchanged. Import the file as a new table (omit replaceTable) to keep every " +
+               "row, or split the file.");
+         }
 
          if(loaded == null || loaded.getRowCount() < 2) {
             if(loaded != null) {
