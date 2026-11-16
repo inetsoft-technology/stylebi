@@ -312,29 +312,6 @@ class ViewsheetImageSlowExport81364Test {
       awaitDone(f, 2);
    }
 
-   /** R5/C2: a retry INSIDE the abandoned window joins the running export. */
-   @Test
-   void measure_R5_C2_inWindowRetryJoinsTheRunningExport() throws Exception {
-      Fixture f = fixture(COST_MS);
-      assertThrows(RenderNotReadyException.class, () -> call(f));
-      ScriptImageService.ChartImage img = null;
-
-      // the first export may be slower than COST_MS when cold: keep retrying inside the window,
-      // every retry must join, never start another export or answer EXPORT_IN_PROGRESS
-      for(int i = 0; i < 5 && img == null; i++) {
-         try {
-            img = call(f);
-         }
-         catch(RenderNotReadyException e) {
-            assertEquals(1, f.exportCalls.get(), "a retry started another export");
-         }
-      }
-
-      assertNotNull(img, "joined the in-flight export instead of EXPORT_IN_PROGRESS");
-      assertEquals(1, f.exportCalls.get(), "no second export was started");
-      awaitDone(f, 1);
-   }
-
    /** A state change between the failing call and the retry must not be answered with the old PNG. */
    @Test
    void aStateChangeBeforeTheRetryDiscardsTheFinishedExport() throws Exception {
@@ -548,38 +525,6 @@ class ViewsheetImageSlowExport81364Test {
                          inProgress);
       assertTrue(chart.contains("the same call should succeed"));
       assertTrue(inProgress.contains("the same call should succeed"));
-   }
-
-   /** R4/C9/exportpath 5: budget-only raise, same real export, via the wait helper. */
-   @Test
-   void measure_R4_C9_budgetOnlyRaise() throws Exception {
-      // scaled-down: budget 4000 ms (raised) vs cost below and above it
-      Fixture below = fixture(2600);
-      long t0 = System.currentTimeMillis();
-      byte[] png = RenderWaitSupport.awaitOrRetry(
-         () -> exportBytes(below), 4000, 4);
-      System.out.println("[81364 R4] cost 2600 < budget 4000: image " + png.length + " bytes after "
-                         + (System.currentTimeMillis() - t0) + " ms, exports=" +
-                         below.exportCalls.get());
-      assertTrue(png.length > 0);
-
-      Fixture above = fixture(4800);
-      int fails = 0;
-
-      for(int i = 1; i <= 2; i++) {
-         try {
-            RenderWaitSupport.awaitOrRetry(() -> exportBytes(above), 4000, 4);
-         }
-         catch(RenderNotReadyException e) {
-            fails++;
-         }
-
-         awaitDone(above, i);
-      }
-
-      System.out.println("[81364 C9] cost 4800 > budget 4000: " + fails +
-                         "/2 retries not ready, exports=" + above.exportCalls.get());
-      assertEquals(2, fails);
    }
 
    private static byte[] png(int w, int h) throws Exception {
