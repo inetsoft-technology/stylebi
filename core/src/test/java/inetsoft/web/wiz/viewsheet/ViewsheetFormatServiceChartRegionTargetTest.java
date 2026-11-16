@@ -42,6 +42,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -332,5 +333,113 @@ class ViewsheetFormatServiceChartRegionTargetTest {
                                 any(), anyString());
 
       assertNull(captor.getValue().getIndexes()[0]);
+   }
+
+   private static ChartRegionResolver.Legends legendsOf(int count, boolean measured) {
+      List<ChartRegionResolver.LegendTarget> list = new java.util.ArrayList<>();
+
+      for(int i = 0; i < count; i++) {
+         list.add(new ChartRegionResolver.LegendTarget("F" + i, "Color", List.of(), false));
+      }
+
+      return new ChartRegionResolver.Legends(list, measured);
+   }
+
+   /** Bug #81456: a chart that renders no legend (funnel, waterfall, radar) refuses the write. */
+   @ParameterizedTest
+   @org.junit.jupiter.params.provider.ValueSource(strings = { "legendTitle", "legendContent" })
+   void setFormatRefusesALegendTargetOnAChartWithNoLegend(String target) throws Exception {
+      RuntimeViewsheet rvs = rvsWith("Chart1", chart());
+      ViewsheetSessionService sessions = sessionsFor(rvs);
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      try(MockedStatic<ChartRegionResolver> resolver = mockStatic(ChartRegionResolver.class)) {
+         resolver.when(() -> ChartRegionResolver.legends(any(), any()))
+            .thenReturn(legendsOf(0, true));
+         resolver.when(() -> ChartRegionResolver.hiddenLegends(any(), any()))
+            .thenReturn(ChartVisibilityState.HiddenLegends.NONE);
+
+         IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter),
+                                             mock(CalcTableService.class), null)
+               .setFormat("tok", principal(), request(target), ""));
+
+         assertTrue(e.getMessage().contains("'" + target + "'") &&
+                    e.getMessage().contains("renders no legend") &&
+                    e.getMessage().contains("'Chart1'"), e.getMessage());
+      }
+
+      verify(sessions, never()).mutate(anyString(), any(java.security.Principal.class), any());
+      verifyNoInteractions(painter);
+   }
+
+   @Test
+   void setFormatStillWritesALegendTargetWhenTheChartRendersALegend() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      try(MockedStatic<ChartRegionResolver> resolver = mockStatic(ChartRegionResolver.class)) {
+         resolver.when(() -> ChartRegionResolver.legends(any(), any()))
+            .thenReturn(legendsOf(1, true));
+
+         FormatVSObjectEvent event = write(rvsWith("Chart1", chart()), painter, "legendTitle");
+
+         assertArrayEquals(new String[]{ ChartFormatConstants.LEGEND_TITLE }, event.getRegions());
+      }
+   }
+
+   /** Switched-off legends keep their format on the descriptors, so the write is let through. */
+   @Test
+   void setFormatStillWritesALegendTargetWhenTheLegendsAreHidden() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      ChartVisibilityState.HiddenLegends hidden = mock(ChartVisibilityState.HiddenLegends.class);
+      when(hidden.any()).thenReturn(true);
+
+      try(MockedStatic<ChartRegionResolver> resolver = mockStatic(ChartRegionResolver.class)) {
+         resolver.when(() -> ChartRegionResolver.legends(any(), any()))
+            .thenReturn(legendsOf(0, true));
+         resolver.when(() -> ChartRegionResolver.hiddenLegends(any(), any())).thenReturn(hidden);
+
+         FormatVSObjectEvent event = write(rvsWith("Chart1", chart()), painter, "legendTitle");
+
+         assertArrayEquals(new String[]{ ChartFormatConstants.LEGEND_TITLE }, event.getRegions());
+      }
+   }
+
+   private static void assertRegionWriteRefused(String region, Integer index, String expected)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = rvsWith("Chart1", chart());
+      ViewsheetSessionService sessions = sessionsFor(rvs);
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      try(MockedStatic<ChartRegionResolver> resolver = mockStatic(ChartRegionResolver.class)) {
+         resolver.when(() -> ChartRegionResolver.legends(any(), any()))
+            .thenReturn(legendsOf(region.equals("legend_content") ? 1 : 0, true));
+         resolver.when(() -> ChartRegionResolver.hiddenLegends(any(), any()))
+            .thenReturn(ChartVisibilityState.HiddenLegends.NONE);
+
+         IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter),
+                                             mock(CalcTableService.class), null)
+               .setChartRegionFormat("tok", principal(),
+                  new ViewsheetFormatService.ChartRegionFormatRequest(
+                     "Chart1", region, null, null, index, red(), false), ""));
+
+         assertTrue(e.getMessage().contains(expected), e.getMessage());
+      }
+
+      verifyNoInteractions(painter);
+   }
+
+   @Test
+   void setChartRegionFormatRefusesLegendTitleOnAChartWithNoLegend() throws Exception {
+      assertRegionWriteRefused("legend_title", null, "renders no legend");
+   }
+
+   @Test
+   void setChartRegionFormatRefusesALegendContentIndexPastTheRenderedLegends() throws Exception {
+      assertRegionWriteRefused("legend_content", 3, "legend index 3 is out of range");
    }
 }

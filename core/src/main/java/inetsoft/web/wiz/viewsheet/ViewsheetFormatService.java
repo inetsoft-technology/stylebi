@@ -997,6 +997,64 @@ public class ViewsheetFormatService {
    }
 
    /**
+    * Refuses a legend format write on a chart that renders no legend at all (funnel, waterfall,
+    * radar, or any chart without an aesthetic binding), or, for a legend index, one past the
+    * legends the chart renders. Without this the write is accepted, applies to nothing and is
+    * reported as success (bug #81456).
+    *
+    * <p>Only a positive answer refuses: a chart with no laid-out graph yet ({@code measured} is
+    * false) is let through as before, and so is a chart whose legends are switched off, because
+    * their format is still stored on the descriptors. Reuses {@link ChartRegionResolver}, the
+    * answer {@code set_chart_region_properties} already refuses a legend index against.
+    *
+    * @param index the 0-based legend index, or null when the write addresses every legend
+    */
+   private static void requireRenderedLegend(RuntimeViewsheet rvs, ChartVSAssembly chart,
+                                             String assembly, String tool, String what,
+                                             Integer index)
+   {
+      ChartRegionResolver.Legends legends = ChartRegionResolver.legends(rvs, chart);
+
+      if(!legends.measured()) {
+         return;
+      }
+
+      int count = legends.count();
+
+      if(count > 0 && (index == null || index < count)) {
+         return;
+      }
+
+      if(ChartRegionResolver.hiddenLegends(rvs, chart).any()) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         tool + ": " + what + " needs a rendered legend, but " + (count == 0
+            ? "chart '" + assembly + "' renders no legend"
+            : "chart '" + assembly + "' renders " + count + " legend(s), so legend index " +
+              index + " is out of range") +
+         ". A legend exists per aesthetic field bound to the chart (get_chart_aesthetics shows " +
+         "which, list_chart_elements lists the rendered legends). The request was not applied.");
+   }
+
+   /** {@code legendTitle}/{@code legendContent} on charts that render no legend. */
+   private static void refuseLegendTargetWithoutLegend(RuntimeViewsheet rvs, List<String> names,
+                                                       String target)
+   {
+      if(rvs == null || rvs.getViewsheet() == null) {
+         return;
+      }
+
+      for(String name : names) {
+         if(rvs.getViewsheet().getAssembly(name) instanceof ChartVSAssembly chart) {
+            requireRenderedLegend(rvs, chart, name, "set_format",
+                                  "target '" + chartRegionDisplayName(target) + "'", null);
+         }
+      }
+   }
+
+   /**
     * {@code optionText} writes the one detail-row format path a CheckBox/RadioButton's option
     * labels all share today; any other assembly has no such path.
     */
@@ -1246,6 +1304,22 @@ public class ViewsheetFormatService {
       return new ChartRegion(painterRegion, column, index);
    }
 
+   /** A legend region write needs a rendered legend (and, for content, an in-range index). */
+   private static void requireLegendForRegion(RuntimeViewsheet rvs, ChartRegionFormatRequest r,
+                                              ChartRegion region)
+   {
+      boolean title = ChartFormatConstants.LEGEND_TITLE.equals(region.painterRegion());
+
+      if(!title && !ChartFormatConstants.LEGEND_CONTENT.equals(region.painterRegion())) {
+         return;
+      }
+
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly(r.assembly());
+      requireRenderedLegend(rvs, chart, r.assembly(), "set_chart_region_format",
+                            "region '" + (title ? "legend_title" : "legend_content") + "'",
+                            title ? null : region.index());
+   }
+
    private static boolean isSecondaryY(ChartRef ref) {
       return ref instanceof ChartAggregateRef agg && agg.isSecondaryY();
    }
@@ -1321,6 +1395,7 @@ public class ViewsheetFormatService {
       List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId,
                                                                           dispatcher) -> {
          ChartRegion region = resolveChartRegion(rvs, request);
+         requireLegendForRegion(rvs, request, region);
          FormatVSObjectEvent event = new FormatVSObjectEvent();
          VSObjectFormatInfoModel model = request.format();
          event.setFormat(model == null ? new VSObjectFormatInfoModel() : model);
@@ -1427,6 +1502,10 @@ public class ViewsheetFormatService {
 
          if(AXIS_LABEL2.equals(target)) {
             refuseAxisLabel2WithoutSecondaryAxis(resolved, request.assemblies());
+         }
+
+         if(LEGEND_TITLE_TARGET.equals(target) || LEGEND_CONTENT_TARGET.equals(target)) {
+            refuseLegendTargetWithoutLegend(resolved, request.assemblies(), target);
          }
       }
 
