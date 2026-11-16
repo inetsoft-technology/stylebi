@@ -3146,22 +3146,35 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void setObject(AssetEntry entry, XMLSerializable obj, boolean fireEvent) {
       try {
-         AssetFolder root = getRoot(entry.getOrgID());
+         // Bug #81435, the root is read, changed and written back under the cluster lock
+         Lock lock = lockRoot();
 
-         if(root != null && root.containsEntry(entry)) {
-            entry = root.getEntry(entry);
-            root.removeEntry(entry);
+         try {
+            AssetFolder root = getFreshRoot();
+
+            if(root != null && root.containsEntry(entry)) {
+               entry = root.getEntry(entry);
+               root.removeEntry(entry);
+            }
+
+            AssetUtil.updateMetaData(
+               entry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
+
+            if(root != null) {
+               root.addEntry(entry);
+               setRoot(root);
+            }
+
+            indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
+         }
+         catch(Exception | Error e) {
+            dropCachedRoot();
+            throw e;
+         }
+         finally {
+            unlockRoot(lock);
          }
 
-         AssetUtil.updateMetaData(
-            entry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
-
-         if(root != null) {
-            root.addEntry(entry);
-            setRoot(root);
-         }
-
-         indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
          clearCache2();
          sendClearDataSourceCacheEvent();
 
@@ -3638,33 +3651,21 @@ public class DataSourceRegistry implements MessageListener {
     * is restored too.
     */
    private void updateRoot(List<AssetEntry> removed, List<AssetEntry> added) throws Exception {
-      AssetFolder root = getRoot();
-      Map<AssetEntry, AssetEntry> previous = new HashMap<>();
-
-      for(AssetEntry entry : removed) {
-         previous.put(entry, root.getEntry(entry));
-      }
-
-      for(AssetEntry entry : added) {
-         previous.put(entry, root.getEntry(entry));
-      }
-
-      removed.forEach(root::removeEntry);
-      added.forEach(root::addEntry);
+      Lock lock = lockRoot();
 
       try {
+         AssetFolder root = getFreshRoot();
+
+         removed.forEach(root::removeEntry);
+         added.forEach(root::addEntry);
          setRoot(root);
       }
-      catch(Exception e) {
-         previous.forEach((entry, stored) -> {
-            root.removeEntry(entry);
-
-            if(stored != null) {
-               root.addEntry(stored);
-            }
-         });
-
+      catch(Exception | Error e) {
+         dropCachedRoot();
          throw e;
+      }
+      finally {
+         unlockRoot(lock);
       }
    }
 
@@ -3950,10 +3951,22 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void removeObject(AssetEntry entry) {
       try {
-         AssetFolder root = getRoot();
-         root.removeEntry(entry);
-         setRoot(root);
-         indexedStorage.remove(entry.toIdentifier(), true);
+         Lock lock = lockRoot();
+
+         try {
+            AssetFolder root = getFreshRoot();
+            root.removeEntry(entry);
+            setRoot(root);
+            indexedStorage.remove(entry.toIdentifier(), true);
+         }
+         catch(Exception | Error e) {
+            dropCachedRoot();
+            throw e;
+         }
+         finally {
+            unlockRoot(lock);
+         }
+
          clearCache2();
          sendClearDataSourceCacheEvent();
 
@@ -3980,18 +3993,36 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void removeObjects(AssetEntry[] entries) {
       try {
-         AssetFolder root = getRoot();
+         Lock lock = lockRoot();
 
-         for(AssetEntry entry : entries) {
-            root.removeEntry(entry);
-            indexedStorage.remove(entry.toIdentifier(), true);
-            Resource resource = AssetUtil.getSecurityResource(entry);
-            updatePermission(resource.getType(), resource.getPath(), null);
-            clearCache2();
+         try {
+            AssetFolder root = getFreshRoot();
+
+            for(AssetEntry entry : entries) {
+               root.removeEntry(entry);
+            }
+
+            setRoot(root);
+
+            for(AssetEntry entry : entries) {
+               indexedStorage.remove(entry.toIdentifier(), true);
+            }
+         }
+         catch(Exception | Error e) {
+            dropCachedRoot();
+            throw e;
+         }
+         finally {
+            unlockRoot(lock);
          }
 
+         for(AssetEntry entry : entries) {
+            Resource resource = AssetUtil.getSecurityResource(entry);
+            updatePermission(resource.getType(), resource.getPath(), null);
+         }
+
+         clearCache2();
          sendClearDataSourceCacheEvent();
-         setRoot(root);
       }
       catch(Exception e) {
          LOG.error(
@@ -4175,7 +4206,17 @@ public class DataSourceRegistry implements MessageListener {
          initLastModified();
 
          if(!indexedStorage.contains(getRootIdentifier())) {
-            setRoot(new AssetFolder());
+            Lock lock = lockRoot();
+
+            try {
+               // another node may have created the root while waiting for the lock
+               if(!indexedStorage.contains(getRootIdentifier())) {
+                  setRoot(new AssetFolder());
+               }
+            }
+            finally {
+               unlockRoot(lock);
+            }
          }
       }
       finally {
@@ -4183,6 +4224,57 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       reportDataSourcePathClashes();
+   }
+
+   /**
+    * Locks the registry root of the current organization across the cluster. Bug #81435, the root
+    * is read, changed and written back as a whole and each node has its own cache, so changes
+    * made on two nodes at the same time dropped one of them. Like
+    * {@code AbstractAssetEngine.lockWrite}, the lock is reentrant and is only taken around the
+    * root and object writes, never around listeners, permission or message calls.
+    *
+    * @return the locked lock, or {@code null} if there is no cluster (tests).
+    */
+   private Lock lockRoot() {
+      if(cluster == null) {
+         return null;
+      }
+
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      Lock lock = cluster.getLock(
+         DataSourceRegistry.class.getName() + ".root." + (orgId == null ? "" : orgId.toLowerCase()));
+      lock.lock();
+      return lock;
+   }
+
+   private void unlockRoot(Lock lock) {
+      if(lock != null) {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Reads the root straight from the storage, to change it under the root lock. The cache can
+    * hold a root that another node has replaced, and the cached instance must not be changed
+    * before it is stored.
+    */
+   private AssetFolder getFreshRoot() throws Exception {
+      try {
+         return (AssetFolder) indexedStorage.getXMLSerializable(getRootIdentifier(), null);
+      }
+      finally {
+         indexedStorage.close();
+      }
+   }
+
+   /**
+    * Drops the cached root, after a change of it failed.
+    */
+   private void dropCachedRoot() {
+      AssetEntry entry = getRootEntry();
+      cachemap.remove(entry);
+      entry.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
+      cachemap.remove(entry);
    }
 
    /**
