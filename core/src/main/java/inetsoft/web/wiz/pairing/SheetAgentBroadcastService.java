@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.uql.asset.AbstractTableAssembly;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.WSAssembly;
 import inetsoft.uql.asset.Worksheet;
@@ -65,6 +66,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class SheetAgentBroadcastService {
@@ -885,6 +887,7 @@ public class SheetAgentBroadcastService {
       }
 
       List<WSAssemblyModel> models = new ArrayList<>();
+      long deadline = System.currentTimeMillis() + BROADCAST_BUDGET_MS;
 
       for(Assembly a : ws.getAssemblies()) {
          if(!(a instanceof WSAssembly wsAssembly) || !wsAssembly.isVisible())
@@ -893,7 +896,7 @@ public class SheetAgentBroadcastService {
          }
 
          try {
-            models.add(WSAssemblyModelFactory.createModelFrom(wsAssembly, rws, principal));
+            models.add(buildModel(wsAssembly, rws, principal, deadline));
          }
          catch(Exception e) {
             LOG.warn("Failed to build assembly model for broadcast (assembly={})", a.getName(), e);
@@ -901,6 +904,59 @@ public class SheetAgentBroadcastService {
       }
 
       return RefreshWorksheetCommand.builder().assemblies(models).build();
+   }
+
+   /**
+    * Bug #81415: builds one assembly's model for the refresh, never holding the caller (the HTTP
+    * request thread of the edit) longer than the broadcast budget.
+    *
+    * <p>A table's model is built by executing the table, and a table downstream of an assembly
+    * that needs script evaluation (a mirror, join, ... of a table with a script expression
+    * column) runs that script right there. So a table gets {@link #TABLE_BUDGET_MS} of the shared
+    * {@link #BROADCAST_BUDGET_MS} to build live. A table that does not finish in time, is still
+    * building from an earlier edit, or finds the shared budget spent, is still sent: its model is
+    * built from the definition alone, without row count or column infos, which the next read of
+    * the table fills in. Healthy tables keep both; only a slow one degrades. Other assemblies
+    * never execute anything.</p>
+    */
+   private WSAssemblyModel buildModel(WSAssembly assembly, RuntimeWorksheet rws,
+                                      Principal principal, long deadline)
+      throws Exception
+   {
+      if(!(assembly instanceof AbstractTableAssembly)) {
+         return modelFactory.create(assembly, rws, principal, true);
+      }
+
+      long budget = Math.min(TABLE_BUDGET_MS, deadline - System.currentTimeMillis());
+
+      if(budget > 0) {
+         Optional<WSAssemblyModel> live = InFlightModelBuild.run(
+            rws, assembly.getName(), () -> modelFactory.create(assembly, rws, principal, true),
+            budget);
+
+         if(live.isPresent()) {
+            return live.get();
+         }
+      }
+
+      LOG.warn("Table '{}' did not finish within the refresh budget; sending it without row " +
+               "count and column infos", assembly.getName());
+      return modelFactory.create(assembly, rws, principal, false);
+   }
+
+   /**
+    * Builds a worksheet assembly's model; {@code liveMetadata} false keeps a table from being
+    * executed. Replaceable only so a test can control how long a build takes.
+    */
+   @FunctionalInterface
+   interface ModelFactory {
+      WSAssemblyModel create(WSAssembly assembly, RuntimeWorksheet rws, Principal principal,
+                             boolean liveMetadata)
+         throws Exception;
+   }
+
+   void setModelFactory(ModelFactory modelFactory) {
+      this.modelFactory = modelFactory;
    }
 
    /**
@@ -923,6 +979,20 @@ public class SheetAgentBroadcastService {
       return name;
    }
 
+   /**
+    * How long one refresh broadcast may spend building table models live. Well under the 120 s the
+    * Composer plugin waits for an edit, and well above what an ordinary worksheet needs. Non-final solely so a unit test can
+    * shrink it.
+    */
+   static long BROADCAST_BUDGET_MS = 30_000L;
+
+   /**
+    * How long one table may take of {@link #BROADCAST_BUDGET_MS}, so a single slow table cannot
+    * starve the tables after it. Non-final solely so a unit test can shrink it.
+    */
+   static long TABLE_BUDGET_MS = 15_000L;
+
+   private volatile ModelFactory modelFactory = WSAssemblyModelFactory::createModelFrom;
    private final CommandDispatcherService commandDispatcherService;
    private final VSObjectModelFactoryService vsObjectModelFactoryService;
    private final VSBindingTreeService vsBindingTreeService;

@@ -51,6 +51,24 @@ public class TableAssemblyModelFactory {
    public static TableAssemblyModel createModelFrom(AbstractTableAssembly assembly,
                                                     RuntimeWorksheet rws, Principal principal)
    {
+      return createModelFrom(assembly, rws, principal, true);
+   }
+
+   /**
+    * Builds the table's model.
+    *
+    * @param liveMetadata true to execute the table for its row count and column infos (what every
+    *                     caller needs by default). False builds the model from the table
+    *                     definition alone: the table is never executed, so the row count is
+    *                     unknown ({@code rowsCompleted} false) and the column infos are empty.
+    *                     A table downstream of a script-evaluating assembly runs that script on
+    *                     the calling thread when executed, which a caller that must answer within
+    *                     a deadline cannot afford.
+    */
+   public static TableAssemblyModel createModelFrom(AbstractTableAssembly assembly,
+                                                    RuntimeWorksheet rws, Principal principal,
+                                                    boolean liveMetadata)
+   {
       final TableAssemblyModel table;
 
       if(assembly instanceof ConcatenatedTableAssembly) {
@@ -75,9 +93,23 @@ public class TableAssemblyModelFactory {
          table = new TableAssemblyModel(assembly, rws);
       }
 
-      setTableLensMetaData(assembly, rws, table);
+      if(liveMetadata) {
+         setTableLensMetaData(assembly, rws, table);
+      }
+      else {
+         table.setRowsCompleted(false);
+         table.setHasMaxRow(AssetEventUtil.hasMaxRowSetting(assembly));
+      }
+
       setAssemblyInfo(assembly, table, principal);
-      setColumnInfos(assembly, rws, table);
+
+      if(liveMetadata) {
+         setColumnInfos(assembly, rws, table);
+      }
+      else {
+         table.setColInfos(new ArrayList<>());
+      }
+
       setTooltipContainer(assembly, table);
       setColumnTypeEnabled(assembly, table);
       setAggregateInfo(assembly, table);
