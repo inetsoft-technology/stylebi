@@ -154,4 +154,15 @@ public class ImageVSAScriptableTest {
       imageVSAScriptable.setImage(image);
       assertEquals(image, imageVSAScriptable.getImage());
    }
+
+   @Test
+   void popAlphaScriptValueIsRevertedToDesignValueOnReset() {
+      imageVSAssemblyInfo.setAlphaValue("30");
+      imageVSAssemblyInfo.setAlpha("70");
+      assertEquals("70", imageVSAssemblyInfo.getAlpha());
+
+      imageVSAssemblyInfo.resetRuntimeValues();
+
+      assertEquals("30", imageVSAssemblyInfo.getAlpha());
+   }
 }

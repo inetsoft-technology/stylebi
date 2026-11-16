@@ -143,14 +143,17 @@ public class MongoDataSource extends TabularDataSource<MongoDataSource> {
    public String[] getDatabaseNames() {
       if(host != null) {
          try {
-            MongoClient mongoClient = getMongoClient();
-            List<String> names = new ArrayList<>();
+            // this client is not pooled, so it must be closed to release its sockets
+            // and monitor threads
+            try(MongoClient mongoClient = getMongoClient()) {
+               List<String> names = new ArrayList<>();
 
-            for(String name : mongoClient.listDatabaseNames()) {
-               names.add(name);
+               for(String name : mongoClient.listDatabaseNames()) {
+                  names.add(name);
+               }
+
+               return names.toArray(new String[0]);
             }
-
-            return names.toArray(new String[0]);
          }
          catch(Exception ex) {
             LOG.warn("Failed to connect to MongoDB: " + host + ":" + port, ex);

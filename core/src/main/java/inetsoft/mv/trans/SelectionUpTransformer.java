@@ -613,14 +613,13 @@ public final class SelectionUpTransformer extends AbstractTransformer {
          swrapper = tbl.getPostRuntimeConditionList();
          wrapper = mergeConditions(ptbl, tbl.getName(), swrapper, wrapper, desc);
          ptbl.setPreRuntimeConditionList(wrapper);
-         tbl.setPreRuntimeConditionList(null);
-         tbl.setPostRuntimeConditionList(null);
+         // do not clear tbl's runtime conditions here: tbl may have several parents and each
+         // one must receive them. transform() clears them after all parents are processed.
 
          wrapper = ptbl.getRankingRuntimeConditionList();
          swrapper = tbl.getRankingRuntimeConditionList();
          wrapper = mergeConditions(ptbl, tbl.getName(), swrapper, wrapper, desc);
          ptbl.setRankingRuntimeConditionList(wrapper);
-         tbl.setRankingRuntimeConditionList(null);
 
          // merge sub table's mv update pre/post and parent table's mv update
          // pre conditions together

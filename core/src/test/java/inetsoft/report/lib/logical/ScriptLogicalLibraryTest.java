@@ -56,6 +56,32 @@ class ScriptLogicalLibraryTest {
    }
 
    @Test
+   void signatureForNamesThatAreSubstringsOfFunctionKeyword() {
+      for(String name : new String[] { "f", "fn", "n", "un", "ion", "unction", "function", "normal" }) {
+         String func = "function " + name + "(x, y) { return 1; }";
+         assertEquals(name + "(x, y)", ScriptEntry.builder().from(name, func).build().signature(),
+                      name);
+      }
+   }
+
+   @Test
+   void renameEntryDoesNotRewriteFunctionKeyword() {
+      for(String name : new String[] { "f", "fn", "n", "un", "ion", "unction" }) {
+         ScriptEntry old = ScriptEntry.builder()
+            .function("function " + name + "(x, y) {}").signature(name + "(x, y)").build();
+         LogicalLibraryEntry<ScriptEntry> entry = LogicalLibraryEntry.<ScriptEntry>builder()
+            .asset(old).audit(false).build();
+         assertEquals("g(x, y)", lib.renameEntry(entry, name, "g").asset().signature(), name);
+      }
+
+      // signature persisted by the buggy version still carries the keyword
+      ScriptEntry legacy = ScriptEntry.builder().function("").signature("function f(x, y)").build();
+      LogicalLibraryEntry<ScriptEntry> entry = LogicalLibraryEntry.<ScriptEntry>builder()
+         .asset(legacy).audit(false).build();
+      assertEquals("function g(x, y)", lib.renameEntry(entry, "f", "g").asset().signature());
+   }
+
+   @Test
    void renameEntryToNameWithRegexChars() {
       ScriptEntry old = ScriptEntry.builder().function("function f(x) {}").signature("f(x)").build();
       LogicalLibraryEntry<ScriptEntry> entry = LogicalLibraryEntry.<ScriptEntry>builder()
