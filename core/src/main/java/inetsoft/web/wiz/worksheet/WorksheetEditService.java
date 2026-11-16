@@ -77,6 +77,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -210,7 +212,7 @@ public class WorksheetEditService {
       // redo does not run initNewAssemblies and its refreshAssemblies can be starved again.
       initNewAssemblies(rws, before);
       rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
-      refreshAssemblies(rws);
+      editor.unrevalidatedNote = unrevalidatedNote(refreshAssemblies(rws));
 
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
    }
@@ -357,8 +359,16 @@ public class WorksheetEditService {
     * assembly is always last and so is starved by an earlier slow table. Give each assembly this
     * edit created (by object identity, so a delete-and-recreate of the same name counts) its
     * columns up front, as the Composer's join flow does. Only assemblies still empty are touched.
-    * Non-plain tables (crosstab/rotate/unpivot) are skipped because their refresh executes the
-    * source query; they stay with the budgeted loop.
+    *
+    * <p>Bug #81449: a new non-plain table (rotate/unpivot/crosstab) used to be skipped here
+    * because its refresh executes the new table's own query chain, so an earlier slow table
+    * starved it in the loop and it was left with no columns (the Composer fills them at
+    * creation). It is now initialised here too, through {@link InFlightTableRefresh} with
+    * {@code JOIN_SAME_DEFINITION}, so when this run outlives the budget the loop joins it instead
+    * of starting a second execution of the same query. Cost: an edit that creates a non-plain
+    * table over a slow source waits up to the budget below (about 1 s) longer. Caveat: the
+    * in-flight fingerprint includes the column selection, which the run fixes just before it
+    * ends, so a loop call landing in that instant sees a changed definition and restarts it.</p>
     *
     * <p>The refresh of a join walks its sources' column selections, which for a bound source can
     * reach datasource metadata, so it is bounded like the loop's: its own
@@ -376,7 +386,7 @@ public class WorksheetEditService {
       long deadline = System.currentTimeMillis() + INIT_NEW_ASSEMBLIES_BUDGET_MS;
 
       for(Assembly a : ws.getAssemblies()) {
-         if(!(a instanceof TableAssembly ta) || before.contains(a) || !ta.isPlain()) {
+         if(!(a instanceof TableAssembly ta) || before.contains(a)) {
             continue;
          }
 
@@ -398,7 +408,7 @@ public class WorksheetEditService {
          TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
 
          try {
-            RenderWaitSupport.awaitOrRetry(() -> {
+            Callable<Object> work = () -> {
                try {
                   WorksheetEventUtil.refreshColumnSelection(rws, name, false);
                }
@@ -407,7 +417,18 @@ public class WorksheetEditService {
                }
 
                return null;
-            }, remaining, 1, RenderNotReadyException.Subject.TABLE);
+            };
+
+            if(ta.isPlain()) {
+               RenderWaitSupport.awaitOrRetry(work, remaining, 1,
+                                              RenderNotReadyException.Subject.TABLE);
+            }
+            else {
+               InFlightTableRefresh.awaitOrRetry(rws, name,
+                  InFlightTableRefresh.Policy.JOIN_SAME_DEFINITION, work, remaining, 1,
+                  RenderNotReadyException.Subject.TABLE,
+                  () -> RuntimeHeartbeatKeepAlive.stop(heartbeat));
+            }
          }
          catch(RenderNotReadyException ex) {
             // still running in the background; it stops its own heartbeat when it finishes
@@ -450,14 +471,17 @@ public class WorksheetEditService {
     * skipped here is not warmed by this request, but still executes — and gets cached — on the
     * next real read that needs it.</p>
     */
-   private void refreshAssemblies(RuntimeWorksheet rws) {
+   private List<String> refreshAssemblies(RuntimeWorksheet rws) {
       Worksheet ws = rws.getWorksheet();
+      List<String> notRevalidated = new ArrayList<>();
 
       if(ws == null) {
-         return;
+         return notRevalidated;
       }
 
       long deadline = System.currentTimeMillis() + REFRESH_ASSEMBLIES_BUDGET_MS;
+      // Bug #81450: tables whose conditions were checked against a fresh selection this edit.
+      Set<String> validated = ConcurrentHashMap.newKeySet();
 
       for(Assembly a : ws.getAssemblies()) {
          if(a instanceof TableAssembly ta) {
@@ -502,6 +526,7 @@ public class WorksheetEditService {
                      // selection would make this delete conditions that are still live, and the
                      // retry wrapper only re-runs the whole block, so ordering inside it holds.
                      AssetUtil.validateConditions(ta.getColumnSelection(), ta);
+                     validated.add(name);
                      WorksheetEventUtil.loadTableData(rws, name, true, true);
                   }
                   finally {
@@ -535,6 +560,50 @@ public class WorksheetEditService {
             }
          }
       }
+
+      // Bug #81450: a table the loop did not reach (budget used up), whose refresh timed out or
+      // was joined to a running one, never had its conditions re-checked against the columns an
+      // earlier change removed. Nothing is deleted here (the selection of such a table may be
+      // stale, and validating against it would drop live conditions); the caller is told instead.
+      for(Assembly a : ws.getAssemblies()) {
+         if(a instanceof TableAssembly ta && !validated.contains(ta.getName()) &&
+            hasConditionsOrRanking(ta))
+         {
+            notRevalidated.add(ta.getName());
+         }
+      }
+
+      return notRevalidated;
+   }
+
+   private static boolean hasConditionsOrRanking(TableAssembly ta) {
+      for(ConditionListWrapper list : Arrays.asList(
+         ta.getPreConditionList(), ta.getPostConditionList(), ta.getRankingConditionList()))
+      {
+         if(list != null && list.getConditionSize() > 0) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Bug #81450: the disclosure for tables whose conditions were not re-checked after an edit, or
+    * null when there is nothing to report.
+    */
+   static String unrevalidatedNote(List<String> tables) {
+      if(tables == null || tables.isEmpty()) {
+         return null;
+      }
+
+      String names = String.join(", ", tables.stream().map(t -> "'" + t + "'").toList());
+      return "The condition/filter or ranking of table" + (tables.size() > 1 ? "s " : " ") + names +
+         " was not re-checked after this edit (the post-edit refresh ran out of time on an earlier" +
+         " slow table), so it may still refer to a column that an earlier change removed and may" +
+         " be stale. Call refresh_data on " + (tables.size() > 1 ? "each of them" : "it") +
+         " to re-check. This note appears whenever such a table exists while the refresh is" +
+         " starved, even if this edit removed no column.";
    }
 
    // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same
@@ -625,6 +694,13 @@ public class WorksheetEditService {
     * operates on the live worksheet object held by the {@link RuntimeWorksheet}.</p>
     */
    public static final class Editor {
+
+      /** Bug #81450: set by {@link #apply} after the post-edit refresh; null when nothing to report. */
+      public String unrevalidatedNote() {
+         return unrevalidatedNote;
+      }
+
+      private String unrevalidatedNote;
 
       Editor(Worksheet ws, Principal agent, SecurityEngine securityEngine,
              InnerJoinService innerJoinService, ExpressionDialogService expressionDialogService,
