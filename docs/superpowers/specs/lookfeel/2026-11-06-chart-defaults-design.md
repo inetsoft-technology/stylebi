@@ -281,7 +281,8 @@ Ruled by the owner on 2026-11-06. Each overrides the decision named. The older d
 | S3 | Legend layout | Later | S0, 80398 |
 | S4a | Corners and widths: S4-1 to S4-6, and the Gantt bar size | Later | S0, 80398. Stacked on S3 |
 | S4b | The other marks: S4-7 to S4-12 | Later | S4a |
-| S5 | Axis labels and titles | Later | S1 |
+| S5a | The label rule and compact dates: S5-1, S5-2 and facet inner axes | Later | S1. Stacked on S4b |
+| S5b | Titles, radar labels and horizontal order: S5-3 to S5-7 | Later | S5a |
 | S6 | Padding and sizing | Later | S4 for the pie ratio flag pattern |
 | S7 | Creation-time defaults | Later | 80398, for the reset path |
 | S8 | Family items | Later | S1 to S4 |
@@ -616,30 +617,94 @@ Amended 2026-11-12, after the owner reviewed S4 against the S3 head (`958852a11a
 
 ### S5. Axis labels and titles
 
+Amended 2026-11-16, after the owner reviewed S5 against the S4b head (`40f883e30b`). The owner's rulings are D69 to D82 and D86; the design calls made with them are D83 to D85 and D87 to D90 (§10). A builder check then showed that a stored date pattern could not draw, so D80 was revised to a drawing rule. Lines in this section are at `40f883e30b`. The owner compared the label rules on mock cards measured at 10px Roboto, 11 scenarios from the bundle's captures.
+
+**Facts that shape this slice.**
+- **Rotation is chosen before layout, thinning after it.**
+  - `GraphGenerator.setDefaultRotation` (`:6724`, called for X at `:2420` and for Y at `:2810`, only when the label format has no rotation) picks 0° or 90°. It compares `labels × longest label in characters` with the graph width counted in widths of "A". A facet's inner axis always rotates 90°.
+  - `DefaultAxis.removeOverlappedLabels` (`:1503`) drops overlapping labels at layout. On a category axis it tolerates some overlap (`oH = 3`, `:1610`), so long rotated text labels are not thinned: the bundle's 105 long labels "merge into a black band".
+  - On the bundle's default 400×240 card, today's rule rotates 8 short product names to 90°.
+- **The label band today** is half the coordinate size, or two thirds without truncation, and at least 50px (`DefaultAxis.getMaxLabelSize:965-1020`). Labels are cut with "..", not an ellipsis (`VLabel.getDisplayLabel:360`, `:488`).
+- **The 20% band and "about 12 characters" conflict.** At 45° a 20% band on a 400×240 card leaves about 41px of text, about 6 characters; on a 300×180 card about 3. Only an 800×480 card reaches 12. The owner ruled that a 12-character minimum wins (D70).
+- **Date formats come from the date level** (`XUtil.DEFAULT_PATTERN:6640-6654`): a month group draws "2025 Jan", a week or day "2026-01-05", a quarter "2025 Q1". The repeated year is dropped only on a continuous time axis (`TimeScale`: the Gantt and time-series dates), and only for patterns that begin with the year (`setAbbreviate:2942`, `DefaultAxis.abbreviateDate:2273`). Part levels (month of year "MMM", quarter of year "QQQ", day of week "EEE") have no year.
+- **Radar spokes.** A radar of one measure across a dimension gives every spoke the same scale (`OneVarParallelCoord.MultiScale`, "should share scale for parallel axes", `:148`). A radar of several measures gives each spoke its own range (`ParallelCoord`, one `LinearScale` per measure from `fixMScale`, `RadarGraphGenerator:134-148`).
+
+**Split (D81).** S5a covers S5-1, S5-2 and the facet inner axes, stacked on S4b. S5b covers S5-3 to S5-7, stacked on S5a. S5b's spoke labels reuse S5a's 12-character limit.
+
 | # | Item | Bundle | Where | Kind | Notes |
 |---|---|---|---|---|---|
-| S5-1 | Automatic label rule when the author has not set the rotation | C5, bar 3, Gantt 4 | Rotation: `GraphGenerator.setDefaultRotation:6501-6553` (0° or 90°; a facet's inner axis always rotates), called at `:2382` and `:2764` only when the rotation is null. Thinning: `DefaultAxis.removeOverlappedLabels:1469`. Band and truncation: `DefaultAxis.getMaxLabelSize:954-966` (half the coordinate size, or two thirds without truncation, at least 50px; pixel truncation at `:90`) | D | See "S5-1 label rule" under this table. |
-| S5-2 | Compact date labels | C5, Gantt 2 | Gantt: `GanttGraphGenerator:128-133` and `:148`, `getDefaultFormat:196-206`. The live abbreviation comes from the shared `GraphGenerator.setAbbreviate:2886-2892`; `GanttGraphGenerator:130`'s own flag is overwritten | V + D | Seed a compact date format (month names) on date axes (V). Show the year only once and drop labels that do not fit (D). The Gantt time axis keeps the density padding beyond the last date. |
-| S5-3 | An axis title longer than its axis is hidden, never cut | C6 | `VGraph.createTitle:326`, bounds in `layout0` (about `:850` and `:876`), cut in `VLabel.getDisplayLabel:360` and `truncate:441` | D | A new `TitleSpec` flag set in `getTitleSpec`. |
-| S5-4 | Point axis titles name the field, not the aggregate | point 2 | `getTitleSpec:6175` → `getRefLabel:6375` → `GraphUtil.getLabel:205` (`toView()`) | D | Only for the generated title, never for an author's text. Scatter contour already shows "Price" because its measures are not aggregated; that is not a title rule. |
-| S5-5 | Radar spoke labels name the field without the aggregate, truncated | radar 2 | Spoke values are the full measure names (`ParallelCoord.ParallelScale.initValues:126-132`), shown through the alias `TextFrame` and `setTruncate` in `RadarGraphGenerator.fixParallelCoord:204-210` | D | Change the displayed label only. The `_Parallel_Label_` values key the aliases, formats and selection (`ChartRegionHandler`, `PlotArea`, `FormatPainterService`). An author alias still shows. |
-| S5-6 | Radar scale labels on one spoke only | radar 3 | One axis per spoke (`AbstractParallelCoord.createAxis:83-92`); per-measure `labelVisible` is plain (`fixCoordProperties:2447-2463`) | D | See "S5-6 radar scale spoke" under this table. |
-| S5-7 | Horizontal bar lists the first category at the top | bar 2 | Nothing reverses it today. Precedents: `CategoricalScale.setReversed` (`GraphDefault:117-126` for Gantt, `GraphGenerator:4117`) | D | A look rule: it follows the mark, Modernize applies it and Revert undoes it. The author's sort still decides the order. Check facets and the date-comparison `setReverseLines` (`:2632`). |
+| S5-1 | Automatic label rule when the author has not set the rotation | C5, bar 3, Gantt 4, financial, line | Rotation: `GraphGenerator.setDefaultRotation:6724`. Thinning: `DefaultAxis.removeOverlappedLabels:1503`. Band and truncation: `DefaultAxis.getMaxLabelSize:965`, `VLabel.getDisplayLabel:360` | D | See "S5-1 label rule". S5a. |
+| S5-2 | Compact dates on every date axis | C5, Gantt 2 | Patterns: `XUtil.DEFAULT_PATTERN:6640-6654`, `GraphGenerator.getDefaultFormat`, `GanttGraphGenerator.getDefaultFormat:196-206`. Year dropping: `setAbbreviate:2942`, `DefaultAxis.abbreviateDate:2273`. Format resolution: `GraphUtil.getTextSpec:446-452`. Format pane default: `FormatPainterService.fixAxisDefaultFormat:1885-1899` | D | See "S5-2 compact dates". S5a. The Gantt time axis keeps the density padding beyond the last date. |
+| S5-3 | A generated axis title longer than its axis is hidden, never cut | C6 | `VGraph.createTitle:328`, bounds in `layout0` (about `:850` and `:876`), cut in `VLabel.getDisplayLabel:360` | D | A new `TitleSpec` flag, set only in the generated branch of `getTitleSpec` (`:6549` on). A typed title (`:6526-6545`) is cut as today (D74). Its space goes back to the plot. S5b. |
+| S5-4 | Point axis titles drop the default formula | point 2 | `getTitleSpec:6396` → `getRefLabel:6598` → `GraphUtil.getLabel:205` (`toView()`) | D | On point charts only (resolved type). Only Sum on a number field, the default formula (`AggregateFormula.getDefaultFormula:268`), is dropped: "Sum(Price)" reads "Price". Every other formula stays ("Avg(Price)", "Count(Order)", "Max(Price)"), and so does a formula with a second column or a percentage (D75). An author's title alias (`ymeasurelabels`, `xmeasurelabels`) still wins. Scatter contour already shows the field name because its measures are not aggregated. S5b. |
+| S5-5 | Radar spoke labels: the S5-4 text, truncated | radar 2 | Spoke values are the full measure names (`ParallelCoord.ParallelScale.initValues:126`), shown through the alias `TextFrame` and `setTruncate` in `RadarGraphGenerator.fixParallelCoord:169-210` | D | Change the displayed text only. The `_Parallel_Label_` values key the aliases, formats and selection (`ChartRegionHandler`, `PlotArea`, `FormatPainterService`). The S5-4 text rule, then an ellipsis at the S5-1 length limit. An author's alias shows in full (D76). S5b. |
+| S5-6 | Radar scale labels without the pile-up in the centre | radar 3 | One axis per spoke (`AbstractParallelCoord.createAxis:72-130`); per-measure `labelVisible` is plain (`fixCoordProperties:2486-2525`) | D | See "S5-6 radar scale labels". S5b. |
+| S5-7 | Horizontal bars list the first category at the top | bar 2 | Nothing reverses it today. Precedents: Gantt (`GraphGenerator:4214`, `GraphDefault:137`, `CategoricalScale.setReversed`) | D | See "S5-7 horizontal order". S5b. |
 
-**S5-1 label rule.**
-- **What the modern rule does:**
-  - Thin the labels first.
-  - Rotate only if overlaps remain, and never past 45°.
-  - Keep the label band within 20% of the plot height, or within 30% of the card width for a horizontal category axis.
-  - Truncate with an ellipsis within the band.
-- **Truncation is by pixels.** The bundle's "about 12 characters" and "about 20 characters" are the expected results at 10px. There is no character-count setting, and none is added.
-- **The author's settings still win:** a rotation, `AxisDescriptor.truncate`, a fixed axis size (`fixedWidth`, `fixedHeight`) and label visibility.
-- **New `AxisSpec` properties** are set by the generator: maximum rotation, band ratio and thin-before-rotate.
-- **Facet inner axes:** whether they keep "always rotate" is the builder's call.
+**S5-1 label rule (D69, D70, D71, D78, D79, D88, D89).**
+- **Where it runs (D79).** In the generator, as today: under the mark, `setDefaultRotation` measures the labels instead of counting characters. It does not move into the axis layout.
+  - The generator estimates the axis length before layout: the graph size minus the chart padding, the measured Y labels, a side legend (S3's caps) and the axis title, divided by the facet panel count for an inner axis.
+  - The slot is the axis length over the label count.
+  - The estimate can be off near the threshold, so a chart may turn to 45° where horizontal every other label would just fit, or the reverse. This is accepted. The axis layout still removes any overlap that remains.
+- **The rule (D69):**
+  - **Date and number labels** stay horizontal and only thin. A label counts as a date or a number by its field's type: a date field, a date group, or a number field. Period strings stored as text, such as "2025-01", count as text (D71).
+  - **Text labels** stay horizontal while every other label fits (a step of 1 or 2). Otherwise they turn to 45° and thin further as needed.
+  - Never past 45°. A label reads upward to the right, its end under its slot.
+  - The step test uses the widest label after the length limit, plus a 4px gap. At 45° neighbours need about 20px between slots, (line height + 2) / sin 45°.
+- **Thinning** keeps a regular step, every k-th label, on marked charts, with no tolerated overlap. The axis's current passes, which remove alternate labels, give steps of 2, 4 and 8. That is acceptable.
+- **Length (D70).**
+  - A label is cut with an ellipsis ("…") at 66px. That is about 12 characters of 10px text, scaled with the label font size.
+  - This applies at 0° and at 45°, and the 45° band is whatever that length needs: about 55px at 10px. The bundle's 20% band (C5) no longer limits a default label, because the minimum equals the cap.
+  - Under the mark, `getMaxLabelSize`'s half-of-the-coordinate ratio and its 50px floor do not apply.
+- **Horizontal category axes** (horizontal bar, Gantt tasks, any category axis on Y). Labels stay horizontal and thin as needed. The label column is at most 30% of the card width and about 20 characters (110px at 10px), but never less than the 66px minimum (D71).
+- **The author's settings still win:** a rotation, `AxisDescriptor.truncate`, label visibility, and a fixed axis size (`fixedWidth`, `fixedHeight`; `AxisSpec.getAxisSize() > 0`, `DefaultAxis:758`, `:791`). An author's axis size can be smaller than the 66px minimum (D70).
+- **Facet inner axes (D78)** follow the same rule on marked charts instead of always rotating 90°.
+- **Facet outer-dimension labels** keep today's behaviour: they never rotate, and they are cut only by the width of their panel, not at 66px (D89).
+- **Date-comparison axes** keep today's labels, including the forced 90° of their multi-line merged-date labels (`setupDateComparisonAxis`, `GraphGenerator:2656-2667`; D88).
+- **New `AxisSpec` properties**, set by the generator under the mark: the length limit, the ellipsis and regular-step thinning. Unset, the axis behaves as today (M1).
 
-**S5-6 radar scale spoke.**
-- Labels go on the spoke nearest 12 o'clock. Spoke *i* sits at (*i* + 0.5)/*n* × 360°, so only 6, 10, … spokes have one exactly at the top.
-- They are hidden on the other spokes only where the author has not set label visibility.
+**S5-2 compact dates (D72, D80, D82, D83, D87, D88, D90).**
+- **Which axes (D72).** Every date axis on a marked chart while the author has not set a date format: grouped dates on bars, lines, candles and box plots, continuous time axes (the Gantt and time-series dates), and date fields on facets.
+  - Not date-comparison axes: they keep today's labels, including their forced 90° multi-line labels (`setupDateComparisonAxis`, `GraphGenerator:2656-2667`; D88). Their labels come through their own path (`setDcFormat`, `DCMergeDatesCell`).
+- **What draws.** The year shows on the first shown label and wherever it changes. On daily data the month shows on every label.
+  - **Out of date order** (sorted by value, a Top N, a manual order), every label shows its full pattern with the year, because the neighbouring label is not the neighbouring date (D87).
+  - The patterns follow the viewer's locale: month names are already localized, and the order of day, month and year follows the locale where Java provides a localized form (D90).
+
+  | Level | Full pattern (the Format pane, and the first label) | Drawn on a marked chart |
+  |---|---|---|
+  | Year | `yyyy`, as today | 2025, 2026 |
+  | Quarter | `QQQ yyyy` | Q1 2025, Q2, Q3, Q4, Q1 2026 |
+  | Month | `MMM yyyy` | Jan 2025, Feb, Mar … Dec, Jan 2026 |
+  | Week, day | `MMM d, yyyy` | Jan 5, 2026, Jan 6, Jan 7 … Feb 2 |
+  | Hour, minute, second | today's pattern | today's, with a repeated date dropped as `abbreviateDate` does now (D84) |
+  | Month of year, quarter of year, day of week | today's | today's (no year) |
+
+- **"First shown" means after thinning.** Today the year is dropped against the previous label when the label is created, before thinning (`DefaultAxis.createLabel`, `abbreviateDate`). If the label that carried the year is thinned away, the year must move to the next shown label.
+- **On a continuous time axis** the drawn pattern follows the tick unit (`TimeScale.getType()`), not the field's level. A Gantt whose start field is daily but whose ticks fall on months draws "Jan 2026, Feb, Mar".
+- **A drawing rule only; nothing is stored (D80, revised after the builder check).**
+  - **Why nothing is stored.** A pattern seeded into a label format's DEFAULT tier never draws, in any build: `GraphUtil.getTextSpec:446-452` uses the format's own value only when it is the author's or the data has no default format, and every grouped date has one (its level pattern, through `GraphFormatUtil.getDefaultFormat`). On a time axis a stored value would also switch off year dropping, which `setAbbreviate:2942` allows only while the label format is empty. And the Format pane already writes today's level pattern into that tier on every chart, classic included (`FormatPainterService.fixAxisDefaultFormat:1885-1899`), so a seed would be overwritten and a legacy pass that cleared it would change classic XML.
+  - **The draw.** On a marked chart, when the label format has no USER or CSS tier, the generator draws the compact pattern for the level actually drawn, and turns on year dropping. A drill or a date comparison that changes the level in the viewer is covered by the same rule.
+  - **The Format pane (D82).** On a marked chart, `fixAxisDefaultFormat` takes its default from the same function the draw uses, so the dialog shows the full pattern above. A classic chart's pane is unchanged.
+  - **In an older build** the chart draws today's labels, like every drawing rule (M9). There is no seed, no re-seed on a date-level change, no reset slot and no residue rule.
+  - **An author's date format** (USER tier) wins everywhere. Keep keeps it, and so does the reset copy, as it keeps title text (D83; MD §5.1).
+
+**S5-6 radar scale labels (D73).**
+- **When every spoke has the same scale** (the same minimum, maximum and ticks), the scale labels show on the spoke nearest 12 o'clock only (D16).
+  - A radar of one measure across a dimension always qualifies.
+  - So does a radar of several measures whose ranges come out equal, for example when the author sets the same minimum and maximum on each.
+- **Otherwise** each spoke shows only its outermost tick label, so nothing piles up in the centre and every number belongs to its own spoke.
+- The comparison is made once the scales have their ranges. It is a drawing rule, so it follows the data.
+- A spoke whose labels the author hid stays hidden. The rule only hides labels; it never shows one.
+- A new `AxisSpec` label mode (all, none, outermost) carries it to `DefaultAxis`.
+
+**S5-7 horizontal order (D77, D86).**
+- **Which charts.** Bars that run horizontally: bar and interval, stacked or not, with a measure on X and a dimension on Y, on marked charts. Their Y category scales are reversed, so the first category in the author's sort sits at the top.
+  - A descending Top N puts the largest bar at the top. An ascending sort puts A at the top.
+  - Other charts inverted onto a Y category axis (point, line, box plot) keep today's order (D85).
+- **Clusters (D86).** The series inside each cluster read top-down too, so the first series sits at the top of its cluster, in the legend's order. Reversing the scale moves the categories only (`CategoricalScale:260`); `BarVO.dodge:807` places the series bottom-up, so the dodge order flips under the mark. S4-4's cluster re-pack and slot-share floor (D63) must agree with the flipped order.
+- **Facets.** The outer Y dimensions reverse too, so every panel and the panel order read top-down.
+- **Unchanged.** S3's legend orders follow the segments along the value axis (D31, D36). Check the date-comparison `setReverseLines` (`:2672`) and brush and selection regions, which follow the scale.
+- A look rule: it follows the mark, Modernize applies it and Revert undoes it.
 
 ### S6. Padding and sizing
 
@@ -741,6 +806,8 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | Gantt tick count | S8-7 | "Dozens" of grid lines at 25 tasks against about 5 ticks from `TimeScale`. |
 | Relation edge width | S4-9 | Answered 2026-11-12: the capture shows edges of about 15px, which largest 15 explains. |
 | Direction-token contrast on the real card | S2-13 | Sample now that #7750 has shipped. |
+| Label rotation and thinning today | S5-1 | Confirm that a 400×240 bar with 8 short product names rotates to 90° today, and record its label band. Confirm the steps `removeOverlappedLabels` produces on a uniform category axis (2, 4, 8 or any k). |
+| Date labels today | S5-2 | Record the labels of a monthly bar, a daily candle, a time-series line and the Gantt, and the format each shows in the Format dialog, before any change. |
 
 ## 8. Out of scope
 
@@ -775,14 +842,19 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 - The shape of the up and down colour property, and the editor for it (S2-6).
 - The pre-blend base for the map highlight and the tree tint (S2-4, S8-6).
 - How an author sets a per-level colour on a sunburst or icicle (S2-11).
-- The facet inner-axis exception in S5-1.
+- How the generator estimates an axis's length before layout for S5-1: the Y labels, a side legend, the axis title and the facet panels.
+- How `fixAxisDefaultFormat` learns the mark and the drawn level for S5-2 (D82).
+- How the year moves to the first shown label after thinning (S5-2).
+- How a date axis is recognised as out of date order for D87 (a by-value sort, a Top N, a manual order).
+- How the locale's day, month and year order is obtained for D90, and the fallback where Java gives none.
+- Where the S5-6 scale comparison runs, once the spoke scales have their ranges.
 - How the clustered-bar re-pack runs at layout time, and how the width clamp survives a faceted chart's rescale (S4-4).
 - The `ChartRegion` field that carries the corner rule to the browser outline (S4-2).
 - How the box plot's pixel width reaches the painter's logical-unit layout so regions, bounds and dodge agree (S4-3).
 
 ## 10. Decisions
 
-"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, or on 2026-11-12 from D44 on. "Design" means settled while writing this spec, while amending S3 for D32 to D42, or while amending S4 for D51 to D62.
+"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, or on 2026-11-16 from D69 on. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, or while amending S5 for D83 to D85 and D87 to D90.
 
 | # | Decision | Who |
 |---|---|---|
@@ -854,6 +926,28 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D66 | An author-set or bound Size keeps today's candle body width, as for bars (D45) and box widths (S4-3); a stock tick's length does not depend on Size, so its floor always applies (S4-7) | Design |
 | D67 | A schema mark's share of its slot is `markPx × slotPx / extentPx`, where `extentPx` is the natural drawn width of the dodged cluster (first mark's left edge to last mark's right edge) plus one gap between its marks, or of the mark alone. Dodged boxes, candles and stocks keep a fixed gap that the floor scales with them, so `slotPx / n` would still overlap the next slot; the extra gap keeps a slot's marks at least as far from the next slot's as from each other. With no gap it equals `slotPx / n`, and alone it gives `min(6, slotPx)` for a box, `min(3, slotPx)` for a candle body and `min(3, slotPx / 2)` for a stock tick (S4-3, S4-7, D63-D65) | Design, from the S4b build |
 | D68 | The S4-7 floors only raise a mark to its share; a candle body or stock tick whose classic width already exceeds its share keeps that width, as in classic, and no cap shrinks it (S4-7, D64) | Design, from the S4b final review |
+| D69 | The label rule: date and number labels stay horizontal and only thin; text labels stay horizontal while every other label fits, then turn to 45° and thin further. Never past 45° (S5-1) | Owner, 2026-11-16 |
+| D70 | A 12-character minimum (66px at 10px text) overrides the 20% band cap for a default label, so a default label always keeps up to 12 characters; an author's axis size may still be smaller (S5-1) | Owner, 2026-11-16 |
+| D71 | A date or number label is one whose field is a date, a date group or a number; period strings stored as text count as text. The author's rotation, truncate setting and label visibility win. On horizontal category axes the minimum overrides the 30% width cap too. The minimum scales with the label font size (S5-1) | Owner, approving the S5 review's proposals |
+| D72 | Compact dates on every date axis of a marked chart without an author date format: the year on the first shown label and wherever it changes, and the month on every daily label (S5-2) | Owner, 2026-11-16 |
+| D73 | Radar scale labels show on one spoke when every spoke has the same scale; otherwise each spoke shows only its outermost value (S5-6) | Owner, 2026-11-16 |
+| D74 | Only a generated axis title is hidden when it is longer than its axis; a typed title is cut as today (S5-3) | Owner, approving the S5 review's proposals |
+| D75 | Point axis titles drop only Sum on a number field, the default formula; every other formula stays (S5-4) | Owner, approving the S5 review's proposals |
+| D76 | Radar spoke labels take the S5-4 text and the S5-1 length limit; an author's alias shows in full (S5-5) | Owner, approving the S5 review's proposals |
+| D77 | Horizontal bars put the first category of the author's sort at the top, in every facet panel; S3's legend orders are unchanged (S5-7) | Owner, approving the S5 review's proposals |
+| D78 | Facet inner axes follow the modern label rule on marked charts instead of always rotating 90° (S5-1) | Owner, approving the S5 review's proposals |
+| D79 | The label rule runs in the generator, with measured labels against an estimated axis length, not in the axis layout. A wrong call near the threshold is accepted; the layout still removes overlaps (S5-1) | Owner, 2026-11-16 |
+| D80 | Compact dates are a drawing rule only: a marked chart draws the compact pattern for the level it actually draws, and nothing is stored. First ruled as stored plus drawn; revised after the builder check showed that a DEFAULT-tier pattern never draws over a date's level pattern (`GraphUtil.getTextSpec`), switches off year dropping on time axes, and is already written on every chart by the Format pane (S5-2) | Owner, 2026-11-16 |
+| D81 | S5 is split: S5a (S5-1, S5-2 and facet inner axes) stacked on S4b, then S5b (S5-3 to S5-7) on S5a | Owner, 2026-11-16 |
+| D82 | On a marked chart the Format pane's default date pattern comes from the same function the draw uses, so the dialog shows the full compact pattern (`QQQ yyyy`, `MMM yyyy`, `MMM d, yyyy`); a classic chart's pane is unchanged (S5-2) | Owner, 2026-11-16, after the builder check |
+| D83 | Keep and the reset copy keep an author's date format, as the reset copy keeps title text (S5-2, MD §5.1) | Design |
+| D84 | Hour, minute and second levels keep today's patterns; the drawn rule only drops a repeated date, as `abbreviateDate` already does (S5-2) | Design |
+| D85 | S5-7 reverses bars and intervals that run horizontally; other charts inverted onto a Y category axis keep today's order (S5-7) | Design |
+| D86 | On a horizontal clustered bar the series inside each cluster also read top-down, the first series at the top, in the legend's order (S5-7) | Owner, 2026-11-16, after the builder check |
+| D87 | A date axis out of date order (by-value sort, Top N, manual order) shows the year on every label (S5-2) | Design, from the builder check |
+| D88 | Date-comparison axes keep today's labels, including their forced 90° multi-line labels, under S5-1 and S5-2 | Design, from the builder check |
+| D89 | Facet outer-dimension labels keep today's behaviour, cut only by their panel width, not at 66px (S5-1) | Design, from the builder check |
+| D90 | The compact patterns follow the viewer's locale: month names are localized, and the day, month and year order follows the locale where Java provides one (S5-2) | Design, from the builder check |
 
 ## 11. Testing
 
@@ -871,6 +965,11 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 - **Classic identity:** every D item renders a classic chart before and after the change and compares the images. Gated graph code must leave classic output unchanged.
 - **Sizes (D44):** after a draw, a classic chart's size frames hold the classic values, a marked chart's hold the modern ones, and a frame the author changed is untouched. Modernize, Revert and the reset copy each draw the right size with no seed.
 - **Corners (S4-2):** the drawn bar, the region arc zones and the browser outline agree on a marked chart (Java and portal tests).
+- **Labels (S5):**
+  - The S5-1 decision: a date or number axis stays horizontal at any step; a text axis stays horizontal at a step of 1 or 2 and turns to 45° otherwise; an author's rotation or axis size wins; the 66px limit scales with the font.
+  - S5-2: the pattern for each level; the year on the first shown label after thinning; every label with its year out of date order; a drill drawing the drilled level's pattern; the Format pane showing the full pattern on a marked chart and today's on a classic one; an author's format untouched; date-comparison axes unchanged.
+  - S5-6's two label modes; S5-7 with an ascending sort, a descending Top N, facets and a clustered horizontal bar whose first series sits at the top.
+  - Every S5 item renders a classic chart identically before and after.
 - **Spring context:** Java tests that reach the seed or the generator need the Spring context set up as `CLAUDE.md` describes.
 - **Manual:**
   - Rebuild the bundle's dashboards from `repro/charts.md` on the built server.
