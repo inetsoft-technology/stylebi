@@ -2676,6 +2676,18 @@ public class WorksheetEditService {
                "A hidden column leaves the table's output, so that join would lose its key. " +
                "Edit the join's keys first. Nothing was changed.");
 
+            // Bug #81440: same rule as SetColumnVisibleService.supportHideColumn -- an
+            // embedded or mirror table must keep one visible column. Not bypassed by
+            // confirmed; runs before any mutation.
+            if(t instanceof EmbeddedTableAssembly || t instanceof MirrorTableAssembly) {
+               ColumnSelection selection = t.getColumnSelection(false);
+
+               if(selection.getAttributeCount() - selection.getHiddenColumnCount() <= 1) {
+                  throw new PairingException(Catalog.getCatalog().getString(
+                     "composer.ws.embeddedTable.noVisibleColumn"));
+               }
+            }
+
             // Bug #77001 / WBS-088: allowsDeletion only catches a downstream JOIN key
             // conflict -- a table that merely aggregates or groups by this column is
             // invisible to it. Reuse the same corrected downstream-loss walker
