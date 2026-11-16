@@ -352,6 +352,21 @@ export class TableFieldmc extends FieldMC {
       }
    }
 
+   /**
+    * The crosstab shelf this field sits on, as the plugin's get_binding names it; null for a
+    * plain table's groups/aggregates, which the plugin has no shelf for, and for details
+    * (value-only).
+    */
+   get bindingShelf(): string | null {
+      return this.isCrosstab() && this.dragIndex != null &&
+         (this.fieldType == "rows" || this.fieldType == "cols" || this.fieldType == "aggregates") ?
+         this.fieldType : null;
+   }
+
+   get bindingIndex(): number {
+      return this.dragIndex;
+   }
+
    isCrosstab(): boolean {
       let objectType = this.bindingService.objectType;
       return objectType == "VSCrosstab" || objectType == "crosstab";

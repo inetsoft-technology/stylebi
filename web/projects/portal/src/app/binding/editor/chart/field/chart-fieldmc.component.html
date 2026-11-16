@@ -27,6 +27,7 @@
       [style.max-width]="isAesthetic ? 'unset' : null">
       <dynamic-combo-box class="fieldCombo" [value]="cellValue" [vsId]="vsId"
         [assemblyName]="assemblyName" [variables]="variables"
+        [dynamicProperty]="bindingShelf ? 'binding:' + bindingShelf + '[' + bindingIndex + '].column' : null"
         [normalColumn]="isNormalColumn()"
         [label]="cellLabel" data-test="chart-field-value-dropdown"
         (valueChange)="changeColumnValue($event)" [tooltip]="cellLabel">
@@ -59,6 +60,7 @@
       <dimension-editor
         [bindingModel]="bindingModel"
         [dimension]="field" [fieldType]="fieldType"
+        [bindingShelf]="bindingShelf" [bindingIndex]="bindingIndex"
         [variables]="strippedDrillmemberVariables" [vsId]="vsId"
         [grayedOutValues]="grayedOutValues"
         [isOuterDimRef]="isOuterDimRef()"
@@ -72,6 +74,7 @@
         [isSecondaryAxisSupported]="isSecondaryAxisSupported(aggregateField)"
         [availableFields]="bindingService.getBindingModel().availableFields"
         [aggregate]="field" [fieldType]="fieldType" [chartType]="chartType"
+        [bindingShelf]="bindingShelf" [bindingIndex]="bindingIndex"
         [vsId]="vsId" [variables]="variables"
         [grayedOutValues]="grayedOutValues"
         (apply)="openChange($event)">

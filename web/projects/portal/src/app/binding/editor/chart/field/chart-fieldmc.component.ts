@@ -75,6 +75,35 @@ export class ChartFieldmc extends FieldMC {
       return this._field;
    }
 
+   /**
+    * The shelf (as the plugin's get_binding names it) this field sits on, or null when the field
+    * cannot be named unambiguously: an aesthetic channel or the geo shelf has no shelf name there,
+    * and a list shelf needs the field's position.
+    */
+   get bindingShelf(): string | null {
+      if(this.isAesthetic) {
+         return null;
+      }
+
+      switch(this.fieldType) {
+      case "xfields":
+         return this.index == null ? null : "x";
+      case "yfields":
+         return this.index == null ? null : "y";
+      case "groupfields":
+         return this.index == null ? null : "group";
+      case "open": case "high": case "low": case "close": case "path":
+      case "source": case "target": case "start": case "end": case "milestone":
+         return this.fieldType;
+      default:
+         return null;
+      }
+   }
+
+   get bindingIndex(): number {
+      return this.index ?? 0;
+   }
+
    get aggregateField(): ChartAggregateRef {
       return this.field as ChartAggregateRef;
    }

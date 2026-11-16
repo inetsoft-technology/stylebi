@@ -60,7 +60,7 @@ class DynamicValueNameTest {
                new String[] { "binding", "Measures2[17]." + field });
       }
 
-      for(String key : new String[] { "rowTotals", "colTotals" }) {
+      for(String key : new String[] { "rowTotals", "colTotals", "percentageBy" }) {
          m.put("tableOption:" + key, new String[] { "tableOption", key });
       }
 
@@ -153,7 +153,7 @@ class DynamicValueNameTest {
 
    @Test
    void everyNameOfTheTableParsesToTheRightNamespaceAndKey() {
-      assertEquals(77, VALID.size(), "the corpus changed size");
+      assertEquals(78, VALID.size(), "the corpus changed size");
 
       VALID.forEach((name, expected) -> {
          DynamicValueName parsed = DynamicValueName.parse(name);

@@ -38,6 +38,9 @@ import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-bo
 })
 export class FormulaOption implements OnInit {
    @Input() vsId: any;
+   /** Shelf and position of the field these options edit, as the plugin names them; null when it cannot be named. */
+   @Input() bindingShelf: string | null = null;
+   @Input() bindingIndex: number = 0;
    @Input() variables: any;
    @Input() availableFields: DataRef[];
    @Input() grayedOutValues: string[] = [];

@@ -21,6 +21,7 @@
       [value]="aggregate.formula"
       [label]="aggregated ? formulaLabel : '_#(None)'"
       [variables]="variables" [vsId]="vsId" [assemblyName]="assemblyName"
+      [dynamicProperty]="bindingShelf ? 'binding:' + bindingShelf + '[' + bindingIndex + '].aggregate' : null"
       (valueChange)="changeFormulaValue($event)"
       [disable]="!isFormulaEnabled() || !enabled">
     </dynamic-combo-box>
@@ -33,6 +34,7 @@
       <dynamic-combo-box
         [value]="secondColumnValue" [values]="availableValues"
         [variables]="variables" [vsId]="vsId" [assemblyName]="assemblyName"
+        [dynamicProperty]="bindingShelf ? 'binding:' + bindingShelf + '[' + bindingIndex + '].secondaryColumn' : null"
         [grayedOutValues]="grayedOutValues"
         (valueChange)="changeSecondColumnValue($event)">
       </dynamic-combo-box>
@@ -50,6 +52,7 @@
       <dynamic-combo-box [editable]="true"
         [value]="aggregate.numValue"
         [variables]="variables" [vsId]="vsId" [assemblyName]="assemblyName"
+        [dynamicProperty]="bindingShelf ? 'binding:' + bindingShelf + '[' + bindingIndex + '].n' : null"
         [disable]="!isFormulaEnabled() || !enabled"
         (valueChange)="npValueChange($event)"
         (onValueTyping)="aggregate.numValue = $event">

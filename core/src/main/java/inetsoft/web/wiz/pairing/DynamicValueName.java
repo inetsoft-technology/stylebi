@@ -160,7 +160,7 @@ public record DynamicValueName(String namespace, String key) {
                          alternatives(bindingFields) + ")"),
          "<shelf>[<index>].<field> with field one of " + String.join(", ", bindingFields)));
 
-      m.put(TABLE_OPTION, oneOf(List.of("rowTotals", "colTotals")));
+      m.put(TABLE_OPTION, oneOf(List.of("rowTotals", "colTotals", "percentageBy")));
 
       List<String> dateKeys = List.of(
          "periodsBack", "level", "endDate", "interval", "intervalGranularity",

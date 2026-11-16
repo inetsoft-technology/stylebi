@@ -41,6 +41,9 @@ export class AggregateEditor implements OnInit {
    @Input() availableFields: Array<DataRef>;
    @Input() variables: any;
    @Input() vsId: string;
+   /** Shelf and position of the field these options edit, as the plugin names them; null when it cannot be named. */
+   @Input() bindingShelf: string | null = null;
+   @Input() bindingIndex: number = 0;
    @Input() grayedOutValues: string[] = [];
    @Input() isVSWizard = false;
    @Input() isSecondaryAxisSupported = false;

@@ -46,6 +46,9 @@ export class DimensionEditor implements OnInit {
    @Input() fieldType: string;
    @Input() variables: any;
    @Input() vsId: string;
+   /** Shelf and position of the field these options edit, as the plugin names them; null when it cannot be named. */
+   @Input() bindingShelf: string | null = null;
+   @Input() bindingIndex: number = 0;
    @Input() grayedOutValues: string[] = [];
    @Input() isOuterDimRef: boolean;
    @Input() sortSupported: boolean;

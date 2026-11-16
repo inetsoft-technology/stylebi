@@ -26,6 +26,7 @@
       [valueOnly]="fieldType == 'details'"
       [normalColumn]="isNormalColumn()"
       [value]="cellValue" [vsId]="vsId" [assemblyName]="assemblyName"
+      [dynamicProperty]="bindingShelf ? 'binding:' + bindingShelf + '[' + bindingIndex + '].column' : null"
       [tooltip]="tooltip" [type]="field.comboType"
       [variables]="variables" (valueChange)="changeColumnValue($event)">
     </dynamic-combo-box>
@@ -73,6 +74,7 @@
     }
     @if (fieldType==='aggregates') {
       <aggregate-option [groupNum]="groupNum"
+        [bindingShelf]="bindingShelf" [bindingIndex]="bindingIndex"
         [aggregate]="field" [vsId]="vsId" [variables]="variables"
         [availableFields]="bindingModel.availableFields"
         (apply)="toggled($event)" [grayedOutValues]="grayedOutValues">

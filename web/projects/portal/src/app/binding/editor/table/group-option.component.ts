@@ -132,6 +132,25 @@ export class GroupOption implements OnInit {
          .subscribe((data: any) => this.dateLevelExamples = data.dateLevelExamples);
    }
 
+   /**
+    * The crosstab shelf (rows or cols) this dimension sits on, as the plugin's get_binding names
+    * it; null for a table group, which the plugin has no shelf for.
+    */
+   get bindingShelf(): string | null {
+      const type = this.bindingService.objectType?.toLowerCase();
+      return (type == "vscrosstab" || type == "crosstab") &&
+         (this.fieldType == "rows" || this.fieldType == "cols") && this.dragIndex != null ?
+         this.fieldType : null;
+   }
+
+   get bindingIndex(): number {
+      return this.dragIndex;
+   }
+
+   get assemblyName(): string {
+      return this.bindingService.assemblyName;
+   }
+
    isTable(): boolean {
       return this.bindingService.objectType === "table";
    }

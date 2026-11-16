@@ -16,9 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { ChangeDetectorRef, Component, EventEmitter, HostListener, Injector, Input, NgZone,
+import { ChangeDetectorRef, Component, EventEmitter, HostListener, inject, Injector, Input, NgZone,
          OnDestroy, OnInit, Optional, Output, ViewChild
 } from "@angular/core";
+import { SheetClientRegistry } from "../../common/viewsheet-client/sheet-client-registry.service";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
 import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
@@ -224,6 +225,8 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    private heartBeat: Subscription;
    private closed: boolean = false;
    private committed: boolean = false;
+   private readonly sheetClientRegistry = inject(SheetClientRegistry);
+   private unregisterSheetClient: () => void;
    private textFormat: boolean = false; // true if editing format from text field
    private resetFormat: boolean = false;
    @ViewChild("notifications") notifications: NotificationsComponent;
@@ -266,6 +269,14 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    ngOnInit() {
       this.blocking = true;
 
+      // Lets a formula dialog (opened through the root injector) find this pane's client by the
+      // binding runtime id, so a binding editor field can pair. The viewer-edit pane never
+      // registers: the registry stays empty in the viewer.
+      if(!this.viewer) {
+         this.unregisterSheetClient =
+            this.sheetClientRegistry.register(this.clientService, "VIEWSHEET");
+      }
+
       this.modelService.getModel("../api/vsbinding/open", this.params)
          .subscribe((data: BindingPaneData) => {
             if(!data) {
@@ -301,6 +312,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    }
 
    ngOnDestroy() {
+      this.unregisterSheetClient?.();
       super.cleanup();
       this.refreshSubscription.unsubscribe();
 

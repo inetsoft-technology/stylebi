@@ -399,6 +399,18 @@ const OPENED_DIALOG_TYPES: Record<string, string[]> = {
    "date-comparison-dialog": ["chart", "crosstab"],
 };
 
+/** Binding editor host template to the assembly types whose binding editor renders it. */
+const BINDING_EDITOR_TYPES: Record<string, string[]> = {
+   "binding/editor/chart/field/calculate-pane-dialog.component.html": ["crosstab"],
+   "binding/editor/chart/field/chart-fieldmc.component.html": ["chart"],
+   "binding/editor/chart/field/dimension-editor.component.html": ["chart"],
+   "binding/editor/formula-option.component.html": ["chart", "crosstab"],
+   "binding/editor/sort-option.component.html": ["chart", "crosstab"],
+   "binding/editor/table/crosstab-option.component.html": ["crosstab"],
+   "binding/editor/table/group-option.component.html": ["crosstab"],
+   "binding/editor/table/table-fieldmc.component.html": ["crosstab"],
+};
+
 const JAVA_WEB = resolve(HERE, "../../../../../../../core/src/main/java/inetsoft/web");
 
 /** Dialogs the chart action handler opens from TypeScript: they are dialogs although they are not PropertyDialogs. */
@@ -482,25 +494,11 @@ function typesOfDialog(d: string): string[] {
 }
 
 const ALLOWLIST: Record<string, { reason: string, usages: [string, string][] }> = {
-   C: {
-      reason: "PR C: binding editor panes, wired by the C PR (own runtime, needs a live check)",
+   C_UNPAIRED: {
+      reason: "PR C: binding editor combos that never pair. aggregate.percentage shows only for a plain table's summary mode and summarize is value-only unless objectType is the lowercase 'table' (the Composer passes VSTable), and the plugin binds no table summary shelf (get_binding: a table has only details)",
       usages: [
-         ["binding/editor/chart/field/calculate-pane-dialog.component.html", "percentageDirection"],
-         ["binding/editor/chart/field/chart-fieldmc.component.html", "cellValue"],
-         ["binding/editor/chart/field/dimension-editor.component.html", "dateLevel"],
-         ["binding/editor/formula-option.component.html", "aggregate.formula"],
-         ["binding/editor/formula-option.component.html", "secondColumnValue"],
-         ["binding/editor/formula-option.component.html", "aggregate.numValue"],
-         ["binding/editor/sort-option.component.html", "dimension.sortByCol"],
-         ["binding/editor/sort-option.component.html", "rankingOption"],
-         ["binding/editor/sort-option.component.html", "dimension.rankingN"],
-         ["binding/editor/sort-option.component.html", "dimension.rankingCol"],
          ["binding/editor/table/aggregate-option.component.html", "aggregate.percentage"],
-         ["binding/editor/table/crosstab-option.component.html", "option.rowTotalVisibleValue"],
-         ["binding/editor/table/crosstab-option.component.html", "option.colTotalVisibleValue"],
-         ["binding/editor/table/group-option.component.html", "field.dateLevel"],
          ["binding/editor/table/group-option.component.html", "summarize"],
-         ["binding/editor/table/table-fieldmc.component.html", "cellValue"],
       ]
    },
    NONE: {
@@ -707,6 +705,13 @@ describe("dynamic value pairing completeness guard (bug #80459)", () => {
 
       it("lists exactly the types whose dialog chain reaches the host pane and shows the property", () => {
          for(const entry of manifest) {
+            // The binding editor is no property dialog: its panes serve one assembly type each.
+            if(entry.host.startsWith("binding/editor/")) {
+               expect([...entry.assemblyTypes].sort(), `${entry.name}@${entry.host}`)
+                  .toEqual(BINDING_EDITOR_TYPES[entry.host]);
+               continue;
+            }
+
             const pane = selectorOf(entry.host);
             const reached = [...dialogsReaching(pane)].flatMap(typesOfDialog);
             const hidden = HIDDEN_BY_DIALOG.filter(h => h.property === entry.name).map(h => h.type);
@@ -751,9 +756,11 @@ describe("dynamic value pairing completeness guard (bug #80459)", () => {
             <dynamic-combo-box [dynamicProperty]="'b'"></dynamic-combo-box>
             <dynamic-combo-box [dynamicProperty]="layoutObject ? null : 'c'"></dynamic-combo-box>
             <dynamic-combo-box [dynamicProperty]="'binding:' + shelf + '[' + i + '].column'"></dynamic-combo-box>
+            <dynamic-combo-box [dynamicProperty]="shelf ? 'binding:' + shelf + '[' + i + '].n' : null"></dynamic-combo-box>
             <dynamic-combo-box [dynamicProperty]="dynamicProperty"></dynamic-combo-box>`;
 
-         expect(boundNames(html)).toEqual(["a", "b", "c", "binding:<x>[<x>].column"]);
+         expect(boundNames(html)).toEqual(
+            ["a", "b", "c", "binding:<x>[<x>].column", "binding:<x>[<x>].n"]);
          expect(normalizeManifestName("binding:<shelf>[<i>].column")).toBe("binding:<x>[<x>].column");
       });
 
