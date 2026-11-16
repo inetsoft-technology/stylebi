@@ -17,7 +17,12 @@
  */
 package inetsoft.sree.security;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.nimbusds.jwt.SignedJWT;
+import org.slf4j.LoggerFactory;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -345,6 +350,81 @@ class ThrowawaySessionExpiryTest {
       // Not asserted: which HTTP session loggedOut() removes. It removes the first session whose
       // principal equals the logged-out one, and the throwaway's wiz principal equals the
       // browser's, so with a live throwaway it may remove the throwaway instead (pre-existing).
+   }
+
+   /**
+    * Bug #81146 observability: the end of a real browser session logs an INFO line that names the
+    * reason and says the login was deregistered. Ids are shortened to a fixed 8-character prefix.
+    */
+   @Test
+   void browserSessionEndLogsInfoThatTheLoginWasDeregistered() throws Exception {
+      Browser browser = login(admin);
+      Logger logger = (Logger) LoggerFactory.getLogger(IgniteSessionRepository.class);
+      Level oldLevel = logger.getLevel();
+      logger.setLevel(Level.INFO);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         expire(browser.sid);
+         repository.checkSessions();
+      }
+      finally {
+         logger.detachAppender(appender);
+         logger.setLevel(oldLevel);
+      }
+
+      String prefix = browser.sid.substring(0, 8);
+      ILoggingEvent line = appender.list.stream()
+         .filter(e -> e.getFormattedMessage().contains("login deregistered"))
+         .findFirst().orElse(null);
+      assertNotNull(line, "no INFO line says the login was deregistered: " + appender.list);
+      assertEquals(Level.INFO, line.getLevel());
+      assertTrue(line.getFormattedMessage().contains(prefix));
+      assertTrue(line.getFormattedMessage().contains("admin"));
+      assertFalse(line.getFormattedMessage().contains(browser.sid),
+                  "the full session id must not be logged at INFO");
+      assertFalse(realEngine.isActiveUser(browser.principal));
+   }
+
+   /**
+    * Bug #81146 observability: the guarded end of a throwaway wiz session logs a line saying the
+    * login was not deregistered, naming both session ids by prefix. DEBUG, because a throwaway
+    * ends once per cookieless plugin request.
+    */
+   @Test
+   void throwawayEndLogsThatTheLoginWasNotDeregistered() throws Exception {
+      Browser browser = login(admin);
+      String token = tokenService.createSSOToken(browser.principal, "http://localhost");
+      String throwawaySid = pluginRequestWithoutCookie(token);
+      Logger logger = (Logger) LoggerFactory.getLogger(IgniteSessionRepository.class);
+      Level oldLevel = logger.getLevel();
+      logger.setLevel(Level.DEBUG);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         expire(throwawaySid);
+         touch(browser.sid);
+         repository.checkSessions();
+      }
+      finally {
+         logger.detachAppender(appender);
+         logger.setLevel(oldLevel);
+      }
+
+      ILoggingEvent line = appender.list.stream()
+         .filter(e -> e.getFormattedMessage().contains("login not deregistered"))
+         .findFirst().orElse(null);
+      assertNotNull(line, "no line says the login was not deregistered: " + appender.list);
+      String msg = line.getFormattedMessage();
+      assertTrue(msg.contains(throwawaySid.substring(0, 8)));
+      assertTrue(msg.contains(browser.sid.substring(0, 8)));
+      assertFalse(msg.contains(throwawaySid));
+      assertFalse(msg.contains(browser.sid));
+      assertTrue(realEngine.isActiveUser(browser.principal));
    }
 
    /** The mechanics the case relies on: the wiz principal shares the browser's login key. */

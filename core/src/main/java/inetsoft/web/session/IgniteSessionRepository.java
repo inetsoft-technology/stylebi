@@ -411,6 +411,10 @@ public class IgniteSessionRepository
          if(SRPrincipal.isWizPrincipal(srp) &&
             !Objects.equals(srp.getUser().getSession(), session.getId()))
          {
+            // DEBUG, not INFO: a throwaway ends once per cookieless plugin request
+            LOG.debug("Ended throwaway wiz session {} (client session {}) of user {}; " +
+                      "login not deregistered", shortId(session.getId()),
+                      shortId(srp.getUser().getSession()), principal.getName());
             return;
          }
 
@@ -431,12 +435,28 @@ public class IgniteSessionRepository
             if(securityEngine.isActiveUser(principal)) {
                String remoteHost = srp.getUser().getIPAddress();
                authenticationService.logout(principal, remoteHost, logoffReason);
+               LOG.info("Session {} ended ({}); login deregistered for user {} (client " +
+                        "session {})", shortId(sessionId), logoffReason, principal.getName(),
+                        shortId(srp.getUser().getSession()));
+            }
+            else {
+               LOG.info("Session {} ended ({}); login already not active for user {} " +
+                        "(client session {})", shortId(sessionId), logoffReason,
+                        principal.getName(), shortId(srp.getUser().getSession()));
             }
          }
          finally {
             loggingOutSessions.remove(sessionId);
          }
       }
+   }
+
+   /**
+    * Session ids are bearer-like, so INFO lines carry only a fixed-length prefix, which is still
+    * enough to match lines across logs.
+    */
+   private static String shortId(String id) {
+      return id == null ? null : id.length() <= 8 ? id : id.substring(0, 8);
    }
 
    @Override
