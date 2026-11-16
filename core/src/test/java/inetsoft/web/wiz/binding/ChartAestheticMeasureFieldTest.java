@@ -205,7 +205,7 @@ class ChartAestheticMeasureFieldTest {
    }
 
    @Test
-   void measureOnAGanttChartIsRefusedByName() throws Exception {
+   void aGanttChartsEndMeasureIsRefusedByNameAndTheStartIsOffered() throws Exception {
       Pipeline p = pipeline(true);
       GanttVSChartInfo gantt = new GanttVSChartInfo();
       gantt.setChartType(GraphTypes.CHART_GANTT);
@@ -214,9 +214,10 @@ class ChartAestheticMeasureFieldTest {
       p.chart.setVSChartInfo(gantt);
 
       IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-         () -> p.service.setField("tok", principal(), "Chart1", "color", PHASE, null, "START",
+         () -> p.service.setField("tok", principal(), "Chart1", "color", PHASE, null, "END",
                                   ""));
-      assertTrue(e.getMessage().contains("Gantt"), e.getMessage());
+      assertTrue(e.getMessage().contains("START"), e.getMessage());
+      assertFalse(e.getMessage().contains("does not apply to a Gantt"), e.getMessage());
    }
 
    @Test
