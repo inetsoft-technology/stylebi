@@ -85,6 +85,7 @@ import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.FakeColumnProducingCustomRestQuery;
 import inetsoft.web.wiz.service.FakeColumnProducingNamedConnectorQuery;
 import inetsoft.web.wiz.service.FakeCustomRestQuery;
+import inetsoft.web.wiz.service.FakeCustomEndpointQuery;
 import inetsoft.web.wiz.service.FakeNamedConnectorQuery;
 import inetsoft.web.wiz.service.FakeDelimitedFileQuery;
 import inetsoft.web.wiz.service.MetadataApiService;
@@ -10445,6 +10446,81 @@ class WorksheetAgentControllerTest {
          assertDoesNotThrow(() -> ctrl.edit("TOK-EP5", req, agent));
          assertEquals("$.items[*]", query.getJsonPath());
          verify(editSvc).applyOnRuntime(eq("TOK-EP5"), eq(agent), any());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
+   /**
+    * Bug #81478: add_table endpoint "CUSTOM" with extraProperties.customEndpt and
+    * additionalParameters (a list of {name, value}) reaches the suffix read with both already
+    * written, so the table is created; with no customEndpt it is a refusal naming CUSTOM, never an
+    * unexpected server error.
+    */
+   @Test
+   void addTabularTableCustomEndpointUsesCustomEndptAndAdditionalParameters() throws Exception {
+      FakeCustomEndpointQuery query = new FakeCustomEndpointQuery();
+      Map<String, Object> extras = new java.util.LinkedHashMap<>();
+      extras.put("customEndpt", "/v0/app/Orders");
+      extras.put("additionalParameters", java.util.List.of(Map.of("name", "maxRecords", "value", "3")));
+
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", "CUSTOM", null, extras, null);
+
+      runAddTabularTableEndpoint(query, "TOK-CE1", req);
+
+      assertEquals("/v0/app/Orders", query.getCustomEndpt());
+      assertEquals("/v0/app/Orders?maxRecords=3", query.getSuffix());
+   }
+
+   @Test
+   void addTabularTableCustomEndpointWithoutCustomEndptIsARefusalNamingCustom() throws Exception {
+      FakeCustomEndpointQuery query = new FakeCustomEndpointQuery();
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", "CUSTOM", null, Map.of("suffix", "/v0/app/Orders"), null);
+
+      Exception ex = assertThrows(Exception.class,
+         () -> runAddTabularTableEndpoint(query, "TOK-CE2", req));
+
+      assertTrue(ex.getMessage().contains("CUSTOM"), ex.getMessage());
+      assertFalse(ex.getMessage().toLowerCase().contains("unexpected"), ex.getMessage());
+   }
+
+   private void runAddTabularTableEndpoint(FakeCustomEndpointQuery query, String token,
+                                           EditRequest req) throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         ctrl.edit(token, req, agent);
+         verify(editSvc).applyOnRuntime(eq(token), eq(agent), any());
       }
       finally {
          configContext.setApplicationContext(realAppContext);

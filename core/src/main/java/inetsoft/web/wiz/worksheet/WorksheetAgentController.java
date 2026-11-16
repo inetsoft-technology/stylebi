@@ -1508,8 +1508,11 @@ public class WorksheetAgentController {
                "-- use suffix (+ optional customLookups) instead of endpoint.");
          }
 
+         // extraProperties' endpoint-level settings (customEndpt, additionalParameters) shape the
+         // URL suffix, so they are applied here, before it is read; see applyEndpointContract.
          suffix = TabularEndpointBindingSupport.applyEndpointContract(query, pmap, req.endpoint(),
-            req.parameters(), null, null, null, dsName);
+            req.parameters(), null, null, null,
+            req.extraProperties() == null ? Map.of() : req.extraProperties(), dsName);
 
          if(req.maxRows() != null) {
             WorksheetEditService.requireNonNegativeMaxRows(req.maxRows());
@@ -1547,9 +1550,14 @@ public class WorksheetAgentController {
 
       final String extraApplied;
       final String resolvedSuffix;
+      // The endpoint form already applied customEndpt/additionalParameters above.
+      final Map<String, Object> contractExtras = req.extraProperties() == null ? null
+         : namedConnector ? TabularEndpointBindingSupport.withoutEndpointSettings(
+            req.extraProperties())
+         : req.extraProperties();
 
-      if(req.extraProperties() != null && !req.extraProperties().isEmpty()) {
-         if(req.extraProperties().containsKey("endpoint") || req.extraProperties().containsKey("suffix")) {
+      if(contractExtras != null && !contractExtras.isEmpty()) {
+         if(contractExtras.containsKey("endpoint") || contractExtras.containsKey("suffix")) {
             throw new PairingException("add_table's extraProperties cannot set 'endpoint' or " +
                "'suffix' -- their identity is already established by the endpoint/suffix field " +
                "on this call.");
@@ -1562,7 +1570,7 @@ public class WorksheetAgentController {
          // would be rejected as "missing" what this call already set moments earlier. Re-writing
          // it to the SAME value it already holds is a no-op on the query.
          String identityKey = namedConnector ? "endpoint" : "suffix";
-         Map<String, Object> contractParams = new java.util.LinkedHashMap<>(req.extraProperties());
+         Map<String, Object> contractParams = new java.util.LinkedHashMap<>(contractExtras);
          contractParams.put(identityKey, namedConnector ? req.endpoint() : req.suffix());
 
          TabularQuerySchema extraSchema =
@@ -1959,8 +1967,11 @@ public class WorksheetAgentController {
                   "catalogue -- use suffix (+ optional customLookups) instead of endpoint.");
             }
 
+            // customEndpt/additionalParameters shape the suffix, so they are written here, before
+            // it is read; an edit that omits additionalParameters clears the saved ones.
             resolvedSuffix = TabularEndpointBindingSupport.applyEndpointContract(
-               scratchQuery, pmap, req.endpoint(), req.parameters(), null, null, null, dsName);
+               scratchQuery, pmap, req.endpoint(), req.parameters(), null, null, null,
+               hasExtraProperties ? req.extraProperties() : Map.of(), dsName);
 
             if(req.maxRows() != null) {
                scratchQuery.setMaxRows(req.maxRows());
@@ -2005,9 +2016,14 @@ public class WorksheetAgentController {
             target = req.suffix();
          }
 
-         if(hasExtraProperties) {
-            if(req.extraProperties().containsKey("endpoint") ||
-               req.extraProperties().containsKey("suffix"))
+         Map<String, Object> contractExtras = !hasExtraProperties ? null
+            : namedConnector && hasEndpoint
+               ? TabularEndpointBindingSupport.withoutEndpointSettings(req.extraProperties())
+               : req.extraProperties();
+
+         if(contractExtras != null && !contractExtras.isEmpty()) {
+            if(contractExtras.containsKey("endpoint") ||
+               contractExtras.containsKey("suffix"))
             {
                throw new PairingException("edit_table's extraProperties cannot set 'endpoint' " +
                   "or 'suffix' -- their identity is already established by the endpoint/suffix " +
@@ -2015,7 +2031,7 @@ public class WorksheetAgentController {
             }
 
             String identityKey = namedConnector ? "endpoint" : "suffix";
-            Map<String, Object> contractParams = new java.util.LinkedHashMap<>(req.extraProperties());
+            Map<String, Object> contractParams = new java.util.LinkedHashMap<>(contractExtras);
             contractParams.put(identityKey, namedConnector ? req.endpoint() : req.suffix());
 
             TabularQuerySchema extraSchema =

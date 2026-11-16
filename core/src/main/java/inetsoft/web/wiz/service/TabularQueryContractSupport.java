@@ -189,7 +189,8 @@ public final class TabularQueryContractSupport {
                fillNamedSkeleton(query, prop, name, value, dsName);
             }
             else {
-               throw new IllegalArgumentException(kindBRefusalMessage(name));
+               throw new IllegalArgumentException(
+                  kindBRefusalMessage(name, pmap.get("endpoint") != null));
             }
          }
          else if(type == File.class) {
@@ -655,11 +656,18 @@ public final class TabularQueryContractSupport {
     * see the design doc's section 3.4 for why this codebase cannot yet build a fresh element
     * list (the element classes carry no {@code @Property} of their own).
     */
-   private static String kindBRefusalMessage(String name) {
+   private static String kindBRefusalMessage(String name, boolean namedConnector) {
+      // A named connector (one with an endpoint property) refuses a hand-written suffix, so
+      // pointing it there sends the caller to a second refusal; its endpoint-level settings
+      // (additionalParameters, customEndpt) are written by add_table/edit_table itself.
+      String advice = namedConnector
+         ? "This connector has a predefined endpoint catalogue, so it does not accept a " +
+           "hand-written suffix either."
+         : "For an additional query-string or header value on a REST endpoint, write it " +
+           "directly into the endpoint's URL suffix / parameters instead.";
       return "'" + name + "' is a composite parameter this connector builds from a list of " +
-         "new elements, which is not supported yet. For an additional query-string or header " +
-         "value on a REST endpoint, write it directly into the endpoint's URL suffix / " +
-         "parameters instead. This connector's own query-schema does not carry a usable " +
+         "new elements, which is not supported yet. " + advice + " " +
+         "This connector's own query-schema does not carry a usable " +
          "element description for '" + name + "' either (its element type declares no " +
          "per-field metadata), so there is no other endpoint to check before concluding this " +
          "connector has no way to express it through this API today.";
