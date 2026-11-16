@@ -7800,6 +7800,70 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // Bug #81441: a replace is held to the Composer's 10000-row limit; a new table is not.
+   // ---------------------------------------------------------------------------
+
+   /** A header plus {@code n} data rows. */
+   private static String rowsCsv(int n) {
+      StringBuilder csv = new StringBuilder("a,b");
+
+      for(int i = 1; i <= n; i++) {
+         csv.append('\n').append(i).append(",x");
+      }
+
+      return csv.toString();
+   }
+
+   private static WorksheetAgentController.ImportCsvRequest replaceRequest(String csv) {
+      return new WorksheetAgentController.ImportCsvRequest(
+         null, csv, null, null, null, null, null, null, null, null, "Query1");
+   }
+
+   @Test
+   void importCsvReplaceOverTheRowLimitIsRefusedAndLeavesTheTableUntouched() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-81441-A");
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ctrl.importCsv("TOK-81441-A",
+         new WorksheetAgentController.ImportCsvRequest("Query1", rowsCsv(3)), agent);
+
+      int rowsBefore = importedTable(ws, "Query1").getEmbeddedData().getRowCount();
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.importCsv("TOK-81441-A", replaceRequest(rowsCsv(10001)), agent));
+
+      assertTrue(ex.getReason().contains("10000"), ex.getReason());
+      assertEquals(rowsBefore, importedTable(ws, "Query1").getEmbeddedData().getRowCount(),
+         "a refused replace must keep the table's own rows");
+   }
+
+   @Test
+   void importCsvReplaceAtExactlyTheRowLimitIsAccepted() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-81441-B");
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ctrl.importCsv("TOK-81441-B",
+         new WorksheetAgentController.ImportCsvRequest("Query1", rowsCsv(3)), agent);
+
+      WorksheetAgentController.ImportCsvResponse resp =
+         ctrl.importCsv("TOK-81441-B", replaceRequest(rowsCsv(10000)), agent);
+
+      assertEquals(10000, resp.rows());
+   }
+
+   @Test
+   void importCsvAsANewTableIsNotHeldToTheReplaceRowLimit() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-81441-C");
+
+      WorksheetAgentController.ImportCsvResponse resp = ctrl.importCsv("TOK-81441-C",
+         new WorksheetAgentController.ImportCsvRequest("Big", rowsCsv(12000)),
+         TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(12000, resp.rows());
+   }
+
+   // ---------------------------------------------------------------------------
    // Bug #78526: an import capped at the organization's column limit says so.
    // ---------------------------------------------------------------------------
 
