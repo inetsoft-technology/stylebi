@@ -27,6 +27,8 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.graph.AxisDescriptor;
+import inetsoft.uql.viewsheet.graph.CompositeTextFormat;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
@@ -227,5 +229,35 @@ class ChartHighlightCarryTest {
       assertNull(((VSChartDimensionRef) info.getXFields()[0]).getHighlightGroup());
       assertEquals(1, notes.size());
       assertTrue(notes.get(0).contains("date level"), notes.get(0));
+   }
+
+   @Test
+   void aDimensionKeepsAxisAliasesAndLabelFontOnResend() {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartDimensionRef category = dimension("Category", XConstants.NONE_DATE_GROUP);
+      category.getAxisDescriptor().setLabelAlias("Business", "VCS097Alias");
+      CompositeTextFormat format = new CompositeTextFormat();
+      format.setFont(new java.awt.Font("Default", java.awt.Font.PLAIN, 12));
+      category.getAxisDescriptor().setColumnLabelTextFormat("Category", format);
+      info.addXField(category);
+
+      rewrite(info, "x", dim("Category", "none"));
+
+      AxisDescriptor axis = info.getXField(0).getAxisDescriptor();
+      assertEquals("VCS097Alias", axis.getLabelAlias("Business"));
+      assertEquals(12, axis.getColumnLabelTextFormat("Category").getFont()
+         .getSize());
+   }
+
+   @Test
+   void aDimensionThatLeftTheShelfDoesNotLendItsAxisToAnother() {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartDimensionRef category = dimension("Category", XConstants.NONE_DATE_GROUP);
+      category.getAxisDescriptor().setLabelAlias("Business", "VCS097Alias");
+      info.addXField(category);
+
+      rewrite(info, "x", dim("Region", null));
+
+      assertNull(info.getXField(0).getAxisDescriptor().getLabelAlias("Business"));
    }
 }

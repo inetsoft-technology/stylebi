@@ -21,6 +21,7 @@ import inetsoft.report.Hyperlink;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.uql.viewsheet.graph.AxisDescriptor;
 import inetsoft.uql.viewsheet.graph.CandleChartInfo;
 import inetsoft.uql.viewsheet.graph.ChartInfo;
 import inetsoft.uql.viewsheet.graph.ChartRef;
@@ -50,13 +51,17 @@ import java.util.Objects;
  * under a different formula or date level: its conditions name the old full name (for example
  * {@code Sum(REVENUE)}) and would match nothing. A calculator change keeps the identity but renames
  * the full name, so a carried highlight can go stale the same way (as in the Composer).
+ *
+ * <p>A dimension's axis descriptor (label aliases, per-column axis label font) hangs off the ref
+ * too and is carried the same way (bug #81432), by the same field identity.
  */
 final class ChartHyperlinkCarry {
    private ChartHyperlinkCarry() {
    }
 
    /** A stored ref's link and highlights together with the identity it is matched by. */
-   record Saved(ChartRef ref, Hyperlink link, HighlightGroup highlight, HighlightGroup textHighlight)
+   record Saved(ChartRef ref, Hyperlink link, HighlightGroup highlight, HighlightGroup textHighlight,
+                AxisDescriptor axis)
    {
       boolean hasHighlight() {
          return highlight != null || textHighlight != null;
@@ -78,8 +83,11 @@ final class ChartHyperlinkCarry {
             textHl = h.getTextHighlightGroup() == null ? null : h.getTextHighlightGroup().clone();
          }
 
-         if(link != null || hl != null || textHl != null) {
-            saved.add(new Saved(ref, link, hl, textHl));
+         AxisDescriptor axis = ref instanceof VSDimensionRef && ref.getAxisDescriptor() != null
+            ? ref.getAxisDescriptor().clone() : null;
+
+         if(link != null || hl != null || textHl != null || axis != null) {
+            saved.add(new Saved(ref, link, hl, textHl, axis));
          }
       }
 
@@ -113,6 +121,14 @@ final class ChartHyperlinkCarry {
                target.getHyperlink() == null)
             {
                target.setHyperlink((Hyperlink) candidate.link().clone());
+            }
+
+            if(candidate.axis() != null && ref instanceof VSDimensionRef) {
+               AxisDescriptor axis = candidate.axis().clone();
+
+               if(axis != null) {
+                  ref.setAxisDescriptor(axis);
+               }
             }
 
             if(ref instanceof HighlightRef target) {
