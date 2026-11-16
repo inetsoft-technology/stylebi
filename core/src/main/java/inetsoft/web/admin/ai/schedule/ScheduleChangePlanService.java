@@ -22,6 +22,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.schedule.FTPUtil;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTaskMetaData;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.MessageException;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
@@ -84,27 +85,30 @@ public class ScheduleChangePlanService {
 
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenTaskIds = new HashSet<>();
+      Set<String> compensableDeletes = new HashSet<>();
       int index = 0;
 
       for(ScheduleChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, change, user, seenTaskIds));
+         changes.add(resolveOne(label, change, user, seenTaskIds, compensableDeletes));
       }
 
       // Both verbs are risk:high (spec §4), so signoff is always required. The storage snapshot is
-      // skipped only when every change is a task create: a create refuses an existing task id and
-      // its undo deletes the new task (Bug #80650, see StorageBackupPolicy).
+      // skipped only when every change is a task create (a create refuses an existing task id and
+      // its undo deletes the new task, Bug #80650) or a delete whose rollback provably re-creates
+      // the task (Bug #81073, see rollbackProvablyRecreates).
       String planHash = hash(changes);
       String task = req.getTask().trim();
       boolean requiresBackup = StorageBackupPolicy.requiresBackup(
          req.getChanges(),
-         c -> ScheduleChangeRequest.VERB_CREATE.equals(normalizeVerb("", c.getVerb())));
+         c -> ScheduleChangeRequest.VERB_CREATE.equals(normalizeVerb("", c.getVerb())) ||
+            compensableDeletes.contains(c.getTaskId()));
       return new ResolvedPlan(task, Collections.unmodifiableList(changes),
                               requiresBackup, true, planHash, TaskAuditToken.issue(planHash, task));
    }
 
    private PlanChange resolveOne(String label, ScheduleChangeRequest change, Principal user,
-                                 Set<String> seenTaskIds)
+                                 Set<String> seenTaskIds, Set<String> compensableDeletes)
       throws Exception
    {
       if(change == null) {
@@ -117,7 +121,7 @@ public class ScheduleChangePlanService {
          return resolveCreate(label, change, user, seenTaskIds);
       }
 
-      return resolveDelete(label, change, user, seenTaskIds);
+      return resolveDelete(label, change, user, seenTaskIds, compensableDeletes);
    }
 
    /** Accepts "create"/"delete" verbatim; the tool layer normalizes natural aliases before this
@@ -236,7 +240,7 @@ public class ScheduleChangePlanService {
    }
 
    private PlanChange resolveDelete(String label, ScheduleChangeRequest change, Principal user,
-                                    Set<String> seenTaskIds)
+                                    Set<String> seenTaskIds, Set<String> compensableDeletes)
       throws Exception
    {
       String taskId = change.getTaskId();
@@ -289,10 +293,50 @@ public class ScheduleChangePlanService {
             "whose own undo you could not perform");
       }
 
+      if(rollbackProvablyRecreates(taskId, existing, user)) {
+         compensableDeletes.add(taskId);
+      }
+
       String current = ScheduleXmlProjection.project(existing);
       return new PlanChange(taskId, existing.getOwner().getOrgID(), current, null,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             "delete schedule task");
+   }
+
+   /**
+    * Bug #81073, true when a delete's rollback (a re-save of the captured task, see {@code
+    * ScheduleChangesetApplyService.applyDelete}) can be predicted to succeed, so the whole-storage
+    * snapshot adds nothing the live undo does not already give. Both must hold:
+    * <ul>
+    *   <li>the task's owner is in the caller's current organization. The re-save's owner
+    *   organization check re-reads the live task, which the delete has removed, so it cannot be
+    *   predicted by a dry run taken while the task is still stored;</li>
+    *   <li>a dry-run save of a deep copy is not refused (batch query organization, action
+    *   organization boundary, action sheet READ, batch targets, scheduler permission), none of
+    *   which depends on the live task.</li>
+    * </ul>
+    * Any doubt, including an exception while checking, keeps the snapshot; it never refuses the
+    * plan.
+    */
+   private boolean rollbackProvablyRecreates(String taskId,
+                                             inetsoft.sree.schedule.ScheduleTask existing,
+                                             Principal user)
+   {
+      try {
+         String ownerOrg = existing.getOwner() == null ? null : existing.getOwner().getOrgID();
+         String callerOrg = OrganizationManager.getInstance().getCurrentOrgID(user);
+
+         if(ownerOrg == null || callerOrg == null || !ownerOrg.equalsIgnoreCase(callerOrg)) {
+            return false;
+         }
+
+         scheduleManager.checkScheduleTaskSave(
+            taskId, ScheduleChangesetApplyService.deepCopy(existing), user);
+         return true;
+      }
+      catch(Exception e) {
+         return false;
+      }
    }
 
    private static void requireUnseen(String label, String taskId, Set<String> seenTaskIds) {

@@ -128,6 +128,46 @@ class AdminChangePlanServiceTest {
       assertTrue(plan.requiresStorageBackup());
    }
 
+   // Bug #81073: logging properties are high risk (signoff) but value-reversible (no snapshot).
+   @Test
+   void aLoggingOnlyPlanRequiresSignoffButNoBackup() {
+      sreeEnv.when(() -> SreeEnv.getProperty("log.output.stderr", false, false)).thenReturn("false");
+      sreeEnv.when(() -> SreeEnv.getProperty("log.level.inetsoft.Foo", false, false))
+         .thenReturn(null);
+      PlanRequest.Change a = new PlanRequest.Change();
+      a.setProperty("log.output.stderr");
+      a.setValue("true");
+      PlanRequest.Change b = new PlanRequest.Change();
+      b.setProperty("log.level.inetsoft.Foo");
+      b.setValue("debug");
+      PlanRequest req = new PlanRequest();
+      req.setTask("logging");
+      req.setChanges(List.of(a, b));
+
+      ResolvedPlan plan = service.resolve(req);
+
+      assertTrue(plan.requiresAgentSignoff());
+      assertFalse(plan.requiresStorageBackup());
+   }
+
+   @Test
+   void aLoggingChangeMixedWithAStorageScopedPropertyKeepsTheBackup() {
+      sreeEnv.when(() -> SreeEnv.getProperty("log.output.stderr", false, false)).thenReturn("false");
+      sreeEnv.when(() -> SreeEnv.getProperty("security.exposedefaultorgtoall", false, false))
+         .thenReturn("false");
+      PlanRequest.Change a = new PlanRequest.Change();
+      a.setProperty("log.output.stderr");
+      a.setValue("true");
+      PlanRequest.Change b = new PlanRequest.Change();
+      b.setProperty("security.exposedefaultorgtoall");
+      b.setValue("true");
+      PlanRequest req = new PlanRequest();
+      req.setTask("mixed");
+      req.setChanges(List.of(a, b));
+
+      assertTrue(service.resolve(req).requiresStorageBackup());
+   }
+
    @Test
    void requiresSignoffWithoutBackupForAValueReversibleHighRiskChange() {
       sreeEnv.when(() -> SreeEnv.getProperty("mail.smtp.host", false, false)).thenReturn("old");

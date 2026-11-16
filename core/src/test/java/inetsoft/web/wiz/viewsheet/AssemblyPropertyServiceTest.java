@@ -56,6 +56,7 @@ import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.ImageScalePaneModel;
 import inetsoft.web.composer.model.vs.StaticImagePaneModel;
+import inetsoft.web.composer.model.vs.TabPropertyDialogModel;
 import inetsoft.web.composer.model.vs.NumericRangePaneModel;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
@@ -2272,6 +2273,7 @@ class AssemblyPropertyServiceTest {
    /** The chart/table/text/crosstab dialog-service mocks the last {@code serviceWith} built. */
    private static List<Object> lastDialogServices;
    private static LinePropertyDialogService lastLine;
+   private static TabPropertyDialogService lastTab;
    private static OvalPropertyDialogService lastOval;
    private static RectanglePropertyDialogService lastRectangle;
    private static SelectionListPropertyDialogService lastSelectionList;
@@ -5603,6 +5605,19 @@ class AssemblyPropertyServiceTest {
          throw new IllegalStateException(e);
       }
 
+      TabPropertyDialogService tab = mock(TabPropertyDialogService.class);
+      lastTab = tab;
+
+      try {
+         if(model instanceof TabPropertyDialogModel tabModel) {
+            when(tab.getTabPropertyDialogModel(anyString(), anyString(), any(Principal.class)))
+               .thenReturn(tabModel);
+         }
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
       lastDialogServices = List.of(chart, table, text, crosstab);
       lastLine = mock(LinePropertyDialogService.class);
       lastOval = mock(OvalPropertyDialogService.class);
@@ -5617,7 +5632,7 @@ class AssemblyPropertyServiceTest {
          selectionTree,
          inputService,
          rangeSlider,
-         calendar, mock(TabPropertyDialogService.class),
+         calendar, tab,
          calcTable,
          groupContainer,
          lastLine, lastOval, lastRectangle,
@@ -6562,6 +6577,198 @@ class AssemblyPropertyServiceTest {
       assertEquals(10, model.getImageScalePane().top());
    }
 
+   // ── #81420: group container image names and the tab list guard ──
+
+   private static GroupContainerPropertyDialogModel groupWithImage(String selected, boolean gif,
+                                                                   boolean scale, boolean aspect)
+   {
+      GroupContainerPropertyDialogModel model = groupWithScale(scale, false, aspect, 0);
+      model.getGroupContainerGeneralPane().setStaticImagePane(
+         StaticImagePaneModel.builder()
+            .imagePreviewPaneModel(ImagePreviewPaneModel.builder()
+               .selectedImage(selected).animateGifImage(gif).alpha(100).build())
+            .build());
+      return model;
+   }
+
+   private static void setGroup(GroupContainerPropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      serviceWith(mock(GroupContainerVSAssembly.class), model)
+         .set("tok", principal(), "Group1", patch, "");
+   }
+
+   @Test
+   void aGroupContainerImageAndScalePaneHaveNamedProperties() throws Exception {
+      GroupContainerPropertyDialogModel model = groupWithImage("a.png", false, false, true);
+      setGroup(model, patchOf("alpha", 40, "scaleImage", true, "maintainAspectRatio", false,
+                              "cellGridTop", 3, "cellGridLeft", 4, "cellGridBottom", 5,
+                              "cellGridRight", 6));
+
+      assertEquals(40, model.getGroupContainerGeneralPane().getStaticImagePane()
+         .imagePreviewPaneModel().alpha());
+      assertTrue(model.getImageScalePane().scaleImageChecked());
+      assertFalse(model.getImageScalePane().maintainAspectRatio());
+      assertEquals(3, model.getImageScalePane().top());
+      assertEquals(4, model.getImageScalePane().left());
+      assertEquals(5, model.getImageScalePane().bottom());
+      assertEquals(6, model.getImageScalePane().right());
+
+      model = groupWithImage("a.png", false, false, false);
+      setGroup(model, patchOf("tile", true, "animateGIF", true));
+      assertTrue(model.getImageScalePane().tile());
+      assertTrue(model.getGroupContainerGeneralPane().getStaticImagePane()
+         .imagePreviewPaneModel().animateGifImage());
+   }
+
+   @Test
+   void aGroupContainerSvgCannotUseScaleCellGridAndAnAnimatedGifHasNoInsets() throws Exception {
+      for(String key : new String[] { "maintainAspectRatio", "imageScalePane.maintainAspectRatio" }) {
+         assertGroupRefused(groupWithImage("^UPLOADED^logo.svg", false, true, true),
+                            Map.of(key, false), "SVG");
+      }
+
+      // a raster image keeps the cell grid
+      GroupContainerPropertyDialogModel raster = groupWithImage("a.png", false, true, true);
+      setGroup(raster, Map.of("maintainAspectRatio", false));
+      assertFalse(raster.getImageScalePane().maintainAspectRatio());
+
+      assertGroupRefused(groupWithImage("a.gif", true, true, false), Map.of("cellGridTop", 5),
+                         "animated GIF");
+
+      // turning the animation off in the same call restores the insets
+      GroupContainerPropertyDialogModel gif = groupWithImage("a.gif", true, true, false);
+      setGroup(gif, patchOf("animateGIF", false, "cellGridTop", 5));
+      assertEquals(5, gif.getImageScalePane().top());
+   }
+
+   @Test
+   void theGroupContainerDialogFlagsItsApplyMethodNeverReadsAreRefused() {
+      for(String key : new String[] {
+         "groupContainerGeneralPane.generalPropPane.submitOnChange",
+         "groupContainerGeneralPane.generalPropPane.basicGeneralPaneModel.shadow" })
+      {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite("groupcontainer", key), key);
+         assertTrue(e.getMessage().contains("read-only on groupcontainer"), e.getMessage());
+         assertFalse(e.getMessage().contains("bounding box"), e.getMessage());
+      }
+   }
+
+   private static final String TAB_LABELS = "tabGeneralPaneModel.tabListPaneModel.labels";
+   private static final String TAB_ASSEMBLIES = "tabGeneralPaneModel.tabListPaneModel.assemblies";
+
+   private static TabPropertyDialogModel tabWith(String[] assemblies, String[] labels) {
+      TabPropertyDialogModel model = new TabPropertyDialogModel();
+      model.getTabGeneralPaneModel().getTabListPaneModel().setAssemblies(assemblies);
+      model.getTabGeneralPaneModel().getTabListPaneModel().setLabels(labels);
+      return model;
+   }
+
+   private static String[] pages() {
+      return new String[] { "T1", "T2", "T3" };
+   }
+
+   private static void setTab(TabPropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      serviceWith(mock(TabVSAssembly.class), model).set("tok", principal(), "Tab1", patch, "");
+   }
+
+   private static String refuseTab(TabPropertyDialogModel model, Map<String, Object> patch) {
+      AssemblyPropertyService service = serviceWith(mock(TabVSAssembly.class), model);
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Tab1", patch, ""));
+      assertTrue(mockingDetails(lastTab).getInvocations().stream()
+                    .noneMatch(call -> call.getMethod().getName().startsWith("set")),
+                 "a refused patch must not reach the native setter");
+      return e.getMessage();
+   }
+
+   /** The reporter's AIOOBE: labels longer than the tab, with an empty entry past its end. */
+   @Test
+   void refusesTabLabelsLongerThanTheTabInsteadOfAnIndexError() {
+      for(String key : new String[] { "tabLabels", TAB_LABELS }) {
+         String msg = refuseTab(tabWith(pages(), new String[0]),
+                                Map.of(key, List.of("A", "B", "C", "")));
+         assertTrue(msg.contains(TAB_LABELS) && msg.contains("never longer"), msg);
+      }
+   }
+
+   @Test
+   void acceptsTabLabelsThatAreShorterThanOrAsLongAsTheTab() throws Exception {
+      TabPropertyDialogModel model = tabWith(pages(), new String[0]);
+      setTab(model, Map.of("tabLabels", List.of("Solo")));
+      assertArrayEquals(new String[] { "Solo" },
+                        model.getTabGeneralPaneModel().getTabListPaneModel().getLabels());
+
+      setTab(model, Map.of("tabLabels", List.of("A", "B", "C")));
+      assertArrayEquals(new String[] { "A", "B", "C" },
+                        model.getTabGeneralPaneModel().getTabListPaneModel().getLabels());
+   }
+
+   @Test
+   void refusesTabAssembliesThatAreNotExactlyThePagesOfTheTab() {
+      for(List<String> bad : List.of(List.of("T1", "no_such_assembly"),
+                                     List.of("T1", "T2"),
+                                     List.of("T1", "T2", "T3", "T4"),
+                                     List.of("T1", "T1", "T2")))
+      {
+         String msg = refuseTab(tabWith(pages(), new String[0]), Map.of(TAB_ASSEMBLIES, bad));
+         assertTrue(msg.contains(TAB_ASSEMBLIES) && msg.contains("exactly once") &&
+                    msg.contains("[T1, T2, T3]"), msg);
+      }
+   }
+
+   @Test
+   void refusesTabListsThatAreNull() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("tabLabels", null);
+      assertTrue(refuseTab(tabWith(pages(), new String[0]), patch).contains("not null"));
+   }
+
+   /** Labels pair with assemblies by position: a bare reorder would mislabel every page. */
+   @Test
+   void aTabReorderMustBringItsLabelsAlong() throws Exception {
+      String msg = refuseTab(tabWith(pages(), new String[] { "A", "B", "C" }),
+                             Map.of(TAB_ASSEMBLIES, List.of("T3", "T2", "T1")));
+      assertTrue(msg.contains("reorder_container_children"), msg);
+
+      TabPropertyDialogModel both = tabWith(pages(), new String[] { "A", "B", "C" });
+      setTab(both, patchOf(TAB_ASSEMBLIES, List.of("T3", "T2", "T1"),
+                           "tabLabels", List.of("C", "B", "A")));
+      assertArrayEquals(new String[] { "T3", "T2", "T1" },
+                        both.getTabGeneralPaneModel().getTabListPaneModel().getAssemblies());
+
+      // a tab with no labels has none to mispair
+      TabPropertyDialogModel unlabelled = tabWith(pages(), new String[0]);
+      setTab(unlabelled, Map.of(TAB_ASSEMBLIES, List.of("T3", "T1", "T2")));
+      assertArrayEquals(new String[] { "T3", "T1", "T2" },
+                        unlabelled.getTabGeneralPaneModel().getTabListPaneModel()
+                           .getAssemblies());
+   }
+
+   /** A tab whose lists were skewed before stays editable; the guard judges what a patch changes. */
+   @Test
+   void aTabAlreadyOutOfStepStaysEditableByUnrelatedWrites() throws Exception {
+      TabPropertyDialogModel model = tabWith(pages(), new String[] { "A", "B", "C", "D" });
+      setTab(model, patchOf("bottomTabs", true, "visible", false));
+      assertTrue(model.getTabGeneralPaneModel().getBottomTabs());
+
+      // an unchanged echo of the stored labels is not a change either
+      setTab(model, Map.of("tabLabels", List.of("A", "B", "C", "D")));
+   }
+
+   @Test
+   void bottomTabsAndTabLabelsAreNamedTabProperties() throws Exception {
+      TabPropertyDialogModel model = tabWith(pages(), new String[0]);
+      setTab(model, Map.of("bottomTabs", true));
+      assertTrue(model.getTabGeneralPaneModel().getBottomTabs());
+      assertEquals(TAB_LABELS, PropertyAliases.resolveForWrite("tab", "tabLabels"));
+      assertEquals("tabGeneralPaneModel.bottomTabs",
+                   PropertyAliases.resolveForWrite("tab", "bottomTabs"));
+   }
+
    // ── #79615: a locked Image/Line/Oval/Rectangle's geometry is read-only (LockedGeometryGuard) ──
 
    private static final String SHAPE_POSITION = "shapeGeneralPaneModel.sizePositionPaneModel.";
@@ -7443,8 +7650,8 @@ class AssemblyPropertyServiceTest {
                    () -> service.set("tok", principal(), "Group1",
                                      Map.of("staticImage", "$(X)"), ""));
       service.set("tok", principal(), "Group1",
-                  Map.of("staticImage", "^UPLOADED^2.png", "animateGif", true,
-                         "staticImageAlpha", 60), "");
+                  Map.of("staticImage", "^UPLOADED^2.png", "animateGIF", true,
+                         "alpha", 60), "");
 
       var preview = model.getGroupContainerGeneralPane().getStaticImagePane()
          .imagePreviewPaneModel();
@@ -7454,8 +7661,8 @@ class AssemblyPropertyServiceTest {
 
       // out of range: refused with the field named, the stored alpha is unchanged
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> service.set("tok", principal(), "Group1", Map.of("staticImageAlpha", 500), ""));
-      assertTrue(e.getMessage().contains("staticImageAlpha"), e.getMessage());
+         () -> service.set("tok", principal(), "Group1", Map.of("alpha", 500), ""));
+      assertTrue(e.getMessage().contains("alpha"), e.getMessage());
       assertEquals(60, model.getGroupContainerGeneralPane().getStaticImagePane()
          .imagePreviewPaneModel().alpha());
    }

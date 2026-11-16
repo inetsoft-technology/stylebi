@@ -32,6 +32,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -1600,7 +1601,14 @@ class PropertyAliasesTest {
          // variable is derived from the table binding on write (VSInputService), and checked by
          // AssemblyPropertyService.requireVariableFlagAchievable -- see PropertyAliases'
          // dataInputPaneModel.variable note
-         "dataInputPaneModel.variable"));
+         "dataInputPaneModel.variable"),
+      // Tab and group container (bug #81420): both apply methods hand the posted revision to
+      // editObjectProperty. Everything else live is aliased; the rest is registered dead. The
+      // tab's assemblies is live but has no alias: it can only be reordered, together with its
+      // labels, so the named way is edit(op:'reorder_container_children') and a raw write is
+      // judged by PatchGuards.
+      "tab", List.of("revision", "tabGeneralPaneModel.tabListPaneModel.assemblies"),
+      "groupcontainer", List.of("revision"));
    // writeBackDirectly, labelGap and labelPosition were listed live-without-alias here until bug
    // #80464 gave them short names; the classification test accepts an aliased leaf directly.
 
@@ -1670,7 +1678,10 @@ class PropertyAliasesTest {
     */
    @Test
    void everyWritableLeafOfSelectionAndSliderTypesIsClassifiedLiveOrDead() {
-      for(String type : List.of("selectionlist", "selectiontree", "timeslider", "slider")) {
+      Map<String, List<String>> unclassifiedByType = new LinkedHashMap<>();
+
+      for(String type : List.of("selectionlist", "selectiontree", "timeslider", "slider", "tab",
+                                    "groupcontainer")) {
          List<String> leaves = new ArrayList<>();
          collectWritableLeaves(PropertyAliases.forType(type).modelClass(), "", leaves,
                                new ArrayDeque<>());
@@ -1687,9 +1698,9 @@ class PropertyAliasesTest {
             }
          }
 
-         assertTrue(unclassified.isEmpty(),
-                    type + " has writable leaves that are neither aliased, refused as dead, nor " +
-                    "reviewed live: " + unclassified);
+         if(!unclassified.isEmpty()) {
+            unclassifiedByType.put(type, unclassified);
+         }
 
          for(String entry : live) {
             assertTrue(leaves.stream().anyMatch(leaf -> isOrUnder(leaf, entry)),
@@ -1699,6 +1710,10 @@ class PropertyAliasesTest {
                        type + ": live entry '" + entry + "' is also refused as dead");
          }
       }
+
+      assertTrue(unclassifiedByType.isEmpty(),
+                 "writable leaves that are neither aliased, refused as dead, nor reviewed live, " +
+                 "per type: " + unclassifiedByType);
    }
 
    @Test
@@ -2661,13 +2676,13 @@ class PropertyAliasesTest {
       String groupPreview =
          "groupContainerGeneralPane.staticImagePane.imagePreviewPaneModel.";
       expected.put("staticImage@image", Map.of("image", preview + "selectedImage"));
-      expected.put("animateGif@image", Map.of("image", preview + "animateGifImage"));
+      expected.put("animateGIF@image", Map.of("image", preview + "animateGifImage"));
       expected.put("staticImageAlpha@image", Map.of("image", preview + "alpha"));
       expected.put("staticImage@groupcontainer",
                    Map.of("groupcontainer", groupPreview + "selectedImage"));
-      expected.put("animateGif@groupcontainer",
+      expected.put("animateGIF@groupcontainer",
                    Map.of("groupcontainer", groupPreview + "animateGifImage"));
-      expected.put("staticImageAlpha@groupcontainer",
+      expected.put("alpha@groupcontainer",
                    Map.of("groupcontainer", groupPreview + "alpha"));
       expected.put("dynamicImage@image", Map.of("image",
          "imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageSelected"));
@@ -2715,7 +2730,9 @@ class PropertyAliasesTest {
 
       // the popup's alpha stays the image's "alpha"; the static image's opacity has its own name
       assertEquals("imageAdvancedPaneModel.alpha", PropertyAliases.resolveForWrite("image", "alpha"));
-      assertFalse(PropertyAliases.forType("groupcontainer").aliases().containsKey("alpha"));
+      // the group container names its background image alpha "alpha" (bug #81420)
+      assertEquals("groupContainerGeneralPane.staticImagePane.imagePreviewPaneModel.alpha",
+                   PropertyAliases.resolveForWrite("groupcontainer", "alpha"));
    }
 
    @Test
@@ -2855,19 +2872,20 @@ class PropertyAliasesTest {
    @Test
    void refusesAStaticImageAlphaOutsideZeroToOneHundred() {
       for(String type : List.of("image", "groupcontainer")) {
-         String path = PropertyAliases.resolveForWrite(type, "staticImageAlpha");
+         String name = "image".equals(type) ? "staticImageAlpha" : "alpha";
+         String path = PropertyAliases.resolveForWrite(type, name);
 
          for(Object bad : new Object[] { 500, 101, -1, "250", 100.5 }) {
             Exception e = assertThrows(IllegalArgumentException.class,
                () -> AssemblyPropertyService.requireStaticImageAlphaInRange(
-                  "staticImageAlpha", path, bad), type + " " + bad);
-            assertTrue(e.getMessage().contains("staticImageAlpha") &&
+                  name, path, bad), type + " " + bad);
+            assertTrue(e.getMessage().contains(name) &&
                        e.getMessage().contains("0 and 100"), e.getMessage());
          }
 
          for(Object ok : new Object[] { 0, 60, 100, "75" }) {
             assertDoesNotThrow(() -> AssemblyPropertyService.requireStaticImageAlphaInRange(
-               "staticImageAlpha", path, ok), type + " " + ok);
+               name, path, ok), type + " " + ok);
          }
       }
 

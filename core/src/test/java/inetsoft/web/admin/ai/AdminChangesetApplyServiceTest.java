@@ -200,6 +200,21 @@ class AdminChangesetApplyServiceTest {
       verify(backupService, never()).backup(anyString());
    }
 
+   // Bug #81073: a logging property is high risk but value-scoped, so apply takes no snapshot.
+   @Test
+   void appliesALoggingPropertyWithoutASnapshot() throws Exception {
+      stub("log.output.stderr", "false");
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenReturn(result("log.output.stderr", "false", "true",
+                            AdminChangeRecord.STATUS_VERIFIED, null));
+
+      ApplyResult applied = service.apply(request("t", "log.output.stderr", "true"), principal);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, applied.status());
+      assertNull(applied.backupRef());
+      verify(backupService, never()).backup(anyString());
+   }
+
    @Test
    void mintsATransactionIdAndPassesItToEveryChange() throws Exception {
       stub("query.runtime.maxrow", "100");

@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.ai.file;
 
+import inetsoft.sree.portal.CustomTheme;
+import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.util.DataSpace;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
@@ -278,7 +280,9 @@ class StoredAssetChangesetApplyServiceTest {
       assertNull(result.backupRef());
    }
 
-   @Test void appliesAnOverwriteOfAnExistingFileWithOneSnapshot() throws Exception {
+   // Bug #81073: an overwrite of a text file is restored from its captured text on rollback, so
+   // apply takes no whole-storage snapshot.
+   @Test void appliesAnOverwriteOfAnExistingTextFileWithoutASnapshot() throws Exception {
       files.put("w.txt", "A".getBytes(StandardCharsets.UTF_8));
       StoredAssetChangeRequest c =
          change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE, "w.txt");
@@ -292,18 +296,56 @@ class StoredAssetChangesetApplyServiceTest {
          result = service.apply(req, user);
       }
 
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
+   }
+
+   @Test void appliesADeleteOfATextFileNoThemeUsesWithoutASnapshot() throws Exception {
+      files.put("a.js", "console.log(1);".getBytes(StandardCharsets.UTF_8));
+      StoredAssetChangeRequest delete =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_DELETE, "a.js");
+      StoredAssetApplyResult result;
+
+      try(MockedStatic<CustomThemesManager> themes = mockStatic(CustomThemesManager.class);
+          MockedStatic<Audit> audit = mockAudit())
+      {
+         CustomThemesManager manager = mock(CustomThemesManager.class);
+         when(manager.getCustomThemes()).thenReturn(Set.<CustomTheme>of());
+         themes.when(CustomThemesManager::getManager).thenReturn(manager);
+         String hash = planService.resolve(request(delete), user).planHash();
+         result = service.apply(applyRequest("task", hash, "looks good", null, delete), user);
+      }
+
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
+   }
+
+   @Test void appliesAnOverwriteOfABinaryFileWithOneSnapshot() throws Exception {
+      files.put("w.bin", new byte[] { (byte) 0xff, (byte) 0xfe, 0 });
+      StoredAssetChangeRequest c =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE, "w.bin");
+      c.setContent("X");
+      String hash = planService.resolve(request(c), user).planHash();
+      StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", true, c);
+
+      StoredAssetApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
       assertEquals("admin-snapshot/ref", result.backupRef());
       verify(backupService, times(1)).backup(anyString());
    }
 
    @Test void appliesAMixedCreateAndDeletePlanWithOneSnapshot() throws Exception {
-      files.put("a.js", "console.log(1);".getBytes(StandardCharsets.UTF_8));
+      files.put("a.bin", new byte[] { (byte) 0xff, (byte) 0xfe, 0 });
       StoredAssetChangeRequest create =
          change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE, "new-folder");
       StoredAssetChangeRequest delete =
-         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_DELETE, "a.js");
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_DELETE, "a.bin");
       String hash = planService.resolve(request(create, delete), user).planHash();
-      StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", null, create, delete);
+      StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", true, create, delete);
 
       StoredAssetApplyResult result;
 

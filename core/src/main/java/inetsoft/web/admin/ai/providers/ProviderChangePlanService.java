@@ -27,6 +27,7 @@ import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.security.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -88,6 +89,9 @@ public class ProviderChangePlanService {
       }
 
       List<PlanChange> changes = new ArrayList<>();
+      // Bug #81073: per change, true when its rollback is an exact inverse, so the whole-storage
+      // snapshot is skipped only when every change is true.
+      List<Boolean> snapshotSkippable = new ArrayList<>();
       Set<String> seenKeys = new HashSet<>();
       Map<ProviderChain, String> chainProjections = new EnumMap<>(ProviderChain.class);
       // Bug #79016: hidden per-change hash input for a supplied password (see hash()).
@@ -116,6 +120,8 @@ public class ProviderChangePlanService {
             changes.add(resolveCreate(label, chain, name, providerType, change.getSpec(),
                                       change.getDatabaseSpec(), currentList, seenKeys,
                                       hiddenInputs));
+            snapshotSkippable.add(isRemoteDirectoryType(chain, providerType) &&
+                                  authenticationChainExists());
             continue;
          }
 
@@ -136,10 +142,13 @@ public class ProviderChangePlanService {
                   "source provider's own configuration -- use newName to control only its name");
             }
 
+            boolean[] sourceIsRemoteDirectory = new boolean[1];
             changes.add(resolveDuplicate(label, chain, name, change.getNewName(), currentList,
                                          seenKeys,
                                          reservedDuplicateNames.computeIfAbsent(
-                                            chain, c -> new HashSet<>())));
+                                            chain, c -> new HashSet<>()),
+                                         sourceIsRemoteDirectory));
+            snapshotSkippable.add(sourceIsRemoteDirectory[0] && authenticationChainExists());
             continue;
          }
 
@@ -158,6 +167,7 @@ public class ProviderChangePlanService {
 
             changes.add(resolveUpdate(label, chain, name, change.getSpec(), change.getDatabaseSpec(),
                                       currentList, seenKeys, user, hiddenInputs));
+            snapshotSkippable.add(false);
             continue;
          }
 
@@ -177,12 +187,29 @@ public class ProviderChangePlanService {
          }
 
          changes.add(resolveDelete(label, chain, name, user, currentList, seenKeys));
+         snapshotSkippable.add(false);
       }
 
       String task = req.getTask().trim();
       String planHash = hash(changes, chainProjections, hiddenInputs);
-      return new ResolvedPlan(task, Collections.unmodifiableList(changes), true, true,
+      // Bug #81073: the rollback of adding an LDAP/DATABASE authentication provider to an existing
+      // chain removes it by name, an exact inverse. A FILE provider seeds default records into its
+      // own storage that the removal leaves behind; a delete re-adds at the END of the chain and
+      // cannot restore a masked password; an update rotates a password it never captured.
+      boolean requiresBackup = StorageBackupPolicy.requiresBackup(snapshotSkippable, skip -> skip);
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup, true,
                               planHash, TaskAuditToken.issue(planHash, task));
+   }
+
+   private static boolean isRemoteDirectoryType(ProviderChain chain, String providerType) {
+      return chain == ProviderChain.AUTHENTICATION &&
+         ("LDAP".equalsIgnoreCase(providerType) || "DATABASE".equalsIgnoreCase(providerType));
+   }
+
+   /** {@code addAuthenticationProvider} creates a new chain, a side effect the rollback does not
+    * reverse, when none exists yet. */
+   private boolean authenticationChainExists() {
+      return securityEngine.getAuthenticationChain().isPresent();
    }
 
    // ---------------------------------------------------------------- create
@@ -865,7 +892,7 @@ public class ProviderChangePlanService {
     */
    private PlanChange resolveDuplicate(String label, ProviderChain chain, String name, String newName,
                                        List<SecurityProviderStatus> currentList, Set<String> seenKeys,
-                                       Set<String> reservedNames)
+                                       Set<String> reservedNames, boolean[] sourceIsRemoteDirectory)
       throws Exception
    {
       String key = key(chain, name);
@@ -882,6 +909,9 @@ public class ProviderChangePlanService {
 
       if(chain == ProviderChain.AUTHENTICATION) {
          AuthenticationProviderModel source = authenticationProviderService.getAuthenticationProvider(name);
+         sourceIsRemoteDirectory[0] =
+            source.providerType() == SecurityProviderType.LDAP ||
+            source.providerType() == SecurityProviderType.DATABASE;
          AuthenticationProviderModel duplicated =
             ((ImmutableAuthenticationProviderModel) source).withProviderName(actualNewName);
          String proposed = ProviderProjection.projectAuthenticationProvider(duplicated);

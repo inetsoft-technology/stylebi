@@ -156,6 +156,37 @@ class ScheduleChangesetApplyServiceTest {
       verify(scheduleGateway).removeScheduleTask(eq("t1"), any(), eq(user));
    }
 
+   // Bug #81073: a delete whose owner is in the caller's organization and whose save dry-run
+   // passes is undone by re-creating the captured task, so apply takes no whole-storage snapshot.
+   @Test void appliesACompensableDeleteWithoutASnapshot() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)   // preview
+         .thenReturn(existing)   // re-resolve inside apply()
+         .thenReturn(existing)   // apply: capture before-state
+         .thenReturn(null);      // apply: verify gone
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      inetsoft.sree.security.OrganizationManager orgManager =
+         mock(inetsoft.sree.security.OrganizationManager.class);
+      when(orgManager.getCurrentOrgID(user)).thenReturn("host-org");
+
+      ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
+      ApplyResult result;
+
+      try(MockedStatic<inetsoft.sree.security.OrganizationManager> orgStatic =
+             mockStatic(inetsoft.sree.security.OrganizationManager.class))
+      {
+         orgStatic.when(inetsoft.sree.security.OrganizationManager::getInstance)
+            .thenReturn(orgManager);
+         result = service.apply(req, user, null);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
+      verify(scheduleGateway).removeScheduleTask(eq("t1"), any(), eq(user));
+   }
+
    // The core regression proof for a create: the audit record's taskDescription must come from
    // the taskToken's embedded (reviewed) narrative, not from this apply request's own (possibly
    // diverged) task field.

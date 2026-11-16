@@ -358,7 +358,7 @@ public class ScheduleChangesetApplyService {
     * {@code clone()} shares the conditions and actions with the stored task. Same as
     * {@code ScheduleTaskImportChangesetApplyService.deepCopy}.
     */
-   private static inetsoft.sree.schedule.ScheduleTask deepCopy(
+   static inetsoft.sree.schedule.ScheduleTask deepCopy(
       inetsoft.sree.schedule.ScheduleTask task) throws Exception
    {
       StringWriter buffer = new StringWriter();

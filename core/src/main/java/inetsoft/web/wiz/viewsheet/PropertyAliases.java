@@ -171,7 +171,17 @@ public final class PropertyAliases {
       // width/height (bug #78901): the same apply method reads only left/top of its
       // sizePositionPaneModel, and layout re-derives the size as the bounding box of the members
       // (GroupContainerVSAssembly.updateGridSize); the Composer dialog hides both fields.
-      "groupcontainer", Set.of("enabled", "width", "height"),
+      // The same apply method also never reads back the dialog's capability flags and the
+      // Editable/Shadow leftovers (bug #81420), listed as the selection types list them. Its
+      // general pane accessor has no "Model" suffix, so the generalPropPane entries are its own.
+      "groupcontainer", deadSet("enabled", "width", "height",
+                                "generalPropPane.popLocation", "generalPropPane.showEnabledGroup",
+                                "generalPropPane.showSubmitCheckbox",
+                                "generalPropPane.submitOnChange"),
+      // Tab (bug #81420): setTabPropertyDialogModel reads enabled, primary, visible, name, the two
+      // tab lists, bottomTabs, script, size and position -- nothing else of the dialog. The
+      // submit/pop/editable capability flags on the shared general panes are never read back.
+      "tab", deadSet("generalPropPaneModel.submitOnChange"),
       // Selection list/tree, range slider and plain slider (bug #78566). An entry here is a
       // path suffix (see deadFieldWriteRefusal), because the short alias vocabulary expresses
       // "dead" only by omission and a raw dotted path reaches the same field regardless. Each
@@ -665,7 +675,8 @@ public final class PropertyAliases {
             "pair on the dialog model, populated on every read, but this type's apply method " +
             "never reads it back -- a write would report success and change nothing." +
             (hint == null ? "" : " " + hint) +
-            ("groupcontainer".equals(normalizedType) && !"enabled".equals(deadEntry)
+            ("groupcontainer".equals(normalizedType) &&
+             ("width".equals(deadEntry) || "height".equals(deadEntry))
                ? " A group's size is always the bounding box of its members: resize the " +
                  "members instead (the group re-fits to them), or set left/top to move the group."
                : "");
@@ -1273,15 +1284,15 @@ public final class PropertyAliases {
    }
 
    /**
-    * The static-image controls of the image and group container dialogs, which share
-    * {@code ImagePreviewPaneModel} (bug #81419). {@code staticImageAlpha} is not {@code alpha}:
+    * The static-image controls of the image dialog (bug #81419), named as a group container's
+    * (#81420) background image is: {@code animateGIF}. {@code staticImageAlpha} is not {@code alpha}:
     * on an image {@code alpha} is already the popup's opacity.
     *
     * @param preview the path of the {@code ImagePreviewPaneModel}.
     */
    private static void staticImage(Map<String, String> aliases, String preview) {
       aliases.put("staticImage", preview + ".selectedImage");
-      aliases.put("animateGif", preview + ".animateGifImage");
+      aliases.put("animateGIF", preview + ".animateGifImage");
       aliases.put("staticImageAlpha", preview + ".alpha");
    }
 
@@ -1957,8 +1968,10 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "tabGeneralPaneModel");
       sizePosition(aliases, "tabGeneralPaneModel");
-      // Bug #81419: moves the tab strip to the bottom of its container, which also repositions
-      // the tab (TabPropertyDialogService, repositionForBottomTabs).
+      // The tab list dialog (Redmine #81420). labels is paired with assemblies by position and
+      // PatchGuards refuses a write that would break the pairing; the order itself is not an
+      // alias because it moves both lists at once: edit(op:'reorder_container_children').
+      aliases.put("tabLabels", "tabGeneralPaneModel.tabListPaneModel.labels");
       aliases.put("bottomTabs", "tabGeneralPaneModel.bottomTabs");
       return aliases;
    }
@@ -2009,17 +2022,27 @@ public final class PropertyAliases {
       // other type. Another reason these paths are declared rather than derived.
       basicGeneral(aliases, "groupContainerGeneralPane.generalPropPane");
       sizePosition(aliases, "groupContainerGeneralPane");
-      // Bug #81419: the background image and its scale pane, which sits at the root of the
-      // dialog model rather than under the general pane. PatchGuards covers the scale pane,
-      // AssemblyPropertyService.requireKnownSelectedImage the image.
-      staticImage(aliases, "groupContainerGeneralPane.staticImagePane.imagePreviewPaneModel");
-      aliases.put("scaleImage", "imageScalePane.scaleImageChecked");
-      aliases.put("maintainAspectRatio", "imageScalePane.maintainAspectRatio");
-      aliases.put("tile", "imageScalePane.tile");
-      aliases.put("cellGridTop", "imageScalePane.top");
-      aliases.put("cellGridLeft", "imageScalePane.left");
-      aliases.put("cellGridBottom", "imageScalePane.bottom");
-      aliases.put("cellGridRight", "imageScalePane.right");
+
+      // Background image and scale panes (Redmine #81420). Same names as image(), applied by
+      // setGroupContainerPropertyDialogModel and refused by PatchGuards in the same combinations
+      // the shared image-scale-pane disables. Note imageScalePane is a top-level pane of the
+      // dialog model, not under groupContainerGeneralPane. The picked image stays a raw path, as
+      // on image(), because its value must name a node of the dialog's image tree.
+      String image = "groupContainerGeneralPane.staticImagePane.imagePreviewPaneModel";
+      aliases.put("alpha", image + ".alpha");
+      aliases.put("animateGIF", image + ".animateGifImage");
+      // Bug #81419: the picked image, which #81420 left as a raw path. PatchGuards'
+      // selected-image check (AssemblyPropertyService.requireKnownSelectedImage) keys on the
+      // path suffix, so the name reaches it too.
+      aliases.put("staticImage", image + ".selectedImage");
+      String scale = "imageScalePane";
+      aliases.put("scaleImage", scale + ".scaleImageChecked");
+      aliases.put("maintainAspectRatio", scale + ".maintainAspectRatio");
+      aliases.put("tile", scale + ".tile");
+      aliases.put("cellGridTop", scale + ".top");
+      aliases.put("cellGridLeft", scale + ".left");
+      aliases.put("cellGridBottom", scale + ".bottom");
+      aliases.put("cellGridRight", scale + ".right");
       return aliases;
    }
 
