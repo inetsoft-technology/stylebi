@@ -408,6 +408,12 @@ public final class PropertyAliases {
       labels.put("xGridLineColor", "X Grid Line Color (the plot's Y axis grid on an inverted chart)");
       labels.put("yGridLineStyle", "Y Grid Line Style (the plot's X axis grid on an inverted chart)");
       labels.put("yGridLineColor", "Y Grid Line Color (the plot's X axis grid on an inverted chart)");
+      // Bug #81419: names that are not the dialog captions.
+      labels.put("drillEnabled", "Enable Drilling");
+      labels.put("dateComparisonEnabled", "Enable Date Comparison");
+      labels.put("combinedTip", "Combine tooltip (line chart, default tooltip mode)");
+      labels.put("staticImage", "Static image (the selected image)");
+      labels.put("staticImageAlpha", "Static image alpha (not the popup's alpha)");
       return Collections.unmodifiableMap(labels);
    }
 
@@ -1253,6 +1259,33 @@ public final class PropertyAliases {
    }
 
    /**
+    * The Padding pane of the text, chart and gauge dialogs (bugs #76929, #81419): the four insets
+    * every one of them applies through {@code setPadding(new Insets(...))}. One helper, so the
+    * three types cannot diverge. AssemblyPropertyService refuses a negative inset, which the
+    * dialog's own field also refuses.
+    */
+   private static void padding(Map<String, String> aliases, String prefix) {
+      String padding = prefix + ".paddingPaneModel";
+      aliases.put("paddingTop", padding + ".top");
+      aliases.put("paddingLeft", padding + ".left");
+      aliases.put("paddingBottom", padding + ".bottom");
+      aliases.put("paddingRight", padding + ".right");
+   }
+
+   /**
+    * The static-image controls of the image and group container dialogs, which share
+    * {@code ImagePreviewPaneModel} (bug #81419). {@code staticImageAlpha} is not {@code alpha}:
+    * on an image {@code alpha} is already the popup's opacity.
+    *
+    * @param preview the path of the {@code ImagePreviewPaneModel}.
+    */
+   private static void staticImage(Map<String, String> aliases, String preview) {
+      aliases.put("staticImage", preview + ".selectedImage");
+      aliases.put("animateGif", preview + ".animateGifImage");
+      aliases.put("staticImageAlpha", preview + ".alpha");
+   }
+
+   /**
     * The measure sub-pane shared by selection list and tree: {@code formula}, {@code showText},
     * {@code showBar} (Redmine #79233; selection list already had them, selection tree did not).
     * {@code measure} is added only for the list, whose alias predates this helper.
@@ -1323,7 +1356,8 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       outputGeneral(aliases, "gaugeGeneralPaneModel");
       sizePosition(aliases, "gaugeGeneralPaneModel");
-      aliases.put("min", "gaugeGeneralPaneModel.numberRangePaneModel.min");
+      padding(aliases, "gaugeGeneralPaneModel");
+      aliases.put("min","gaugeGeneralPaneModel.numberRangePaneModel.min");
       aliases.put("max", "gaugeGeneralPaneModel.numberRangePaneModel.max");
       aliases.put("majorIncrement", "gaugeGeneralPaneModel.numberRangePaneModel.majorIncrement");
       aliases.put("minorIncrement", "gaugeGeneralPaneModel.numberRangePaneModel.minorIncrement");
@@ -1377,11 +1411,7 @@ public final class PropertyAliases {
       aliases.put("popLocation", "textGeneralPaneModel.popLocation");
       // Bug #76929: the Padding pane, applied by TextPropertyDialogService via
       // textAssemblyInfo.getPadding().{top,left,bottom,right}.
-      String padding = "textGeneralPaneModel.paddingPaneModel";
-      aliases.put("paddingTop", padding + ".top");
-      aliases.put("paddingLeft", padding + ".left");
-      aliases.put("paddingBottom", padding + ".bottom");
-      aliases.put("paddingRight", padding + ".right");
+      padding(aliases, "textGeneralPaneModel");
       // Same shape as gauge()/image() (see gauge()'s comment) -- "tipOption" here predates this
       // ticket and stays as-is for compatibility; "tooltip"/"tooltipMode" are the missing half of
       // the same feature, added now.
@@ -1401,6 +1431,14 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       outputGeneral(aliases, "imageGeneralPaneModel");
       sizePosition(aliases, "imageGeneralPaneModel");
+
+      // Static image pane and dynamic image (bug #81419). The static controls are applied by
+      // setImagePropertyDialogModel (:282-290); the dynamic value only when it is switched on
+      // (:346-354), which PatchGuards checks.
+      staticImage(aliases, "imageGeneralPaneModel.staticImagePaneModel.imagePreviewPaneModel");
+      String dynamic = "imageAdvancedPaneModel.dynamicImagePaneModel";
+      aliases.put("dynamicImage", dynamic + ".dynamicImageSelected");
+      aliases.put("dynamicImageValue", dynamic + ".dynamicImageValue");
 
       // Tip pane (Redmine #76516 item 1 follow-up). Same shape as gauge()/text() -- a plain
       // visibility flag plus optional custom text, no Data Tip View/tipView radio option (that
@@ -1437,6 +1475,14 @@ public final class PropertyAliases {
       dataGeneral(aliases, "chartGeneralPaneModel");
       sizePosition(aliases, "chartGeneralPaneModel");
       title(aliases, "chartGeneralPaneModel");
+      // Bug #81419: Title Height and Padding (General tab), Enable Drilling and Enable Date
+      // Comparison (Advanced tab). Writing dateComparisonEnabled=false also discards the stored
+      // date comparison (ChartAdvancedPaneModel.updateChartAdvancedPaneModel); the write
+      // reports that. drillEnabled is crosstab's name for the same dialog checkbox.
+      titleHeight(aliases, "chartGeneralPaneModel");
+      padding(aliases, "chartGeneralPaneModel");
+      aliases.put("drillEnabled", "chartAdvancedPaneModel.enableDrilling");
+      aliases.put("dateComparisonEnabled", "chartAdvancedPaneModel.dateComparisonEnabled");
       aliases.put("enableAdhocEditing", "chartAdvancedPaneModel.enableAdhocEditing");
       aliases.put("glossyEffect", "chartAdvancedPaneModel.glossyEffect");
       aliases.put("sparkline", "chartAdvancedPaneModel.sparkline");
@@ -1497,6 +1543,11 @@ public final class PropertyAliases {
       aliases.put("trendLineStyle", "chartLinePaneModel.trendLineStyle");
       aliases.put("trendLineColor", "chartLinePaneModel.trendLineColor");
       aliases.put("trendLineVisible", "chartLinePaneModel.trendLineVisible");
+      // Bug #81419: the measures the trend line is drawn for. updatePlotTrendLineGrid stores the
+      // complement of this list (against the model's own measures) as the excluded measures, so
+      // a name that is not one of the chart's measures would be dropped without a word;
+      // AssemblyPropertyService refuses it.
+      aliases.put("trendLineMeasures", "chartLinePaneModel.trendLineMeasures");
       aliases.put("trendPerColor", "chartLinePaneModel.trendPerColor");
       aliases.put("projectForward", "chartLinePaneModel.projectForward");
       aliases.put("facetGrid", "chartLinePaneModel.facetGrid");
@@ -1534,6 +1585,10 @@ public final class PropertyAliases {
       // instead so the two do not collide.
       aliases.put("tooltip", "chartGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customTip");
       aliases.put("tooltipMode", "chartGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customRB");
+      // Bug #81419: "Combine tooltip" of a line chart, applied only in the default tooltip mode
+      // (ChartPropertyDialogService); the plugin's combinedTipWarning already covers this name.
+      aliases.put("combinedTip",
+                  "chartGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.combinedTip");
       aliases.put("tipOption", "chartGeneralPaneModel.tipPaneModel.tipOption");
       aliases.put("tipView", "chartGeneralPaneModel.tipPaneModel.tipView");
       aliases.put("tipAlpha", "chartGeneralPaneModel.tipPaneModel.alpha");
@@ -1547,6 +1602,7 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "tableViewGeneralPaneModel");
       sizePosition(aliases, "tableViewGeneralPaneModel");
+      titleHeight(aliases, "tableViewGeneralPaneModel");
       title(aliases, "tableViewGeneralPaneModel");
       aliases.put("maxRows", "tableViewGeneralPaneModel.maxRows");
       aliases.put("submitOnChange", "tableViewGeneralPaneModel.submitOnChange");
@@ -1578,8 +1634,12 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "tableViewGeneralPaneModel");
       sizePosition(aliases, "tableViewGeneralPaneModel");
+      titleHeight(aliases, "tableViewGeneralPaneModel");
       title(aliases, "tableViewGeneralPaneModel");
       aliases.put("tableStyle", "tableViewGeneralPaneModel.tableStylePaneModel.tableStyle");
+      // Bug #81419. Writing false discards the stored date comparison, and the dialog's own
+      // "unsupported crosstab" notice on enabling is not raised by this path.
+      aliases.put("dateComparisonEnabled", "crosstabAdvancedPaneModel.dateComparisonEnabled");
       aliases.put("fillBlankWithZero", "crosstabAdvancedPaneModel.fillBlankWithZero");
       aliases.put("summarySideBySide", "crosstabAdvancedPaneModel.summarySideBySide");
       aliases.put("mergeSpan", "crosstabAdvancedPaneModel.mergeSpan");
@@ -1834,6 +1894,10 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "rangeSliderGeneralPaneModel");
       sizePosition(aliases, "rangeSliderGeneralPaneModel");
+      // Bug #81419. The Composer enables this field only for a range slider inside a selection
+      // container, and the title it sizes shows only there; the plugin warns that a write
+      // outside one has no effect (#79154).
+      titleHeight(aliases, "rangeSliderGeneralPaneModel");
       title(aliases, "rangeSliderGeneralPaneModel");
       // Not submitOnChange(aliases, ...) -- a range slider keeps the same setting on its own
       // RangeSliderSizePaneModel instead of the shared GeneralPropPaneModel, and it is the
@@ -1893,6 +1957,9 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "tabGeneralPaneModel");
       sizePosition(aliases, "tabGeneralPaneModel");
+      // Bug #81419: moves the tab strip to the bottom of its container, which also repositions
+      // the tab (TabPropertyDialogService, repositionForBottomTabs).
+      aliases.put("bottomTabs", "tabGeneralPaneModel.bottomTabs");
       return aliases;
    }
 
@@ -1910,6 +1977,7 @@ public final class PropertyAliases {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "tableViewGeneralPaneModel");
       sizePosition(aliases, "tableViewGeneralPaneModel");
+      titleHeight(aliases, "tableViewGeneralPaneModel");
       title(aliases, "tableViewGeneralPaneModel");
       aliases.put("tableStyle", "tableViewGeneralPaneModel.tableStylePaneModel.tableStyle");
       aliases.put("shrink", "calcTableAdvancedPaneModel.shrink");
@@ -1917,6 +1985,11 @@ public final class PropertyAliases {
       aliases.put("sortOthersLast", "calcTableAdvancedPaneModel.sortOthersLast");
       aliases.put("headerRowCount", "calcTableAdvancedPaneModel.headerRowCount");
       aliases.put("headerColCount", "calcTableAdvancedPaneModel.headerColCount");
+      // Bug #81419: like the header counts, applying a trailer count re-types the existing
+      // cells (CalcTablePropertyDialogService derives each cell's old row type from the old
+      // header and trailer counts).
+      aliases.put("trailerRowCount", "calcTableAdvancedPaneModel.trailerRowCount");
+      aliases.put("trailerColCount", "calcTableAdvancedPaneModel.trailerColCount");
 
       // General > Tip pane (Redmine #76516 item 1 follow-up) -- same TipPaneModel as chart()/
       // crosstab()/table() above, applied by setCalcTablePropertyModel exactly the same way. No
@@ -1936,6 +2009,17 @@ public final class PropertyAliases {
       // other type. Another reason these paths are declared rather than derived.
       basicGeneral(aliases, "groupContainerGeneralPane.generalPropPane");
       sizePosition(aliases, "groupContainerGeneralPane");
+      // Bug #81419: the background image and its scale pane, which sits at the root of the
+      // dialog model rather than under the general pane. PatchGuards covers the scale pane,
+      // AssemblyPropertyService.requireKnownSelectedImage the image.
+      staticImage(aliases, "groupContainerGeneralPane.staticImagePane.imagePreviewPaneModel");
+      aliases.put("scaleImage", "imageScalePane.scaleImageChecked");
+      aliases.put("maintainAspectRatio", "imageScalePane.maintainAspectRatio");
+      aliases.put("tile", "imageScalePane.tile");
+      aliases.put("cellGridTop", "imageScalePane.top");
+      aliases.put("cellGridLeft", "imageScalePane.left");
+      aliases.put("cellGridBottom", "imageScalePane.bottom");
+      aliases.put("cellGridRight", "imageScalePane.right");
       return aliases;
    }
 

@@ -2605,4 +2605,287 @@ class PropertyAliasesTest {
       assertDoesNotThrow(() -> writeWithModel("slider", "visible"));
       assertDoesNotThrow(() -> writeWithModel("slider", visible));
    }
+
+   // ── bug #81419: the remaining Properties-dialog settings get a name ──────────────────────
+   //
+   // The axis is assembly type x dialog control. Each row is a control the type's apply method
+   // reads back, so the table is the specification: a type missing a name fails, and the
+   // negative direction (a name leaking onto a type that ignores the control) is covered by
+   // titleHeightIsNotAliasedOnTypesThatDoNotApplyIt and the dead-field tests above.
+
+   private static final String PADDING_SIDES = "top,left,bottom,right";
+
+   /** Every type that applies Title Height names it; a type added to the live set cannot go unnamed. */
+   @Test
+   void everyTypeThatAppliesTitleHeightNamesIt() {
+      for(String type : SIZE_POSITION_LIVE.get("titleHeight")) {
+         String path = sizePositionPath(type, "titleHeight");
+         assertNotNull(path, type);
+         assertEquals(path, PropertyAliases.forType(type).aliases().get("titleHeight"), type);
+         assertEquals(path, PropertyAliases.resolveForWrite(type, "titleHeight"), type);
+      }
+   }
+
+   @Test
+   void namesTheRemainingPropertiesDialogSettings() {
+      Map<String, Map<String, String>> expected = new java.util.LinkedHashMap<>();
+      // padding: text already had it; chart and gauge share the pane
+      for(String side : PADDING_SIDES.split(",")) {
+         String name = "padding" + Character.toUpperCase(side.charAt(0)) + side.substring(1);
+         expected.put(name + "@chart", Map.of("chart",
+            "chartGeneralPaneModel.paddingPaneModel." + side));
+         expected.put(name + "@gauge", Map.of("gauge",
+            "gaugeGeneralPaneModel.paddingPaneModel." + side));
+         expected.put(name + "@text", Map.of("text",
+            "textGeneralPaneModel.paddingPaneModel." + side));
+      }
+
+      expected.put("drillEnabled@chart", Map.of("chart", "chartAdvancedPaneModel.enableDrilling"));
+      expected.put("drillEnabled@crosstab",
+                   Map.of("crosstab", "crosstabAdvancedPaneModel.drillEnabled"));
+      expected.put("dateComparisonEnabled@chart",
+                   Map.of("chart", "chartAdvancedPaneModel.dateComparisonEnabled"));
+      expected.put("dateComparisonEnabled@crosstab",
+                   Map.of("crosstab", "crosstabAdvancedPaneModel.dateComparisonEnabled"));
+      expected.put("trendLineMeasures@chart",
+                   Map.of("chart", "chartLinePaneModel.trendLineMeasures"));
+      expected.put("combinedTip@chart", Map.of("chart",
+         "chartGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.combinedTip"));
+      expected.put("trailerRowCount@calctable",
+                   Map.of("calctable", "calcTableAdvancedPaneModel.trailerRowCount"));
+      expected.put("trailerColCount@calctable",
+                   Map.of("calctable", "calcTableAdvancedPaneModel.trailerColCount"));
+      expected.put("bottomTabs@tab", Map.of("tab", "tabGeneralPaneModel.bottomTabs"));
+
+      String preview = "imageGeneralPaneModel.staticImagePaneModel.imagePreviewPaneModel.";
+      String groupPreview =
+         "groupContainerGeneralPane.staticImagePane.imagePreviewPaneModel.";
+      expected.put("staticImage@image", Map.of("image", preview + "selectedImage"));
+      expected.put("animateGif@image", Map.of("image", preview + "animateGifImage"));
+      expected.put("staticImageAlpha@image", Map.of("image", preview + "alpha"));
+      expected.put("staticImage@groupcontainer",
+                   Map.of("groupcontainer", groupPreview + "selectedImage"));
+      expected.put("animateGif@groupcontainer",
+                   Map.of("groupcontainer", groupPreview + "animateGifImage"));
+      expected.put("staticImageAlpha@groupcontainer",
+                   Map.of("groupcontainer", groupPreview + "alpha"));
+      expected.put("dynamicImage@image", Map.of("image",
+         "imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageSelected"));
+      expected.put("dynamicImageValue@image", Map.of("image",
+         "imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageValue"));
+
+      for(Map.Entry<String, String> scale : Map.of(
+         "scaleImage", "scaleImageChecked", "maintainAspectRatio", "maintainAspectRatio",
+         "tile", "tile", "cellGridTop", "top", "cellGridLeft", "left",
+         "cellGridBottom", "bottom", "cellGridRight", "right").entrySet())
+      {
+         expected.put(scale.getKey() + "@groupcontainer",
+                      Map.of("groupcontainer", "imageScalePane." + scale.getValue()));
+      }
+
+      int checked = 0;
+
+      for(Map.Entry<String, Map<String, String>> entry : expected.entrySet()) {
+         String alias = entry.getKey().substring(0, entry.getKey().indexOf('@'));
+
+         for(Map.Entry<String, String> typePath : entry.getValue().entrySet()) {
+            assertEquals(typePath.getValue(),
+                         PropertyAliases.resolveForWrite(typePath.getKey(), alias),
+                         alias + " on " + typePath.getKey());
+            assertFalse(refused(typePath.getKey(), typePath.getValue()),
+                        typePath.getValue() + " must stay writable by its raw path");
+            checked++;
+         }
+      }
+
+      assertEquals(expected.size(), checked);
+   }
+
+   /** The dialog's Title Height is not an assembly-wide setting: types that ignore it stay refused. */
+   @Test
+   void theNewNamesDoNotLeakOntoTypesThatIgnoreTheControl() {
+      for(String type : List.of("gauge", "text", "image", "slider", "tab", "groupcontainer")) {
+         assertFalse(PropertyAliases.forType(type).aliases().containsKey("titleHeight"), type);
+      }
+
+      // trailer counts are a calc table's; a crosstab/table has no such control
+      for(String type : List.of("table", "crosstab")) {
+         assertFalse(PropertyAliases.forType(type).aliases().containsKey("trailerRowCount"), type);
+      }
+
+      // the popup's alpha stays the image's "alpha"; the static image's opacity has its own name
+      assertEquals("imageAdvancedPaneModel.alpha", PropertyAliases.resolveForWrite("image", "alpha"));
+      assertFalse(PropertyAliases.forType("groupcontainer").aliases().containsKey("alpha"));
+   }
+
+   @Test
+   void captionsTheNamesThatAreNotTheDialogWords() {
+      for(String name : List.of("drillEnabled", "dateComparisonEnabled", "combinedTip",
+                                "staticImage", "staticImageAlpha"))
+      {
+         assertNotNull(PropertyAliases.labelFor(name), name);
+      }
+
+      assertEquals("Enable Drilling", PropertyAliases.labelFor("drillEnabled"));
+      assertEquals("Enable Date Comparison", PropertyAliases.labelFor("dateComparisonEnabled"));
+   }
+
+   /**
+    * The dialog refuses a title height of 0 or less and a negative inset; StyleBI clamps the
+    * first to 0 and stores the second, both reporting success. The guard is keyed on the path
+    * suffix, so it fires for the short name, the raw path, and the types that already had the
+    * alias.
+    */
+   @Test
+   void refusesATitleHeightBelowOneAndANegativePadding() {
+      List<String[]> titleHeights = new java.util.ArrayList<>();
+
+      for(String type : SIZE_POSITION_LIVE.get("titleHeight")) {
+         titleHeights.add(new String[] { type, "titleHeight" });
+         titleHeights.add(new String[] { type, sizePositionPath(type, "titleHeight") });
+      }
+
+      for(String[] c : titleHeights) {
+         String path = PropertyAliases.resolveForWrite(c[0], c[1]);
+
+         for(Object bad : new Object[] { 0, -4, "-1", 0.0 }) {
+            Exception e = assertThrows(IllegalArgumentException.class,
+               () -> AssemblyPropertyService.requirePositiveTitleHeight(c[1], path, bad),
+               c[0] + " " + c[1] + " " + bad);
+            assertTrue(e.getMessage().contains(c[1]), e.getMessage());
+         }
+
+         assertDoesNotThrow(
+            () -> AssemblyPropertyService.requirePositiveTitleHeight(c[1], path, 1), c[0]);
+         assertDoesNotThrow(
+            () -> AssemblyPropertyService.requirePositiveTitleHeight(c[1], path, "33"), c[0]);
+      }
+
+      for(String type : List.of("chart", "gauge", "text")) {
+         for(String side : List.of("paddingTop", "paddingLeft", "paddingBottom", "paddingRight")) {
+            String path = PropertyAliases.resolveForWrite(type, side);
+
+            for(Object bad : new Object[] { -1, "-7", -0.5 }) {
+               Exception e = assertThrows(IllegalArgumentException.class,
+                  () -> AssemblyPropertyService.requireNonNegativePadding(side, path, bad),
+                  type + " " + side + " " + bad);
+               assertTrue(e.getMessage().contains(side), e.getMessage());
+            }
+
+            assertDoesNotThrow(
+               () -> AssemblyPropertyService.requireNonNegativePadding(side, path, 0), type);
+            assertDoesNotThrow(
+               () -> AssemblyPropertyService.requireNonNegativePadding(side, path, 12), type);
+            // a non-numeric value is left to the model's own type handling, which names it
+            assertDoesNotThrow(
+               () -> AssemblyPropertyService.requireNonNegativePadding(side, path, "abc"), type);
+         }
+      }
+
+      // untouched: other paths are not judged by either guard
+      assertDoesNotThrow(() -> AssemblyPropertyService.requirePositiveTitleHeight(
+         "width", "chartGeneralPaneModel.sizePositionPaneModel.width", -3));
+      assertDoesNotThrow(() -> AssemblyPropertyService.requireNonNegativePadding(
+         "top", "chartGeneralPaneModel.sizePositionPaneModel.top", -3));
+   }
+
+   @Test
+   void refusesANegativeTrailerCountOnly() {
+      for(String name : List.of("trailerRowCount", "trailerColCount")) {
+         String path = PropertyAliases.resolveForWrite("calctable", name);
+         assertThrows(IllegalArgumentException.class,
+                      () -> AssemblyPropertyService.requireNonNegativeTrailerCount(name, path, -1));
+         assertDoesNotThrow(
+            () -> AssemblyPropertyService.requireNonNegativeTrailerCount(name, path, 0));
+         assertDoesNotThrow(
+            () -> AssemblyPropertyService.requireNonNegativeTrailerCount(name, path, 2));
+      }
+
+      // the header counts keep their existing behaviour
+      assertDoesNotThrow(() -> AssemblyPropertyService.requireNonNegativeTrailerCount(
+         "headerRowCount", "calcTableAdvancedPaneModel.headerRowCount", -1));
+   }
+
+   /** An unknown trend line measure is dropped by the model's complement logic, so it is refused. */
+   @Test
+   void refusesATrendLineMeasureTheChartDoesNotHave() {
+      inetsoft.web.composer.model.vs.ChartPropertyDialogModel model =
+         new inetsoft.web.composer.model.vs.ChartPropertyDialogModel();
+      inetsoft.web.composer.model.vs.ChartLinePaneModel line =
+         new inetsoft.web.composer.model.vs.ChartLinePaneModel();
+      line.setMeasures(new String[] { "Sales", "Cost" });
+      model.setChartLinePaneModel(line);
+
+      String path = PropertyAliases.resolveForWrite("chart", "trendLineMeasures");
+      Object written = PropertyPath.set(model, path, new String[] { "Sales", "Margin" });
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> AssemblyPropertyService.requireKnownTrendLineMeasures(written));
+      assertTrue(e.getMessage().contains("Margin") && e.getMessage().contains("Sales") &&
+                 e.getMessage().contains("Cost"), e.getMessage());
+
+      Object valid = PropertyPath.set(model, path, new String[] { "Cost" });
+      assertDoesNotThrow(() -> AssemblyPropertyService.requireKnownTrendLineMeasures(valid));
+      Object none = PropertyPath.set(model, path, new String[0]);
+      assertDoesNotThrow(() -> AssemblyPropertyService.requireKnownTrendLineMeasures(none));
+   }
+
+   /** Turning date comparison off discards the stored comparison, and the write says so. */
+   @Test
+   void saysSoWhenDateComparisonIsTurnedOff() {
+      for(String type : List.of("chart", "crosstab")) {
+         String path = PropertyAliases.resolveForWrite(type, "dateComparisonEnabled");
+         Object model = "chart".equals(type) ?
+            chartModelWithDateComparison(false) : crosstabModelWithDateComparison(false);
+         String note = AssemblyPropertyService.dateComparisonOffNote(List.of(path), model);
+         assertNotNull(note, type);
+         assertTrue(note.contains("set_date_comparison"), note);
+
+         Object on = "chart".equals(type) ?
+            chartModelWithDateComparison(true) : crosstabModelWithDateComparison(true);
+         assertNull(AssemblyPropertyService.dateComparisonOffNote(List.of(path), on), type);
+         assertNull(AssemblyPropertyService.dateComparisonOffNote(List.of("other.path"), model),
+                    type);
+      }
+   }
+
+   private static Object chartModelWithDateComparison(boolean enabled) {
+      inetsoft.web.composer.model.vs.ChartPropertyDialogModel model =
+         new inetsoft.web.composer.model.vs.ChartPropertyDialogModel();
+      inetsoft.web.composer.model.vs.ChartAdvancedPaneModel pane =
+         new inetsoft.web.composer.model.vs.ChartAdvancedPaneModel();
+      pane.setDateComparisonEnabled(enabled);
+      model.setChartAdvancedPaneModel(pane);
+      return model;
+   }
+
+   private static Object crosstabModelWithDateComparison(boolean enabled) {
+      inetsoft.web.composer.model.vs.CrosstabPropertyDialogModel model =
+         new inetsoft.web.composer.model.vs.CrosstabPropertyDialogModel();
+      inetsoft.web.composer.model.vs.CrosstabAdvancedPaneModel pane =
+         new inetsoft.web.composer.model.vs.CrosstabAdvancedPaneModel();
+      pane.setDateComparisonEnabled(enabled);
+      model.setCrosstabAdvancedPaneModel(pane);
+      return model;
+   }
+
+   /**
+    * The group container's scale pane (PatchGuards) and background image
+    * (requireKnownSelectedImage) are judged on the resolved path, so the short names reach the
+    * same guards the raw paths do.
+    */
+   @Test
+   void theGroupContainerNamesLandOnThePathsItsGuardsKeyOn() {
+      for(String name : List.of("scaleImage", "maintainAspectRatio", "tile", "cellGridTop",
+                                "cellGridLeft", "cellGridBottom", "cellGridRight"))
+      {
+         assertTrue(PropertyAliases.resolveForWrite("groupcontainer", name)
+            .startsWith("imageScalePane."), name);
+      }
+
+      assertTrue(PropertyAliases.resolveForWrite("groupcontainer", "staticImage")
+         .endsWith(".imagePreviewPaneModel.selectedImage"));
+      assertTrue(PropertyAliases.resolveForWrite("image", "staticImage")
+         .endsWith(".imagePreviewPaneModel.selectedImage"));
+   }
 }

@@ -400,6 +400,15 @@ public class AssemblyPropertyService {
             dispatcher.sendCommand(assemblyName, warning);
          }
 
+         String dateComparisonNote = dateComparisonOffNote(resolved.values(), written);
+
+         if(dateComparisonNote != null && dispatcher != null) {
+            MessageCommand dateNote = new MessageCommand();
+            dateNote.setType(MessageCommand.Type.WARNING);
+            dateNote.setMessage(dateComparisonNote);
+            dispatcher.sendCommand(assemblyName, dateNote);
+         }
+
          if(dispatcher != null) {
             for(String note : FilterEffectGuard.apply(prepared.filterBefore(), rvs, assemblyName,
                                                       written, resolved.values()))
@@ -481,6 +490,9 @@ public class AssemblyPropertyService {
          requirePositiveSize(entry.getKey(), entry.getValue(), value);
          requireNonNegativePosition(type, entry.getKey(), entry.getValue(), value);
          requireLabelGapInRange(entry.getKey(), entry.getValue(), value);
+         requirePositiveTitleHeight(entry.getKey(), entry.getValue(), value);
+         requireNonNegativePadding(entry.getKey(), entry.getValue(), value);
+         requireNonNegativeTrailerCount(entry.getKey(), entry.getValue(), value);
          OutputFormulaGuard.requireValidOperand(entry.getKey(), entry.getValue(), value);
 
          if("textinput".equals(type) && entry.getValue().equalsIgnoreCase(INPUT_CONTROL_PATH)) {
@@ -514,6 +526,11 @@ public class AssemblyPropertyService {
       // patch is about to be refused for.
       SelectionSourceGuard.requireSourceUnchanged(type, sourceBefore, model);
       PatchGuards.require(type, patchGuardsBefore, model);
+
+      if(resolved.containsValue(TREND_LINE_MEASURES_PATH)) {
+         requireKnownTrendLineMeasures(model);
+      }
+
       LockedGeometryGuard.require(lockedBefore, assemblyName, resolved, model);
       model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
                                            measureBefore);
@@ -932,6 +949,143 @@ public class AssemblyPropertyService {
             "clamps an out-of-range gap to that range, so this write would report success and " +
             "store a different value.");
       }
+   }
+
+   /**
+    * The Title Height field of the size pane takes a whole number above 0 in the dialog, and
+    * {@code TitleInfo.setTitleHeightValue} clamps anything lower to 0 (the range slider's apply
+    * skips it), so a written 0 or negative height reports success and stores 0 or nothing
+    * (bug #81419). Keyed on the path suffix, so it covers every type that has the field. Judged
+    * on the written value, before it reaches the clamping setter.
+    */
+   static void requirePositiveTitleHeight(String key, String path, Object value) {
+      if(!PropertyAliases.isSizePositionPath(path, "titleHeight")) {
+         return;
+      }
+
+      Double number = numberOf(value);
+
+      if(number != null && number <= 0) {
+         throw new IllegalArgumentException(
+            key + ": titleHeight must be a number of pixels above 0 (got " + value + "). " +
+            "StyleBI clamps a lower height to 0 (or ignores it), so this write would report " +
+            "success and not store it.");
+      }
+   }
+
+   /**
+    * The Padding pane's four fields take a whole number of 0 or more in the dialog; the apply
+    * methods build {@code new Insets(...)} from them unchecked, so a negative inset is stored
+    * (bug #81419). Keyed on the path suffix: text, chart and gauge share the pane model.
+    */
+   static void requireNonNegativePadding(String key, String path, Object value) {
+      boolean padding = false;
+
+      for(String side : new String[] { "top", "left", "bottom", "right" }) {
+         padding |= path.equals("paddingPaneModel." + side) ||
+            path.endsWith(".paddingPaneModel." + side);
+      }
+
+      Double number = padding ? numberOf(value) : null;
+
+      if(number != null && number < 0) {
+         throw new IllegalArgumentException(
+            key + ": padding must be 0 or more pixels (got " + value + "). The Composer's " +
+            "Padding fields refuse a negative inset, and StyleBI would store it as given.");
+      }
+   }
+
+   /**
+    * Trailer Rows / Trailer Columns of a calc table take 0 or more in the dialog; the setter
+    * stores whatever it is given, and a negative count would re-type the layout's cells from a
+    * nonsensical boundary (bug #81419).
+    */
+   static void requireNonNegativeTrailerCount(String key, String path, Object value) {
+      if(!path.endsWith("calcTableAdvancedPaneModel.trailerRowCount") &&
+         !path.endsWith("calcTableAdvancedPaneModel.trailerColCount"))
+      {
+         return;
+      }
+
+      Double number = numberOf(value);
+
+      if(number != null && number < 0) {
+         throw new IllegalArgumentException(
+            key + ": the trailer count must be 0 or more (got " + value + ").");
+      }
+   }
+
+   /**
+    * The number a written value spells, or null when it is not numeric (left to the model's own
+    * type handling).
+    */
+   private static Double numberOf(Object value) {
+      if(value instanceof Number n) {
+         return n.doubleValue();
+      }
+
+      if(value instanceof String str) {
+         try {
+            return Double.parseDouble(str.trim());
+         }
+         catch(NumberFormatException ignore) {
+            return null;
+         }
+      }
+
+      return null;
+   }
+
+   private static final String TREND_LINE_MEASURES_PATH = "chartLinePaneModel.trendLineMeasures";
+   private static final String CHART_MEASURES_PATH = "chartLinePaneModel.measures";
+   private static final String DATE_COMPARISON_ENABLED_PATH =
+      "chartAdvancedPaneModel.dateComparisonEnabled";
+   private static final String CROSSTAB_DATE_COMPARISON_ENABLED_PATH =
+      "crosstabAdvancedPaneModel.dateComparisonEnabled";
+
+   /**
+    * {@code ChartLinePaneModel.updatePlotTrendLineGrid} stores the complement of the written
+    * trend line measures, taken against the model's own measures, as the excluded measures: a
+    * name that is not one of the chart's measures is dropped without a word and the line is
+    * drawn for the measures that were left (bug #81419). Judged on the model after the write.
+    */
+   static void requireKnownTrendLineMeasures(Object model) {
+      Object written = PropertyPath.get(model, TREND_LINE_MEASURES_PATH);
+      Object known = PropertyPath.get(model, CHART_MEASURES_PATH);
+
+      if(!(written instanceof String[] names) || names.length == 0) {
+         return;
+      }
+
+      List<String> measures = known instanceof String[] all ? Arrays.asList(all) : List.of();
+
+      for(String name : names) {
+         if(!measures.contains(name)) {
+            throw new IllegalArgumentException(
+               "trendLineMeasures: '" + name + "' is not a measure of this chart. The trend " +
+               "line can be drawn for: " + (measures.isEmpty() ? "(none)" : measures) + ".");
+         }
+      }
+   }
+
+   /**
+    * The warning for a write that turns Date Comparison off: the dialog's apply discards the
+    * assembly's stored date comparison when the flag is false (bug #81419), which a caller
+    * writing one checkbox would not expect. Null when the patch does not turn it off.
+    */
+   static String dateComparisonOffNote(Collection<String> paths, Object model) {
+      for(String path : paths) {
+         if((path.equals(DATE_COMPARISON_ENABLED_PATH) ||
+             path.equals(CROSSTAB_DATE_COMPARISON_ENABLED_PATH)) &&
+            Boolean.FALSE.equals(PropertyPath.get(model, path)))
+         {
+            return "dateComparisonEnabled=false also discards the date comparison stored on " +
+               "this assembly. Turning it back on does not restore it; set it again with " +
+               "set_date_comparison.";
+         }
+      }
+
+      return null;
    }
 
    private static final String RANGE_SIZE_PANE =

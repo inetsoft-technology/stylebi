@@ -104,9 +104,9 @@ class DynamicValueTargetsTest {
       // No alias on this type: the raw path itself is what the plugin accepts.
       assertTrue(info("Check1", path, "checkbox").label().contains("key '" + path + "'"),
                  info("Check1", path, "checkbox").label());
+      // The image's dynamic image value has a name since bug #81419.
       assertTrue(info("Img1", "imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageValue",
-                      "image").label().contains(
-         "key 'imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageValue'"));
+                      "image").label().contains("key 'dynamicImageValue'"));
    }
 
    @Test
