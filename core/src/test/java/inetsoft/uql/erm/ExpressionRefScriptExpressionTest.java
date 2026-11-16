@@ -88,4 +88,22 @@ class ExpressionRefScriptExpressionTest {
       assertDoesNotThrow(() -> ExpressionRef.getScriptExpression(true, "/*script*/"));
       assertDoesNotThrow(() -> ExpressionRef.getScriptExpression(true, "a /*script*/ b"));
    }
+
+   // Bug #81203: the markers are found with a case-insensitive search; under tr_TR the default
+   // locale lower-cases "I" to a dotless i, so upper-case markers were not recognized
+   @Test
+   @DisplayName("Upper-case markers are found under a Turkish default locale")
+   void upperCaseMarkers_turkishDefaultLocale() {
+      java.util.Locale old = java.util.Locale.getDefault();
+      java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+
+      try {
+         assertEquals("x", ExpressionRef.getScriptExpression(true, "a /*SCRIPT x SCRIPT*/"));
+         assertEquals("a + 1",
+            ExpressionRef.getSQLExpression(true, "a + 1 /*SCRIPT x SCRIPT*/"));
+      }
+      finally {
+         java.util.Locale.setDefault(old);
+      }
+   }
 }
