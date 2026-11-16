@@ -20,7 +20,6 @@
     @for (card of cards; track $index) {
       <div [ngClass]="tooltipClass"
            [style.background-color]="card.fill"
-           [style.color]="card.color"
            [innerHTML]="card.html"></div>
     }
   </div>

@@ -19,43 +19,40 @@ import { VSAnnotationModel } from "../../model/annotation/vs-annotation-model";
 
 const DEFAULT_FILL = "#ffffff";
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
-const RGB = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(,\s*[\d.]+\s*)?\)$/i;
+const RGB = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*([\d.]+)\s*)?\)$/i;
 
 /**
  * The fill of an annotation tooltip card: the annotation's own background (the canvas fill is a
- * server-painted image, so the model value is the only source) or white. Only plain hex/rgb
- * colors are accepted so the value can never carry other style declarations.
+ * server-painted image, so the model value is the only source) or white. The server sends
+ * rgba(r,g,b,alpha); a translucent fill is composited over white so the card is always opaque
+ * (alpha 0 gives white). Only plain hex/rgb[a] colors are accepted so the value can never carry
+ * other style declarations.
  */
 export function annotationTooltipFill(model: VSAnnotationModel): string {
    const bg = model?.annotationRectangleModel?.objectFormat?.background?.trim();
-   return bg && (HEX.test(bg) || RGB.test(bg)) ? bg : DEFAULT_FILL;
-}
 
-/**
- * Text color for content without its own inline color: dark or light, whichever contrasts with
- * the fill. Null (keep the tooltip default) on the default white fill.
- */
-export function annotationTooltipColor(fill: string): string {
-   if(!fill || fill === DEFAULT_FILL) {
-      return null;
+   if(!bg) {
+      return DEFAULT_FILL;
    }
 
-   let rgb: number[] = null;
-   const hex = HEX.exec(fill);
-
-   if(hex) {
-      const h = hex[1].length === 3 ? hex[1].replace(/./g, "$&$&") : hex[1];
-      rgb = [0, 2, 4].map(i => parseInt(h.substring(i, i + 2), 16));
-   }
-   else {
-      const m = RGB.exec(fill);
-      rgb = m ? [+m[1], +m[2], +m[3]] : null;
+   if(HEX.test(bg)) {
+      return bg;
    }
 
-   if(!rgb) {
-      return null;
+   const m = RGB.exec(bg);
+
+   if(!m) {
+      return DEFAULT_FILL;
    }
 
-   const luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
-   return luminance < 0.5 ? "#ffffff" : "#000000";
+   const alpha = m[4] == null ? 1 : parseFloat(m[4]);
+
+   if(isNaN(alpha)) {
+      return DEFAULT_FILL;
+   }
+
+   const a = Math.min(1, Math.max(0, alpha));
+   const [r, g, b] = [m[1], m[2], m[3]]
+      .map(v => Math.round(Math.min(255, +v) * a + 255 * (1 - a)));
+   return `rgb(${r}, ${g}, ${b})`;
 }

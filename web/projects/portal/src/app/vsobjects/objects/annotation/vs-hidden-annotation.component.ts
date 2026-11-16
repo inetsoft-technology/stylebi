@@ -21,7 +21,7 @@ import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ToggleAnnotationStatusEvent } from "../../event/annotation/toggle-annotation-status-event";
 import { VSAnnotationModel } from "../../model/annotation/vs-annotation-model";
 import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
-import { annotationTooltipColor, annotationTooltipFill } from "./annotation-tooltip-style";
+import { annotationTooltipFill } from "./annotation-tooltip-style";
 import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 
 
@@ -48,8 +48,7 @@ export class VSHiddenAnnotation {
          const fill = annotationTooltipFill(annotation);
          return {
             html: this.domSanitizer.bypassSecurityTrustHtml(annotation.contentModel.content),
-            fill: fill,
-            color: annotationTooltipColor(fill)
+            fill: fill
          };
       });
    }
@@ -57,7 +56,7 @@ export class VSHiddenAnnotation {
    @ContentChild("customIcon") transcluded: any;
 
    public content: string;
-   public cards: { html: SafeHtml, fill: string, color: string }[] = [];
+   public cards: { html: SafeHtml, fill: string }[] = [];
 
    constructor(protected viewsheetClient: ViewsheetClientService,
                private domSanitizer: DomSanitizer)

@@ -170,6 +170,31 @@ describe("Bug #81352 — VSAnnotation overflow tooltip (site A)", () => {
       expect(document.body.querySelector("w-tooltip [style*='position']")).toBeNull();
    });
 
+   // the server serializes the background as rgba(r,g,b,alpha)
+   it.each([
+      ["alpha 0 gives white, not a transparent card", "rgba(0,0,128,0)", WHITE_RGB],
+      ["partial alpha is composited over white", "rgba(0,0,128,0.5)", "rgb(128, 128, 192)"],
+      ["alpha 1 keeps the color", "rgba(0,0,128,1)", NAVY_RGB],
+   ])("rgba fill: %s", async (_name, background, expected) => {
+      await overflowTooltip(background);
+      const texts = tooltipTexts();
+      expect(texts).toHaveLength(1);
+      expect(fillBehind(texts[0])).toBe(expected);
+   });
+
+   it("hidden-annotation tooltip composites an alpha 0 fill to white", async () => {
+      const { fixture } = await render(VSHiddenAnnotation, {
+         schemas: [NO_ERRORS_SCHEMA],
+         providers: [{ provide: ViewsheetClientService, useValue: clientServiceMock }],
+      });
+      fixture.componentRef.setInput("annotations",
+         [makeModel("rgba(0,0,128,0)", { hidden: true })]);
+      fixture.detectChanges();
+      hover(fixture.nativeElement.querySelector(".vs-annotation__hidden-icon"));
+      await waitForTooltip();
+      expect(fillBehind(tooltipTexts()[0])).toBe(WHITE_RGB);
+   });
+
    it("shows no tooltip while the content is not overflowing", async () => {
       const { fixture } = await renderAnnotation(makeModel(NAVY));
       const host = fixture.nativeElement
