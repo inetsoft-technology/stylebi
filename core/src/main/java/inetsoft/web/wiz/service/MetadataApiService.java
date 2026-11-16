@@ -127,13 +127,21 @@ public class MetadataApiService {
          return tabularCatalogService.describeTable(dsName, data.getTableName());
       }
 
+      return MetadataCallGuard.call(dsName, () -> getJdbcMetaData(data, dsName, jdbcDataSource));
+   }
+
+   private OsiDataset getJdbcMetaData(GetDatabaseTableMetaRequest data, String dsName,
+                                      JDBCDataSource jdbcDataSource)
+      throws Exception
+   {
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(dsName);
 
       if(metaDataProvider == null) {
          throw new Exception("No meta data provider found for data source " + dsName);
       }
 
-      XNode rootMetaData = metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE);
+      XNode rootMetaData = MetadataCallGuard.requireMetaData(
+         metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE), dsName);
 
       if(rootMetaData == null) {
          throw new Exception("No meta data found for data source " + dsName);
@@ -150,7 +158,8 @@ public class MetadataApiService {
          node.setAttribute("supportCatalog", rootMetaData.getAttribute("supportCatalog"));
       }
 
-      XNode tableData = metaDataProvider.getMetaData(node, true);
+      XNode tableData =
+         MetadataCallGuard.requireMetaData(metaDataProvider.getMetaData(node, true), dsName);
       XNode tableNode = tableData != null ? tableData.getChild(0) : null;
 
       if(tableNode == null) {
@@ -388,13 +397,23 @@ public class MetadataApiService {
    }
 
    public XNode getTableMetaData(JDBCDataSource jdbcDatasource, String catalog, String schema, String tableName) throws Exception {
+      return MetadataCallGuard.call(
+         jdbcDatasource.getFullName(),
+         () -> getJdbcTableMetaData(jdbcDatasource, catalog, schema, tableName));
+   }
+
+   private XNode getJdbcTableMetaData(JDBCDataSource jdbcDatasource, String catalog,
+                                      String schema, String tableName)
+      throws Exception
+   {
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(jdbcDatasource);
 
       if(metaDataProvider == null) {
          throw new Exception("No meta data provider found for data source " + jdbcDatasource.getFullName());
       }
 
-      XNode rootMetaData = metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE);
+      XNode rootMetaData = MetadataCallGuard.requireMetaData(
+         metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE), jdbcDatasource.getFullName());
 
       if(rootMetaData == null) {
          throw new Exception("No meta data found for data source " + jdbcDatasource.getFullName());
@@ -1414,6 +1433,18 @@ public class MetadataApiService {
             dsName + "'; omit these parameters to get the full, unpaged table list.");
       }
 
+      return MetadataCallGuard.call(
+         dsName, () -> getJdbcDatabaseTables(dsName, jdbcDataSource, principal));
+   }
+
+   /**
+    * Lists the tables of a JDBC data source. Opens connections, so callers run it under
+    * {@link MetadataCallGuard}.
+    */
+   private DatasourceTablesResponse getJdbcDatabaseTables(
+      String dsName, JDBCDataSource jdbcDataSource, Principal principal)
+      throws Exception
+   {
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(dsName);
 
       if(metaDataProvider == null) {
@@ -1435,15 +1466,18 @@ public class MetadataApiService {
          }
       }
 
-      XNode rootMetaData = metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE);
+      XNode rootMetaData = MetadataCallGuard.requireMetaData(
+         metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE), dsName);
 
       XNode typeQuery = new XNode();
       typeQuery.setAttribute("type", "TABLETYPES");
-      XNode tableTypeList = metaDataProvider.getMetaData(typeQuery, true);
+      XNode tableTypeList =
+         MetadataCallGuard.requireMetaData(metaDataProvider.getMetaData(typeQuery, true), dsName);
 
       XNode schemaQuery = new XNode();
       schemaQuery.setAttribute("type", "SCHEMAS");
-      XNode schemaList = metaDataProvider.getMetaData(schemaQuery, true);
+      XNode schemaList =
+         MetadataCallGuard.requireMetaData(metaDataProvider.getMetaData(schemaQuery, true), dsName);
       schemaList = filterSystemSchemaTree(schemaList, jdbcDataSource);
 
       // If the database has no schema hierarchy, schemaList itself becomes the single leaf node
@@ -1470,7 +1504,8 @@ public class MetadataApiService {
             copySchemaAttribute(schemaNode, tableQuery, "catalogSep");
             copySchemaAttribute(schemaNode, tableQuery, "schema");
 
-            XNode tableList = metaDataProvider.getMetaData(tableQuery, true);
+            XNode tableList = MetadataCallGuard.requireMetaData(
+               metaDataProvider.getMetaData(tableQuery, true), dsName);
 
             for(int j = 0; j < tableList.getChildCount(); j++) {
                XNode tableNode = tableList.getChild(j);
@@ -2098,13 +2133,28 @@ public class MetadataApiService {
       }
 
       JDBCDataSource jdbcDataSource = getJDBCDatasource(dsName);
+      return MetadataCallGuard.call(
+         dsName,
+         () -> getJdbcTableDetails(dsName, tableName, catalog, schema, jdbcDataSource));
+   }
+
+   /**
+    * Reads the columns of a table of a JDBC data source. Opens connections, so callers run it
+    * under {@link MetadataCallGuard}.
+    */
+   private DatabaseTableMeta getJdbcTableDetails(String dsName, String tableName,
+                                                 String catalog, String schema,
+                                                 JDBCDataSource jdbcDataSource)
+      throws Exception
+   {
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(dsName);
 
       if(metaDataProvider == null) {
          throw new Exception("No meta data provider found for data source " + dsName);
       }
 
-      XNode rootMetaData = metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE);
+      XNode rootMetaData = MetadataCallGuard.requireMetaData(
+         metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE), dsName);
 
       if(rootMetaData == null) {
          throw new Exception("No meta data found for data source " + dsName);
@@ -2121,7 +2171,8 @@ public class MetadataApiService {
          node.setAttribute("supportCatalog", rootMetaData.getAttribute("supportCatalog"));
       }
 
-      XNode tableData = metaDataProvider.getMetaData(node, true);
+      XNode tableData =
+         MetadataCallGuard.requireMetaData(metaDataProvider.getMetaData(node, true), dsName);
       XNode tableNode = tableData != null ? tableData.getChild(0) : null;
 
       if(tableNode == null) {
@@ -2206,7 +2257,13 @@ public class MetadataApiService {
       }
 
       String[] dsNames = xrepository.getDataSourceFullNames();
-      List<SchemaSearchResponse.SchemaSearchResult> results = new ArrayList<>();
+      List<String> warnings = new ArrayList<>();
+      Map<String, MetadataCallGuard.Pending<List<SchemaSearchResponse.SchemaSearchResult>>>
+         pending = new LinkedHashMap<>();
+
+      // every source is searched concurrently under one shared deadline, so a source whose
+      // connection blocks cannot consume the time of the sources after it
+      long deadline = MetadataCallGuard.newDeadline();
 
       for(String dsName : dsNames) {
          try {
@@ -2220,41 +2277,80 @@ public class MetadataApiService {
                continue;
             }
 
-            DatasourceTablesResponse tablesResponse =
-               getDatabaseTables(dsName, null, null, null, principal);
-
-            for(DatabaseTableInfo tableInfo : tablesResponse.getTables()) {
-               boolean tableMatches = queryLower != null && tableNameMatches(
-                  tableInfo.getTable().toLowerCase(Locale.ROOT), queryLower);
-
-               // If searching by field names, look for column matches
-               List<SchemaSearchResponse.ColumnMatch> columnMatches = null;
-
-               if(searchColumns) {
-                  columnMatches = findColumnMatches(
-                     dsName, tableInfo, fieldNamesLower, principal);
-               }
-
-               // Include table if its name matches the query, or if any requested columns match
-               if(tableMatches || (columnMatches != null && !columnMatches.isEmpty())) {
-                  SchemaSearchResponse.SchemaSearchResult result =
-                     new SchemaSearchResponse.SchemaSearchResult();
-                  result.setDatasource(dsName);
-                  result.setCatalog(tableInfo.getCatalog());
-                  result.setSchema(tableInfo.getSchema());
-                  result.setTable(tableInfo.getTable());
-                  result.setType(tableInfo.getType());
-                  result.setMatchedColumns(columnMatches);
-                  results.add(result);
-               }
-
-               if(results.size() >= MAX_SEARCH_RESULTS) {
-                  break;
-               }
-            }
+            pending.put(dsName, MetadataCallGuard.submit(
+               dsName, () -> searchDatasource(
+                  dsName, queryLower, fieldNamesLower, searchColumns, principal)));
          }
          catch(Exception e) {
-            log.debug("Skipping datasource '{}' during schema search: {}", dsName, e.getMessage());
+            log.warn("Skipping datasource '{}' during schema search: {}", dsName, e.getMessage());
+            warnings.add("Data source '" + dsName + "' was skipped: " + e.getMessage());
+         }
+      }
+
+      List<SchemaSearchResponse.SchemaSearchResult> results = new ArrayList<>();
+
+      for(Map.Entry<String, MetadataCallGuard.Pending<List<SchemaSearchResponse.SchemaSearchResult>>>
+          entry : pending.entrySet())
+      {
+         String dsName = entry.getKey();
+
+         try {
+            results.addAll(MetadataCallGuard.await(dsName, entry.getValue(), deadline));
+         }
+         catch(InterruptedException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            log.warn("Skipping datasource '{}' during schema search: {}", dsName, e.getMessage());
+            warnings.add(e instanceof DatasourceUnreachableException
+               ? e.getMessage() + "; its tables are not in these results."
+               : "Data source '" + dsName + "' was skipped: " + e.getMessage());
+         }
+      }
+
+      SchemaSearchResponse response = new SchemaSearchResponse();
+      response.setResults(results.size() > MAX_SEARCH_RESULTS
+                             ? new ArrayList<>(results.subList(0, MAX_SEARCH_RESULTS)) : results);
+      response.setWarnings(warnings.isEmpty() ? null : warnings);
+      return response;
+   }
+
+   /**
+    * Searches one JDBC data source. Opens connections, so it runs under
+    * {@link MetadataCallGuard}.
+    */
+   private List<SchemaSearchResponse.SchemaSearchResult> searchDatasource(
+      String dsName, String queryLower, Set<String> fieldNamesLower, boolean searchColumns,
+      Principal principal)
+      throws Exception
+   {
+      List<SchemaSearchResponse.SchemaSearchResult> results = new ArrayList<>();
+      // runs on a guard thread, so these calls run inline under the same deadline
+      DatasourceTablesResponse tablesResponse =
+         getDatabaseTables(dsName, null, null, null, principal);
+
+      for(DatabaseTableInfo tableInfo : tablesResponse.getTables()) {
+         boolean tableMatches = queryLower != null && tableNameMatches(
+            tableInfo.getTable().toLowerCase(Locale.ROOT), queryLower);
+
+         // If searching by field names, look for column matches
+         List<SchemaSearchResponse.ColumnMatch> columnMatches = null;
+
+         if(searchColumns) {
+            columnMatches = findColumnMatches(dsName, tableInfo, fieldNamesLower, principal);
+         }
+
+         // Include table if its name matches the query, or if any requested columns match
+         if(tableMatches || (columnMatches != null && !columnMatches.isEmpty())) {
+            SchemaSearchResponse.SchemaSearchResult result =
+               new SchemaSearchResponse.SchemaSearchResult();
+            result.setDatasource(dsName);
+            result.setCatalog(tableInfo.getCatalog());
+            result.setSchema(tableInfo.getSchema());
+            result.setTable(tableInfo.getTable());
+            result.setType(tableInfo.getType());
+            result.setMatchedColumns(columnMatches);
+            results.add(result);
          }
 
          if(results.size() >= MAX_SEARCH_RESULTS) {
@@ -2262,9 +2358,7 @@ public class MetadataApiService {
          }
       }
 
-      SchemaSearchResponse response = new SchemaSearchResponse();
-      response.setResults(results);
-      return response;
+      return results;
    }
 
    /**
