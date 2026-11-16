@@ -79,6 +79,8 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
                 final Object selectedData = selectData(json, query.getValidJsonPath(), transformer);
                 table.loadStreamed(selectedData);
             }
+
+            reportRowLimit(strategy, table);
         }
         catch(Exception ex) {
             if(!(ex instanceof InterruptedException) || !isCancelled()) {

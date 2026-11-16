@@ -74,6 +74,8 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
 
                table.loadStreamed(data);
             }
+
+            reportRowLimit(strategy, table);
         }
         catch(Exception ex) {
             if(!(ex instanceof InterruptedException) || !isCancelled()) {

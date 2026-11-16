@@ -55,6 +55,36 @@ public abstract class AbstractQueryRunner<T extends AbstractRestQuery> implement
       return table;
    }
 
+   /**
+    * Tell the query whether this run stopped at its row limit with rows left unread, when the
+    * caller asked (see {@link inetsoft.uql.tabular.TabularQuery#isRowLimitProbe}). Call it once the
+    * read loop has ended, while {@code strategy} is still open.
+    *
+    * <p>Rows dropped from a page are known to the table. A run that ended exactly on a page
+    * boundary is not: the only way to know whether another page exists is to fetch it, which costs
+    * one request, so that is done here and only when the table is full and the caller asked. A
+    * fetch that fails leaves the answer "no", so a failure never reads as "more rows".</p>
+    */
+   protected void reportRowLimit(RestDataIteratorStrategy<?> strategy, BaseJsonTable table) {
+      if(!query.isRowLimitProbe() || isCancelled()) {
+         return;
+      }
+
+      boolean reached = table.isTruncated();
+
+      if(!reached && table.getMaxRows() > 0 && table.size() >= table.getMaxRows()) {
+         try {
+            reached = strategy.hasNext();
+         }
+         catch(Exception ex) {
+            LOG.debug("Could not tell whether the {} rows read were all there are",
+                      table.getMaxRows(), ex);
+         }
+      }
+
+      query.setRowLimitReached(reached);
+   }
+
    private BaseJsonTable createTable() {
       if(!isEmpty(query.getHeadersPath()) && !isEmpty(query.getRowsPath())) {
          return new HeadersAndRowsJsonTable(query.getHeadersPath(), query.getRowsPath());

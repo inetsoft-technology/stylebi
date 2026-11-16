@@ -375,6 +375,22 @@ abstract public class BaseJsonTable extends XTableNode {
       this.maxRows = maxRows;
    }
 
+   /**
+    * Whether data offered to this table was left out because it had reached
+    * {@link #getMaxRows()}. A table that holds exactly {@code maxRows} rows and was offered no
+    * more is not truncated.
+    */
+   public boolean isTruncated() {
+      return truncated;
+   }
+
+   /**
+    * Record that data was left out because of the row limit.
+    */
+   protected void setTruncated() {
+      this.truncated = true;
+   }
+
    public Object getJsonMetadata() {
       return jsonMetadata;
    }
@@ -417,6 +433,7 @@ abstract public class BaseJsonTable extends XTableNode {
    }
 
    private int maxRows = -1;
+   private boolean truncated;
    private final Map<String, String> colTypes = new Object2ObjectOpenHashMap<>();
    private final Map<String, String> colFormats = new Object2ObjectOpenHashMap<>();
    private final Map<String, String> colExtents = new Object2ObjectOpenHashMap<>();

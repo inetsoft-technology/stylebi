@@ -67,6 +67,7 @@ public class JsonTable extends BaseJsonTable {
 
       if(getMaxRows() > 0 && total + dataList.size() > getMaxRows()) {
          limit = getMaxRows() - total;
+         setTruncated();
       }
       else {
          limit = dataList.size();

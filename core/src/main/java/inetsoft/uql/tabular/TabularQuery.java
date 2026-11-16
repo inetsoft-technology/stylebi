@@ -42,10 +42,34 @@ public abstract class TabularQuery extends XQuery {
       super(type);
    }
 
+   /**
+    * Get the number of rows read to find the columns of a query whose own row limit is
+    * {@code storedMaxRows}. A query without a row limit reads {@link #DEFAULT_DISCOVERY_ROWS}. A
+    * query with one reads every row it will read at render time, so that a field first appearing
+    * after row {@link #DEFAULT_DISCOVERY_ROWS} is still a column, up to
+    * {@link #MAX_DISCOVERY_ROWS} so that a very large limit does not make every column refresh read
+    * that many rows.
+    */
+   public static int getDiscoveryRows(int storedMaxRows) {
+      return Math.min(MAX_DISCOVERY_ROWS, Math.max(DEFAULT_DISCOVERY_ROWS, storedMaxRows));
+   }
+
+   /**
+    * Load the output columns of this query from the rows it returns. This does not apply to a
+    * connector that overrides this method or sets its own output columns.
+    *
+    * <p>Only the first {@link #getDiscoveryRows} rows are read, so a field that first appears after
+    * them is not a column. {@link #getColumnDiscoveryCappedAt()} says when that happened.</p>
+    */
    public void loadOutputColumns(VariableTable vtable) throws Exception {
       TabularHandler handler = new TabularHandler();
-      int maxRows = getMaxRows();
-      setMaxRows(100);
+      // The limit stored on the query, not getMaxRows(): that one folds in the server-wide limit,
+      // which would both widen the discovery to it and be written back into the query below.
+      int storedMaxRows = getStoredMaxRows();
+      int discoveryRows = getDiscoveryRows(storedMaxRows);
+      setMaxRows(discoveryRows);
+      columnDiscoveryCappedAt = 0;
+      setRowLimitProbe(true);
 
       XNode result = null;
 
@@ -53,6 +77,10 @@ public abstract class TabularQuery extends XQuery {
          // not need to get most up-to-date data for refreshing columns.
          vtable.put(XQuery.HINT_PREVIEW, "true");
          result = handler.execute(this, vtable, null, null);
+
+         if(rowLimitReached) {
+            columnDiscoveryCappedAt = discoveryRows;
+         }
       }
       finally {
          // only the columns are needed, so release any connection the unread result holds
@@ -61,8 +89,54 @@ public abstract class TabularQuery extends XQuery {
          }
 
          vtable.remove(XQuery.HINT_PREVIEW);
-         setMaxRows(maxRows);
+         setRowLimitProbe(false);
+         setMaxRows(storedMaxRows);
       }
+   }
+
+   /**
+    * The number of rows the last {@link #loadOutputColumns} read before it stopped with more rows
+    * left unread, or 0 if it read every row there was (or has not run). A field that first appears
+    * in the rows it did not read is not a column.
+    *
+    * <p>Set only by a connector that reports it, which today is the REST connectors. Describes the
+    * last column discovery, so {@link #clone()} clears it and it is never written to XML.</p>
+    */
+   public int getColumnDiscoveryCappedAt() {
+      return columnDiscoveryCappedAt;
+   }
+
+   /**
+    * Whether the connector should report, through {@link #setRowLimitReached}, that it stopped
+    * reading at this query's row limit with rows left unread. An INPUT, set only while
+    * {@link #loadOutputColumns} runs: finding out costs the connector a request it would not
+    * otherwise make, so an ordinary render does not ask. Like {@link #getSampleRowLimit} it is not
+    * cleared by {@link #clone()}, because the clone is the object that executes, and it is never
+    * written to XML.
+    */
+   public boolean isRowLimitProbe() {
+      return rowLimitProbe;
+   }
+
+   public void setRowLimitProbe(boolean rowLimitProbe) {
+      this.rowLimitProbe = rowLimitProbe;
+   }
+
+   /**
+    * Whether this query's last execution stopped reading at its row limit with rows left unread.
+    * Only a connector that reports it sets it, and only while {@link #isRowLimitProbe()} is true.
+    *
+    * <p>The same kind of slot as {@link #getTimedOutSeconds}: it describes ONE EXECUTION, so
+    * {@link #clone()} clears it and {@code TabularHandler.execute} copies it back across the clone,
+    * and it is never written to XML. It is true only when a row or a further page was seen beyond
+    * the limit, never because the row count merely equals the limit.</p>
+    */
+   public boolean isRowLimitReached() {
+      return rowLimitReached;
+   }
+
+   public void setRowLimitReached(boolean rowLimitReached) {
+      this.rowLimitReached = rowLimitReached;
    }
 
    /**
@@ -515,6 +589,8 @@ public abstract class TabularQuery extends XQuery {
       copy.sampleRowsTruncated = false;
       copy.timedOutSeconds = 0;
       copy.runCompleted = false;
+      copy.rowLimitReached = false;
+      copy.columnDiscoveryCappedAt = 0;
 
       return copy;
    }
@@ -541,6 +617,12 @@ public abstract class TabularQuery extends XQuery {
    private int timedOutSeconds;
    /** See {@link #isRunCompleted}. Cleared by {@link #clone()}. */
    private boolean runCompleted;
+   /** See {@link #isRowLimitReached}. Cleared by {@link #clone()}. */
+   private boolean rowLimitReached;
+   /** See {@link #getColumnDiscoveryCappedAt}. Cleared by {@link #clone()}. */
+   private int columnDiscoveryCappedAt;
+   /** See {@link #isRowLimitProbe}. Deliberately NOT cleared by {@link #clone()}. */
+   private boolean rowLimitProbe;
    /**
     * See {@link #getSampleRowLimit}. Deliberately NOT cleared by {@link #clone()} — it is the
     * caller's request rather than an execution's result, and the clone is what executes.
@@ -550,6 +632,13 @@ public abstract class TabularQuery extends XQuery {
    private Map<String, String> fmtmap = new HashMap<>();
    private Map<String, String> extentmap = new HashMap<>();
    private VariableTable variableTable;
+   /** Rows read to find the columns of a query that has no row limit of its own. */
+   public static final int DEFAULT_DISCOVERY_ROWS = 100;
+   /**
+    * The most rows read to find the columns, whatever the query's row limit. The REST tables
+    * themselves read no more than this many rows to build their headers and types.
+    */
+   public static final int MAX_DISCOVERY_ROWS = 10000;
    public static final String OUTER_TABLE_NAME_PROPERTY_PREFIX = "outer.table.name.";
    public static final String IS_OUTER_TABLE = "__is_outer_table__";
 }
