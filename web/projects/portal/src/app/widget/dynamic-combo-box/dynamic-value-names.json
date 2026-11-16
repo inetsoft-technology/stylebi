@@ -135,5 +135,19 @@
       "chart"
     ],
     "host": "widget/dialog/computation-combo-box/computation-dialog.component.html"
+  },
+  {
+    "name": "chartRegion:title/<shelf>/title",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "graph/dialog/title-format-pane.component.html"
+  },
+  {
+    "name": "chartRegion:legend/<i>/title",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "graph/dialog/legend-format-general-pane.component.html"
   }
 ]

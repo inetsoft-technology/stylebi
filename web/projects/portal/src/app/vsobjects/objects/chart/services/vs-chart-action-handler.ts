@@ -144,6 +144,8 @@ export class VSChartActionHandler extends AbstractActionHandler {
             dialog.variableValues = variableValues;
             dialog.viewer = this.viewer;
             dialog.vsId = this.viewsheetClient.runtimeId;
+            dialog.assemblyName = model.absoluteName;
+            dialog.axisTitleType = axisTitleType;
          }, params, model.absoluteName);
    }
 
@@ -164,6 +166,8 @@ export class VSChartActionHandler extends AbstractActionHandler {
             dialog.model = dlgModel;
             dialog.variableValues = variableValues;
             dialog.vsId = this.viewsheetClient.runtimeId;
+            dialog.assemblyName = model.absoluteName;
+            dialog.legendIndex = selectedLegendIndex;
          }, params, model.absoluteName);
    }
 

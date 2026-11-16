@@ -39,6 +39,14 @@ export class TitleFormatPane {
    @Input() variableValues: string[] = [];
    @Input() model: TitleFormatPaneModel;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
+   /** The axis whose title this pane edits: x, x2, y or y2, as the event addresses it. */
+   @Input() axisTitleType: string = null;
+
+   /** No assembly means no pairing, so an unknown axis never produces a name the server refuses. */
+   get pairingAssembly(): string {
+      return ["x", "x2", "y", "y2"].includes(this.axisTitleType) ? this.assemblyName : null;
+   }
 
    constructor(private modalService: NgbModal,
                private uiContextService: UIContextService)
