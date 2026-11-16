@@ -201,7 +201,7 @@ public class CompositeVarianceFormula implements Formula2 {
     */
    @Override
    public double getDoubleResult() {
-      if(cnt == 0) {
+      if(cnt <= 1) {
          return 0;
       }
 
