@@ -37,10 +37,17 @@ class ReportIdLocksTest {
       AtomicInteger inside = new AtomicInteger();
       AtomicInteger maxInside = new AtomicInteger();
       CountDownLatch done = new CountDownLatch(4);
+      AtomicInteger notAcquired = new AtomicInteger();
 
       for(int i = 0; i < 4; i++) {
          new Thread(() -> {
-            assertTrue(locks.acquire("r", 30));
+            boolean acquired = locks.acquire("r", 30);
+
+            if(!acquired) {
+               notAcquired.incrementAndGet();
+               done.countDown();
+               return;
+            }
 
             try {
                maxInside.accumulateAndGet(inside.incrementAndGet(), Math::max);
@@ -56,7 +63,8 @@ class ReportIdLocksTest {
          }).start();
       }
 
-      done.await();
+      assertTrue(done.await(60, java.util.concurrent.TimeUnit.SECONDS));
+      assertEquals(0, notAcquired.get());
       assertEquals(1, maxInside.get());
       assertEquals(0, locks.size());
    }

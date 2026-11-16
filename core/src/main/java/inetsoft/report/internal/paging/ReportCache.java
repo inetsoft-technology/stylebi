@@ -262,6 +262,11 @@ public class ReportCache implements Serializable {
             proccond.signalAll();
             proclock.unlock();
          }
+
+         // enqueue under the id lock, so a later put's remove0 always finds this processor
+         // queued and can dequeue it
+         pendings.add(id);
+         threadpool.add(proc);
       }
       finally {
          if(locked) {
@@ -269,8 +274,6 @@ public class ReportCache implements Serializable {
          }
       }
 
-      pendings.add(id);
-      threadpool.add(proc);
       return proc;
    }
 
