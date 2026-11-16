@@ -46,6 +46,8 @@ export class DateComparisonPaneComponent {
    @Input() toDateDisabled: boolean = false;
    @Input() shareAssemblyType: number;
    @Input() intervalEndDate: any;
+   @Input() assemblyName: string;
+   @Input() runtimeId: string;
    dialogOpened: boolean = false;
    protected oframes: string;
 

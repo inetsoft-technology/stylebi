@@ -55,6 +55,8 @@ export class DateComparisonStandardPeriodsComponent implements OnChanges {
    @Input() toDateDisabled: boolean = false;
    @Input() intervalEndDate: any = null;
    @Input() weekly: boolean = false;
+   @Input() assemblyName: string;
+   @Input() runtimeId: string;
    @Output() validChange = new EventEmitter<boolean>();
    mode: ValueMode = ValueMode.NUMBER;
    standardPeriodLevels = [{
