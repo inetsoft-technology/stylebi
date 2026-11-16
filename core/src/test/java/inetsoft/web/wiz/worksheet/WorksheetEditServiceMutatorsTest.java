@@ -2855,6 +2855,28 @@ class WorksheetEditServiceMutatorsTest {
    // =========================================================================
 
    @Test
+   void addExpressionColumnRefusedAtOrganizationColumnLimit81443() throws Exception {
+      int max = inetsoft.report.internal.Util.getOrganizationMaxColumn();
+      String[] cols = new String[max];
+
+      for(int i = 0; i < max; i++) {
+         cols[i] = "c" + i;
+      }
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", cols);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "x1", "1", "integer", false)));
+
+      assertTrue(ex.getMessage().contains(String.valueOf(max)), ex.getMessage());
+      assertEquals(max, t.getColumnSelection(false).getAttributeCount());
+   }
+
+   @Test
    void addExpressionColumnAddsRef() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");

@@ -1240,6 +1240,11 @@ public class WorksheetEditService {
                "'. Use edit_expression to modify an existing expression column.");
          }
 
+         // The Composer's ExpressionDialogService refuses once the table already holds the
+         // organization maximum; without this the table grew past the limit (ok:true) and a later
+         // preview silently dropped the surplus columns.
+         requireColumnCapacity(t.getColumnSelection(false), table);
+
          validateExpressionSyntax(table, name, expression, sql);
          WorksheetMutationSupport.addExpressionColumn(t, name, expression, dtype, sql);
       }
@@ -1953,17 +1958,29 @@ public class WorksheetEditService {
                                                     String table)
          throws PairingException
       {
-         if(cs.getAttributeCount() >= inetsoft.report.internal.Util.getOrganizationMaxColumn()) {
-            throw new PairingException(
-               "\"" + table + "\" already has " + cs.getAttributeCount() + " columns, the maximum " +
-               "this organization allows. Remove a column before deriving another.");
-         }
+         requireColumnCapacity(cs, table);
 
          if(AssetUtil.findColumnConflictingWithAlias(cs, null, columnName, true) != null) {
             throw new PairingException(
                "A column named \"" + columnName + "\" already exists on \"" + table + "\". A " +
                "derived column's name comes from the source column and the option, not from you, " +
                "so deriving the same one twice collides; use the column that is already there.");
+         }
+      }
+
+      /**
+       * Refuses adding one more column to a table that already holds the organization's column
+       * maximum, naming the limit.
+       */
+      private static void requireColumnCapacity(ColumnSelection cs, String table)
+         throws PairingException
+      {
+         int max = inetsoft.report.internal.Util.getOrganizationMaxColumn();
+
+         if(cs.getAttributeCount() >= max) {
+            throw new PairingException(
+               "\"" + table + "\" already has " + cs.getAttributeCount() + " columns, the maximum " +
+               "this organization allows (" + max + "). Remove a column before adding another.");
          }
       }
 
