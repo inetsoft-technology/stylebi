@@ -20,7 +20,6 @@ package inetsoft.uql.viewsheet;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.test.*;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -89,7 +88,6 @@ class VSLayoutToolAggregateColumnTest {
    }
 
    // special characters in column names: parentheses are part of the column name, not a wrapper
-   @Disabled("Bug #81257: getOriginalColumn cuts a column name that contains parentheses")
    @Test
    void columnNameWithParenthesesEqualToAggregateNameIsReturnedWhole() {
       assertEquals("Sales (USD)", VSLayoutTool.getAggregateColumn("Sales (USD)", "Sales (USD)"));
