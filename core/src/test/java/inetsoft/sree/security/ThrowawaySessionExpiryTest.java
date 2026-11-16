@@ -381,6 +381,13 @@ class ThrowawaySessionExpiryTest {
          .findFirst().orElse(null);
       assertNotNull(line, "no INFO line says the login was deregistered: " + appender.list);
       assertEquals(Level.INFO, line.getLevel());
+      assertTrue(line.getFormattedMessage().contains("Session Timeout"));
+      // one INFO line per real session end: the removal's own entryRemoved/entryExpired reaction
+      // reaches logout() again and must not add a second INFO line
+      assertEquals(1, appender.list.stream()
+         .filter(e -> e.getLevel() == Level.INFO)
+         .filter(e -> e.getFormattedMessage().contains(prefix)).count(),
+                   "expected one INFO line for the session end: " + appender.list);
       assertTrue(line.getFormattedMessage().contains(prefix));
       assertTrue(line.getFormattedMessage().contains("admin"));
       assertFalse(line.getFormattedMessage().contains(browser.sid),
