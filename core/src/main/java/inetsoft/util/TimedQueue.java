@@ -160,7 +160,7 @@ public class TimedQueue {
       @Override
       public int compareTo(Object o) {
          try {
-            return (int) (time - ((TimedRunnable) o).time);
+            return Long.compare(time, ((TimedRunnable) o).time);
          }
          catch(Exception ex) {
             return -1;
