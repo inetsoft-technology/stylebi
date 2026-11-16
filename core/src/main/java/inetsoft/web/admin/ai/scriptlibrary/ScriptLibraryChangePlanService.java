@@ -101,11 +101,14 @@ public class ScriptLibraryChangePlanService {
       boolean requiresAgentSignoff = changes.stream()
          .anyMatch(c -> AdminChangeRecord.RISK_HIGH.equals(c.risk()));
       String planHash = hash(changes);
-      // Snapshot skipped only when every change is a script create (Bug #80650): a create refuses
-      // an existing name and its undo deletes the new script.
+      // Snapshot skipped when every change has an exact in-process undo (Bug #80650, #81072): a
+      // create's undo deletes the new script, an update restores the description, and a delete
+      // restores the captured text, comment and permission grant. A rename keeps it: it queues an
+      // asynchronous rewrite of the stored callers that the reverse rename is not provably an
+      // exact inverse of (the decision varies with the verb only).
       boolean requiresBackup = StorageBackupPolicy.requiresBackup(
          req.getChanges(),
-         c -> ScriptLibraryChangeRequest.VERB_CREATE.equals(requireVerb("", c.getVerb())));
+         c -> !ScriptLibraryChangeRequest.VERB_RENAME.equals(requireVerb("", c.getVerb())));
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup,
                               requiresAgentSignoff, planHash, TaskAuditToken.issue(planHash, task));
    }

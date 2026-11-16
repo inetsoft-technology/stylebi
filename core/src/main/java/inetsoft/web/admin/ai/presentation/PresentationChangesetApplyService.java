@@ -91,6 +91,7 @@ public class PresentationChangesetApplyService {
          String task = req.getTask().trim();
          String currentHash = PresentationChangePlanService.hash(
             planChanges, PresentationChangePlanService.hiddenInputs(resolved));
+         boolean requiresBackup = PresentationChangePlanService.requiresBackup(resolved);
 
          if(req.getPlanHash() == null || !currentHash.equals(req.getPlanHash())) {
             // A 409 conflict response must never hand back a taskToken (see
@@ -98,7 +99,7 @@ public class PresentationChangesetApplyService {
             // strips whatever is passed here, so issuing one would be a wasted encryption call for
             // a value that is unconditionally discarded one stack frame later.
             throw new AdminChangesetApplyService.PlanHashMismatchException(
-               new inetsoft.web.admin.ai.ResolvedPlan(task, planChanges, true, true,
+               new inetsoft.web.admin.ai.ResolvedPlan(task, planChanges, requiresBackup, true,
                   currentHash, null));
          }
 
@@ -109,7 +110,7 @@ public class PresentationChangesetApplyService {
          }
          catch(TaskAuditToken.TaskTokenException e) {
             throw new AdminChangesetApplyService.TaskTokenMismatchException(
-               new inetsoft.web.admin.ai.ResolvedPlan(task, planChanges, true, true,
+               new inetsoft.web.admin.ai.ResolvedPlan(task, planChanges, requiresBackup, true,
                   currentHash, null), e.getMessage());
          }
 
@@ -129,7 +130,9 @@ public class PresentationChangesetApplyService {
          }
 
          String txId = "pres-" + newIdSuffix();
-         String backupRef = backupService.backup(txId);
+         // Gated on the same decision the plan flag carries (Bug #81072): a plan of only
+         // value-scope sub-models has an exact in-process undo and does not pay the snapshot.
+         String backupRef = requiresBackup ? backupService.backup(txId) : null;
          String reviewOutcome = req.getReviewOutcome();
          List<PresentationApplyOutcome> results = new ArrayList<>();
          List<PresentationChangePlanService.ResolvedChange> undoableValue = new ArrayList<>();

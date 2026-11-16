@@ -576,7 +576,126 @@ class ScheduleFolderChangePlanServiceTest {
       ResolvedPlan plan = service.resolve(req, user);
 
       assertEquals("low", plan.changes().get(0).risk());
+      // no stub says the owner is inherited, so this empty folder does not prove an exact undo
       assertTrue(plan.requiresStorageBackup());
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #81072: snapshot decision of a folder delete (exact undo = recreate the leaf)
+   // -------------------------------------------------------------------------
+
+   private void stubEmptyFolder(int childEntries, boolean grant, boolean ownerInherited)
+      throws Exception
+   {
+      when(folderGateway.findFolder("A")).thenReturn(new AssetFolder());
+      when(folderGateway.countContainedTasks("A")).thenReturn(0);
+      when(folderGateway.countChildEntries("A")).thenReturn(childEntries);
+      when(folderGateway.hasExplicitFolderPermission("A")).thenReturn(grant);
+      when(folderGateway.isOwnerInherited("A")).thenReturn(ownerInherited);
+   }
+
+   private ResolvedPlan resolveDelete() throws Exception {
+      return service.resolve(request("delete", List.of(deleteChange("A"))), user);
+   }
+
+   @Test void emptyFolderDeleteSkipsTheSnapshotWhenAllFourConditionsHold() throws Exception {
+      stubEmptyFolder(0, false, true);
+
+      assertFalse(resolveDelete().requiresStorageBackup());
+   }
+
+   @Test void emptyFolderDeleteKeepsTheSnapshotWhenAnySubfolderRemains() throws Exception {
+      // containedTaskCount is 0 (only an empty subfolder), but the recursive delete removes that
+      // subfolder and the rollback recreates only the leaf
+      stubEmptyFolder(1, false, true);
+
+      assertTrue(resolveDelete().requiresStorageBackup());
+   }
+
+   @Test void emptyFolderDeleteKeepsTheSnapshotWhenTheFolderHasAnExplicitGrant() throws Exception {
+      stubEmptyFolder(0, true, true);
+
+      assertTrue(resolveDelete().requiresStorageBackup());
+   }
+
+   @Test void emptyFolderDeleteKeepsTheSnapshotWhenTheOwnerIsNotInherited() throws Exception {
+      stubEmptyFolder(0, false, false);
+
+      assertTrue(resolveDelete().requiresStorageBackup());
+   }
+
+   @Test void nonEmptyFolderDeleteKeepsTheSnapshot() throws Exception {
+      when(folderGateway.findFolder("A")).thenReturn(new AssetFolder());
+      when(folderGateway.countContainedTasks("A")).thenReturn(2);
+      when(folderGateway.countChildEntries("A")).thenReturn(2);
+      when(folderGateway.isOwnerInherited("A")).thenReturn(true);
+
+      assertTrue(service.resolve(request("delete", List.of(deleteChangeForce("A"))), user)
+                    .requiresStorageBackup());
+   }
+
+   @Test void aSkippableDeleteMixedWithAKeepVerbKeepsTheSnapshot() throws Exception {
+      stubEmptyFolder(0, false, true);
+      when(folderGateway.findFolder("B")).thenReturn(new AssetFolder());
+      when(folderGateway.folderExists("C")).thenReturn(false);
+
+      assertTrue(service.resolve(request("mixed",
+         List.of(deleteChange("A"), renameChange("B", "C"))), user).requiresStorageBackup());
+   }
+
+   /** The delete removes what the same plan creates under it, and the rollback recreates only A. */
+   @Test void aCreateUnderTheDeletedFolderInTheSamePlanKeepsTheSnapshot() throws Exception {
+      stubEmptyFolder(0, false, true);
+      when(folderGateway.folderExists("A/B")).thenReturn(false);
+
+      assertTrue(service.resolve(request("mixed",
+         List.of(createChange("A", "B"), deleteChange("A"))), user).requiresStorageBackup());
+      assertTrue(service.resolve(request("mixed",
+         List.of(deleteChange("A"), createChange("A", "B"))), user).requiresStorageBackup());
+   }
+
+   @Test void aSkippableDeleteMixedWithACreateSkipsTheSnapshot() throws Exception {
+      stubEmptyFolder(0, false, true);
+      when(folderGateway.folderExists("NewFolder")).thenReturn(false);
+
+      assertFalse(service.resolve(request("mixed",
+         List.of(createChange(null, "NewFolder"), deleteChange("A"))), user)
+                     .requiresStorageBackup());
+   }
+
+   @Test void renameMoveAndMoveTaskKeepTheSnapshot() throws Exception {
+      lenient().when(folderGateway.findFolder("A")).thenReturn(new AssetFolder());
+      lenient().when(folderGateway.folderExists("B")).thenReturn(false);
+      lenient().when(folderGateway.findFolder("T")).thenReturn(new AssetFolder());
+      lenient().when(folderGateway.folderExists("T")).thenReturn(true);
+      lenient().when(folderGateway.taskExists("task1")).thenReturn(true);
+      lenient().when(folderGateway.getTaskPath("task1")).thenReturn("/");
+
+      assertTrue(service.resolve(request("r", List.of(renameChange("A", "B"))), user)
+                    .requiresStorageBackup());
+      assertTrue(service.resolve(request("m", List.of(moveChange("A", "T"))), user)
+                    .requiresStorageBackup());
+      assertTrue(service.resolve(request("mt", List.of(moveTaskChange("task1", "T"))), user)
+                    .requiresStorageBackup(),
+                 "moveTask stays out of this change: setScheduleTask resets the task permission");
+   }
+
+   @Test void deleteHashChangesWithEachHiddenSnapshotInput() throws Exception {
+      stubEmptyFolder(0, false, true);
+      String base = resolveDelete().planHash();
+
+      stubEmptyFolder(0, false, true);
+      assertEquals(base, resolveDelete().planHash());
+
+      stubEmptyFolder(1, false, true);
+      String childEntries = resolveDelete().planHash();
+      stubEmptyFolder(0, true, true);
+      String grant = resolveDelete().planHash();
+      stubEmptyFolder(0, false, false);
+      String owner = resolveDelete().planHash();
+
+      assertEquals(4, new java.util.HashSet<>(List.of(base, childEntries, grant, owner)).size(),
+                   "each input of the snapshot decision must be part of the plan hash");
    }
 
    @Test void resolveMixedCreateAndDeleteKeepsStorageBackup() throws Exception {

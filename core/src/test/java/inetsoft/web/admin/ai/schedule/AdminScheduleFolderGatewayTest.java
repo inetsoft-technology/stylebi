@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.schedule;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -188,6 +189,72 @@ class AdminScheduleFolderGatewayTest {
       when(taskFolderService.getTaskFolder(childFolderEntry.toIdentifier())).thenReturn(childFolder);
 
       assertEquals(2, gateway.countContainedTasks("/A"));
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #81072: the live-state inputs of the folder-delete snapshot decision
+   // -------------------------------------------------------------------------
+
+   @Test void countChildEntriesIsZeroForAMissingOrEmptyFolder() throws Exception {
+      when(taskFolderService.getTaskFolder(entry("Gone").toIdentifier()))
+         .thenThrow(new RuntimeException("boom"));
+      when(taskFolderService.getTaskFolder(entry("A").toIdentifier())).thenReturn(new AssetFolder());
+
+      assertEquals(0, gateway.countChildEntries("Gone"));
+      assertEquals(0, gateway.countChildEntries("A"));
+   }
+
+   @Test void countChildEntriesCountsAnEmptySubfolderThatCountContainedTasksIgnores()
+      throws Exception
+   {
+      AssetEntry sub = entry("A/B");
+      AssetFolder a = new AssetFolder();
+      a.addEntry(sub);
+      when(taskFolderService.getTaskFolder(entry("A").toIdentifier())).thenReturn(a);
+      when(taskFolderService.getTaskFolder(sub.toIdentifier())).thenReturn(new AssetFolder());
+
+      assertEquals(0, gateway.countContainedTasks("A"));
+      assertEquals(1, gateway.countChildEntries("A"));
+   }
+
+   @Test void hasExplicitFolderPermissionReadsTheFolderGrantUnderTheNormalizedPath() {
+      when(securityEngine.getPermission(ResourceType.SCHEDULE_TASK_FOLDER, "A/B"))
+         .thenReturn(new Permission());
+      when(securityEngine.getPermission(ResourceType.SCHEDULE_TASK_FOLDER, "C")).thenReturn(null);
+
+      assertTrue(gateway.hasExplicitFolderPermission("/A/B"));
+      assertFalse(gateway.hasExplicitFolderPermission("C"));
+   }
+
+   @Test void isOwnerInheritedComparesTheFolderOwnerWithItsParentsOwner() throws Exception {
+      IdentityID admin = new IdentityID("admin", "host-org");
+      IdentityID other = new IdentityID("other", "host-org");
+      AssetFolder root = new AssetFolder();
+      root.setOwner(admin);
+      AssetFolder same = new AssetFolder();
+      same.setOwner(admin);
+      AssetFolder different = new AssetFolder();
+      different.setOwner(other);
+      when(taskFolderService.getTaskFolder(entry("/").toIdentifier())).thenReturn(root);
+      when(taskFolderService.getTaskFolder(entry("Same").toIdentifier())).thenReturn(same);
+      when(taskFolderService.getTaskFolder(entry("Diff").toIdentifier())).thenReturn(different);
+
+      assertTrue(gateway.isOwnerInherited("Same"));
+      assertFalse(gateway.isOwnerInherited("Diff"));
+   }
+
+   @Test void isOwnerInheritedIsFalseWhenTheFolderOrItsParentCannotBeRead() throws Exception {
+      AssetFolder root = new AssetFolder();
+      when(taskFolderService.getTaskFolder(entry("/").toIdentifier())).thenReturn(root);
+      when(taskFolderService.getTaskFolder(entry("Gone").toIdentifier()))
+         .thenThrow(new RuntimeException("boom"));
+      when(taskFolderService.getTaskFolder(entry("Orphan/Child").toIdentifier()))
+         .thenReturn(new AssetFolder());
+      when(taskFolderService.getTaskFolder(entry("Orphan").toIdentifier()))
+         .thenThrow(new RuntimeException("boom"));
+
+      assertFalse(gateway.isOwnerInherited("Gone"));
+      assertFalse(gateway.isOwnerInherited("Orphan/Child"));
    }
 
    // -------------------------------------------------------------------------

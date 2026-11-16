@@ -517,6 +517,38 @@ public class AdminScheduleFolderGateway {
    }
 
    /**
+    * The number of direct child entries of any kind (task or subfolder) of {@code path}; {@code 0}
+    * when the folder does not exist. Unlike {@link #countContainedTasks}, a folder holding only an
+    * empty subfolder is NOT zero here: the recursive delete removes that subfolder (and any grant
+    * on it) too, and the delete rollback recreates only the leaf folder (Bug #81072).
+    */
+   public int countChildEntries(String path) {
+      AssetFolder folder = findFolder(path);
+      return folder == null ? 0 : folder.getEntries().length;
+   }
+
+   /**
+    * Whether an explicit permission grant is stored for the folder itself. The delete removes it
+    * (best effort) and the rollback recreates the folder without one (Bug #81072).
+    */
+   public boolean hasExplicitFolderPermission(String path) {
+      return securityEngine.getPermission(
+         ResourceType.SCHEDULE_TASK_FOLDER, normalizePath(path)) != null;
+   }
+
+   /**
+    * Whether the folder's owner equals its parent's owner, i.e. what {@code addFolder} would give a
+    * recreated folder (it copies the parent's owner). {@code false} when the folder or its parent
+    * cannot be read (Bug #81072).
+    */
+   public boolean isOwnerInherited(String path) {
+      AssetFolder folder = findFolder(path);
+      AssetFolder parent = findFolder(parentOf(normalizePath(path)));
+      return folder != null && parent != null &&
+         Objects.equals(folder.getOwner(), parent.getOwner());
+   }
+
+   /**
     * Deletes {@code path}, recursively -- {@code ScheduleService#removeScheduleFolders} itself is
     * unconditional (design §0.2: no non-empty check, no {@code force} parameter at the Java layer
     * at all); the {@code force} gate this area exposes is enforced entirely at {@link

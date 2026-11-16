@@ -141,17 +141,29 @@ public class ViewsheetChangePlanService {
          .anyMatch(c -> AdminChangeRecord.RISK_HIGH.equals(c.risk()));
       String planHash = hash(changes, auxProjections);
       boolean requiresBackup = StorageBackupPolicy.requiresBackup(
-         req.getChanges(), ViewsheetChangePlanService::isPureFolderCreate);
+         req.getChanges(), ViewsheetChangePlanService::hasExactUndo);
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup,
                               requiresAgentSignoff, planHash, TaskAuditToken.issue(planHash, task));
    }
 
-   /** Only a folder create is a pure create here: resolveFolderCreate refuses an existing folder,
-    * and viewsheet/worksheet units have no create verb. Re-normalized with the same helpers
-    * resolveOne used, since the raw request accepts case/alias variants. */
-   private static boolean isPureFolderCreate(ViewsheetChangeRequest change) {
-      return ViewsheetChangeRequest.UNIT_FOLDER.equals(requireUnitType("", change.getUnitType())) &&
-         ViewsheetChangeRequest.VERB_CREATE.equals(requireFolderVerb("", change.getVerb()));
+   /**
+    * Only a folder create and a folder update have an exact undo (Bug #80650, #81072). A create
+    * refuses an existing folder and its undo removes the new leaf; a folder update only runs
+    * setFolderDescription/setFolderAlias and saves the registry, and its rollback writes the old
+    * alias and description back. A viewsheet/worksheet update is NOT in this set: it re-saves the
+    * whole sheet, which stamps modified metadata and may rewrite other sheets' dependency
+    * back-edges that the rollback does not restore. Renames and deletes rewrite dependents and
+    * asset ids. The decision varies with unitType and verb only. Re-normalized with the same
+    * helpers resolveOne used, since the raw request accepts case/alias variants.
+    */
+   private static boolean hasExactUndo(ViewsheetChangeRequest change) {
+      if(!ViewsheetChangeRequest.UNIT_FOLDER.equals(requireUnitType("", change.getUnitType()))) {
+         return false;
+      }
+
+      String verb = requireFolderVerb("", change.getVerb());
+      return ViewsheetChangeRequest.VERB_CREATE.equals(verb) ||
+         ViewsheetChangeRequest.VERB_UPDATE.equals(verb);
    }
 
    private PlanChange resolveOne(String label, ViewsheetChangeRequest change, Principal user,

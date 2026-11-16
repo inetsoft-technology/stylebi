@@ -25,6 +25,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.presentation.model.PresentationLoginBannerSettingsModel;
 import inetsoft.web.admin.presentation.model.PresentationPdfGenerationSettingsModel;
@@ -98,8 +99,24 @@ public class PresentationChangePlanService {
       String task = req.getTask().trim();
       List<PlanChange> immutableChanges = Collections.unmodifiableList(changes);
       String planHash = hash(immutableChanges, hiddenInputs(resolved));
-      return new ResolvedPlan(task, immutableChanges, true, true,
+      return new ResolvedPlan(task, immutableChanges, requiresBackup(resolved), true,
                               planHash, TaskAuditToken.issue(planHash, task));
+   }
+
+   /**
+    * Whether the plan needs the whole-storage snapshot (Bug #81072). The apply service computes the
+    * same flag from the same resolved entries, so preview and apply cannot disagree.
+    *
+    * <p>Decided by the sub-model's scope, for update and organization-scope reset alike: the twelve
+    * value-scope sub-models write {@code SreeEnv} properties and the rollback writes the captured
+    * pre-image back (an org-scope write also removes the keys it created, a reset puts back exactly
+    * the keys it removed), so they skip. The four storage-scope sub-models (lookAndFeel,
+    * welcomePage, loginBanner, portalIntegration) rewrite whole DataSpace files with no live
+    * rollback, so any one of them keeps the snapshot for the whole plan. At global scope an unset
+    * property is left pinned to its static default by the undo (accepted drift).
+    */
+   static boolean requiresBackup(List<ResolvedChange> resolved) {
+      return StorageBackupPolicy.requiresBackup(resolved, c -> !c.subModel().isStorageScope());
    }
 
    /**

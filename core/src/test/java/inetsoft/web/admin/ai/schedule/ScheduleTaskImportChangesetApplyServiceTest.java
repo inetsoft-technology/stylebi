@@ -251,6 +251,9 @@ class ScheduleTaskImportChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertEquals(proposed, result.results().get(0).after());
+      // Bug #81072: a create-only import has an exact undo, so no snapshot is taken
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
    }
 
    @Test void planReflectsSanitizedConditionsAndPlanHashDependsOnLinkUri() throws Exception {

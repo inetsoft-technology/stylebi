@@ -237,6 +237,36 @@ class ScheduleTaskImportChangePlanServiceTest {
       verify(scheduleManager).checkScheduleTaskSave(eq(child.getTaskId()), any(), eq(user));
    }
 
+   /** Bug #81072: a plan of only brand-new tasks has an exact undo and skips the snapshot. */
+   @Test void createOnlyPlanSkipsTheSnapshot() throws Exception {
+      ScheduleTask child = task("child");
+      String token = stage(child);
+
+      assertFalse(planService.resolve(request(token, change(child.getTaskId())), user, LINK_URI)
+                     .requiresStorageBackup());
+   }
+
+   /** An overwrite re-saves a shallow clone and resets the task permission: the snapshot stays. */
+   @Test void overwriteKeepsTheSnapshot() throws Exception {
+      ScheduleTask child = task("child");
+      lenient().when(scheduleManager.getScheduleTask(child.getTaskId())).thenReturn(task("child"));
+      String token = stage(child);
+
+      assertTrue(planService.resolve(request(token, change(child.getTaskId(), true)), user, LINK_URI)
+                    .requiresStorageBackup());
+   }
+
+   @Test void aCreateMixedWithAnOverwriteKeepsTheSnapshot() throws Exception {
+      ScheduleTask fresh = task("fresh");
+      ScheduleTask old = task("old");
+      lenient().when(scheduleManager.getScheduleTask(old.getTaskId())).thenReturn(task("old"));
+      String token = stage(fresh, old);
+
+      assertTrue(planService.resolve(request(token, change(fresh.getTaskId()),
+                                             change(old.getTaskId(), true)), user, LINK_URI)
+                    .requiresStorageBackup());
+   }
+
    @Test void flagDoesNotChangeThePlanHash() throws Exception {
       ScheduleTask child = task("child");
       child.addCondition(new CompletionCondition(MISSING));

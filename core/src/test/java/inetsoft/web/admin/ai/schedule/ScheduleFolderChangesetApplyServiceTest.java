@@ -202,6 +202,47 @@ class ScheduleFolderChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // Bug #81072: an empty folder delete with an exact undo takes no snapshot
+   // -------------------------------------------------------------------------
+
+   private ApplyResult applyEmptyFolderDelete(boolean ownerInherited) throws Exception {
+      AtomicBoolean deleted = new AtomicBoolean();
+      when(folderGateway.findFolder("A"))
+         .thenAnswer(inv -> deleted.get() ? null : new AssetFolder());
+      when(folderGateway.countChildEntries("A")).thenReturn(0);
+      when(folderGateway.hasExplicitFolderPermission("A")).thenReturn(false);
+      when(folderGateway.isOwnerInherited("A")).thenReturn(ownerInherited);
+      doAnswer(inv -> {
+         deleted.set(true);
+         return null;
+      }).when(folderGateway).deleteFolder("A", user);
+
+      ScheduleFolderChangeRequest delete = deleteChange("A");
+      ResolvedPlan preview = planService.resolve(planRequest(delete), user);
+      ScheduleFolderApplyRequest req =
+         applyRequest(preview.planHash(), preview.taskToken(), delete);
+      req.setReviewOutcome("approved");
+      return service.apply(req, user);
+   }
+
+   @Test void anEmptyInheritedOwnerFolderDeleteTakesNoSnapshot() throws Exception {
+      ApplyResult result = applyEmptyFolderDelete(true);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
+   }
+
+   @Test void anEmptyFolderDeleteWithoutAProvableUndoStillTakesTheSnapshot() throws Exception {
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = applyEmptyFolderDelete(false);
+
+      assertEquals("snap-ref", result.backupRef());
+      verify(backupService).backup(anyString());
+   }
+
+   // -------------------------------------------------------------------------
    // moveTask (bug #76841)
    // -------------------------------------------------------------------------
 
@@ -722,6 +763,13 @@ class ScheduleFolderChangesetApplyServiceTest {
       change.setVerb(ScheduleFolderChangeRequest.VERB_CREATE);
       change.setParentPath(parentPath);
       change.setFolderName(folderName);
+      return change;
+   }
+
+   private static ScheduleFolderChangeRequest deleteChange(String path) {
+      ScheduleFolderChangeRequest change = new ScheduleFolderChangeRequest();
+      change.setVerb(ScheduleFolderChangeRequest.VERB_DELETE);
+      change.setPath(path);
       return change;
    }
 

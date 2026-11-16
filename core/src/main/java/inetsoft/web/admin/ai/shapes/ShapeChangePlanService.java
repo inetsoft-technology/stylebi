@@ -84,16 +84,18 @@ public class ShapeChangePlanService {
       String planHash = hash(immutableChanges);
       // Every change in this area is RISK_HIGH/SCOPE_STORAGE unconditionally (01-design.md section
       // 2.3 item 3 -- "there is no low-risk verb in this area"), so signoff is always required too.
-      // The snapshot is skipped only when every entry is an upload to a new name (Bug #80650).
+      // The snapshot is skipped when every entry has an exact in-process undo (Bug #80650,
+      // #81072): a new upload's undo deletes the file, an overwrite's and a delete's undo writes
+      // back the prior bytes captured at resolve time. That holds for every verb in this area.
       return new ResolvedPlan(task, immutableChanges, requiresBackup(resolved), true, planHash,
                               TaskAuditToken.issue(planHash, task));
    }
 
-   /** Bug #80650: an upload to a name that does not exist yet is a pure create whose undo deletes
-    * the new file; an overwrite or a delete keeps the whole-storage snapshot. Shared with {@link
+   /** Bug #80650, #81072: every upload (new or overwrite) and every delete has an exact in-process
+    * undo, so the whole-storage snapshot is skipped. Shared with {@link
     * ShapeChangesetApplyService} so the apply gates its snapshot on the same decision. */
    static boolean requiresBackup(List<ResolvedChange> resolved) {
-      return StorageBackupPolicy.requiresBackup(resolved, ResolvedChange::pureCreate);
+      return StorageBackupPolicy.requiresBackup(resolved, ResolvedChange::exactUndo);
    }
 
    /** Package-visible so {@link ShapeChangesetApplyService} can re-resolve the SAME way, at apply
@@ -342,9 +344,12 @@ public class ShapeChangePlanService {
    record ResolvedChange(String verb, String scope, String name, String subPath, String parentDir,
                         String path, byte[] content, String priorContentBase64, PlanChange planChange)
    {
-      /** True for an upload to a name that did not exist (no prior bytes captured). */
-      boolean pureCreate() {
-         return ShapeChangeRequest.VERB_UPLOAD.equals(verb) && priorContentBase64 == null;
+      /** True when the rollback restores the shape exactly: a new upload is deleted again, and an
+       * overwrite or a delete has its prior bytes (captured unconditionally at resolve time, so
+       * {@code priorContentBase64} is non-null for both) written back. */
+      boolean exactUndo() {
+         return ShapeChangeRequest.VERB_UPLOAD.equals(verb) ||
+            ShapeChangeRequest.VERB_DELETE.equals(verb);
       }
    }
 }

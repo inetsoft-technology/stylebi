@@ -87,6 +87,7 @@ class GeneralSettingsCoverageTest {
       sreeEnv = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       sreeEnv.when(() -> SreeEnv.getProperty("sree.home")).thenReturn("/opt/sree");
+      sreeEnv.when(() -> SreeEnv.getProperty("replet.cache.directory")).thenReturn(null);
    }
 
    @AfterEach

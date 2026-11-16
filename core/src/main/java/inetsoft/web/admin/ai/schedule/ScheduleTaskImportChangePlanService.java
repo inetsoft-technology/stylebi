@@ -25,6 +25,7 @@ import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.schedule.ScheduleTaskService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -110,7 +111,13 @@ public class ScheduleTaskImportChangePlanService {
       boolean requiresAgentSignoff = changes.stream()
          .anyMatch(c -> AdminChangeRecord.RISK_HIGH.equals(c.risk()));
       String planHash = hash(changes);
-      return new ResolvedPlan(task, Collections.unmodifiableList(changes), true,
+      // Bug #81072: a plan of only brand-new tasks (currentValue == null, which is hashed) has an
+      // exact undo: removeScheduleTask removes the task, clears its permission and its
+      // dependencies. An overwrite keeps the snapshot: its rollback re-saves a shallow clone of
+      // the existing task and the save resets the task permission to the owner-only default.
+      boolean requiresBackup = StorageBackupPolicy.requiresBackup(
+         changes, c -> c.currentValue() == null);
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup,
                               requiresAgentSignoff, planHash, TaskAuditToken.issue(planHash, task));
    }
 

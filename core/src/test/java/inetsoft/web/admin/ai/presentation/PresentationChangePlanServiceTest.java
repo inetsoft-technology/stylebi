@@ -236,7 +236,41 @@ class PresentationChangePlanServiceTest {
          assertEquals(subModel.scope(), planChange.snapshotScope(), subModel.key() + " scope");
          assertEquals(subModel.key() + ":" + scope, planChange.property(), subModel.key() + " property");
          assertTrue(plan.requiresAgentSignoff());
-         assertTrue(plan.requiresStorageBackup());
+         // Bug #81072: only the four storage-scope sub-models keep the whole-storage snapshot
+         assertEquals(subModel.isStorageScope(), plan.requiresStorageBackup(),
+                      subModel.key() + " requiresStorageBackup");
+      }
+   }
+
+   @Test
+   void aPlanWithOneStorageScopeEntryKeepsTheSnapshotForEveryEntry() throws Exception {
+      stub(PresentationSubModel.TIME, currentFor(PresentationSubModel.TIME));
+      stub(PresentationSubModel.LOGIN_BANNER, currentFor(PresentationSubModel.LOGIN_BANNER));
+
+      var valueOnly = service.resolve(request("t",
+         change("time", "global", specFor(PresentationSubModel.TIME))), PRINCIPAL);
+      var mixed = service.resolve(request("t",
+         change("time", "global", specFor(PresentationSubModel.TIME)),
+         change("loginBanner", "global", specFor(PresentationSubModel.LOGIN_BANNER))),
+         PRINCIPAL);
+
+      assertFalse(valueOnly.requiresStorageBackup());
+      assertTrue(mixed.requiresStorageBackup());
+   }
+
+   @Test
+   void anOrganizationResetSkipsTheSnapshotForValueScopeAndKeepsItForStorageScope()
+      throws Exception
+   {
+      for(PresentationSubModel subModel : PresentationSubModel.values()) {
+         if(subModel.globalOnly()) {
+            continue;
+         }
+
+         stub(subModel, currentFor(subModel));
+         var plan = service.resolve(request("t", reset(subModel.key(), "organization")), PRINCIPAL);
+         assertEquals(subModel.isStorageScope(), plan.requiresStorageBackup(),
+                      subModel.key() + " reset requiresStorageBackup");
       }
    }
 

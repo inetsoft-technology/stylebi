@@ -736,6 +736,9 @@ class ViewsheetChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       verify(viewsheetApiService)
          .updateMetadata(VS_ASSET_ID, "Existing Alias", "New description", user);
+      // a sheet update re-saves the whole sheet: the snapshot is still taken
+      assertEquals("backup-ref-1", result.backupRef());
+      verify(backupService).backup(anyString());
    }
 
    /** The direct regression test for bug #76669: clearing description via an explicit "" writes
@@ -882,6 +885,9 @@ class ViewsheetChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       verify(folderService).updateFolderMetadata(
          "Examples/Old Folder", null, "Existing Alias", "New description", user);
+      // Bug #81072: a folder update has an exact undo, so no snapshot is taken
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
    }
 
    /** Direct regression test for bug #76669, folder unit -- applied for consistency even though the

@@ -218,7 +218,9 @@ class PresentationChangesetApplyServiceTest {
       assertEquals(1, result.results().size());
       assertEquals("verified", result.results().get(0).status());
       assertNull(result.rollbackFailures());
-      verify(backupService).backup(anyString());
+      // Bug #81072: a value-scope update has an exact in-process undo, so no snapshot is taken
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
    }
 
    @Test
@@ -373,6 +375,9 @@ class PresentationChangesetApplyServiceTest {
       var result = service.apply(req, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      // a storage-scope sub-model has no live rollback: the snapshot is still taken
+      assertEquals("admin-snapshot/ref", result.backupRef());
+      verify(backupService).backup(anyString());
    }
 
    // ---------------------------------------------------------------- Bug #78867: portalIntegration.tabs identity
@@ -1205,6 +1210,9 @@ class PresentationChangesetApplyServiceTest {
       assertEquals("verified", result.results().get(0).status());
       verify(access).resetOrg(PresentationSubModel.TIME, user);
       verify(access, never()).write(any(), any(), any(), anyBoolean());
+      // Bug #81072: undoReset puts back exactly the removed keys, so no snapshot is taken
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
    }
 
    @Test

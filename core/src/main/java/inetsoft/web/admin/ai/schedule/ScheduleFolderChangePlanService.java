@@ -79,31 +79,101 @@ public class ScheduleFolderChangePlanService {
 
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenPaths = new HashSet<>();
+      Decisions decisions = new Decisions();
       int index = 0;
 
       for(ScheduleFolderChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, change, user, seenPaths));
+         changes.add(resolveOne(label, change, user, seenPaths, decisions));
       }
 
-      String planHash = hash(changes);
+      keepDeletesWithInPlanChildren(req.getChanges(), decisions);
+      String planHash = hash(changes, decisions.hidden);
       String task = req.getTask().trim();
-      // requiresStorageBackup: false only when every change is a folder create (a create refuses an
-      // existing path and its undo removes the new leaf folder; Bug #80650, see
-      // StorageBackupPolicy); every other verb mutates the existing schedule-task folder tree.
+      // requiresStorageBackup: false only when every change has an exact undo (Bug #80650, #81072,
+      // see StorageBackupPolicy). A create refuses an existing path and its undo removes the new
+      // leaf folder. A delete of a folder with no child entry of any kind, no explicit folder
+      // grant and an owner inherited from its parent is undone exactly by recreating the leaf
+      // (addFolder copies the parent owner and writes no grant); those inputs are hashed. Every
+      // other delete, rename, move and moveTask keeps it (they rewrite contained tasks and
+      // dependents, or lose a grant or owner the rollback cannot restore).
       // requiresAgentSignoff: unconditionally true (design §4) -- this area has no
       // task-facing low-risk "update" verb the way Viewsheets does, and a non-empty delete is
       // unconditionally catastrophic, so collapsing to "always signoff" is the simpler, safer
       // default for this first cut.
-      boolean requiresBackup = StorageBackupPolicy.requiresBackup(
-         req.getChanges(),
-         c -> ScheduleFolderChangeRequest.VERB_CREATE.equals(normalizeVerb("", c.getVerb())));
+      boolean requiresBackup =
+         StorageBackupPolicy.requiresBackup(decisions.exactUndo, Boolean::booleanValue);
       return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup, true,
                               planHash, TaskAuditToken.issue(planHash, task));
    }
 
+   /** Per change, in plan order: whether its rollback is an exact undo, and the live-state inputs
+    * of that decision that the displayed values do not carry (folded into the plan hash). */
+   private static final class Decisions {
+      final List<Boolean> exactUndo = new ArrayList<>();
+      final List<String> hidden = new ArrayList<>();
+
+      void add(boolean exact, String hiddenInputs) {
+         exactUndo.add(exact);
+         hidden.add(hiddenInputs);
+      }
+   }
+
+   /**
+    * A delete is classified from the pre-state, but a plan that also creates, renames or moves
+    * something at or under the deleted folder changes what the recursive delete removes, and the
+    * rollback recreates only the leaf. Any other entry touching a path under a deleted folder
+    * therefore keeps the snapshot (the decision then depends on the plan, which is hashed anyway).
+    */
+   private static void keepDeletesWithInPlanChildren(List<ScheduleFolderChangeRequest> requests,
+                                                     Decisions decisions)
+   {
+      for(int i = 0; i < requests.size(); i++) {
+         ScheduleFolderChangeRequest del = requests.get(i);
+
+         if(!ScheduleFolderChangeRequest.VERB_DELETE.equals(del.getVerb()) || del.getPath() == null) {
+            continue;
+         }
+
+         String path = AdminScheduleFolderGateway.normalizePath(del.getPath());
+
+         for(int j = 0; j < requests.size(); j++) {
+            if(j == i) {
+               continue;
+            }
+
+            ScheduleFolderChangeRequest other = requests.get(j);
+            List<String> touched = new ArrayList<>();
+            touched.add(other.getPath());
+            touched.add(other.getNewPath());
+            touched.add(other.getTargetPath());
+
+            if(other.getFolderName() != null && !other.getFolderName().isBlank()) {
+               touched.add(AdminScheduleFolderGateway.joinPath(
+                  AdminScheduleFolderGateway.normalizePath(other.getParentPath()),
+                  other.getFolderName().trim()));
+            }
+            else {
+               touched.add(other.getParentPath());
+            }
+
+            for(String t : touched) {
+               if(t == null || t.isBlank()) {
+                  continue;
+               }
+
+               String n = AdminScheduleFolderGateway.normalizePath(t);
+
+               if(n.equals(path) || n.startsWith(path + "/")) {
+                  decisions.exactUndo.set(i, false);
+               }
+            }
+         }
+      }
+   }
+
    private PlanChange resolveOne(String label, ScheduleFolderChangeRequest change, Principal user,
-                                 Set<String> seenPaths)
+                                 Set<String> seenPaths, Decisions decisions)
       throws Exception
    {
       if(change == null) {
@@ -114,15 +184,21 @@ public class ScheduleFolderChangePlanService {
 
       switch(verb) {
       case ScheduleFolderChangeRequest.VERB_CREATE:
+         decisions.add(true, "");
          return resolveCreate(label, change, seenPaths);
       case ScheduleFolderChangeRequest.VERB_RENAME:
+         decisions.add(false, "");
          return resolveRename(label, change, seenPaths);
       case ScheduleFolderChangeRequest.VERB_MOVE:
+         decisions.add(false, "");
          return resolveMove(label, change, seenPaths);
       case ScheduleFolderChangeRequest.VERB_MOVE_TASK:
+         // Stays keep: setScheduleTask resets the task permission to the owner-only default, which
+         // the rollback never restores (see the bug notes; not part of this change).
+         decisions.add(false, "");
          return resolveMoveTask(label, change, seenPaths);
       default:
-         return resolveDelete(label, change, seenPaths);
+         return resolveDelete(label, change, seenPaths, decisions);
       }
    }
 
@@ -350,7 +426,7 @@ public class ScheduleFolderChangePlanService {
    }
 
    private PlanChange resolveDelete(String label, ScheduleFolderChangeRequest change,
-                                    Set<String> seenPaths)
+                                    Set<String> seenPaths, Decisions decisions)
       throws Exception
    {
       requireUnused(label, "parentPath", change.getParentPath(), "delete");
@@ -380,6 +456,16 @@ public class ScheduleFolderChangePlanService {
             containedTaskCount + " schedule task(s), recursively; deleting it PERMANENTLY deletes " +
             "every one of them too, with no recycle bin and no undo");
       }
+
+      // Bug #81072: the four conditions under which recreating the leaf folder is an exact undo.
+      // containedTaskCount == 0 does not imply no child entry (an empty subfolder is removed by the
+      // recursive delete and not recreated), so the child entries are counted separately.
+      int childEntries = folderGateway.countChildEntries(path);
+      boolean folderGrant = folderGateway.hasExplicitFolderPermission(path);
+      boolean ownerInherited = folderGateway.isOwnerInherited(path);
+      decisions.add(containedTaskCount == 0 && childEntries == 0 && !folderGrant && ownerInherited,
+                    "childEntries=" + childEntries + ",folderGrant=" + folderGrant +
+                    ",ownerInherited=" + ownerInherited);
 
       String current = ScheduleFolderXmlProjection.project(path, folder);
       String risk = containedTaskCount == 0 ? AdminChangeRecord.RISK_LOW : AdminChangeRecord.RISK_HIGH;
@@ -463,8 +549,9 @@ public class ScheduleFolderChangePlanService {
     * ScheduleChangePlanService#hash} -- changing it invalidates every outstanding preview, which is
     * safe (apply is refused with 409) but forces re-review.
     */
-   private static String hash(List<PlanChange> changes) {
+   private static String hash(List<PlanChange> changes, List<String> hiddenInputs) {
       StringBuilder canonical = new StringBuilder();
+      int index = 0;
 
       for(PlanChange change : changes) {
          canonical.append(change.property()).append(SEP)
@@ -472,6 +559,13 @@ public class ScheduleFolderChangePlanService {
             .append(canonical(change.proposedValue())).append(SEP)
             .append(change.risk()).append(SEP)
             .append(change.snapshotScope()).append(SEP);
+         String hidden = hiddenInputs.get(index++);
+
+         // Inputs of the snapshot decision that the displayed values do not carry, so a change
+         // between preview and apply is a 409 instead of a silent disagreement (Bug #81072).
+         if(!hidden.isEmpty()) {
+            canonical.append(hidden).append(SEP);
+         }
       }
 
       try {

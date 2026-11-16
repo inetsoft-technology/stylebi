@@ -91,13 +91,14 @@ public class GeneralChangesetApplyService {
 
          String task = req.getTask().trim();
          String currentHash = GeneralChangePlanService.hash(planChanges);
+         boolean requiresBackup = GeneralChangePlanService.requiresBackup(resolved);
 
          if(req.getPlanHash() == null || !currentHash.equals(req.getPlanHash())) {
             // A 409 conflict response must never hand back a taskToken -- the exception
             // constructor strips whatever is passed, so issuing one would be a wasted encryption
             // call for a value discarded one frame later.
             throw new AdminChangesetApplyService.PlanHashMismatchException(
-               new ResolvedPlan(task, planChanges, true, true, currentHash, null));
+               new ResolvedPlan(task, planChanges, requiresBackup, true, currentHash, null));
          }
 
          String reviewedTask;
@@ -107,7 +108,8 @@ public class GeneralChangesetApplyService {
          }
          catch(TaskAuditToken.TaskTokenException e) {
             throw new AdminChangesetApplyService.TaskTokenMismatchException(
-               new ResolvedPlan(task, planChanges, true, true, currentHash, null), e.getMessage());
+               new ResolvedPlan(task, planChanges, requiresBackup, true, currentHash, null),
+               e.getMessage());
          }
 
          if(req.getReviewOutcome() == null || req.getReviewOutcome().trim().isEmpty()) {
@@ -117,7 +119,9 @@ public class GeneralChangesetApplyService {
          }
 
          String txId = "gen-" + newIdSuffix();
-         String backupRef = backupService.backup(txId);
+         // Gated on the same decision the plan flag carries (Bug #81072): a plan whose every
+         // change has an exact in-process undo does not pay the whole-storage snapshot.
+         String backupRef = requiresBackup ? backupService.backup(txId) : null;
          String reviewOutcome = req.getReviewOutcome();
          List<GeneralApplyOutcome> results = new ArrayList<>();
          List<GeneralChangePlanService.ResolvedChange> undoable = new ArrayList<>();
