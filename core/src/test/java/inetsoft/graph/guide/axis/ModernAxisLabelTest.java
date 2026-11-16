@@ -67,6 +67,10 @@ class ModernAxisLabelTest {
    private static final double CLASSIC_SMALL_45_WIDTH = 103;
    private static final List<Integer> CLASSIC_STORES_SHOWN =
       java.util.stream.IntStream.range(0, 30).boxed().toList();
+   // BarVO's minimum bar width
+   private static final double BAR_MIN_WIDTH = 10;
+   // 105 categories at 90 degrees reserve one line each, measured before the label limit
+   private static final double CLASSIC_105_MIN_PLOT = 1470;
 
    @AfterEach
    void clearProperties() {
@@ -349,7 +353,7 @@ class ModernAxisLabelTest {
    }
 
    @Test
-   void aMovedYearKeepsTheThinningGap() {
+   void aYearLabelKeepsTheThinningGap() {
       // one month every 15px: a grown year label would otherwise touch its neighbour
       assertThinningGap(400, 240);
 
@@ -381,20 +385,310 @@ class ModernAxisLabelTest {
                  "first label at " + first.getTextPosition().getX() + ", centred at " + centred);
    }
 
-   // adjacent shown labels keep the 1px each side the thinning keeps around a date label
+   @Test
+   void monthsThinInOneStepWithTheirYears() {
+      Date[] dates = months(2024, Calendar.JANUARY, 24);
+      DefaultAxis axis = dateAxis(dates, new CompactDates(TimeScale.MONTH, Locale.US), null,
+                                  400, 240, 66);
+
+      assertTrue(shownIndices(axis).size() < 24, "premise: thinned " + shownTexts(axis));
+      assertOneStep(axis, "400x240");
+      assertYearsWhereTheyChange(axis, dates, "400x240");
+      assertApart(axis, "400x240");
+   }
+
+   @Test
+   void aLongDayAxisThinsInOneStep() {
+      Date[] dates = days(2026, Calendar.JANUARY, 5, 120);
+      DefaultAxis axis = dateAxis(dates, new CompactDates(TimeScale.DAY, Locale.US), null,
+                                  400, 240, 66);
+
+      assertEquals("Jan 5, 2026", shownTexts(axis).get(0));
+      assertOneStep(axis, "400x240");
+      assertApart(axis, "400x240");
+   }
+
+   @Test
+   void datesThinInOneStepAtEveryWidth() {
+      Date[][] axes = { months(2024, Calendar.JANUARY, 24), months(2025, Calendar.FEBRUARY, 30),
+                        days(2026, Calendar.JANUARY, 5, 120), days(2025, Calendar.DECEMBER, 20, 60) };
+      int[] units = { TimeScale.MONTH, TimeScale.MONTH, TimeScale.DAY, TimeScale.DAY };
+
+      for(int a = 0; a < axes.length; a++) {
+         for(int width = 200; width <= 900; width += 7) {
+            DefaultAxis axis = dateAxis(axes[a], new CompactDates(units[a], Locale.US), null,
+                                        width, 240, 66);
+            String where = "axis " + a + " at " + width;
+
+            assertOneStep(axis, where);
+            assertYearsWhereTheyChange(axis, axes[a], where);
+            assertApart(axis, where);
+         }
+      }
+   }
+
+   // the year changes in the last few labels, whose full text runs past the right edge
+   @Test
+   void daysEndingInANewYearKeepTheStepAndTheEdge() {
+      assertCleanEndAcrossWidths(days(2025, Calendar.NOVEMBER, 20, 45), TimeScale.DAY);
+   }
+
+   @Test
+   void daysEndingSoonAfterANewYearKeepTheStepAndTheEdge() {
+      assertCleanEndAcrossWidths(days(2025, Calendar.DECEMBER, 1, 33), TimeScale.DAY);
+   }
+
+   @Test
+   void monthsEndingInANewYearKeepTheEdge() {
+      assertCleanEndAcrossWidths(months(2025, Calendar.FEBRUARY, 25), TimeScale.MONTH);
+   }
+
+   private static void assertCleanEndAcrossWidths(Date[] dates, int unit) {
+      for(int width = 160; width <= 900; width += 3) {
+         DefaultAxis axis = dateAxis(dates, new CompactDates(unit, Locale.US), null, width, 240, 66);
+         String where = "at " + width;
+
+         assertOneStep(axis, where);
+         assertInsideTheGraph(axis, where);
+         assertYearsWhereTheyChange(axis, dates, where);
+      }
+   }
+
+   @Test
+   void aHiddenYAxisKeepsTheStartInside() {
+      // without Y labels the first labels run past the left edge of the graph
+      Date[] dates = days(2026, Calendar.JANUARY, 5, 120);
+
+      for(int width = 160; width <= 900; width += 3) {
+         LinearScale yscale = new LinearScale("Sales");
+         yscale.getAxisSpec().setLabelVisible(false);
+         yscale.getAxisSpec().setAxisStyle(AxisSpec.AXIS_NONE);
+         CategoricalScale xscale = new CategoricalScale("Date");
+         xscale.getAxisSpec().setCompactDates(new CompactDates(TimeScale.DAY, Locale.US));
+         xscale.getAxisSpec().setLabelLimit(66);
+         DefaultAxis axis = layout(xscale, yscale, dateRows(dates), width, 240);
+         String where = "no Y labels at " + width;
+
+         assertOneStep(axis, where);
+         assertInsideTheGraph(axis, where);
+         assertYearsWhereTheyChange(axis, dates, where);
+      }
+   }
+
+   @Test
+   void largerLabelsThinInOneStepFromTheFirst() {
+      // at 14px and 45 degrees the first labels reach left past the axis start
+      DefaultAxis axis = xAxis(stores(30), 92.4, 45, 0, 400, 240, 14);
+      List<Integer> idx = shownIndices(axis);
+
+      assertEquals(0, idx.get(0), "shown " + idx);
+      assertTrue(idx.size() > 2, "shown " + idx);
+      assertOneStep(axis, "font 14");
+      assertApart(axis, "font 14");
+   }
+
+   @Test
+   void textLabelsKeepTheirGapAtEveryWidth() {
+      Object[][] products = names("Muffin", "Pretzel", "Raisins", "Tortilla", "Bagel", "Scone",
+                                  "Waffle", "Crumpet");
+
+      for(int width = 200; width <= 900; width += 7) {
+         for(int rotation : new int[] { 0, 45 }) {
+            for(Object[][] rows : new Object[][][] { products, stores(30) }) {
+               DefaultAxis axis = xAxis(rows, 66, rotation, 0, width, 240);
+               String where = rows.length - 1 + " labels at " + rotation + " and " + width;
+
+               assertOneStep(axis, where);
+               assertApart(axis, where);
+            }
+         }
+      }
+   }
+
+   @Test
+   void aLimitedAxisReservesNoLabelWidth() {
+      Object[][] rows = campaigns(105);
+      double bars = 105 * BAR_MIN_WIDTH;
+
+      assertEquals(bars, plot(rows, 66, 45, 400, 240).getMinPlotWidth(), 0.5);
+      assertEquals(bars, plot(rows, 66, 0, 400, 240).getMinPlotWidth(), 0.5);
+   }
+
+   @Test
+   void aClassicAxisStillReservesItsLabels() {
+      assertEquals(CLASSIC_105_MIN_PLOT, plot(campaigns(105), 0, 90, 400, 240).getMinPlotWidth(),
+                   0.5);
+   }
+
+   // adjacent shown labels keep the gap of a limited axis
    private static void assertThinningGap(int width, int height) {
       DefaultAxis axis = dateAxis(months(2025, Calendar.FEBRUARY, 24),
                                   new CompactDates(TimeScale.MONTH, Locale.US), null, width,
                                   height, 66);
+      String where = width + "x" + height;
+
+      assertOneStep(axis, where);
+      assertApart(axis, where);
+   }
+
+   // the shown labels are every k-th from the first candidate
+   private static void assertOneStep(DefaultAxis axis, String where) {
+      List<Integer> idx = shownIndices(axis);
+
+      if(idx.size() < 2) {
+         return;
+      }
+
+      int step = idx.get(1) - idx.get(0);
+
+      for(int i = 1; i < idx.size(); i++) {
+         assertEquals(step, idx.get(i) - idx.get(i - 1),
+                      "step at " + where + " " + idx + " " + shownTexts(axis));
+      }
+   }
+
+   // every shown flat label's text stays in the graph
+   private static void assertInsideTheGraph(DefaultAxis axis, String where) {
+      Rectangle2D graph = axis.vgraph.getBounds();
       List<Rectangle2D> shown = shownBounds(axis);
       List<String> texts = shownTexts(axis);
 
-      for(int i = 0; i < shown.size() - 1; i++) {
-         double gap = shown.get(i + 1).getX() - shown.get(i).getMaxX();
+      for(int i = 0; i < shown.size(); i++) {
+         Rectangle2D box = shown.get(i);
 
-         assertTrue(gap >= 2 - 1e-3, "gap " + gap + " between " + texts.get(i) + " and " +
-                    texts.get(i + 1) + " at " + width + "x" + height + " " + texts);
+         assertTrue(box.getX() >= graph.getX() - 0.5 && box.getMaxX() <= graph.getMaxX() + 0.5,
+                    texts.get(i) + " at " + box.getX() + ".." + box.getMaxX() + " runs out of " +
+                    graph.getX() + ".." + graph.getMaxX() + " at " + where + " " + texts);
       }
+   }
+
+   // the first shown label of each year carries the year, the others don't
+   private static void assertYearsWhereTheyChange(DefaultAxis axis, Date[] dates, String where) {
+      List<Integer> idx = shownIndices(axis);
+      List<String> texts = shownTexts(axis);
+      Calendar cal = Calendar.getInstance();
+      int prevYear = -1;
+
+      for(int i = 0; i < idx.size(); i++) {
+         cal.setTime(dates[idx.get(i)]);
+         int year = cal.get(Calendar.YEAR);
+
+         if(year != prevYear) {
+            assertTrue(texts.get(i).contains(String.valueOf(year)),
+                       "no year on " + texts.get(i) + " at " + where + " " + texts);
+         }
+         else {
+            assertFalse(texts.get(i).contains(String.valueOf(year)),
+                        "year repeated on " + texts.get(i) + " at " + where + " " + texts);
+         }
+
+         prevYear = year;
+      }
+   }
+
+   // flat labels keep 4px along the axis, rotated labels 2px across their text
+   private static void assertApart(DefaultAxis axis, String where) {
+      List<Integer> idx = shownIndices(axis);
+      List<String> texts = shownTexts(axis);
+
+      for(int i = 0; i < idx.size() - 1; i++) {
+         VLabel label = axis.getLabels()[idx.get(i)];
+         boolean flat = label.getTextSpec().getRotation() % 180 == 0;
+         java.awt.geom.Area a = textArea(label, flat ? 0 : 2 - 1e-3);
+
+         if(flat) {
+            a.transform(java.awt.geom.AffineTransform.getTranslateInstance(4 - 1e-3, 0));
+         }
+
+         a.intersect(textArea(axis.getLabels()[idx.get(i + 1)], 0));
+
+         assertTrue(area(a) < 1e-2, texts.get(i) + " and " + texts.get(i + 1) +
+                    " are too close at " + where + " " + texts);
+      }
+   }
+
+   // the text box of a label, grown across the text by `across`, rotated with the text
+   private static java.awt.geom.Area textArea(VLabel label, double across) {
+      Font font = label.getFont();
+      double x = label.getTextPosition().getX();
+      double y = label.getTextPosition().getY();
+      Rectangle2D box = new Rectangle2D.Double(
+         x, y - across, GTool.stringWidth(label.getDisplayLabel(), font),
+         GTool.getFontMetrics(font).getHeight() * label.getDisplayLabel().length + across * 2);
+      double angle = Math.toRadians(label.getTextSpec().getRotation());
+      return new java.awt.geom.Area(java.awt.geom.AffineTransform.getRotateInstance(angle, x, y)
+                                       .createTransformedShape(box));
+   }
+
+   private static double area(java.awt.geom.Area shape) {
+      double sum = 0;
+      double[] pt = new double[6];
+      double sx = 0, sy = 0, px = 0, py = 0;
+
+      for(java.awt.geom.PathIterator it = shape.getPathIterator(null); !it.isDone(); it.next()) {
+         int type = it.currentSegment(pt);
+
+         if(type == java.awt.geom.PathIterator.SEG_MOVETO) {
+            sx = px = pt[0];
+            sy = py = pt[1];
+         }
+         else if(type == java.awt.geom.PathIterator.SEG_LINETO) {
+            sum += px * pt[1] - pt[0] * py;
+            px = pt[0];
+            py = pt[1];
+         }
+         else if(type == java.awt.geom.PathIterator.SEG_CLOSE) {
+            sum += px * sy - sx * py;
+            px = sx;
+            py = sy;
+         }
+      }
+
+      return Math.abs(sum) / 2;
+   }
+
+   private static Date[] days(int year, int month, int day, int count) {
+      Date[] dates = new Date[count];
+
+      for(int i = 0; i < count; i++) {
+         dates[i] = date(year, month, day + i);
+      }
+
+      return dates;
+   }
+
+   private static Object[][] names(String... names) {
+      Object[][] rows = new Object[names.length + 1][];
+      rows[0] = new Object[] { "Name", "Sales" };
+
+      for(int i = 0; i < names.length; i++) {
+         rows[i + 1] = new Object[] { names[i], (i + 1) * 100 };
+      }
+
+      return rows;
+   }
+
+   private static Object[][] campaigns(int n) {
+      Object[][] rows = new Object[n + 1][];
+      rows[0] = new Object[] { "Name", "Sales" };
+
+      for(int i = 1; i <= n; i++) {
+         rows[i] = new Object[] { String.format("Campaign %03d", i), i * 100 };
+      }
+
+      return rows;
+   }
+
+   private static VGraph plot(Object[][] rows, double limit, int rotation, int width, int height) {
+      CategoricalScale xscale = new CategoricalScale("Name");
+      AxisSpec spec = xscale.getAxisSpec();
+      spec.setLabelLimit(limit);
+      spec.getTextSpec().setRotation(rotation);
+
+      EGraph graph = new EGraph();
+      graph.addElement(new IntervalElement("Name", "Sales"));
+      graph.setCoordinate(new RectCoord(xscale, new LinearScale("Sales")));
+      return Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, width, height);
    }
 
    private static DefaultAxis layout(CategoricalScale xscale, Object[][] rows, int width,
@@ -531,11 +825,21 @@ class ModernAxisLabelTest {
    private static DefaultAxis xAxis(Object[][] rows, double limit, int rotation,
                                     double axisSize, int width, int height)
    {
+      return xAxis(rows, limit, rotation, axisSize, width, height, 0);
+   }
+
+   private static DefaultAxis xAxis(Object[][] rows, double limit, int rotation,
+                                    double axisSize, int width, int height, float fontSize)
+   {
       CategoricalScale xscale = new CategoricalScale("Name");
       AxisSpec spec = xscale.getAxisSpec();
       spec.setLabelLimit(limit);
       spec.getTextSpec().setRotation(rotation);
       spec.setAxisSize(axisSize);
+
+      if(fontSize > 0) {
+         spec.getTextSpec().setFont(spec.getTextSpec().getFont().deriveFont(fontSize));
+      }
 
       EGraph graph = new EGraph();
       graph.addElement(new IntervalElement("Name", "Sales"));

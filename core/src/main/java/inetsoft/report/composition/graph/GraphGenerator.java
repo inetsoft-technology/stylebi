@@ -2376,7 +2376,7 @@ public abstract class GraphGenerator {
             CompositeTextFormat format = getAxisLabelFormat(xdesc, flds, false);
             Format fmt2 = GraphUtil.getFormat(format);
             AxisSpec xaxis = createAxisSpec(xdesc, plotdesc, flds, xscale, false, inner, true);
-            applyCompactDates(xscale, xaxis, format, flds);
+            applyCompactDates(xscale, xaxis, format, flds, inner);
 
             /* the pie axis can be controlled now so shouldn't change the user set options.
             // fix bug1288772087744, since pie cannot set the property of axis
@@ -2753,7 +2753,7 @@ public abstract class GraphGenerator {
          GraphTypes.isRect(info.getRTChartType());
       PlotDescriptor plotdesc = desc.getPlotDescriptor();
       AxisSpec yaxis = createAxisSpec(ydesc, plotdesc, flds, yscale, secondary, inner, false);
-      applyCompactDates(yscale, yaxis, format, flds);
+      applyCompactDates(yscale, yaxis, format, flds, inner);
 
       if(isSparkline()) {
          yaxis.setAxisStyle(AxisSpec.AXIS_NONE);
@@ -6797,7 +6797,7 @@ public abstract class GraphGenerator {
 
    // draw compact dates on a date axis of a marked chart, unless the author set a format
    void applyCompactDates(Scale scale, AxisSpec axis, CompositeTextFormat format,
-                          String[] fields)
+                          String[] fields, boolean inner)
    {
       if(!vizContext.modern || fields == null || fields.length == 0 ||
          CompactDateRule.hasAuthorFormat(format) || CompactDateRule.isDateComparison(info))
@@ -6809,7 +6809,7 @@ public abstract class GraphGenerator {
 
       // a time axis follows its tick unit, whatever field it shows (a Gantt's is a measure)
       if(scale instanceof TimeScale) {
-         axis.setCompactDates(new CompactDates(CompactDates.FROM_SCALE, locale));
+         setCompactDates(axis, new CompactDates(CompactDates.FROM_SCALE, locale), format, inner);
          return;
       }
 
@@ -6837,10 +6837,25 @@ public abstract class GraphGenerator {
       }
 
       if(CompactDateRule.inDateOrder(dim)) {
-         axis.setCompactDates(compact);
+         setCompactDates(axis, compact, format, inner);
       }
       else if(axis.getTextSpec() != null) {
          axis.getTextSpec().setFormat(full);
+      }
+   }
+
+   // compact dates are cut at the label limit and thinned like other modern labels
+   private void setCompactDates(AxisSpec axis, CompactDates compact, CompositeTextFormat format,
+                                boolean inner)
+   {
+      axis.setCompactDates(compact);
+      Font font = axis.getTextSpec() == null ? null : axis.getTextSpec().getFont();
+
+      // a facet's outer labels, an author's rotation and wrapped labels keep today's cut
+      if(inner && (format == null || format.getRotation() == null) && axis.isTruncate() &&
+         axis.getLabelLimit() <= 0 && font != null)
+      {
+         axis.setLabelLimit(ModernLabelRule.limitPx(font));
       }
    }
 

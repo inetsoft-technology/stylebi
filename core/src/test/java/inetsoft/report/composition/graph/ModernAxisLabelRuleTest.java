@@ -29,6 +29,7 @@ import inetsoft.graph.data.HRef;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.guide.axis.CompactDates;
 import inetsoft.graph.guide.axis.DefaultAxis;
+import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.TimeScale;
 import inetsoft.graph.scale.Scale;
@@ -57,6 +58,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.awt.geom.Rectangle2D;
 import java.text.Format;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -76,6 +78,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class ModernAxisLabelRuleTest {
+   // the width today's chart scrolls to, measured before the label limit
+   private static final double CLASSIC_105_WIDTH = 1512;
+   private static final double CLASSIC_FACET_300_WIDTH = 300;
+
    @AfterEach
    void reset() {
       SreeEnv.setProperty("viewsheet.modernVisualization", null);
@@ -474,9 +480,322 @@ class ModernAxisLabelRuleTest {
       assertEquals(0, y.getAxisSpec().getLabelLimit(), 0.01);
    }
 
+   @Test
+   void aMarkedLineWithManyCategoriesStaysInItsCard() {
+      Chart chart = lineChart(campaigns(105));
+      VGraph vgraph = plot(chart, VizMark.MODERN_LIGHT, 400, 240);
+      DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getXAxis1();
+      axis.prepareLabels();
+      List<Integer> idx = shownIndices(axis);
+
+      assertEquals(400, expandedWidth(vgraph, chart), 0.5);
+      // only the line's own minimum of 5px a category
+      assertEquals(105 * 5, vgraph.getMinPlotWidth(), 0.5);
+      assertEquals(45, (int) axis.getScale().getAxisSpec().getTextSpec().getRotation());
+      assertTrue(idx.size() > 2 && idx.size() < 105, "thinned " + idx);
+      assertEquals(0, idx.get(0), "shown " + idx);
+
+      for(int i = 1; i < idx.size(); i++) {
+         assertEquals(idx.get(1) - idx.get(0), idx.get(i) - idx.get(i - 1), "one step " + idx);
+      }
+   }
+
+   @Test
+   void aMarkedMonthlyBarThinsInOneStepWithItsYears() {
+      // 24 months from Jan 2024
+      Object[][] rows = new Object[25][];
+      rows[0] = new Object[2];
+
+      for(int i = 1; i <= 24; i++) {
+         rows[i] = new Object[] { new java.sql.Date(124, i - 1, 1), i * 10.0 };
+      }
+
+      Chart chart = barChart(dateDim("Date", XConstants.MONTH_DATE_GROUP, XConstants.SORT_ASC),
+                             rows);
+      DefaultAxis axis = ((RectCoord) plot(chart, VizMark.MODERN_LIGHT, 400, 240).getCoordinate())
+         .getXAxis1();
+      axis.prepareLabels();
+      List<Integer> idx = shownIndices(axis);
+      List<String> texts = shownTexts(axis);
+
+      assertTrue(idx.size() > 2 && idx.size() < 24, "thinned " + texts);
+      assertOneStep(idx, texts);
+
+      for(int i = 0; i < idx.size(); i++) {
+         boolean starts = i == 0 || idx.get(i) >= 12 && idx.get(i - 1) < 12;
+         assertEquals(starts, texts.get(i).contains("202"), "year where it changes " + texts);
+      }
+
+      assertGap(axis, texts);
+   }
+
+   @Test
+   void thirtyStoresShowEveryOtherLabelAt45() {
+      // at 45 degrees neighbours need (line height + 2) / sin 45 between slots
+      Chart chart = barChart(names("Store ", 30, true));
+      DefaultAxis axis = ((RectCoord) plot(chart, VizMark.MODERN_LIGHT, 400, 240).getCoordinate())
+         .getXAxis1();
+      axis.prepareLabels();
+      List<Integer> every2nd = java.util.stream.IntStream.range(0, 15).map(i -> i * 2).boxed()
+         .toList();
+
+      assertEquals(45, (int) axis.getScale().getAxisSpec().getTextSpec().getRotation());
+      assertEquals(every2nd, shownIndices(axis), shownTexts(axis).toString());
+   }
+
+   @Test
+   void largerMarkedLabelsThinInOneStepFromTheFirst() {
+      Chart chart = barChart(names("Store ", 30, true));
+      CompositeTextFormat format = chart.info().getXField(0).getAxisDescriptor()
+         .getAxisLabelTextFormat();
+      format.setFont(format.getFont().deriveFont(14f));
+      Scale x = xScale(chart, VizMark.MODERN_LIGHT);
+      DefaultAxis axis = ((RectCoord) plot(chart, VizMark.MODERN_LIGHT, 400, 240).getCoordinate())
+         .getXAxis1();
+      axis.prepareLabels();
+      List<Integer> idx = shownIndices(axis);
+
+      assertEquals(92.4, x.getAxisSpec().getLabelLimit(), 0.01);
+      assertEquals(45, rotation(x));
+      assertEquals(0, idx.get(0), "shown " + idx);
+      assertOneStep(idx, shownTexts(axis));
+   }
+
+   @Test
+   void stackedCategoryLabelsKeepTheirLineSpacing() {
+      // twelve tasks a line apart: the gap between labels side by side doesn't apply
+      GraphGenerator gen = generator(ganttChart(12, false), VizMark.MODERN_LIGHT,
+                                     new Dimension(400, 240));
+      VGraph vgraph = Plotter.getPlotter(gen.createEGraph())
+         .plotAndLayout(gen.getData(), 0, 0, 400, 240);
+      DefaultAxis tasks = ((RectCoord) vgraph.getCoordinate()).getXAxis1();
+      tasks.prepareLabels();
+
+      assertEquals(110, tasks.getScale().getAxisSpec().getLabelLimit(), 0.01);
+      assertEquals(12, shownIndices(tasks).size(), shownTexts(tasks).toString());
+   }
+
+   @Test
+   void aMarkedBarWithManyCategoriesKeepsItsCardWidth() {
+      // 50 bars at their 10px minimum fit under the 1.5x forced scroll
+      Chart chart = barChart(names("Store ", 50, true));
+
+      assertEquals(400, expandedWidth(plot(chart, VizMark.MODERN_LIGHT, 400, 240), chart), 0.5);
+   }
+
+   @Test
+   void aMarkedBarScrollsOnlyForItsBars() {
+      Chart chart = barChart(campaigns(105));
+      VGraph vgraph = plot(chart, VizMark.MODERN_LIGHT, 400, 240);
+
+      // 105 bars at their 10px minimum
+      assertEquals(1050, vgraph.getMinPlotWidth(), 0.5);
+   }
+
+   @Test
+   void aMarkedFacetFitsItsCard() {
+      for(Dimension size : new Dimension[] { new Dimension(300, 180), new Dimension(400, 240) }) {
+         Chart chart = regionFacetChart();
+         VGraph vgraph = plot(chart, VizMark.MODERN_LIGHT, size.width, size.height);
+
+         assertEquals(size.width, expandedWidth(vgraph, chart), 0.5, "at " + size);
+      }
+   }
+
+   @Test
+   void classicChartsKeepTodaysWidth() {
+      Chart bars = barChart(campaigns(105));
+      Chart facet = regionFacetChart();
+
+      assertEquals(CLASSIC_105_WIDTH, expandedWidth(plot(bars, null, 400, 240), bars), 0.5);
+      assertEquals(CLASSIC_FACET_300_WIDTH, expandedWidth(plot(facet, null, 300, 180), facet), 0.5);
+   }
+
+   @Test
+   void aGanttTimeAxisThinsInsteadOfCutting() {
+      GraphGenerator gen = generator(ganttChart(30, false), VizMark.MODERN_LIGHT,
+                                     new Dimension(400, 480));
+      EGraph graph = gen.createEGraph();
+      Scale time = ((RectCoord) graph.getCoordinate()).getYScale();
+      assertEquals(66, time.getAxisSpec().getLabelLimit(), 0.01);
+      assertEquals(0, rotation(time));
+
+      VGraph vgraph = Plotter.getPlotter(graph).plotAndLayout(gen.getData(), 0, 0, 400, 480);
+      DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getYAxis1();
+      axis.prepareLabels();
+      List<String> texts = shownTexts(axis);
+      List<Integer> idx = shownIndices(axis);
+
+      assertTrue(texts.size() > 2, texts.toString());
+      assertTrue(texts.stream().noneMatch(t -> t.endsWith("..")), texts.toString());
+      // week dates fit under the limit, so none is cut either
+      assertTrue(texts.stream().noneMatch(t -> t.endsWith("…")), texts.toString());
+      assertTrue(texts.get(0).contains("2026"), texts.toString());
+
+      for(int i = 1; i < idx.size(); i++) {
+         assertEquals(idx.get(1) - idx.get(0), idx.get(i) - idx.get(i - 1), "one step " + idx);
+      }
+
+      List<Rectangle2D> boxes = shownBounds(axis);
+
+      for(int i = 0; i < boxes.size() - 1; i++) {
+         assertTrue(boxes.get(i + 1).getX() - boxes.get(i).getMaxX() >= 4 - 1e-3,
+                    "gap after " + texts.get(i) + " " + texts);
+      }
+   }
+
+   @Test
+   void compactDatesBringTheLabelLimit() {
+      GraphGenerator gen = generator(monthByMonthChart(), VizMark.MODERN_LIGHT);
+      String y = GraphUtil.getName(monthByMonthChart().info().getYField(0));
+      CompositeTextFormat rotated = new CompositeTextFormat();
+      rotated.setRotation(30);
+      AxisSpec time = new AxisSpec();
+      AxisSpec outer = new AxisSpec();
+      AxisSpec author = new AxisSpec();
+      AxisSpec wrapped = new AxisSpec();
+      wrapped.setTruncate(false);
+
+      gen.applyCompactDates(new TimeScale(y), time, new CompositeTextFormat(), new String[] { y },
+                            true);
+      gen.applyCompactDates(new CategoricalScale(y), outer, new CompositeTextFormat(),
+                            new String[] { y }, false);
+      gen.applyCompactDates(new TimeScale(y), author, rotated, new String[] { y }, true);
+      gen.applyCompactDates(new TimeScale(y), wrapped, new CompositeTextFormat(),
+                            new String[] { y }, true);
+
+      assertEquals(66, time.getLabelLimit(), 0.01);
+      assertNotNull(outer.getCompactDates(), "premise: an outer facet date axis");
+      assertEquals(0, outer.getLabelLimit(), 0.01, "a facet's outer labels are not cut");
+      assertNotNull(author.getCompactDates(), "premise: compact under an author rotation");
+      assertEquals(0, author.getLabelLimit(), 0.01);
+      assertEquals(0, wrapped.getLabelLimit(), 0.01);
+   }
+
+   @Test
+   void classicGanttTimeAxisKeepsTodaysCut() {
+      EGraph graph = generator(ganttChart(30, false), null, new Dimension(400, 480)).createEGraph();
+
+      assertEquals(0, ((RectCoord) graph.getCoordinate()).getYScale().getAxisSpec()
+         .getLabelLimit(), 0.01);
+   }
+
+   private static void assertOneStep(List<Integer> idx, List<String> texts) {
+      for(int i = 1; i < idx.size(); i++) {
+         assertEquals(idx.get(1) - idx.get(0), idx.get(i) - idx.get(i - 1),
+                      "one step " + idx + " " + texts);
+      }
+   }
+
+   // flat labels side by side keep 4px between them
+   private static void assertGap(DefaultAxis axis, List<String> texts) {
+      List<Rectangle2D> boxes = shownBounds(axis);
+
+      for(int i = 0; i < boxes.size() - 1; i++) {
+         assertTrue(boxes.get(i + 1).getX() - boxes.get(i).getMaxX() >= 4 - 1e-3,
+                    "gap after " + texts.get(i) + " " + texts);
+      }
+   }
+
+   // the width VGraphPair draws the chart at: the card, or the plot's minimum if it scrolls
+   private static double expandedWidth(VGraph vgraph, Chart chart) {
+      double width = vgraph.getBounds().getWidth();
+      double plot = vgraph.getPlotBounds().getWidth();
+      double min = Math.min(vgraph.getMinPlotWidth(), 1000000);
+
+      if(GraphUtil.isScrollable(vgraph, chart.info()) && min >= plot &&
+         GraphUtil.isHScrollable(vgraph, chart.info()))
+      {
+         return min + width - plot;
+      }
+
+      return width;
+   }
+
+   private static VGraph plot(Chart chart, VizMark mark, int width, int height) {
+      GraphGenerator gen = generator(chart, mark, new Dimension(width, height));
+      return Plotter.getPlotter(gen.createEGraph()).plotAndLayout(gen.getData(), 0, 0, width,
+                                                                 height);
+   }
+
+   private static String[] campaigns(int count) {
+      String[] names = new String[count];
+
+      for(int i = 0; i < count; i++) {
+         names[i] = String.format("Campaign %03d", i + 1);
+      }
+
+      return names;
+   }
+
+   private static Chart lineChart(String[] categories) {
+      Chart chart = barChart(categories);
+      chart.info().setChartType(GraphTypes.CHART_LINE);
+      chart.info().setRTChartType(GraphTypes.CHART_LINE);
+      chart.info().updateChartType(false);
+      return chart;
+   }
+
+   // three regions of four states each
+   private static Chart regionFacetChart() {
+      VSChartDimensionRef region = dim("Region");
+      VSChartDimensionRef state = dim("State");
+      VSChartAggregateRef total = agg("Total");
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_BAR);
+      cinfo.setRTChartType(GraphTypes.CHART_BAR);
+      cinfo.addXField(region);
+      cinfo.addXField(state);
+      cinfo.addYField(total);
+      cinfo.updateChartType(false);
+      String[][] states = { { "Illinois", "Ohio", "Michigan", "Indiana" },
+                            { "New York", "New Jersey", "Pennsylvania", "Massachusetts" },
+                            { "California", "Oregon", "Washington", "Nevada" } };
+      String[] regions = { "Central", "East", "West" };
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { GraphUtil.getName(region), GraphUtil.getName(state),
+                              GraphUtil.getName(total) });
+
+      for(int r = 0; r < regions.length; r++) {
+         for(int s = 0; s < states[r].length; s++) {
+            rows.add(new Object[] { regions[r], states[r][s], 100.0 * (s + 1) });
+         }
+      }
+
+      return new Chart(cinfo, rows.toArray(new Object[0][]));
+   }
+
+   private static List<Integer> shownIndices(DefaultAxis axis) {
+      List<Integer> idx = new ArrayList<>();
+      VLabel[] labels = axis.getLabels();
+
+      for(int i = 0; i < labels.length; i++) {
+         if(labels[i].getZIndex() >= 0) {
+            idx.add(i);
+         }
+      }
+
+      return idx;
+   }
+
+   private static List<Rectangle2D> shownBounds(DefaultAxis axis) {
+      List<Rectangle2D> list = new ArrayList<>();
+
+      for(int i : shownIndices(axis)) {
+         VLabel label = axis.getLabels()[i];
+         Font font = label.getFont();
+         list.add(new Rectangle2D.Double(label.getTextPosition().getX(),
+                                         label.getTextPosition().getY(),
+                                         GTool.stringWidth(label.getDisplayLabel(), font),
+                                         GTool.getFontMetrics(font).getHeight()));
+      }
+
+      return list;
+   }
+
    private static CompactDates compactDates(GraphGenerator gen, Scale scale) {
       AxisSpec axis = new AxisSpec();
-      gen.applyCompactDates(scale, axis, new CompositeTextFormat(), scale.getFields());
+      gen.applyCompactDates(scale, axis, new CompositeTextFormat(), scale.getFields(), true);
       return axis.getCompactDates();
    }
 

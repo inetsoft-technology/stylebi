@@ -633,7 +633,7 @@ Amended 2026-11-16, after the owner reviewed S5 against the S4b head (`40f883e30
 
 | # | Item | Bundle | Where | Kind | Notes |
 |---|---|---|---|---|---|
-| S5-1 | Automatic label rule when the author has not set the rotation | C5, bar 3, Gantt 4, financial, line | Rotation: `GraphGenerator.setDefaultRotation:6724`. Thinning: `DefaultAxis.removeOverlappedLabels:1503`. Band and truncation: `DefaultAxis.getMaxLabelSize:965`, `VLabel.getDisplayLabel:360` | D | See "S5-1 label rule". S5a. |
+| S5-1 | Automatic label rule when the author has not set the rotation | C5, bar 3, Gantt 4, financial, line | Rotation: `GraphGenerator.setDefaultRotation:6724`. Thinning: `DefaultAxis.removeOverlappedLabels:1503`; on an axis with a label limit, `DefaultAxis.thinInOneStep` instead (S5a). Band and truncation: `DefaultAxis.getMaxLabelSize:965`, `VLabel.getDisplayLabel:360` | D | See "S5-1 label rule". S5a. |
 | S5-2 | Compact dates on every date axis | C5, Gantt 2 | Patterns: `XUtil.DEFAULT_PATTERN:6640-6654`, `GraphGenerator.getDefaultFormat`, `GanttGraphGenerator.getDefaultFormat:196-206`. Year dropping: `setAbbreviate:2942`, `DefaultAxis.abbreviateDate:2273`. Format resolution: `GraphUtil.getTextSpec:446-452`. Format pane default: `FormatPainterService.fixAxisDefaultFormat:1885-1899` | D | See "S5-2 compact dates". S5a. The Gantt time axis keeps the density padding beyond the last date. |
 | S5-3 | A generated axis title longer than its axis is hidden, never cut | C6 | `VGraph.createTitle:328`, bounds in `layout0` (about `:850` and `:876`), cut in `VLabel.getDisplayLabel:360` | D | A new `TitleSpec` flag, set only in the generated branch of `getTitleSpec` (`:6549` on). A typed title (`:6526-6545`) is cut as today (D74). Its space goes back to the plot. S5b. |
 | S5-4 | Point axis titles drop the default formula | point 2 | `getTitleSpec:6396` → `getRefLabel:6598` → `GraphUtil.getLabel:205` (`toView()`) | D | On point charts only (resolved type). Only Sum on a number field, the default formula (`AggregateFormula.getDefaultFormula:268`), is dropped: "Sum(Price)" reads "Price". Every other formula stays ("Avg(Price)", "Count(Order)", "Max(Price)"), and so does a formula with a second column or a percentage (D75). An author's title alias (`ymeasurelabels`, `xmeasurelabels`) still wins. Scatter contour already shows the field name because its measures are not aggregated. S5b. |
@@ -641,7 +641,7 @@ Amended 2026-11-16, after the owner reviewed S5 against the S4b head (`40f883e30
 | S5-6 | Radar scale labels without the pile-up in the centre | radar 3 | One axis per spoke (`AbstractParallelCoord.createAxis:72-130`); per-measure `labelVisible` is plain (`fixCoordProperties:2486-2525`) | D | See "S5-6 radar scale labels". S5b. |
 | S5-7 | Horizontal bars list the first category at the top | bar 2 | Nothing reverses it today. Precedents: Gantt (`GraphGenerator:4214`, `GraphDefault:137`, `CategoricalScale.setReversed`) | D | See "S5-7 horizontal order". S5b. |
 
-**S5-1 label rule (D69, D70, D71, D78, D79, D88, D89).**
+**S5-1 label rule (D69, D70, D71, D78, D79, D88, D89, D91, D92).**
 - **Where it runs (D79).** In the generator, as today: under the mark, `setDefaultRotation` measures the labels instead of counting characters. It does not move into the axis layout.
   - The generator estimates the axis length before layout: the graph size minus the chart padding, the measured Y labels, a side legend (S3's caps) and the axis title, divided by the facet panel count for an inner axis.
   - The slot is the axis length over the label count.
@@ -651,7 +651,8 @@ Amended 2026-11-16, after the owner reviewed S5 against the S4b head (`40f883e30
   - **Text labels** stay horizontal while every other label fits (a step of 1 or 2). Otherwise they turn to 45° and thin further as needed.
   - Never past 45°. A label reads upward to the right, its end under its slot.
   - The step test uses the widest label after the length limit, plus a 4px gap. At 45° neighbours need about 20px between slots, (line height + 2) / sin 45°.
-- **Thinning** keeps a regular step, every k-th label, on marked charts, with no tolerated overlap. The axis's current passes, which remove alternate labels, give steps of 2, 4 and 8. That is acceptable.
+- **Thinning** keeps one regular step for the whole axis, every k-th label from the first label that fits inside the axis, on marked charts, with no tolerated overlap (D92). The step is the smallest k that keeps the shown labels apart, measured on the label boxes after the length limit: flat labels side by side on a horizontal axis at least 4px apart along the axis; 45° labels at least 2px apart across the text, which is the (line height + 2) / sin 45° between slots above. Labels stacked down a Y axis keep today's tolerance (their line boxes may overlap by up to about 3px, as before); only the regular step is new for them.
+- **Labels never widen the chart (D91).** On a horizontal axis with a label limit the labels reserve no width when the plot is sized, so a marked chart with many categories stays the width of its card and its labels thin. Only the marks' own minimum width can still make it scroll (a bar's is 10px). A Y category axis still reserves one line height per category, as today, so a marked horizontal bar or Gantt can still scroll down.
 - **Length (D70).**
   - A label is cut with an ellipsis ("…") at 66px. That is about 12 characters of 10px text, scaled with the label font size.
   - This applies at 0° and at 45°, and the 45° band is whatever that length needs: about 55px at 10px. The bundle's 20% band (C5) no longer limits a default label, because the minimum equals the cap.
@@ -663,7 +664,7 @@ Amended 2026-11-16, after the owner reviewed S5 against the S4b head (`40f883e30
 - **Date-comparison axes** keep today's labels, including the forced 90° of their multi-line merged-date labels (`setupDateComparisonAxis`, `GraphGenerator:2656-2667`; D88).
 - **New `AxisSpec` properties**, set by the generator under the mark: the length limit, the ellipsis and regular-step thinning. Unset, the axis behaves as today (M1).
 
-**S5-2 compact dates (D72, D80, D82, D83, D87, D88, D90).**
+**S5-2 compact dates (D72, D80, D82, D83, D87, D88, D90, D92).**
 - **Which axes (D72).** Every date axis on a marked chart while the author has not set a date format: grouped dates on bars, lines, candles and box plots, continuous time axes (the Gantt and time-series dates), and date fields on facets.
   - Not date-comparison axes: they keep today's labels, including their forced 90° multi-line labels (`setupDateComparisonAxis`, `GraphGenerator:2656-2667`; D88). Their labels come through their own path (`setDcFormat`, `DCMergeDatesCell`).
 - **What draws.** The year shows on the first shown label and wherever it changes. On daily data the month shows on every label.
@@ -679,7 +680,7 @@ Amended 2026-11-16, after the owner reviewed S5 against the S4b head (`40f883e30
   | Hour, minute, second | today's pattern | today's, with a repeated date dropped as `abbreviateDate` does now (D84) |
   | Month of year, quarter of year, day of week | today's | today's (no year) |
 
-- **"First shown" means after thinning.** Today the year is dropped against the previous label when the label is created, before thinning (`DefaultAxis.createLabel`, `abbreviateDate`). If the label that carried the year is thinned away, the year must move to the next shown label.
+- **"First shown" means after thinning.** Today the year is dropped against the previous label when the label is created, before thinning (`DefaultAxis.createLabel`, `abbreviateDate`). If the label that carried the year is thinned away, the year moves to the next shown label. The year placement is part of the step choice: the step is chosen with the full text each shown label will carry, so on an axis with a label limit a wider year label raises the step for the whole axis and never hides a single neighbour (D92). Compact dates with no limit (under an author's rotation, or with truncate off) keep the year move after thinning, which may still hide the neighbour of a label that takes the year.
 - **On a continuous time axis** the drawn pattern follows the tick unit (`TimeScale.getType()`), not the field's level. A Gantt whose start field is daily but whose ticks fall on months draws "Jan 2026, Feb, Mar".
 - **A drawing rule only; nothing is stored (D80, revised after the builder check).**
   - **Why nothing is stored.** A pattern seeded into a label format's DEFAULT tier never draws, in any build: `GraphUtil.getTextSpec:446-452` uses the format's own value only when it is the author's or the data has no default format, and every grouped date has one (its level pattern, through `GraphFormatUtil.getDefaultFormat`). On a time axis a stored value would also switch off year dropping, which `setAbbreviate:2942` allows only while the label format is empty. And the Format pane already writes today's level pattern into that tier on every chart, classic included (`FormatPainterService.fixAxisDefaultFormat:1885-1899`), so a seed would be overwritten and a legacy pass that cleared it would change classic XML.
@@ -948,6 +949,8 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D88 | Date-comparison axes keep today's labels, including their forced 90° multi-line labels, under S5-1 and S5-2 | Design, from the builder check |
 | D89 | Facet outer-dimension labels keep today's behaviour, cut only by their panel width, not at 66px (S5-1) | Design, from the builder check |
 | D90 | The compact patterns follow the viewer's locale: month names are localized, and the day, month and year order follows the locale where Java provides one (S5-2) | Design, from the builder check |
+| D91 | On a horizontal axis with a label limit, labels reserve no width when the plot is sized, so a marked chart with many categories stays the width of its card and its labels thin; only the marks' own minimum width can make it scroll (S5-1) | Owner, 2026-11-16, after the S5a live checks |
+| D92 | Thinning on a limited axis picks one step for the whole axis, with at least 4px between flat labels side by side and 2px across the text between 45° labels ((line height + 2) / sin 45° between slots), and a year label's full text is part of that choice; it replaces the year move's hiding of single neighbours. Labels stacked down a Y axis keep today's tolerance (S5-1, S5-2) | Design, from the S5a live checks |
 
 ## 11. Testing
 

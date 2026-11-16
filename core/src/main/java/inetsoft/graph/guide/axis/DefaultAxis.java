@@ -1209,7 +1209,10 @@ public class DefaultAxis extends Axis {
       // optimization, avoid layout large number of labels
       // if some labels are hidden by user, don't skip since the overlapping is
       // a little unpredictable in this case
-      if(visibleLabelCnt > vlabels.length * 0.6 && pos1.distance(pos2) / visibleLabelCnt < 10) {
+      // a limited axis picks its own step from every label
+      if(visibleLabelCnt > vlabels.length * 0.6 && pos1.distance(pos2) / visibleLabelCnt < 10 &&
+         !isThinnedInOneStep())
+      {
          skip = (int) (visibleLabelCnt * 10 / pos1.distance(pos2));
       }
 
@@ -1409,11 +1412,7 @@ public class DefaultAxis extends Axis {
 
       Scale scale = getScale();
       double[] ticks = scale.getTicks();
-      double[] tlocs = getTickLocations(null);
-      boolean moved = false; // if min/max moved
       boolean hor = isHorizontal();
-      CategoricalScale cscale = (scale instanceof CategoricalScale)
-         ? (CategoricalScale) scale : null;
       // outer is used to check for out of bounds conditions.
       Shape outer = bounds;
 
@@ -1434,6 +1433,39 @@ public class DefaultAxis extends Axis {
          outer = new Rectangle2D.Double(-10000000.0, b.getY() + gridW,
                                         20000000.0, b.getHeight() - gridW);
       }
+
+      boolean moved = moveEndLabelsInside(outer); // if min/max moved
+      dupTicks.clear();
+      // remove duplicate timescale labels
+      // remove duplicates before checking for overlapping otherwise non-duplicates
+      // can be removed by removeOverlappedLabels (46989).
+      removeDuplicateLabels();
+      // move min/max to apply minPadding/maxPadding before removing overlapping labels.
+      moveMinMaxInside(outer);
+
+      if(isThinnedInOneStep()) {
+         thinInOneStep(bounds, outer);
+         return;
+      }
+
+      if(removeOverlappedLabels(bounds, hor, moved)) {
+         redistributeSpace();
+      }
+
+      showCompactYears();
+   }
+
+   /**
+    * Move the end labels inside the bounds.
+    * @return true if the first or last label moved.
+    */
+   private boolean moveEndLabelsInside(Shape outer) {
+      Scale scale = getScale();
+      double[] ticks = scale.getTicks();
+      double[] tlocs = getTickLocations(null);
+      boolean moved = false; // if min/max moved
+      CategoricalScale cscale = (scale instanceof CategoricalScale)
+         ? (CategoricalScale) scale : null;
 
       // move labels inside bounds
       for(int i = 0; i < vlabels.length; i++) {
@@ -1470,19 +1502,7 @@ public class DefaultAxis extends Axis {
          moveOverlappedLabels();
       }
 
-      dupTicks.clear();
-      // remove duplicate timescale labels
-      // remove duplicates before checking for overlapping otherwise non-duplicates
-      // can be removed by removeOverlappedLabels (46989).
-      removeDuplicateLabels();
-      // move min/max to apply minPadding/maxPadding before removing overlapping labels.
-      moveMinMaxInside(outer);
-
-      if(removeOverlappedLabels(bounds, hor, moved)) {
-         redistributeSpace();
-      }
-
-      showCompactYears();
+      return moved;
    }
 
    private static int year(Date date) {
@@ -1595,6 +1615,414 @@ public class DefaultAxis extends Axis {
                                                lheight - yadj * 2);
       AffineTransform trans = AffineTransform.getRotateInstance(angle, x, y);
       return new Area(trans.createTransformedShape(box));
+   }
+
+   /**
+    * Check if the labels are thinned in one step for the whole axis: an axis with a label
+    * length limit that runs across or down the chart.
+    */
+   private boolean isThinnedInOneStep() {
+      return getScale().getAxisSpec().getLabelLimit() > 0 && (isHorizontal() || isVertical());
+   }
+
+   /**
+    * Show every k-th label from the first, with the smallest k that keeps every shown label
+    * apart from the next. A shown label that starts a year (or a date anchor) after a hidden
+    * one carries its full text, so the step is chosen with that text. The step runs over the
+    * longest unbroken run of labels that stay inside the axis with any text they may carry.
+    */
+   private void thinInOneStep(Shape bounds, Shape outer) {
+      boolean hor = isHorizontal();
+      List<Integer> cands = new ArrayList<>();
+
+      for(int i = 0; i < vlabels.length; i++) {
+         if(vlabels[i].getZIndex() >= 0) {
+            cands.add(i);
+         }
+      }
+
+      int n = cands.size();
+
+      if(n == 0) {
+         return;
+      }
+
+      Object[] entry = new Object[n];
+      Object[] brief = new Object[n];
+      Object[] full = new Object[n];
+      Integer[] years = new Integer[n];
+      boolean[] anchored = new boolean[vlabels.length];
+      boolean varies = false;
+
+      for(int j = 0; j < vlabels.length; j++) {
+         String anchor = vlabels[j].getAnchor();
+         anchored[j] = anchor != null && Abbreviation.isAnchor(vlabels[j].getLabel(), anchor);
+      }
+
+      for(int p = 0; p < n; p++) {
+         VDimensionLabel vl = vlabels[cands.get(p)];
+         String[] texts = compactTexts == null ? null : compactTexts.get(vl);
+         entry[p] = vl.getLabel();
+         years[p] = vl.getValue() instanceof Date ? year((Date) vl.getValue()) : null;
+
+         if(texts != null) {
+            full[p] = texts[0];
+            brief[p] = texts[1];
+         }
+         else if(vl.getAnchor() != null) {
+            full[p] = vl.getAnchor();
+            brief[p] = anchored[cands.get(p)] ? vl.getAnchor() : entry[p];
+         }
+         else {
+            full[p] = brief[p] = entry[p];
+         }
+
+         varies = varies || !Objects.equals(full[p], brief[p]);
+      }
+
+      double rotation = vlabels[cands.get(0)].getTextSpec().getRotation();
+      boolean flat = rotation % 180 == 0;
+      // stacked lines of flat text may share a little of their line boxes
+      double inset = flat && !hor ? STACKED_LINE_INSET : 0;
+      Rectangle2D area = getLabelArea(bounds, hor);
+      boolean[] fits = new boolean[n];
+      LabelBox[] briefBoxes;
+      LabelBox[] fullBoxes;
+      Arrays.fill(fits, true);
+
+      if(varies) {
+         setLabels(cands, brief);
+         relayout(outer);
+         briefBoxes = getLabelBoxes(cands, inset);
+         checkFits(cands, area, hor, fits);
+         setLabels(cands, full);
+         relayout(outer);
+         fullBoxes = getLabelBoxes(cands, inset);
+         checkFits(cands, area, hor, fits);
+      }
+      else {
+         briefBoxes = fullBoxes = getLabelBoxes(cands, inset);
+         checkFits(cands, area, hor, fits);
+      }
+
+      int[] run = getFittingRun(fits);
+
+      for(int p = 0; p < n; p++) {
+         if(p < run[0] || p > run[1]) {
+            vlabels[cands.get(p)].setZIndex(-1);
+
+            if(varies) {
+               vlabels[cands.get(p)].setLabel(entry[p]);
+            }
+         }
+      }
+
+      cands = cands.subList(run[0], run[1] + 1);
+      entry = Arrays.copyOfRange(entry, run[0], run[1] + 1);
+      brief = Arrays.copyOfRange(brief, run[0], run[1] + 1);
+      full = Arrays.copyOfRange(full, run[0], run[1] + 1);
+      years = Arrays.copyOfRange(years, run[0], run[1] + 1);
+      briefBoxes = Arrays.copyOfRange(briefBoxes, run[0], run[1] + 1);
+      fullBoxes = Arrays.copyOfRange(fullBoxes, run[0], run[1] + 1);
+      n = cands.size();
+
+      double[] dir = getLabelDirection(cands, hor);
+      double[] sweep = new double[4];
+
+      // flat labels side by side keep a gap along the axis
+      if(flat && hor) {
+         sweep[2] = ONE_STEP_GAP * dir[0];
+         sweep[3] = ONE_STEP_GAP * dir[1];
+      }
+      // rotated labels keep a gap across their text, (line height + gap) / sin between slots
+      else if(!flat) {
+         double angle = Math.toRadians(rotation);
+         sweep[0] = ROTATED_GAP * Math.sin(angle);
+         sweep[1] = -ROTATED_GAP * Math.cos(angle);
+         sweep[2] = -sweep[0];
+         sweep[3] = -sweep[1];
+      }
+
+      int k = 1;
+
+      while(k < n && !isApart(cands, k, years, anchored, briefBoxes, fullBoxes, dir, sweep)) {
+         if(vgraph.isCancelled()) {
+            return;
+         }
+
+         k++;
+      }
+
+      boolean[] fulls = carriesFullText(cands, k, years, anchored);
+
+      for(int p = 0; p < n; p++) {
+         VDimensionLabel vl = vlabels[cands.get(p)];
+
+         if(p % k != 0) {
+            vl.setZIndex(-1);
+         }
+
+         if(varies) {
+            vl.setLabel(p % k != 0 ? entry[p] : fulls[p / k] ? full[p] : brief[p]);
+         }
+      }
+
+      if(varies) {
+         relayout(outer);
+      }
+   }
+
+   // the axis bounds along the axis, ignoring the bounds across it
+   private static Rectangle2D getLabelArea(Shape bounds, boolean hor) {
+      Rectangle2D b = bounds.getBounds2D();
+      return hor ?
+         new Rectangle2D.Double(b.getX(), b.getY() - 1000, b.getWidth(), b.getHeight() + 2000) :
+         new Rectangle2D.Double(b.getX() - 1000, b.getY(), b.getWidth() + 2000, b.getHeight());
+   }
+
+   /**
+    * A flat label that runs past the end of the axis doesn't fit; a rotated one may run out.
+    * Along a horizontal axis the text must be fully inside, as moveInside() places it.
+    */
+   private void checkFits(List<Integer> cands, Rectangle2D area, boolean hor, boolean[] fits) {
+      for(int p = 0; p < cands.size(); p++) {
+         VDimensionLabel vl = vlabels[cands.get(p)];
+
+         if(vl.getTextSpec().getRotation() % 90 == 0 && !vl.isContained(area, hor ? 0 : 1, 1)) {
+            fits[p] = false;
+         }
+      }
+   }
+
+   /**
+    * Get the first and last position of the longest run of labels that fit, so the step stays
+    * regular; the last label alone if none fits.
+    */
+   private static int[] getFittingRun(boolean[] fits) {
+      int[] run = { fits.length - 1, fits.length - 1 };
+      int best = 0;
+
+      for(int i = 0; i < fits.length; i++) {
+         if(!fits[i]) {
+            continue;
+         }
+
+         int j = i;
+
+         while(j + 1 < fits.length && fits[j + 1]) {
+            j++;
+         }
+
+         if(j - i + 1 > best) {
+            best = j - i + 1;
+            run = new int[] { i, j };
+         }
+
+         i = j;
+      }
+
+      return run;
+   }
+
+   private void setLabels(List<Integer> cands, Object[] texts) {
+      for(int p = 0; p < cands.size(); p++) {
+         vlabels[cands.get(p)].setLabel(texts[p]);
+      }
+   }
+
+   // lay the labels out again as the axis layout and prepareLabels() place them
+   private void relayout(Shape outer) {
+      layout(layoutBounds);
+      moveEndLabelsInside(outer);
+      moveMinMaxInside(outer);
+   }
+
+   // the unit vector from the first label to the last
+   private double[] getLabelDirection(List<Integer> cands, boolean hor) {
+      Rectangle2D first = vlabels[cands.get(0)].getBounds();
+      Rectangle2D last = vlabels[cands.get(cands.size() - 1)].getBounds();
+      double dx = last.getCenterX() - first.getCenterX();
+      double dy = last.getCenterY() - first.getCenterY();
+      double len = Math.sqrt(dx * dx + dy * dy);
+
+      if(len < 1e-9) {
+         return hor ? new double[] { 1, 0 } : new double[] { 0, 1 };
+      }
+
+      return new double[] { dx / len, dy / len };
+   }
+
+   // whether each shown label, every k-th candidate, carries its full text
+   private boolean[] carriesFullText(List<Integer> cands, int k, Integer[] years,
+                                     boolean[] anchored)
+   {
+      boolean[] fulls = new boolean[(cands.size() - 1) / k + 1];
+      int prev = -1;
+
+      for(int s = 0; s < fulls.length; s++) {
+         int p = s * k;
+         int idx = cands.get(p);
+         VDimensionLabel vl = vlabels[idx];
+
+         // the year shows on the first shown label and wherever it changes
+         if(compactTexts != null && compactTexts.containsKey(vl)) {
+            fulls[s] = s == 0 || years[p - k] == null || !years[p - k].equals(years[p]);
+         }
+         // a hidden anchor moves to the next shown label
+         else if(vl.getAnchor() != null) {
+            fulls[s] = s == 0;
+
+            for(int j = prev + 1; j <= idx && !fulls[s]; j++) {
+               fulls[s] = anchored[j];
+            }
+         }
+
+         prev = idx;
+      }
+
+      return fulls;
+   }
+
+   /**
+    * Check if every k-th candidate keeps its gap to the labels after it.
+    * @param sweep the two ends (x0, y0, x1, y1) of the gap a label is grown by.
+    */
+   private boolean isApart(List<Integer> cands, int k, Integer[] years, boolean[] anchored,
+                           LabelBox[] briefBoxes, LabelBox[] fullBoxes, double[] dir,
+                           double[] sweep)
+   {
+      boolean[] fulls = carriesFullText(cands, k, years, anchored);
+      int m = fulls.length;
+      LabelBox[] shown = new LabelBox[m];
+      double[] lo = new double[m];
+      double[] hi = new double[m];
+      // the lowest start along the axis of a label from here on
+      double[] minLo = new double[m];
+
+      for(int s = 0; s < m; s++) {
+         shown[s] = fulls[s] ? fullBoxes[s * k] : briefBoxes[s * k];
+         lo[s] = shown[s].min(dir[0], dir[1]);
+         hi[s] = shown[s].max(dir[0], dir[1]);
+      }
+
+      for(int s = m - 1; s >= 0; s--) {
+         minLo[s] = s == m - 1 ? lo[s] : Math.min(lo[s], minLo[s + 1]);
+      }
+
+      // how far the gap reaches ahead along the axis
+      double reach = Math.max(0, Math.max(sweep[0] * dir[0] + sweep[1] * dir[1],
+                                          sweep[2] * dir[0] + sweep[3] * dir[1]));
+
+      for(int a = 0; a < m - 1; a++) {
+         for(int b = a + 1; b < m && minLo[b] <= hi[a] + reach; b++) {
+            if(shown[a].isNear(shown[b], sweep)) {
+               return false;
+            }
+         }
+      }
+
+      return true;
+   }
+
+   private LabelBox[] getLabelBoxes(List<Integer> cands, double inset) {
+      LabelBox[] boxes = new LabelBox[cands.size()];
+
+      for(int p = 0; p < boxes.length; p++) {
+         boxes[p] = new LabelBox(vlabels[cands.get(p)], inset);
+      }
+
+      return boxes;
+   }
+
+   /**
+    * The text box of a label, rotated with the text.
+    */
+   private static final class LabelBox {
+      LabelBox(VDimensionLabel vl, double inset) {
+         String[] dlabels = vl.getDisplayLabel();
+         Font font = vl.getFont();
+         double w = GTool.stringWidth(dlabels, font);
+         double h = GTool.getFontMetrics(font).getHeight() * dlabels.length;
+         double in = Math.min(inset, h / 4);
+         Point2D pos = vl.getTextPosition();
+         double angle = Math.toRadians(vl.getTextSpec().getRotation());
+         double cos = Math.cos(angle);
+         double sin = Math.sin(angle);
+         double[][] corners = { { 0, in }, { w, in }, { w, h - in }, { 0, h - in } };
+
+         for(int i = 0; i < 4; i++) {
+            xs[i] = pos.getX() + corners[i][0] * cos - corners[i][1] * sin;
+            ys[i] = pos.getY() + corners[i][0] * sin + corners[i][1] * cos;
+         }
+      }
+
+      double min(double nx, double ny) {
+         double v = Double.MAX_VALUE;
+
+         for(int i = 0; i < 4; i++) {
+            v = Math.min(v, xs[i] * nx + ys[i] * ny);
+         }
+
+         return v;
+      }
+
+      double max(double nx, double ny) {
+         double v = -Double.MAX_VALUE;
+
+         for(int i = 0; i < 4; i++) {
+            v = Math.max(v, xs[i] * nx + ys[i] * ny);
+         }
+
+         return v;
+      }
+
+      /**
+       * Check if the other box comes within the gap of this one: this box swept from one end
+       * of the gap to the other meets the other box (separating axis test).
+       */
+      boolean isNear(LabelBox other, double[] sweep) {
+         List<double[]> normals = new ArrayList<>();
+         addNormals(normals);
+         other.addNormals(normals);
+         double sx = sweep[2] - sweep[0];
+         double sy = sweep[3] - sweep[1];
+         double slen = Math.sqrt(sx * sx + sy * sy);
+
+         if(slen > 1e-9) {
+            normals.add(new double[] { -sy / slen, sx / slen });
+         }
+
+         for(double[] n : normals) {
+            double s0 = sweep[0] * n[0] + sweep[1] * n[1];
+            double s1 = sweep[2] * n[0] + sweep[3] * n[1];
+            double amin = min(n[0], n[1]) + Math.min(s0, s1);
+            double amax = max(n[0], n[1]) + Math.max(s0, s1);
+            double bmin = other.min(n[0], n[1]);
+            double bmax = other.max(n[0], n[1]);
+
+            // touching is apart
+            if(amax <= bmin + 1e-6 || bmax <= amin + 1e-6) {
+               return false;
+            }
+         }
+
+         return true;
+      }
+
+      private void addNormals(List<double[]> normals) {
+         for(int i = 0; i < 2; i++) {
+            double ex = xs[i + 1] - xs[i];
+            double ey = ys[i + 1] - ys[i];
+            double len = Math.sqrt(ex * ex + ey * ey);
+
+            if(len > 1e-9) {
+               normals.add(new double[] { -ey / len, ex / len });
+            }
+         }
+      }
+
+      private final double[] xs = new double[4];
+      private final double[] ys = new double[4];
    }
 
    /**
@@ -2635,5 +3063,11 @@ public class DefaultAxis extends Axis {
    private transient double thinningSpacing;
    private boolean anchorChanged = false;
    private static final double MAX_AXIS_RATIO = 0.9;
+   // the room kept between flat labels side by side on an axis with a label limit
+   private static final double ONE_STEP_GAP = 4;
+   // the room kept across the text between rotated labels on an axis with a label limit
+   private static final double ROTATED_GAP = 2;
+   // how much stacked lines of text may share of their line boxes, on each side
+   private static final double STACKED_LINE_INSET = 1.5;
    private transient double maxLabelW = -1, maxLabelH = -1;
 }
