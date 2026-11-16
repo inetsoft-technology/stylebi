@@ -789,7 +789,9 @@ public class WorksheetAgentController {
       RuntimeWorksheet before = editService.resolve(sessionToken, user);
       java.util.Set<String> declaredBefore =
          declaredVariableNames(before == null ? null : before.getWorksheet());
+      WorksheetEditService.Editor[] editorHolder = new WorksheetEditService.Editor[1];
       editService.apply(sessionToken, user, editor -> {
+         editorHolder[0] = editor;
          // Bug #80958: warn-only data-model trap check. It must run here, inside the mutation,
          // before apply() refreshes the assemblies; the write itself is never blocked.
          String trapOp = req.op();
@@ -804,7 +806,23 @@ public class WorksheetAgentController {
                .orElse(null);
          }
       });
+      // Bug #81450: after apply() returned, so the trap text above stays first.
+      String staleNote = editorHolder[0] == null ? null : editorHolder[0].unrevalidatedNote();
+
+      if(refreshNoteHolder != null) {
+         refreshNoteHolder[0] = appendNote(refreshNoteHolder[0], staleNote);
+      }
+
       purgeValuesOfRemovedVariables(sessionToken, user, declaredBefore);
+   }
+
+   /** Bug #81450: the existing note (e.g. the data-model trap text) stays first. */
+   static String appendNote(String existing, String added) {
+      if(added == null) {
+         return existing;
+      }
+
+      return existing == null ? added : existing + "\n\n" + added;
    }
 
    /**
