@@ -3492,6 +3492,8 @@ function_name returns [String fn = ""]
         a:IDENT {fn = a.getText();}
         |
         b:T_DATE {fn = b.getText();}
+        |
+        c:T_TIME {fn = c.getText();}
 
         // @by billh, here do not support function like a.trim(str) to avoid
         // too many exceptions in antlr which is an overhead. I prefer an angile
