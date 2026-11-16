@@ -73,6 +73,19 @@ public interface GanttChartInfo extends MergedChartInfo {
     */
    public void setMilestoneField(ChartRef ref);
 
+   /**
+    * The Gantt field whose descriptor the engine reads for the whole time axis: the first bound
+    * of start, end and milestone ({@code GanttGraphGenerator.addGanttFields} keys the one
+    * {@code TimeScale} by it, and {@code getAxisDescriptor} takes that field's own descriptor
+    * whether or not the graph is separated).
+    *
+    * @return the time axis' driving field, or null when none of the three is bound.
+    */
+   default ChartRef getTimeAxisField() {
+      return getStartField() != null ? getStartField()
+         : getEndField() != null ? getEndField() : getMilestoneField();
+   }
+
    default List<ChartAggregateRef> getGanttFields(boolean runtime) {
       return getGanttFields(runtime, true);
    }

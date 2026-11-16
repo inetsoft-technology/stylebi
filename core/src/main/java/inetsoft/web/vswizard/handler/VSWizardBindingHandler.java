@@ -1885,11 +1885,17 @@ public class VSWizardBindingHandler {
          }
       }
 
-      if(chartInfo instanceof GanttVSChartInfo) {
+      if(chartInfo instanceof GanttVSChartInfo gantt) {
          for(ChartAggregateRef aRef : chartInfo.getAestheticAggregateRefs(false)) {
             addAestheticRefs(refs, aRef.getColorField(), aRef.getShapeField(),
                              aRef.getSizeField(), aRef.getTextField());
          }
+
+         // The start/end/milestone date measures sit on no X/Y shelf; their format is the time
+         // axis' label format (see updateGanttTimeAxisFormats).
+         refs.add(gantt.getStartField());
+         refs.add(gantt.getEndField());
+         refs.add(gantt.getMilestoneField());
       }
 
       refs.removeIf(Objects::isNull);
@@ -2181,10 +2187,39 @@ public class VSWizardBindingHandler {
             updateMultiStyleVisualFormat(tempInfo, assembly, rvs, updateAssembly, aRef.getSizeField());
             updateMultiStyleVisualFormat(tempInfo, assembly, rvs, updateAssembly, aRef.getTextField());
          }
+
+         if(updateAssembly) {
+            updateGanttTimeAxisFormats((GanttChartInfo) chartInfo, tempInfo, assembly, rvs);
+         }
       }
 
       if(!updateAssembly && chartInfo instanceof RelationChartInfo) {
          loadRelationChartFormat(rvs, tempInfo, assembly, (RelationChartInfo) chartInfo);
+      }
+   }
+
+   /**
+    * Writes the start, end and milestone fields' user formats to the Gantt's time axis. The three
+    * share one axis that the engine draws only from the descriptor of the first bound of them
+    * ({@link GanttChartInfo#getTimeAxisField}), so each field's format lands on that descriptor;
+    * written to the field's own descriptor it would be a silent no-op whenever another field
+    * drives the axis. A field with no user format in tempInfo leaves the axis untouched.
+    */
+   private void updateGanttTimeAxisFormats(GanttChartInfo gantt, VSTemporaryInfo tempInfo,
+                                           VSAssembly assembly, RuntimeViewsheet rvs)
+   {
+      ChartRef axisField = gantt.getTimeAxisField();
+
+      if(axisField == null) {
+         return;
+      }
+
+      for(ChartRef ref : new ChartRef[] { gantt.getStartField(), gantt.getEndField(),
+                                          gantt.getMilestoneField() })
+      {
+         if(ref != null && tempInfo.getUserFormat(getNameForFormat(ref)) != null) {
+            updateAxisRefFormats(axisField.getAxisDescriptor(), ref, true, tempInfo, assembly, rvs);
+         }
       }
    }
 
@@ -2309,7 +2344,9 @@ public class VSWizardBindingHandler {
          return ref.getFullName();
       }
 
-      VSChartAggregateRef aggr = (VSChartAggregateRef)ref;
+      if(!(ref instanceof VSChartAggregateRef aggr)) {
+         return ref.getFullName();
+      }
 
       if(sameTypeFormula(aggr.getFormula())) {
          return ref.getName();

@@ -212,7 +212,9 @@ public class ChartRegionPropertyService {
       if(time) {
          out.put("note", "This is a time (date) axis. minimum/maximum are listed as epoch " +
             "milliseconds with the date they mean, and are set as an ISO date or date-time " +
-            "(or epoch milliseconds). increment is a number of the axis's date periods. " +
+            "(or epoch milliseconds). increment is a number of the axis's date periods (a larger " +
+            "increment gives fewer labels); the period unit itself is not an axis property and can " +
+            "only be set from the chart's script. " +
             "logarithmicScale, reverse, shared and minorIncrement do not apply." +
             (primary == null ? "" : " This Gantt draws the axis from the settings of '" +
                primary + "' (the minimum/maximum listed here are that field's); set the axis " +
@@ -1487,17 +1489,6 @@ public class ChartRegionPropertyService {
          ref == gantt.getMilestoneField();
    }
 
-   /**
-    * The Gantt field whose descriptor the engine reads for the whole time axis: the first bound
-    * of start, end and milestone ({@code GanttGraphGenerator.addGanttFields} keys the one
-    * {@code TimeScale} by it, and {@code getAxisDescriptor} takes that field's own descriptor
-    * whether or not the graph is separated).
-    */
-   private static ChartRef primaryGanttField(GanttChartInfo gantt) {
-      return gantt.getStartField() != null ? gantt.getStartField()
-         : gantt.getEndField() != null ? gantt.getEndField() : gantt.getMilestoneField();
-   }
-
    /** A sentence pointing at a Gantt's time axis, or "" for any other chart. */
    private String ganttTimeAxisHint(String sessionToken, Principal user, String assembly)
       throws Exception
@@ -1509,7 +1500,7 @@ public class ChartRegionPropertyService {
    }
 
    private static String ganttTimeAxisHint(GanttChartInfo gantt) {
-      ChartRef primary = primaryGanttField(gantt);
+      ChartRef primary = gantt.getTimeAxisField();
 
       return primary == null ? "" :
          " On a Gantt chart the date (time) axis, drawn along the bottom, is target 'y' with " +
@@ -1544,14 +1535,14 @@ public class ChartRegionPropertyService {
          return null;
       }
 
-      ChartRef primary = primaryGanttField(gantt);
+      ChartRef primary = gantt.getTimeAxisField();
       return found.contains(primary) ? primary : found.get(0);
    }
 
    /**
     * Refuses a write to a Gantt end or milestone field when another Gantt field is the one the
     * time axis is drawn from (bug #78919). The engine builds one time axis for all three and
-    * reads its settings only from {@link #primaryGanttField}, so a write to the others was a
+    * reads its settings only from {@link GanttChartInfo#getTimeAxisField}, so a write to the others was a
     * silent no-op.
     */
    private void requirePrimaryGanttField(String sessionToken, Principal user, String assembly,
@@ -1569,7 +1560,7 @@ public class ChartRegionPropertyService {
       }
    }
 
-   /** The full name of {@link #primaryGanttField} when {@code kind} is another Gantt field, else
+   /** The full name of {@link GanttChartInfo#getTimeAxisField} when {@code kind} is another Gantt field, else
     * null. */
    private String otherPrimaryGanttField(String sessionToken, Principal user, String assembly,
                                          AxisKind kind)
@@ -1582,7 +1573,7 @@ public class ChartRegionPropertyService {
             return null;
          }
 
-         ChartRef ref = primaryGanttField(gantt);
+         ChartRef ref = gantt.getTimeAxisField();
          return ref == kind.matchedRef() ? null : ref.getFullName();
       });
    }
@@ -1767,7 +1758,7 @@ public class ChartRegionPropertyService {
 
    /**
     * The descriptor the engine reads for a time axis's range. For a Gantt field that is always
-    * {@link #primaryGanttField}'s own descriptor; {@code ChartRegionHandler.getAxisDescriptor}
+    * {@link GanttChartInfo#getTimeAxisField}'s own descriptor; {@code ChartRegionHandler.getAxisDescriptor}
     * returns the chart's shared descriptor instead when the graph is not separated, which
     * {@code GanttGraphGenerator} never reads. For a date measure it is the handler's own pick.
     */
@@ -1775,7 +1766,7 @@ public class ChartRegionPropertyService {
       ChartRef ref = ChartRegionHandler.getChartRef(info, axisType(axisTarget), column);
 
       if(info instanceof GanttChartInfo gantt && ref != null && isGanttField(gantt, ref)) {
-         return primaryGanttField(gantt).getAxisDescriptor();
+         return gantt.getTimeAxisField().getAxisDescriptor();
       }
 
       return regionHandler.getAxisDescriptor(info, column, axisType(axisTarget),

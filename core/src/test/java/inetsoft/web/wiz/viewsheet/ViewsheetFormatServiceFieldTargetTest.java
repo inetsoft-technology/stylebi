@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.CompositeTextFormat;
 import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
+import inetsoft.uql.viewsheet.graph.GanttVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -176,6 +177,43 @@ class ViewsheetFormatServiceFieldTargetTest {
                  warning.contains("reset"), warning);
    }
 
+   /**
+    * Bug #81487: a Gantt's start, end and milestone date measures sit on no shelf, yet set_format
+    * target 'field' must take them and write the time axis' label format. The engine draws the one
+    * time axis from the first bound of the three, so a format named on end lands on start's descriptor.
+    */
+   @Test
+   void aGanttDateFieldFormatLandsOnTheDescriptorThatDrivesTheTimeAxis() throws Exception {
+      GanttVSChartInfo gantt = ganttWith(dateMeasure("StartDate"), dateMeasure("EndDate"),
+                                         dateMeasure("MilestoneDate"));
+
+      assertTrue(VSWizardBindingHandler.collectFormattableRefs(gantt).stream()
+                    .map(ChartRef::getFullName)
+                    .toList().containsAll(List.of("StartDate", "EndDate", "MilestoneDate")));
+
+      ViewsheetFormatService.FormatResult set = service().setFormat(
+         "tok", principal(), fieldRequest("EndDate", monthYear(), false), "");
+
+      XFormatAssert.user(gantt.getStartField(), "DateFormat", "MMM yyyy");
+      assertNull(axisUserFormat(gantt.getEndField()).getFormat(),
+                 "the end field's own descriptor is not what the time axis reads");
+      assertEquals(1, set.warnings().size(), set.warnings().toString());
+      assertTrue(set.warnings().get(0).contains("StartDate"), set.warnings().get(0));
+
+      service().setFormat("tok", principal(), fieldRequest("StartDate", null, true), "");
+      assertNull(axisUserFormat(gantt.getStartField()).getFormat());
+   }
+
+   /** Bug #81487: with start unbound the first bound field (end) drives the time axis. */
+   @Test
+   void aGanttFormatLandsOnEndWhenStartIsNotBound() throws Exception {
+      GanttVSChartInfo gantt = ganttWith(null, dateMeasure("EndDate"), dateMeasure("MilestoneDate"));
+
+      service().setFormat("tok", principal(), fieldRequest("MilestoneDate", monthYear(), false), "");
+
+      XFormatAssert.user(gantt.getEndField(), "DateFormat", "MMM yyyy");
+   }
+
    /** #2c: MonthOfYear renders integers, so a date format is refused; Month renders dates. */
    @Test
    void aDateFormatIsRefusedOnAPartLevelDateDimensionAndAllowedOnAFullLevel() throws Exception {
@@ -311,6 +349,23 @@ class ViewsheetFormatServiceFieldTargetTest {
       aggregate.setColumnValue(column);
       aggregate.setFormulaValue("Sum");
       return aggregate;
+   }
+
+   private static VSChartAggregateRef dateMeasure(String column) {
+      VSChartAggregateRef aggregate = aggregate(column);
+      ((ColumnRef) aggregate.getDataRef()).setDataType(XSchema.DATE);
+      aggregate.setFormulaValue("None");
+      return aggregate;
+   }
+
+   private GanttVSChartInfo ganttWith(ChartRef start, ChartRef end, ChartRef milestone) {
+      GanttVSChartInfo gantt = new GanttVSChartInfo();
+      gantt.setStartField(start);
+      gantt.setEndField(end);
+      gantt.setMilestoneField(milestone);
+      chart.setVSChartInfo(gantt);
+      info = gantt;
+      return gantt;
    }
 
    private static VSChartDimensionRef dimension(String column, String type, int level) {
