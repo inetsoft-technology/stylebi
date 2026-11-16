@@ -43,7 +43,6 @@ class VariableAssemblyModelInfoLongDefaultTest {
       return variable;
    }
 
-   @Disabled("mismatch V01 #80154")
    @DisplayName("V01 a Long variable with a Double 3.0E9 default shows 3000000000")
    @Test
    void v01_doubleNode() {
@@ -62,5 +61,63 @@ class VariableAssemblyModelInfoLongDefaultTest {
 
       assertArrayEquals(new Object[] { "3000000000" }, info.getValue());
       assertFalse(info.getValue2().contains("E"), "value2 " + info.getValue2());
+   }
+
+   private static UserVariable variable(XTypeNode type, XValueNode node) {
+      UserVariable variable = new UserVariable("v");
+      variable.setTypeNode(type);
+      variable.setValueNode(node);
+      return variable;
+   }
+
+   private static Object[] valueOf(UserVariable variable) {
+      return new VariableAssemblyModelInfo(variable).getValue();
+   }
+
+   @DisplayName("V01 negative, small and just-over-int Double defaults under long")
+   @Test
+   void v01_longDoubleRange() {
+      assertArrayEquals(new Object[] { "-3000000000" },
+                        valueOf(longVariable(new DoubleValue("v", -3.0E9))));
+      assertArrayEquals(new Object[] { "42" },
+                        valueOf(longVariable(new DoubleValue("v", 42.0))));
+      assertArrayEquals(new Object[] { "2147483648" },
+                        valueOf(longVariable(new DoubleValue("v", 2147483648.0))));
+   }
+
+   @DisplayName("V01 a fractional or overflowing Double under long is not truncated")
+   @Test
+   void v01_longNotMangled() {
+      assertArrayEquals(new Object[] { "3.5" },
+                        valueOf(longVariable(new DoubleValue("v", 3.5))));
+      assertArrayEquals(new Object[] { "1.0E30" },
+                        valueOf(longVariable(new DoubleValue("v", 1e30))));
+   }
+
+   @DisplayName("V01 integer and double typed variables")
+   @Test
+   void v01_otherTypes() {
+      assertArrayEquals(new Object[] { "42" },
+                        valueOf(variable(new IntegerType(), new DoubleValue("v", 42.0))));
+      assertArrayEquals(new Object[] { "3.5" },
+                        valueOf(variable(new DoubleType(), new DoubleValue("v", 3.5))));
+   }
+
+   @DisplayName("V01 the valueslist match branch uses the declared type")
+   @Test
+   void v01_valuesList() {
+      UserVariable variable = longVariable(new DoubleValue("v", 3.0E9));
+      variable.setValues(new Object[] { 3000000000.0 });
+      variable.setChoices(new Object[] { "x" });
+      assertArrayEquals(new Object[] { "3000000000" }, valueOf(variable));
+   }
+
+   @DisplayName("V01 an Object[] default is formatted per element")
+   @Test
+   void v01_array() {
+      LongValue node = new LongValue("v");
+      node.setValue(new Object[] { 3.0E9, 42.0 });
+      UserVariable variable = longVariable(node);
+      assertArrayEquals(new Object[] { "3000000000", "42" }, valueOf(variable));
    }
 }

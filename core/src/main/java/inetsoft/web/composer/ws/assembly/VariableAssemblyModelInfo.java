@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.AbstractCondition;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 
 import java.io.Serializable;
@@ -142,12 +143,48 @@ public class VariableAssemblyModelInfo implements Serializable {
             }
 
             if(Tool.compare(vobj, val) == 0) {
-               return Tool.getDataString(valueslist[i]);
+               return formatValue(valueslist[i]);
             }
          }
       }
 
-      return Tool.getDataString(val);
+      return formatValue(val);
+   }
+
+   /**
+    * Format a value with the declared type, so an expression default such as a Double
+    * 3.0E9 under a long variable is shown as 3000000000. An integral type is only applied
+    * to an integral, in-range number: a fractional or out-of-range value keeps the typeless
+    * string so the input error is still shown instead of the value being truncated.
+    */
+   private String formatValue(Object val) {
+      if(val instanceof Number && type != null) {
+         double d = ((Number) val).doubleValue();
+         double max;
+
+         switch(type) {
+         case XSchema.LONG:
+            max = Long.MAX_VALUE;
+            break;
+         case XSchema.INTEGER:
+            max = Integer.MAX_VALUE;
+            break;
+         case XSchema.SHORT:
+            max = Short.MAX_VALUE;
+            break;
+         case XSchema.BYTE:
+            max = Byte.MAX_VALUE;
+            break;
+         default:
+            return Tool.getDataString(val, type);
+         }
+
+         if(Double.isNaN(d) || d != Math.rint(d) || d > max || d < -max - 1) {
+            return Tool.getDataString(val);
+         }
+      }
+
+      return Tool.getDataString(val, type);
    }
 
    public String getName() {
