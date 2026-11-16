@@ -692,6 +692,20 @@ public class FormulaFunctionsTest {
       assertTrue(FormulaFunctions.inArray(new Object[]{3.0}, 3));
    }
 
+   /**
+    * Bug #81465: a Timestamp and a Date with the same time are one element in
+    * either argument order, consistent with intersect and inArray.
+    */
+   @Test
+   void timestampAndDateWithEqualMillisAreOneElementInBothOrders() {
+      long t = 1700000000000L;
+      Object[] ts = {new java.sql.Timestamp(t)};
+      Object[] dt = {new Date(t)};
+
+      assertEquals(1, ((Object[]) FormulaFunctions.union(ts, dt, null)).length);
+      assertEquals(1, ((Object[]) FormulaFunctions.union(dt, ts, null)).length);
+   }
+
    private static Stream<Arguments> provideUnionArrayTestCases() {
       // Return a stream of arguments for the unionArray method
       return Stream.of(

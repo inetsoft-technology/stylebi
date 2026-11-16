@@ -369,7 +369,7 @@ public class FormulaFunctions {
    }
 
    /**
-    * Check if a list contains a value. Numbers are compared by value, as in
+    * Check if a list contains a value. Numbers and dates (Timestamp vs Date) are compared by value, as in
     * intersect and inArray, so that Double 3.0 and Integer 3 are equal. All
     * other values (including arrays) keep the List.contains (equals) semantics.
     */
@@ -377,7 +377,8 @@ public class FormulaFunctions {
       for(int i = 0; i < list.size(); i++) {
          Object item = list.get(i);
 
-         if(item instanceof Number && val instanceof Number ?
+         if((item instanceof Number && val instanceof Number ||
+            item instanceof Date && val instanceof Date) ?
             Tool.equals(item, val) : Objects.equals(item, val))
          {
             return true;
