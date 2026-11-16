@@ -298,6 +298,16 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
             // give the tables their own data files, and write them before the worksheet being
             // overwritten is removed, so a failed write does not lose that worksheet (bug #77986)
             ensureWorksheetDistinct(rws);
+
+            // check the delete permission before any data file is written, so a refused
+            // overwrite leaves no uploaded data behind (bug #81238)
+            if(!entry.equals(rws.getEntry()) &&
+               engine.getAssetRepository().containsEntry(entry))
+            {
+               engine.getAssetRepository().checkAssetPermission(
+                  principal, entry, ResourceAction.DELETE);
+            }
+
             SnapshotEmbeddedTableAssembly.writeDataFilesForSave(rws.getWorksheet());
 
             if(!entry.equals(rws.getEntry())) {
