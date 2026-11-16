@@ -27,7 +27,6 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.CalcGroup;
 import inetsoft.uql.schema.XSchema;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -270,7 +269,6 @@ class LayoutToolTest {
       assertFalse(cond.contains("inArray("), cond);
    }
 
-   @Disabled("Bug #81256: addSubTopNCond does not escape a double quote in the cell name")
    @Test
    void createGroupCondEscapesADoubleQuoteInTheCellNameOfTheInGroupsPart() {
       GroupRef group = group("g");
