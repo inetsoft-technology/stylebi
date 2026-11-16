@@ -269,16 +269,26 @@ public class GraphBuilder {
       return cube;
    }
 
+   /**
+    * Check whether drilling is enabled on the chart. A chart with Enable Drilling off must not
+    * report drill levels, otherwise the viewer offers Drill Down/Up Filter on it.
+    */
+   static boolean isDrillEnabled(ChartVSAssembly assembly) {
+      return assembly == null || assembly.getChartInfo() == null ||
+         assembly.getChartInfo().isDrillEnabled();
+   }
+
    private static List<DrillLevel> getDrillLevels(ChartVSAssembly assembly, AxisArea axis) {
       XCube cube = getCube(assembly);
       List<DrillLevel> drillLevels = new ArrayList<>();
       String[] fields = axis.getAxisField();
+      boolean drillEnabled = isDrillEnabled(assembly);
 
       for(String field : fields) {
          VSChartInfo info = assembly.getVSChartInfo();
          ChartRef ref = info.getFieldByName(field, true);
          boolean isPeriod = info.isPeriodRef(field);
-         drillLevels.add(isPeriod ? DrillLevel.None : VSUtil.getDrillLevel(ref, cube));
+         drillLevels.add(isPeriod || !drillEnabled ? DrillLevel.None : VSUtil.getDrillLevel(ref, cube));
       }
 
       return drillLevels;
@@ -790,7 +800,7 @@ public class GraphBuilder {
          field = ((LegendContentArea) area).getField();
       }
 
-      if(StringUtils.isEmpty(field) || assembly == null) {
+      if(StringUtils.isEmpty(field) || assembly == null || !isDrillEnabled(assembly)) {
          return drillLevels;
       }
 
@@ -814,6 +824,11 @@ public class GraphBuilder {
 
    private List<DrillLevel> getPlotDrillLevels() {
       List<DrillLevel> drillLevels = new ArrayList<>();
+
+      if(!isDrillEnabled(assembly)) {
+         return drillLevels;
+      }
+
       XCube cube = getCube(assembly);
 
       drillLevels = Arrays.stream(cinfo.getBindingRefs(true))
