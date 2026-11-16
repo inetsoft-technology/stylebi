@@ -856,6 +856,23 @@ public class ViewsheetFormatService {
    }
 
    /**
+    * The number of legends the chart renders, or -1 when it cannot be measured; the range of
+    * valid {@code legend_content} indexes. Package-private so a test can stand in for the laid-out
+    * graph.
+    */
+   int legendContentCount(RuntimeViewsheet rvs, String chartName) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(chartName);
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         return -1;
+      }
+
+      ChartRegionResolver.Legends legends = ChartRegionResolver.legends(rvs, chart);
+      return legends.measured() ? legends.count() : -1;
+   }
+
+   /**
     * {@code plotLabel}'s per-chart column names: every measure actually bound to the chart's x or
     * y shelf, by full name -- the same {@code getXFields()}/{@code getYFields()} (design-time, not
     * runtime) shelves, and the same full-name match, that
@@ -1540,8 +1557,29 @@ public class ViewsheetFormatService {
             event.setRegions(regions);
             String[][] columnNames = new String[charts.length][];
             Arrays.fill(columnNames, new String[]{ "" });
+            int[][] indexes = new int[charts.length][];
+
+            if(LEGEND_CONTENT_TARGET.equals(target)) {
+               // legendContent formats EVERY rendered legend, but a null indexes[i] only reaches
+               // legend 0 (bug 81436: a size legend beside the colour legend stayed unchanged).
+               // Address each rendered legend by index; a chart with 0-1 legends, or whose
+               // legends cannot be measured, keeps the whole-region shape.
+               for(int i = 0; i < charts.length; i++) {
+                  int count = legendContentCount(rvs, charts[i]);
+
+                  if(count > 1) {
+                     indexes[i] = new int[count];
+                     columnNames[i] = new String[count];
+
+                     for(int j = 0; j < count; j++) {
+                        indexes[i][j] = j;
+                     }
+                  }
+               }
+            }
+
             event.setColumnNames(columnNames);
-            event.setIndexes(new int[charts.length][]);
+            event.setIndexes(indexes);
          }
          else if(sheet) {
             // An empty object list is FormatPainterService's route to the viewsheet's own format.
