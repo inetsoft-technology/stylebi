@@ -24,7 +24,6 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.util.DefaultTable;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -299,7 +298,6 @@ public class FormulaFunctionsTest {
       assertArrayEquals(new Object[] { 3, 1, 2 }, distinct);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void toListDateOptionLeavesTheInputArrayAlone() {
       Date original = dt(2021, 3, 15);
@@ -308,7 +306,6 @@ public class FormulaFunctionsTest {
       assertSame(original, dates[0]);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void toListDistinctFalseLeavesTheInputArrayAlone() {
       Object[] unsorted = { 3, 1, 2 };
@@ -316,7 +313,6 @@ public class FormulaFunctionsTest {
       assertArrayEquals(new Object[] { 3, 1, 2 }, unsorted);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void toListRoundDateOptionLeavesTheInputArrayAlone() {
       Object[] dates = { dt(2021, 3, 15), dt(2021, 7, 4) };
@@ -325,7 +321,6 @@ public class FormulaFunctionsTest {
       assertArrayEquals(copy, dates);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void mapListLeavesTheInputArrayAlone() {
       Object[] input = { 4, 1, 3, 2 };
