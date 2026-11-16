@@ -110,6 +110,47 @@ class TableStyleControllerTest {
    }
 
    @Test
+   void saveRefusedWhenStoredStyleChangedSinceOpen() throws Exception {
+      when(storedStyle.getLastModified()).thenReturn(200L);
+      TableStyleModel model = createSaveModel();
+      model.setLastModified(100L);
+
+      TableStyleSaveResult result = controller.saveTableStyle(model, principal);
+
+      assertTrue(result.isConflict());
+      assertEquals(200L, result.getLastModified());
+      verify(libManager, never()).setTableStyle(anyString(), any());
+      verify(libManager, never()).save();
+   }
+
+   @Test
+   void saveWithOverwriteSucceedsEvenWhenStoredStyleChanged() throws Exception {
+      when(storedStyle.getLastModified()).thenReturn(200L);
+      TableStyleModel model = createSaveModel();
+      model.setLastModified(100L);
+      model.setOverwrite(true);
+
+      TableStyleSaveResult result = controller.saveTableStyle(model, principal);
+
+      assertFalse(result.isConflict());
+      verify(libManager).setTableStyle(STYLE_ID, clonedStyle);
+      verify(libManager).save();
+   }
+
+   @Test
+   void saveSucceedsWhenStoredStyleUnchangedSinceOpen() throws Exception {
+      when(storedStyle.getLastModified()).thenReturn(100L);
+      TableStyleModel model = createSaveModel();
+      model.setLastModified(100L);
+
+      TableStyleSaveResult result = controller.saveTableStyle(model, principal);
+
+      assertFalse(result.isConflict());
+      verify(libManager).setTableStyle(STYLE_ID, clonedStyle);
+      verify(libManager).save();
+   }
+
+   @Test
    void saveAsDeniedDoesNotWriteLibrary() throws Exception {
       denyWrite();
 
@@ -127,6 +168,28 @@ class TableStyleControllerTest {
       assertCheckedStyle("Shared" + LibManager.SEPARATOR + "NewStyle");
       verify(libManager).setTableStyle(eq("style-new"), any(XTableStyle.class));
       verify(libManager).save();
+   }
+
+   @Test
+   void saveAsReturnsNewTokenAcceptedByNextSave() throws Exception {
+      TableStyleSaveAsResult saved =
+         controller.saveAsTableStyle(createSaveAsModel("Shared", "NewStyle"), principal);
+
+      assertEquals("style-new", saved.getStyleId());
+      assertTrue(saved.getLastModified() > 0);
+
+      ArgumentCaptor<XTableStyle> captor = ArgumentCaptor.forClass(XTableStyle.class);
+      verify(libManager).setTableStyle(eq("style-new"), captor.capture());
+      assertEquals(captor.getValue().getLastModified(), saved.getLastModified());
+
+      when(libManager.getTableStyle("style-new")).thenReturn(storedStyle);
+      when(storedStyle.clone()).thenReturn(clonedStyle);
+      when(storedStyle.getLastModified()).thenReturn(saved.getLastModified());
+      TableStyleModel model = createSaveModel();
+      model.setStyleId("style-new");
+      model.setLastModified(saved.getLastModified());
+
+      assertFalse(controller.saveTableStyle(model, principal).isConflict());
    }
 
    private void denyWrite() throws Exception {

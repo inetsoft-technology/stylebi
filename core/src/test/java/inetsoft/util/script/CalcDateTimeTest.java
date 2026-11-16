@@ -19,7 +19,7 @@
 package inetsoft.util.script;
 
 import inetsoft.test.*;
-import org.junit.jupiter.api.Disabled;
+import inetsoft.util.ThreadContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -1464,35 +1464,6 @@ public class CalcDateTimeTest {
       assertEquals(weekday, onFreshThread(Locale.US, () -> CalcDateTime.weekdayname(date)));
    }
 
-   @Test
-   @Disabled("Bug #81466: monthname() keeps the first locale a thread used")
-   void monthnameFollowsThreadContextLocaleChangesOnSameThread() throws Exception {
-      Date date = dayStart(2024, 3, 5);
-      String[] names = new String[2];
-      Throwable[] error = { null };
-
-      Thread thread = new Thread(() -> {
-         try {
-            inetsoft.util.ThreadContext.setLocale(Locale.FRENCH);
-            names[0] = CalcDateTime.monthname(date);
-            inetsoft.util.ThreadContext.setLocale(Locale.GERMAN);
-            names[1] = CalcDateTime.monthname(date);
-         }
-         catch(Throwable ex) {
-            error[0] = ex;
-         }
-      });
-      thread.start();
-      thread.join();
-
-      if(error[0] != null) {
-         throw new AssertionError(error[0]);
-      }
-
-      assertEquals("mars", names[0]);
-      assertEquals("März", names[1]);
-   }
-
    /**
     * Round every day from 2015-01-01 through 2030 to its week bucket via
     * CalcDateTime.date(..., WEEK_DATE_GROUP, 1), under the given JVM default locale. Must be
@@ -1511,5 +1482,24 @@ public class CalcDateTimeTest {
       }
 
       return millis.stream().mapToLong(Long::longValue).toArray();
+   }
+
+   // Bug #81466, monthname follows the thread locale when it changes on a thread
+   @Test
+   void monthNameFollowThreadLocaleChanges() {
+      Locale old = ThreadContext.getLocale();
+      Date d = CalcUtilTest.hybridDate(2024, 3, 5);
+
+      try {
+         ThreadContext.setLocale(Locale.FRENCH);
+         assertEquals("mars", CalcDateTime.monthname(d));
+         ThreadContext.setLocale(Locale.GERMAN);
+         assertEquals("März", CalcDateTime.monthname(d));
+         ThreadContext.setLocale(Locale.US);
+         assertEquals("March", CalcDateTime.monthname(d));
+      }
+      finally {
+         ThreadContext.setLocale(old);
+      }
    }
 }

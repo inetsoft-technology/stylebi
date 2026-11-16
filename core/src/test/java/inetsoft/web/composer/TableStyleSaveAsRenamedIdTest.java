@@ -148,7 +148,7 @@ class TableStyleSaveAsRenamedIdTest {
       saveModel.setName(name);
       TableStyleRequestModel request = new TableStyleRequestModel();
       request.setSaveModel(saveModel);
-      return controller.saveAsTableStyle(request, admin());
+      return controller.saveAsTableStyle(request, admin()).getStyleId();
    }
 
    private MessageCommand move(String id, String folder) throws Exception {
