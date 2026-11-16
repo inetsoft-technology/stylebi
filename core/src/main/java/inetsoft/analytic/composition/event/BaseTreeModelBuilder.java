@@ -449,7 +449,14 @@ public abstract class BaseTreeModelBuilder {
       }
 
       String aname = addLMEntryLevel ? "" : (assembly.getName() + "/");
-      list.sort(new VSUtil.DataRefComparator());
+
+      // for a logical model entity's own attribute list, keep the order defined in the
+      // model instead of alphabetizing it (Bug #81269). addLMEntryLevel is excluded so
+      // this entity's calc fields (appended above via VSUtil.appendCalcFields) still
+      // sort alphabetically as before.
+      if(addLMEntryLevel || baseEntry == null || !baseEntry.isLogicModel()) {
+         list.sort(new VSUtil.DataRefComparator());
+      }
 
       if(info instanceof TableVSAssemblyInfo) {
          for(int i = 0; i < list.size(); i++) {

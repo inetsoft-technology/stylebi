@@ -191,11 +191,9 @@ export class WizardBindingTree extends CommandProcessor implements OnInit, OnDes
             return;
          }
 
-         // all dimensions and measures
-         const all = tbl.children[0].children.concat(tbl.children[1].children);
-         tbl.children = all.sort((n1, n2) => {
-            return n1.label.toLocaleLowerCase().localeCompare(n2.label.toLocaleLowerCase());
-         });
+         // all dimensions and measures. don't alphabetize here: for a logical model
+         // entity this list must keep the order defined in the model (Bug #81269).
+         tbl.children = tbl.children[0].children.concat(tbl.children[1].children);
       });
    }
 
