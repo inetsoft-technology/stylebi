@@ -20,7 +20,6 @@ package inetsoft.uql.erm;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -81,12 +80,16 @@ class ExpressionRefScriptExpressionTest {
       assertEquals("a /*script x", ExpressionRef.getSQLExpression(true, "a /*script x"));
    }
 
-   @Disabled("Bug #81214: /*script*/ marker without a body throws")
    @Test
    @DisplayName("Overlapping markers do not throw")
    void overlappingMarkers_doNotThrow() {
       assertDoesNotThrow(() -> ExpressionRef.getScriptExpression(true, "/*script*/"));
       assertDoesNotThrow(() -> ExpressionRef.getScriptExpression(true, "a /*script*/ b"));
+      assertDoesNotThrow(() -> ExpressionRef.getSQLExpression(true, "/*script*/"));
+      assertEquals("/*script*/", ExpressionRef.getScriptExpression(true, "/*script*/"));
+      assertEquals("a /*script*/ b", ExpressionRef.getScriptExpression(true, "a /*script*/ b"));
+      assertEquals("/*script*/", ExpressionRef.getSQLExpression(true, "/*script*/"));
+      assertEquals("a /*script*/ b", ExpressionRef.getSQLExpression(true, "a /*script*/ b"));
    }
 
    // Bug #81203: the markers are found with a case-insensitive search; under tr_TR the default
