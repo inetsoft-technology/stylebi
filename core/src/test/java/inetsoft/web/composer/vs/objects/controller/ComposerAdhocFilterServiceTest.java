@@ -28,6 +28,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
 import inetsoft.web.composer.vs.objects.event.FilterChartEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -116,6 +117,28 @@ class ComposerAdhocFilterServiceTest {
       assertEquals(0, cap.calls, "a legend column that matches no binding must not create a filter");
       verify(cap.tableService, never()).createSelectionVSAssembly(
          any(), anyInt(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void viewerSkipsContainersThatDisallowAdhocFilters() {
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      CurrentSelectionVSAssembly off = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      ((CurrentSelectionVSAssemblyInfo) off.getVSAssemblyInfo()).setAdhocEnabled(false);
+      vs.addAssembly(chart);
+      vs.addAssembly(off);
+
+      assertTrue(ComposerAdhocFilterService.findContainers(vs, chart, true).isEmpty());
+      assertEquals(1, ComposerAdhocFilterService.findContainers(vs, chart, false).size());
+
+      CurrentSelectionVSAssembly on = new CurrentSelectionVSAssembly(vs, "CurrentSelection2");
+      ((CurrentSelectionVSAssemblyInfo) on.getVSAssemblyInfo()).setAdhocEnabled(true);
+      vs.addAssembly(on);
+
+      List<CurrentSelectionVSAssembly> found =
+         ComposerAdhocFilterService.findContainers(vs, chart, true);
+      assertEquals(1, found.size());
+      assertEquals("CurrentSelection2", found.get(0).getName());
    }
 
    private static void assertCreated(Captured cap, boolean date) {
