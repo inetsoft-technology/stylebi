@@ -639,7 +639,7 @@ public class FormulaFunctions {
 
    /**
     * Get the week of year for the date=week option. This matches the Week of Year date
-    * group of a crosstab under the default week.start (both force minimalDaysInFirstWeek
+    * group of a crosstab, including its week.start setting (both force minimalDaysInFirstWeek
     * to 1, the week containing January 1 is week 1), instead of the Excel numbering of
     * CALC.weeknum(). A bare GregorianCalendar otherwise inherits minimalDaysInFirstWeek
     * from the JVM default locale (1 for en_US/zh_CN, 4 for en_GB/de_DE), which would make
@@ -650,7 +650,7 @@ public class FormulaFunctions {
       Calendar cal = new GregorianCalendar();
       cal.setMinimalDaysInFirstWeek(1);
       cal.setTime((Date) date);
-      cal.setFirstDayOfWeek(Calendar.SUNDAY);
+      cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
       return cal.get(Calendar.WEEK_OF_YEAR);
    }
 

@@ -2429,6 +2429,27 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    protected void removeFolder0(AssetEntry entry, IndexedStorage storage, boolean root)
       throws Exception
    {
+      // Bug #80473: scan the bookmark keys once for the whole folder tree, not once per
+      // child dashboard
+      boolean ownsIndex = root && bookmarkIndex.get() == null;
+
+      if(ownsIndex) {
+         bookmarkIndex.set(new HashMap<>());
+      }
+
+      try {
+         removeFolder1(entry, storage, root);
+      }
+      finally {
+         if(ownsIndex) {
+            bookmarkIndex.remove();
+         }
+      }
+   }
+
+   private void removeFolder1(AssetEntry entry, IndexedStorage storage, boolean root)
+      throws Exception
+   {
       try {
          clearCache(entry);
          AssetFolder folder = getFolder(entry, storage);
@@ -4639,20 +4660,35 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       final String viewsheetPath = bookmarkEntry.getPath();
+      Map<String, List<IdentityID>> index = getFolderBookmarkIndex(entry, storage);
+
+      if(index != null) {
+         List<IdentityID> users = index.get(viewsheetPath);
+
+         if(users != null) {
+            userList.addAll(users);
+         }
+
+         return sortBookmarkUsers(userList, provider);
+      }
+
+      final String inner = "^" + viewsheetPath + "^";
+      final String tail = "^" + viewsheetPath;
 
       IndexedStorage.Filter filter = key -> {
+         // Bug #80473: cheap necessary condition before parsing the key; the parsed path
+         // is always delimited by '^' (and the org, if any) in the identifier
+         if(!key.contains(inner) && !key.endsWith(tail)) {
+            return false;
+         }
+
          AssetEntry entry0 = AssetEntry.createAssetEntry(key);
 
          if(entry0 != null &&
             entry0.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK &&
             entry0.getUser() != null && entry0.getPath().equals(viewsheetPath))
          {
-            AssetEntry bEntry = AssetEntry.createAssetEntry(key);
-
-            if(bEntry != null) {
-               userList.add(bEntry.getUser());
-            }
-
+            userList.add(entry0.getUser());
             return true;
          }
 
@@ -4661,7 +4697,58 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       storage.getKeys(filter, entry.getOrgID());
 
-      return userList.stream().filter(id ->  provider.getOrganization(id.orgID) != null).sorted().toList();
+      return sortBookmarkUsers(userList, provider);
+   }
+
+   private static List<IdentityID> sortBookmarkUsers(List<IdentityID> userList,
+                                                     SecurityProvider provider)
+   {
+      return userList.stream().filter(id -> provider.getOrganization(id.orgID) != null)
+         .sorted().toList();
+   }
+
+   /**
+    * Get the bookmark index (bookmark path to owners) shared by a folder delete. The index
+    * of an org is built by one scan of that org's keys on first use.
+    *
+    * @return the index, or null if no folder delete is in progress on this thread.
+    */
+   private Map<String, List<IdentityID>> getFolderBookmarkIndex(AssetEntry entry,
+                                                                IndexedStorage storage)
+      throws Exception
+   {
+      Map<String, Map<String, List<IdentityID>>> indexes = bookmarkIndex.get();
+
+      if(indexes == null || storage == null) {
+         return null;
+      }
+
+      String orgID = entry.getOrgID();
+      Map<String, List<IdentityID>> index = indexes.get(orgID);
+
+      if(index == null) {
+         final Map<String, List<IdentityID>> index0 = new HashMap<>();
+         index = index0;
+
+         // same predicate as getBookmarkUsers, for every bookmark path at once
+         storage.getKeys(key -> {
+            AssetEntry entry0 = AssetEntry.createAssetEntry(key);
+
+            if(entry0 != null && entry0.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK &&
+               entry0.getUser() != null)
+            {
+               index0.computeIfAbsent(entry0.getPath(), k -> new ArrayList<>())
+                  .add(entry0.getUser());
+               return true;
+            }
+
+            return false;
+         }, orgID);
+
+         indexes.put(orgID, index);
+      }
+
+      return index;
    }
 
    /**
@@ -4808,8 +4895,15 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       AssetEntry bookmarkEntry = getVSBookmarkEntry(entry, entry.getUser());
       String viewsheetPath = bookmarkEntry.getPath();
       List<AssetEntry> entries = new ArrayList<>();
+      final String inner = "^" + viewsheetPath + "^";
+      final String tail = "^" + viewsheetPath;
 
       IndexedStorage.Filter filter = key -> {
+         // Bug #80473: cheap necessary condition before parsing the key
+         if(!key.contains(inner) && !key.endsWith(tail)) {
+            return false;
+         }
+
          AssetEntry entry0 = AssetEntry.createAssetEntry(key);
 
          if(entry0 != null && entry0.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK &&
@@ -5189,6 +5283,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
    // set while a storage refresh event is being fired, see refreshListener
    private final ThreadLocal<Boolean> storageRefreshing = new ThreadLocal<>();
+   // Bug #80473: per-org bookmark path to owners index, live only during a folder delete
+   private final ThreadLocal<Map<String, Map<String, List<IdentityID>>>> bookmarkIndex =
+      new ThreadLocal<>();
 
    private final StorageRefreshListener refreshListener = event -> {
       final List<TimestampIndexChange> changes = event.getChanges();
