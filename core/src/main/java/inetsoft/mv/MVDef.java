@@ -722,7 +722,37 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     */
    public Worksheet getWorksheet() {
       MVContainer container = getContainer();
-      return container == null ? null : container.ws;
+
+      if(container == null) {
+         return null;
+      }
+
+      Worksheet ws = container.ws;
+
+      if(ws == null) {
+         ws = reloadWorksheet(container);
+      }
+
+      return ws;
+   }
+
+   /**
+    * Reload the worksheet of a registered MV from the storage it was persisted to, after it was
+    * cleared from the container (persistAndClearWorksheet). The analysis of a viewsheet that
+    * shares a registered MV returns that registered definition, so its container is cleared
+    * too. The worksheet is kept in the container once reloaded.
+    */
+   private synchronized Worksheet reloadWorksheet(MVContainer container) {
+      if(container.ws == null && MVManager.getManager().containsMV(this)) {
+         try {
+            container.ws = parseWorksheet();
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to reload the MV worksheet: {}", mvname, ex);
+         }
+      }
+
+      return container.ws;
    }
 
    /**

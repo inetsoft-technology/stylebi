@@ -29,6 +29,7 @@ import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -39,6 +40,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 
 /**
  * Bug #81422, an MV kept being used (and reported valid) after the expression of a worksheet
@@ -113,7 +116,11 @@ class MVExpressionChangedTest {
 
    @Test
    void missingSnapshotOrTableIsNotChanged() {
-      assertFalse(def(null).isExpressionChanged(worksheet("17", true)));
+      // an MV that is not registered can't reload its worksheet
+      try(MockedStatic<MVManager> managerStatic = mockStatic(MVManager.class)) {
+         managerStatic.when(MVManager::getManager).thenReturn(mock(MVManager.class));
+         assertFalse(def(null).isExpressionChanged(worksheet("17", true)));
+      }
 
       MVDef def = def(mirrorWorksheet("13", true));
       assertFalse(def.isExpressionChanged((Worksheet) null));
