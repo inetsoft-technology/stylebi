@@ -226,6 +226,12 @@ const CONFIRM_MESSAGE = {
    optionsWithCancel: { "yes": "_#(js:Yes)", "no": "_#(js:No)", "cancel": "_#(js:Cancel)" }
 };
 
+interface TableStyleSaveResult {
+   conflict: boolean;
+   lastModified: number;
+   message: string;
+}
+
 /**
  * The main pane of the worksheet composer.
  * Its purpose is to control the layout of its children panes.
@@ -1906,13 +1912,38 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                }
             }
             else {
-               this.http.post(URI_SAVE_TABLESTYLE, library).subscribe();
-               this.stylePaneComponent.showNotifications();
-               library.undoRedoList[index].origianlIndex = index;
-               library.undoRedoList[0].origianlIndex = index != 0 ? -1 : 0;
-               library.isModified = false;
+               this.postTableStyle(library, index);
             }
          });
+   }
+
+   private postTableStyle(library: TableStyleModel, index: number): void {
+      this.http.post<TableStyleSaveResult>(URI_SAVE_TABLESTYLE, library).subscribe((result) => {
+         if(result?.conflict) {
+            // the stored style changed after this editor opened it (Bug #81335)
+            ComponentTool.showConfirmDialog(this.modalService, "_#(js:Warning)", result.message,
+                                            CONFIRM_MESSAGE.options)
+               .then((choice) => {
+                  if(choice === "yes") {
+                     library.overwrite = true;
+                     this.postTableStyle(library, index);
+                  }
+               });
+
+            return;
+         }
+
+         library.overwrite = false;
+
+         if(result) {
+            library.lastModified = result.lastModified;
+         }
+
+         this.stylePaneComponent.showNotifications();
+         library.undoRedoList[index].origianlIndex = index;
+         library.undoRedoList[0].origianlIndex = index != 0 ? -1 : 0;
+         library.isModified = false;
+      });
    }
 
    saveTableStyleAs(library: TableStyleModel, isClose: boolean = false) {
@@ -1940,12 +1971,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                saveModel: result
             };
 
-            this.http.post<string>(URI_SAVE_AS_TABLESTYLE, request).subscribe((styleId) => {
+            this.http.post<{styleId: string, lastModified: number}>(URI_SAVE_AS_TABLESTYLE, request).subscribe((saved) => {
                this.focusedTab.asset.isModified = false;
                this.focusedTab.asset.label = result.name;
                this.focusedTab.asset.id = TableStyleUtil.styleIdentifier(result.folder, result.name, entry.organization);
                library.newAsset = false;
-               library.styleId = styleId;
+               library.styleId = saved.styleId;
+               library.lastModified = saved.lastModified;
                library.undoRedoList[index].origianlIndex = index;
                library.undoRedoList[0].origianlIndex = index != 0 ? -1 : 0;
                setTimeout(() => { this.stylePaneComponent.showNotifications(); }, 0);

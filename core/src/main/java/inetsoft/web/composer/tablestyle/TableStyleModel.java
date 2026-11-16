@@ -73,7 +73,25 @@ public class TableStyleModel {
       this.styleName = styleName;
    }
 
+   public Long getLastModified() {
+      return lastModified;
+   }
+
+   public void setLastModified(Long lastModified) {
+      this.lastModified = lastModified;
+   }
+
+   public boolean isOverwrite() {
+      return overwrite;
+   }
+
+   public void setOverwrite(boolean overwrite) {
+      this.overwrite = overwrite;
+   }
+
    private TableStyleFormatModel styleFormat;
+   private Long lastModified;
+   private boolean overwrite;
    private CSSTableStyleModel cssFormat;
    private String label;
    private String id;
