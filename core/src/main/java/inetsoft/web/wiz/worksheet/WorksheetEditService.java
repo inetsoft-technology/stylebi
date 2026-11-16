@@ -76,6 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
 /**
@@ -356,8 +357,16 @@ public class WorksheetEditService {
     * assembly is always last and so is starved by an earlier slow table. Give each assembly this
     * edit created (by object identity, so a delete-and-recreate of the same name counts) its
     * columns up front, as the Composer's join flow does. Only assemblies still empty are touched.
-    * Non-plain tables (crosstab/rotate/unpivot) are skipped because their refresh executes the
-    * source query; they stay with the budgeted loop.
+    *
+    * <p>Bug #81449: a new non-plain table (rotate/unpivot/crosstab) used to be skipped here
+    * because its refresh executes the new table's own query chain, so an earlier slow table
+    * starved it in the loop and it was left with no columns (the Composer fills them at
+    * creation). It is now initialised here too, through {@link InFlightTableRefresh} with
+    * {@code JOIN_SAME_DEFINITION}, so when this run outlives the budget the loop joins it instead
+    * of starting a second execution of the same query. Cost: an edit that creates a non-plain
+    * table over a slow source waits up to the budget below (about 1 s) longer. Caveat: the
+    * in-flight fingerprint includes the column selection, which the run fixes just before it
+    * ends, so a loop call landing in that instant sees a changed definition and restarts it.</p>
     *
     * <p>The refresh of a join walks its sources' column selections, which for a bound source can
     * reach datasource metadata, so it is bounded like the loop's: its own
@@ -375,7 +384,7 @@ public class WorksheetEditService {
       long deadline = System.currentTimeMillis() + INIT_NEW_ASSEMBLIES_BUDGET_MS;
 
       for(Assembly a : ws.getAssemblies()) {
-         if(!(a instanceof TableAssembly ta) || before.contains(a) || !ta.isPlain()) {
+         if(!(a instanceof TableAssembly ta) || before.contains(a)) {
             continue;
          }
 
@@ -397,7 +406,7 @@ public class WorksheetEditService {
          TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
 
          try {
-            RenderWaitSupport.awaitOrRetry(() -> {
+            Callable<Object> work = () -> {
                try {
                   WorksheetEventUtil.refreshColumnSelection(rws, name, false);
                }
@@ -406,7 +415,18 @@ public class WorksheetEditService {
                }
 
                return null;
-            }, remaining, 1, RenderNotReadyException.Subject.TABLE);
+            };
+
+            if(ta.isPlain()) {
+               RenderWaitSupport.awaitOrRetry(work, remaining, 1,
+                                              RenderNotReadyException.Subject.TABLE);
+            }
+            else {
+               InFlightTableRefresh.awaitOrRetry(rws, name,
+                  InFlightTableRefresh.Policy.JOIN_SAME_DEFINITION, work, remaining, 1,
+                  RenderNotReadyException.Subject.TABLE,
+                  () -> RuntimeHeartbeatKeepAlive.stop(heartbeat));
+            }
          }
          catch(RenderNotReadyException ex) {
             // still running in the background; it stops its own heartbeat when it finishes
