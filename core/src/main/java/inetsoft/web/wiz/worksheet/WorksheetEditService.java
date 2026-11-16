@@ -710,6 +710,36 @@ public class WorksheetEditService {
 
          WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
 
+         // Bug #81442: native Composer (ws-details-table-data.component.ts leaveBaseColumns)
+         // refuses a delete that leaves an embedded, ungrouped table with no non-expression
+         // column in its private selection (hidden columns count; range columns are expression
+         // refs). Only the client enforced it, so the agent path could strip a table down to
+         // expression columns; evaluated on every removal, before anything mutates.
+         if(t instanceof EmbeddedTableAssembly && !t.isAggregate()) {
+            boolean keepsDataColumn = false;
+
+            for(int i = 0; i < cs.getAttributeCount(); i++) {
+               DataRef other = cs.getAttribute(i);
+
+               if(other.equals(toRemove)) {
+                  continue;
+               }
+
+               if(!(other instanceof ColumnRef otherRef && otherRef.isExpression())) {
+                  keepsDataColumn = true;
+                  break;
+               }
+            }
+
+            if(!keepsDataColumn) {
+               throw new PairingException(
+                  "Cannot remove column '" + col + "' from '" + table + "': an embedded " +
+                  "table must contain at least one non-expression column (hidden columns " +
+                  "count; date/numeric range columns are expression columns). Nothing was " +
+                  "changed.");
+            }
+         }
+
          // Bug #78895: same allowsDeletion refusal as before, but naming the dependent join.
          if(toRemove instanceof ColumnRef cr) {
             ColumnLossReport.requireNotJoinKey(

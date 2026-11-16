@@ -8451,6 +8451,57 @@ class WorksheetEditServiceMutatorsTest {
          "the data column is untouched");
    }
 
+   // Bug #81442: native Composer keeps >=1 non-expression column on an embedded table.
+   @Test
+   void removeColumnRefusesTheLastNonExpressionColumnOfAnEmbeddedTable81442() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn("T", "k", "1", XSchema.INTEGER, false));
+
+      svc.apply("TOK", agent, ed -> ed.removeColumn("T", "a"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("T", "b")));
+
+      assertTrue(ex.getMessage().contains("at least one non-expression column"), ex.getMessage());
+      assertNotNull(t.getColumnSelection(false).getAttribute("b"), "b must survive the refusal");
+      assertEquals(1, t.getEmbeddedData().getColCount(), "the data column must not be deleted");
+   }
+
+   @Test
+   void removeColumnAllowsAnExpressionColumnWhileADataColumnRemains81442() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn("T", "k", "1", XSchema.INTEGER, false));
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn("T", "k2", "2", XSchema.INTEGER, false));
+
+      svc.apply("TOK", agent, ed -> ed.removeColumn("T", "k2"));
+
+      assertNotNull(t.getColumnSelection(false).getAttribute("a"));
+      assertNull(t.getColumnSelection(false).getAttribute("k2"));
+   }
+
+   @Test
+   void removeColumnCountsAHiddenDataColumnAsRemaining81442() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("T", "b", false));
+
+      svc.apply("TOK", agent, ed -> ed.removeColumn("T", "a"));
+
+      assertNull(t.getColumnSelection(false).getAttribute("a"));
+      assertNotNull(t.getColumnSelection(false).getAttribute("b"));
+   }
+
    // =========================================================================
    // Concatenation tests
    // =========================================================================
