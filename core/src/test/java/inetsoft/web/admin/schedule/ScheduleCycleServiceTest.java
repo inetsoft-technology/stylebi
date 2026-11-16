@@ -152,4 +152,59 @@ class ScheduleCycleServiceTest {
       assertEquals(List.of(cycle), result.cycles());
       verifyNoInteractions(securityProvider);
    }
+
+   private void allowAccess(String name, boolean allowed) throws Exception {
+      lenient().when(securityEngine.checkPermission(
+         principal, ResourceType.SCHEDULE_CYCLE,
+         ScheduleCycleService.getCyclePermissionID(name, "host-org"), ResourceAction.ACCESS))
+         .thenReturn(allowed);
+   }
+
+   private void stubDeleteSupport() {
+      lenient().when(principal.getName()).thenReturn(new IdentityID("admin", "host-org").convertToKey());
+      sutilStatic.when(() -> SUtil.getActionRecord(any(Principal.class), anyString(), any(), anyString()))
+         .thenReturn(new inetsoft.util.audit.ActionRecord());
+      lenient().when(schedulerMonitoringService.getDataCycleInfos()).thenReturn(new DataCycleInfo[0]);
+   }
+
+   @Test
+   void removeCycles_deniedCycleThrowsAndDeletesNothing() throws Exception {
+      stubDeleteSupport();
+      allowAccess("Allowed", true);
+      allowAccess("Denied", false);
+
+      assertThrows(inetsoft.sree.security.SecurityException.class, () ->
+         service.removeCycles(
+            List.of(new DataCycleInfo("Allowed"), new DataCycleInfo("Denied")), principal));
+
+      verify(dataCycleManager, never()).removeDataCycle(anyString(), anyString());
+   }
+
+   @Test
+   void removeCycles_allAllowedDeletesEach() throws Exception {
+      stubDeleteSupport();
+      allowAccess("Allowed1", true);
+      allowAccess("Allowed2", true);
+
+      service.removeCycles(
+         List.of(new DataCycleInfo("Allowed1"), new DataCycleInfo("Allowed2")), principal);
+
+      verify(dataCycleManager).removeDataCycle("Allowed1", "host-org");
+      verify(dataCycleManager).removeDataCycle("Allowed2", "host-org");
+   }
+
+   @Test
+   void removeCycles_inUseCyclesAreJoinedWithSeparator() throws Exception {
+      stubDeleteSupport();
+      allowAccess("Cycle1", true);
+      allowAccess("Cycle2", true);
+      when(dataCycleManager.hasPregeneratedDependency("Cycle1")).thenReturn(true);
+      when(dataCycleManager.hasPregeneratedDependency("Cycle2")).thenReturn(true);
+
+      Exception ex = assertThrows(Exception.class, () -> service.removeCycles(
+         List.of(new DataCycleInfo("Cycle1"), new DataCycleInfo("Cycle2")), principal));
+
+      assertTrue(ex.getMessage().contains("Cycle1, Cycle2"), ex.getMessage());
+      verify(dataCycleManager, never()).removeDataCycle(anyString(), anyString());
+   }
 }
