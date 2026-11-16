@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.service;
 
+import inetsoft.uql.tabular.HttpParameter;
 import inetsoft.uql.tabular.PropertyMeta;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.RestParameters;
@@ -28,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +84,32 @@ public final class TabularEndpointBindingSupport {
                                                String expandedPath, String dsName)
       throws Exception
    {
+      return applyEndpointContract(
+         query, pmap, endpoint, parameters, jsonPath, expanded, expandedPath, null, dsName);
+   }
+
+   /**
+    * Same as the overload above, for a caller that also owns the endpoint-level settings carried
+    * in {@code extraProperties}: {@value #CUSTOM_ENDPOINT_PROPERTY} (the literal URL suffix an
+    * {@value #CUSTOM_ENDPOINT} endpoint calls) and {@value #ADDITIONAL_PARAMETERS_PROPERTY} (extra
+    * query-string values). Both shape the URL suffix this method reads back at the end, so they
+    * have to be written here, before that read -- applied afterwards, as every other
+    * {@code extraProperties} entry is, a {@value #CUSTOM_ENDPOINT} endpoint has no suffix to read
+    * and the call dies on it.
+    *
+    * @param extraProperties the request's {@code extraProperties} ({@code null} when the caller
+    *                        does not manage them: the query keeps whatever it already holds).
+    *                        Non-null means the request restates the whole query, so an omitted
+    *                        {@value #ADDITIONAL_PARAMETERS_PROPERTY} is cleared instead of keeping
+    *                        what an earlier edit set.
+    */
+   public static String applyEndpointContract(TabularQuery query, Map<String, PropertyMeta> pmap,
+                                               String endpoint, Map<String, String> parameters,
+                                               String jsonPath, Boolean expanded,
+                                               String expandedPath,
+                                               Map<String, Object> extraProperties, String dsName)
+      throws Exception
+   {
       PropertyMeta endpointProp = pmap.get("endpoint");
 
       if(endpointProp == null) {
@@ -103,6 +131,8 @@ public final class TabularEndpointBindingSupport {
             "Failed to select endpoint '" + trimmedEndpoint + "' on the query for '" + dsName +
             "'; see the server log for the reflection failure.");
       }
+
+      applyEndpointSettings(query, pmap, trimmedEndpoint, extraProperties, dsName);
 
       // Read AFTER the endpoint is set, because that is when the connector's updatePagination has
       // decided it. A POST endpoint is refused rather than attempted: the body it needs is carried
@@ -178,6 +208,208 @@ public final class TabularEndpointBindingSupport {
       }
 
       return s;
+   }
+
+   /**
+    * The connector's internal endpoint value for "call the URL suffix in
+    * {@value #CUSTOM_ENDPOINT_PROPERTY}" ({@code EndpointJsonQuery.isCustomEndpoint}). It is in
+    * every endpoint connector's {@code getEndpoints()} but has no endpoint-catalogue entry, so
+    * no template, no parameter contract and no lookups.
+    */
+   public static final String CUSTOM_ENDPOINT = "CUSTOM";
+
+   /** The query property holding the literal suffix of a {@value #CUSTOM_ENDPOINT} endpoint. */
+   public static final String CUSTOM_ENDPOINT_PROPERTY = "customEndpt";
+
+   /** The query property holding extra query-string values appended to the endpoint's URL. */
+   public static final String ADDITIONAL_PARAMETERS_PROPERTY = "additionalParameters";
+
+   /**
+    * The {@code extraProperties} entries {@link #applyEndpointContract} owns for an endpoint-form
+    * request. A caller hands whatever is left to the generic contract path, which refuses the
+    * composite {@value #ADDITIONAL_PARAMETERS_PROPERTY} and would see
+    * {@value #CUSTOM_ENDPOINT_PROPERTY} only after the suffix had to be read.
+    */
+   public static Map<String, Object> withoutEndpointSettings(Map<String, Object> extraProperties) {
+      Map<String, Object> rest = new LinkedHashMap<>(extraProperties);
+      rest.remove(CUSTOM_ENDPOINT_PROPERTY);
+      rest.remove(ADDITIONAL_PARAMETERS_PROPERTY);
+      return rest;
+   }
+
+   /**
+    * Write the {@value #CUSTOM_ENDPOINT_PROPERTY} and {@value #ADDITIONAL_PARAMETERS_PROPERTY}
+    * settings, each read back, and refuse by name what cannot work. Every refusal here replaces a
+    * path that used to end in an unexpected server error or in a URL different from the one asked
+    * for.
+    */
+   private static void applyEndpointSettings(TabularQuery query, Map<String, PropertyMeta> pmap,
+                                             String endpoint, Map<String, Object> extraProperties,
+                                             String dsName)
+   {
+      Object requestedPath =
+         extraProperties == null ? null : extraProperties.get(CUSTOM_ENDPOINT_PROPERTY);
+      PropertyMeta pathProp = pmap.get(CUSTOM_ENDPOINT_PROPERTY);
+
+      if(CUSTOM_ENDPOINT.equals(endpoint)) {
+         if(pathProp == null) {
+            throw new IllegalArgumentException(
+               "Endpoint '" + CUSTOM_ENDPOINT + "' of '" + dsName + "' has no " +
+               CUSTOM_ENDPOINT_PROPERTY + " property to carry its URL suffix; choose a named " +
+               "endpoint (see list_endpoint_lookups).");
+         }
+
+         if(requestedPath != null && !(requestedPath instanceof String)) {
+            throw new IllegalArgumentException(
+               "extraProperties." + CUSTOM_ENDPOINT_PROPERTY + " must be a string (the literal " +
+               "URL suffix), got " + requestedPath.getClass().getSimpleName() + ".");
+         }
+
+         // The request's value, else what the query already carries: an edit restating
+         // endpoint 'CUSTOM' works on a clone that holds the saved suffix.
+         Object current = pathProp.getValue(query);
+         String path = requestedPath != null ? ((String) requestedPath).trim()
+            : current instanceof String c ? c.trim() : "";
+
+         if(path.isEmpty()) {
+            throw new IllegalArgumentException(
+               "Endpoint '" + CUSTOM_ENDPOINT + "' of '" + dsName + "' calls the URL suffix you " +
+               "supply, so extraProperties." + CUSTOM_ENDPOINT_PROPERTY + " is required, for " +
+               "example {\"" + CUSTOM_ENDPOINT_PROPERTY + "\": \"/v1/items?limit=3\"}.");
+         }
+
+         if(path.indexOf('{') >= 0 || path.indexOf('}') >= 0) {
+            throw new IllegalArgumentException(
+               "extraProperties." + CUSTOM_ENDPOINT_PROPERTY + " '" + path + "' contains a " +
+               "{placeholder}; endpoint '" + CUSTOM_ENDPOINT + "' has no parameters to fill it " +
+               "from, so write the literal path.");
+         }
+
+         if(requestedPath != null) {
+            pathProp.setValue(query, path);
+
+            if(!path.equals(pathProp.getValue(query))) {
+               throw new IllegalStateException(
+                  "Failed to set " + CUSTOM_ENDPOINT_PROPERTY + " on the query for '" + dsName +
+                  "'; see the server log for the reflection failure.");
+            }
+         }
+      }
+      else if(requestedPath != null) {
+         throw new IllegalArgumentException(
+            "extraProperties." + CUSTOM_ENDPOINT_PROPERTY + " only applies to endpoint '" +
+            CUSTOM_ENDPOINT + "'; endpoint '" + endpoint + "' builds its own URL.");
+      }
+
+      if(extraProperties == null) {
+         return;
+      }
+
+      Object rawExtra = extraProperties.get(ADDITIONAL_PARAMETERS_PROPERTY);
+      PropertyMeta extraProp = pmap.get(ADDITIONAL_PARAMETERS_PROPERTY);
+
+      if(extraProp == null) {
+         if(rawExtra != null) {
+            throw new IllegalArgumentException(
+               "Data source '" + dsName + "' has no " + ADDITIONAL_PARAMETERS_PROPERTY +
+               " property.");
+         }
+
+         return;
+      }
+
+      // Written even when omitted: the request restates the whole query, so an edit that no
+      // longer names additionalParameters drops the ones an earlier call set.
+      HttpParameter[] parsed = rawExtra == null ? null : parseAdditionalParameters(rawExtra);
+      extraProp.setValue(query, parsed);
+      Object readBack = extraProp.getValue(query);
+      int expected = parsed == null ? 0 : parsed.length;
+      int actual = readBack instanceof HttpParameter[] a ? a.length : 0;
+
+      if(expected != actual) {
+         throw new IllegalStateException(
+            "Failed to set " + ADDITIONAL_PARAMETERS_PROPERTY + " on the query for '" + dsName +
+            "'; see the server log for the reflection failure.");
+      }
+   }
+
+   /**
+    * Parse {@value #ADDITIONAL_PARAMETERS_PROPERTY}: a query string ({@code "a=1&b=2"}) or a list
+    * of {@code {name, value}} objects. The query-string form splits on {@code &} and the first
+    * {@code =} and does not URL-decode or encode, so a value containing either character has to
+    * use the list form. Query-string values only -- the connector appends every
+    * entry to the URL whatever its type, so a HEADER entry would reach the server as a query
+    * value instead of a header, and is refused.
+    */
+   static HttpParameter[] parseAdditionalParameters(Object raw) {
+      List<HttpParameter> result = new ArrayList<>();
+
+      if(raw instanceof String text) {
+         for(String pair : text.split("&")) {
+            if(pair.isBlank()) {
+               continue;
+            }
+
+            int eq = pair.indexOf('=');
+
+            if(eq <= 0) {
+               throw new IllegalArgumentException(
+                  ADDITIONAL_PARAMETERS_PROPERTY + " entry '" + pair + "' is not name=value.");
+            }
+
+            result.add(queryParameter(pair.substring(0, eq), pair.substring(eq + 1)));
+         }
+      }
+      else if(raw instanceof Collection<?> items) {
+         for(Object item : items) {
+            if(!(item instanceof Map<?, ?> entry)) {
+               throw new IllegalArgumentException(
+                  ADDITIONAL_PARAMETERS_PROPERTY + " list entries must be {name, value} objects, " +
+                  "got " + (item == null ? "null" : item.getClass().getSimpleName()) + ".");
+            }
+
+            for(Object key : entry.keySet()) {
+               if(!"name".equals(key) && !"value".equals(key) && !"type".equals(key)) {
+                  throw new IllegalArgumentException(
+                     ADDITIONAL_PARAMETERS_PROPERTY + " entries take name, value and type only; " +
+                     "got '" + key + "'.");
+               }
+            }
+
+            Object type = entry.get("type");
+
+            if(type != null && !"QUERY".equalsIgnoreCase(type.toString())) {
+               throw new IllegalArgumentException(
+                  ADDITIONAL_PARAMETERS_PROPERTY + " supports query-string values only; type '" +
+                  type + "' is not supported (a header value cannot be sent this way).");
+            }
+
+            Object name = entry.get("name");
+            Object value = entry.get("value");
+            result.add(queryParameter(name == null ? null : name.toString(),
+                                      value == null ? "" : value.toString()));
+         }
+      }
+      else {
+         throw new IllegalArgumentException(
+            ADDITIONAL_PARAMETERS_PROPERTY + " must be a query string like \"a=1&b=2\" or a " +
+            "list of {name, value} objects, got " + raw.getClass().getSimpleName() + ".");
+      }
+
+      return result.isEmpty() ? null : result.toArray(new HttpParameter[0]);
+   }
+
+   private static HttpParameter queryParameter(String name, String value) {
+      if(name == null || name.isBlank()) {
+         throw new IllegalArgumentException(
+            ADDITIONAL_PARAMETERS_PROPERTY + " entries need a non-blank name.");
+      }
+
+      HttpParameter parameter = new HttpParameter();
+      parameter.setName(name.trim());
+      parameter.setValue(value);
+      parameter.setType(HttpParameter.ParameterType.QUERY);
+      return parameter;
    }
 
    /**
@@ -548,10 +780,17 @@ public final class TabularEndpointBindingSupport {
       }
 
       if(!names.isEmpty() && !names.contains(endpoint)) {
-         List<String> sample = names.stream().sorted().limit(20).toList();
+         // CUSTOM is accepted but kept out of the sample: it is not an entry of the endpoint
+         // catalogue list_endpoint_lookups shows, and it is described separately below.
+         List<String> sample = names.stream()
+            .filter(name -> !CUSTOM_ENDPOINT.equals(name)).sorted().limit(20).toList();
          throw new IllegalArgumentException(
             "Data source '" + dsName + "' has no endpoint named '" + endpoint + "'. It has " +
-            names.size() + " endpoint(s), for example: " + String.join(", ", sample) + ".");
+            names.size() + " endpoint(s), for example: " + String.join(", ", sample) + "." +
+            (names.contains(CUSTOM_ENDPOINT)
+               ? " To call a URL of your own use endpoint '" + CUSTOM_ENDPOINT + "' with " +
+                 "extraProperties." + CUSTOM_ENDPOINT_PROPERTY + "."
+               : ""));
       }
    }
 
