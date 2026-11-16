@@ -25,6 +25,7 @@ import inetsoft.uql.table.XTableColumnCreator;
 import inetsoft.uql.util.TableWrapper;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.expr.ExprParser;
+import inetsoft.uql.util.expr.TokenMgrError;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 import inetsoft.util.algo.BidiMap;
@@ -55,7 +56,7 @@ public class XSelection implements java.io.Serializable, java.lang.Cloneable {
 
          return parser.xselection();
       }
-      catch(Exception e) {
+      catch(Exception | TokenMgrError e) {
          LOG.error("Failed to parse selection expression: " + select, e);
          throw new java.text.ParseException(e.toString(), 0);
       }

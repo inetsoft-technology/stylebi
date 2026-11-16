@@ -22,6 +22,7 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.TableTree;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.expr.ExprParser;
+import inetsoft.uql.util.expr.TokenMgrError;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +59,7 @@ public class XNodePath implements java.io.Serializable, Cloneable {
 
          return xpath;
       }
-      catch(Exception ex) {
+      catch(Exception | TokenMgrError ex) {
          LOG.error("Failed to parse node path: " + path, ex);
          throw new java.text.ParseException(ex.toString(), 0);
       }
@@ -430,7 +431,7 @@ public class XNodePath implements java.io.Serializable, Cloneable {
 
                   pnode.setCondition(cond);
                }
-               catch(Exception ex) {
+               catch(Exception | TokenMgrError ex) {
                   LOG.error("Failed to parse expression: " + cstr, ex);
                }
             }
