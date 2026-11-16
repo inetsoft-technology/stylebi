@@ -511,6 +511,57 @@ class ViewsheetChangePlanServiceTest {
       assertTrue(plan.requiresStorageBackup());
    }
 
+   private static ViewsheetChangeRequest updateChange(String unitType, String assetId, String path,
+                                                       String description)
+   {
+      ViewsheetChangeRequest change = new ViewsheetChangeRequest();
+      change.setUnitType(unitType);
+      change.setVerb(ViewsheetChangeRequest.VERB_UPDATE);
+      change.setAssetId(assetId);
+      change.setPath(path);
+      change.setDescription(description);
+      return change;
+   }
+
+   /** Bug #81072: a folder update only writes registry alias/description, which the rollback
+    * writes back, so it skips the snapshot (alone, and mixed with a create). */
+   @Test void resolveFolderUpdateOnlyPlanSkipsStorageBackup() throws Exception {
+      stubFolder("Examples/Old Folder", null, true);
+      ViewsheetChangeRequest update = updateChange(
+         ViewsheetChangeRequest.UNIT_FOLDER, null, "Examples/Old Folder", "new description");
+
+      assertFalse(service.resolve(request("task", List.of(update)), user).requiresStorageBackup());
+
+      stubFolder("Examples/New Folder", null, false);
+      assertFalse(service.resolve(request("task", List.of(
+         update, createFolderChange("Examples", "New Folder", null))), user)
+                     .requiresStorageBackup());
+   }
+
+   /** A viewsheet update re-saves the whole sheet (modified stamp, dependency back-edges), so it
+    * keeps the snapshot even though it only sets alias/description. */
+   @Test void resolveViewsheetAndWorksheetUpdateKeepStorageBackup() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      lenient().when(viewsheetApiService.getViewsheetMetadata(eq(VS_ASSET_ID), eq(user)))
+         .thenReturn(new inetsoft.web.admin.sheet.vs.ViewsheetService.Metadata("alias", "old"));
+      ViewsheetChangeRequest update = updateChange(
+         ViewsheetChangeRequest.UNIT_VIEWSHEET, VS_ASSET_ID, null, "new description");
+
+      assertTrue(service.resolve(request("task", List.of(update)), user).requiresStorageBackup());
+   }
+
+   @Test void resolveFolderRenameAndDeleteKeepStorageBackup() throws Exception {
+      stubFolder("Examples/Old Folder", null, true);
+      stubFolder("Examples/New Folder", null, false);
+      stubFolderContents(new AssetEntry[0]);
+
+      assertTrue(service.resolve(request("task", List.of(
+         renameFolderChange("Examples/Old Folder", "Examples/New Folder", null))), user)
+                    .requiresStorageBackup());
+      assertTrue(service.resolve(request("task", List.of(
+         deleteFolderChange("Examples/Old Folder", null))), user).requiresStorageBackup());
+   }
+
    @Test void resolveFolderCreateAcceptsAddAlias() throws Exception {
       stubFolder("Examples/New Folder", null, false);
       ViewsheetChangeRequest change = createFolderChange("Examples", "New Folder", null);
