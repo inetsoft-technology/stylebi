@@ -207,14 +207,14 @@ describe.each([true, false])("shift-click range then Remove (embeddedOnly=%s)", 
       expect(selectedNames(comp)).toEqual(["uC"]);
    });
 
-   it("upward shift-click keeps its behavior and loses no data", async () => {
+   it("upward shift-click selects the range (Bug #80366) and loses no other data", async () => {
       const { comp, fixture, rows, remove } = await setup();
       fireEvent.click(rows()[2]);
       fireEvent.click(rows()[0], { shiftKey: true });
-      expect(selectedNames(comp)).toEqual(["uC", "uA"]);
+      expect(selectedNames(comp).sort()).toEqual(["uA", "uB", "uC"]);
       remove();
       fixture.detectChanges();
-      expect(names(comp)).toEqual(["uB", "uD"]);
+      expect(names(comp)).toEqual(["uD"]);
    });
 });
 
@@ -273,5 +273,54 @@ describe("Remove, re-add and remove again after a shift range", () => {
       remove();
       fixture.detectChanges();
       expect(names(comp)).toEqual(["uA", "uD"]);
+   });
+});
+
+describe("shift-click range in the filtered right list (Bug #80366)", () => {
+   async function setupFiltered() {
+      const ctx = await renderPane(true);
+      addNodes(ctx.comp, ...["Alice", "Bob", "Carol", "Dave"].map(userNode));
+      ctx.comp.updateSearchIdentityText("a");
+      ctx.comp.onSearchIdentity("a");
+      ctx.fixture.detectChanges();
+      // Bob is filtered out
+      expect(ctx.rows()).toHaveLength(3);
+      return ctx;
+   }
+
+   it("only selects the displayed rows between the two clicks", async () => {
+      const { comp, rows } = await setupFiltered();
+      const shown = rows().map((r) => r.textContent!.trim());
+      const alice = shown.findIndex((t) => t.includes("Alice"));
+      const carol = shown.findIndex((t) => t.includes("Carol"));
+      fireEvent.click(rows()[alice]);
+      fireEvent.click(rows()[carol], { shiftKey: true });
+      expect(selectedNames(comp).sort()).toEqual(["Alice", "Carol"]);
+   });
+
+   it("Remove keeps the hidden row that was never selected", async () => {
+      const { comp, fixture, rows, remove } = await setupFiltered();
+      const shown = rows().map((r) => r.textContent!.trim());
+      fireEvent.click(rows()[shown.findIndex((t) => t.includes("Alice"))]);
+      fireEvent.click(rows()[shown.findIndex((t) => t.includes("Carol"))], { shiftKey: true });
+      remove();
+      comp.updateSearchIdentityText("");
+      comp.onSearchIdentity("");
+      fixture.detectChanges();
+      expect(names(comp)).toEqual(["Bob", "Dave"]);
+   });
+});
+
+describe("shift-click above the anchor (Bug #80366)", () => {
+   it("selects the range upwards and Remove removes exactly that range", async () => {
+      const { comp, fixture, rows, remove } = await renderPane(true);
+      addNodes(comp, ...["uA", "uB", "uC", "uD"].map(userNode));
+      fixture.detectChanges();
+      fireEvent.click(rows()[2]);
+      fireEvent.click(rows()[0], { shiftKey: true });
+      expect(selectedNames(comp).sort()).toEqual(["uA", "uB", "uC"]);
+      remove();
+      fixture.detectChanges();
+      expect(names(comp)).toEqual(["uD"]);
    });
 });

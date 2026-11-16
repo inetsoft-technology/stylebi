@@ -414,7 +414,8 @@ export class TaskActionPane implements OnInit {
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message).then(
          (result: string) => {
             if(result === "ok") {
-               const actions: number[] = Tool.clone(this.selectedActions);
+               // dedupe so a repeated index can never remove the following row
+               const actions: number[] = Array.from(new Set<number>(this.selectedActions));
                // Bug #77973, sort the indexes as numbers, not as strings
                actions.sort((a, b) => a - b);
 
