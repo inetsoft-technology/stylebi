@@ -233,10 +233,9 @@ public class TableConverter {
                                               String name)
    {
 
-      name = name.replaceAll("\\.", "_");
-      name = name.replaceAll(" ", "_");
-      name = name.replaceAll(":", "_");
-      name = name.replaceAll("'", "_");
+      // same as the default cell name of a freehand cell, so the name is a valid script
+      // identifier when used in the TopN/Others condition
+      name = TableCellBinding.getValidName(name);
 
       if(isValidName(olayout, name) && isValidName(nlayout, name)) {
          return name;
