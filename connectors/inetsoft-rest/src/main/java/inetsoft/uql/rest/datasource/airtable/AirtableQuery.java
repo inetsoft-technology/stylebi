@@ -21,7 +21,9 @@ import inetsoft.uql.rest.json.EndpointJsonQuery;
 import inetsoft.uql.rest.pagination.*;
 import inetsoft.uql.tabular.*;
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.CoreTool;
 
+import java.util.Locale;
 import java.util.Map;
 
 @View(vertical = true, value = {
@@ -104,6 +106,21 @@ public class AirtableQuery extends EndpointJsonQuery<AirtableEndpoint> {
       }
    }
 
+   /**
+    * Airtable writes the date of a "local" date field in the order of the User Locale parameter.
+    */
+   @Override
+   public Boolean getDmyOrder() {
+      RestParameter param = getParameters().findParameter(USER_LOCALE);
+      String locale = param == null ? null : param.getValue();
+
+      if(locale == null || locale.isBlank()) {
+         return null;
+      }
+
+      return CoreTool.isDmyOrder(Locale.forLanguageTag(locale.trim().replace('_', '-')));
+   }
+
    @Override
    public Map<String, AirtableEndpoint> getEndpointMap() {
       if("true".equals(SreeEnv.getProperty("debug.endpoints"))) {
@@ -112,6 +129,8 @@ public class AirtableQuery extends EndpointJsonQuery<AirtableEndpoint> {
 
       return Singleton.INSTANCE.endpoints;
    }
+
+   private static final String USER_LOCALE = "User Locale";
 
    enum Singleton {
       INSTANCE;

@@ -2490,17 +2490,10 @@ public class CoreTool {
 
       builder.setMonthMap(getMonthMap(locales));
 
-      if(isDmyOrder != null) {
-         builder.setDmyOrder(isDmyOrder);
-      }
-      else {
-         // the Gregorian pattern, a Japanese calendar pattern starts with the era (G)
-         DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT, getGregorianLocale(locale));
+      Boolean dmyOrder = isDmyOrder != null ? isDmyOrder : isDmyOrder(locale);
 
-         if(df instanceof SimpleDateFormat) {
-            String pattern = ((SimpleDateFormat) df).toPattern();
-            builder.setDmyOrder(!pattern.startsWith("M") && !pattern.startsWith("y"));
-         }
+      if(dmyOrder != null) {
+         builder.setDmyOrder(dmyOrder);
       }
 
       config = DateTimeConfig.fromBuilder(builder);
@@ -2509,6 +2502,26 @@ public class CoreTool {
          .put(key, config)
          .build();
       return config;
+   }
+
+   /**
+    * Determines whether the short date pattern of a locale writes the day before the month.
+    *
+    * @param locale the locale of the date text.
+    *
+    * @return true if day is before month, false if month is before day, or null if the locale's
+    * short date pattern is not available.
+    */
+   public static Boolean isDmyOrder(Locale locale) {
+      // the Gregorian pattern, a Japanese calendar pattern starts with the era (G)
+      DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT, getGregorianLocale(locale));
+
+      if(df instanceof SimpleDateFormat) {
+         String pattern = ((SimpleDateFormat) df).toPattern();
+         return !pattern.startsWith("M") && !pattern.startsWith("y");
+      }
+
+      return null;
    }
 
    public static MonthMap getMonthMap(List<Locale> localeList) {

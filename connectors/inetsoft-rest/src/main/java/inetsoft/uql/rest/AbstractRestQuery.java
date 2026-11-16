@@ -147,6 +147,17 @@ public abstract class AbstractRestQuery extends TabularQuery {
       super.setTimeout(seconds);
    }
 
+   /**
+    * Gets the order in which the data source writes the day and month of slash separated dates,
+    * e.g. 5/10/2026.
+    *
+    * @return true if the day is before the month, false if the month is before the day, or null
+    * if the data source does not declare it, in which case the order of the server locale is used.
+    */
+   public Boolean getDmyOrder() {
+      return null;
+   }
+
    public String getRowsPath() {
       return rowsPath;
    }
