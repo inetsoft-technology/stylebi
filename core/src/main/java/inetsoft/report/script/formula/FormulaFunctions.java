@@ -104,7 +104,7 @@ public class FormulaFunctions {
       }
       else {
          isArray = JavaScriptEngine.isArray(arrObj);
-         arr = isArray ? JavaScriptEngine.split(arrObj) : new Object[] {arrObj};
+         arr = isArray ? JavaScriptEngine.split(arrObj).clone() : new Object[] {arrObj};
          // @see comment in mapList
          // arr = (isArray || arrObj == null) ? JavaScriptEngine.split(arrObj) :
          //   new Object[] {arrObj};
@@ -806,7 +806,7 @@ public class FormulaFunctions {
          // create a zero length array, it will cause the value be ignored,
          // function toArray, toList also have problem
          // fix bug1285489437478
-         arr = isArray ? JavaScriptEngine.split(arrObj) : new Object[] {arrObj};
+         arr = isArray ? JavaScriptEngine.split(arrObj).clone() : new Object[] {arrObj};
          // arr = (isArray || arrObj == null) ? JavaScriptEngine.split(arrObj) :
          //    new Object[] {arrObj};
       }

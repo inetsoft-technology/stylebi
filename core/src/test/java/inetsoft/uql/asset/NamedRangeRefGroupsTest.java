@@ -222,7 +222,6 @@ class NamedRangeRefGroupsTest {
    // The SQL of a group whose only member is a null ends with an empty list, "WHEN x IN ()",
    // which is a syntax error (#81236).
    @Test
-   @Disabled("#81236: a group of only a null gives IN () in the SQL expression")
    void groupOfOnlyNullInSql() throws Exception {
       NamedRangeRef ref = groups(XSchema.STRING, "Missing", Arrays.asList((Object) null),
                                  "B", values("b"));
