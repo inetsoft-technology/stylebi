@@ -1742,7 +1742,10 @@ class AssemblyHighlightServiceTest {
    }
    private static Harness harness(HighlightDialogModel model) {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      // Default existing assembly (passes requireHighlightRenderable); per-test stubs registered later win.
+      when(viewsheet.getAssembly(anyString())).thenReturn(mock(TextVSAssembly.class));
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(rvs.getID()).thenReturn("rt1");
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
