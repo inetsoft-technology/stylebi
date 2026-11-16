@@ -68,6 +68,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.tabular.HttpParameter;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
@@ -10485,6 +10486,129 @@ class WorksheetAgentControllerTest {
 
       assertTrue(ex.getMessage().contains("CUSTOM"), ex.getMessage());
       assertFalse(ex.getMessage().toLowerCase().contains("unexpected"), ex.getMessage());
+   }
+
+   /**
+    * Bug #81478, edit_table: an edit that does not carry extraProperties does not manage
+    * customEndpt/additionalParameters, so the saved ones survive (here: a maxRows-only change with
+    * the CUSTOM endpoint restated); an edit that carries extraProperties restates them, so one that
+    * leaves additionalParameters out clears the saved ones.
+    */
+   @Test
+   void editTableCustomEndpointRestatedKeepsSavedCustomEndptAndAdditionalParameters()
+      throws Exception
+   {
+      FakeCustomEndpointQuery liveQuery = savedCustomEndpointQuery("CUSTOM");
+      liveQuery.setCustomEndpt("/saved/path");
+
+      EditRequest req = editTableRequest(
+         "Calendars", "CUSTOM", null, null, null, null, null, 10);
+
+      TabularQuery updated = runEditTable(liveQuery, "TOK-CE3", req);
+
+      assertEquals("/saved/path", ((FakeCustomEndpointQuery) updated).getCustomEndpt());
+      assertEquals("/saved/path?k=v", ((FakeCustomEndpointQuery) updated).getSuffix());
+   }
+
+   @Test
+   void editTableEndpointRestatedWithoutExtraPropertiesKeepsSavedAdditionalParameters()
+      throws Exception
+   {
+      FakeCustomEndpointQuery liveQuery = savedCustomEndpointQuery("Repos");
+
+      EditRequest req = editTableRequest(
+         "Calendars", "Repos", Map.of("id", "42"), null, null, null, null, 10);
+
+      TabularQuery updated = runEditTable(liveQuery, "TOK-CE4", req);
+
+      HttpParameter[] kept = ((FakeCustomEndpointQuery) updated).getAdditionalParameters();
+      assertNotNull(kept, "a maxRows/parameters-only edit must not wipe the saved additionalParameters");
+      assertEquals(1, kept.length);
+      assertEquals("k", kept[0].getName());
+      assertEquals("/Repos/42?k=v", ((FakeCustomEndpointQuery) updated).getSuffix());
+   }
+
+   @Test
+   void editTableExtraPropertiesWithoutAdditionalParametersClearsTheSavedOnes() throws Exception {
+      FakeCustomEndpointQuery liveQuery = savedCustomEndpointQuery("Repos");
+
+      EditRequest req = editTableRequest(
+         "Calendars", "Repos", Map.of("id", "42"), null, null, null,
+         Map.of("jsonPath", "$.items[*]"), 10);
+
+      TabularQuery updated = runEditTable(liveQuery, "TOK-CE5", req);
+
+      assertNull(((FakeCustomEndpointQuery) updated).getAdditionalParameters());
+      assertEquals("/Repos/42", ((FakeCustomEndpointQuery) updated).getSuffix());
+      assertEquals("$.items[*]", ((FakeCustomEndpointQuery) updated).getJsonPath());
+   }
+
+   private static FakeCustomEndpointQuery savedCustomEndpointQuery(String endpoint) {
+      FakeCustomEndpointQuery liveQuery = new FakeCustomEndpointQuery();
+      liveQuery.setEndpoint(endpoint);
+      HttpParameter saved = new HttpParameter();
+      saved.setName("k");
+      saved.setValue("v");
+      saved.setType(HttpParameter.ParameterType.QUERY);
+      liveQuery.setAdditionalParameters(new HttpParameter[] { saved });
+      return liveQuery;
+   }
+
+   /** Runs edit_table on a live assembly bound to {@code liveQuery}; returns the committed query. */
+   private TabularQuery runEditTable(FakeCustomEndpointQuery liveQuery, String token,
+                                     EditRequest req) throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Calendars");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      TabularDataSource<?> tabularDs = mock(TabularDataSource.class);
+      when(tabularDs.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(tabularDs);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      // The generic extraProperties path reads the connector's resource bundle through this bean.
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try {
+         assertDoesNotThrow(() -> ctrl.edit(token, req, agent));
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+
+      return ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
    }
 
    private void runAddTabularTableEndpoint(FakeCustomEndpointQuery query, String token,

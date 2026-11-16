@@ -18,9 +18,12 @@
 
 package inetsoft.web.wiz.service;
 
+import inetsoft.uql.VariableTable;
+import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.tabular.HttpParameter;
 import inetsoft.uql.tabular.Property;
-import inetsoft.uql.tabular.RestParameter;
+import inetsoft.uql.tabular.View;
+import inetsoft.uql.tabular.View1;
 
 import java.util.Arrays;
 
@@ -28,9 +31,32 @@ import java.util.Arrays;
  * {@link FakeNamedConnectorQuery} plus the {@code CUSTOM} endpoint every real
  * {@code EndpointJsonQuery} adds to its endpoint list, with the same suffix behaviour: a
  * {@code CUSTOM} endpoint's suffix is its {@code customEndpt} (an {@code IllegalArgumentException}
- * when that was never set) with the additional parameters appended as a query string.
+ * when that was never set) with the additional parameters appended as a query string. It reports one
+ * output column for every endpoint, so {@code edit_table}'s live probe succeeds. {@code @View} is
+ * re-declared because annotations are not inherited and the generic extraProperties path needs it.
  */
+@View(vertical = true, value = {
+   @View1("endpoint"),
+   @View1("parameters"),
+   @View1("requestType"),
+   @View1("suffix"),
+   @View1("customEndpt"),
+   @View1("jsonPath"),
+   @View1("expanded"),
+   @View1("expandedPath"),
+   @View1("lookupExpanded"),
+   @View1("lookupTopLevelOnly"),
+   @View1("lookupEndpoint0"),
+   @View1("lookupEndpoint1"),
+   @View1("additionalParameters"),
+})
 public class FakeCustomEndpointQuery extends FakeNamedConnectorQuery {
+   @Override
+   public void loadOutputColumns(VariableTable vtable) throws Exception {
+      super.loadOutputColumns(vtable);
+      setOutputColumns(new XTypeNode[] { new XTypeNode("c") });
+   }
+
    @Override
    public String[][] getEndpoints() {
       String[][] base = super.getEndpoints();

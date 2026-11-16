@@ -335,7 +335,9 @@ public final class TabularEndpointBindingSupport {
 
    /**
     * Parse {@value #ADDITIONAL_PARAMETERS_PROPERTY}: a query string ({@code "a=1&b=2"}) or a list
-    * of {@code {name, value}} objects. Query-string values only -- the connector appends every
+    * of {@code {name, value}} objects. The query-string form splits on {@code &} and the first
+    * {@code =} and does not URL-decode or encode, so a value containing either character has to
+    * use the list form. Query-string values only -- the connector appends every
     * entry to the URL whatever its type, so a HEADER entry would reach the server as a query
     * value instead of a header, and is refused.
     */

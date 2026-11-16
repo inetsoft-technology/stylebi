@@ -1968,10 +1968,12 @@ public class WorksheetAgentController {
             }
 
             // customEndpt/additionalParameters shape the suffix, so they are written here, before
-            // it is read; an edit that omits additionalParameters clears the saved ones.
+            // it is read. A request without extraProperties does not manage them (null): the
+            // clone keeps the saved ones. A request that carries extraProperties restates them,
+            // so one that omits additionalParameters clears the saved ones.
             resolvedSuffix = TabularEndpointBindingSupport.applyEndpointContract(
                scratchQuery, pmap, req.endpoint(), req.parameters(), null, null, null,
-               hasExtraProperties ? req.extraProperties() : Map.of(), dsName);
+               hasExtraProperties ? req.extraProperties() : null, dsName);
 
             if(req.maxRows() != null) {
                scratchQuery.setMaxRows(req.maxRows());
