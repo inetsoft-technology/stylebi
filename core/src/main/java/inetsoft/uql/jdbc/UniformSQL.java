@@ -2957,7 +2957,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String path = xselect.getColumn(i);
 
          if(isTableColumn(path)) {
-            String oldTableAlias = getAliasMapKey(getTableFromPath(path), aliasMap);
+            String oldTableAlias = getAliasMapKey(getTableFromPath(path), path, aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -2974,8 +2974,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   (JDBCSelection) xselect : null;
                // the flag of this column, which keeps it under the new name
                boolean quoted = jselect != null && jselect.isQuoted(i);
-               String col = getColumnFromPath(path, oldTableAlias,
-                  quoted ? jselect.getQuotedColumn(i) : null, quoted);
+               String dotted = getDottedColumn(path, oldTableAlias);
+               String col = dotted != null ? dotted :
+                  getColumnFromPath(path, oldTableAlias,
+                                    quoted ? jselect.getQuotedColumn(i) : null, quoted);
                String alias = xselect.getAlias(i);
 
                if(alias != null && alias.startsWith(oldTableAlias + ".")) {
@@ -3048,7 +3050,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                continue;
             }
 
-            String oldTableAlias = getAliasMapKey(getTableFromPath(field), aliasMap);
+            String oldTableAlias = getAliasMapKey(getTableFromPath(field), field, aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -3072,7 +3074,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                continue;
             }
 
-            String oldTableAlias = getAliasMapKey(getTableFromPath((String) groups[i]), aliasMap);
+            String oldTableAlias = getAliasMapKey(getTableFromPath((String) groups[i]), (String) groups[i], aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -3108,6 +3110,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * @param quote the quoting of the item, see getQuote(OrderByItem).
     */
    private String getRenamedColumn(String path, String table, String quote) {
+      String dotted = getDottedColumn(path, table);
+
+      if(dotted != null) {
+         return dotted;
+      }
+
       if(quote == null && table != null && table.startsWith("\"") &&
          path.startsWith(table + ".") && path.length() > table.length() + 1)
       {
@@ -3218,7 +3226,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          String path = (String) expr.getValue();
-         String table = getAliasMapKey(getTableFromPath(path), aliasmap);
+         String table = getAliasMapKey(getTableFromPath(path), path, aliasmap);
          String quote = getSQLHelper().getQuote();
 
          if(aliasmap.containsKey(table)) {
@@ -3228,7 +3236,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                return false;
             }
 
-            String col = getColumnFromPath(path);
+            String dotted = getDottedColumn(path, table);
+            String col = dotted != null ? dotted : getColumnFromPath(path);
 
             if(!col.startsWith(newTable)) {
                expr.setValue(newTable + "." + col, XExpression.FIELD);
@@ -3267,6 +3276,69 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       String quoted = getInBandQuoted(table);
       return quoted != null && aliasmap.containsKey(quoted) ? quoted : table;
+   }
+
+   /**
+    * Get the key of the alias map that the table of a path names. A column name can
+    * contain a dot (AA.BB..cc is the column ".cc" of the table AA.BB), so the qualifier
+    * cut at the last dot is not a table, and the key is the table that the path starts
+    * with (Bug #80218).
+    * @param table the table qualifier of the path, cut at the last dot.
+    * @return the key of the table qualifier, or of the longest table that the path
+    * starts with and that the column of the path (see getDottedColumn) follows.
+    */
+   private String getAliasMapKey(String table, String path, Map<?, ?> aliasmap) {
+      String key = getAliasMapKey(table, aliasmap);
+
+      if(key != null && aliasmap.containsKey(key) || path == null) {
+         return key;
+      }
+
+      String best = longestDottedTable(path, aliasmap.keySet());
+
+      if(best == null) {
+         // the path was already renamed (the joins by processRenameJoins), so it starts
+         // with the new alias of a table, like the path of a column without a dot
+         best = longestDottedTable(path, aliasmap.values());
+      }
+
+      return best != null ? best : key;
+   }
+
+   // the longest of the tables that the path starts with, followed by a dotted column
+   private String longestDottedTable(String path, Collection<?> tables) {
+      String best = null;
+
+      for(Object name : tables) {
+         if(name instanceof String && getDottedColumn(path, (String) name) != null &&
+            (best == null || ((String) name).length() > best.length()))
+         {
+            best = (String) name;
+         }
+      }
+
+      return best;
+   }
+
+   /**
+    * Get the column of a path whose column name contains a dot at its start or end, such
+    * as ".cc" in AA.BB..cc. The table and the column are separated by the dot after the
+    * table, and the column starts or ends with an empty segment. A path of another table
+    * that happens to start with this table (AA and the removed table AA.BB in AA.BB.cc)
+    * has no empty segment, and isn't taken for the table. The quotes of the column are kept.
+    * @return the column, or null if the path isn't a path of the table with such a column.
+    */
+   private String getDottedColumn(String path, String table) {
+      if(path == null || table == null || table.isEmpty() || !path.startsWith(table + ".") ||
+         path.length() == table.length() + 1)
+      {
+         return null;
+      }
+
+      // the column segment may be quoted in the path, AA.BB.".cc"
+      String column = path.substring(table.length() + 1);
+      String bare = trimPath(column);
+      return bare.startsWith(".") || bare.endsWith(".") ? column : null;
    }
 
    /**
