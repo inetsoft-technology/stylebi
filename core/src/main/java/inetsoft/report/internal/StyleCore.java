@@ -481,11 +481,16 @@ public abstract class StyleCore extends AbstractAssetEngine
    }
 
    /**
-    * Round up the value to the multiple of mul.
+    * Round up the value to the multiple of mul. A value that is a multiple of mul in exact
+    * arithmetic but a few float ulps above it (a height already rounded to a line count and
+    * subtracted from a total) is not rounded up to the next multiple.
     */
    static float roundup(float v, float mul) {
-      return (float) Math.ceil(v / mul) * mul;
+      return (float) Math.ceil(v / mul - ROUNDUP_TOLERANCE) * mul;
    }
+
+   // part of a multiple of mul that is treated as float error (about 0.01pt at a 12pt line)
+   private static final float ROUNDUP_TOLERANCE = 1e-3f;
 
    /**
     * Get the presenter for a type.
