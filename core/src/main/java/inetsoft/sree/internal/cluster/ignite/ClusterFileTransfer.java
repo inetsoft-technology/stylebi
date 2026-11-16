@@ -21,6 +21,7 @@ import inetsoft.util.*;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.*;
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
@@ -32,11 +33,30 @@ import java.util.concurrent.ConcurrentMap;
 
 public class ClusterFileTransfer implements AutoCloseable {
    public ClusterFileTransfer(int port, InetAddress bindAddress) {
+      this(port, bindAddress, null);
+   }
+
+   /**
+    * @param sslContext the context used to encrypt and mutually authenticate transfers, or
+    *                   {@code null} for plain sockets (cluster TLS not configured).
+    */
+   public ClusterFileTransfer(int port, InetAddress bindAddress, SSLContext sslContext) {
       try {
          localAddress = bindAddress;
-         // known issue, to be encrypted with the cluster SSL context (Bug #81265).
-         // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
-         fileTransferSocket = new ServerSocket(port, 50, localAddress);
+         this.sslContext = sslContext;
+
+         if(sslContext == null) {
+            // TLS is not configured for the cluster.
+            // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
+            fileTransferSocket = new ServerSocket(port, 50, localAddress);
+         }
+         else {
+            SSLServerSocket sslSocket = (SSLServerSocket)
+               sslContext.getServerSocketFactory().createServerSocket(port, 50, localAddress);
+            sslSocket.setNeedClientAuth(true);
+            fileTransferSocket = sslSocket;
+         }
+
          fileTransferThread =
             new GroupedThread(this::serviceFileTransfers, "service-file-transfer");
          fileTransferThread.start();
@@ -105,11 +125,13 @@ public class ClusterFileTransfer implements AutoCloseable {
       idBuffer.putLong(fileUuid.getMostSignificantBits());
       idBuffer.putLong(fileUuid.getLeastSignificantBits());
 
-      // known issue, to be encrypted with the cluster SSL context (Bug #81265).
-      // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
-      try(Socket socket = new Socket()) {
+      try(Socket socket = createClientSocket()) {
          socket.connect(new InetSocketAddress(address, port), 30_000);
          socket.setSoTimeout(30_000);
+
+         if(socket instanceof SSLSocket) {
+            ((SSLSocket) socket).startHandshake();
+         }
 
          try(InputStream input = socket.getInputStream();
              OutputStream output = socket.getOutputStream())
@@ -125,6 +147,16 @@ public class ClusterFileTransfer implements AutoCloseable {
       }
 
       return tempFile;
+   }
+
+   private Socket createClientSocket() throws IOException {
+      if(sslContext == null) {
+         // TLS is not configured for the cluster.
+         // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
+         return new Socket();
+      }
+
+      return sslContext.getSocketFactory().createSocket();
    }
 
    public void cancelTransferFile(String link) {
@@ -185,6 +217,7 @@ public class ClusterFileTransfer implements AutoCloseable {
    }
 
    private final InetAddress localAddress;
+   private final SSLContext sslContext;
    private final GroupedThread fileTransferThread;
    private final ServerSocket fileTransferSocket;
    private final ConcurrentMap<String, File> transferFiles = new ConcurrentHashMap<>();
