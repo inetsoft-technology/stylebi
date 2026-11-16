@@ -2689,8 +2689,8 @@ public abstract class GraphGenerator {
                xaxis.getTextSpec().setRotation(0);
             }
 
-            // bars are displayed from bottom up sorted by dates, so we should
-            // reverse the lines so it displays bottom up instead of top down.
+            // lines reverse while the bars read bottom-up (classic), and read
+            // top-down with the bars on a marked horizontal bar
             xaxis.getTextSpec().setReverseLines(reverseDcLines());
          }
       }

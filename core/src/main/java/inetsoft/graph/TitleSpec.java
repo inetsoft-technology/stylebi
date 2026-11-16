@@ -23,6 +23,7 @@ import inetsoft.graph.internal.GDefaults;
 import inetsoft.util.CoreTool;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * This class contains the title text and formatting attributes.
@@ -53,6 +54,11 @@ public class TitleSpec implements Cloneable, Serializable {
     */
    @TernMethod
    public void setLabel(String label) {
+      // the flag belongs to the text it was set with
+      if(!Objects.equals(this.label, label)) {
+         this.hideWhenLonger = false;
+      }
+
       this.label = label;
    }
 

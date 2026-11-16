@@ -17,11 +17,11 @@
  */
 package inetsoft.report.composition.graph;
 
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
-import inetsoft.uql.XConstants;
 
 import java.awt.*;
 

@@ -126,6 +126,34 @@ class VGraphTitleHideTest {
    }
 
    @Test
+   void aChangedLabelClearsTheHideFlag() {
+      TitleSpec spec = new TitleSpec();
+      spec.setLabel("generated");
+      spec.setHideWhenLonger(true);
+      spec.setLabel("other");
+      assertFalse(spec.isHideWhenLonger());
+   }
+
+   @Test
+   void theSameLabelKeepsTheHideFlag() {
+      TitleSpec spec = new TitleSpec();
+      spec.setLabel("generated");
+      spec.setHideWhenLonger(true);
+      spec.setLabel("generated");
+      assertTrue(spec.isHideWhenLonger());
+   }
+
+   @Test
+   void aFlaggedSpecWithAReplacedLongLabelIsCutNotDropped() {
+      EGraph graph = graph("x", "short", 0, true);
+      graph.getXTitleSpec().setLabel(LONG);
+      VGraph vgraph = layout(graph, 300, 200);
+
+      assertNotNull(vgraph.getXTitle());
+      assertTrue(String.join("", vgraph.getXTitle().getDisplayLabel()).endsWith(".."));
+   }
+
+   @Test
    void theFlagTakesPartInEquality() {
       TitleSpec a = new TitleSpec();
       TitleSpec b = new TitleSpec();

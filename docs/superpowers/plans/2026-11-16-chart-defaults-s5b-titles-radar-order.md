@@ -49,13 +49,14 @@
 - **S5-6 same scale:** same scale class, reversal, log base and power exponent; tick arrays of equal length within `ε = 1e-9 × max(1, |max − min|)`; and identical drawn label texts, so two measures formatted differently each keep their own labels. Only spokes whose labels are visible are compared, against the first visible spoke.
 - **Author alias (S5-5):** a value is author-aliased when the spec's text frame's `getKeys()` contains `GTool.toString(value)`, the rule `DefaultAxis` already uses (`DefaultAxis.java:81-90`). `TextFrame.getText` returns the value itself when nothing is mapped, so it cannot tell.
 - **S5-6 hidden top spoke:** when the author hid the top spoke's labels on an equal-scale radar, the labels go to the nearest spoke whose labels are visible (same tie rule). This shows no label the author hid.
-- **S5-7 types:** every measure's runtime type is `CHART_BAR`, `CHART_BAR_STACK` or `CHART_INTERVAL` (`isGraphType`). 3D bar, funnel, waterfall, pareto, Gantt and mixed multi-style charts keep today's order (waterfall bridges need ascending positions, `IntervalElement.java:259`, `:389`).
+- **S5-7 types:** every measure's runtime type is `CHART_BAR`, `CHART_BAR_STACK` or `CHART_INTERVAL` (`isGraphType`). 3D bar, funnel, waterfall, pareto, Gantt and mixed multi-style charts keep today's order (waterfall bridges need ascending positions, `IntervalElement.java:259`, `:389`). 3D bar is excluded because it draws on a `Rect25Coord`, with `Bar3DVO` and the paint order of `VGraph.sort3DBar`; S4's width clamp already excludes it (`GraphGenerator.java:5235-5240`).
 - **S5-7 date comparison:** a value-only DC horizontal bar reverses like any other, and its label lines follow (C7).
 - **S5-7 thinning:** on a reversed category axis with a label limit, thinning keeps the top label. This also applies to a marked Gantt's task axis. The reversed walks run only when the generator set a modern axis property (`getLabelLimit() > 0` or `getCompactDates() != null`), so a classic Gantt's task axis keeps today's walk.
 
 **Known limitations:**
 - **Older builds** draw today's titles, spokes and order (M9).
 - **The title's axis length is an estimate** made before the plot is fitted. Near the threshold a title may hide where it would just fit, or the reverse (as D79).
+- **The S5a rotation estimate always subtracts the Y title**, even when Task 1 later hides it. On a small card the X slot is then about 16px short, so a label near the threshold may turn to 45° or thin where it would just fit (within D79's accepted error).
 - **A hidden title cannot be clicked** to format it in the composer, as with an author-hidden title today.
 - **The wizard's histogram titles** ("Frequency" and the binned field) are written as title text, so they count as typed and are cut, not hidden.
 - **A time-series date on Y** (`TimeScale`) cannot reverse; that horizontal bar stays bottom-up and gets no dodge flag.
