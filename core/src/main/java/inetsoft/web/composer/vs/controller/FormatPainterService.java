@@ -2323,11 +2323,18 @@ public class FormatPainterService {
                                                              model.isDurationPadZeros());
       String formatSpec = model.getFormatSpec();
       String dateSpec = model.getDateSpec();
-      boolean textFormatChanged = reset || !Tool.equals(modelFormat, origFormat.getFormat()) ||
+      boolean textFormatChanged = !Tool.equals(modelFormat, origFormat.getFormat()) ||
          !Tool.equals(formatSpec, origFormat.getFormatSpec()) ||
          !Tool.equals(dateSpec, origFormat.getDateSpec());
 
-      if(textFormatChanged) {
+      if(reset) {
+         // Clear the region's own value format rather than freezing a copy of the default
+         // into it. A non-empty user-defined format overrides the field/column format (and is
+         // re-resolved with the viewer's locale), so the region would stop following the
+         // column's own format after a reset.
+         userFormat.setFormat(new XFormatInfo());
+      }
+      else if(textFormatChanged) {
          if(modelFormat != null && modelFormat.equals(XConstants.COMMA_FORMAT)) {
             modelFormat = XConstants.DECIMAL_FORMAT;
             userFormat.getFormat().setFormatSpec("#,##0");
