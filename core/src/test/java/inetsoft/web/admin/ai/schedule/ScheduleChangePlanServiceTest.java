@@ -23,6 +23,7 @@ import inetsoft.sree.schedule.TimeRange;
 import inetsoft.sree.schedule.ServerPathInfo;
 import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
@@ -56,8 +57,10 @@ class ScheduleChangePlanServiceTest {
    @Mock private AdminScheduleGateway scheduleGateway;
    @Mock private ScheduleManager scheduleManager;
    @Mock private Principal user;
+   @Mock private OrganizationManager orgManager;
    private ScheduleChangePlanService service;
    private MockedStatic<Tool> tool;
+   private MockedStatic<OrganizationManager> orgStatic;
 
    @BeforeEach void setUp() {
       service = new ScheduleChangePlanService(scheduleGateway, scheduleManager);
@@ -65,9 +68,13 @@ class ScheduleChangePlanServiceTest {
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+      orgStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
+      orgStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+      lenient().when(orgManager.getCurrentOrgID(user)).thenReturn("host-org");
    }
 
    @AfterEach void tearDown() {
+      orgStatic.close();
       tool.close();
    }
 
@@ -421,10 +428,65 @@ class ScheduleChangePlanServiceTest {
       assertEquals("t1", change.property());
       assertNotNull(change.currentValue());
       assertNull(change.proposedValue());
+      // Bug #81073: the owner is in the caller's org and the save dry-run passes, so the rollback
+      // provably re-creates the task and the whole-storage snapshot is skipped.
+      assertFalse(plan.requiresStorageBackup());
+      verify(scheduleManager).checkScheduleTaskSave(eq("t1"), any(), eq(user));
+   }
+
+   // Bug #81073: the rollback's owner-organization check re-reads the live (deleted) task, which a
+   // dry run taken while the task is stored cannot predict, so an owner in another organization
+   // than the caller's current one keeps the snapshot.
+   @Test void resolveDeleteKeepsBackupWhenOwnerOrgDiffersFromCallerOrg() throws Exception {
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(sreeTask("t1", "admin"));
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      when(orgManager.getCurrentOrgID(user)).thenReturn("other-org");
+
+      ResolvedPlan plan = service.resolve(request("delete", List.of(deleteChange("t1"))), user);
+
+      assertTrue(plan.requiresStorageBackup());
+      verify(scheduleManager, never()).checkScheduleTaskSave(any(), any(), any());
+   }
+
+   // A dry-run refusal (e.g. an action sheet of another organization) keeps the snapshot and must
+   // not turn a valid delete into a refused plan.
+   @Test void resolveDeleteKeepsBackupWhenSaveDryRunThrows() throws Exception {
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(sreeTask("t1", "admin"));
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      doThrow(new MessageException("sheet not readable"))
+         .when(scheduleManager).checkScheduleTaskSave(eq("t1"), any(), eq(user));
+
+      ResolvedPlan plan = service.resolve(request("delete", List.of(deleteChange("t1"))), user);
+
+      assertEquals(1, plan.changes().size());
       assertTrue(plan.requiresStorageBackup());
    }
 
-   @Test void resolveMixedCreateAndDeleteKeepsStorageBackup() throws Exception {
+   @Test void resolveDeleteKeepsBackupWhenCallerOrgCannotBeResolved() throws Exception {
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(sreeTask("t1", "admin"));
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      when(orgManager.getCurrentOrgID(user)).thenThrow(new ClassCastException("not an XPrincipal"));
+
+      ResolvedPlan plan = service.resolve(request("delete", List.of(deleteChange("t1"))), user);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   // One non-compensable delete keeps the snapshot for the whole plan (one snapshot per apply).
+   @Test void resolveMixedCompensableAndNonCompensableDeleteKeepsStorageBackup() throws Exception {
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(sreeTask("t1", "admin"));
+      when(scheduleManager.getScheduleTask("t2")).thenReturn(sreeTask("t2", "admin"));
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      doThrow(new MessageException("refused"))
+         .when(scheduleManager).checkScheduleTaskSave(eq("t2"), any(), eq(user));
+
+      ResolvedPlan plan = service.resolve(
+         request("two deletes", List.of(deleteChange("t1"), deleteChange("t2"))), user);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test void resolveMixedCreateAndCompensableDeleteSkipsStorageBackup() throws Exception {
       CreateScheduleTaskRequest spec = createSpec("t1", "admin");
       String newId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
       when(scheduleManager.getScheduleTask(newId)).thenReturn(null);
@@ -437,7 +499,7 @@ class ScheduleChangePlanServiceTest {
       ResolvedPlan plan = service.resolve(req, user);
 
       assertEquals(2, plan.changes().size());
-      assertTrue(plan.requiresStorageBackup());
+      assertFalse(plan.requiresStorageBackup());
    }
 
    // -------------------------------------------------------------------------
