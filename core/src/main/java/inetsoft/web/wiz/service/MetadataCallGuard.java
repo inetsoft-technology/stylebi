@@ -160,7 +160,14 @@ final class MetadataCallGuard {
          return result;
       }
       catch(TimeoutException e) {
-         future.cancel(true);
+         boolean connected = pending.connected().get();
+
+         // A source that is answering is not interrupted mid-query: an interrupt closes an
+         // embedded (Derby) connection and makes XEngine cache a failed result for the metadata
+         // key, which would turn a merely slow source into one that looks broken. Its worker is
+         // bounded by the real work and finishes on its own. A source that never answered is
+         // blocked in a connect or a pool creation, where the interrupt frees waiting threads.
+         future.cancel(!connected);
 
          if(!pending.started().get()) {
             // still queued behind other sources: the source itself was never tried
@@ -168,7 +175,7 @@ final class MetadataCallGuard {
                "it was not reached within the " + (budgetMillis() / 1000) + " s time budget");
          }
 
-         if(pending.connected().get()) {
+         if(connected) {
             // the source is answering; reading all of it is just slow. It is not down, so later
             // requests are not turned away.
             throw new DatasourceBudgetExceededException(datasource, budgetMillis() / 1000);

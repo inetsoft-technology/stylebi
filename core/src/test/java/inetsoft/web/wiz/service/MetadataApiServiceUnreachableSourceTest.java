@@ -227,12 +227,19 @@ class MetadataApiServiceUnreachableSourceTest {
    @Test
    void slowButConnectedDataSourceIsNotMarkedDownAndLaterCallsAreNotRejected() throws Exception {
       AtomicBoolean slow = new AtomicBoolean(true);
+      AtomicBoolean interrupted = new AtomicBoolean();
       DefaultMetaDataProvider provider = mock(DefaultMetaDataProvider.class);
       when(provider.getRootMetaData(anyString())).thenReturn(new XNode());
       when(provider.getMetaData(any(XNode.class), eq(true))).thenAnswer(inv -> {
          if(slow.get()) {
             // the connection is fine, reading the table's columns takes longer than the budget
-            Thread.sleep(10_000);
+            try {
+               Thread.sleep(2_000);
+            }
+            catch(InterruptedException e) {
+               interrupted.set(true);
+               throw e;
+            }
          }
 
          XNode root = new XNode();
@@ -250,6 +257,11 @@ class MetadataApiServiceUnreachableSourceTest {
          () -> service.getTableDetails(DEAD, "Orders", null, null, mock(Principal.class)));
       assertTrue(slowEx.getMessage().contains(DEAD));
       assertFalse(slowEx.getMessage().contains("unreachable"));
+
+      // a source that is answering is not interrupted mid-query (an interrupt would close an
+      // embedded connection and make XEngine cache a failed result)
+      Thread.sleep(500);
+      assertFalse(interrupted.get(), "the slow worker of a connected source is left to finish");
 
       // the source answers normally again: it was never recorded as down
       slow.set(false);
