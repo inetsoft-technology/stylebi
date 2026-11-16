@@ -35,6 +35,8 @@ export class LabelInputField implements OnInit {
    @Input() grayedOutFormula: boolean = false;
    @Input() enableFormulaLabel: boolean = false;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
+   @Input() dynamicProperty: string = null;
    @Input() hideDcombox: boolean = false;
    @Output() labelChange: EventEmitter<any> = new EventEmitter<any>();
    labelType: ComboMode = ComboMode.VALUE;

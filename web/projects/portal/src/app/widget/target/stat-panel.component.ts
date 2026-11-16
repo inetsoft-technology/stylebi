@@ -42,6 +42,7 @@ export class StatPanel implements OnInit {
    @Input() availableFields: MeasureInfo[];
    @Input() variables: string[] = [];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @Input() assetId: string = null;
    @Input() hideDcombox: boolean;
    @Input() chartType: number;

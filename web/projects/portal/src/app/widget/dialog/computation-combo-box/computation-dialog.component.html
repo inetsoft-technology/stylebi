@@ -25,7 +25,8 @@
       <div class="col">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="model.value" [editable]="true" [variables]="variables"
-            [valueOnly]="hideDcombox" [vsId]="vsId">
+            [valueOnly]="hideDcombox" [vsId]="vsId" [assemblyName]="assemblyName"
+            dynamicProperty="chartTarget:statistics.statisticValue">
           </dynamic-combo-box>
           <label>{{label}}</label>
         </div>
@@ -61,6 +62,7 @@
           <div class="col-auto">
             <dynamic-combo-box [(type)]="valueType" [values]="percentagesValues"
               [(value)]="model.percentageAggregateVal" [vsId]="vsId"
+              [assemblyName]="assemblyName" dynamicProperty="chartTarget:statistics.percentageOf"
               (valueChange)="onValueChange($event)"
               [variables]="variables" [editable]="isValueEditable()"
             [valueOnly]="hideDcombox"></dynamic-combo-box>

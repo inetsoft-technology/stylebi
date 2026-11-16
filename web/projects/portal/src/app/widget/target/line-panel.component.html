@@ -38,12 +38,14 @@
           <value-input-field [value]="model.value" [hideDcombox]="hideDcombox"
             [variables]="variables" [formulaSupported]="isFormulaSupported()"
             (valueChange)="onValueChange($event)" [vsId]="vsId"
+            [assemblyName]="assemblyName" dynamicProperty="chartTarget:line.value"
             (enableFormulaLabelOnValueInput)="enableFromFormulaLabel($event)">
           </value-input-field>
         }
         @if (isDateField()) {
           <date-input-field #dateField [value]="model.value"
             [vsId]="vsId" [timeField]="isTimeField()"
+            [assemblyName]="assemblyName" dynamicProperty="chartTarget:line.value"
             [variables]="variables" [formulaSupported]="isFormulaSupported()"
             [hideDcombox]="hideDcombox" (valueChange)="onValueChange($event)">
           </date-input-field>
@@ -74,6 +76,7 @@
         <div class="form-floating">
           <label-input-field [label]="model.label" [variables]="variables" [hideDcombox]="hideDcombox"
             [grayedOutFormula]="!isChartScopeEnabled()" [vsId]="vsId"
+            [assemblyName]="assemblyName" dynamicProperty="chartTarget:line.label"
             [enableFormulaLabel]="enableFormulaLabelLinePanel"
             (labelChange)="onLabelChange($event)">
           </label-input-field>

@@ -72,5 +72,68 @@
       "timeslider"
     ],
     "host": "vsobjects/dialog/title-prop-pane.component.html"
+  },
+  {
+    "name": "chartTarget:line.value",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "widget/target/line-panel.component.html"
+  },
+  {
+    "name": "chartTarget:line.label",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "widget/target/line-panel.component.html"
+  },
+  {
+    "name": "chartTarget:band.from",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "widget/target/band-panel.component.html"
+  },
+  {
+    "name": "chartTarget:band.to",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "widget/target/band-panel.component.html"
+  },
+  {
+    "name": "chartTarget:band.fromLabel",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "widget/target/band-panel.component.html"
+  },
+  {
+    "name": "chartTarget:band.toLabel",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "widget/target/band-panel.component.html"
+  },
+  {
+    "name": "chartTarget:statistics.label",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "widget/target/stat-panel.component.html"
+  },
+  {
+    "name": "chartTarget:statistics.statisticValue",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "widget/dialog/computation-combo-box/computation-dialog.component.html"
+  },
+  {
+    "name": "chartTarget:statistics.percentageOf",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "widget/dialog/computation-combo-box/computation-dialog.component.html"
   }
 ]

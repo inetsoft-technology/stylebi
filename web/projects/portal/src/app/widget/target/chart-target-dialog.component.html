@@ -30,6 +30,7 @@
           <line-panel [variables]="variables"
             [hideDcombox]="hideDcombox" [model]="chartTarget"
             [availableFields]="getLineAvailableFields()" [vsId]="vsId"
+            [assemblyName]="assemblyName"
           [chartType]="chartType"></line-panel>
         </ng-template>
       </ng-container>
@@ -38,7 +39,8 @@
         <ng-template ngbNavContent>
           <band-panel [variables]="variables"
             [hideDcombox]="hideDcombox" [model]="chartTarget"
-          [availableFields]="availableFields" [vsId]="vsId" [chartType]="chartType"></band-panel>
+          [availableFields]="availableFields" [vsId]="vsId" [assemblyName]="assemblyName"
+          [chartType]="chartType"></band-panel>
         </ng-template>
       </ng-container>
       <ng-container ngbNavItem="tab2" [disabled]="isBoxplot()">
@@ -46,7 +48,7 @@
         <ng-template ngbNavContent>
           <stat-panel [variables]="variables" [hideDcombox]="hideDcombox"
             [model]="chartTarget" [availableFields]="availableFields" [vsId]="vsId"
-            [assetId]="assetId"
+            [assemblyName]="assemblyName" [assetId]="assetId"
             [chartType]="chartType">
           </stat-panel>
         </ng-template>

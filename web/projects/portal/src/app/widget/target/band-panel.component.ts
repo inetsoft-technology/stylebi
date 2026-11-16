@@ -53,6 +53,7 @@ export class BandPanel {
    @Input() availableFields: MeasureInfo[];
    @Input() variables: string[] = [];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @Input() hideDcombox: boolean;
    @Input() chartType: number;
    enableFromFormulaLabelBandPanel: boolean = false;

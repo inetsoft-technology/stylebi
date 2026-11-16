@@ -33,7 +33,8 @@
       <dynamic-combo-box
         [type]="labelType" [values]="labelValues" [promptString]="emptyLabel"
         [value]="label" [variables]="variables" [editable]="isLabelEditable()"
-        [vsId]="vsId" [grayedOutValues]="grayedOutValues"
+        [vsId]="vsId" [assemblyName]="assemblyName"
+        [dynamicProperty]="dynamicProperty" [grayedOutValues]="grayedOutValues"
         [enableFormulaLabel]="enableFormulaLabel"
         (typeChange)="onTypeChange($event)" (valueChange)="onLabelChange($event)">
       </dynamic-combo-box>

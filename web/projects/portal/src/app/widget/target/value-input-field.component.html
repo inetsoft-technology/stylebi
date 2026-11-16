@@ -32,7 +32,8 @@
       <dynamic-combo-box
         [type]="valueType" [values]="values" [promptString]="emptyValue"
         [value]="displayValue" [variables]="variables" [editable]="isValueEditable()"
-        [vsId]="vsId" (valueChange)="onValueChange($event)"
+        [vsId]="vsId" [assemblyName]="assemblyName"
+        [dynamicProperty]="dynamicProperty" (valueChange)="onValueChange($event)"
         (onValueTyping)="onValueChange($event)" [mode]="valueMode">
       </dynamic-combo-box>
     </div>

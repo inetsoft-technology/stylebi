@@ -40,6 +40,7 @@ export class ComputationDialog implements OnInit, OnChanges {
    @Input() variables: string[] = [];
    @Input() hideDcombox: boolean = false;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @Output() onCommit: EventEmitter<StrategyInfo> = new EventEmitter<StrategyInfo>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    mode: ValueMode = ValueMode.NUMBER;
