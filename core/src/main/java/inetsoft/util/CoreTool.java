@@ -2613,7 +2613,8 @@ public class CoreTool {
     * @param email email address
     */
    public static boolean matchEmail(String email) {
-      String emailRegex = "^[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*@[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*$";
+      // an apostrophe is legal in the local part (o'brien@example.com), not in the domain
+      String emailRegex = "^[\\w\\d\\-\\+_']+(\\.[\\w\\d\\-\\+_']+)*@[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*$";
       return Pattern.compile(emailRegex).matcher(email.trim()).matches();
    }
 
