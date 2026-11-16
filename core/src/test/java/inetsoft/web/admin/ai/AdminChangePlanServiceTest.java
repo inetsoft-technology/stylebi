@@ -151,6 +151,27 @@ class AdminChangePlanServiceTest {
    }
 
    @Test
+   void aLogFileSizeAndCountOnlyPlanRequiresSignoffButNoBackup() {
+      sreeEnv.when(() -> SreeEnv.getProperty("report.log.max", false, false)).thenReturn("10240");
+      sreeEnv.when(() -> SreeEnv.getProperty("report.log.count", false, false)).thenReturn("2");
+      PlanRequest.Change a = new PlanRequest.Change();
+      a.setProperty("report.log.max");
+      a.setValue("20480");
+      PlanRequest.Change b = new PlanRequest.Change();
+      b.setProperty("report.log.count");
+      b.setValue("5");
+      PlanRequest req = new PlanRequest();
+      req.setTask("log files");
+      req.setChanges(List.of(a, b));
+
+      ResolvedPlan plan = service.resolve(req);
+
+      assertTrue(plan.requiresAgentSignoff());
+      assertFalse(plan.requiresStorageBackup());
+      assertEquals("high", plan.changes().get(0).risk());
+   }
+
+   @Test
    void aLoggingChangeMixedWithAStorageScopedPropertyKeepsTheBackup() {
       sreeEnv.when(() -> SreeEnv.getProperty("log.output.stderr", false, false)).thenReturn("false");
       sreeEnv.when(() -> SreeEnv.getProperty("security.exposedefaultorgtoall", false, false))

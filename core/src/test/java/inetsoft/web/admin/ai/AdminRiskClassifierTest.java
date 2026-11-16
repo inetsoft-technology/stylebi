@@ -120,6 +120,18 @@ class AdminRiskClassifierTest {
       assertEquals("value", result.snapshotScope());
    }
 
+   // The logging tool maps fileSettings.maxLogSize/count to these; their only side effect is
+   // PropertiesEngine.reloadLoggingFramework, process-local like the other log.* settings.
+   @Test
+   void logFileSizeAndCountAreHighRiskValueScope() {
+      for(String property : new String[] { "report.log.max", "report.log.count" }) {
+         AdminRiskClassifier.RiskClassification result = classify(property);
+         assertEquals("high", result.risk(), property);
+         assertEquals("value", result.snapshotScope(), property);
+         assertTrue(result.recognized(), property);
+      }
+   }
+
    @Test
    void fluentdCredentialsAreCataloguedHighRiskValueScope() {
       for(String property : new String[] { "log.fluentd.security.sharedKey",
