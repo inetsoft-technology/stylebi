@@ -147,7 +147,8 @@ public class MongoRuntime extends TabularRuntime {
             return key.getMongoClient();
          }
 
-         protected void processRemoved(MongoClient value) {
+         @Override
+         protected void processRemoved(com.mongodb.MongoClient value) {
             value.close();
          }
       };
