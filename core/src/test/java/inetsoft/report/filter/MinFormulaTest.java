@@ -21,7 +21,6 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -556,9 +555,6 @@ public class MinFormulaTest {
 
    // Bug #80517: Min honours formula.parse.number like Max
    @Test
-   @Disabled("Bug #80517: MinFormula reads formula.min.number instead of formula.parse.number, "
-      + "so with formula.parse.number=false Min still compares \"9\" and \"10\" as numbers "
-      + "(13.8: Bug #80487, fixed)")
    void addValue_numericStrings_parseNumberOff_compareAsText() {
       withProperty("formula.parse.number", "false", () -> {
          MinFormula min = new MinFormula();

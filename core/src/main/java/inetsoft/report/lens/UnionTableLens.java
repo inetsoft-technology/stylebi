@@ -194,7 +194,7 @@ public class UnionTableLens extends SetTableLens {
             int r = table.getRowCount();
 
             if(r < 0) {
-               rcount = -rcount + r - 1;
+               rcount = -rcount + r;
 
                if(i > 0) {
                   // skip header

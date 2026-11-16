@@ -407,6 +407,7 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
    @Override
    public void setPercentageType(int percentageType) {
       this.percentageType = (short) percentageType;
+      clearResult();
    }
 
    /**
@@ -417,6 +418,7 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
    @Override
    public void setTotal(Object total) {
       this.total = total;
+      clearResult();
    }
 
    /**
