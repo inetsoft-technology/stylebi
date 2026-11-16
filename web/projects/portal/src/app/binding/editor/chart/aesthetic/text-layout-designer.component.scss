@@ -18,7 +18,7 @@
 .layout-designer-panel-footer {
    flex-shrink: 0;
    border-top: 1px solid var(--inet-default-border-color, #ddd);
-   background: var(--inet-shell-surface, #fff);
+   background: var(--inet-dark-surface-color, var(--inet-shell-surface, #fff));
 }
 
 // ─── Top bar ───────────────────────────────────────────────────────────────
@@ -55,11 +55,11 @@
    border-radius: 0.25rem;
    font-size: 0.85rem;
    user-select: none;
-   border: 1px dashed #aaa;
+   border: 1px dashed var(--inet-dark-border-strong-color, #aaa);
    cursor: grab;
 
-   &.text-chip   { background: #fff3cd; }
-   &.spacer-chip { background: #e2e3e5; }
+   &.text-chip   { background: var(--inet-dark-warning-soft-color, #fff3cd); }
+   &.spacer-chip { background: var(--inet-dark-neutral-chip-color, #e2e3e5); }
 }
 
 // ─── Properties panel ───────────────────────────────────────────────────────
@@ -110,7 +110,7 @@
    &:last-child { border-bottom: none; }
 
    &.row-selected {
-      background: rgba(0, 0, 0, 0.03);
+      background: var(--inet-dark-selected-tint-color, rgba(0, 0, 0, 0.03));
    }
 }
 
@@ -145,9 +145,9 @@
    cursor: pointer;             // whole item is clickable to select
    user-select: none;
 
-   &.field-item   { background: #d1ecf1; }
-   &.static-item  { background: #fff3cd; }
-   &.spacing-item { background: #e2e3e5; }
+   &.field-item   { background: var(--inet-dark-info-soft-color, #d1ecf1); }
+   &.static-item  { background: var(--inet-dark-warning-soft-color, #fff3cd); }
+   &.spacing-item { background: var(--inet-dark-neutral-chip-color, #e2e3e5); }
 
    &.item-selected {
       outline: 2px solid var(--inet-primary-color, #0d6efd);

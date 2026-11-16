@@ -184,7 +184,7 @@
   position: absolute;
   inset: 0;
   z-index: 10;
-  background: var(--inet-shell-surface, #fff);
+  background: var(--inet-dark-surface-color, var(--inet-shell-surface, #fff));
   display: flex;
   flex-direction: column;
   overflow: hidden;

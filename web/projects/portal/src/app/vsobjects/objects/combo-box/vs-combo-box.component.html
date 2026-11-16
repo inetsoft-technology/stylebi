@@ -113,7 +113,7 @@
           [fixedDropdown]="dropdownCalendar" [autoClose]="false" dropdownPlacement="bottom"></i>
         }
         <ng-template #dropdownOptions>
-          <div class="dropdown-container dropdown-pane" [style.min-width.px]="model.objectFormat.width"
+          <div class="dropdown-container dropdown-pane vs-combo-box__list" [style.min-width.px]="model.objectFormat.width"
             [style.background-color]="model.objectFormat.background || 'transparent'"
             [class.viz-modern]="model.vizModern" [class.viz-dark]="model.vizDark"
             [class.viz-density-dense]="model.vizDensity === 'dense'"

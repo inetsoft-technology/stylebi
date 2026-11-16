@@ -25,7 +25,7 @@
   margin-top: $marginTop;
   padding-top: var(--inet-feedback-padding-y);
   padding-bottom: var(--inet-feedback-padding-y);
-  color: var(--inet-danger-color);
+  color: var(--inet-dark-danger-text-color, var(--inet-danger-color));
   background-size: 55% 55%;
   z-index: 6;
   font-weight: 400;
@@ -209,7 +209,7 @@ label {
 /* comparable to when invalid feedback is not using an input-group */
 .input-group ~ span.invalid-feedback {
   display: block;
-  color: var(--inet-danger-color);
+  color: var(--inet-dark-danger-text-color, var(--inet-danger-color));
   font-weight: 400;
   font-size: var(--inet-feedback-font-size);
 }
@@ -1342,7 +1342,7 @@ custom-select.date-value-editor__nav-select--year {
 }
 
 .text-danger {
-  color: var(--inet-danger-color) !important;
+  color: var(--inet-dark-danger-text-color, var(--inet-danger-color)) !important;
 }
 
 .text-warning {

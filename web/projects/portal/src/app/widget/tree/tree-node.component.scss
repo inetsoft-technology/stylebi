@@ -80,7 +80,7 @@
 .tree-node .tree-node__checkbox:checked {
   background-color: var(--inet-primary-color) !important;
   border-color: var(--inet-primary-color) !important;
-  box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+  box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-dark-check-halo-color, var(--inet-focus-ring-color));
 }
 
 .tree-node label.tree-node-label {

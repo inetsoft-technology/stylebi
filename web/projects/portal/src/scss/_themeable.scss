@@ -552,7 +552,7 @@ div.disable-link, a.disable-link {
 }
 
 .txt-danger {
-  color: var(--inet-danger-color);
+  color: var(--inet-dark-danger-text-color, var(--inet-danger-color));
 }
 
 .ruler-bg-stroke {
