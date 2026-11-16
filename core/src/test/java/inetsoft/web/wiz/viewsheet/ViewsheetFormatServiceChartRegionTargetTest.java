@@ -295,4 +295,42 @@ class ViewsheetFormatServiceChartRegionTargetTest {
                  e.getMessage().contains("'legendContent'") &&
                  e.getMessage().contains("'plotLabel'"), e.getMessage());
    }
+
+   /** Bug 81436: legendContent must reach every rendered legend, not only legend 0. */
+   @Test
+   void legendContentAddressesEveryRenderedLegendByIndex() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = rvsWith("Chart1", chart());
+      ViewsheetFormatService service = spy(new ViewsheetFormatService(
+         sessionsFor(rvs), FormatPainterProxies.local(painter), mock(CalcTableService.class), null));
+      doReturn(2).when(service).legendContentCount(any(), eq("Chart1"));
+
+      service.setFormat("tok", principal(), request("legendContent"), "");
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(java.security.Principal.class),
+                                any(), anyString());
+      FormatVSObjectEvent event = captor.getValue();
+
+      assertArrayEquals(new String[]{ ChartFormatConstants.LEGEND_CONTENT }, event.getRegions());
+      assertArrayEquals(new int[]{ 0, 1 }, event.getIndexes()[0]);
+      assertEquals(2, event.getColumnNames()[0].length);
+   }
+
+   @Test
+   void legendContentKeepsTheWholeRegionShapeForASingleLegend() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = rvsWith("Chart1", chart());
+      ViewsheetFormatService service = spy(new ViewsheetFormatService(
+         sessionsFor(rvs), FormatPainterProxies.local(painter), mock(CalcTableService.class), null));
+      doReturn(1).when(service).legendContentCount(any(), eq("Chart1"));
+
+      service.setFormat("tok", principal(), request("legendContent"), "");
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(java.security.Principal.class),
+                                any(), anyString());
+
+      assertNull(captor.getValue().getIndexes()[0]);
+   }
 }
