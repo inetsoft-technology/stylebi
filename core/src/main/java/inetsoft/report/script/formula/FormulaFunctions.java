@@ -344,11 +344,12 @@ public class FormulaFunctions {
       if(arr1 == null && arr2 == null) {
          return new Object[0];
       }
-      else if(arr1 == null) {
-         return arr2;
+      if(arr1 == null) {
+         arr1 = new Object[0];
       }
-      else if(arr2 == null) {
-         return arr1;
+
+      if(arr2 == null) {
+         arr2 = new Object[0];
       }
 
       List list = new ArrayList();
