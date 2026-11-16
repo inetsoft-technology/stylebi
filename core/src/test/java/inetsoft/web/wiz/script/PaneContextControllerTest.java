@@ -17,9 +17,8 @@
  */
 package inetsoft.web.wiz.script;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.web.binding.VSScriptableService;
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.web.wiz.binding.BindableFieldsService;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
@@ -77,12 +76,9 @@ class PaneContextControllerTest {
       when(api.functionNames()).thenReturn(List.of("runQuery"));
       BindableFieldsService fields = mock(BindableFieldsService.class);
       when(fields.list(any(), any(), any())).thenReturn(List.of());
-      VSScriptableService scriptable = mock(VSScriptableService.class);
-      when(scriptable.getScriptDefinition(rvs, null, null, false))
-         .thenReturn(new ObjectMapper().createObjectNode());
 
       controller = new PaneContextController(feature, sessions, edit,
-         new PaneContextService(contextService, api, scriptable, fields));
+         new PaneContextService(contextService, api, mock(ViewsheetService.class), fields));
    }
 
    @Test

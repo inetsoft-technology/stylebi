@@ -17,10 +17,15 @@
  */
 package inetsoft.web.wiz.script;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.web.binding.VSScriptableService;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.VariableTable;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.script.VariableScriptable;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.binding.BindableFieldsService;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.pairing.EditorContext;
@@ -34,18 +39,22 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * The read-only inventory behind {@code get_pane_context}: what the formula/script dialog's own
  * tree shows (components, parameters, columns, functions) plus the syntax the location is
  * evaluated in, served the same way for every pane kind and for a whole-sheet session.
  *
- * <p>Every part is projected from the sources the Composer's own editor tree reads
- * ({@link VSScriptableService#getScriptDefinition}, {@link BindableFieldsService}, the function
- * catalogue), reduced to names and types. Nothing here is addressed by an identifier a composer
+ * <p>Every part is projected from the sources the Composer's own editor tree reads (the
+ * viewsheet's declared variables and runtime parameter table, {@link BindableFieldsService}, the
+ * function catalogue), reduced to names and types. Nothing here is addressed by an identifier a composer
  * service accepts, and nothing is written, so a pane token needs no wider grant to ask: the
  * location the session is bound to only decides WHICH columns are listed and WHICH syntax is
  * described, never whether the question may be asked.</p>
@@ -56,14 +65,17 @@ public class PaneContextService {
 
    static final String SHEET_KIND = "sheet";
 
+   /** Always in scope as {@code parameter.<name>}: filled from the signed-in user. */
+   static final List<String> STANDARD_PARAMETERS = List.of("_USER_", "_ROLES_", "_GROUPS_");
+
    @Autowired
    public PaneContextService(ScriptContextService contextService, ScriptApiService apiService,
-                             VSScriptableService scriptableService,
+                             ViewsheetService viewsheetService,
                              BindableFieldsService fieldsService)
    {
       this.contextService = contextService;
       this.apiService = apiService;
-      this.scriptableService = scriptableService;
+      this.viewsheetService = viewsheetService;
       this.fieldsService = fieldsService;
    }
 
@@ -87,33 +99,111 @@ public class PaneContextService {
          notes);
    }
 
-   /** The parameter names the editor's own "parameter" node lists, sorted, internals dropped. */
+   /**
+    * The parameters a script can read as {@code parameter.<name>}: the standard user variables,
+    * the variables the viewsheet declares (what its own parameter prompt asks for), and the
+    * parameters present on the runtime sheet. The editor's "parameter" scriptable is NOT used: it
+    * also reports the JavaScript object's own {@code length} / {@code parameterNames} and the
+    * runtime's per-component value slots (a RadioButton's name), none of which is a parameter.
+    */
    private List<String> parameters(RuntimeViewsheet rvs, List<String> notes) {
       try {
-         ObjectNode root = scriptableService.getScriptDefinition(rvs, null, null, false);
-         JsonNode node = root.get("parameter");
-         List<String> names = new ArrayList<>();
+         Viewsheet vs = rvs.getViewsheet();
+         Set<String> declared = new LinkedHashSet<>();
+         Set<String> runtime = new LinkedHashSet<>();
+         Set<String> components = new LinkedHashSet<>();
 
-         if(node != null) {
-            for(Iterator<String> it = node.fieldNames(); it.hasNext();) {
-               String name = it.next();
+         if(vs != null) {
+            for(UserVariable variable : vs.getAllVariables()) {
+               declared.add(variable.getName());
+            }
 
-               // "!type"-style metadata keys and the runtime's own "__principal__" slot are not
-               // parameters a script author can name.
-               if(!name.startsWith("!") && !name.startsWith("__")) {
-                  names.add(name);
-               }
+            for(Assembly assembly : vs.getAssemblies()) {
+               components.add(assembly.getName());
             }
          }
 
-         names.sort(null);
-         return names;
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            declared.addAll(promptedVariables(box.get(), vs, notes));
+            runtime.addAll(runtimeParameters(box.get()));
+         }
+
+         return mergeParameterNames(declared, runtime, components);
       }
       catch(Exception e) {
          LOG.warn("Could not list the parameters for a pane context", e);
          notes.add("The parameter list could not be read: " + messageOf(e));
+         return STANDARD_PARAMETERS.stream().sorted().toList();
+      }
+   }
+
+   /** The variables the viewsheet's parameter prompt asks for; empty (with a note) on failure. */
+   private List<String> promptedVariables(ViewsheetSandbox box, Viewsheet vs, List<String> notes) {
+      List<UserVariable> prompted = new ArrayList<>();
+
+      try {
+         VSEventUtil.refreshParameters(viewsheetService, box, vs, false, null, prompted, true);
+      }
+      catch(Exception e) {
+         LOG.debug("Could not read the viewsheet's prompted variables", e);
+         notes.add("Declared variables that need a prompt could not be listed: " + messageOf(e));
+      }
+
+      return prompted.stream().filter(Objects::nonNull)
+         .map(v -> v.getName().replaceAll("[.]drillMember$", "")).toList();
+   }
+
+   /** The keys of the runtime sheet's variable table, as set from a URL, a viewer or a tool. */
+   private static List<String> runtimeParameters(ViewsheetSandbox box) {
+      VariableScriptable scriptable = box.getScope().getVariableScriptable();
+
+      if(scriptable == null || !(scriptable.unwrap() instanceof VariableTable table)) {
          return List.of();
       }
+
+      List<String> names = new ArrayList<>();
+
+      for(Enumeration<String> keys = table.keys(); keys.hasMoreElements();) {
+         names.add(keys.nextElement());
+      }
+
+      return names;
+   }
+
+   /**
+    * The sorted, distinct parameter names, the standard user variables always included.
+    *
+    * @param declared   variables the viewsheet declares; always parameters
+    * @param runtime    keys of the runtime variable table; a key equal to a component's name is
+    *                   that component's own value slot, not a parameter
+    * @param components the viewsheet's component names
+    */
+   static List<String> mergeParameterNames(Collection<String> declared, Collection<String> runtime,
+                                           Collection<String> components)
+   {
+      Set<String> names = new LinkedHashSet<>(STANDARD_PARAMETERS);
+
+      for(String name : declared) {
+         if(isParameterName(name)) {
+            names.add(name);
+         }
+      }
+
+      for(String name : runtime) {
+         if(isParameterName(name) && !components.contains(name)) {
+            names.add(name);
+         }
+      }
+
+      return names.stream().sorted().toList();
+   }
+
+   /** Not blank, and not a runtime-internal slot or a built-in (those are not custom parameters). */
+   private static boolean isParameterName(String name) {
+      return name != null && !name.isBlank() && !name.startsWith("__") &&
+         !name.startsWith("!") && !VariableTable.isBuiltinVariable(name);
    }
 
    /**
@@ -238,6 +328,6 @@ public class PaneContextService {
 
    private final ScriptContextService contextService;
    private final ScriptApiService apiService;
-   private final VSScriptableService scriptableService;
+   private final ViewsheetService viewsheetService;
    private final BindableFieldsService fieldsService;
 }

@@ -18,15 +18,22 @@
 package inetsoft.web.wiz.script;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.web.binding.VSScriptableService;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.script.viewsheet.ViewsheetScope;
+import inetsoft.uql.VariableTable;
+import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.script.VariableScriptable;
+import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.binding.BindableFieldsService;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.SheetType;
+import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.script.model.AssemblyContext;
 import inetsoft.web.wiz.script.model.PaneContext;
 import inetsoft.web.wiz.script.model.ScriptContext;
@@ -37,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -48,14 +56,13 @@ import static org.mockito.Mockito.*;
  * that a failing source degrades to a note instead of failing the call, and that it carries no
  * identifier another endpoint would accept.
  */
-@Tag("core")
+@WizAgentTestSupport
 class PaneContextServiceTest {
    private static final String RUNTIME_ID = "Viewsheet/secret-runtime";
    private static final String TOKEN = "TOK-SECRET";
 
    private ScriptContextService contextService;
    private ScriptApiService apiService;
-   private VSScriptableService scriptable;
    private BindableFieldsService fields;
    private PaneContextService service;
    private final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -82,20 +89,84 @@ class PaneContextServiceTest {
       apiService = mock(ScriptApiService.class);
       when(apiService.functionNames()).thenReturn(List.of("dateAdd", "runQuery"));
 
-      ObjectNode root = new ObjectMapper().createObjectNode();
-      ObjectNode parameter = root.putObject("parameter");
-      parameter.putObject("region");
-      parameter.putObject("__principal__");
-      parameter.putObject("_USER_");
-      parameter.putObject("!type");
-      scriptable = mock(VSScriptableService.class);
-      when(scriptable.getScriptDefinition(rvs, null, null, false)).thenReturn(root);
-
       fields = mock(BindableFieldsService.class);
       when(fields.list(eq(RUNTIME_ID), any(), eq(user))).thenReturn(
          List.of(table("Orders", null, "id", "total"), table("Customers", null, "name")));
 
-      service = new PaneContextService(contextService, apiService, scriptable, fields);
+      service = new PaneContextService(
+         contextService, apiService, mock(ViewsheetService.class), fields);
+   }
+
+   /** A viewsheet that declares {@code region}, holding a RadioButton1 component. */
+   private static Viewsheet viewsheetDeclaring(String... variables) {
+      Viewsheet vs = new Viewsheet() {
+         @Override
+         public synchronized UserVariable[] getAllVariables() {
+            return Arrays.stream(variables).map(UserVariable::new).toArray(UserVariable[]::new);
+         }
+      };
+      vs.addAssembly(new TextVSAssembly(vs, "RadioButton1"));
+      return vs;
+   }
+
+   /** A runtime whose variable table holds the given names (a URL/viewer/tool-set parameter). */
+   private RuntimeViewsheet runtimeWith(Viewsheet vs, String... runtimeKeys) {
+      VariableTable table = new VariableTable();
+
+      for(String key : runtimeKeys) {
+         table.put(key, "x");
+      }
+
+      VariableScriptable scriptable = mock(VariableScriptable.class);
+      when(scriptable.unwrap()).thenReturn(table);
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.getVariableScriptable()).thenReturn(scriptable);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getScope()).thenReturn(scope);
+      RuntimeViewsheet runtime = mock(RuntimeViewsheet.class);
+      when(runtime.getViewsheet()).thenReturn(vs);
+      when(runtime.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      return runtime;
+   }
+
+   @Test
+   void customParametersAreListedWithTheStandardOnesAndNoScriptableNoise() throws Exception {
+      Viewsheet vs = viewsheetDeclaring("region");
+      // what the editor's "parameter" scriptable reported in the live check: a component's value
+      // slot and the JavaScript object's own members next to the real parameters
+      RuntimeViewsheet runtime = runtimeWith(vs, "cutoff", "RadioButton1", "length",
+                                             "parameterNames", "__principal__", "_USER_");
+      when(contextService.context(runtime, null)).thenReturn(new ScriptContext(List.of(), List.of()));
+
+      PaneContext ctx = service.paneContext(
+         runtime, session(new EditorContext("dynamicValue", "Text1", "visible", null)), user);
+
+      assertTrue(ctx.parameters().containsAll(List.of("cutoff", "region")), ctx.parameters().toString());
+      assertTrue(ctx.parameters().containsAll(List.of("_USER_", "_ROLES_", "_GROUPS_")));
+      assertFalse(ctx.parameters().contains("RadioButton1"), "a component is not a parameter");
+      assertFalse(ctx.parameters().contains("__principal__"));
+      assertEquals(ctx.parameters().stream().sorted().toList(), ctx.parameters());
+   }
+
+   @Test
+   void aDeclaredVariableThatSharesAComponentNameIsStillAParameter() throws Exception {
+      Viewsheet vs = viewsheetDeclaring("RadioButton1");
+      RuntimeViewsheet runtime = runtimeWith(vs);
+      when(contextService.context(runtime, null)).thenReturn(new ScriptContext(List.of(), List.of()));
+
+      PaneContext ctx = service.paneContext(runtime, session(null), user);
+
+      assertTrue(ctx.parameters().contains("RadioButton1"), ctx.parameters().toString());
+   }
+
+   @Test
+   void mergeDropsInternalsBuiltinsBlanksAndComponentSlots() {
+      assertEquals(List.of("_GROUPS_", "_ROLES_", "_USER_", "a", "b"),
+         PaneContextService.mergeParameterNames(
+            List.of("b", "a", "", "__x__"), List.of("_TODAY", "Chart1", "a", "!type"),
+            List.of("Chart1")));
+      assertEquals(List.of("_GROUPS_", "_ROLES_", "_USER_"),
+         PaneContextService.mergeParameterNames(List.of(), List.of(), List.of()));
    }
 
    @Test
@@ -118,8 +189,8 @@ class PaneContextServiceTest {
       assertEquals(List.of("RadioButton1", "Text1"),
                    ctx.components().stream().map(PaneContext.Component::name).toList());
       assertEquals("RadioButtonVSAssembly", ctx.components().get(0).type());
-      // sorted; the runtime's own slot and metadata keys are not parameters a script can name
-      assertEquals(List.of("_USER_", "region"), ctx.parameters());
+      // no viewsheet declares anything here: only the standard user variables, sorted
+      assertEquals(List.of("_GROUPS_", "_ROLES_", "_USER_"), ctx.parameters());
       assertEquals(List.of("dateAdd", "runQuery"), ctx.functions());
       assertTrue(ctx.notes().isEmpty(), ctx.notes().toString());
    }
@@ -202,15 +273,15 @@ class PaneContextServiceTest {
 
    @Test
    void aFailingSourceBecomesANoteAndTheRestStillComesBack() throws Exception {
-      when(scriptable.getScriptDefinition(rvs, null, null, false))
-         .thenThrow(new IllegalStateException("boom"));
+      when(rvs.getViewsheet()).thenThrow(new IllegalStateException("boom"));
       when(fields.list(eq(RUNTIME_ID), any(), eq(user)))
          .thenThrow(new IllegalArgumentException("nope"));
 
       PaneContext ctx = service.paneContext(
          rvs, session(new EditorContext("dynamicValue", "Text1", "visible", null)), user);
 
-      assertTrue(ctx.parameters().isEmpty());
+      // the standard user variables survive a failed read
+      assertEquals(List.of("_GROUPS_", "_ROLES_", "_USER_"), ctx.parameters());
       assertTrue(ctx.columns().isEmpty());
       assertEquals(2, ctx.notes().size());
       assertTrue(ctx.notes().get(0).contains("boom"), ctx.notes().toString());
