@@ -25,7 +25,7 @@
   <div class="container-fluid">
   </div>
 </form>
-<list-values-pane [model]="model.listValuesPaneModel" [runtimeId]="runtimeId" [general]="model" [variableValues]="variableValues"
+<list-values-pane [model]="model.listValuesPaneModel" [runtimeId]="runtimeId" [assemblyName]="assemblyName" [general]="model" [variableValues]="variableValues"
                   (isInputValid)="onValidChange($event)" [isComboBox]="true"></list-values-pane>
 <size-position-pane [model]="model.sizePositionPaneModel"
                     [(form)]="form.controls['sizePositionPaneForm']"></size-position-pane>

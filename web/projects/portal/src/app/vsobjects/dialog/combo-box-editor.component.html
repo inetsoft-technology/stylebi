@@ -69,7 +69,7 @@
                   <div class="form-floating">
                     <dynamic-combo-box [promptString]="datePrompt"
                       [(value)]="model.minDate" (valueChange)="onDateRangeChanged()"
-                      [vsId]="runtimeId" [variables]="variableValues" [editable]="true">
+                      [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="minDate" [variables]="variableValues" [editable]="true">
                   </dynamic-combo-box>
                   <label>_#(Minimum Date)</label>
                 </div>
@@ -78,7 +78,7 @@
                 <div class="form-floating">
                   <dynamic-combo-box [promptString]="datePrompt"
                     [(value)]="model.maxDate" (valueChange)="onDateRangeChanged()"
-                    [vsId]="runtimeId" [variables]="variableValues" [editable]="true">
+                    [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="maxDate" [variables]="variableValues" [editable]="true">
                   </dynamic-combo-box>
                   <label>_#(Maximum Date)</label>
                 </div>

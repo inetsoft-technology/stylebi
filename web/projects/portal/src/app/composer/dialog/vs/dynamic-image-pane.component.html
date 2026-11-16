@@ -30,7 +30,7 @@
       </div>
       <div class="col">
         <dynamic-combo-box [variables]="variableValues"
-                           [(value)]="imageName" [vsId]="vsId"
+                           [(value)]="imageName" [vsId]="vsId" [assemblyName]="assemblyName" dynamicProperty="imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageValue"
                            (typeChange)="updateImageValue($event)"
                            [disable]="!model.dynamicImageSelected || layoutObject"
                            [editable]="true">

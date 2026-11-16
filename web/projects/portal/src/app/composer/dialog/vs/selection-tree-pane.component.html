@@ -46,14 +46,14 @@
   </selection-tree-columns-pane>
 </div>
 <div [hidden]="model.mode == 1">
-  <selection-tree-id-pane [runtimeId]="runtimeId" [variableValues]="variableValues"
+  <selection-tree-id-pane [runtimeId]="runtimeId" [assemblyName]="assemblyName" [variableValues]="variableValues"
                           [model]="model" [measureTooltips]="measureTooltips"
                           [singleSelection]="singleSelection" [grayedOutValues]="getGrayedOutValues()"
                           [targetIdTree]="targetIdTree" [iconFunction] = "getCSSIcon"
                           [idRefs]="idRefs"></selection-tree-id-pane>
 </div>
 <selection-measure-pane
-  [runtimeId]="runtimeId" [variableValues]="variableValues"
+  [runtimeId]="runtimeId" [assemblyName]="assemblyName" [variableValues]="variableValues"
   [model]="model.selectionMeasurePaneModel" [tables]="getSelectedTables()"
   [grayedOutValues]="getGrayedOutValues()"
   (measuresChange)="updateIds($event)">

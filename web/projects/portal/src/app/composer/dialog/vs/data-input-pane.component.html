@@ -44,7 +44,7 @@
           <div class="form-floating column_id">
             <dynamic-combo-box data-test="columnDropdown"
               [values]="columns"
-              [vsId]="runtimeId" [variables]="variableValues"
+              [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="dataInputPaneModel.columnValue" [variables]="variableValues"
               [value]="model.columnValue" (valueChange)="selectColumn($event)"
               (typeChange)="selectColumnType($event)" [disable]="disableRowCol()">
             </dynamic-combo-box>
@@ -57,7 +57,7 @@
           <div class="form-floating row_id">
             <dynamic-combo-box data-test="rowDropdown"
               [values]="rows"
-              [vsId]="runtimeId" [variables]="variableValues"
+              [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="dataInputPaneModel.rowValue" [variables]="variableValues"
               [value]="selectedRow" [type]="rowType"
               (valueChange)="selectRow($event)"
               (typeChange)="selectRowType($event)" [disable]="disableRowCol()">

@@ -40,6 +40,8 @@ export class CalendarAdvancedPane implements OnInit {
    @Input() functionTreeRoot: TreeNodeModel = null;
    @Input() operatorTreeRoot: TreeNodeModel = null;
    @Input() scriptDefinitions: any = null;
+   @Input() runtimeId: string;
+   @Input() assemblyName: string = null;
    @Output() viewMode = new EventEmitter<number>();
    @Output() showType = new EventEmitter<number>();
 

@@ -56,6 +56,7 @@ export class ComboBoxEditor implements OnInit, OnChanges {
    @Input() general: ComboboxGeneralPaneModel;
    @Input() variableValues: string[];
    @Input() runtimeId: string;
+   @Input() assemblyName: string = null;
    @Input() enableDataType: boolean = true;
    @Input() showCalendar: boolean = false;
    @Input() showApplySelection: boolean = true;

@@ -39,6 +39,7 @@ import { FormsModule } from "@angular/forms";
 export class SelectionTreePane implements OnInit {
    @Input() model: SelectionTreePaneModel;
    @Input() runtimeId: string;
+   @Input() assemblyName: string = null;
    @Input() variableValues: string[];
    @Input() singleSelection: boolean;
    @Output() onAddColumn = new EventEmitter<string | string[]>();

@@ -43,7 +43,7 @@
       <ng-container ngbNavItem="advancedTab">
         <a ngbNavLink>_#(Advanced)</a>
         <ng-template ngbNavContent>
-          <calendar-advanced-pane [model]="model.calendarAdvancedPaneModel"
+          <calendar-advanced-pane [model]="model.calendarAdvancedPaneModel" [runtimeId]="runtimeId" [assemblyName]="assemblyName"
             [form]="form.controls['calendarAdvancedPaneForm']"
             [columnTreeRoot]="scriptTreeModel?.columnTree"
             [functionTreeRoot]="scriptTreeModel?.functionTree"

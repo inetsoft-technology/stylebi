@@ -39,7 +39,7 @@
         <a ngbNavLink>_#(Data)</a>
         <ng-template ngbNavContent>
           <selection-tree-pane
-            [model]="model.selectionTreePaneModel" [runtimeId]="runtimeId"
+            [model]="model.selectionTreePaneModel" [runtimeId]="runtimeId" [assemblyName]="assemblyName"
             [singleSelection]="model.selectionGeneralPaneModel?.singleSelection"
             (onAddColumn)="onAddColumn($event)"
           [variableValues]="variableValues"></selection-tree-pane>

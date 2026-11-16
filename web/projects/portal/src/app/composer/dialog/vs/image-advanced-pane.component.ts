@@ -44,6 +44,7 @@ export class ImageAdvancedPane {
    @Input() model: ImageAdvancedPaneModel;
    @Input() selectedImage: string;
    @Input() runtimeId: string;
+   @Input() assemblyName: string = null;
    @Input() variableValues: string[];
    @Input() layoutObject: boolean = false;
    @Input() animateGif: boolean = false;

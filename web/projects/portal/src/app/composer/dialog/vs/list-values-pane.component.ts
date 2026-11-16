@@ -34,6 +34,7 @@ export class ListValuesPane implements OnInit {
    @Input() model: ListValuesPaneModel;
    @Input() variableValues: string[];
    @Input() runtimeId: string;
+   @Input() assemblyName: string = null;
    @Input() general: ComboboxGeneralPaneModel;
    @Input() isComboBox: boolean = false;
    @Input() isCheckBox: boolean = false;
