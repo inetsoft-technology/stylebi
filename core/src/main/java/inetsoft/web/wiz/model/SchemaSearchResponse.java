@@ -18,6 +18,8 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.List;
 
 public class SchemaSearchResponse {
@@ -27,6 +29,19 @@ public class SchemaSearchResponse {
 
    public void setResults(List<SchemaSearchResult> results) {
       this.results = results;
+   }
+
+   /**
+    * Gets the data sources that could not be searched (unreachable, timed out) and why. Absent
+    * when every data source was searched.
+    */
+   @JsonInclude(JsonInclude.Include.NON_EMPTY)
+   public List<String> getWarnings() {
+      return warnings;
+   }
+
+   public void setWarnings(List<String> warnings) {
+      this.warnings = warnings;
    }
 
    public static class SchemaSearchResult {
@@ -108,4 +123,5 @@ public class SchemaSearchResponse {
    }
 
    private List<SchemaSearchResult> results;
+   private List<String> warnings;
 }

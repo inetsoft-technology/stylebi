@@ -35,6 +35,8 @@ import java.lang.reflect.Method;
 import java.security.Principal;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 
 /**
@@ -59,8 +61,11 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
       final DataSourceKey key = DataSourceKey.Builder.from(jdbcDataSource).build();
 
       synchronized(dataSources) {
-         result = dataSources.computeIfAbsent(
-            key, k -> new HikariDataSource(createDataSourceConfig(jdbcDataSource)));
+         result = dataSources.get(key);
+      }
+
+      if(result == null) {
+         result = createConnectionPool(key, jdbcDataSource);
       }
 
       if(jdbcDataSource.getDatabaseType() == JDBCDataSource.JDBC_ACCESS &&
@@ -72,8 +77,46 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
       return result;
    }
 
-   private HikariConfig createDataSourceConfig(JDBCDataSource jdbcDataSource) {
-      return createDataSourceConfig(jdbcDataSource, false);
+   /**
+    * Creates the pool of a data source. Building it opens a probe connection and starts the pool,
+    * which blocks for as long as the database takes to answer (20 s or more for an unreachable
+    * host), so it is serialized per data source, never under the lock of the whole map: one
+    * unreachable data source must not hold up the connection pools of every other one.
+    * A thread waiting for another thread's creation of the same pool can be interrupted.
+    */
+   private DataSource createConnectionPool(DataSourceKey key, JDBCDataSource jdbcDataSource) {
+      ReentrantLock creationLock = creationLocks.computeIfAbsent(key, k -> new ReentrantLock());
+
+      try {
+         creationLock.lockInterruptibly();
+      }
+      catch(InterruptedException e) {
+         Thread.currentThread().interrupt();
+         throw new IllegalStateException(
+            "Interrupted while waiting for the connection pool of data source " +
+            jdbcDataSource.getFullName(), e);
+      }
+
+      try {
+         DataSource result;
+
+         synchronized(dataSources) {
+            result = dataSources.get(key);
+         }
+
+         if(result == null) {
+            result = new HikariDataSource(createDataSourceConfig(jdbcDataSource, false));
+
+            synchronized(dataSources) {
+               dataSources.put(key, result);
+            }
+         }
+
+         return result;
+      }
+      finally {
+         creationLock.unlock();
+      }
    }
 
    HikariConfig createDataSourceConfig(JDBCDataSource jdbcDataSource, boolean forceJdbc4) {
@@ -353,6 +396,7 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
    }
 
    private final Map<DataSourceKey, DataSource> dataSources;
+   private final Map<DataSourceKey, ReentrantLock> creationLocks = new ConcurrentHashMap<>();
    private static final Logger LOG =
       LoggerFactory.getLogger(DefaultConnectionPoolFactory.class);
 
