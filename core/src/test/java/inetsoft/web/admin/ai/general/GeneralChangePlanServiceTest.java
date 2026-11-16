@@ -67,6 +67,8 @@ class GeneralChangePlanServiceTest {
       sreeEnv = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       sreeEnv.when(() -> SreeEnv.getProperty("sree.home")).thenReturn("/opt/sree");
+      // an unset directory by default; the real lookup needs a Spring context
+      sreeEnv.when(() -> SreeEnv.getProperty("replet.cache.directory")).thenReturn(null);
    }
 
    @AfterEach
@@ -934,15 +936,79 @@ class GeneralChangePlanServiceTest {
    }
 
    @Test
-   void planIsAlwaysSignedOffAndBackedUp() throws Exception {
+   void planIsAlwaysSignedOffAndAPerformanceUpdateSkipsTheSnapshot() throws Exception {
       when(access.read(eq(GeneralSubModel.PERFORMANCE), any())).thenReturn(performance(60));
       ResolvedPlan plan = service.resolve(
          request("t", change("performance", spec().put("queryTimeout", 120))), PRINCIPAL);
 
-      assertTrue(plan.requiresStorageBackup());
+      assertFalse(plan.requiresStorageBackup(), "Bug #81072: the undo is an exact write-back");
       assertTrue(plan.requiresAgentSignoff());
       assertNotNull(plan.taskToken());
       assertNull(plan.changes().get(0).orgId(), "general settings changes carry no organization");
       assertEquals("performance", plan.changes().get(0).property());
+   }
+
+   private boolean backupFor(GeneralChangeRequest... changes) throws Exception {
+      return service.resolve(request("t", changes), PRINCIPAL).requiresStorageBackup();
+   }
+
+   @Test
+   void cacheSkipsTheSnapshotOnlyWhenTheDirectoryIsExplicitlySetAndUnrewritten() throws Exception {
+      when(access.read(eq(GeneralSubModel.CACHE), any())).thenReturn(cache("/var/cache/x"));
+      GeneralChangeRequest c = change("cache", spec().put("cleanUpStartup", true));
+
+      sreeEnv.when(() -> SreeEnv.getProperty("replet.cache.directory"))
+         .thenReturn("/var/cache/x");
+      assertFalse(backupFor(c), "explicit directory equal to the model value");
+
+      sreeEnv.when(() -> SreeEnv.getProperty("replet.cache.directory")).thenReturn(null);
+      assertTrue(backupFor(c), "unset: the model shows a node default setModel would pin");
+
+      // stored raw path under sree.home reads back as $(sree.home)..., so model != raw
+      when(access.read(eq(GeneralSubModel.CACHE), any())).thenReturn(cache("$(sree.home)/cache"));
+      sreeEnv.when(() -> SreeEnv.getProperty("replet.cache.directory"))
+         .thenReturn("/opt/sree/cache");
+      assertTrue(backupFor(c), "rewritten $(sree.home) form differs from the stored value");
+   }
+
+   @Test
+   void emailSkipsTheSnapshotOnlyForAnUnchangedNoneOrSmtpAuthType() throws Exception {
+      when(access.read(eq(GeneralSubModel.EMAIL), any())).thenReturn(email(SMTPAuthType.NONE));
+      assertFalse(backupFor(change("email", spec().put("smtpHost", "h"))));
+
+      when(access.read(eq(GeneralSubModel.EMAIL), any()))
+         .thenReturn(email(SMTPAuthType.SMTP_AUTH));
+      assertFalse(backupFor(change("email", spec().put("smtpHost", "h"))));
+
+      when(access.read(eq(GeneralSubModel.EMAIL), any())).thenReturn(email(SMTPAuthType.NONE));
+      assertTrue(backupFor(change("email",
+                                  spec().put("smtpAuthentication", "SMTP_AUTH")
+                                     .put("smtpUser", "u"))),
+                 "an auth switch leaves residue");
+
+      when(access.read(eq(GeneralSubModel.EMAIL), any()))
+         .thenReturn(email(SMTPAuthType.SASL_XOAUTH2));
+      assertTrue(backupFor(change("email", spec().put("smtpHost", "h"))),
+                 "OAuth tokens rotate in the background");
+   }
+
+   @Test
+   void localizationAndMvKeepTheSnapshot() throws Exception {
+      when(access.read(eq(GeneralSubModel.LOCALIZATION), any()))
+         .thenReturn(localization("en"));
+      assertTrue(backupFor(change("localization",
+                                  spec().set("locales", localeArray("en", "de")))));
+
+      when(access.read(eq(GeneralSubModel.MV), any())).thenReturn(mv("c", List.of("c")));
+      assertTrue(backupFor(change("mv", spec().put("metadata", true))));
+   }
+
+   @Test
+   void oneKeepEntryKeepsTheSnapshotForAMixedPlan() throws Exception {
+      when(access.read(eq(GeneralSubModel.PERFORMANCE), any())).thenReturn(performance(60));
+      when(access.read(eq(GeneralSubModel.MV), any())).thenReturn(mv("c", List.of("c")));
+
+      assertTrue(backupFor(change("performance", spec().put("queryTimeout", 120)),
+                           change("mv", spec().put("metadata", true))));
    }
 }

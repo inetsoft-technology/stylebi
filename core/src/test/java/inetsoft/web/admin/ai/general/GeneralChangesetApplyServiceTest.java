@@ -81,6 +81,8 @@ class GeneralChangesetApplyServiceTest {
       sreeEnv = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       sreeEnv.when(() -> SreeEnv.getProperty("sree.home")).thenReturn("/opt/sree");
+      // an unset directory by default; the real lookup needs a Spring context
+      sreeEnv.when(() -> SreeEnv.getProperty("replet.cache.directory")).thenReturn(null);
    }
 
    @AfterEach
@@ -99,6 +101,14 @@ class GeneralChangesetApplyServiceTest {
    private static CacheSettingsModel cache(boolean cleanUpStartup) {
       return CacheSettingsModel.builder()
          .directory("$(sree.home)/cache").cleanUpStartup(cleanUpStartup).build();
+   }
+
+   private static inetsoft.web.admin.general.model.EmailSettingsModel email(
+      inetsoft.web.admin.general.model.model.SMTPAuthType auth, String host)
+   {
+      return inetsoft.web.admin.general.model.EmailSettingsModel.builder()
+         .smtpHost(host).ssl(false).tls(false).smtpAuthentication(auth).fromAddress("a@b.c")
+         .historyEnabled(false).build();
    }
 
    private static GeneralChangeRequest change(String subModel, ObjectNode spec) {
@@ -181,24 +191,109 @@ class GeneralChangesetApplyServiceTest {
       verify(backupService, never()).backup(anyString());
    }
 
+   /**
+    * Bug #81072: a performance write has an exact in-process undo, so the apply must not pay the
+    * whole-storage snapshot. Before the fix the apply called {@code backup} unconditionally.
+    */
    @Test
-   void successfulApplyBacksUpFirstAndReportsVerified() throws Exception {
+   void successfulPerformanceApplySkipsTheSnapshotAndReportsVerified() throws Exception {
       when(access.read(eq(GeneralSubModel.PERFORMANCE), any()))
          .thenReturn(performance(60))
          .thenReturn(performance(60))
          .thenReturn(performance(120));
-      when(backupService.backup(anyString())).thenReturn("backup-ref");
 
       GeneralApplyRequest req =
          signedRequest("t", change("performance", spec().put("queryTimeout", 120)));
       GeneralApplyResult result = service.apply(req, PRINCIPAL);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
-      assertEquals("backup-ref", result.backupRef());
+      assertNull(result.backupRef());
       assertEquals(1, result.results().size());
       assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
       assertTrue(result.transactionId().startsWith("gen-"));
       assertNull(result.rollbackFailures());
+      verify(backupService, never()).backup(anyString());
+   }
+
+   @Test
+   void cacheApplyWithAnExplicitDirectorySkipsTheSnapshot() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("replet.cache.directory"))
+         .thenReturn("$(sree.home)/cache");
+      when(access.read(eq(GeneralSubModel.CACHE), any()))
+         .thenReturn(cache(false))
+         .thenReturn(cache(false))
+         .thenReturn(cache(true));
+
+      GeneralApplyResult result = service.apply(
+         signedRequest("t", change("cache", spec().put("cleanUpStartup", true))), PRINCIPAL);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
+   }
+
+   /** An unset directory is pinned into shared config by setModel, which the undo cannot unset. */
+   @Test
+   void cacheApplyWithAnUnsetDirectoryTakesTheSnapshot() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("replet.cache.directory")).thenReturn(null);
+      when(access.read(eq(GeneralSubModel.CACHE), any()))
+         .thenReturn(cache(false))
+         .thenReturn(cache(false))
+         .thenReturn(cache(true));
+      when(backupService.backup(anyString())).thenReturn("backup-ref");
+
+      GeneralApplyResult result = service.apply(
+         signedRequest("t", change("cache", spec().put("cleanUpStartup", true))), PRINCIPAL);
+
+      assertEquals("backup-ref", result.backupRef());
+      verify(backupService).backup(anyString());
+   }
+
+   @Test
+   void sameAuthEmailApplySkipsTheSnapshot() throws Exception {
+      inetsoft.web.admin.general.model.EmailSettingsModel before = email(
+         inetsoft.web.admin.general.model.model.SMTPAuthType.NONE, "smtp.a");
+      inetsoft.web.admin.general.model.EmailSettingsModel after = email(
+         inetsoft.web.admin.general.model.model.SMTPAuthType.NONE, "smtp.b");
+      when(access.read(eq(GeneralSubModel.EMAIL), any()))
+         .thenReturn(before).thenReturn(before).thenReturn(after);
+
+      GeneralApplyResult result = service.apply(
+         signedRequest("t", change("email", spec().put("smtpHost", "smtp.b"))), PRINCIPAL);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
+   }
+
+   @Test
+   void localizationApplyTakesTheSnapshot() throws Exception {
+      inetsoft.web.admin.general.model.LocalizationSettingsModel before =
+         inetsoft.web.admin.general.model.LocalizationSettingsModel.builder().build();
+      when(access.read(eq(GeneralSubModel.LOCALIZATION), any())).thenReturn(before);
+      when(backupService.backup(anyString())).thenReturn("backup-ref");
+
+      GeneralApplyResult result = service.apply(signedRequest("t",
+         change("localization", MAPPER.createObjectNode().set("locales", MAPPER.createArrayNode()
+            .add(MAPPER.createObjectNode().put("language", "en").put("country", "US")
+                    .put("label", "English"))))), PRINCIPAL);
+
+      assertEquals("backup-ref", result.backupRef());
+      verify(backupService).backup(anyString());
+   }
+
+   @Test
+   void mvApplyTakesTheSnapshot() throws Exception {
+      inetsoft.web.admin.general.model.MVSettingsModel before =
+         inetsoft.web.admin.general.model.MVSettingsModel.builder()
+            .onDemand(false).onDemandDefault(false).metadata(false).required(false).build();
+      when(access.read(eq(GeneralSubModel.MV), any())).thenReturn(before);
+      when(backupService.backup(anyString())).thenReturn("backup-ref");
+
+      GeneralApplyResult result = service.apply(
+         signedRequest("t", change("mv", spec().put("metadata", true))), PRINCIPAL);
+
+      assertEquals("backup-ref", result.backupRef());
       verify(backupService).backup(anyString());
    }
 
@@ -209,7 +304,6 @@ class GeneralChangesetApplyServiceTest {
          .thenReturn(performance(60))
          .thenReturn(performance(60))
          .thenReturn(performance(120));
-      when(backupService.backup(anyString())).thenReturn("backup-ref");
 
       GeneralApplyResult result = service.apply(
          signedRequest("t", change("performance", spec().put("queryTimeout", 120))), PRINCIPAL);
@@ -221,11 +315,12 @@ class GeneralChangesetApplyServiceTest {
 
    @Test
    void cacheSubModelCarriesNoAdvisory() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("replet.cache.directory"))
+         .thenReturn("$(sree.home)/cache");
       when(access.read(eq(GeneralSubModel.CACHE), any()))
          .thenReturn(cache(false))
          .thenReturn(cache(false))
          .thenReturn(cache(true));
-      when(backupService.backup(anyString())).thenReturn("backup-ref");
 
       GeneralApplyResult result = service.apply(
          signedRequest("t", change("cache", spec().put("cleanUpStartup", true))), PRINCIPAL);
@@ -245,7 +340,6 @@ class GeneralChangesetApplyServiceTest {
          .thenReturn(performance(60))
          .thenReturn(performance(60))   // read-back after write: unchanged -> not verified
          .thenReturn(performance(60));  // read-back after rollback: restored
-      when(backupService.backup(anyString())).thenReturn("backup-ref");
 
       GeneralApplyResult result = service.apply(
          signedRequest("t", change("performance", spec().put("queryTimeout", 120))), PRINCIPAL);
@@ -260,7 +354,6 @@ class GeneralChangesetApplyServiceTest {
    @Test
    void failedWriteThatMovedNothingIsNotTreatedAsAppliedNorLeftUnknown() throws Exception {
       when(access.read(eq(GeneralSubModel.PERFORMANCE), any())).thenReturn(performance(60));
-      when(backupService.backup(anyString())).thenReturn("backup-ref");
       doThrow(new IllegalStateException("refused by the service"))
          .when(access).write(eq(GeneralSubModel.PERFORMANCE), any(), any());
 
@@ -348,7 +441,6 @@ class GeneralChangesetApplyServiceTest {
    @Test
    void failedRollbackIsReported() throws Exception {
       when(access.read(eq(GeneralSubModel.PERFORMANCE), any())).thenReturn(performance(60));
-      when(backupService.backup(anyString())).thenReturn("backup-ref");
       doNothing().doThrow(new IllegalStateException("cannot restore"))
          .when(access).write(eq(GeneralSubModel.PERFORMANCE), any(), any());
 

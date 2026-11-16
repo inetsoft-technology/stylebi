@@ -24,7 +24,10 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
+import inetsoft.web.admin.general.model.CacheSettingsModel;
+import inetsoft.web.admin.general.model.EmailSettingsModel;
 import inetsoft.web.admin.general.model.model.SMTPAuthType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -92,8 +95,50 @@ public class GeneralChangePlanService {
       String task = req.getTask().trim();
       List<PlanChange> immutableChanges = Collections.unmodifiableList(changes);
       String planHash = hash(immutableChanges);
-      return new ResolvedPlan(task, immutableChanges, true, true,
+      return new ResolvedPlan(task, immutableChanges, requiresBackup(resolved), true,
                               planHash, TaskAuditToken.issue(planHash, task));
+   }
+
+   /**
+    * Whether the plan needs the whole-storage snapshot (Bug #81072). The apply service computes the
+    * same flag from the same resolved entries, so preview and apply cannot disagree.
+    *
+    * <p>The decision varies with the sub-model and, for two of them, with live state:
+    * <ul>
+    *   <li>{@code performance}: eight plain {@code SreeEnv} properties, the captured model is
+    *       written back; skip. The asset data cache it clears is refillable and already disclosed
+    *       as an advisory.</li>
+    *   <li>{@code cache}: skip only when {@code replet.cache.directory} is explicitly set and its
+    *       raw value equals the model's directory. When it is unset the model shows a
+    *       node-derived default and {@code setModel} would pin it into shared config, and a
+    *       {@code $(sree.home)} rewrite makes the model differ from the stored value; both keep.
+    *       An unset {@code replet.cache.clean} is pinned to "true" (accepted drift).</li>
+    *   <li>{@code email}: skip only when {@code smtpAuthentication} is unchanged and is NONE or
+    *       SMTP_AUTH. An auth switch writes fields only under the new type and leaves residue, and
+    *       the OAuth types rotate tokens in the background; both keep.</li>
+    *   <li>{@code localization} (a whole label-file rewrite that drops labels irrecoverably) and
+    *       {@code mv} (a second registry file whose write the read-back cannot observe): keep.</li>
+    * </ul>
+    */
+   static boolean requiresBackup(List<ResolvedChange> resolved) {
+      return StorageBackupPolicy.requiresBackup(resolved, GeneralChangePlanService::hasExactUndo);
+   }
+
+   private static boolean hasExactUndo(ResolvedChange change) {
+      return switch(change.subModel()) {
+         case PERFORMANCE -> true;
+         case CACHE -> {
+            String raw = SreeEnv.getProperty("replet.cache.directory");
+            yield raw != null && change.currentModel() instanceof CacheSettingsModel current &&
+               raw.equals(current.directory());
+         }
+         case EMAIL -> change.currentModel() instanceof EmailSettingsModel current &&
+            change.proposedModel() instanceof EmailSettingsModel proposed &&
+            current.smtpAuthentication() == proposed.smtpAuthentication() &&
+            (current.smtpAuthentication() == SMTPAuthType.NONE ||
+               current.smtpAuthentication() == SMTPAuthType.SMTP_AUTH);
+         default -> false;
+      };
    }
 
    /**
