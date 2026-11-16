@@ -19,6 +19,7 @@ package inetsoft.graph;
 
 import com.inetsoft.build.tern.*;
 import inetsoft.graph.aesthetic.*;
+import inetsoft.graph.guide.axis.CompactDates;
 import inetsoft.graph.internal.GDefaults;
 
 import java.awt.*;
@@ -303,6 +304,20 @@ public class AxisSpec implements Cloneable, Serializable {
     */
    public void setLabelLimit(double labelLimit) {
       this.labelLimit = labelLimit;
+   }
+
+   /**
+    * Get the compact date labels, or null for the date format of the label text.
+    */
+   public CompactDates getCompactDates() {
+      return compactDates;
+   }
+
+   /**
+    * Set the compact date labels, which show the year only where it changes. Null is off.
+    */
+   public void setCompactDates(CompactDates compactDates) {
+      this.compactDates = compactDates;
    }
 
    /**
@@ -631,6 +646,7 @@ public class AxisSpec implements Cloneable, Serializable {
          Double.compare(asize, axisSpec.asize) == 0 && minPadding == axisSpec.minPadding &&
          maxPadding == axisSpec.maxPadding && maxLabelSpacing == axisSpec.maxLabelSpacing &&
          Double.compare(labelLimit, axisSpec.labelLimit) == 0 &&
+         Objects.equals(compactDates, axisSpec.compactDates) &&
          Objects.equals(lineColor, axisSpec.lineColor) &&
          Objects.equals(line2Color, axisSpec.line2Color) &&
          Objects.equals(textFrame, axisSpec.textFrame) &&
@@ -646,7 +662,7 @@ public class AxisSpec implements Cloneable, Serializable {
                           labelGap, textFrame, colorFrame, fontFrame, textSpec, abbreviate,
                           allTick, truncate, inPlot, lastOrAll, gridColor, gridStyle, gridAsShape,
                           gridOnTop, gridBetween, labelBetween, facetGrid, labelOnSecondaryAxis, asize,
-                          minPadding, maxPadding, maxLabelSpacing, labelLimit);
+                          minPadding, maxPadding, maxLabelSpacing, labelLimit, compactDates);
    }
 
    /**
@@ -699,6 +715,7 @@ public class AxisSpec implements Cloneable, Serializable {
    private boolean allTick = false; // ignore abbreviated (ignored) ticks
    private boolean truncate = true;
    private double labelLimit = 0;
+   private CompactDates compactDates;
    private boolean inPlot = false;
    private boolean lastOrAll = false;
 

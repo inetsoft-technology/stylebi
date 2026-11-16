@@ -66,6 +66,7 @@ public class DefaultAxis extends Axis {
    @Override
    protected void createVisuals() {
       removeAllVisuals();
+      compactTexts = new IdentityHashMap<>();
       vlabels = new VDimensionLabel[0];
       line = new AxisLine(this);
       visibleLabelCnt = 0;
@@ -81,12 +82,32 @@ public class DefaultAxis extends Axis {
          Set aliased = new HashSet((aliasframe != null) ? aliasframe.getKeys() : new Vector());
          vlabels = new VDimensionLabel[labels.length];
          boolean hor = isHorizontal();
+         CompactDates compact = spec.getCompactDates();
+         Format full = compact == null ? null : compact.full(scale);
+         Format brief = compact == null ? null : compact.brief(scale);
 
          for(int i = 0; i < vlabels.length; i++) {
             boolean isalias = aliased.size() > 0 && aliased.contains(GTool.toString(values[i]));
             Object prevLabel = (i > 0) ? labels[i - 1] : null;
+            Object label = labels[i];
+            String[] texts = null;
 
-            vlabels[i] = createLabel(labels[i], prevLabel, isalias, values[i], hor);
+            // the alias is a different value from the date in the label
+            if(full != null && brief != null && !isalias && values[i] instanceof Date &&
+               values[i].equals(label))
+            {
+               texts = new String[] { full.format(values[i]), brief.format(values[i]) };
+               boolean sameYear = i > 0 && values[i - 1] instanceof Date &&
+                  year((Date) values[i - 1]) == year((Date) values[i]);
+               label = sameYear ? texts[1] : texts[0];
+            }
+
+            vlabels[i] = createLabel(label, prevLabel, isalias || texts != null, values[i], hor);
+
+            if(texts != null) {
+               compactTexts.put(vlabels[i], texts);
+            }
+
             vlabels[i].setTruncate(spec.isTruncate());
             vlabels[i].setWrapping(!spec.isTruncate());
             vlabels[i].setEllipsis(spec.getLabelLimit() > 0);
@@ -1460,6 +1481,98 @@ public class DefaultAxis extends Axis {
       if(removeOverlappedLabels(bounds, hor, moved)) {
          redistributeSpace();
       }
+
+      showCompactYears();
+   }
+
+   private static int year(Date date) {
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(date);
+      return cal.get(Calendar.YEAR);
+   }
+
+   /**
+    * Put the year on the first shown label of each year. A label with the longer text that
+    * overlaps a shown neighbour hides the neighbour (the year then moves on if the neighbour
+    * carried it), until no shown labels overlap.
+    */
+   private void showCompactYears() {
+      if(compactTexts == null || compactTexts.isEmpty() || layoutBounds == null) {
+         return;
+      }
+
+      Set<VDimensionLabel> grown = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      while(true) {
+         List<VDimensionLabel> shown = new ArrayList<>();
+         boolean moved = false;
+         Integer prevYear = null;
+
+         for(VDimensionLabel vl : vlabels) {
+            if(vl.getZIndex() < 0) {
+               continue;
+            }
+
+            shown.add(vl);
+            String[] texts = compactTexts.get(vl);
+
+            if(texts == null) {
+               prevYear = vl.getValue() instanceof Date ? year((Date) vl.getValue()) : null;
+               continue;
+            }
+
+            int year = year((Date) vl.getValue());
+
+            if((prevYear == null || prevYear != year) && !texts[0].equals(vl.getLabel())) {
+               vl.setLabel(texts[0]);
+               grown.add(vl);
+               moved = true;
+            }
+
+            prevYear = year;
+         }
+
+         if(moved) {
+            layout(layoutBounds);
+         }
+
+         VDimensionLabel victim = null;
+
+         for(int i = 0; i < shown.size() - 1 && victim == null; i++) {
+            VDimensionLabel a = shown.get(i);
+            VDimensionLabel b = shown.get(i + 1);
+
+            if((grown.contains(a) || grown.contains(b)) && overlaps(a, b)) {
+               victim = grown.contains(b) && !grown.contains(a) ? a : b;
+            }
+         }
+
+         if(victim == null) {
+            break;
+         }
+
+         victim.setZIndex(-1);
+      }
+   }
+
+   // overlap as the label thinning sees it: a little vertical slack, rotated with the text
+   private static boolean overlaps(VDimensionLabel l1, VDimensionLabel l2) {
+      Area a = textArea(l1);
+      a.intersect(textArea(l2));
+      return !a.isEmpty() && a.getBounds2D().getHeight() >= 1;
+   }
+
+   private static Area textArea(VDimensionLabel vl) {
+      Font font = vl.getFont();
+      Point2D p = vl.getTextPosition();
+      String[] lines = vl.getDisplayLabel();
+      double angle = Math.toRadians(vl.getTextSpec().getRotation());
+      double yadj = angle == 0 ? 1 : 2;
+      Rectangle2D box = new Rectangle2D.Double(
+         p.getX(), p.getY() + yadj, GTool.stringWidth(lines, font),
+         GTool.getFontMetrics(font).getHeight() * lines.length - yadj * 2);
+      return new Area(AffineTransform.getRotateInstance(angle, p.getX(), p.getY())
+                         .createTransformedShape(box));
    }
 
    /**
@@ -2504,6 +2617,8 @@ public class DefaultAxis extends Axis {
    private double size;
    private AxisLine line;
    private VDimensionLabel[] vlabels;
+   // full and brief text of the compact date labels
+   private Map<VDimensionLabel, String[]> compactTexts; // set by createVisuals
    private int visibleLabelCnt;
    private String axisType;
    private boolean centerLabel;
