@@ -7538,4 +7538,132 @@ class AssemblyPropertyServiceTest {
          assertEquals("Cost", model.getDataOutputPaneModel().getWith(), aggregate);
       }
    }
+
+   // ── bug #81419: the remaining Properties-dialog settings, written through their names ─────
+
+   @Test
+   void writesAChartsTitleHeightPaddingDrillingAndDateComparisonByName() throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("titleHeight", 30);
+      patch.put("paddingTop", 2);
+      patch.put("paddingLeft", 3);
+      patch.put("paddingBottom", 4);
+      patch.put("paddingRight", 5);
+      patch.put("drillEnabled", false);
+      patch.put("dateComparisonEnabled", false);
+
+      service.set("tok", principal(), "Chart1", patch, "");
+
+      assertEquals(30, model.getChartGeneralPaneModel().getSizePositionPaneModel().getTitleHeight());
+      assertEquals(2, model.getChartGeneralPaneModel().getPaddingPaneModel().getTop());
+      assertEquals(3, model.getChartGeneralPaneModel().getPaddingPaneModel().getLeft());
+      assertEquals(4, model.getChartGeneralPaneModel().getPaddingPaneModel().getBottom());
+      assertEquals(5, model.getChartGeneralPaneModel().getPaddingPaneModel().getRight());
+      assertFalse(model.getChartAdvancedPaneModel().isEnableDrilling());
+      assertFalse(model.getChartAdvancedPaneModel().isDateComparisonEnabled());
+   }
+
+   /** The dialog refuses these; StyleBI used to clamp the height to 0 and store the inset. */
+   @Test
+   void refusesAChartTitleHeightBelowOneAndANegativePaddingWithoutWritingAnything()
+      throws Exception
+   {
+      for(Map<String, Object> patch : List.of(Map.<String, Object>of("titleHeight", -4),
+                                              Map.<String, Object>of("titleHeight", 0),
+                                              Map.<String, Object>of("paddingTop", -7),
+                                              Map.<String, Object>of(
+                                                 "chartGeneralPaneModel.paddingPaneModel.left", -1),
+                                              Map.<String, Object>of(
+                                                 "chartGeneralPaneModel.sizePositionPaneModel."
+                                                    + "titleHeight", -4)))
+      {
+         ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+         AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+         String key = patch.keySet().iterator().next();
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Chart1", patch, ""), key);
+         assertTrue(e.getMessage().contains(key), e.getMessage());
+         assertNothingWrittenBy(lastDialogServices);
+      }
+   }
+
+   @Test
+   void refusesANegativePaddingOnAGaugeAndAppliesAValidOne() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.set("tok", principal(), "Gauge1", Map.of("paddingBottom", -2), ""));
+      service.set("tok", principal(), "Gauge1", Map.of("paddingBottom", 6), "");
+      assertEquals(6, model.getGaugeGeneralPaneModel().getPaddingPaneModel().getBottom());
+   }
+
+   @Test
+   void refusesATrendLineMeasureThatIsNotOneOfTheChartsMeasures() throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      model.getChartLinePaneModel().setMeasures(new String[] { "Sales", "Cost" });
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Chart1",
+                           Map.of("trendLineMeasures", List.of("Sales", "Margin")), ""));
+      assertTrue(e.getMessage().contains("Margin"), e.getMessage());
+      assertNothingWrittenBy(lastDialogServices);
+
+      service.set("tok", principal(), "Chart1", Map.of("trendLineMeasures", List.of("Cost")), "");
+      assertArrayEquals(new String[] { "Cost" }, model.getChartLinePaneModel().getTrendLineMeasures());
+   }
+
+   @Test
+   void writesACalcTablesTitleHeightAndTrailerCountsAndRefusesNegativeOnes() throws Exception {
+      CalcTablePropertyDialogModel model = new CalcTablePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(CalcTableVSAssembly.class), model);
+
+      service.set("tok", principal(), "Calc1",
+                  Map.of("titleHeight", 26, "trailerRowCount", 1, "trailerColCount", 2), "");
+      assertEquals(26, model.getTableViewGeneralPaneModel().getSizePositionPaneModel()
+         .getTitleHeight());
+      assertEquals(1, model.getCalcTableAdvancedPaneModel().getTrailerRowCount());
+      assertEquals(2, model.getCalcTableAdvancedPaneModel().getTrailerColCount());
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.set("tok", principal(), "Calc1",
+                                     Map.of("trailerRowCount", -1), ""));
+      assertEquals(1, model.getCalcTableAdvancedPaneModel().getTrailerRowCount());
+   }
+
+   /** The group container's names reach PatchGuards' scale rules and the image-tree check. */
+   @Test
+   void theGroupContainerNamesMeetTheSameGuardsAsTheRawPaths() throws Exception {
+      assertGroupRefused(groupWithScale(true, false, false, 0), Map.of("tile", true),
+                         "scaleImageChecked", "tile");
+      assertGroupRefused(groupWithScale(true, false, true, 0), Map.of("cellGridTop", 10),
+                         "top", "maintainAspectRatio");
+
+      GroupContainerPropertyDialogModel model = groupContainerModelWithTree();
+      AssemblyPropertyService service = serviceWith(mock(GroupContainerVSAssembly.class), model);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.set("tok", principal(), "Group1",
+                                     Map.of("staticImage", "$(X)"), ""));
+      service.set("tok", principal(), "Group1",
+                  Map.of("staticImage", "^UPLOADED^2.png", "animateGIF", true,
+                         "alpha", 60), "");
+
+      var preview = model.getGroupContainerGeneralPane().getStaticImagePane()
+         .imagePreviewPaneModel();
+      assertEquals("^UPLOADED^2.png", preview.selectedImage());
+      assertTrue(preview.animateGifImage());
+      assertEquals(60, preview.alpha());
+
+      // out of range: refused with the field named, the stored alpha is unchanged
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Group1", Map.of("alpha", 500), ""));
+      assertTrue(e.getMessage().contains("alpha"), e.getMessage());
+      assertEquals(60, model.getGroupContainerGeneralPane().getStaticImagePane()
+         .imagePreviewPaneModel().alpha());
+   }
 }
