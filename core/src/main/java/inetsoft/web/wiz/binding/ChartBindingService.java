@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -125,7 +126,9 @@ public class ChartBindingService {
          event.setName(assemblyName);
          event.setFieldType(shelf);
          event.setModel(model);
+         Set<String> measuresBefore = measureNames(chart.getVSChartInfo());
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+         fixNewMeasureColors(requireChart(rvs, assemblyName).getVSChartInfo(), measuresBefore);
          notes.addAll(ChartHyperlinkCarry.reapply(
             requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links));
 
@@ -151,6 +154,53 @@ public class ChartBindingService {
       }));
 
       return withNotes(warnings, notes);
+   }
+
+   /** Full names of the aggregates currently bound on x/y, or empty when there is no chart info. */
+   static Set<String> measureNames(VSChartInfo info) {
+      Set<String> names = new java.util.HashSet<>();
+
+      if(info != null) {
+         ChartRef[] refs = info.getModelRefs(false);
+
+         if(refs != null) {
+            for(ChartRef ref : refs) {
+               if(ref instanceof ChartAggregateRef) {
+                  names.add(ref.getFullName());
+               }
+            }
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * Bug #81444: gives each measure this write added its own palette colour, as the Composer's
+    * drag-and-drop does ({@code ChartDndHandler} -> {@code GraphUtil.fixStaticColorFrame}).
+    * {@code toChartRef} builds every measure with the same default static colour, and the
+    * render-time fix only repairs a runtime copy (and is skipped on a multi-style chart), so
+    * without this the stored binding gave every measure one colour. Measures that were already
+    * bound keep what they had.
+    */
+   static void fixNewMeasureColors(VSChartInfo info, Set<String> measuresBefore) {
+      if(info == null || measuresBefore == null) {
+         return;
+      }
+
+      ChartRef[] refs = info.getModelRefs(false);
+
+      if(refs == null) {
+         return;
+      }
+
+      for(ChartRef ref : refs) {
+         if(ref instanceof ChartAggregateRef aggregate &&
+            !measuresBefore.contains(ref.getFullName()))
+         {
+            GraphUtil.fixStaticColorFrame(aggregate, info, null);
+         }
+      }
    }
 
    /**

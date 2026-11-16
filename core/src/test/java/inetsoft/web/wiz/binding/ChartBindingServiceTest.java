@@ -1959,6 +1959,39 @@ class ChartBindingServiceTest {
                    returned.toString());
    }
 
+   @Test
+   void newMeasuresGetDistinctStaticColoursAndBoundOnesAreKept() {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      VSChartAggregateRef total = colourMeasure("Total");
+      VSChartAggregateRef price = colourMeasure("Price");
+      info.addYField(total);
+      info.addYField(price);
+
+      ChartBindingService.fixNewMeasureColors(info, java.util.Set.of());
+
+      java.awt.Color a = ((inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper)
+         total.getColorFrameWrapper()).getDefaultColor();
+      java.awt.Color b = ((inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper)
+         price.getColorFrameWrapper()).getDefaultColor();
+      assertNotEquals(a, b, "two new measures must not share one stored colour");
+
+      // A measure that was already bound is left alone.
+      VSChartAggregateRef kept = colourMeasure("Kept");
+      DefaultVSChartInfo info2 = new DefaultVSChartInfo();
+      info2.addYField(colourMeasure("Other"));
+      info2.addYField(kept);
+      java.awt.Color before = ((inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper)
+         kept.getColorFrameWrapper()).getDefaultColor();
+      ChartBindingService.fixNewMeasureColors(info2, java.util.Set.of(kept.getFullName()));
+      assertEquals(before, ((inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper)
+         kept.getColorFrameWrapper()).getDefaultColor());
+      ChartBindingService.fixNewMeasureColors(null, java.util.Set.of());
+   }
+
+   private static VSChartAggregateRef colourMeasure(String column) {
+      return linkMeasure(column);
+   }
+
    private static ChartBindingService harness(BindingModel model,
                                               ChangeChartRefService refs,
                                               ChangeChartTypeService types,
