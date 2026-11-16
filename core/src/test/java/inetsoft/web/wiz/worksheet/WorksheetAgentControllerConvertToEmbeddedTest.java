@@ -304,6 +304,101 @@ class WorksheetAgentControllerConvertToEmbeddedTest {
    }
 
    /**
+    * Bug #81439: the agent route must refuse like the native ConvertEmbeddedService above
+    * 10000 data rows or 1000 columns. Runs convert_to_embedded over a mirror of an embedded
+    * source with the given shape and returns the worksheet so callers can inspect it.
+    */
+   private Worksheet convertMirrorOfShape(String token, int dataRows, int cols,
+                                          boolean expectRefusal) throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+
+      String[] names = new String[cols];
+      String[] types = new String[cols];
+
+      for(int c = 0; c < cols; c++) {
+         names[c] = "C" + c;
+         types[c] = "string";
+      }
+
+      EmbeddedTableAssembly src = TestWorksheets.tableWithColumns(ws, "BIG_SRC", names);
+      Object[][] data = new Object[dataRows + 1][cols];
+      data[0] = names;
+
+      for(int r = 1; r <= dataRows; r++) {
+         for(int c = 0; c < cols; c++) {
+            data[r][c] = "v" + r;
+         }
+      }
+
+      src.setEmbeddedData(new XEmbeddedTable(types, data));
+      ws.addAssembly(src);
+      ws.addAssembly(new MirrorTableAssembly(ws, "BIG_MIR", src));
+
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      box.setActive(true);
+      box.refreshColumnSelection("BIG_MIR", false);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq(token), any())).thenReturn(session(token));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      int before = ws.getAssemblies().length;
+
+      if(expectRefusal) {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.edit(token, convertToEmbeddedRequest("BIG_MIR"), agent));
+         assertTrue(ex.getMessage().contains("10000"), ex.getMessage());
+         assertEquals(before, ws.getAssemblies().length);
+      }
+      else {
+         ResponseEntity<EditResponse> response =
+            ctrl.edit(token, convertToEmbeddedRequest("BIG_MIR"), agent);
+         String newName = response.getBody().assemblyName();
+         assertInstanceOf(EmbeddedTableAssembly.class, ws.getAssembly(newName));
+         assertEquals(before + 1, ws.getAssemblies().length);
+         XEmbeddedTable out = ((EmbeddedTableAssembly) ws.getAssembly(newName)).getEmbeddedData();
+         assertEquals(dataRows, out.getRowCount() - 1);
+         assertEquals(cols, out.getColCount());
+      }
+
+      return ws;
+   }
+
+   @Test
+   void convertToEmbeddedRefusesAboveRowLimit() throws Exception {
+      convertMirrorOfShape("TOK-CTE-R10001", 10001, 2, true);
+   }
+
+   @Test
+   void convertToEmbeddedAllowsExactlyRowLimit() throws Exception {
+      convertMirrorOfShape("TOK-CTE-R10000", 10000, 2, false);
+   }
+
+   @Test
+   void convertToEmbeddedRefusesAboveColumnLimit() throws Exception {
+      convertMirrorOfShape("TOK-CTE-C1001", 3, 1001, true);
+   }
+
+   @Test
+   void convertToEmbeddedAllowsExactlyColumnLimit() throws Exception {
+      convertMirrorOfShape("TOK-CTE-C1000", 3, 1000, false);
+   }
+
+   /**
     * The broadened guard must still reject something that is genuinely not a
     * {@link TableAssembly} at all, guarding against a future regression back to "any assembly
     * name works".

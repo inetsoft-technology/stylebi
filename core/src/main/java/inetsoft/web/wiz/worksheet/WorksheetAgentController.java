@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import inetsoft.report.TableLens;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
@@ -78,6 +79,7 @@ import inetsoft.util.FileSystemService;
 import inetsoft.util.MessageException;
 import inetsoft.util.TimedQueue;
 import inetsoft.util.UserMessage;
+import inetsoft.web.composer.ws.ConvertEmbeddedService;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -6327,6 +6329,14 @@ public class WorksheetAgentController {
 
          if(!(a instanceof TableAssembly)) {
             throw new PairingException("Not a bound table: " + req.table());
+         }
+
+         TableLens lens = rws.getAssetQuerySandbox()
+            .getTableLens(req.table(), AssetQuerySandbox.RUNTIME_MODE);
+
+         if(lens != null && ConvertEmbeddedService.exceedsConvertLimit(lens)) {
+            throw new PairingException(
+               Catalog.getCatalog().getString("common.worksheet.convert.embedded.limit"));
          }
 
          // replace=false adds the embedded snapshot as a new sibling assembly, leaving
