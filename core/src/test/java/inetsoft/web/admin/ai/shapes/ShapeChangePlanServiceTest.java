@@ -276,37 +276,38 @@ class ShapeChangePlanServiceTest {
       assertNotNull(plan.taskToken());
    }
 
-   @Test void resolveOverwriteKeepsStorageBackup() throws Exception {
+   @Test void resolveOverwriteSkipsStorageBackup() throws Exception {
       when(dataSpace.exists(null, GLOBAL_DIR + "/a.svg")).thenReturn(true);
       when(dataSpace.getInputStream(null, GLOBAL_DIR + "/a.svg"))
          .thenAnswer(inv -> new ByteArrayInputStream("<old/>".getBytes(StandardCharsets.UTF_8)));
       ShapeChangeRequest c = change(ShapeChangeRequest.VERB_UPLOAD, "global", "a.svg");
       c.setContent(base64("<svg/>"));
 
-      assertTrue(service.resolve(request(c), principal).requiresStorageBackup());
+      // Bug #81072: the prior bytes are captured, so the undo is an exact write-back
+      assertFalse(service.resolve(request(c), principal).requiresStorageBackup());
    }
 
-   @Test void resolveOverwriteOfAnEmptyShapeKeepsStorageBackup() throws Exception {
+   @Test void resolveOverwriteOfAnEmptyShapeSkipsStorageBackup() throws Exception {
       when(dataSpace.exists(null, GLOBAL_DIR + "/a.svg")).thenReturn(true);
       when(dataSpace.getInputStream(null, GLOBAL_DIR + "/a.svg"))
          .thenAnswer(inv -> new ByteArrayInputStream(new byte[0]));
       ShapeChangeRequest c = change(ShapeChangeRequest.VERB_UPLOAD, "global", "a.svg");
       c.setContent(base64("<svg/>"));
 
-      assertTrue(service.resolve(request(c), principal).requiresStorageBackup());
+      assertFalse(service.resolve(request(c), principal).requiresStorageBackup());
    }
 
-   @Test void resolveDeleteKeepsStorageBackup() throws Exception {
+   @Test void resolveDeleteSkipsStorageBackup() throws Exception {
       when(dataSpace.exists(null, GLOBAL_DIR + "/a.svg")).thenReturn(true);
       when(dataSpace.getInputStream(null, GLOBAL_DIR + "/a.svg"))
          .thenAnswer(inv -> new ByteArrayInputStream("<svg/>".getBytes(StandardCharsets.UTF_8)));
 
-      assertTrue(service.resolve(
+      assertFalse(service.resolve(
          request(change(ShapeChangeRequest.VERB_DELETE, "global", "a.svg")), principal)
          .requiresStorageBackup());
    }
 
-   @Test void resolveMixedNewUploadAndDeleteKeepsStorageBackup() throws Exception {
+   @Test void resolveMixedNewUploadAndDeleteSkipsStorageBackup() throws Exception {
       when(dataSpace.exists(null, GLOBAL_DIR + "/new.svg")).thenReturn(false);
       when(dataSpace.exists(null, GLOBAL_DIR + "/a.svg")).thenReturn(true);
       when(dataSpace.getInputStream(null, GLOBAL_DIR + "/a.svg"))
@@ -314,7 +315,7 @@ class ShapeChangePlanServiceTest {
       ShapeChangeRequest upload = change(ShapeChangeRequest.VERB_UPLOAD, "global", "new.svg");
       upload.setContent(base64("<svg/>"));
 
-      assertTrue(service.resolve(
+      assertFalse(service.resolve(
          request(upload, change(ShapeChangeRequest.VERB_DELETE, "global", "a.svg")), principal)
          .requiresStorageBackup());
    }

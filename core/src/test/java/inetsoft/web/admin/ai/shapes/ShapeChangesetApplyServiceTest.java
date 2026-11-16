@@ -259,8 +259,9 @@ class ShapeChangesetApplyServiceTest {
       assertArrayEquals("<new/>".getBytes(StandardCharsets.UTF_8), files.get(ORG_DIR + "/existing.svg"));
       imageShapes.verify(ImageShapes::clearShapes);
       imageShapes.verify(ImageShapes::clearAllShapes, never());
-      assertEquals("admin-snapshot/ref", result.backupRef());
-      verify(backupService, times(1)).backup(anyString());
+      // Bug #81072: the prior bytes are captured at resolve time, so an overwrite skips the snapshot
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
    }
 
    @Test void appliesADeleteAndReportsAppliedWithoutAnExtraCacheClearCall() throws Exception {
@@ -282,10 +283,10 @@ class ShapeChangesetApplyServiceTest {
       // ImageShapes.clear*() itself (the asymmetry vs. applyUpload is deliberate).
       imageShapes.verify(ImageShapes::clearAllShapes, never());
       imageShapes.verify(ImageShapes::clearShapes, never());
-      verify(backupService, times(1)).backup(anyString());
+      verify(backupService, never()).backup(anyString());
    }
 
-   @Test void appliesAMixedNewUploadAndDeletePlanWithOneSnapshot() throws Exception {
+   @Test void appliesAMixedNewUploadAndDeletePlanWithoutASnapshot() throws Exception {
       files.put(GLOBAL_DIR + "/old.svg", "<svg/>".getBytes(StandardCharsets.UTF_8));
       ShapeChangeRequest upload = change(ShapeChangeRequest.VERB_UPLOAD, "global", "new.svg");
       upload.setContent(base64("<svg/>"));
@@ -297,7 +298,7 @@ class ShapeChangesetApplyServiceTest {
          service.apply(req, user);
       }
 
-      verify(backupService, times(1)).backup(anyString());
+      verify(backupService, never()).backup(anyString());
    }
 
    // -------------------------------------------------------------------------
