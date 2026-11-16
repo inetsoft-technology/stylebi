@@ -99,7 +99,7 @@ public class SwapXYBindingProcessor extends ChangeChartProcessor {
          pdesc.setYBandSize(xsize);
 
          cinfo.updateChartType(!cinfo.isMultiStyles());
-         fixSizeFrame(cinfo);
+         fixSizeFrame(cinfo, vizContext);
       }
    }
 

@@ -83,7 +83,7 @@ public class ChangeChartDataProcessor extends ChangeChartProcessor {
 
       sortRefs(info);
       fixShapeField(info, info, getChartType(info, null));
-      fixSizeFrame(info);
+      fixSizeFrame(info, vizContext);
       syncTopN(info);
       fixAggregateRefs(info);
       fixMapDimensionRefs(info);

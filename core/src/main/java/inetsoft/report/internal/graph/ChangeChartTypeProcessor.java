@@ -333,7 +333,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             fixSizeField(info, getChartType(info, null));
          }
 
-         fixSizeFrame(info);
+         fixSizeFrame(info, vizContext);
          fixPieDimensions(info);
 
          if(!info.supportsGroupFields()) {
@@ -414,7 +414,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       copyDirectionFrames(info, newInfo);
       fixShapeField(newInfo, newInfo, getChartType(newInfo, ref));
       fixSizeField(newInfo, getChartType(newInfo, ref));
-      fixSizeFrame(newInfo);
+      fixSizeFrame(newInfo, vizContext);
       fixPieDimensions(info);
       fixAggregateRefs(newInfo);
       fixMapDimensionRefs(newInfo);

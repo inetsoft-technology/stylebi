@@ -53,10 +53,13 @@ class ModernMarkSizesTest {
    }
 
    @Test
-   void aMilestoneIs3AndAGanttBarIsUntouched() {
+   void aMilestoneIs3AndAGanttBarIs15() {
       assertEquals(3, ModernMarkSizes.staticSize(GraphTypes.CHART_GANTT, new PointElement(), 9));
       assertEquals(15,
-                   ModernMarkSizes.staticSize(GraphTypes.CHART_GANTT, new IntervalElement(), 15));
+                   ModernMarkSizes.staticSize(GraphTypes.CHART_GANTT, new IntervalElement(), 20));
+      // a binding change has no element, only whether the measure is the bar
+      assertEquals(3, ModernMarkSizes.staticSize(GraphTypes.CHART_GANTT, false, 9));
+      assertEquals(15, ModernMarkSizes.staticSize(GraphTypes.CHART_GANTT, true, 20));
    }
 
    @Test

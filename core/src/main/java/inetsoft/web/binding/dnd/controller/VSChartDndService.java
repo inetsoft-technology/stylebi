@@ -216,7 +216,7 @@ public class VSChartDndService {
                                String url, String linkUri, boolean addedColumns)
       throws Exception
    {
-      (new ChangeChartProcessor()).fixSizeFrame(clone.getVSChartInfo());
+      (new ChangeChartProcessor()).fixSizeFrame(clone.getVSChartInfo(), VizContext.of(clone));
       dataHandler.changeChartData(rvs, oinfo, clone, url, event, dispatcher);
 
       if(addedColumns) {

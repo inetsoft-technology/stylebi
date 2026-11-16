@@ -5474,7 +5474,7 @@ public abstract class GraphGenerator {
          nsize = 5;
          break;
       case CHART_GANTT:
-         nsize = elem instanceof IntervalElement ? (vizContext.modern ? 15 : 20) : 9;
+         nsize = elem instanceof IntervalElement ? 20 : 9;
          break;
       case GraphTypes.CHART_FUNNEL:
          nsize = 30;

@@ -22,11 +22,13 @@ import inetsoft.graph.element.IntervalElement;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 
 /**
- * The default mark sizes of a chart under the modern mark.
+ * The default mark sizes of a chart under the modern mark, written by the draw
+ * (GraphGenerator) and by a binding change (ChangeChartProcessor).
  */
-final class ModernMarkSizes {
+public final class ModernMarkSizes {
    static final double BUBBLE_LARGEST = 8;
    static final double EDGE_LARGEST = 6;
+   static final double GANTT_BAR_SIZE = 15;
    static final double MILESTONE_SIZE = 3;
    static final double RADAR_LINE_SIZE = 3;
 
@@ -34,7 +36,9 @@ final class ModernMarkSizes {
    }
 
    // the largest size of the size frame; word clouds and contours keep theirs
-   static double largest(int chartType, boolean wordCloud, boolean contour, double classic) {
+   public static double largest(int chartType, boolean wordCloud, boolean contour,
+                                double classic)
+   {
       if(GraphTypes.isPoint(chartType) && !wordCloud && !contour ||
          chartType == GraphTypes.CHART_MAP)
       {
@@ -53,8 +57,13 @@ final class ModernMarkSizes {
 
    // the default of a static size frame
    static double staticSize(int chartType, GraphElement elem, double classic) {
-      if(chartType == GraphTypes.CHART_GANTT && !(elem instanceof IntervalElement)) {
-         return MILESTONE_SIZE;
+      return staticSize(chartType, elem instanceof IntervalElement, classic);
+   }
+
+   // the default of a static size frame; ganttBar tells a Gantt bar from a milestone
+   public static double staticSize(int chartType, boolean ganttBar, double classic) {
+      if(chartType == GraphTypes.CHART_GANTT) {
+         return ganttBar ? GANTT_BAR_SIZE : MILESTONE_SIZE;
       }
 
       if(chartType == GraphTypes.CHART_RADAR || chartType == GraphTypes.CHART_FILL_RADAR) {

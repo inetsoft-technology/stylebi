@@ -98,7 +98,7 @@ public class ChangeChartRefService {
       cmodel = fixChartBindingModel(cmodel);
       clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone, principal);
       ChartVSAssemblyInfo info = clone.getChartInfo();
-      new ChangeChartProcessor().fixSizeFrame(info.getVSChartInfo());
+      new ChangeChartProcessor().fixSizeFrame(info.getVSChartInfo(), VizContext.of(info));
       fixStaticColorFrame(info.getVSChartInfo(), event, VizContext.of(info));
 
       ChartVSAssemblyInfo oinfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo().clone();

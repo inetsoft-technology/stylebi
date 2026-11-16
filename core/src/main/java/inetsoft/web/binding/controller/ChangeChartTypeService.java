@@ -209,7 +209,7 @@ public class ChangeChartTypeService {
       ninfo.setVSChartInfo(cinfo);
       GraphFormatUtil.fixDefaultNumberFormat(chart.getChartDescriptor(), cinfo);
       box.get().updateAssembly(chart.getAbsoluteName());
-      new ChangeChartProcessor().fixSizeFrame(ninfo.getVSChartInfo());
+      new ChangeChartProcessor().fixSizeFrame(ninfo.getVSChartInfo(), VizContext.of(ninfo));
       ChangeChartProcessor.fixTarget(oinfo.getVSChartInfo(), cinfo, desc);
       handleMulti(name, omulti, nmulti, separate, chart, principal, dispatcher, linkUri);
       plotDesc.setStackMeasures(nstackMeasures);
