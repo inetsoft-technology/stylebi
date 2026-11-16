@@ -96,7 +96,9 @@ final class DynamicValueTargets {
       }
 
       return "Draft-only location: the expression of ONE dynamic value in the user's open " +
-         "dialog (" + description + "). The dialog's current text lives only in the browser, " +
+         "dialog (" + description + "). An Expression is JavaScript: $(Name) is not defined in " +
+         "it (it works only when the field's type is Variable). " +
+         "The dialog's current text lives only in the browser, " +
          "so the server cannot return it; the empty text is NOT an empty expression and NOT a " +
          "failed update_script. Nothing is applied until the user clicks OK in the formula " +
          "dialog and then OK/Apply in the dialog that holds the field. To read the value that " +
@@ -143,6 +145,15 @@ final class DynamicValueTargets {
             "or push an expression that computes the value. Nothing was pushed.");
       }
 
+      if(callsDollar(normalized)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "That expression calls $(...). An Expression is JavaScript and $ is not defined in " +
+            "it, so it would fail at run time with 'ReferenceError: $ is not defined'. Reach a " +
+            "component by its name and a parameter as parameter.<name>, or ask the user to " +
+            "choose the Variable type for this field ($(Name) works only there). Nothing was " +
+            "pushed.");
+      }
+
       String problem = syntaxProblem.apply(normalized);
 
       if(problem != null) {
@@ -152,6 +163,56 @@ final class DynamicValueTargets {
       }
 
       return new Prepared(normalized, stripped);
+   }
+
+   /**
+    * Whether {@code text} calls {@code $(...)} outside a string literal or comment. A bare
+    * {@code $(Name)} reference is refused by its own rule; this catches the same call embedded in a
+    * larger expression ({@code String($(RadioButton1)) == 'true'}), which parses as valid
+    * JavaScript and only fails when the field is evaluated. An identifier that merely ends in
+    * {@code $} ({@code a$(1)}) or a member call ({@code x.$(1)}) is not the bare global.
+    */
+   static boolean callsDollar(String text) {
+      return DOLLAR_CALL.matcher(withoutLiterals(text)).find();
+   }
+
+   private static final Pattern DOLLAR_CALL = Pattern.compile("(?<![\\w$.])\\$\\s*\\(");
+
+   /** {@code text} with string/template literals and comments blanked out, so a '$(' inside one is not seen. */
+   private static String withoutLiterals(String text) {
+      StringBuilder out = new StringBuilder(text.length());
+      int i = 0;
+
+      while(i < text.length()) {
+         char c = text.charAt(i);
+
+         if(c == '\'' || c == '"' || c == '`') {
+            int j = i + 1;
+
+            while(j < text.length() && text.charAt(j) != c) {
+               j += text.charAt(j) == '\\' ? 2 : 1;
+            }
+
+            out.append(' ');
+            i = j + 1;
+         }
+         else if(c == '/' && i + 1 < text.length() && text.charAt(i + 1) == '/') {
+            int j = text.indexOf('\n', i);
+            out.append(' ');
+            i = j < 0 ? text.length() : j;
+         }
+         else if(c == '/' && i + 1 < text.length() && text.charAt(i + 1) == '*') {
+            int j = text.indexOf("*/", i + 2);
+            out.append(' ');
+            i = j < 0 ? text.length() : j + 2;
+         }
+         else {
+            out.append(c);
+            i++;
+         }
+      }
+
+      return out.toString();
    }
 
    /** Exactly one non-blank, parenthesis-free name in {@code $( )}, as the plugin reads a reference. */

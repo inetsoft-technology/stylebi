@@ -525,7 +525,7 @@ public class ViewsheetAgentController {
                                   name, legacyTarget);
    }
 
-   private static String agentKey(Principal agent) {
+   static String agentKey(Principal agent) {
       if(agent instanceof XPrincipal p) {
          IdentityID id = IdentityID.getIdentityIDFromKey(p.getName());
          return id != null ? id.convertToKey() : p.getName();
@@ -540,6 +540,11 @@ public class ViewsheetAgentController {
 
    @ExceptionHandler(PairingException.class)
    public ResponseEntity<Map<String, String>> handlePairingException(PairingException e) {
+      return pairingResponse(e);
+   }
+
+   /** The HTTP answer for a {@link PairingException}; shared with {@link PaneContextController}. */
+   static ResponseEntity<Map<String, String>> pairingResponse(PairingException e) {
       HttpStatus status = switch(e.getKind()) {
          case SESSION_EXPIRED  -> HttpStatus.NOT_FOUND;
          case USER_MISMATCH,
