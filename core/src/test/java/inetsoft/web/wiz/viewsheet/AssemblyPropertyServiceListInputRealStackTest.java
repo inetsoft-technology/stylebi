@@ -187,9 +187,16 @@ class AssemblyPropertyServiceListInputRealStackTest {
       assertTrue(e.getMessage().contains(pattern), e.getMessage());
       assertEquals("dd.MM.yyyy", stack.info().getDateFormatPattern());
 
+      // dialog parity (2026-10-27): y, M and d are all required
+      e = assertThrows(IllegalArgumentException.class,
+         () -> stack.service().set("tok", principal(), "ComboBox1",
+                                   Map.of(pattern, "yyyy-MM", query, true), ""));
+      assertTrue(e.getMessage().contains(pattern), e.getMessage());
+      assertEquals("dd.MM.yyyy", stack.info().getDateFormatPattern());
+
       stack.service().set("tok", principal(), "ComboBox1",
-                          Map.of(pattern, "yyyy-MM", query, true), "");
-      assertEquals("yyyy-MM", stack.info().getDateFormatPattern());
+                          Map.of(pattern, "MM/dd/yyyy", query, true), "");
+      assertEquals("MM/dd/yyyy", stack.info().getDateFormatPattern());
       assertTrue(stack.info().isQueryDateFormat());
 
       stack.info().setDateFormatPattern(null);

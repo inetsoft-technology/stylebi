@@ -1819,10 +1819,13 @@ public class AssemblyPropertyService {
     *       {@code queryDateFormat}, because the setter replaces it either way;</li>
     *   <li>a null or blank pattern is refused only when {@code queryDateFormat} is on after the
     *       patch (the setter would replace it); with the format off it is inactive.</li>
+    *   <li>a non-blank pattern must also satisfy the Composer ComboBox dialog's
+    *       {@code validateDateFormat} rule (decision of 2026-10-27): only the characters
+    *       {@code y M d : - / . , space '} and all of y, M and d present, so {@code yyyy-MM}
+    *       and {@code yyyy_MM_dd} are refused. Both checks are needed: an unclosed quote passes
+    *       the dialog but fails the runtime. The dialog's third rule (Angular DatePipe must
+    *       format two days differently) is not portable and is not applied.</li>
     * </ul>
-    *
-    * <p>This follows the runtime on purpose, not the Angular dialog: the dialog also requires
-    * y, M and d and so refuses {@code yyyy-MM}, which the runtime honours.
     */
    private static void requireValidComboboxDateFormat(Object model,
                                                       Collection<String> resolvedPaths)
@@ -1865,7 +1868,20 @@ public class AssemblyPropertyService {
             "pattern such as yyyy-MM-dd or dd.MM.yyyy. StyleBI would otherwise silently " +
             "store yyyy-MM-dd instead.", ex);
       }
+
+      if(!DIALOG_DATE_FORMAT.matcher(pattern).matches()) {
+         throw new IllegalArgumentException(
+            "set_assembly_properties: '" + DATE_FORMAT_PATTERN_PATH + "' is not a date format " +
+            "the ComboBox dialog accepts -- '" + pattern + "'. Use only the characters y, M, d " +
+            "and : - / . , space ' and include all of y, M and d, for example yyyy-MM-dd or " +
+            "dd.MM.yyyy.");
+      }
    }
+
+   /** The ComboBox dialog's {@code validateDateFormat} charset and y/M/d presence rules. */
+   private static final java.util.regex.Pattern DIALOG_DATE_FORMAT =
+      java.util.regex.Pattern.compile("(?=.*y)(?=.*M)(?=.*d)[yMd:\\-/. ,']+",
+         java.util.regex.Pattern.DOTALL);
 
    private static final String INPUT_CONTROL_PATH = "textInputColumnOptionPaneModel.type";
    private static final String CHECKBOX_TARGET_PATH = "dataInputPaneModel.table";
