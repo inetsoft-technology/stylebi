@@ -25,6 +25,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XValueNode;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XUtil;
+import inetsoft.uql.util.expr.TokenMgrError;
 import inetsoft.uql.util.sqlparser.SQLLexer;
 import inetsoft.uql.util.sqlparser.SQLParser;
 import inetsoft.util.*;
@@ -4978,34 +4979,21 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * Generate a condition from StructuredSQL conditions. Like "this=$(var1)".
     * Ref StructuredSQL.substitute() to replace "this".
     * StructuredSQL uses ExprParser to parse expression.
+    * A condition that cannot be converted is logged and left out of the where clause.
     */
    private XFilterNode genCondition(String name, String value) {
       try {
          SQLHelper helper = getSQLHelper();
          SQLLexer lexer = new SQLLexer(new StringReader(
-            replace(value, "this", XUtil.quoteName(name, helper))));
+            StructuredSQL.substitute(value, "this", XUtil.quoteName(name, helper))));
          SQLParser parser = new SQLParser(lexer);
 
          return parser.search_condition();
       }
-      catch(Exception ex) {
+      catch(Exception | TokenMgrError ex) {
+         LOG.warn("Failed to convert condition of column {}, it is dropped: {}", name, value, ex);
          return null;
       }
-   }
-
-   /**
-    * Remove substrings in string.
-    */
-   @SuppressWarnings("SameParameterValue")
-   private String replace(String str, String from, String to) {
-      int idx;
-      String ret = str;
-
-      while((idx = ret.indexOf(from)) >= 0) {
-         ret = ret.substring(0, idx) + to + ret.substring(idx + to.length());
-      }
-
-      return ret;
    }
 
    /**

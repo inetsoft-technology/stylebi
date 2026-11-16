@@ -546,24 +546,41 @@ public class StructuredSQL implements SQLDefinition {
       return str.toString();
    }
 
-   // replace string.
-   String substitute(String str, String olds, String news) throws Exception {
+   // replace string. The token positions are line and column, so they are turned into
+   // offsets with the start of each line (the column restarts at 1 after a line break).
+   static String substitute(String str, String olds, String news) throws Exception {
       ExprParser parser = new ExprParser(new StringReader(str));
       Token token;
-      Vector locs = new Vector(); // int[] = [begincol, endcol]
+      List<int[]> locs = new ArrayList<>(); // int[] = [begin offset, end offset)
+      List<Integer> lineStarts = new ArrayList<>();
+      lineStarts.add(0);
+
+      for(int i = 0; i < str.length(); i++) {
+         char c = str.charAt(i);
+
+         if(c == '\r' && i + 1 < str.length() && str.charAt(i + 1) == '\n') {
+            i++;
+            lineStarts.add(i + 1);
+         }
+         else if(c == '\n' || c == '\r') {
+            lineStarts.add(i + 1);
+         }
+      }
 
       while((token = parser.getNextToken()) != null && token.kind != 0) {
          if(token.image.equals(olds)) {
-            locs.addElement(new int[] {token.beginColumn, token.endColumn});
+            locs.add(new int[] {
+               lineStarts.get(token.beginLine - 1) + token.beginColumn - 1,
+               lineStarts.get(token.endLine - 1) + token.endColumn});
          }
       }
 
       StringBuilder out = new StringBuilder(str);
 
       for(int i = locs.size() - 1; i >= 0; i--) {
-         int[] loc = (int[]) locs.elementAt(i);
+         int[] loc = locs.get(i);
 
-         out.replace(loc[0] - 1, loc[1], news);
+         out.replace(loc[0], loc[1], news);
       }
 
       return out.toString();
