@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -48,7 +49,9 @@ import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Static helpers that implement the low-level structural mutations used by
@@ -5966,11 +5969,11 @@ public final class WorksheetMutationSupport {
     * group ref on {@code t} -- i.e. {@link #resolveField} would return something other than its
     * unresolvable {@code new AttributeRef(null, field)} fallback.
     *
-    * <p>Mirrors the native UI's closed field picker: a human editing the same condition/sort can
-    * only ever submit a name this returns {@code true} for, because the dropdown is populated
-    * from exactly the same {@link ColumnSelection}/{@link AggregateInfo} sources this checks.
-    * A caller driving the agent path with a free-text field name has no such structural limit,
-    * so this is the guard that gives it one.
+    * <p>Mirrors the native UI's closed field picker for the table's own columns and aggregates.
+    * For a condition on a table bound to a logical model the native picker is wider (it adds
+    * every attribute of the source); {@link #admitSourceFields} makes those resolvable before
+    * this check runs. A caller driving the agent path with a free-text field name has no
+    * structural limit, so this is the guard that gives it one.
     *
     * @param post {@code true} to also match against {@link AggregateInfo} (post-aggregate/HAVING
     *             conditions and ranking), {@code false} to check the private column selection only
@@ -6003,6 +6006,145 @@ public final class WorksheetMutationSupport {
       }
 
       return false;
+   }
+
+   /**
+    * Handle for source attributes admitted into a table's private column selection by
+    * {@link #admitSourceFields}; {@link #rollback()} restores the selection the table had before,
+    * so a refused call leaves no hidden column behind.
+    */
+   static final class SourceAdmission {
+      SourceAdmission(TableAssembly table, ColumnSelection original) {
+         this.table = table;
+         this.original = original;
+      }
+
+      void rollback() {
+         if(original != null) {
+            table.setColumnSelection(original, false);
+         }
+      }
+
+      private final TableAssembly table;
+      private final ColumnSelection original;
+   }
+
+   /**
+    * Bug #81446: makes every pre-aggregate condition field of {@code fields} that the table does
+    * not itself select but its logical-model source offers resolvable, the way the native
+    * condition dialog does ({@code AssemblyConditionDialogService}): the field list is the
+    * table's own columns plus every attribute of the table's source, and a condition on a source
+    * attribute the table does not select gets an invisible copy of that column added to the
+    * table's private selection so the query can still resolve it. The output columns do not
+    * change.
+    *
+    * <p>A field resolves in this order: the table's own column (nothing is added), the source's
+    * {@code Entity.Attribute}, then a bare attribute name that is unique across the source's
+    * entities. A name that is nowhere is left for the caller's usual "Column not found" refusal;
+    * a bare name that several entities share is refused here, naming the candidates. Only a
+    * table bound to a logical model has source attributes; any other table is left as is.</p>
+    *
+    * @return the admission, whose {@link SourceAdmission#rollback()} undoes it
+    * @throws IllegalArgumentException when a bare name matches attributes of several entities
+    */
+   static SourceAdmission admitSourceFields(TableAssembly t, Principal user,
+                                            Collection<String> fields)
+   {
+      return admitSourceFields(t, fields, () -> loadSourceAttributes(t, user));
+   }
+
+   static SourceAdmission admitSourceFields(TableAssembly t, Collection<String> fields,
+                                            java.util.function.Supplier<ColumnSelection> source)
+   {
+      ColumnSelection original = t.getColumnSelection(false);
+      ColumnSelection work = null;
+      ColumnSelection sourceAttrs = null;
+
+      for(String field : fields) {
+         if(field == null || field.isBlank() || fieldExists(t, field, false) ||
+            isAggregateOutputAlias(t, field) || resolveAggregateOrGroupField(t, field) != null)
+         {
+            continue;
+         }
+
+         if(sourceAttrs == null) {
+            sourceAttrs = source.get();
+         }
+
+         List<ColumnRef> matches = matchSourceAttributes(sourceAttrs, field);
+
+         if(matches.isEmpty()) {
+            continue;
+         }
+
+         if(matches.size() > 1) {
+            if(work != null) {
+               t.setColumnSelection(original, false);
+            }
+
+            throw new IllegalArgumentException(
+               "Column '" + field + "' is ambiguous: the source of " + t.getName() +
+               " has several attributes with that name (" +
+               matches.stream().map(ColumnRef::getName).collect(Collectors.joining(", ")) +
+               "). Use the Entity.Attribute form.");
+         }
+
+         ColumnRef hidden = (ColumnRef) matches.get(0).clone();
+         hidden.setVisible(false);
+
+         if(work == null) {
+            work = original.clone(true);
+         }
+
+         work.addAttribute(hidden);
+         t.setColumnSelection(work, false);
+      }
+
+      return new SourceAdmission(t, work == null ? null : original);
+   }
+
+   /**
+    * The attributes of {@code source} {@code field} names: an {@code Entity.Attribute} match
+    * wins; otherwise every attribute whose bare name is {@code field}.
+    */
+   static List<ColumnRef> matchSourceAttributes(ColumnSelection source, String field) {
+      List<ColumnRef> qualified = new ArrayList<>();
+      List<ColumnRef> bare = new ArrayList<>();
+
+      for(int i = 0; source != null && i < source.getAttributeCount(); i++) {
+         if(source.getAttribute(i) instanceof ColumnRef cr) {
+            if(field.equals(cr.getName())) {
+               qualified.add(cr);
+            }
+            else if(field.equals(cr.getAttribute())) {
+               bare.add(cr);
+            }
+         }
+      }
+
+      return qualified.isEmpty() ? bare : qualified;
+   }
+
+   /**
+    * The attributes the table's source offers, as the native condition dialog lists them; empty
+    * for a table that is not bound to a logical model or when the source cannot be read.
+    */
+   private static ColumnSelection loadSourceAttributes(TableAssembly t, Principal user) {
+      if(t instanceof BoundTableAssembly bound && bound.getSourceInfo() != null) {
+         try {
+            AssetRepository repository = AssetUtil.getAssetRepository(false);
+
+            if(repository != null) {
+               return AssetEventUtil.getSourceAttributes(
+                  repository, user, (SourceInfo) bound.getSourceInfo().clone());
+            }
+         }
+         catch(Exception e) {
+            LOG.debug("Cannot read the source attributes of {}", t.getName(), e);
+         }
+      }
+
+      return new ColumnSelection();
    }
 
    /**
