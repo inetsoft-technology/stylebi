@@ -357,15 +357,22 @@ Run: `./mvnw -q test -pl core "-Dtest=ModernAxisTitleTest" -Dsurefire.failIfNoSp
 
 ### Task 6: Reading order on a reversed category axis (S5-7 with S5-2 and S5-1)
 
-**When:** after S5a's live-check fixes land on `bug-80455-s5a` and this branch is rebased onto them. Those fixes change the same `DefaultAxis` code (`showCompactYears`, the thinning under a limit, the unit width of a scrolling axis); the controller says when.
+**When:** after S5a's live-check fixes land on `bug-80455-s5a` and this branch is rebased onto them. Amended 2026-11-16 after the first fix landed (`0f639fe0fa`, D91, D92): every axis with a label limit, flat or stacked down the chart, now thins in `DefaultAxis.thinInOneStep`, which shows every k-th label from the first that fits and makes the year text part of the step choice; the old `removeOverlappedLabels` anchor and `showCompactYears` now run only on axes without a limit. If more S5a fixes land, rebase again first.
 
 **Files:**
-- Modify: `graph/guide/axis/DefaultAxis.java` (`createVisuals` compact-date and abbreviation walk `:85-100`; `showCompactYears`; `removeOverlappedLabels` anchor `:1892`)
+- Modify: `graph/guide/axis/DefaultAxis.java`:
+  - `createVisuals`, the label-creation walk (`prevLabel` at about `:104`, `compactTexts`);
+  - `thinInOneStep` (about `:1649`): its candidate order and its "first that fits";
+  - `showCompactYears` and `updateAnchor`, only where they run on a reversed modern axis.
 - Test: `core/src/test/java/inetsoft/graph/guide/axis/ModernAxisLabelTest.java`
 
 **Interfaces:**
-- Consumes: S5a's `CompactDates`, `showCompactYears`, `getLabelLimit`.
-- Produces: on an axis whose scale is a reversed `CategoricalScale` and that carries a modern property (`getLabelLimit() > 0` or `getCompactDates() != null`), the compact-date year walk, the hour-level repeated-date walk and, under a label limit, the thinning anchor all start from the last index (the top of a transposed axis). Every other axis, the classic Gantt's task axis included, is unchanged.
+- Consumes: S5a's `CompactDates`, `thinInOneStep`, `showCompactYears`, `getLabelLimit`.
+- Produces: on an axis whose scale is a reversed `CategoricalScale` and that carries a modern property (`getLabelLimit() > 0` or `getCompactDates() != null`), every walk reads in date order, from the last index (the top of a transposed axis):
+  - the compact-date year and the hour-level repeated date set when labels are created;
+  - `thinInOneStep`'s step: it starts at the topmost label that fits, and its year texts are judged top-down.
+
+  Every other axis is unchanged, the classic Gantt's task axis included.
 
 - [ ] **Step 1: Write the failing tests** (`ModernAxisLabelTest`, transposed coord, `CategoricalScale` reversed)
   - `aReversedMonthlyAxisPutsTheYearOnTheTopLabel`: Jan 2025 … Dec 2026 with `CompactDates(MONTH, US)`, tall enough not to thin → the top label is "Jan 2025", then "Feb" … "Dec", "Jan 2026".
@@ -376,9 +383,11 @@ Run: `./mvnw -q test -pl core "-Dtest=ModernAxisTitleTest" -Dsurefire.failIfNoSp
 
 - [ ] **Step 2: Run them and see them fail.**
 
-- [ ] **Step 3: Implement** the reversed walks and anchor named in Produces. `updateAnchor` (`DefaultAxis.java:2053-2066`) moves a hidden anchor's date toward higher indices only; the reversed walk moves it toward lower indices.
+- [ ] **Step 3: Implement** the reversed walks named in Produces.
+  - Prefer one reading-order switch in the walks over a parallel copy of `thinInOneStep`; for example, order `cands` and the year comparison by reading order.
+  - `updateAnchor` moves a hidden anchor's date toward higher indices only; a reversed walk moves it toward lower indices.
 
-- [ ] **Step 4: Run the tests and see them pass**, plus `CompactDatesTest`, `ModernAxisLabelRuleTest` and `ModernTopDownOrderTest`.
+- [ ] **Step 4: Run the tests and see them pass**, plus `CompactDatesTest`, `ModernAxisLabelRuleTest`, `ModernTopDownOrderTest`, and S5a's one-step thinning cases in `ModernAxisLabelTest`, which must stay green on non-reversed axes.
 
 - [ ] **Step 5: Commit** — `Chart defaults S5, read a reversed category axis from the top`
 
