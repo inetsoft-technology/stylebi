@@ -66,8 +66,13 @@ public class AdminRiskClassifier {
       boolean namespaceHigh = isHighRiskNamespace(name.baseName());
 
       if(entry == null) {
-         return new RiskClassification(
-            AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, false);
+         // Bug #81073: a log level override (log.level.<logger>, log.<CTX>.level.<name>) only
+         // changes in-memory logging state and is undone by replaying its before-value, so it is
+         // value-scoped even though it is not catalogued (the set of loggers is open-ended). It
+         // stays unrecognized, so the plan still warns that nothing is known about it.
+         String scope = isLogLevelOverride(name.baseName())
+            ? AdminChangeRecord.SCOPE_VALUE : AdminChangeRecord.SCOPE_STORAGE;
+         return new RiskClassification(AdminChangeRecord.RISK_HIGH, scope, false);
       }
 
       String risk = namespaceHigh ? AdminChangeRecord.RISK_HIGH : entry.risk();
@@ -75,6 +80,11 @@ public class AdminRiskClassifier {
       String scope = escalated ? AdminChangeRecord.SCOPE_STORAGE : entry.snapshotScope();
 
       return new RiskClassification(risk, scope, true);
+   }
+
+   /** The same two shapes {@code PropertiesEngine.isLogProperty} applies as running log levels. */
+   private static boolean isLogLevelOverride(String baseName) {
+      return baseName.startsWith("log.level.") || LOG_CONTEXT_LEVEL.matcher(baseName).matches();
    }
 
    private static boolean isHighRiskNamespace(String baseName) {
@@ -87,6 +97,8 @@ public class AdminRiskClassifier {
       return baseName.endsWith(".port");
    }
 
+   private static final java.util.regex.Pattern LOG_CONTEXT_LEVEL =
+      java.util.regex.Pattern.compile("^log\\.[A-Z_]+\\.level\\..+$");
    private static final String[] HIGH_RISK_PREFIXES = { "security.", "cluster.", "mail." };
    private final AdminPropertyCatalog catalog;
 }

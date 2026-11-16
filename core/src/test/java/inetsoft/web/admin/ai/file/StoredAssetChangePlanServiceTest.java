@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.ai.file;
 
+import inetsoft.sree.portal.CustomTheme;
+import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.DataSpace;
 import inetsoft.util.Tool;
@@ -31,6 +33,7 @@ import org.mockito.quality.Strictness;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -180,20 +183,110 @@ class StoredAssetChangePlanServiceTest {
       assertFalse(plan.requiresStorageBackup());
    }
 
+   // Bug #81073: an overwrite of a text file captures the prior text and the rollback rewrites it,
+   // so the whole-storage snapshot adds nothing.
    @Test
-   void resolveWriteOverAnExistingFileKeepsStorageBackup() throws Exception {
+   void resolveWriteOverAnExistingTextFileSkipsStorageBackup() throws Exception {
       existingFile("a.js", "old".getBytes());
 
       ResolvedPlan plan = service.resolve(request(write("a.js", "new")), principal);
+
+      assertFalse(plan.requiresStorageBackup());
+      assertTrue(plan.requiresAgentSignoff(), "risk stays high");
+   }
+
+   @Test
+   void resolveWriteOverAnEmptyExistingFileSkipsStorageBackup() throws Exception {
+      existingFile("empty.js", new byte[0]);
+
+      ResolvedPlan plan = service.resolve(request(write("empty.js", "new")), principal);
+
+      assertFalse(plan.requiresStorageBackup());
+   }
+
+   @Test
+   void resolveWriteOverABinaryFileKeepsStorageBackup() throws Exception {
+      existingFile("a.bin", new byte[] { (byte) 0xff, (byte) 0xfe, (byte) 0x00 });
+
+      ResolvedPlan plan = service.resolve(request(write("a.bin", "new")), principal);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   private ResolvedPlan resolveFileDeleteWithThemes(String path, Set<CustomTheme> themes) {
+      try(MockedStatic<CustomThemesManager> themesStatic = mockStatic(CustomThemesManager.class)) {
+         CustomThemesManager manager = mock(CustomThemesManager.class);
+         lenient().when(manager.getCustomThemes()).thenReturn(themes);
+         themesStatic.when(CustomThemesManager::getManager).thenReturn(manager);
+         return service.resolve(request(
+            change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_DELETE, path)),
+            principal);
+      }
+   }
+
+   private static CustomTheme themeWithJar(String jarPath) {
+      CustomTheme theme = new CustomTheme();
+      theme.setJarPath(jarPath);
+      return theme;
+   }
+
+   // Bug #81073: deleting a text file is undone by rewriting its captured text, unless a custom
+   // theme's jar is that path (the delete also drops the theme record, which the rollback does not
+   // restore).
+   @Test
+   void resolveDeleteOfATextFileNoThemeReferencesSkipsStorageBackup() throws Exception {
+      existingFile("scripts/a.js", "old".getBytes());
+
+      ResolvedPlan plan = resolveFileDeleteWithThemes(
+         "scripts/a.js", Set.of(themeWithJar("themes/other.jar")));
+
+      assertFalse(plan.requiresStorageBackup());
+   }
+
+   @Test
+   void resolveDeleteOfAFileThatIsACustomThemeJarKeepsStorageBackup() throws Exception {
+      existingFile("themes/t.jar", "PK-as-text".getBytes());
+
+      ResolvedPlan plan = resolveFileDeleteWithThemes(
+         "themes/t.jar", Set.of(themeWithJar("themes/t.jar")));
 
       assertTrue(plan.requiresStorageBackup());
    }
 
    @Test
-   void resolveWriteOverAnEmptyExistingFileKeepsStorageBackup() throws Exception {
-      existingFile("empty.js", new byte[0]);
+   void resolveDeleteKeepsStorageBackupWhenTheThemeRegistryCannotBeRead() throws Exception {
+      existingFile("scripts/a.js", "old".getBytes());
 
-      ResolvedPlan plan = service.resolve(request(write("empty.js", "new")), principal);
+      try(MockedStatic<CustomThemesManager> themesStatic = mockStatic(CustomThemesManager.class)) {
+         themesStatic.when(CustomThemesManager::getManager)
+            .thenThrow(new IllegalStateException("no themes store"));
+
+         ResolvedPlan plan = service.resolve(request(
+            change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_DELETE,
+                   "scripts/a.js")), principal);
+
+         assertTrue(plan.requiresStorageBackup());
+      }
+   }
+
+   @Test
+   void resolveDeleteOfABinaryFileKeepsStorageBackup() throws Exception {
+      existingFile("img/a.png", new byte[] { (byte) 0xff, (byte) 0xfe, (byte) 0x00 });
+
+      ResolvedPlan plan = resolveFileDeleteWithThemes("img/a.png", Set.of());
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test
+   void resolveOverwriteMixedWithAFolderDeleteKeepsStorageBackup() throws Exception {
+      existingFile("a.js", "old".getBytes());
+      when(dataSpace.exists(null, "old-folder")).thenReturn(true);
+      when(dataSpace.isDirectory("old-folder")).thenReturn(true);
+
+      ResolvedPlan plan = service.resolve(request(write("a.js", "new"),
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_DELETE,
+                "old-folder")), principal);
 
       assertTrue(plan.requiresStorageBackup());
    }
