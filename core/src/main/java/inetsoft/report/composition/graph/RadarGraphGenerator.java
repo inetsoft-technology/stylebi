@@ -161,6 +161,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
       fixCoordProperties(coord, GraphTypes.CHART_RADAR);
 
       PolarCoord polarCoord = new PolarCoord(coord);
+      polarCoord.setSpokeLabelRule(vizContext.modern);
       Coordinate graphCoord = createCoord(polarCoord, ctype);
 
       graph.setCoordinate(graphCoord);

@@ -47,6 +47,19 @@ import java.util.stream.Stream;
  */
 public class DefaultAxis extends Axis {
    /**
+    * Show every label.
+    */
+   public static final int LABELS_ALL = 0;
+   /**
+    * Show no label.
+    */
+   public static final int LABELS_NONE = 1;
+   /**
+    * Show only the last label, at the far end of the axis.
+    */
+   public static final int LABELS_OUTERMOST = 2;
+
+   /**
     * Default constructor.
     */
    public DefaultAxis() {
@@ -1219,6 +1232,8 @@ public class DefaultAxis extends Axis {
       for(int i = 0; i < vlabels.length; i++) {
          if(!isMinTickVisible() && i == 0 ||
             !isMaxTickVisible() && i == vlabels.length - 1 ||
+            labelMode == LABELS_NONE ||
+            labelMode == LABELS_OUTERMOST && i < vlabels.length - 1 ||
             skip > 0 && i % skip != 0 && i < vlabels.length - 1)
          {
             vlabels[i].setZIndex(-1);
@@ -2884,6 +2899,20 @@ public class DefaultAxis extends Axis {
    }
 
    /**
+    * Set which labels are shown: all, none, or only the last (outermost) one.
+    */
+   public void setLabelMode(int labelMode) {
+      this.labelMode = labelMode;
+   }
+
+   /**
+    * Get which labels are shown.
+    */
+   public int getLabelMode() {
+      return labelMode;
+   }
+
+   /**
     * Get axis labels.
     */
    @Override
@@ -3137,6 +3166,7 @@ public class DefaultAxis extends Axis {
    // the spacing the label thinning kept, for the year move
    private transient double thinningSpacing;
    private boolean anchorChanged = false;
+   private int labelMode = LABELS_ALL;
    private static final double MAX_AXIS_RATIO = 0.9;
    // the room kept between flat labels side by side on an axis with a label limit
    private static final double ONE_STEP_GAP = 4;

@@ -19,6 +19,11 @@ package inetsoft.report.composition.graph;
 
 import inetsoft.graph.AxisSpec;
 import inetsoft.graph.EGraph;
+import inetsoft.graph.Plotter;
+import inetsoft.graph.VGraph;
+import inetsoft.graph.guide.VLabel;
+import inetsoft.graph.guide.axis.Axis;
+import inetsoft.graph.guide.axis.DefaultAxis;
 import inetsoft.graph.coord.AbstractParallelCoord;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.PolarCoord;
@@ -42,6 +47,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Dimension;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -125,6 +132,93 @@ class ModernRadarLabelTest {
       assertEquals(0, spec.getLabelLimit(), 0.01);
    }
 
+   @Test
+   void aMarkedRadarTurnsOnTheSpokeRule() {
+      assertTrue(((PolarCoord) threeMeasures(VizMark.MODERN_LIGHT, r -> { }).graph
+                     .getCoordinate()).isSpokeLabelRule());
+      assertFalse(((PolarCoord) threeMeasures(null, r -> { }).graph.getCoordinate())
+                     .isSpokeLabelRule());
+
+      RadarVSChartInfo radar = new RadarVSChartInfo();
+      VSChartAggregateRef price = agg("Price", "Sum");
+      radar.addYField(price);
+      radar.addGroupField(dim("State"));
+      radar.setChartType(GraphTypes.CHART_RADAR);
+      radar.setRTChartType(GraphTypes.CHART_RADAR);
+      radar.updateChartType(false);
+      Object[][] rows = {
+         { "State", GraphUtil.getName(price) },
+         { "CA", 1.0 },
+         { "NY", 2.0 },
+         { "TX", 3.0 },
+      };
+
+      assertTrue(((PolarCoord) graph(radar, rows, VizMark.MODERN_LIGHT, new ChartDescriptor())
+                     .getCoordinate()).isSpokeLabelRule());
+      assertFalse(((PolarCoord) graph(radar, rows, null, new ChartDescriptor())
+                      .getCoordinate()).isSpokeLabelRule());
+   }
+
+   @Test
+   void authorMinAndMaxMakeSpokesShareLabels() {
+      Built built = threeMeasures(VizMark.MODERN_LIGHT, r -> {
+         for(var ref : r.getAggregateRefs()) {
+            AxisDescriptor desc = ((VSChartAggregateRef) ref).getAxisDescriptor();
+            desc.setMinimum(0);
+            desc.setMaximum(100);
+         }
+      });
+      VGraph vgraph = Plotter.getPlotter(built.graph)
+         .plotAndLayout(new DefaultDataSet(built.rows), 0, 0, 400, 400);
+      List<Integer> counts = new ArrayList<>();
+
+      for(Axis axis : vgraph.getCoordinate().getAxes(false)) {
+         if(axis instanceof DefaultAxis a) {
+            counts.add(shown(a));
+         }
+      }
+
+      assertEquals(3, counts.size());
+      assertEquals(1, counts.stream().filter(c -> c > 0).count(), counts.toString());
+   }
+
+   private static int shown(DefaultAxis axis) {
+      int n = 0;
+
+      for(VLabel label : axis.getLabels()) {
+         if(label.getZIndex() >= 0) {
+            n++;
+         }
+      }
+
+      return n;
+   }
+
+   private record Built(EGraph graph, Object[][] rows) {
+   }
+
+   // the generated graph of the three-measure radar
+   private static Built threeMeasures(VizMark mark, Consumer<RadarChartInfo> setup) {
+      RadarVSChartInfo radar = new RadarVSChartInfo();
+      VSChartAggregateRef price = agg("Price", "Sum");
+      VSChartAggregateRef qty = agg("Quantity", "Average");
+      VSChartAggregateRef discount = agg("Discount", "Sum");
+      radar.addYField(price);
+      radar.addYField(qty);
+      radar.addYField(discount);
+      radar.setChartType(GraphTypes.CHART_RADAR);
+      radar.setRTChartType(GraphTypes.CHART_RADAR);
+      radar.updateChartType(false);
+      setup.accept(radar);
+      Object[][] rows = {
+         { GraphUtil.getName(price), GraphUtil.getName(qty), GraphUtil.getName(discount) },
+         { 10.0, 20.0, 30.0 },
+         { 30.0, 20.0, 10.0 },
+      };
+
+      return new Built(graph(radar, rows, mark, new ChartDescriptor()), rows);
+   }
+
    // the spoke-name spec of a radar of Sum(Price), Avg(Quantity) and Sum(Discount)
    private static AxisSpec spokeSpec(int type, VizMark mark, Consumer<RadarChartInfo> setup) {
       RadarVSChartInfo radar = new RadarVSChartInfo();
@@ -150,18 +244,23 @@ class ModernRadarLabelTest {
    private static AxisSpec spec(VSChartInfo cinfo, Object[][] rows, VizMark mark,
                                 ChartDescriptor desc)
    {
-      ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
-      assemblyInfo.setVSChartInfo(cinfo);
-      assemblyInfo.setChartDescriptor(desc);
-      assemblyInfo.setVizMark(mark);
-      EGraph graph = GraphGenerator.getGenerator(assemblyInfo, null, new DefaultDataSet(rows),
-                                                 new VariableTable(), null, XSourceInfo.NONE,
-                                                 new Dimension(400, 400)).createEGraph();
-      Coordinate coord = graph.getCoordinate();
+      Coordinate coord = graph(cinfo, rows, mark, desc).getCoordinate();
       assertInstanceOf(PolarCoord.class, coord, "premise: a radar");
       Coordinate inner = ((PolarCoord) coord).getCoordinate();
       assertInstanceOf(AbstractParallelCoord.class, inner, "premise: a parallel coord");
       return ((AbstractParallelCoord) inner).getAxisLabelScale().getAxisSpec();
+   }
+
+   private static EGraph graph(VSChartInfo cinfo, Object[][] rows, VizMark mark,
+                               ChartDescriptor desc)
+   {
+      ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
+      assemblyInfo.setVSChartInfo(cinfo);
+      assemblyInfo.setChartDescriptor(desc);
+      assemblyInfo.setVizMark(mark);
+      return GraphGenerator.getGenerator(assemblyInfo, null, new DefaultDataSet(rows),
+                                         new VariableTable(), null, XSourceInfo.NONE,
+                                         new Dimension(400, 400)).createEGraph();
    }
 
    private static VSChartDimensionRef dim(String name) {

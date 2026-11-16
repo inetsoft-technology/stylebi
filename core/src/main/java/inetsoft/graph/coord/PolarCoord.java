@@ -21,6 +21,7 @@ import com.inetsoft.build.tern.*;
 import inetsoft.graph.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DataSetIndex;
+import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.guide.axis.*;
 import inetsoft.graph.internal.*;
 import inetsoft.graph.internal.text.PolarLayoutManager;
@@ -440,6 +441,7 @@ public class PolarCoord extends Coordinate {
       int acount = vgraph.getAxisCount();
       AffineTransform ctrans = coord.getCoordTransform();
       List<Axis> vaxes = new ArrayList<>();
+      List<Double> thetas = new ArrayList<>();
 
       // this should be called since the fit won't be called on the base
       // coord. It adds the grid lines and to be transformed in polar.
@@ -498,6 +500,7 @@ public class PolarCoord extends Coordinate {
          else if(pos.getX() == pos2.getX()) {
             double theta = pos.getX() * Math.PI * 2 / GWIDTH;
 
+            thetas.add(theta);
             trans = new GTransform();
             trans.rotate(theta);
 
@@ -522,7 +525,110 @@ public class PolarCoord extends Coordinate {
                axis.setMinTickVisible(false);
             }
          }
+
+         if(spokeLabelRule && coord instanceof AbstractParallelCoord) {
+            applySpokeLabelModes(vaxes, thetas);
+         }
       }
+   }
+
+   /**
+    * Show the labels of equal spokes on the spoke nearest twelve o'clock only, and only the
+    * outermost label of each spoke when the scales differ.
+    */
+   private void applySpokeLabelModes(List<Axis> vaxes, List<Double> thetas) {
+      List<Integer> shown = new ArrayList<>();
+
+      for(int i = 0; i < vaxes.size(); i++) {
+         if(vaxes.get(i) instanceof DefaultAxis && vaxes.get(i).isLabelVisible()) {
+            shown.add(i);
+         }
+      }
+
+      if(shown.isEmpty()) {
+         return;
+      }
+
+      boolean same = true;
+      int first = shown.get(0);
+
+      for(int k = 1; k < shown.size() && same; k++) {
+         same = isSameScale(vaxes.get(first), vaxes.get(shown.get(k)));
+      }
+
+      int top = -1;
+      double best = Double.MAX_VALUE;
+
+      for(int i : shown) {
+         double d = Math.abs(thetas.get(i) - Math.PI / 2);
+         d = Math.min(d, Math.PI * 2 - d);
+
+         if(d < best - 1e-9) {
+            best = d;
+            top = i;
+         }
+      }
+
+      for(int i : shown) {
+         ((DefaultAxis) vaxes.get(i)).setLabelMode(
+            same ? (i == top ? DefaultAxis.LABELS_ALL : DefaultAxis.LABELS_NONE)
+               : DefaultAxis.LABELS_OUTERMOST);
+      }
+   }
+
+   /**
+    * Check if two spokes have the same scale and draw the same label texts.
+    */
+   private static boolean isSameScale(Axis a, Axis b) {
+      Scale s1 = a.getScale();
+      Scale s2 = b.getScale();
+
+      if(!(s1 instanceof LinearScale) || s1.getClass() != s2.getClass()) {
+         return false;
+      }
+
+      LinearScale l1 = (LinearScale) s1;
+      LinearScale l2 = (LinearScale) s2;
+
+      if(l1.isReversed() != l2.isReversed()) {
+         return false;
+      }
+
+      if(l1 instanceof LogScale && ((LogScale) l1).getBase() != ((LogScale) l2).getBase() ||
+         l1 instanceof PowerScale &&
+            ((PowerScale) l1).getExponent() != ((PowerScale) l2).getExponent())
+      {
+         return false;
+      }
+
+      double eps = 1e-9 * Math.max(1, Math.abs(l1.getMax() - l1.getMin()));
+      double[] t1 = l1.getTicks();
+      double[] t2 = l2.getTicks();
+
+      if(t1 == null || t2 == null || t1.length != t2.length) {
+         return false;
+      }
+
+      for(int i = 0; i < t1.length; i++) {
+         if(Math.abs(t1[i] - t2[i]) > eps) {
+            return false;
+         }
+      }
+
+      VLabel[] v1 = a.getLabels();
+      VLabel[] v2 = b.getLabels();
+
+      if(v1 == null || v2 == null || v1.length != v2.length) {
+         return false;
+      }
+
+      for(int i = 0; i < v1.length; i++) {
+         if(!Arrays.equals(v1[i].getDisplayLabel(), v2[i].getDisplayLabel())) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
@@ -1092,7 +1198,23 @@ public class PolarCoord extends Coordinate {
 
       PolarCoord coord = (PolarCoord) obj;
       return type == coord.type && holeRatio == coord.holeRatio &&
-             pieRatio == coord.pieRatio && webGrid == coord.webGrid;
+             pieRatio == coord.pieRatio && webGrid == coord.webGrid &&
+             spokeLabelRule == coord.spokeLabelRule;
+   }
+
+   /**
+    * Set whether the spoke scale labels of a radar are thinned out.
+    * @hidden
+    */
+   public void setSpokeLabelRule(boolean spokeLabelRule) {
+      this.spokeLabelRule = spokeLabelRule;
+   }
+
+   /**
+    * @hidden
+    */
+   public boolean isSpokeLabelRule() {
+      return spokeLabelRule;
    }
 
    /**
@@ -1154,6 +1276,7 @@ public class PolarCoord extends Coordinate {
    private double holeRatio = 0.3;
    private double pieRatio = 0;
    private boolean webGrid = false;
+   private boolean spokeLabelRule = false;
    private boolean minApplied;
    private transient double rx0 = Double.NaN; // cached radio ratio x
    private transient double rc0 = Double.NaN; // cached radio ratio c
