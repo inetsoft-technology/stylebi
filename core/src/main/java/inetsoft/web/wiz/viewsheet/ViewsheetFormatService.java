@@ -71,6 +71,7 @@ import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.GanttChartInfo;
 import inetsoft.uql.viewsheet.graph.RadarChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -2757,6 +2758,12 @@ public class ViewsheetFormatService {
          warnings.add(shared);
       }
 
+      String timeAxis = ganttTimeAxisWarning(chartInfo, field, request.reset());
+
+      if(timeAxis != null) {
+         warnings.add(timeAxis);
+      }
+
       VSFormat toApply = request.reset() ? VSWizardBindingHandler.clearingFormat() : format;
 
       List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId,
@@ -2879,6 +2886,32 @@ public class ViewsheetFormatService {
       return "'" + field + "' shares its value axis with " + String.join(", ", others) +
          " on this chart (not separated by measure): this " + (reset ? "reset" : "set") +
          " applies to that whole axis's format.";
+   }
+
+   /**
+    * A Gantt's start, end and milestone share one time axis drawn from the first bound of them, so
+    * a format set on any of the three is that axis' label format. Says so, so a write to a field
+    * that does not itself drive the axis is not mistaken for a per-field format.
+    */
+   private static String ganttTimeAxisWarning(VSChartInfo info, String field, boolean reset) {
+      if(!(info instanceof GanttChartInfo gantt) || gantt.getTimeAxisField() == null) {
+         return null;
+      }
+
+      ChartRef axisField = gantt.getTimeAxisField();
+
+      for(ChartRef ref : new ChartRef[] { gantt.getStartField(), gantt.getEndField(),
+                                          gantt.getMilestoneField() })
+      {
+         if(ref != null && field.equals(ref.getFullName())) {
+            return "'" + field + "' is a Gantt date field: its format is the label format of the " +
+               "chart's one time axis, which is drawn from '" + axisField.getFullName() + "' (the " +
+               "first bound of start, end and milestone), so this " + (reset ? "reset" : "set") +
+               " applies to the whole time axis.";
+         }
+      }
+
+      return null;
    }
 
    private static String quoted(List<String> names) {
