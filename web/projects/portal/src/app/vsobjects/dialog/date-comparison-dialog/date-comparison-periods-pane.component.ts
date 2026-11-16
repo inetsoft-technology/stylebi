@@ -40,6 +40,8 @@ export class DateComparisonPeriodsPaneComponent {
    @Input() toDateDisabled: boolean = false;
    @Input() intervalEndDate: any = null;
    @Input() weekly: boolean = false;
+   @Input() assemblyName: string;
+   @Input() runtimeId: string;
    isValidStandardPeriod: boolean;
    isValidCustomPeriod: boolean;
 

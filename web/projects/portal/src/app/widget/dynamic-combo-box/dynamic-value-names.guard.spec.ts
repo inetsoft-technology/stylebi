@@ -84,7 +84,9 @@ function boundNames(html: string): string[] {
       }
 
       if(value.includes("+")) {
-         names.push(value.split("+").map(part => {
+         // `cond ? 'name' + x : null` names the same property as its unconditional form
+         const named = value.replace(/^[^'?]*\?\s*/, "").replace(/\s*:\s*null\s*$/, "");
+         names.push(named.split("+").map(part => {
             const literal = /^\s*'([^']*)'\s*$/.exec(part);
             return literal ? literal[1] : PLACEHOLDER;
          }).join("").replace(/(<x>)+/g, PLACEHOLDER));
@@ -101,6 +103,7 @@ function boundNames(html: string): string[] {
 
 /** The opening tags of the named elements in a template, quote-aware so `>` inside a binding is safe. */
 function scanTags(html: string, names: string[]): { tag: string, text: string }[] {
+   html = html.replace(/<!--[\s\S]*?-->/g, c => " ".repeat(c.length)); // a commented-out tag is not a usage
    const found: { tag: string, text: string }[] = [];
    const re = new RegExp("<(" + names.join("|") + ")(?![\\w-])", "g");
    let m: RegExpExecArray;
@@ -178,13 +181,17 @@ for(const file of htmlFiles(APP)) {
 /** Panes whose combos name a property but need the assembly and runtime id from their parents. */
 const PAIRING_PANES = ["general-prop-pane", "basic-general-pane", "title-prop-pane",
    "value-input-field", "date-input-field", "label-input-field", "computation-dialog",
-   "title-format-pane", "legend-format-general-pane"];
+   "title-format-pane", "legend-format-general-pane",
+   "date-comparison-standard-periods", "date-comparison-custom-periods", "date-comparison-interval-pane"];
 
 /** The properties each pairing pane names (its combos' `dynamicProperty` literals). */
 const PANE_PROPERTIES: Record<string, string[]> = {
    "general-prop-pane": ["visible", "enabled"],
    "basic-general-pane": ["visible"],
    "title-prop-pane": ["title"],
+   "date-comparison-standard-periods": ["dateComparison:periodsBack", "dateComparison:level", "dateComparison:endDate"],
+   "date-comparison-custom-periods": ["dateComparison:customPeriods[<x>].start", "dateComparison:customPeriods[<x>].end"],
+   "date-comparison-interval-pane": ["dateComparison:interval", "dateComparison:intervalContextLevel", "dateComparison:intervalGranularity", "dateComparison:intervalEndDate"],
 };
 
 interface UnpairedProperty {
@@ -262,6 +269,11 @@ const HIDDEN_BY_DIALOG: { property: string, type: string, service: string }[] = 
    },
 ];
 
+/** Dialogs that are not a PropertyDialog (opened by the chart / crosstab), by selector, to the types that open them. */
+const OPENED_DIALOG_TYPES: Record<string, string[]> = {
+   "date-comparison-dialog": ["chart", "crosstab"],
+};
+
 const JAVA_WEB = resolve(HERE, "../../../../../../../core/src/main/java/inetsoft/web");
 
 /** Dialogs the chart action handler opens from TypeScript: they are dialogs although they are not PropertyDialogs. */
@@ -326,6 +338,10 @@ function dialogsReaching(tag: string): Set<string> {
 
          const selector = selectorOf(file);
 
+         if(selector && OPENED_DIALOG_TYPES[selector]) {
+            dialogs.add("@" + selector);
+         }
+
          if(selector && !seen.has(selector)) {
             seen.add(selector);
             queue.push(selector);
@@ -334,6 +350,10 @@ function dialogsReaching(tag: string): Set<string> {
    }
 
    return dialogs;
+}
+
+function typesOfDialog(d: string): string[] {
+   return d.startsWith("@") ? OPENED_DIALOG_TYPES[d.substring(1)] : [DIALOG_TYPES[d]];
 }
 
 const ALLOWLIST: Record<string, { reason: string, usages: [string, string][] }> = {
@@ -400,20 +420,6 @@ const ALLOWLIST: Record<string, { reason: string, usages: [string, string][] }> 
          ["binding/editor/table/group-option.component.html", "field.dateLevel"],
          ["binding/editor/table/group-option.component.html", "summarize"],
          ["binding/editor/table/table-fieldmc.component.html", "cellValue"],
-      ]
-   },
-   D: {
-      reason: "PR D: date comparison dialog, wired by the D PR (runtime id via pairingRuntimeId)",
-      usages: [
-         ["vsobjects/dialog/date-comparison-dialog/date-comparison-custom-periods.component.html", "period.start"],
-         ["vsobjects/dialog/date-comparison-dialog/date-comparison-custom-periods.component.html", "period.end"],
-         ["vsobjects/dialog/date-comparison-dialog/date-comparison-interval-pane.component.html", "visibleIntervalLevel"],
-         ["vsobjects/dialog/date-comparison-dialog/date-comparison-interval-pane.component.html", "contextLevelValue"],
-         ["vsobjects/dialog/date-comparison-dialog/date-comparison-interval-pane.component.html", "visibleGranularity"],
-         ["vsobjects/dialog/date-comparison-dialog/date-comparison-interval-pane.component.html", "intervalPaneModel.intervalEndDate"],
-         ["vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html", "standardPeriodPaneModel.preCount.value"],
-         ["vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html", "visibleStandardPeriodLevel"],
-         ["vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html", "standardPeriodPaneModel.endDay"],
       ]
    },
    NONE: {
@@ -621,7 +627,7 @@ describe("dynamic value pairing completeness guard (bug #80459)", () => {
       it("lists exactly the types whose dialog chain reaches the host pane and shows the property", () => {
          for(const entry of manifest) {
             const pane = selectorOf(entry.host);
-            const reached = [...dialogsReaching(pane)].map(d => DIALOG_TYPES[d]);
+            const reached = [...dialogsReaching(pane)].flatMap(typesOfDialog);
             const hidden = HIDDEN_BY_DIALOG.filter(h => h.property === entry.name).map(h => h.type);
 
             expect(pane, entry.host).toBeTruthy();
@@ -634,7 +640,7 @@ describe("dynamic value pairing completeness guard (bug #80459)", () => {
       it("only hides a type that the dialog chain really reaches, and the server hides it", () => {
          for(const h of HIDDEN_BY_DIALOG) {
             const entry = manifest.find(m => m.name === h.property);
-            const reached = [...dialogsReaching(selectorOf(entry.host))].map(d => DIALOG_TYPES[d]);
+            const reached = [...dialogsReaching(selectorOf(entry.host))].flatMap(typesOfDialog);
 
             expect(reached, `${h.property}@${h.type} is not reached, drop the entry`).toContain(h.type);
             expect(entry.assemblyTypes, `${h.property}@${h.type} must not be in the manifest`)

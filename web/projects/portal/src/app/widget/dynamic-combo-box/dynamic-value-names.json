@@ -149,5 +149,77 @@
       "chart"
     ],
     "host": "graph/dialog/legend-format-general-pane.component.html"
+  },
+  {
+    "name": "dateComparison:customPeriods[<i>].start",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "vsobjects/dialog/date-comparison-dialog/date-comparison-custom-periods.component.html"
+  },
+  {
+    "name": "dateComparison:customPeriods[<i>].end",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "vsobjects/dialog/date-comparison-dialog/date-comparison-custom-periods.component.html"
+  },
+  {
+    "name": "dateComparison:interval",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "vsobjects/dialog/date-comparison-dialog/date-comparison-interval-pane.component.html"
+  },
+  {
+    "name": "dateComparison:intervalContextLevel",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "vsobjects/dialog/date-comparison-dialog/date-comparison-interval-pane.component.html"
+  },
+  {
+    "name": "dateComparison:intervalGranularity",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "vsobjects/dialog/date-comparison-dialog/date-comparison-interval-pane.component.html"
+  },
+  {
+    "name": "dateComparison:intervalEndDate",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "vsobjects/dialog/date-comparison-dialog/date-comparison-interval-pane.component.html"
+  },
+  {
+    "name": "dateComparison:periodsBack",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html"
+  },
+  {
+    "name": "dateComparison:level",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html"
+  },
+  {
+    "name": "dateComparison:endDate",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html"
   }
 ]

@@ -20,6 +20,8 @@
     <div class="form-row-float-label row g-0">
       <div class="col-5">
         <dynamic-value-editor [valueModel]="period.start" [disable]="disable"
+          [dynamicAssembly]="assemblyName" [pairingRuntimeId]="runtimeId"
+          [dynamicProperty]="storedIndexOf(period) >= 0 ? 'dateComparison:customPeriods[' + storedIndexOf(period) + '].start' : null"
           [variableValues]="variableValues"
           [columnTreeRoot]="columnTreeRoot"
           [functionTreeRoot]="functionTreeRoot"
@@ -33,6 +35,8 @@
       </div>
       <div class="col-5">
         <dynamic-value-editor [valueModel]="period.end" [disable]="disable"
+          [dynamicAssembly]="assemblyName" [pairingRuntimeId]="runtimeId"
+          [dynamicProperty]="storedIndexOf(period) >= 0 ? 'dateComparison:customPeriods[' + storedIndexOf(period) + '].end' : null"
           [variableValues]="variableValues"
           [columnTreeRoot]="columnTreeRoot"
           [functionTreeRoot]="functionTreeRoot"

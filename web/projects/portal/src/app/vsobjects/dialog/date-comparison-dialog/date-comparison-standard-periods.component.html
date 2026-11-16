@@ -25,6 +25,8 @@
         <div class="row">
           <div class="col">
             <dynamic-combo-box [mode]="mode" [value]="standardPeriodPaneModel.preCount.value"
+              [assemblyName]="assemblyName" [pairingRuntimeId]="runtimeId"
+              dynamicProperty="dateComparison:periodsBack"
               [editable]="true" [variables]="variableValues" [disable]="disable"
               [isCondition]="true" [columnTreeRoot]="columnTreeRoot"
               [functionTreeRoot]="functionTreeRoot" [operatorTreeRoot]="operatorTreeRoot"
@@ -35,6 +37,8 @@
           </div>
           <div class="col">
             <dynamic-combo-box [values]="standardPeriodLevels" [value]="visibleStandardPeriodLevel"
+              [assemblyName]="assemblyName" [pairingRuntimeId]="runtimeId"
+              dynamicProperty="dateComparison:level"
               [variables]="variableValues" [disable]="disable" [isCondition]="true"
               [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
               [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions"
@@ -69,6 +73,8 @@
               </div>
               <div class="col-auto">
                 <dynamic-value-editor [valueModel]="standardPeriodPaneModel.endDay"
+                  [dynamicAssembly]="assemblyName" [pairingRuntimeId]="runtimeId"
+                  dynamicProperty="dateComparison:endDate"
                   [disable]="standardPeriodPaneModel.toDayAsEndDay || disable"
                   [today]="standardPeriodPaneModel.toDayAsEndDay"
                   [isInterval]="true"

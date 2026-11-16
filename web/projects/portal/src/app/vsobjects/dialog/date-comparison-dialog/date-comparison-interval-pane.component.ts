@@ -47,6 +47,8 @@ export class DateComparisonIntervalPaneComponent implements OnInit{
    @Input() functionTreeRoot: TreeNodeModel = null;
    @Input() operatorTreeRoot: TreeNodeModel = null;
    @Input() scriptDefinitions: any = null;
+   @Input() assemblyName: string;
+   @Input() runtimeId: string;
    private firstDayOfWeek: number;
    intervalLevels = [{
          label: "_#(js:All)",

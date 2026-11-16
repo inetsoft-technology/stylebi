@@ -34,12 +34,14 @@
     [scriptDefinitions]="scriptTreeModel?.scriptDefinitions"
     [intervalEndDate]="intervalEndDate"
     [toDateDisabled]="toDateDisabled"
+    [assemblyName]="assemblyName" [runtimeId]="runtimeId"
     [weekly]="isWeekly()">
   </date-comparison-periods-pane>
   <date-comparison-interval-pane [intervalPaneModel]="dateComparisonPaneModel.intervalPaneModel"
     [disable]="disable" [variableValues]="variableValues"
     [standardPeriodLevel]="dateComparisonPaneModel.periodPaneModel.standardPeriodPaneModel.dateLevel"
     [periodEndDay]="getPeriodEndDay()"
+    [assemblyName]="assemblyName" [runtimeId]="runtimeId"
     [isCustomPeriod]="dateComparisonPaneModel.periodPaneModel.custom"
     [columnTreeRoot]="scriptTreeModel?.columnTree"
     [functionTreeRoot]="scriptTreeModel?.functionTree"

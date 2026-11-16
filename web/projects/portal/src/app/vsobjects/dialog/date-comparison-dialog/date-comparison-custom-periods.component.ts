@@ -46,6 +46,8 @@ export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
    @Input() functionTreeRoot: TreeNodeModel = null;
    @Input() operatorTreeRoot: TreeNodeModel = null;
    @Input() scriptDefinitions: any = null;
+   @Input() assemblyName: string;
+   @Input() runtimeId: string;
    @Output() validChange = new EventEmitter<boolean>();
 
    constructor(private dateComparisonService: DateComparisonService) {
@@ -60,7 +62,18 @@ export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
       this.validChange.emit(this.isValidCustomPeriod());
    }
 
+   // position of each period in the stored comparison, before the pane sorts them: the server and
+   // the plugin address periods by it. A period added in this dialog has none.
+   private storedIndexes = new Map<DatePeriodModel, number>();
+
+   storedIndexOf(period: DatePeriodModel): number {
+      return this.storedIndexes.get(period) ?? -1;
+   }
+
    initCustomPeriodModel() {
+      this.storedIndexes.clear();
+      this.customPeriodPaneModel.datePeriods.forEach((p, i) => this.storedIndexes.set(p, i));
+
       if(this.customPeriodPaneModel.datePeriods.length != 0) {
          this.sortCustomPeriods();
       }

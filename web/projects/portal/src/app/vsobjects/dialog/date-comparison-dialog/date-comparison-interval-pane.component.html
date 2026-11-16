@@ -22,6 +22,8 @@
       <div class="form-row-float-label row g-0">
         <div class="col-6">
           <dynamic-combo-box [values]="getIntervalLevels()" [value]="visibleIntervalLevel"
+            [assemblyName]="assemblyName" [pairingRuntimeId]="runtimeId"
+            dynamicProperty="dateComparison:interval"
             [variables]="variableValues" [disable]="disable" [isCondition]="true"
             [columnTreeRoot]="columnTreeRoot"
             [functionTreeRoot]="functionTreeRoot"
@@ -37,6 +39,8 @@
         @if (showEndDate()) {
           <div class="col-4">
             <dynamic-combo-box [values]="getContextLevels()" [value]="contextLevelValue"
+              [assemblyName]="assemblyName" [pairingRuntimeId]="runtimeId"
+              dynamicProperty="dateComparison:intervalContextLevel"
               [variables]="variableValues" [disable]="disable" [isCondition]="true"
               [columnTreeRoot]="columnTreeRoot"
               [functionTreeRoot]="functionTreeRoot"
@@ -53,6 +57,8 @@
       <div class="col-6">
         <div class="form-floating">
           <dynamic-combo-box [values]="getGranularities()" [value]="visibleGranularity"
+            [assemblyName]="assemblyName" [pairingRuntimeId]="runtimeId"
+            dynamicProperty="dateComparison:intervalGranularity"
             [variables]="variableValues" [disable]="disable" [isCondition]="true"
             [columnTreeRoot]="columnTreeRoot"
             [functionTreeRoot]="functionTreeRoot"
@@ -84,6 +90,8 @@
             </label>
           </div>
           <dynamic-value-editor [valueModel]="intervalPaneModel.intervalEndDate"
+            [dynamicAssembly]="assemblyName" [pairingRuntimeId]="runtimeId"
+            dynamicProperty="dateComparison:intervalEndDate"
             [disable]="isEndDateDisable"
             [isInterval]="true"
             [variableValues]="variableValues"

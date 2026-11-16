@@ -30,6 +30,7 @@
           [toDateDisabled]="toDateDisabled"
           [intervalEndDate]="intervalEndDate"
           [weekly]="weekly"
+          [assemblyName]="assemblyName" [runtimeId]="runtimeId"
           (validChange)="validChanged($event)">
         </date-comparison-standard-periods>
       }
@@ -41,6 +42,7 @@
           [functionTreeRoot]="functionTreeRoot"
           [operatorTreeRoot]="operatorTreeRoot"
           [scriptDefinitions]="scriptDefinitions"
+          [assemblyName]="assemblyName" [runtimeId]="runtimeId"
           (validChange)="validChanged($event)">
         </date-comparison-custom-periods>
       }
