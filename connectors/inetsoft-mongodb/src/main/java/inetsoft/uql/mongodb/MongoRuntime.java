@@ -62,7 +62,8 @@ public class MongoRuntime extends TabularRuntime {
          }
 
          if(query.containsKey("maxTimeMS")) {
-            result.maxTime(query.getLong("maxTimeMS"), TimeUnit.MILLISECONDS);
+            // Document.parse yields Integer/Double/Long depending on the literal, so read as Number
+            result.maxTime(((Number) query.get("maxTimeMS")).longValue(), TimeUnit.MILLISECONDS);
          }
 
          result.forEach((java.util.function.Consumer<Document>) docs::add);
@@ -147,7 +148,8 @@ public class MongoRuntime extends TabularRuntime {
             return key.getMongoClient();
          }
 
-         protected void processRemoved(MongoClient value) {
+         @Override
+         protected void processRemoved(com.mongodb.MongoClient value) {
             value.close();
          }
       };

@@ -98,6 +98,11 @@ public class VSDrillHandler {
          .filter(obj -> obj instanceof DrillFilterVSAssembly)
          .map(ass -> ((DrillFilterVSAssembly) ass))
          .filter(currentFilterAss -> {
+            // a component with Enable Drilling off keeps its level; it is only filtered
+            if(targetAssembly != currentFilterAss && !isDrillEnabled(currentFilterAss)) {
+               return false;
+            }
+
             if(targetAssembly != currentFilterAss) {
                XCube cube1 = targetAssembly.getXCube();
                XCube cube2 = currentFilterAss.getXCube();
@@ -243,4 +248,10 @@ public class VSDrillHandler {
    private final VSBindingService bfactory;
 
    private static final Logger LOGGER = LoggerFactory.getLogger(VSDrillHandler.class);
+
+   static boolean isDrillEnabled(DrillFilterVSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      return !(info instanceof DataVSAssemblyInfo) || ((DataVSAssemblyInfo) info).isDrillEnabled();
+   }
 }

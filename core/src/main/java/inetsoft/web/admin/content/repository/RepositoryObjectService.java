@@ -1666,7 +1666,9 @@ public class RepositoryObjectService {
          registryManager.checkPermission(src, src, resource.getType(), actions, true,
             principal);
       }
-      else if(type == (RepositoryEntry.LOGIC_MODEL | RepositoryEntry.FOLDER) ||
+      // Bug #81279, the plain (extended) forms need the data source check as well
+      else if(type == RepositoryEntry.LOGIC_MODEL || type == RepositoryEntry.PARTITION ||
+         type == (RepositoryEntry.LOGIC_MODEL | RepositoryEntry.FOLDER) ||
          type == (RepositoryEntry.PARTITION | RepositoryEntry.FOLDER))
       {
          registryManager.checkPermission(resource.getPath(), src, resource.getType(),

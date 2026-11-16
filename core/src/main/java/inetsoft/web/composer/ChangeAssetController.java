@@ -325,9 +325,33 @@ public class ChangeAssetController {
       style.setName(name);
       // Keep the ID stable so the remove and the recreate act on the same key.
       style.setID(styleID);
+      String oldName = tableStyle.getName();
       manager.removeTableStyle(styleID);
       manager.setTableStyle(styleID, style);
       manager.save();
+      movePermission(ResourceType.TABLE_STYLE, oldName, name);
+   }
+
+   /**
+    * Bug #81263, a table style's permission is stored under its name, which includes the folder.
+    * Moving the style into a folder changes the name, so the permission moves with it (as in the
+    * Bug #80959 rename). The item is already moved, a failed permission write is logged and does
+    * not fail the move. A stale permission left at the new name is removed so it is not inherited.
+    */
+   private void movePermission(ResourceType type, String oname, String nname) {
+      if(Objects.equals(oname, nname)) {
+         return;
+      }
+
+      SecurityEngine security = SecurityEngine.getSecurity();
+      Permission permission = security.getPermission(type, oname);
+
+      if(permission != null) {
+         AbstractAssetEngine.movePermissionBestEffort(security, type, oname, nname, permission);
+      }
+      else {
+         AbstractAssetEngine.removePermissionBestEffort(security, type, nname);
+      }
    }
 
    private void changeTableStyleFolder(AssetEntry parent, AssetEntry entry, Principal principal) {

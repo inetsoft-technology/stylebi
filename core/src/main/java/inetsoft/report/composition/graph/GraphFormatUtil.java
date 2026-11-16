@@ -596,6 +596,21 @@ public class GraphFormatUtil {
          }
       }
 
+      // mirror getBindingTextFormat: a circle packing container is edited through the
+      // container (vo) format even if a text field is bound.
+      if(bindable.getChartType() == GraphTypes.CHART_CIRCLE_PACKING) {
+         AestheticRef textFieldRef = bindable.getTextField();
+
+         if(textFieldRef != null && !Tool.equals(textFieldRef.getDataRef(), aggr) &&
+            getVOTextFormat(aggr != null ? aggr.getFullName() : null, (ChartInfo) bindable,
+                            plot, true) != null)
+         {
+            setVOTextFormat(aggr != null ? aggr.getFullName() : null, (ChartInfo) bindable,
+                            plot, fmt);
+            return;
+         }
+      }
+
       if(!textField && plot.isValuesVisible() || bindable.getTextField() == null || !applyTextFormat) {
          if(bindable.getChartType() == GraphTypes.CHART_CIRCLE_PACKING) {
             setVOTextFormat(aggr != null ? aggr.getFullName() : null, (ChartInfo) bindable, plot, fmt);

@@ -24,7 +24,6 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.util.DefaultTable;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -290,6 +289,20 @@ public class FormulaFunctionsTest {
       assertArrayEquals(expected, (Object[]) FormulaFunctions.toList(input.clone(), options));
    }
 
+   // #81461: a fractional Double is not a duplicate of the Integer with the same integer part
+   @Test
+   void toListDistinctKeepsIntegerAndFractionalValues() {
+      assertArrayEquals(new Object[] { 1, 1.5 },
+                        (Object[]) FormulaFunctions.toList(new Object[] { 1, 1.5 }, ""));
+      assertEquals(4, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.5, 2, 2.5 }, "")).length);
+      assertEquals(4, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 2.5, 2, 1.5, 1 }, "")).length);
+      // the same value as a Double and as an Integer is still one value
+      assertEquals(1, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.0 }, "")).length);
+   }
+
    // toList returns a new list; the array passed in is a script value and must stay as it was.
    // Control: with the default distinct=true the input is left alone.
    @Test
@@ -299,7 +312,6 @@ public class FormulaFunctionsTest {
       assertArrayEquals(new Object[] { 3, 1, 2 }, distinct);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void toListDateOptionLeavesTheInputArrayAlone() {
       Date original = dt(2021, 3, 15);
@@ -308,7 +320,6 @@ public class FormulaFunctionsTest {
       assertSame(original, dates[0]);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void toListDistinctFalseLeavesTheInputArrayAlone() {
       Object[] unsorted = { 3, 1, 2 };
@@ -316,7 +327,6 @@ public class FormulaFunctionsTest {
       assertArrayEquals(new Object[] { 3, 1, 2 }, unsorted);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void toListRoundDateOptionLeavesTheInputArrayAlone() {
       Object[] dates = { dt(2021, 3, 15), dt(2021, 7, 4) };
@@ -325,7 +335,6 @@ public class FormulaFunctionsTest {
       assertArrayEquals(copy, dates);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void mapListLeavesTheInputArrayAlone() {
       Object[] input = { 4, 1, 3, 2 };
@@ -690,6 +699,20 @@ public class FormulaFunctionsTest {
       assertEquals(1, ((Object[]) FormulaFunctions.intersect(
          new Object[]{3.0}, new Object[]{3}, null)).length);
       assertTrue(FormulaFunctions.inArray(new Object[]{3.0}, 3));
+   }
+
+   /**
+    * Bug #81465: a Timestamp and a Date with the same time are one element in
+    * either argument order, consistent with intersect and inArray.
+    */
+   @Test
+   void timestampAndDateWithEqualMillisAreOneElementInBothOrders() {
+      long t = 1700000000000L;
+      Object[] ts = {new java.sql.Timestamp(t)};
+      Object[] dt = {new Date(t)};
+
+      assertEquals(1, ((Object[]) FormulaFunctions.union(ts, dt, null)).length);
+      assertEquals(1, ((Object[]) FormulaFunctions.union(dt, ts, null)).length);
    }
 
    /**

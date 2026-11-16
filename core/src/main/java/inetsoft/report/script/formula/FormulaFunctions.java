@@ -104,7 +104,7 @@ public class FormulaFunctions {
       }
       else {
          isArray = JavaScriptEngine.isArray(arrObj);
-         arr = isArray ? JavaScriptEngine.split(arrObj) : new Object[] {arrObj};
+         arr = isArray ? JavaScriptEngine.split(arrObj).clone() : new Object[] {arrObj};
          // @see comment in mapList
          // arr = (isArray || arrObj == null) ? JavaScriptEngine.split(arrObj) :
          //   new Object[] {arrObj};
@@ -370,7 +370,7 @@ public class FormulaFunctions {
    }
 
    /**
-    * Check if a list contains a value. Numbers are compared by value, as in
+    * Check if a list contains a value. Numbers and dates (Timestamp vs Date) are compared by value, as in
     * intersect and inArray, so that Double 3.0 and Integer 3 are equal. All
     * other values (including arrays) keep the List.contains (equals) semantics.
     */
@@ -378,7 +378,8 @@ public class FormulaFunctions {
       for(int i = 0; i < list.size(); i++) {
          Object item = list.get(i);
 
-         if(item instanceof Number && val instanceof Number ?
+         if((item instanceof Number && val instanceof Number ||
+            item instanceof Date && val instanceof Date) ?
             Tool.equals(item, val) : Objects.equals(item, val))
          {
             return true;
@@ -806,7 +807,7 @@ public class FormulaFunctions {
          // create a zero length array, it will cause the value be ignored,
          // function toArray, toList also have problem
          // fix bug1285489437478
-         arr = isArray ? JavaScriptEngine.split(arrObj) : new Object[] {arrObj};
+         arr = isArray ? JavaScriptEngine.split(arrObj).clone() : new Object[] {arrObj};
          // arr = (isArray || arrObj == null) ? JavaScriptEngine.split(arrObj) :
          //    new Object[] {arrObj};
       }
@@ -1247,21 +1248,23 @@ public class FormulaFunctions {
                return true;
             }
 
+            // a narrower key only matches when the conversion is lossless, otherwise
+            // 1.5 would be taken as a duplicate of 1
             int ival = ((Number) val).intValue();
 
-            if(map.containsKey(ival)) {
+            if(ival == dval && map.containsKey(ival)) {
                return true;
             }
 
             float fval = ((Number) val).floatValue();
 
-            if(map.containsKey(fval)) {
+            if(fval == dval && map.containsKey(fval)) {
                return true;
             }
 
             long lval = ((Number) val).longValue();
 
-            if(map.containsKey(lval)) {
+            if(lval == dval && map.containsKey(lval)) {
                return true;
             }
          }

@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.jdbc.util;
 
+import inetsoft.report.filter.ConditionGroup;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -412,15 +413,30 @@ class ConditionListHandlerSentinelTest {
                  () -> cond(XCondition.BETWEEN, true, "a", XConstants.CONDITION_EMPTY_STRING));
    }
 
-   @Disabled("mismatch C10 #81116")
    @DisplayName("C10 negated EQUAL_TO memory == SQL")
    @Test
    void c10_negatedEqualTo() throws Exception {
-      assertSame("negated EQUAL_TO", ROWS, "t", () -> {
-         Condition c = cond(XCondition.EQUAL_TO, true, "a");
-         c.setNegated(true);
-         return c;
-      });
+      // raw Condition.evaluate keeps a null row for a negated EQUAL_TO on purpose (highlight and
+      // chart color groups rely on it). The groups that filter data drop it, as SQL does (#79870),
+      // so evaluate through a group marked as a data filter, as the product does.
+      Condition c = cond(XCondition.EQUAL_TO, true, "a");
+      c.setNegated(true);
+      ConditionGroup group = new ConditionGroup();
+      group.addCondition(0, c, 0);
+      group.setNullNotEqualDropped(true);
+
+      Set<String> memory = new TreeSet<>(Comparator.nullsFirst(Comparator.naturalOrder()));
+
+      for(String row : ROWS) {
+         if(group.evaluate(new Object[] { row })) {
+            memory.add(row);
+         }
+      }
+
+      Condition sqlCond = cond(XCondition.EQUAL_TO, true, "a");
+      sqlCond.setNegated(true);
+      Set<String> sql = sqlRows(generate("t", sqlCond, new VariableTable(), false));
+      assertEquals(memory, sql, "negated EQUAL_TO: memory vs SQL");
    }
 
    @DisplayName("C10 negated ONE_OF memory == SQL")

@@ -130,9 +130,6 @@ public class VSObjectPropertyService {
          // before anything is changed, so a refused rename leaves the viewsheet as it was
          // (Bug #77462)
          queryManagerService.checkCubeTableReadPermission(newName, user);
-         String id = vs.getViewsheetInfo().getFilterID(oldName);
-         vs.getViewsheetInfo().setFilterID(oldName, null);
-         vs.getViewsheetInfo().setFilterID(newName, id);
       }
 
       //TODO pass confirmed/checktrap in
@@ -228,6 +225,12 @@ public class VSObjectPropertyService {
          if(vsAssembly.getContainer() instanceof TabVSAssembly) {
             ((TabVSAssembly) vsAssembly.getContainer()).setSelectedValue(newName);
          }
+
+         // move the shared filter id only once the rename succeeded, so a refused edit
+         // leaves it on the component (Bug #81184)
+         String filterId = vs.getViewsheetInfo().getFilterID(oldName);
+         vs.getViewsheetInfo().setFilterID(oldName, null);
+         vs.getViewsheetInfo().setFilterID(newName, filterId);
 
          renamed = true;
          name = vsAssembly.getAbsoluteName();

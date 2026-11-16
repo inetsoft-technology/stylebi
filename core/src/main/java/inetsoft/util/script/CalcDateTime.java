@@ -18,6 +18,7 @@
 package inetsoft.util.script;
 
 import inetsoft.util.CoreTool;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 
 import java.text.DateFormat;
@@ -728,7 +729,7 @@ public class CalcDateTime {
    public static String monthname(Object dateObj) {
       Date date = (Date) unwrapDate(dateObj);
 
-      return MONTH_FMT.get().format(date);
+      return MONTH_FMT.get().get().format(date);
    }
 
    /**
@@ -737,7 +738,7 @@ public class CalcDateTime {
    public static String weekdayname(Object dateObj) {
       Date date = (Date) unwrapDate(dateObj);
 
-      return WEEKDAY_FMT.get().format(date);
+      return WEEKDAY_FMT.get().get().format(date);
    }
 
    /**
@@ -1738,10 +1739,36 @@ public class CalcDateTime {
       return date;
    }
 
-   private static ThreadLocal<DateFormat> MONTH_FMT = ThreadLocal.withInitial(() ->
-      Tool.createDateFormat("MMMM")
+   /**
+    * A per-thread format that is rebuilt when the thread locale changes. The format takes the
+    * names from the thread locale at its first use, so a pooled thread would otherwise keep the
+    * language of the first user it served.
+    */
+   private static final class LocaleFormat {
+      LocaleFormat(String pattern) {
+         this.pattern = pattern;
+      }
+
+      DateFormat get() {
+         Locale current = ThreadContext.getLocale();
+
+         if(fmt == null || !Objects.equals(current, locale)) {
+            fmt = Tool.createDateFormat(pattern);
+            locale = current;
+         }
+
+         return fmt;
+      }
+
+      private final String pattern;
+      private DateFormat fmt;
+      private Locale locale;
+   }
+
+   private static ThreadLocal<LocaleFormat> MONTH_FMT = ThreadLocal.withInitial(() ->
+      new LocaleFormat("MMMM")
    );
-   private static ThreadLocal<DateFormat> WEEKDAY_FMT = ThreadLocal.withInitial(() ->
-      Tool.createDateFormat("EEEE")
+   private static ThreadLocal<LocaleFormat> WEEKDAY_FMT = ThreadLocal.withInitial(() ->
+      new LocaleFormat("EEEE")
    );
 }

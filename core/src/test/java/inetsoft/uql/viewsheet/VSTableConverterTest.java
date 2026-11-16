@@ -466,14 +466,12 @@ class VSTableConverterTest {
 
    // the converted cell name of a dimension is the same as the name a freehand cell gets by
    // default (TableCellBinding.getValidName)
-   @Disabled("Bug #81255: TopN/Others cell name keeps characters invalid in a script identifier")
    @Test
    void dimensionNameWithHyphenGetsTheDefaultCellName() {
       TableLayout layout = convert(new String[] { "Sales-Region" }, new String[0], null);
       assertEquals("Sales_Region", groupBinding(layout, "Sales-Region").getCellName());
    }
 
-   @Disabled("Bug #81255: TopN/Others cell name keeps characters invalid in a script identifier")
    @ParameterizedTest(name = "dimension named [{0}] gets the default cell name")
    @ValueSource(strings = { "a/b", "a&b", "Qty(x)", "a\"b", "a,b" })
    void dimensionNameWithSpecialCharacterGetsTheDefaultCellName(String name) {
@@ -769,7 +767,6 @@ class VSTableConverterTest {
    }
 
    // the Others group follows the dimension order of the runtime headers
-   @Disabled("Bug #81258: fixTopN keeps Others on the outer dimension when design and runtime headers differ")
    @Test
    void outerDimensionAtRuntimeTurnsOthersOffWhenDesignHasOnlyThatDimension() {
       Spec spec = new Spec(ROWS, new String[0]);
@@ -778,6 +775,55 @@ class VSTableConverterTest {
          DataRef[] runtime = ci.getRuntimeRowHeaders();
          ci.setDesignRowHeaders(new DataRef[] { runtime[0] });
       };
+      TableLayout layout = spec.run().nlayout;
+      assertFalse(groupBinding(layout, "year").getTopN(false).isOthers());
+   }
+
+   // the reverse: the design has year as an outer dimension but at runtime it is the innermost
+   @Test
+   void innermostDimensionAtRuntimeKeepsOthersWhenDesignHasItAsOuterDimension() {
+      Spec spec = new Spec(new String[] { "year" }, new String[0]);
+      spec.topNDim = "year";
+      spec.customizer = ci -> {
+         DataRef[] runtime = ci.getRuntimeRowHeaders();
+         ci.setDesignRowHeaders(new DataRef[] { runtime[0], dimension("quarter", false) });
+      };
+      TableLayout layout = spec.run().nlayout;
+      assertTrue(groupBinding(layout, "year").getTopN(false).isOthers());
+   }
+
+   // the same, for the column headers
+   @Test
+   void outerColumnDimensionAtRuntimeTurnsOthersOffWhenDesignHasOnlyThatDimension() {
+      Spec spec = new Spec(new String[0], new String[] { "region", "channel" });
+      spec.topNDim = "region";
+      spec.customizer = ci -> {
+         DataRef[] runtime = ci.getRuntimeColHeaders();
+         ci.setDesignColHeaders(new DataRef[] { runtime[0] });
+      };
+      TableLayout layout = spec.run().nlayout;
+      assertFalse(groupBinding(layout, "region").getTopN(false).isOthers());
+   }
+
+   @Test
+   void innermostColumnDimensionAtRuntimeKeepsOthersWhenDesignHasItAsOuterDimension() {
+      Spec spec = new Spec(new String[0], new String[] { "region" });
+      spec.topNDim = "region";
+      spec.customizer = ci -> {
+         DataRef[] runtime = ci.getRuntimeColHeaders();
+         ci.setDesignColHeaders(new DataRef[] { runtime[0], dimension("channel", false) });
+      };
+      TableLayout layout = spec.run().nlayout;
+      assertTrue(groupBinding(layout, "region").getTopN(false).isOthers());
+   }
+
+   // a design header that is not a dimension must not hide the runtime dimensions
+   @Test
+   void nonDimensionDesignHeaderDoesNotAffectOthersOfRuntimeDimensions() {
+      Spec spec = new Spec(ROWS, new String[0]);
+      spec.topNDim = "year";
+      spec.customizer = ci -> ci.setDesignRowHeaders(new DataRef[] {
+         new ColumnRef(new AttributeRef(null, "other")) });
       TableLayout layout = spec.run().nlayout;
       assertFalse(groupBinding(layout, "year").getTopN(false).isOthers());
    }

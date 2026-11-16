@@ -1201,6 +1201,15 @@ public class DeployManagerService {
 
       // templates or sub-reports or report files
       if(filename.startsWith("__")) {
+         // Bug #81246, these entries have no per-asset security resource, so they must not be
+         // written by an importer who has no administrator permission.
+         if(!isRawEntryImportAllowed(principal)) {
+            String msg = catalog.getString("em.import.file.failed.noPermission", filename);
+            failedList.add(msg);
+            LOG.warn(msg);
+            return false;
+         }
+
          String folder = null;
          String fname = null;
 
@@ -1701,6 +1710,20 @@ public class DeployManagerService {
       }
 
       return true;
+   }
+
+   /**
+    * Determines if the importer may write the template, sub-report and embedded table entries
+    * of an import package. Only an administrator may, as these entries are not covered by the
+    * per-asset deploy permission.
+    */
+   boolean isRawEntryImportAllowed(Principal principal) {
+      if(principal == null || !securityEngine.isSecurityEnabled()) {
+         return true;
+      }
+
+      OrganizationManager manager = OrganizationManager.getInstance();
+      return manager.isSiteAdmin(principal) || manager.isOrgAdmin(principal);
    }
 
    /**
