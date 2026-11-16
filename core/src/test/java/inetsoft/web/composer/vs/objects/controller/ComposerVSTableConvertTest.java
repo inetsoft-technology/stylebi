@@ -23,6 +23,9 @@ import inetsoft.report.TableLayout;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.ChangedAssemblyList;
+import inetsoft.report.script.viewsheet.CalcTableVSAScriptable;
+import inetsoft.report.script.viewsheet.CrosstabVSAScriptable;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.test.*;
 import inetsoft.uql.XCondition;
@@ -213,6 +216,23 @@ class ComposerVSTableConvertTest {
       for(Assembly assembly : vs.getAssemblies()) {
          assertFalse(assembly instanceof CrosstabVSAssembly, "crosstab left: " + assembly);
       }
+   }
+
+   // Bug #81262: the scriptable cached for the name must follow the new assembly type,
+   // otherwise cancel/processChange throw ClassCastException (CrosstabVSAScriptable)
+   @Test
+   void convertedFreehandTableGetsAFreshScriptableSoCancelAndProcessChangeWork() throws Exception {
+      Viewsheet vs = box().getViewsheet();
+      crosstab(vs, new String[] { "type" }, new String[0], "wind", "Sum");
+      box().getData(CROSSTAB);
+      assertInstanceOf(CrosstabVSAScriptable.class, box().getScope().getVSAScriptable(CROSSTAB));
+
+      convert(CROSSTAB);
+
+      assertInstanceOf(CalcTableVSAScriptable.class, box().getScope().getVSAScriptable(CROSSTAB));
+      assertDoesNotThrow(() -> box().cancel());
+      assertDoesNotThrow(
+         () -> box().processChange(CROSSTAB, 0xFFFF, new ChangedAssemblyList()));
    }
 
    private ViewsheetSandbox box() {
