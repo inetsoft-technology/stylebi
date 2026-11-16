@@ -82,6 +82,7 @@
           <ng-template ngbNavContent>
             <free-form-sql-pane class="tab-pane-content" [runtimeId]="runtimeId"
               [model]="queryModel.freeFormSQLPaneModel"
+              [agentPairing]="agentPairing"
               (onUpdated)="changeQueryModel($event)"
               (sqlEdited)="queryModel.sqlEdited = $event">
             </free-form-sql-pane>

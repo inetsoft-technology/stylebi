@@ -105,6 +105,7 @@ import { TabularQueryDialog } from "../../dialog/ws/tabular-query-dialog.compone
 import { SQLQueryDialog } from "../../../widget/dialog/sql-query-dialog/sql-query-dialog.component";
 import { ImportCSVDialog } from "../../dialog/ws/import-csv-dialog.component";
 import { ConnectToClaudeComponent } from "../wiz/connect-to-claude.component";
+import { SqlAgentPairing } from "../wiz/editor-context";
 import { FormsModule } from "@angular/forms";
 import { ToolbarGroup } from "../../../widget/toolbar/toolbar-group/toolbar-group.component";
 
@@ -213,6 +214,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    selectedDatabaseDataSource: string;
    selectDataSourceModel: SelectDataSourceDialogModel;
    newTableName: string;
+   private _sqlAgentPairing: SqlAgentPairing | null = null;
    editCollapsed: boolean = false;
    previewCollapsed: boolean = false;
    fullScreen: boolean = false;
@@ -995,6 +997,32 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
 
             this.onOpenImportDialog.emit(false);
          });
+   }
+
+   /**
+    * The pairing of a NEW database query dialog: the pre-assigned table name, still to be created.
+    * Memoized on (runtimeId, newTableName): the dialog sits in an ng-template, so a fresh object per
+    * change-detection pass would raise ExpressionChangedAfterItHasBeenChecked.
+    */
+   get sqlAgentPairing(): SqlAgentPairing | null {
+      const runtimeId = this.sheet?.runtimeId;
+      const socketConnection = this.sheet?.socketConnection;
+
+      if(!runtimeId || !socketConnection || !this.newTableName) {
+         return null;
+      }
+
+      const current = this._sqlAgentPairing;
+
+      if(!current || current.runtimeId !== runtimeId || current.table !== this.newTableName ||
+         current.socketConnection !== socketConnection)
+      {
+         this._sqlAgentPairing = {
+            runtimeId, socketConnection, table: this.newTableName, pending: true
+         };
+      }
+
+      return this._sqlAgentPairing;
    }
 
    newDatabaseQuery(dataSource: string, showMashUp: boolean , successCallback?: (model?: any) => void,

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, Output, ViewChild } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import {
    FreeFormSqlPaneModel
@@ -33,6 +33,9 @@ import {
    AdvancedSqlQueryModel
 } from "../../../../model/datasources/database/query/advanced-sql-query-model";
 import { FormsModule } from "@angular/forms";
+import { ConnectToClaudeComponent } from "../../../../../../composer/gui/wiz/connect-to-claude.component";
+import { AgentScriptPush, sqlAgentContext } from "../../../../../../composer/gui/wiz/agent-script-push";
+import { EditorContext, SqlAgentPairing } from "../../../../../../composer/gui/wiz/editor-context";
 
 
 const GET_COLUMN_INFO_URL = "../api/data/datasource/query/get/columnInfo";
@@ -42,11 +45,14 @@ const CLEAR_COLUMN_INFO_URL = "../api/data/datasource/query/clear/columnInfo";
     selector: "free-form-sql-pane",
     templateUrl: "./free-form-sql-pane.component.html",
     styleUrls: ["./free-form-sql-pane.component.scss"],
-    imports: [FormsModule]
+    imports: [FormsModule, ConnectToClaudeComponent]
 })
-export class FreeFormSqlPaneComponent {
+export class FreeFormSqlPaneComponent implements OnDestroy {
    @Input() runtimeId: string;
    @Input() model: FreeFormSqlPaneModel;
+   /** Set only for the worksheet Database Query dialog; null (no button) in the Data Modeler. */
+   @Input() agentPairing: SqlAgentPairing | null = null;
+   @ViewChild(ConnectToClaudeComponent) connectToClaude?: ConnectToClaudeComponent;
    @Output() onUpdated = new EventEmitter<AdvancedSqlQueryModel>();
    @Output() sqlEdited = new EventEmitter<boolean>();
 
@@ -80,6 +86,39 @@ export class FreeFormSqlPaneComponent {
    editSqlString(): void {
       this.refreshColumnInfo = true;
       this.sqlEdited.emit(true);
+   }
+
+   private _sqlContext: EditorContext;
+   private _agentPush: AgentScriptPush;
+
+   /** The pairing context, kept the same object while the pairing is unchanged. */
+   get sqlContext(): EditorContext {
+      const p = this.agentPairing;
+
+      if(p && (!this._sqlContext || this._sqlContext.assembly !== p.table ||
+         this._sqlContext.pending !== p.pending))
+      {
+         this._sqlContext = sqlAgentContext(p);
+      }
+
+      return this._sqlContext;
+   }
+
+   get agentPush(): AgentScriptPush | null {
+      if(!this._agentPush && this.agentPairing?.socketConnection) {
+         this._agentPush = new AgentScriptPush(this.agentPairing.socketConnection,
+            () => this.sqlContext, () => this.model.sqlString, text => {
+               this.model.sqlString = text;
+               this.editSqlString();
+            });
+      }
+
+      return this._agentPush ?? null;
+   }
+
+   ngOnDestroy(): void {
+      this._agentPush?.destroy();
+      this.connectToClaude?.detach();
    }
 
    parseNow() {

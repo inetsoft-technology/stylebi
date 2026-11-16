@@ -58,6 +58,7 @@ import { SqlQueryDialogController } from "./sql-query-dialog-controller";
 import { WsSqlQueryController } from "../../../composer/gui/ws/editor/ws-sql-query-controller";
 import { ApplyButtonComponent } from "../../slide-out/apply-button.component";
 import { SimpleQueryPaneComponent } from "./simple-query-pane.component";
+import { SqlAgentPairing } from "../../../composer/gui/wiz/editor-context";
 import { InputTrimDirective } from "../../directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
@@ -84,6 +85,8 @@ export class SQLQueryDialog implements OnInit {
    @Input() controller: SqlQueryDialogController;
    @Input() mashUpData: boolean;
    @Input() helpLinkKey: string = "DatabaseQuery";
+   /** Set only by the two worksheet openers; null for the VPM sub-query editor and others. */
+   @Input() agentPairing: SqlAgentPairing | null = null;
    @Output() onApply: EventEmitter<any> = new EventEmitter<any>();
    @Output() onCommit: EventEmitter<any> = new EventEmitter<any>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();

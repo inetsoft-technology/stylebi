@@ -21,7 +21,7 @@ import {
   Component,
   ElementRef, EventEmitter,
   Inject,
-  Input, Output,
+  Input, OnDestroy, Output,
   TemplateRef,
   ViewChild, ViewEncapsulation,
   DOCUMENT
@@ -84,6 +84,9 @@ import { VPMConditionDialog } from "../../../portal/dialog/vpm-condition-dialog/
 import { SQLQueryJoinDialog } from "./sql-query-join-dialog.component";
 import { HelpLinkDirective } from "../../help-link/help-link.directive";
 import { SQLQueryDialogListComponent } from "./sql-query-dialog-list.component";
+import { ConnectToClaudeComponent } from "../../../composer/gui/wiz/connect-to-claude.component";
+import { AgentScriptPush, sqlAgentContext } from "../../../composer/gui/wiz/agent-script-push";
+import { EditorContext, SqlAgentPairing } from "../../../composer/gui/wiz/editor-context";
 
 interface ColumnTablePair {
    columns: AssetEntry[];
@@ -97,9 +100,9 @@ const UPDATE_QUERY_URI: string = "../api/composer/ws/sql-query-dialog/query/upda
     templateUrl: "simple-query-pane.component.html",
     styleUrls: ["simple-query-pane.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TreeComponent, SQLQueryDialogListComponent, FormsModule, HelpLinkDirective, SqlQueryPreviewPaneComponent, NgbNavOutlet, SQLQueryJoinDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TreeComponent, SQLQueryDialogListComponent, FormsModule, HelpLinkDirective, SqlQueryPreviewPaneComponent, NgbNavOutlet, SQLQueryJoinDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe, ConnectToClaudeComponent]
 })
-export class SimpleQueryPaneComponent {
+export class SimpleQueryPaneComponent implements OnDestroy {
    @Input() queryModel: SqlQueryDialogModel;
    @Input() dataSources: string[];
    @Input() dataSource: string;
@@ -113,10 +116,13 @@ export class SimpleQueryPaneComponent {
    @Input() sessionOperations: OperationModel[];
    @Input() datasource: string;
    @Input() supportPreview: boolean = true;
+   /** Set only by the two worksheet openers; null (no Connect to Claude button) everywhere else. */
+   @Input() agentPairing: SqlAgentPairing | null = null;
    @ViewChild("tree") tree: TreeComponent;
    @ViewChild("joinDialog") joinDialog: TemplateRef<any>;
    @ViewChild("conditionDialog") conditionDialog: TemplateRef<any>;
    @ViewChild("sqlTextArea") sqlTextArea: ElementRef;
+   @ViewChild(ConnectToClaudeComponent) connectToClaude?: ConnectToClaudeComponent;
    @Output() onProcessing = new EventEmitter<boolean>();
    public XSchema = XSchema;
    public ConditionOperation = ConditionOperation;
@@ -200,6 +206,40 @@ export class SimpleQueryPaneComponent {
 
    textChanged(): void {
       this.model.sqlParseResult="_#(js:designer.qb.parseInit)";
+   }
+
+   private _sqlContext: EditorContext;
+   private _agentPush: AgentScriptPush;
+
+   /** The pairing context, kept the same object while the pairing is unchanged. */
+   get sqlContext(): EditorContext {
+      const p = this.agentPairing;
+
+      if(p && (!this._sqlContext || this._sqlContext.assembly !== p.table ||
+         this._sqlContext.pending !== p.pending))
+      {
+         this._sqlContext = sqlAgentContext(p);
+      }
+
+      return this._sqlContext;
+   }
+
+   /** Created when the direct-edit button first renders, so its last-known text is that SQL. */
+   get agentPush(): AgentScriptPush | null {
+      if(!this._agentPush && this.agentPairing?.socketConnection) {
+         this._agentPush = new AgentScriptPush(this.agentPairing.socketConnection,
+            () => this.sqlContext, () => this.model.sqlString, text => {
+               this.model.sqlString = text;
+               this.textChanged();
+            });
+      }
+
+      return this._agentPush ?? null;
+   }
+
+   ngOnDestroy(): void {
+      this._agentPush?.destroy();
+      this.connectToClaude?.detach();
    }
 
    newJoin(): void {

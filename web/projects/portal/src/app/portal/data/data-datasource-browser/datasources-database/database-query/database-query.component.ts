@@ -48,6 +48,7 @@ import { ParseResult } from "./query-sql/parse-result";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import { SqlQueryPreviewPaneComponent } from "./query-preview/sql-query-preview-pane.component";
 import { FreeFormSqlPaneComponent } from "./query-sql/free-form-sql-pane.component";
+import { SqlAgentPairing } from "../../../../../composer/gui/wiz/editor-context";
 
 import { QuerySortPaneComponent } from "./query-main/query-sort-pane/query-sort-pane.component";
 import { QueryFieldsPaneComponent } from "./query-main/query-field-pane/query-fields-pane.component";
@@ -70,6 +71,8 @@ export class DatabaseQueryComponent implements OnDestroy {
    @Input() databaseName: string;
    @Input() dataSourceTreeRoot: TreeNodeModel;
    @Input() freeFormSqlEnabled: boolean;
+   /** Forwarded to the SQL String tab; null (no Connect to Claude button) outside the worksheet. */
+   @Input() agentPairing: SqlAgentPairing | null = null;
    @Output() groupByValidityChange = new EventEmitter<boolean>();
    @ViewChild("queryLinkPane") queryLinkPane: QueryLinkPaneComponent;
    @ViewChild("queryGroupingPane") queryGroupingPane: QueryGroupingPaneComponent;

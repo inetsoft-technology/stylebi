@@ -38,6 +38,22 @@
       @let statusString = getStatusString();
       <label class="parse-status-label">{{statusString}}</label>
     </div>
+    @if (agentPairing && agentPush; as push) {
+      <div class="d-flex justify-content-end pb-2">
+        <wiz-connect-to-claude
+          [runtimeId]="agentPairing.runtimeId" sheetType="WORKSHEET"
+          [socketConnection]="agentPairing.socketConnection"
+          [editorContext]="sqlContext">
+        </wiz-connect-to-claude>
+      </div>
+      @if (push.staleText != null) {
+        <div class="alert alert-warning d-flex justify-content-between align-items-center">
+          <span>_#(An agent changed this SQL; your unsaved edits were kept.)</span>
+          <button type="button" class="btn btn-sm btn-outline-warning"
+            (click)="push.reload()">_#(Reload)</button>
+        </div>
+      }
+    }
     <div class="row">
       <div class="col">
         <textarea class="form-control" rows="26" [(ngModel)]="model.sqlString" (change)="editSqlString()"></textarea>

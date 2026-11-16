@@ -591,6 +591,14 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       dialog.controller = controller;
       dialog.crossJoinEnabled = this.crossJoinEnabled;
       dialog.mashUpData = singleQuery;
+      const socket = this.worksheet.socketConnection ?? this.worksheetClient;
+      dialog.agentPairing = this.worksheet.runtimeId && socket
+         ? {
+            runtimeId: this.worksheet.runtimeId,
+            socketConnection: socket,
+            table: table.name,
+            pending: false
+         } : null;
    }
 
    openTabularQueryDialog(table: TabularTableAssembly): void {
