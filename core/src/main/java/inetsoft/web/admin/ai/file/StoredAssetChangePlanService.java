@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.ai.file;
 
+import inetsoft.sree.portal.CustomTheme;
+import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.DataSpace;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -90,9 +92,13 @@ public class StoredAssetChangePlanService {
    /** Bug #80650: the whole-storage snapshot is only needed when some entry can overwrite, rename
     * or delete something that already exists. A new folder or a write to a path that does not
     * exist yet is a pure create whose undo deletes it. Shared with {@link
-    * StoredAssetChangesetApplyService} so the apply gates its snapshot on the same decision. */
+    * StoredAssetChangesetApplyService} so the apply gates its snapshot on the same decision.
+    * Bug #81073: an overwrite of a text file, and a delete of a text file no custom theme's jar
+    * points at, are also skipped, since the rollback rewrites the captured text exactly. A rename,
+    * a folder delete and any file whose prior content could not be captured as text keep it. */
    static boolean requiresBackup(List<ResolvedChange> resolved) {
-      return StorageBackupPolicy.requiresBackup(resolved, ResolvedChange::pureCreate);
+      return StorageBackupPolicy.requiresBackup(
+         resolved, r -> r.pureCreate() || r.snapshotSkippable());
    }
 
    /** Package-visible so {@link StoredAssetChangesetApplyService} can re-resolve the SAME way, at
@@ -170,7 +176,7 @@ public class StoredAssetChangePlanService {
          "create folder \"" + path + "\"");
       return new ResolvedChange(StoredAssetChangeRequest.UNIT_FOLDER,
          StoredAssetChangeRequest.VERB_CREATE, path, null, null, true, null, planChange, Map.of(),
-         true);
+         true, false);
    }
 
    private ResolvedChange resolveWrite(String label, String path, StoredAssetChangeRequest raw) {
@@ -223,7 +229,8 @@ public class StoredAssetChangePlanService {
          !exists ? PlanHashInputs.digest(WRITE_DOMAIN, null)
             : currentBytes == null ? UNREADABLE_MARKER : sha256Hex(currentBytes));
       return new ResolvedChange(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE,
-         path, null, content, compensable, priorText, planChange, hidden, !exists);
+         path, null, content, compensable, priorText, planChange, hidden, !exists,
+         exists && priorText != null);
    }
 
    private ResolvedChange resolveRename(String label, String unitType, String path,
@@ -258,7 +265,7 @@ public class StoredAssetChangePlanService {
               "this one name)"
             : ""));
       return new ResolvedChange(unitType, StoredAssetChangeRequest.VERB_RENAME, path, newPath, null,
-         true, null, planChange, Map.of(), false);
+         true, null, planChange, Map.of(), false, false);
    }
 
    /**
@@ -309,8 +316,23 @@ public class StoredAssetChangePlanService {
                : "prior content could not be captured as text, or exceeds the capture cap") + ")");
       PlanChange planChange = new PlanChange(path, currentOrgId(), "exists=true", "exists=false",
          AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true, description);
+      // The forward delete also drops the custom theme record whose jar is this path, which the
+      // rollback (rewriting the text) does not restore.
+      boolean skippable = compensable && !actualFolder && !isCustomThemeJar(path);
       return new ResolvedChange(unitType, StoredAssetChangeRequest.VERB_DELETE, path, null, null,
-         compensable, priorText, planChange, Map.of(), false);
+         compensable, priorText, planChange, Map.of(), false, skippable);
+   }
+
+   /** True when a custom theme's jar is {@code path}, or when the theme registry cannot be read
+    * (fail safe: keep the snapshot). */
+   private static boolean isCustomThemeJar(String path) {
+      try {
+         Set<CustomTheme> themes = CustomThemesManager.getManager().getCustomThemes();
+         return themes != null && themes.stream().anyMatch(t -> path.equals(t.getJarPath()));
+      }
+      catch(Exception | LinkageError e) {
+         return true;
+      }
    }
 
    // ---------------------------------------------------------------- validation helpers
@@ -481,10 +503,12 @@ public class StoredAssetChangePlanService {
     * execute the verb, plus the {@link PlanChange} record describing it. {@code compensable} and
     * {@code priorText} together determine whether a live rollback exists for this entry (see
     * 01-design.md section 6.3's per-verb rollback table). {@code pureCreate} is true for a new
-    * folder or a write to a path that did not exist (Bug #80650). */
+    * folder or a write to a path that did not exist (Bug #80650). {@code snapshotSkippable}
+    * is true when the rollback restores the entry exactly from captured text (Bug #81073). */
    record ResolvedChange(String unitType, String verb, String path, String newPath, String content,
                         boolean compensable, String priorText, PlanChange planChange,
-                        Map<String, String> hidden, boolean pureCreate)
+                        Map<String, String> hidden, boolean pureCreate,
+                        boolean snapshotSkippable)
    {
    }
 }

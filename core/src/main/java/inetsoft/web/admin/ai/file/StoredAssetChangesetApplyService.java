@@ -51,10 +51,11 @@ import java.util.stream.Collectors;
  * stored-asset analog of {@code DataSourceChangesetApplyService} (01-design.md section 6.3).
  *
  * <p>A plan is {@code requiresStorageBackup: true} unless every entry is a pure create (a new
- * folder, or a write to a path that does not exist yet; Bug #80650). When it is, the Tier-2
- * snapshot is taken synchronously here, before any change is attempted, and is the offline
- * recovery path for every non-compensable change -- never a substitute for a live rollback where
- * one exists. A pure-create plan skips it: its undo deletes the new entry.
+ * folder, or a write to a path that does not exist yet; Bug #80650) or is restored exactly from
+ * captured text (an overwrite of a text file, a delete of a text file no custom theme's jar points
+ * at; Bug #81073). When it is, the Tier-2 snapshot is taken synchronously here, before any change
+ * is attempted, and is the offline recovery path for every non-compensable change -- never a
+ * substitute for a live rollback where one exists. A plan of such entries skips it.
  */
 @Component
 public class StoredAssetChangesetApplyService {
