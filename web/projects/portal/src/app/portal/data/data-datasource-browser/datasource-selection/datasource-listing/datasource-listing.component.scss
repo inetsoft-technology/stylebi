@@ -18,12 +18,13 @@
 :host {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
+  // a card holds only a logo and a name, so both are centred
+  align-items: center;
+  justify-content: center;
   gap: var(--inet-space-3);
   min-height: 156px;
   padding: var(--inet-space-4);
-  text-align: left;
+  text-align: center;
   overflow: hidden;
   background: var(--inet-shell-surface-default);
   border: 1px solid var(--inet-default-border-color);
@@ -43,15 +44,26 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--inet-primary-color) 20%, transparent);
 }
 
+// Brand logos are third-party marks drawn for a white page, many in dark ink, so every logo sits on
+// the same white circle in both shells instead of being recolored, and a logo with its own white
+// background blends into it. The fallback database icon sits on it too, in the light shell's muted
+// icon color (the global icon-font rule colors the icon itself, so it is told to inherit), since the
+// circle stays white in a dark shell.
 .datasource-listing__icon-shell {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: 48px;
   height: 48px;
-  border-radius: var(--inet-radius-md);
-  background: var(--inet-shell-surface-subtle);
-  color: var(--inet-text-muted-color);
+  border-radius: 50%;
+  border: 1px solid var(--inet-default-border-color);
+  background: #fff;
+  color: #6a685f;
+
+  .database-icon {
+    color: inherit;
+  }
 }
 
 .datasource-listing__content {
@@ -60,6 +72,8 @@
 
 .datasource-listing__name {
   width: 100%;
+  // room for two lines on every card, so the logos line up across a row when a name wraps
+  min-height: calc(2em * 1.35);
   pointer-events: none;
   white-space: normal;
   line-height: 1.35;
@@ -74,7 +88,9 @@
   letter-spacing: 0.06em;
 }
 
+// wide wordmarks get the circle's width, square marks its height
 .datasource-listing__icon {
-  height: 30px;
-  max-width: 100%;
+  max-width: 40px;
+  max-height: 30px;
+  object-fit: contain;
 }

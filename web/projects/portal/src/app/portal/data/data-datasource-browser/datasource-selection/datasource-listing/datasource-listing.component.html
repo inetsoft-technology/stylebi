@@ -15,12 +15,14 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-@if (listing.iconUrl) {
-  @let iconUrl = getIconUrl();
-  <img class="datasource-listing__icon" [attr.src]="iconUrl" [attr.alt]="listing.name">
-} @else {
-  <span class="database-icon icon-size-xlarge"></span>
-}
+<span class="datasource-listing__icon-shell">
+  @if (listing.iconUrl) {
+    @let iconUrl = getIconUrl();
+    <img class="datasource-listing__icon" [attr.src]="iconUrl" [attr.alt]="listing.name">
+  } @else {
+    <span class="database-icon icon-size-xlarge"></span>
+  }
+</span>
 <div class="datasource-listing__name text-overflow unhighlightable">
   {{listing.name}}
 </div>
