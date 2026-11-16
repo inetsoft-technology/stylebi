@@ -47,8 +47,7 @@ public class ClusterFileTransfer implements AutoCloseable {
 
          if(sslContext == null) {
             // TLS is not configured for the cluster.
-            // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
-            fileTransferSocket = new ServerSocket(port, 50, localAddress);
+            fileTransferSocket = new ServerSocket(port, 50, localAddress); // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
          }
          else {
             SSLServerSocket sslSocket = (SSLServerSocket)
@@ -152,8 +151,7 @@ public class ClusterFileTransfer implements AutoCloseable {
    private Socket createClientSocket() throws IOException {
       if(sslContext == null) {
          // TLS is not configured for the cluster.
-         // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
-         return new Socket();
+         return new Socket(); // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
       }
 
       return sslContext.getSocketFactory().createSocket();
