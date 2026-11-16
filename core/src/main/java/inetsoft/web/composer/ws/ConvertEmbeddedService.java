@@ -98,6 +98,14 @@ public class ConvertEmbeddedService extends WorksheetControllerService {
       return null;
    }
 
+   /**
+    * Whether a table is too large to convert to an embedded table: more than {@code ROW_LIMIT}
+    * data rows or more than {@code COL_LIMIT} columns. Shared by the native and agent routes.
+    */
+   public static boolean exceedsConvertLimit(TableLens table) {
+      return table.moreRows(ROW_LIMIT + 1) || table.getColCount() > COL_LIMIT;
+   }
+
    private boolean allowConvertEmbeddedTable(RuntimeWorksheet rws, TableAssembly tab,
                                              CommandDispatcher dispatcher)
       throws Exception
@@ -112,7 +120,7 @@ public class ConvertEmbeddedService extends WorksheetControllerService {
          return false;
       }
 
-      if(table.moreRows(ROW_LIMIT + 1) || table.getColCount() > COL_LIMIT) {
+      if(exceedsConvertLimit(table)) {
          MessageCommand cmd = new MessageCommand();
          cmd.setMessage(catalog.getString("common.worksheet.convert.embedded.limit"));
          cmd.setType(MessageCommand.Type.INFO);
