@@ -77,15 +77,21 @@ import java.security.Principal;
  * Wiz portal export paths) is deliberately not gated. The Wiz portal dashboard export controllers
  * are not covered by this carve-out.
  * <p>
+ * <b>Fourth narrow carve-out (Redmine bug #81326, supersedes #80172 for bookmark creation and
+ * overwrite only).</b> The {@code VIEWSHEET_ACTION} permission {@code Bookmark} (EM: "Open and
+ * Create Bookmark") is checked server-side by the Viewer when a bookmark is created or
+ * overwritten ({@code VSBookmarkService.checkAddBookmark}), and the bypass approved that check
+ * for plugin calls. {@code ViewsheetAssemblyAgentController} therefore evaluates it on a copy of
+ * the principal with the "wiz" tag removed, before any write, for {@code create_bookmark} and
+ * {@code update_bookmark} (override, re-add and the "(Home)" bookmark). This strategy is
+ * unchanged.
+ * <p>
  * <b>Recorded decision: no further carve-outs beyond those above (Redmine bugs #80171, #80172;
- * decision: documented, not narrowed).</b> The toolbar action {@code PageNavigation} (Undo/Redo) and the bookmark actions
- * {@code Bookmark} (EM: "Open and Create Bookmark") and {@code OpenBookmark} stay under the bypass.
- * StyleBI's own server path does not check {@code PageNavigation} for undo/redo: it is only a
- * Viewer UI hint produced by {@code CoreLifecycleService.getPermissions} for runtime viewsheets.
- * It does not check {@code OpenBookmark} at all either, which is likewise only a UI hint.
- * {@code Bookmark} is checked server-side only when a bookmark is created or overwritten
- * ({@code VSBookmarkService.checkAddBookmark}), and the bypass approves that check for plugin
- * calls.
+ * decision: documented, not narrowed).</b> The toolbar action {@code PageNavigation} (Undo/Redo)
+ * and the bookmark action {@code OpenBookmark} stay under the bypass. StyleBI's own server path
+ * does not check {@code PageNavigation} for undo/redo: it is only a Viewer UI hint produced by
+ * {@code CoreLifecycleService.getPermissions} for runtime viewsheets. It does not check
+ * {@code OpenBookmark} at all either, which is likewise only a UI hint.
  */
 public class WizDelegatingCheckPermissionStrategy implements CheckPermissionStrategy {
    public WizDelegatingCheckPermissionStrategy(CheckPermissionStrategy delegate) {

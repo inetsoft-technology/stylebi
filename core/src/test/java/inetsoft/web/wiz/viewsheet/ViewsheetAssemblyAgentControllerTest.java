@@ -6700,12 +6700,15 @@ class ViewsheetAssemblyAgentControllerTest {
          ViewsheetSessionService sessions = realMutatingSessions();
          wireMutate(sessions, mock(RuntimeViewsheet.class));
          VSBookmarkService svc = mock(VSBookmarkService.class);
+         // Bookmark is approved so the refusal below can only come from the Share check
          ViewsheetAssemblyAgentController controller = controllerForBookmarks(
-            sessions, svc, engine(denyEverything(), false));
+            sessions, svc, engine(denyEverythingExcept("Bookmark"), false));
 
-         assertThrows(IllegalArgumentException.class, () -> controller.createBookmark("tok",
-            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", null),
-            wizUser(false)));
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> controller.createBookmark("tok",
+               new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", null),
+               wizUser(false)));
+         assertTrue(thrown.getMessage().contains("Share Bookmark permission"));
          verify(svc, never()).addBookmarkToViewSheet(
             any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
       }
@@ -6810,8 +6813,9 @@ class ViewsheetAssemblyAgentControllerTest {
          WizDelegatingCheckPermissionStrategy strategy =
             new WizDelegatingCheckPermissionStrategy(delegate);
 
+         // OpenBookmark is not carved out; Bookmark is, at the controller's call site (#81326)
          assertTrue(strategy.checkPermission(wizUser(true), ResourceType.VIEWSHEET_ACTION,
-                                             "Bookmark", ResourceAction.READ));
+                                             "OpenBookmark", ResourceAction.READ));
          verifyNoInteractions(delegate);
       }
 
@@ -6829,6 +6833,14 @@ class ViewsheetAssemblyAgentControllerTest {
          CheckPermissionStrategy delegate = mock(CheckPermissionStrategy.class);
          when(delegate.checkPermission(any(), any(), nullable(String.class), any()))
             .thenAnswer(inv -> !List.of(resources).contains(inv.<String>getArgument(2)));
+         return delegate;
+      }
+
+      /** Refuses every permission except the named VIEWSHEET_ACTION resources. */
+      private CheckPermissionStrategy denyEverythingExcept(String... resources) throws Exception {
+         CheckPermissionStrategy delegate = mock(CheckPermissionStrategy.class);
+         when(delegate.checkPermission(any(), any(), nullable(String.class), any()))
+            .thenAnswer(inv -> List.of(resources).contains(inv.<String>getArgument(2)));
          return delegate;
       }
 
@@ -7027,6 +7039,63 @@ class ViewsheetAssemblyAgentControllerTest {
             anyBoolean(), anyBoolean(), any());
       }
 
+      /** Creates a private bookmark; returns the service so the caller can verify the outcome. */
+      private VSBookmarkService createPrivate(SRPrincipal user, boolean expectAllowed)
+         throws Exception
+      {
+         ViewsheetSessionService sessions = realMutatingSessions();
+         wireMutate(sessions, mock(RuntimeViewsheet.class));
+         VSBookmarkService svc = okAddBookmarkService();
+         ViewsheetAssemblyAgentController controller =
+            controllerForBookmarks(sessions, svc, engine);
+         ViewsheetAssemblyAgentController.SaveBookmarkRequest request =
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "private", null);
+
+         if(expectAllowed) {
+            controller.createBookmark("tok", request, user);
+         }
+         else {
+            IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+               () -> controller.createBookmark("tok", request, user));
+            assertTrue(thrown.getMessage().contains("Open and Create Bookmark permission"));
+         }
+
+         return svc;
+      }
+
+      /** Redmine #81326. */
+      @Test
+      void bookmarkConfiguredDeny_refusesUserWithoutTheGrantedRole() throws Exception {
+         knownUser("alice", "Viewer");
+         restrictTo("Bookmark", "Creator");
+
+         VSBookmarkService svc = createPrivate(wizToken("alice"), false);
+
+         verify(svc, never()).addBookmarkToViewSheet(
+            any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void bookmarkConfiguredGrant_allowsHolderOfTheGrantedRole() throws Exception {
+         knownUser("bob", "Creator");
+         restrictTo("Bookmark", "Creator");
+
+         VSBookmarkService svc = createPrivate(wizToken("bob"), true);
+
+         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.PRIVATE),
+            anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void bookmarkWithNoConfiguredGrant_allowsProviderKnownUser() throws Exception {
+         knownUser("alice", "Viewer");
+
+         VSBookmarkService svc = createPrivate(wizToken("alice"), true);
+
+         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.PRIVATE),
+            anyBoolean(), anyBoolean(), any());
+      }
+
       @Test
       void administratorIsAllowedDespiteTheRestriction() throws Exception {
          knownUser("root", "Administrator");
@@ -7038,6 +7107,119 @@ class ViewsheetAssemblyAgentControllerTest {
 
          verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.ALLSHARE),
             anyBoolean(), anyBoolean(), any());
+      }
+   }
+
+   /**
+    * Redmine #81326: Open and Create Bookmark is enforced for create and overwrite, before any
+    * write, and only there.
+    */
+   @Nested
+   class BookmarkCreatePermission {
+      @Test
+      void createBookmark_withoutBookmarkPermission_refusedNamingIt() throws Exception {
+         ViewsheetSessionService sessions = realMutatingSessions();
+         wireMutate(sessions, mock(RuntimeViewsheet.class));
+         VSBookmarkService svc = mock(VSBookmarkService.class);
+         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+            sessions, svc, permissionDenied("Bookmark"));
+
+         for(String type : List.of("private", "shared", "group")) {
+            IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+               () -> controller.createBookmark("tok",
+                  new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", type, null),
+                  principal()));
+            assertTrue(thrown.getMessage().contains("create_bookmark"));
+            assertTrue(thrown.getMessage().contains("Open and Create Bookmark permission"));
+         }
+
+         verify(svc, never()).addBookmarkToViewSheet(
+            any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void createBookmark_withBookmarkButWithoutShareBookmark_refusesOnlyTheShare()
+         throws Exception
+      {
+         ViewsheetSessionService sessions = realMutatingSessions();
+         wireMutate(sessions, mock(RuntimeViewsheet.class));
+         VSBookmarkService svc = okAddBookmarkService();
+         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+            sessions, svc, permissionDenied("ShareBookmark"));
+
+         controller.createBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "private", null),
+            principal());
+         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.PRIVATE),
+            anyBoolean(), anyBoolean(), any());
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> controller.createBookmark("tok",
+               new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q2 Report", "shared", null),
+               principal()));
+         assertTrue(thrown.getMessage().contains("Share Bookmark permission"));
+      }
+
+      @Test
+      void updateBookmark_withoutBookmarkPermission_refusedForOverrideReaddAndHome()
+         throws Exception
+      {
+         IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+         UpdateFixture f = updateFixture(List.of(
+            bookmark("Q1 Report", VSBookmarkInfo.PRIVATE, "admin", false)),
+            permissionDenied("Bookmark"));
+         when(f.rvs().bookmarkUpdated("Q1 Report", caller)).thenReturn(true);
+         when(f.rvs().checkBookmark("Q1 Report", caller)).thenReturn(true);
+         when(f.rvs().containsBookmark("Q1 Report", caller)).thenReturn(true);
+         when(f.rvs().getBookmarkInfo("Q1 Report", caller)).thenReturn(
+            bookmark("Q1 Report", VSBookmarkInfo.PRIVATE, "admin", false));
+
+         for(String onConflict : java.util.Arrays.asList("override", "readd", null)) {
+            IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+               () -> f.controller().updateBookmark("tok",
+                  updateRequest("Q1 Report", onConflict, null), principal()));
+            assertTrue(thrown.getMessage().contains("update_bookmark"));
+            assertTrue(thrown.getMessage().contains("Open and Create Bookmark permission"));
+         }
+
+         // "(Home)" also writes the dashboard asset; nothing may be written for it either
+         IllegalArgumentException home = assertThrows(IllegalArgumentException.class,
+            () -> f.controller().updateBookmark("tok",
+               updateRequest(VSBookmark.HOME_BOOKMARK, "override", null), principal()));
+         assertTrue(home.getMessage().contains("Open and Create Bookmark permission"));
+
+         verifyNothingWritten(f);
+         verify(f.service(), never()).checkAddBookmark(any(), anyString(), anyBoolean(), any(), any());
+         verify(f.service(), never()).saveHomeBookmarkAsset(any(), any(), any(), any(), any());
+      }
+
+      @Test
+      void deleteAndSetDefault_stayUncheckedWithoutBookmarkPermission() throws Exception {
+         ViewsheetSessionService sessions = realMutatingSessions();
+         RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+         when(rvs.containsBookmark(eq(VSBookmark.HOME_BOOKMARK), any(IdentityID.class)))
+            .thenReturn(false);
+         IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+         when(rvs.bookmarkWritable(eq(VSBookmark.HOME_BOOKMARK), eq(admin))).thenReturn(true);
+         wireMutate(sessions, rvs);
+         stubSavedAsset(rvs);
+         VSBookmarkService svc = mock(VSBookmarkService.class);
+         when(svc.getVisibleBookmarks(any(), any())).thenReturn(List.of(
+            new VSBookmarkInfo(VSBookmark.HOME_BOOKMARK, VSBookmarkInfo.ALLSHARE, admin, false,
+                               System.currentTimeMillis())));
+         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+            sessions, svc, permissionDenied("Bookmark"));
+
+         controller.setDefaultBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest(VSBookmark.HOME_BOOKMARK),
+            principal());
+         verify(rvs).setDefaultBookmark(any());
+
+         controller.deleteBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest(VSBookmark.HOME_BOOKMARK), "",
+            principal());
+         verify(svc).deleteBookmark(eq("runtime-1"), any(VSEditBookmarkEvent.class),
+            any(Principal.class), any(), eq(""));
       }
    }
 

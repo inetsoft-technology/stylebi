@@ -660,6 +660,7 @@ public class ViewsheetAssemblyAgentController {
       boolean readOnly = request.readOnly() == null || request.readOnly();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireBookmarkPermission(user, "create_bookmark");
          requireSharePermission(rvs, type, VSBookmarkInfo.PRIVATE, false, user, "create_bookmark");
 
          if(rvs.containsBookmark(name, ownerOf(user))) {
@@ -710,6 +711,8 @@ public class ViewsheetAssemblyAgentController {
                                                  CommandDispatcher dispatcher)
       throws Exception
    {
+      // Redmine #81326: first, so no override, re-add or "(Home)" dashboard write can precede it.
+      requireBookmarkPermission(user, "update_bookmark");
       IdentityID caller = ownerOf(user);
       requireFirstOpenerForHome(rvs, name, caller, "update_bookmark");
       boolean override = "override".equals(onConflict);
@@ -1309,14 +1312,14 @@ public class ViewsheetAssemblyAgentController {
             "type 'private'.");
       }
 
-      if(!hasSharePermission(user, "ShareBookmark")) {
+      if(!hasActionPermission(user, "ShareBookmark")) {
          throw new IllegalArgumentException(
             tool + ": you do not have the Share Bookmark permission -- use type 'private', or " +
             "leave an existing shared bookmark's 'type'/'readOnly' unchanged.");
       }
 
       if(typeChanged && type == VSBookmarkInfo.ALLSHARE &&
-         !hasSharePermission(user, "ShareToAll"))
+         !hasActionPermission(user, "ShareToAll"))
       {
          throw new IllegalArgumentException(
             tool + ": you do not have the Share to All permission -- use type 'group' or " +
@@ -1325,13 +1328,32 @@ public class ViewsheetAssemblyAgentController {
    }
 
    /**
-    * Evaluates a user-facing share action ({@code ShareBookmark} / {@code ShareToAll}) against
-    * the real user's grants. Every request on this controller carries a wiz-tagged principal,
-    * which {@code WizDelegatingCheckPermissionStrategy} approves unconditionally (Redmine #76630);
-    * Redmine #79486 carves these two resources out of that bypass, so the check runs on a copy
-    * of the principal with the wiz tag removed (same name, roles, groups and organization).
+    * Open and Create Bookmark enforcement for {@code create_bookmark} and {@code update_bookmark}
+    * (Redmine #81326). The native Viewer refuses to create or overwrite a bookmark for a user
+    * without the {@code Bookmark} action permission, in
+    * {@link VSBookmarkService#checkAddBookmark} -- the only place that permission is checked on
+    * the server. That check is handed this controller's wiz-tagged principal, which
+    * {@code WizDelegatingCheckPermissionStrategy} approves unconditionally, so it is repeated
+    * here on the real user's grants, before anything is written. Opening, listing, deleting and
+    * renaming bookmarks stay unchecked, as in the Viewer.
     */
-   private boolean hasSharePermission(Principal user, String resource)
+   private void requireBookmarkPermission(Principal user, String tool) throws SecurityException {
+      if(!hasActionPermission(user, "Bookmark")) {
+         throw new IllegalArgumentException(
+            tool + ": you do not have the Open and Create Bookmark permission -- bookmarks " +
+            "cannot be created or overwritten without it.");
+      }
+   }
+
+   /**
+    * Evaluates a user-facing viewsheet action ({@code Bookmark}, {@code ShareBookmark},
+    * {@code ShareToAll}) against the real user's grants. Every request on this controller
+    * carries a wiz-tagged principal, which {@code WizDelegatingCheckPermissionStrategy} approves
+    * unconditionally (Redmine #76630); Redmine #79486 and #81326 carve these resources out of
+    * that bypass, so the check runs on a copy of the principal with the wiz tag removed (same
+    * name, roles, groups and organization).
+    */
+   private boolean hasActionPermission(Principal user, String resource)
       throws SecurityException
    {
       return securityEngine.checkPermission(WizUtil.nonWizCopy(user), ResourceType.VIEWSHEET_ACTION,
