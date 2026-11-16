@@ -864,6 +864,63 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       return data != null && data.isExpressionChanged(current);
    }
 
+   // TEMP-81422 diagnostic, remove before the final commit
+   public String diagnose81422(Worksheet ws) {
+      StringBuilder sb = new StringBuilder();
+      sb.append("mv=").append(mvname).append(", otname=").append(otname)
+         .append(", tname=").append(tname).append(", wsMV=").append(isWSMV());
+      ColumnSelection stored = data == null ? null : data.getColumns();
+      sb.append(", stored=").append(describe81422(stored));
+
+      if(ws == null) {
+         return sb.append(", ws=null").toString();
+      }
+
+      Assembly table = otname == null ? null : ws.getAssembly(otname);
+      sb.append(", wsTables=");
+
+      for(Assembly a : ws.getAssemblies()) {
+         sb.append(a.getName()).append(';');
+      }
+
+      sb.append(", table(otname)=").append(table == null ? null : table.getClass().getSimpleName());
+
+      if(table instanceof TableAssembly) {
+         sb.append(", current=")
+            .append(describe81422(((TableAssembly) table).getColumnSelection(true)));
+      }
+
+      return sb.toString();
+   }
+
+   private static String describe81422(ColumnSelection cols) {
+      if(cols == null) {
+         return "null";
+      }
+
+      StringBuilder sb = new StringBuilder("[");
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+         sb.append(ref.getClass().getSimpleName()).append(':').append(ref.getName());
+
+         if(ref instanceof ColumnRef) {
+            ColumnRef col = (ColumnRef) ref;
+            DataRef base = col.getDataRef();
+            sb.append('/').append(base == null ? null : base.getClass().getSimpleName())
+               .append("/sql=").append(col.isSQL());
+
+            if(base instanceof ExpressionRef) {
+               sb.append("/exp=").append(((ExpressionRef) base).getExpression());
+            }
+         }
+
+         sb.append(", ");
+      }
+
+      return sb.append(']').toString();
+   }
+
    /**
     * Create mv columns.
     */
