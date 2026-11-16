@@ -93,6 +93,33 @@ public class ScriptApiService {
    }
 
    /**
+    * The callable global function names of the same merged catalogue {@code lookup} reads, sorted:
+    * what the script editor's function tree lists. Prototype methods ({@code Type.method}) and
+    * type entries are not included; {@code lookup} resolves those by their dotted name.
+    */
+   public List<String> functionNames() {
+      List<String> names = new ArrayList<>();
+      JsonNode r = root();
+
+      for(Iterator<String> it = r.fieldNames(); it.hasNext();) {
+         String name = it.next();
+
+         JsonNode node = r.get(name);
+
+         // A type (AreaElement, ...) is also "fn(" -- its constructor -- but carries a prototype;
+         // it is looked up by its dotted method names, not called as a global.
+         if(!name.startsWith("!") && !node.has("prototype") &&
+            node.path("!type").asText("").startsWith("fn("))
+         {
+            names.add(name);
+         }
+      }
+
+      names.sort(null);
+      return names;
+   }
+
+   /**
     * Case-insensitive candidates for a missed name, over the same merged root {@code lookup}
     * reads (so SREE_ONLY names are never suggested). Dotted names only match prototype methods,
     * with both halves compared ignoring case.

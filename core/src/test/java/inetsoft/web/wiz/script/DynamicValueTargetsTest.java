@@ -289,10 +289,16 @@ class DynamicValueTargetsTest {
          assertTrue(message.contains("Nothing was pushed."), message);
       }
 
-      // A reference that is part of a bigger expression is a real expression.
-      assertEquals("$(a)+1", prepare("$(a)+1").text());
-      assertEquals("$(a) + $(b)", prepare("$(a) + $(b)").text());
-      assertEquals("f($(a))", prepare("f($(a))").text());
+      // Bug #81445: a reference inside a bigger expression is still a call to $, which is not
+      // defined in an Expression, so it is refused too (with its own message); only text where
+      // the $(...) sits inside a string literal is a real expression.
+      for(String embedded : new String[] { "$(a)+1", "$(a) + $(b)", "f($(a))" }) {
+         String message = refusal(embedded, PARSES);
+
+         assertTrue(message.contains("That expression calls $(...)"), embedded + " -> " + message);
+         assertTrue(message.contains("Nothing was pushed."), message);
+      }
+
       assertEquals("'$(a)'", prepare("'$(a)'").text());
    }
 
