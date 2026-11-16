@@ -23,7 +23,7 @@
         <div class="form-floating">
           <dynamic-combo-box data-test="minimumRangeValue"
             [mode]="mode" [(value)]="model.minimum"
-            (valueChange)="onMinimumChange($event)" [vsId]="vsId"
+            (valueChange)="onMinimumChange($event)" [vsId]="vsId" [assemblyName]="assemblyName" dynamicProperty="min"
           [variables]="variableValues" [editable]="true"></dynamic-combo-box>
           <label>_#(Minimum)</label>
         </div>
@@ -33,7 +33,7 @@
           <dynamic-combo-box data-test="maximumRangeValue"
             [mode]="mode"
             [(value)]="model.maximum" (valueChange)="onMaximumChange($event)"
-            [vsId]="vsId" [variables]="variableValues" [editable]="true">
+            [vsId]="vsId" [assemblyName]="assemblyName" dynamicProperty="max" [variables]="variableValues" [editable]="true">
           </dynamic-combo-box>
           <label>_#(Maximum)</label>
         </div>
@@ -45,7 +45,7 @@
             [mode]="mode" [(value)]="model.increment"
             (typeChange)="onTypeChange($event)"
             (valueChange)="onIncrementChange($event)"
-            [vsId]="vsId" [variables]="variableValues" [editable]="true">
+            [vsId]="vsId" [assemblyName]="assemblyName" dynamicProperty="increment" [variables]="variableValues" [editable]="true">
           </dynamic-combo-box>
           <label>_#(Increment)</label>
         </div>

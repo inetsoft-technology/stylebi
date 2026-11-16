@@ -39,6 +39,7 @@ export class NumberRangePane implements OnInit {
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    mode: ValueMode = ValueMode.NUMBER;
 
    ngOnInit() {

@@ -30,4 +30,5 @@ export class OvalPropertyPane {
    @Input() model: OvalPropertyPaneModel;
    @Input() variableValues: string[];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
 }

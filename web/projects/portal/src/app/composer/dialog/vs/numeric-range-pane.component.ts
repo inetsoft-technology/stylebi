@@ -37,6 +37,7 @@ export class NumericRangePane {
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @Output() isInputValid: EventEmitter<boolean> = new EventEmitter<boolean>();
    mode: ValueMode = ValueMode.NUMBER;
    incrementType: ComboMode = ComboMode.VALUE;

@@ -120,6 +120,27 @@ class DynamicValueNamesManifestTest {
       return problems;
    }
 
+   /**
+    * The duplicate rule: an entry is a duplicate only when the same name is declared for the same
+    * host. The same name under different hosts is one property on several panes (for example
+    * gauge and slider `min`), which the server resolves per assembly type.
+    */
+   static String duplicateOf(Set<String> seen, String name, String host) {
+      return seen.add(name + "@" + host) ? null : name + ": declared twice";
+   }
+
+   @Test
+   void theSameNameOnTwoHostsIsNotADuplicateButTheSameHostTwiceIs() {
+      Set<String> seen = new HashSet<>();
+
+      assertNull(duplicateOf(seen, "min", "a/numeric-range-pane.component.html"));
+      assertNull(duplicateOf(seen, "min", "b/number-range-pane.component.html"),
+                 "same name under a different host");
+      assertEquals("min: declared twice",
+                   duplicateOf(seen, "min", "a/numeric-range-pane.component.html"),
+                   "same name and same host");
+   }
+
    @Test
    void theServerAcceptsEveryNameAndTypeTheManifestDeclares() throws Exception {
       JsonNode entries = manifest();
@@ -135,8 +156,10 @@ class DynamicValueNamesManifestTest {
 
          entry.path("assemblyTypes").forEach(t -> types.add(t.asText()));
 
-         if(!seen.add(name)) {
-            problems.add(name + ": declared twice");
+         String duplicate = duplicateOf(seen, name, entry.path("host").asText(""));
+
+         if(duplicate != null) {
+            problems.add(duplicate);
          }
 
          problems.addAll(problemsOf(name, types));

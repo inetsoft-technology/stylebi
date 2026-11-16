@@ -35,6 +35,7 @@ export class LinePropPane {
    @Input() model: LinePropPaneModel;
    @Input() variables: string[];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @ViewChild("colorType") colorType: DynamicComboBox;
 
    fixColor(type: ComboMode): void {

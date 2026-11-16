@@ -36,13 +36,13 @@
       </ng-container>
       <ng-container ngbNavItem="dataTab">
         <a ngbNavLink>_#(Data)</a>
-        <ng-template ngbNavContent><data-output-pane [model]="model.dataOutputPaneModel" [runtimeId]="runtimeId" [variableValues]="variableValues"></data-output-pane></ng-template>
+        <ng-template ngbNavContent><data-output-pane [model]="model.dataOutputPaneModel" [runtimeId]="runtimeId" [assemblyName]="assemblyName" [variableValues]="variableValues"></data-output-pane></ng-template>
       </ng-container>
       <ng-container ngbNavItem="advancedTab">
         <a ngbNavLink>_#(Advanced)</a>
         <ng-template ngbNavContent>
           <gauge-advanced-pane [model]="model.gaugeAdvancedPaneModel"
-            [variableValues]="variableValues" [vsId]="runtimeId"
+            [variableValues]="variableValues" [vsId]="runtimeId" [assemblyName]="assemblyName"
             [targetSupported]="isBulletGraphGauge()"
             [gradientSupported]="!isBulletGraphGauge()"
             [numRangesToDisplay]="getNumRangesToDisplay()">

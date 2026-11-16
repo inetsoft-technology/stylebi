@@ -45,6 +45,7 @@ const CUBE_COLUMNS_URI: string = "../vs/dataOutput/cube/columns";
 })
 export class DataOutputPane implements OnInit {
    @Input() runtimeId: string;
+   @Input() assemblyName: string = null;
    @Input() variableValues: string[];
    headers: HttpHeaders;
    columns: OutputColumnModel[] = [];

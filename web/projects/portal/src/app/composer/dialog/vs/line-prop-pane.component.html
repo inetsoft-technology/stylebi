@@ -23,7 +23,7 @@
         <div class="form-floating">
           <dynamic-combo-box #colorType [value]="model.color" [variables]="variables"
                              (typeChange)="fixColor($event)" (valueChange)="colorChange($event)"
-                             [vsId]="vsId"></dynamic-combo-box>
+                             [vsId]="vsId" [assemblyName]="assemblyName" dynamicProperty="lineColor"></dynamic-combo-box>
           <label>_#(Color)</label>
         </div>
       </div>
