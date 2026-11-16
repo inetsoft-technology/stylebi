@@ -20,13 +20,14 @@ package inetsoft.report.filter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Locates aggregate names (e.g. <code>field['Sum([a])']</code>) in a calc field expression.
  * <p>
  * The match relation is the one used by <code>VSUtil.addUsedAggregateRef</code> to decide that
  * an aggregate is used by an expression: a name matches a piece of text when the upper-cased
- * strings are equal ({@link String#toUpperCase()}, so a sharp-s matches "SS"). Unlike a plain
+ * strings are equal ({@link String#toUpperCase(Locale)} with the root locale, so a sharp-s matches "SS"). Unlike a plain
  * upper-case search, the spans are reported in the coordinates of the original expression, so
  * a name whose upper-case form has a different length cannot shift the result.
  * <p>
@@ -113,7 +114,7 @@ public final class AggregateNameMatcher {
       for(int i = 0; i < expression.length();) {
          int cp = expression.codePointAt(i);
          int len = Character.charCount(cp);
-         String up = expression.substring(i, i + len).toUpperCase();
+         String up = expression.substring(i, i + len).toUpperCase(Locale.ROOT);
 
          for(int k = 0; k < up.length(); k++) {
             if(upper.length() >= origin.length - 1) {
@@ -137,7 +138,7 @@ public final class AggregateNameMatcher {
             continue;
          }
 
-         String uname = name.toUpperCase();
+         String uname = name.toUpperCase(Locale.ROOT);
          int idx = uexp.indexOf(uname);
 
          while(idx >= 0) {

@@ -1232,4 +1232,19 @@ public class CalcFieldFormulaTest {
          java.util.Locale.setDefault(old);
       }
    }
+
+   @Test
+   @DisplayName("Bug #81202: names with regex/script-special characters that map to the same " +
+      "identifier keep their own values when used several times")
+   void specialCharacterNamesUsedRepeatedly() {
+      String n1 = "field['Sum([a$1])']";
+      String n2 = "field['Sum([a.1])']";
+      String n3 = "field['Sum([a_1])']";
+      CalcFieldFormula formula = calc(n1 + " + " + n2 + " * 10 + " + n3 + " * 100 + " + n1 +
+                                      " + " + n3,
+                                      new String[] { n1, n2, n3 },
+                                      new SumFormula(), new SumFormula(), new SumFormula());
+      addRows(formula, new Object[] { 1, 2, 3 });
+      assertEquals(1 + 20 + 300 + 1 + 3, asDouble(formula.getResult()), 1e-10);
+   }
 }
