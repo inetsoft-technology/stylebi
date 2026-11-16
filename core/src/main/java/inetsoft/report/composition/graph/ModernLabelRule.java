@@ -17,6 +17,12 @@
  */
 package inetsoft.report.composition.graph;
 
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.Tool;
+import inetsoft.uql.XConstants;
+
 import java.awt.*;
 
 /**
@@ -67,5 +73,23 @@ final class ModernLabelRule {
     */
    static int rotation(boolean dateOrNumber, double widestPx, double slotPx) {
       return dateOrNumber || step(widestPx, slotPx) <= 2 ? 0 : 45;
+   }
+
+   /**
+    * Whether the measure sums a number field with nothing else applied, so "Sum" is the default.
+    */
+   static boolean dropsDefaultSum(ChartAggregateRef agg) {
+      return agg != null && agg.getFormula() == AggregateFormula.SUM &&
+         agg.isAggregateEnabled() && agg.getDataRef() != null && agg.getCalculator() == null &&
+         agg.getPercentageOption() == XConstants.PERCENTAGE_NONE &&
+         !VSUtil.isAggregateCalc(agg.getDataRef()) &&
+         AggregateFormula.getDefaultFormula(agg.getOriginalDataType()) == AggregateFormula.SUM;
+   }
+
+   /**
+    * The name of the measure's field.
+    */
+   static String fieldText(ChartAggregateRef agg) {
+      return Tool.localize(agg.getDataRef().toView());
    }
 }

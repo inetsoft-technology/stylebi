@@ -27,7 +27,10 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.report.composition.graph.calc.RunningTotalCalc;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -119,6 +122,194 @@ class ModernAxisTitleTest {
       VGraph vgraph = Plotter.getPlotter(graph).plotAndLayout(gen.getData(), 0, 0, 300, 180);
 
       assertDoesNotThrow(() -> new ChartArea(vgraph, graph, gen.getData(), null, chartInfo));
+   }
+
+   @Test
+   void aPointChartDropsSumOnANumber() {
+      EGraph graph = pointGraph(GraphTypes.CHART_POINT, VizMark.MODERN_LIGHT,
+                                measure("Quantity", "Sum", null), measure("Price", "Sum", null));
+
+      assertEquals("Price", graph.getYTitleSpec().getLabel());
+      assertEquals("Quantity", graph.getXTitleSpec().getLabel());
+   }
+
+   @Test
+   void anAutoChartResolvedToPointDropsSum() {
+      EGraph graph = pointGraph(GraphTypes.CHART_AUTO, VizMark.MODERN_LIGHT,
+                                measure("Quantity", "Sum", null), measure("Price", "Sum", null));
+
+      assertEquals("Price", graph.getYTitleSpec().getLabel());
+      assertEquals("Quantity", graph.getXTitleSpec().getLabel());
+   }
+
+   @Test
+   void otherFormulasStay() {
+      VSChartAggregateRef count = measure("Order", "Count", null);
+      count.setDataRef(field("Order", XSchema.STRING));
+
+      for(VSChartAggregateRef y : new VSChartAggregateRef[] {
+         measure("Price", "Average", null), measure("Price", "Max", null), count })
+      {
+         EGraph graph = pointGraph(GraphTypes.CHART_POINT, VizMark.MODERN_LIGHT,
+                                   measure("Quantity", "Sum", null), y);
+         EGraph classic = pointGraph(GraphTypes.CHART_POINT, null,
+                                     measure("Quantity", "Sum", null), y);
+
+         assertEquals(classic.getYTitleSpec().getLabel(), graph.getYTitleSpec().getLabel());
+         assertNotEquals(y.getDataRef().toView(), graph.getYTitleSpec().getLabel());
+      }
+   }
+
+   @Test
+   void twoColumnPercentageAndCalculatorStay() {
+      VSChartAggregateRef corr = measure("Price", "Correlation", null);
+      corr.setSecondaryColumnValue("Quantity");
+      VSChartAggregateRef pct = measure("Price", "Sum", null);
+      pct.setPercentageOption(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      VSChartAggregateRef running = measure("Price", "Sum", null);
+      running.setCalculator(new RunningTotalCalc());
+
+      for(VSChartAggregateRef y : new VSChartAggregateRef[] { corr, pct, running }) {
+         EGraph graph = pointGraph(GraphTypes.CHART_POINT, VizMark.MODERN_LIGHT,
+                                   measure("Quantity", "Sum", null), y);
+         EGraph classic = pointGraph(GraphTypes.CHART_POINT, null,
+                                     measure("Quantity", "Sum", null), y);
+
+         assertEquals(classic.getYTitleSpec().getLabel(), graph.getYTitleSpec().getLabel());
+         assertNotEquals("Price", graph.getYTitleSpec().getLabel());
+      }
+   }
+
+   @Test
+   void anAuthorCaptionWins() {
+      EGraph graph = pointGraph(GraphTypes.CHART_POINT, VizMark.MODERN_LIGHT,
+                                measure("Quantity", "Sum", null),
+                                measure("Price", "Sum", "Revenue"));
+
+      assertEquals("Revenue", graph.getYTitleSpec().getLabel());
+   }
+
+   @Test
+   void onlyPointMeasuresDrop() {
+      assertEquals("Sum(Price)", pointGraph(GraphTypes.CHART_BAR, VizMark.MODERN_LIGHT,
+                                            null, measure("Price", "Sum", null))
+                      .getYTitleSpec().getLabel());
+      assertEquals("Price", pointGraph(GraphTypes.CHART_POINT_STACK, VizMark.MODERN_LIGHT,
+                                       null, measure("Price", "Sum", null))
+                      .getYTitleSpec().getLabel());
+
+      VSChartAggregateRef point = measure("Price", "Sum", null);
+      point.setChartType(GraphTypes.CHART_POINT);
+      point.setRTChartType(GraphTypes.CHART_POINT);
+      VSChartAggregateRef bar = measure("Quantity", "Sum", null);
+      bar.setChartType(GraphTypes.CHART_BAR);
+      bar.setRTChartType(GraphTypes.CHART_BAR);
+      EGraph graph = pointGraph(GraphTypes.CHART_BAR, VizMark.MODERN_LIGHT, d -> {}, true,
+                                dim("Store"), point, bar);
+      String title = graph.getYTitleSpec().getLabel();
+
+      assertTrue(title.contains("Price") && !title.contains("Sum(Price)"), title);
+      assertTrue(title.contains("Sum(Quantity)"), title);
+   }
+
+   @Test
+   void aTypedTitlePatternKeepsTodaysText() {
+      EGraph graph = pointGraph(GraphTypes.CHART_POINT, VizMark.MODERN_LIGHT,
+                                d -> d.getTitlesDescriptor().getYTitleDescriptor()
+                                   .setTitleValue("By {0}"),
+                                false, measure("Quantity", "Sum", null),
+                                measure("Price", "Sum", null));
+
+      assertEquals("By Sum(Price)", graph.getYTitleSpec().getLabel());
+   }
+
+   @Test
+   void classicPointChartKeepsTheFormula() {
+      EGraph graph = pointGraph(GraphTypes.CHART_POINT, null,
+                                measure("Quantity", "Sum", null), measure("Price", "Sum", null));
+
+      assertEquals("Sum(Price)", graph.getYTitleSpec().getLabel());
+      assertEquals("Sum(Quantity)", graph.getXTitleSpec().getLabel());
+   }
+
+   private static BaseField field(String name, String type) {
+      BaseField field = new BaseField(name);
+      field.setDataType(type);
+      return field;
+   }
+
+   private static VSChartAggregateRef measure(String name, String formula, String caption) {
+      VSChartAggregateRef agg = new VSChartAggregateRef();
+      agg.setDataRef(field(name, XSchema.DOUBLE));
+      agg.setFormulaValue(formula);
+
+      if(caption != null) {
+         agg.setCaption(caption);
+      }
+
+      return agg;
+   }
+
+   private EGraph pointGraph(int type, VizMark mark, ChartRef x,
+                             VSChartAggregateRef... ys)
+   {
+      return pointGraph(type, mark, d -> {}, false, x, ys);
+   }
+
+   private EGraph pointGraph(int type, VizMark mark, Consumer<ChartDescriptor> desc,
+                             boolean multi, ChartRef x, VSChartAggregateRef... ys)
+   {
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(type);
+      cinfo.setRTChartType(type == GraphTypes.CHART_AUTO ? GraphTypes.CHART_POINT : type);
+      List<String> names = new ArrayList<>();
+
+      if(x != null) {
+         cinfo.addXField(x);
+         names.add(GraphUtil.getName(x));
+      }
+
+      for(VSChartAggregateRef y : ys) {
+         cinfo.addYField(y);
+         names.add(GraphUtil.getName(y));
+      }
+
+      if(multi) {
+         cinfo.setMultiStyles(true);
+      }
+
+      cinfo.updateChartType(false);
+
+      // the permission check in updateChartType has no principal here
+      for(VSChartAggregateRef y : ys) {
+         if(multi) {
+            y.setRTChartType(y.getChartType());
+         }
+      }
+
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(names.toArray());
+
+      for(int i = 0; i < 4; i++) {
+         Object[] data = new Object[names.size()];
+         java.util.Arrays.fill(data, 10.0 * (i + 1));
+         if(x instanceof VSChartDimensionRef) {
+            data[0] = "S" + i;
+         }
+         rows.add(data);
+      }
+
+      ChartDescriptor descriptor = new ChartDescriptor();
+      desc.accept(descriptor);
+      ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
+      assemblyInfo.setVSChartInfo(cinfo);
+      assemblyInfo.setChartDescriptor(descriptor);
+      assemblyInfo.setVizMark(mark);
+
+      return GraphGenerator.getGenerator(assemblyInfo, null,
+                                         new DefaultDataSet(rows.toArray(new Object[0][])),
+                                         new VariableTable(), null, XSourceInfo.NONE,
+                                         new Dimension(400, 240)).createEGraph();
    }
 
    private VSChartInfo chartInfo;

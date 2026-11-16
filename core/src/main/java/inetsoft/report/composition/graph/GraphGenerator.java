@@ -6426,6 +6426,7 @@ public abstract class GraphGenerator {
       }
 
       List<String> labels = new ArrayList<>();
+      List<String> generated = new ArrayList<>();
 
       if(type.equals("x")) {
          if(xdims.size() > 0 && xconsumed) {
@@ -6434,6 +6435,7 @@ public abstract class GraphGenerator {
 
             if(!isHiddenTitleLabel(label)) {
                labels.add(label);
+               generated.add(label);
             }
          }
 
@@ -6447,8 +6449,11 @@ public abstract class GraphGenerator {
             label = getRefLabel(xmeasures.get(i));
 
             if(!isHiddenTitleLabel(label)) {
+               String refLabel = label;
                label = xmeasurelabels.get(label) == null ? label : xmeasurelabels.get(label);
                labels.add(label);
+               generated.add(generatedMeasureTitle(xmeasures.get(i), agg, refLabel,
+                                                   xmeasurelabels));
             }
          }
 
@@ -6464,6 +6469,7 @@ public abstract class GraphGenerator {
                if(!isHiddenTitleLabel(label)) {
                   label = xdimlabels.get(label) == null ? label : xdimlabels.get(label);
                   labels.add(label);
+                  generated.add(label);
                }
             }
          }
@@ -6479,8 +6485,11 @@ public abstract class GraphGenerator {
                label = getRefLabel(xmeasures.get(i));
 
                if(!isHiddenTitleLabel(label)) {
+                  String refLabel = label;
                   label = xmeasurelabels.get(label) == null ? label : xmeasurelabels.get(label);
                   labels.add(label);
+                  generated.add(generatedMeasureTitle(xmeasures.get(i), agg, refLabel,
+                                                      xmeasurelabels));
                }
             }
          }
@@ -6494,6 +6503,7 @@ public abstract class GraphGenerator {
             if(!isHiddenTitleLabel(label)) {
                label = ydimlabels.get(label) == null ? label : ydimlabels.get(label);
                labels.add(label);
+               generated.add(label);
             }
          }
 
@@ -6507,9 +6517,12 @@ public abstract class GraphGenerator {
             label = getRefLabel(ymeasures.get(i));
 
             if(!isHiddenTitleLabel(label)) {
+               String refLabel = label;
                label = ymeasurelabels.get(label) == null ? label :
                   ymeasurelabels.get(label);
                labels.add(label);
+               generated.add(generatedMeasureTitle(ymeasures.get(i), agg, refLabel,
+                                                   ymeasurelabels));
             }
          }
 
@@ -6529,8 +6542,11 @@ public abstract class GraphGenerator {
             }
 
             label = getRefLabel(ymeasures.get(i));
+            String refLabel = label;
             label = ymeasurelabels.get(label) == null ? label : ymeasurelabels.get(label);
             labels.add(label);
+            generated.add(generatedMeasureTitle(ymeasures.get(i), agg, refLabel,
+                                                ymeasurelabels));
          }
 
          textId = localMap.get("Secondary Y Axis Title");
@@ -6567,12 +6583,12 @@ public abstract class GraphGenerator {
       {
          StringBuilder buffer = new StringBuilder();
 
-         for(int i = 0; i < labels.size(); i++) {
+         for(int i = 0; i < generated.size(); i++) {
             if(buffer.length() > 0) {
                buffer.append(" / ");
             }
 
-            buffer.append(labels.get(i));
+            buffer.append(generated.get(i));
          }
 
          String titleName = buffer.toString();
@@ -6589,6 +6605,24 @@ public abstract class GraphGenerator {
          titleDesc.getLabelGap(), titleDesc.hasLabelGapValue(), abuttingLabelsDrawn, vizContext));
 
       return tSpec;
+   }
+
+   /**
+    * Get a measure's text in a generated title.
+    */
+   private String generatedMeasureTitle(String measure, ChartAggregateRef agg, String refLabel,
+                                        Map<String, String> aliases)
+   {
+      String text = aliases.get(refLabel) == null ? refLabel : aliases.get(refLabel);
+
+      if(vizContext.modern && GraphTypes.isPoint(GraphTypeUtil.getChartType(measure, info)) &&
+         (!(agg instanceof VSAggregateRef) || ((VSAggregateRef) agg).getCaption() == null) &&
+         ModernLabelRule.dropsDefaultSum(agg))
+      {
+         return ModernLabelRule.fieldText(agg);
+      }
+
+      return text;
    }
 
    /**
