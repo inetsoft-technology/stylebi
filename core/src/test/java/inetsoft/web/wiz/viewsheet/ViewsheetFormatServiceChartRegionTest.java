@@ -234,6 +234,28 @@ class ViewsheetFormatServiceChartRegionTest {
       assertTrue(e.getMessage().contains("'axis'"), e.getMessage());
    }
 
+   /** Bug #81455: an axis title was stored for an axis the chart does not draw. */
+   @Test
+   void refusesAxisTitleForAnAxisWithNoField() {
+      for(String axis : new String[]{ "x", "y" }) {
+         RuntimeViewsheet noAxes = rvs(0, new ChartRef[0], new ChartRef[0]);
+         IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> write(request("axis_title", axis, null, null), noAxes), axis);
+         assertTrue(e.getMessage().contains("no " + axis + " title to format"), e.getMessage());
+      }
+   }
+
+   /** A pie has a measure on y but nothing on x: only the x title is refused. */
+   @Test
+   void refusesOnlyTheMissingAxisTitleOfAChartWithAYMeasureOnly() throws Exception {
+      RuntimeViewsheet pieLike = rvs(0, new ChartRef[0], new ChartRef[]{ measure("Sum(Total)", false) });
+      assertThrows(IllegalArgumentException.class,
+                   () -> write(request("axis_title", "x", null, null), pieLike));
+      assertArrayEquals(new String[]{ "y_title" },
+                        write(request("axis_title", "y", null, null), pieLike).getRegions());
+   }
+
    @Test
    void refusesTargetLabelWithMissingTarget() {
       IllegalArgumentException e = assertThrows(
