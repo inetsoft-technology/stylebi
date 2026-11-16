@@ -1521,9 +1521,12 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       synchronized(this) {
          if(tmap != null) {
             for(TableLens obj : tmap.values()) {
-               if(obj instanceof CancellableTableLens) {
-                  CancellableTableLens data = (CancellableTableLens) obj;
-                  cancelList.add(data);
+               // the cached lens is wrapped (e.g. TextSizeLimitTableLens), so look through
+               // the filter chain for the cancellable lens
+               TableLens nested = Util.getNestedTable(obj, CancellableTableLens.class);
+
+               if(nested != null) {
+                  cancelList.add((CancellableTableLens) nested);
                }
             }
          }
