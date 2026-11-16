@@ -779,7 +779,6 @@ public class CalcFieldFormulaTest {
       assertEquals("High", formula.getResult());
    }
 
-   @Disabled("Bug #81212: CalcFieldFormula.setTotal does not clear the cached result")
    @Test
    @DisplayName("SetTotal after getResult invalidates the cached result")
    void setTotalAfterGetResult_recomputes() {
@@ -789,6 +788,17 @@ public class CalcFieldFormulaTest {
       formula.setTotal(10.0);
       assertEquals(1.0, asDouble(formula.getResult()), 1e-10);
       formula.setTotal(40.0);
+      assertEquals(0.25, asDouble(formula.getResult()), 1e-10);
+   }
+
+   @Test
+   @DisplayName("SetPercentageType after getResult invalidates the cached result")
+   void setPercentageTypeAfterGetResult_recomputes() {
+      CalcFieldFormula formula = calc(SUM_A, new String[] { SUM_A }, new SumFormula());
+      addRows(formula, new Object[] { 10 });
+      formula.setTotal(40.0);
+      assertEquals(10.0, asDouble(formula.getResult()), 1e-10);
+      formula.setPercentageType(StyleConstants.PERCENTAGE_OF_GRANDTOTAL);
       assertEquals(0.25, asDouble(formula.getResult()), 1e-10);
    }
 

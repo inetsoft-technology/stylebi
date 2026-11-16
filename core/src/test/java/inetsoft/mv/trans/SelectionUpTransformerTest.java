@@ -17,18 +17,38 @@
  */
 package inetsoft.mv.trans;
 
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.ConditionListWrapper;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import inetsoft.uql.XNode;
 import inetsoft.uql.asset.AggregateInfo;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.MirrorTableAssembly;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.internal.AssemblyInfo;
+import inetsoft.uql.erm.AttributeRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +59,10 @@ import static org.mockito.Mockito.when;
  * runtime so it can be applied when fetching data instead of in post-processing. This is scoped
  * to the specific branch that changed, not the full analyzer/query pipeline.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class SelectionUpTransformerTest {
    @Test
@@ -89,5 +113,75 @@ class SelectionUpTransformerTest {
       method.setAccessible(true);
 
       return (boolean) method.invoke(transformer, pnode, node, desc);
+   }
+
+   /**
+    * Bug #80445: a table with two parents (e.g. the same worksheet table joined twice) must have
+    * its runtime selection condition moved up to every parent, not just the first one.
+    */
+   @Test
+   void movesRuntimeConditionToEveryParent() throws Exception {
+      TableAssembly tbl = table("child", new ColumnSelection());
+      AtomicReference<ConditionListWrapper> pre = runtimeList(tbl);
+      pre.set(condition("child", "REASON", "x"));
+
+      // second parent exposes the child's column under an alias (REASON_1)
+      ColumnSelection cols1 = new ColumnSelection();
+      ColumnRef col1 = new ColumnRef(new AttributeRef("child", "REASON"));
+      cols1.addAttribute(col1);
+      ColumnSelection cols2 = new ColumnSelection();
+      ColumnRef col2 = new ColumnRef(new AttributeRef("child", "REASON"));
+      col2.setAlias("REASON_1");
+      cols2.addAttribute(col2);
+
+      TableAssembly p1 = table("p1", cols1);
+      TableAssembly p2 = table("p2", cols2);
+      AtomicReference<ConditionListWrapper> pre1 = runtimeList(p1);
+      AtomicReference<ConditionListWrapper> pre2 = runtimeList(p2);
+
+      SelectionUpTransformer transformer = new SelectionUpTransformer();
+      Method method = SelectionUpTransformer.class.getDeclaredMethod(
+         "moveSelectionUp0", XNode.class, XNode.class, TransformationDescriptor.class);
+      TransformationDescriptor desc = mock(TransformationDescriptor.class);
+      method.setAccessible(true);
+      method.invoke(transformer, new TableNode(p1), new TableNode(tbl), desc);
+      method.invoke(transformer, new TableNode(p2), new TableNode(tbl), desc);
+
+      assertNotNull(pre1.get());
+      assertNotNull(pre2.get(), "second parent must receive the condition");
+      assertEquals(1, pre1.get().getConditionList().getSize());
+      assertEquals(1, pre2.get().getConditionList().getSize());
+      assertSame(col1, pre1.get().getConditionList().getAttribute(0));
+      assertSame(col2, pre2.get().getConditionList().getAttribute(0));
+      assertEquals(1, cols2.getAttributeCount(), "no hidden column added to aliased parent");
+      assertEquals(1, cols1.getAttributeCount());
+   }
+
+   private static TableAssembly table(String name, ColumnSelection columns) {
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getName()).thenReturn(name);
+      when(table.getAggregateInfo()).thenReturn(new AggregateInfo());
+      when(table.getInfo()).thenReturn(mock(AssemblyInfo.class));
+      when(table.getColumnSelection()).thenReturn(columns);
+      when(table.getColumnSelection(true)).thenReturn(columns);
+      return table;
+   }
+
+   private static AtomicReference<ConditionListWrapper> runtimeList(TableAssembly table) {
+      AtomicReference<ConditionListWrapper> ref = new AtomicReference<>();
+      when(table.getPreRuntimeConditionList()).thenAnswer(inv -> ref.get());
+      doAnswer(inv -> {
+         ref.set(inv.getArgument(0));
+         return null;
+      }).when(table).setPreRuntimeConditionList(any());
+      return ref;
+   }
+
+   private static ConditionList condition(String entity, String attr, String value) {
+      Condition cond = new Condition("string");
+      cond.addValue(value);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(new ColumnRef(new AttributeRef(entity, attr)), cond, 0));
+      return list;
    }
 }

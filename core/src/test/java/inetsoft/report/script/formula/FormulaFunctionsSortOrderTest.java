@@ -20,7 +20,6 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -107,7 +106,6 @@ class FormulaFunctionsSortOrderTest {
    }
 
    // mapList with an empty mapping must order a table like toList does
-   @Disabled("Bug #81260: mapList with sorton and maxrows loses the rank order that toList keeps")
    @Test
    void mapListOnATableSortedOnASummaryFollowsTheOrderOfToList() {
       String options = "field=g,sorton=sum(v),sort=desc,maxrows=2";

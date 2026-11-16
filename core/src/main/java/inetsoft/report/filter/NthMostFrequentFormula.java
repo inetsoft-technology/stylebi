@@ -181,7 +181,12 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
          return ((Number) obj).doubleValue();
       }
       else if(obj instanceof String) {
-         return Double.valueOf((String) obj);
+         try {
+            return Double.parseDouble(((String) obj).trim());
+         }
+         catch(NumberFormatException ex) {
+            return 0;
+         }
       }
 
       return 0;

@@ -1633,11 +1633,13 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             String func = helper.getAggregateExpression("var", column, col2);
 
             if(func != null) {
-               return func;
+               // Oracle VARIANCE already returns 0 for a single row
+               return isOracle(helper) ? func :
+                  singleRowZero(COUNT_ALL.getExpression(column, null, helper), func, helper);
             }
          }
 
-         return "((0.0+" + SUMSQ.getExpression(column, null, helper) + ") * " +
+         String expr = "((0.0+" + SUMSQ.getExpression(column, null, helper) + ") * " +
             COUNT_ALL.getExpression(column, null, helper) + " - ((0.0 + " +
             SUM.getExpression(column, null, helper) + ") * " +
             SUM.getExpression(column, null, helper) + " ))/NULLIF(((" +
@@ -1646,6 +1648,25 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             PopulationVariance.getDenominatorZeroLiteral(helper) + " + " +
             COUNT_ALL.getExpression(column, null, helper) + ") * (" +
             COUNT_ALL.getExpression(column, null, helper) + " - 1)), 0)";
+         return singleRowZero(COUNT_ALL.getExpression(column, null, helper), expr, helper);
+      }
+
+      private static boolean isOracle(AggregateHelper helper) {
+         return helper != null && "oracle".equals(helper.getDBType());
+      }
+
+      /**
+       * Make a sample variance/standard deviation expression return 0 for a group
+       * with exactly one value (Bug #80342), like the in-memory VarianceFormula and
+       * the MV CompositeVarianceFormula. A group without values stays NULL.
+       * Access has no CASE, so IIF is used.
+       */
+      private static String singleRowZero(String count, String expr, AggregateHelper helper) {
+         if(helper != null && "access".equals(helper.getDBType())) {
+            return "IIF(" + count + " = 1, 0.0, " + expr + ")";
+         }
+
+         return "CASE WHEN " + count + " = 1 THEN 0.0E0 ELSE " + expr + " END";
       }
 
       /**
@@ -1675,13 +1696,14 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
                COUNT_ALL.getExpressionSub(column, null, helper) + "))";
          }
 
-         return "((0.0+" + SUMSQ.getExpressionSub(column, null, helper) +
+         String expr = "((0.0+" + SUMSQ.getExpressionSub(column, null, helper) +
             ") * " +
             COUNT_ALL.getExpressionSub(column, null, helper) + " - ((0.0 + "
             + SUM.getExpressionSub(column, col2, helper) + ") * " +
             SUM.getExpressionSub(column, col2, helper) + " ))/NULLIF(((0.0 + " +
             COUNT_ALL.getExpressionSub(column, null, helper) + ") * (" +
             COUNT_ALL.getExpressionSub(column, null, helper) + " - 1)), 0)";
+         return singleRowZero(COUNT_ALL.getExpressionSub(column, null, helper), expr, helper);
       }
 
       /**
@@ -1751,7 +1773,8 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             String func = helper.getAggregateExpression("stddev", column, col2);
 
             if(func != null) {
-               return func;
+               return Variance.isOracle(helper) ? func :
+                  Variance.singleRowZero(COUNT_ALL.getExpression(column, null, helper), func, helper);
             }
          }
 
