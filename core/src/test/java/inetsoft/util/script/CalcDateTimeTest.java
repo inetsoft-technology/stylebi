@@ -19,6 +19,7 @@
 package inetsoft.util.script;
 
 import inetsoft.test.*;
+import inetsoft.util.ThreadContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -1416,5 +1417,24 @@ public class CalcDateTimeTest {
       }
 
       return millis.stream().mapToLong(Long::longValue).toArray();
+   }
+
+   // Bug #81466, monthname follows the thread locale when it changes on a thread
+   @Test
+   void monthNameFollowThreadLocaleChanges() {
+      Locale old = ThreadContext.getLocale();
+      Date d = CalcUtilTest.hybridDate(2024, 3, 5);
+
+      try {
+         ThreadContext.setLocale(Locale.FRENCH);
+         assertEquals("mars", CalcDateTime.monthname(d));
+         ThreadContext.setLocale(Locale.GERMAN);
+         assertEquals("März", CalcDateTime.monthname(d));
+         ThreadContext.setLocale(Locale.US);
+         assertEquals("March", CalcDateTime.monthname(d));
+      }
+      finally {
+         ThreadContext.setLocale(old);
+      }
    }
 }
