@@ -103,11 +103,17 @@ class AssetFolderBinaryTest {
 
    @Test
    void schemaCountStaysOneAcrossChildCounts() throws Exception {
+      // other tests register schemas under the same type id (legacy layout), so compare the
+      // number of schemas added by these puts rather than the absolute count
+      int before = schemaCount();
+
       for(int n = 0; n <= 50; n++) {
          cache.put("k" + n, folder(n));
       }
 
-      assertEquals(1, schemaCount(), "one binary schema regardless of child count");
+      int added = schemaCount() - before;
+      assertTrue(added <= 1, "at most one new binary schema regardless of child count, added "
+         + added);
    }
 
    @Test
@@ -161,6 +167,11 @@ class AssetFolderBinaryTest {
       IgniteEx ex = (IgniteEx) ignite;
       int typeId = ex.context().cacheObjects().typeId(TYPE_NAME);
       BinaryTypeImpl type = (BinaryTypeImpl) ex.context().cacheObjects().metadata(typeId);
+
+      if(type == null) {
+         return 0;
+      }
+
       Object meta = type.metadata();
       var method = meta.getClass().getDeclaredMethod("schemas");
       method.setAccessible(true);
