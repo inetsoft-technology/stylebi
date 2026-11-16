@@ -169,6 +169,17 @@ class ProviderChangesetApplyServiceTest {
       assertEquals("svc_auth", dbModel.user());
    }
 
+   // Bug #81073: adding a DATABASE provider to an existing chain is undone by removing it by name,
+   // so apply takes no whole-storage snapshot (a FILE provider create keeps it, see above).
+   @Test void appliesADatabaseCreateOnAnExistingChainWithoutASnapshot() throws Exception {
+      var result = service.apply(applyRequest("create db1",
+         createDatabase(ProviderChain.AUTHENTICATION, "db1", databaseSpec())), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
+   }
+
    @Test void rollbackOfADatabaseCreateDeletesTheProvider() throws Exception {
       doThrow(new RuntimeException("boom"))
          .when(authenticationProviderService).getAuthenticationProvider(eq("boom"));

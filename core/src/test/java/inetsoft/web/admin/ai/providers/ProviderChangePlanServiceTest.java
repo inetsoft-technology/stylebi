@@ -1091,6 +1091,119 @@ class ProviderChangePlanServiceTest {
 
    /** A two-provider chain, both recognizing {@link #CALLER_ROLE} as sys-admin, so any single
     * delete's preflight passes by default. */
+   // -------------------------------------------------------------------------
+   // Bug #81073: which plans keep the whole-storage snapshot
+   // -------------------------------------------------------------------------
+
+   private static ProviderChangeRequest createLdap(String name) {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("create");
+      change.setChain("authentication");
+      change.setName(name);
+      change.setProviderType("LDAP");
+      change.setSpec(ldapSpec());
+      return change;
+   }
+
+   private ResolvedPlan resolveLdapCreateNotMultiTenant(ProviderChangeRequest change) throws Exception {
+      try(MockedStatic<LicenseManager> license = mockStatic(LicenseManager.class);
+          MockedStatic<SUtil> sUtil = mockStatic(SUtil.class))
+      {
+         license.when(LicenseManager::isEnterprise).thenReturn(true);
+         sUtil.when(SUtil::isMultiTenant).thenReturn(false);
+         return service.resolve(request("task", List.of(change)), user);
+      }
+   }
+
+   @Test void ldapCreateOnAnExistingChainSkipsTheStorageSnapshot() throws Exception {
+      stubHealthyAuthenticationChainOf("p0");
+
+      assertFalse(resolveLdapCreateNotMultiTenant(createLdap("ldap1")).requiresStorageBackup());
+   }
+
+   @Test void databaseCreateOnAnExistingChainSkipsTheStorageSnapshot() throws Exception {
+      stubHealthyAuthenticationChainOf("p0");
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", databaseSpec());
+
+      assertFalse(service.resolve(request("task", List.of(change)), user).requiresStorageBackup());
+   }
+
+   // AuthenticationProviderService.addAuthenticationProvider calls securityEngine.newChain() when
+   // no chain exists, a side effect the rollback (remove by name) does not reverse.
+   @Test void ldapCreateWithNoExistingChainKeepsTheStorageSnapshot() throws Exception {
+      stubEmptyAuthenticationChain(List.of());
+
+      assertTrue(resolveLdapCreateNotMultiTenant(createLdap("ldap1")).requiresStorageBackup());
+   }
+
+   // A new FILE provider seeds default roles/organizations into its own storage on first load and
+   // tearDown does not remove them, so the rollback is not an exact inverse.
+   @Test void fileCreateKeepsTheStorageSnapshot() throws Exception {
+      stubHealthyAuthenticationChainOf("p0");
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(createFile(ProviderChain.AUTHENTICATION, "f1"))), user);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test void authorizationCreateKeepsTheStorageSnapshot() throws Exception {
+      stubProviderList(authorizationProviderService, List.of());
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(createFile(ProviderChain.AUTHORIZATION, "z1"))), user);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test void duplicateOfAnLdapProviderSkipsButDuplicateOfAFileProviderKeeps() throws Exception {
+      stubHealthyAuthenticationChainOf("ldapSrc", "fileSrc");
+      when(authenticationProviderService.getAuthenticationProvider("ldapSrc"))
+         .thenReturn(ldapModel("ldapSrc"));
+      when(authenticationProviderService.getAuthenticationProvider("fileSrc"))
+         .thenReturn(fileModel("fileSrc"));
+
+      assertFalse(service.resolve(
+         request("dup", List.of(duplicateAuth("ldapSrc", null))), user).requiresStorageBackup());
+      assertTrue(service.resolve(
+         request("dup", List.of(duplicateAuth("fileSrc", null))), user).requiresStorageBackup());
+   }
+
+   @Test void duplicateOfADatabaseProviderSkipsTheStorageSnapshot() throws Exception {
+      stubHealthyAuthenticationChainOf("dbSrc");
+      when(authenticationProviderService.getAuthenticationProvider("dbSrc"))
+         .thenReturn(dbModel("dbSrc"));
+
+      assertFalse(service.resolve(
+         request("dup", List.of(duplicateAuth("dbSrc", null))), user).requiresStorageBackup());
+   }
+
+   @Test void deleteAndUpdateKeepTheStorageSnapshot() throws Exception {
+      stubHealthyAuthenticationChainOf("p1", "p2");
+      when(authenticationProviderService.getAuthenticationProvider("p1"))
+         .thenReturn(ldapModel("p1"));
+      when(authenticationProviderService.getAuthenticationProvider("p2"))
+         .thenReturn(ldapModel("p2"));
+      AuthenticationProvider proposedProvider = sysAdminProvider("p1");
+      when(authenticationProviderService.buildProviderForPreflightSimulation(any()))
+         .thenReturn(Optional.of(proposedProvider));
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setHostName("rotated-host.example.com");
+
+      assertTrue(service.resolve(request("del", List.of(deleteAuth("p2"))), user)
+                    .requiresStorageBackup());
+      assertTrue(service.resolve(request("upd", List.of(updateAuth("p1", patch))), user)
+                    .requiresStorageBackup());
+   }
+
+   @Test void aSkippableCreateMixedWithAKeepEntryKeepsTheStorageSnapshot() throws Exception {
+      stubHealthyAuthenticationChainOf("p0");
+      ProviderChangeRequest db = createDatabase(ProviderChain.AUTHENTICATION, "db1", databaseSpec());
+      ProviderChangeRequest file = createFile(ProviderChain.AUTHENTICATION, "f1");
+
+      assertTrue(service.resolve(request("mixed", List.of(db, file)), user).requiresStorageBackup());
+   }
+
    private void stubHealthyAuthenticationChainOf(String... names) {
       List<AuthenticationProvider> providers = new java.util.ArrayList<>();
 
