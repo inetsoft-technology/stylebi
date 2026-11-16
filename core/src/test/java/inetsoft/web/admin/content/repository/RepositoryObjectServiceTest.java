@@ -33,6 +33,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.Resource;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityProvider;
@@ -72,15 +73,18 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.EnumSet;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -133,8 +137,9 @@ class RepositoryObjectServiceTest {
       // not through SecurityProvider's own setPermission()/removePermission() (unlike deleteNodes())
       when(securityProvider.getAuthorizationProvider()).thenReturn(authorizationProvider);
 
+      registryService = mock(RepletRegistryService.class);
       service = new RepositoryObjectService(
-         mock(RepletRegistryService.class), mock(ContentRepositoryTreeService.class),
+         registryService, mock(ContentRepositoryTreeService.class),
          securityProvider, resourcePermissionService, xRepository,
          mock(RepositoryDashboardService.class), mock(DataModelFolderManagerService.class),
          dataSourceRegistry, mock(LibManagerProvider.class), mock(RecycleBin.class),
@@ -470,6 +475,45 @@ class RepositoryObjectServiceTest {
       verify(authorizationProvider).removePermission(eq(ResourceType.QUERY), anyString());
    }
 
+   /*
+    * Bug #81279: deleteNodes() checked DELETE on the data source only for the "|FOLDER" forms of
+    * the logical model / physical view nodes, so a user with EM repository access but no DELETE on
+    * the data source could delete an extended model or extended view (the plain forms).
+    */
+   @Test
+   void deleteExtendedNodesChecksDataSourceDeletePermission() throws Exception {
+      int[] types = { RepositoryEntry.LOGIC_MODEL, RepositoryEntry.PARTITION };
+
+      for(int type : types) {
+         reset(registryService);
+         String path = DATA_SOURCE + "^" + LOGICAL_MODEL_NAME + "^" + EXTENDED_NAME;
+         TreeNodeInfo node = TreeNodeInfo.builder()
+            .label(EXTENDED_NAME).path(path).type(type).build();
+
+         service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false);
+
+         verify(registryService).checkPermission(
+            eq(DATA_SOURCE), eq(path), eq(ResourceType.DATA_SOURCE),
+            eq(EnumSet.of(ResourceAction.DELETE)), eq(true), eq(principal));
+      }
+   }
+
+   @Test
+   void deleteExtendedNodeWithoutDeletePermissionIsRefusedBeforeAnyRemoval() throws Exception {
+      String path = DATA_SOURCE + "^" + LOGICAL_MODEL_NAME + "^" + EXTENDED_NAME;
+      doThrow(new MessageException("Permission denied to delete")).when(registryService)
+         .checkPermission(anyString(), anyString(), any(ResourceType.class), any(EnumSet.class),
+                          anyBoolean(), any());
+      XLogicalModel logicalModel = mock(XLogicalModel.class);
+      when(dataModel.getLogicalModel(LOGICAL_MODEL_NAME)).thenReturn(logicalModel);
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(EXTENDED_NAME).path(path).type(RepositoryEntry.LOGIC_MODEL).build();
+
+      assertThrows(MessageException.class,
+         () -> service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false));
+      verify(logicalModel, never()).removeLogicalModel(anyString());
+   }
+
    private void moveLogicalModel(String pathTo) throws Exception {
       ContentRepositoryTreeNode source = ContentRepositoryTreeNode.builder()
          .label(LOGICAL_MODEL_NAME)
@@ -507,6 +551,7 @@ class RepositoryObjectServiceTest {
    }
 
    private RepositoryObjectService service;
+   private RepletRegistryService registryService;
    private DataSourceRegistry dataSourceRegistry;
    private ResourcePermissionService resourcePermissionService;
    private DependencyHandler dependencyHandler;
