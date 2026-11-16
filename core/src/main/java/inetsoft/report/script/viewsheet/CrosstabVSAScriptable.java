@@ -60,6 +60,11 @@ public class CrosstabVSAScriptable extends TableDataVSAScriptable {
    protected void addProperties() {
       super.addProperties();
 
+      // the assembly may have been converted to a freehand table under the same name
+      if(!(getVSAssemblyInfo() instanceof CrosstabVSAssemblyInfo)) {
+         return;
+      }
+
       CrosstabVSAssemblyInfo info = (CrosstabVSAssemblyInfo) getVSAssemblyInfo();
       VSCrosstabInfo cinfo = getCrosstabInfo();
 

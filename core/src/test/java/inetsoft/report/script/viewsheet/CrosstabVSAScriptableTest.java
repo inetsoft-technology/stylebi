@@ -21,6 +21,7 @@ package inetsoft.report.script.viewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
@@ -99,6 +100,21 @@ public class CrosstabVSAScriptableTest {
       assertEquals("query1", crosstabVSAScriptable.getMember("query"));
 
       crosstabVSAScriptable.addProperties();
+   }
+
+   /**
+    * After convert-to-freehand the same assembly name holds a CalcTableVSAssemblyInfo while the
+    * old crosstab scriptable stays in scope; initializing it (e.g. during cancel) must not throw.
+    */
+   @Test
+   void testAddPropertiesAfterConvertToFreehand() {
+      Viewsheet viewsheet = viewsheetSandbox.getViewsheet();
+      viewsheet.removeAssembly("crosstab1");
+      CalcTableVSAssembly calc = new CalcTableVSAssembly();
+      calc.getVSAssemblyInfo().setName("crosstab1");
+      viewsheet.addAssembly(calc);
+
+      assertDoesNotThrow(() -> crosstabVSAScriptable.addProperties());
    }
 
    @Test
