@@ -146,4 +146,21 @@ class CompositeVarianceFormulaTest {
    void testGetResultType() {
       assertEquals(Double.class, formula.getResultType());
    }
+
+   // Bug #80342: a single value gives 0 in every accessor, like the in-memory VarianceFormula
+   // and the SQL push-down; an empty group stays null
+   @Test
+   void testSingleValueIsZero() {
+      formula.addValue(new double[]{1, 25, 5});
+      assertEquals(0.0, formula.getResult());
+      assertEquals(0.0, formula.getDoubleResult());
+   }
+
+   @Test
+   void testTwoValuesAreSampleVariance() {
+      // values 1 and 3: cnt=2, sumsq=10, sum=4 -> (2*10-16)/(2*1)=2
+      formula.addValue(new double[]{2, 10, 4});
+      assertEquals(2.0, ((Number) formula.getResult()).doubleValue(), 1e-12);
+      assertEquals(2.0, formula.getDoubleResult(), 1e-12);
+   }
 }
