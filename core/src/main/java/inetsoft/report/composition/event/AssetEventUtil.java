@@ -1248,6 +1248,19 @@ public class AssetEventUtil {
    public static ColumnSelection getAttributesBySource(WorksheetService engine,
       Principal user, SourceInfo sourceInfo) throws Exception
    {
+      return getSourceAttributes(engine.getAssetRepository(), user, sourceInfo);
+   }
+
+   /**
+    * Get all available attributes by a given source info.
+    * @param repository the asset repository the source's entries are read from.
+    * @param user the user.
+    * @param sourceInfo the specified source info.
+    * @return data ref array of available attributes.
+    */
+   public static ColumnSelection getSourceAttributes(AssetRepository repository,
+      Principal user, SourceInfo sourceInfo) throws Exception
+   {
       if(sourceInfo == null || sourceInfo.isEmpty() ||
          isCubeType(sourceInfo.getType()))
       {
@@ -1265,7 +1278,7 @@ public class AssetEventUtil {
       sourceEntry.setProperty("prefix", sourceInfo.getPrefix());
       sourceEntry.setProperty("source", sourceInfo.getSource());
 
-      AssetEntry[] tables = engine.getAssetRepository().
+      AssetEntry[] tables = repository.
          getEntries(sourceEntry, user, ResourceAction.READ,
             new AssetEntry.Selector(AssetEntry.Type.COLUMN));
 
@@ -1273,7 +1286,7 @@ public class AssetEventUtil {
          for(AssetEntry table : tables) {
             AssetEntry[] savedEntries = fields == null ?
                new AssetEntry[]{} : fields;
-            AssetEntry[] tempEntries = engine.getAssetRepository().getEntries(
+            AssetEntry[] tempEntries = repository.getEntries(
                table, user, ResourceAction.READ,
                new AssetEntry.Selector(AssetEntry.Type.COLUMN));
             fields = new AssetEntry[savedEntries.length + tempEntries.length];

@@ -50,6 +50,7 @@ import java.awt.Point;
 import java.text.Format;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
 import inetsoft.web.composer.ws.RenameColumnController;
@@ -1123,8 +1124,10 @@ public class WorksheetEditService {
       {
          TableAssembly t = requireTable(table);
          requireFilterable(t);
-         requireColumn(t, field);
-         WorksheetMutationSupport.addFilter(t, field, operation, values);
+         withSourceFields(t, List.of(field), () -> {
+            requireColumn(t, field);
+            WorksheetMutationSupport.addFilter(t, field, operation, values);
+         });
       }
 
       /**
@@ -1701,8 +1704,10 @@ public class WorksheetEditService {
       {
          TableAssembly t = requireTable(table);
          requireFilterable(t);
-         requireConditionFields(t, nodes, false);
-         WorksheetMutationSupport.setConditions(t, nodes, false);
+         withSourceFields(t, conditionFields(nodes), () -> {
+            requireConditionFields(t, nodes, false);
+            WorksheetMutationSupport.setConditions(t, nodes, false);
+         });
       }
 
       /**
@@ -1741,12 +1746,16 @@ public class WorksheetEditService {
       {
          TableAssembly t = requireTable(table);
          requireFilterable(t);
-         requireConditionFields(t, updatePre, false);
-         requireConditionFields(t, updatePost, true);
-         requireConditionFields(t, deletePre, false);
-         requireConditionFields(t, deletePost, true);
-         WorksheetMutationSupport.setMVConditions(
-            t, updatePre, updatePost, deletePre, deletePost, forceAppendUpdates);
+         List<String> preFields = new ArrayList<>(conditionFields(updatePre));
+         preFields.addAll(conditionFields(deletePre));
+         withSourceFields(t, preFields, () -> {
+            requireConditionFields(t, updatePre, false);
+            requireConditionFields(t, updatePost, true);
+            requireConditionFields(t, deletePre, false);
+            requireConditionFields(t, deletePost, true);
+            WorksheetMutationSupport.setMVConditions(
+               t, updatePre, updatePost, deletePre, deletePost, forceAppendUpdates);
+         });
       }
 
       /**
@@ -2942,7 +2951,9 @@ public class WorksheetEditService {
       {
          TableAssembly t = requireTable(table);
          requireFilterable(t);
-         WorksheetMutationSupport.replaceFilter(t, field, operation, values);
+         withSourceFields(t, List.of(field), () -> {
+            WorksheetMutationSupport.replaceFilter(t, field, operation, values);
+         });
       }
 
       /**
@@ -5867,11 +5878,63 @@ public class WorksheetEditService {
          }
       }
 
+      /** A mutation run by {@link #withSourceFields}. */
+      @FunctionalInterface
+      private interface PairingAction {
+         void run() throws PairingException;
+      }
+
+      /**
+       * Bug #81446: runs {@code action} with the pre-aggregate condition {@code fields} that the
+       * table does not select but its logical-model source offers made resolvable (see
+       * {@link WorksheetMutationSupport#admitSourceFields}); when the action is refused the
+       * table's column selection is restored.
+       */
+      private void withSourceFields(TableAssembly t, Collection<String> fields,
+                                    PairingAction action)
+         throws PairingException
+      {
+         WorksheetMutationSupport.SourceAdmission admission;
+
+         try {
+            admission = WorksheetMutationSupport.admitSourceFields(t, agent, fields);
+         }
+         catch(IllegalArgumentException e) {
+            throw new PairingException(e.getMessage());
+         }
+
+         try {
+            action.run();
+         }
+         catch(Exception | Error e) {
+            admission.rollback();
+            throw e;
+         }
+      }
+
+      private static List<String> conditionFields(
+         List<WorksheetMutationSupport.ConditionNode> nodes)
+      {
+         List<String> fields = new ArrayList<>();
+
+         if(nodes != null) {
+            for(WorksheetMutationSupport.ConditionNode node : nodes) {
+               if(node.condition() != null) {
+                  fields.add(node.condition().field());
+               }
+            }
+         }
+
+         return fields;
+      }
+
       /**
        * Validates every condition node's field against the table before any of them are
        * applied, matching the native condition dialog's closed field picker: a human cannot
        * submit an unresolvable column, so neither should this path silently fall back to
-       * {@code resolveField}'s {@code new AttributeRef(null, field)} placeholder.
+       * {@code resolveField}'s {@code new AttributeRef(null, field)} placeholder. A pre-aggregate
+       * field on a source attribute the table does not select was made resolvable beforehand by
+       * {@link #withSourceFields}.
        *
        * <p>Also validates each FIELD-typed {@link WorksheetMutationSupport.ConditionValueSpec}
        * in {@code node.condition().valueSpecs()} -- a column-vs-column comparison condition's
