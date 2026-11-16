@@ -82,6 +82,22 @@ public class TitleSpec implements Cloneable, Serializable {
       this.labelGap = labelGap;
    }
 
+   /**
+    * Check if the title is dropped when its text is longer than its axis.
+    * @hidden
+    */
+   public boolean isHideWhenLonger() {
+      return hideWhenLonger;
+   }
+
+   /**
+    * Set whether the title is dropped when its text is longer than its axis.
+    * @hidden
+    */
+   public void setHideWhenLonger(boolean hideWhenLonger) {
+      this.hideWhenLonger = hideWhenLonger;
+   }
+
    public boolean equals(Object obj) {
       if(!(obj instanceof TitleSpec)) {
          return false;
@@ -91,11 +107,13 @@ public class TitleSpec implements Cloneable, Serializable {
 
       return CoreTool.equals(spec, titleSpec.spec) &&
          CoreTool.equals(label, titleSpec.label) &&
-         labelGap == titleSpec.labelGap;
+         labelGap == titleSpec.labelGap &&
+         hideWhenLonger == titleSpec.hideWhenLonger;
    }
 
    private TextSpec spec = new TextSpec();
    private String label = null;
    private int labelGap = 0;
+   private boolean hideWhenLonger = false;
    private static final long serialVersionUID = 1L;
 }

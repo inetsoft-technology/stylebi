@@ -6577,6 +6577,7 @@ public abstract class GraphGenerator {
 
          String titleName = buffer.toString();
          tSpec.setLabel(Tool.localizeTextID(textId) == null ? titleName : Tool.localize(textId));
+         tSpec.setHideWhenLonger(vizContext.modern);
          CompositeTextFormat tfmt = titleDesc.getTextFormat();
          tSpec.setTextSpec(GraphUtil.getTextSpec(tfmt, null, null));
       }
