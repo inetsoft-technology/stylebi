@@ -130,7 +130,8 @@ public interface ScriptEntry {
 
          if(matcher.find()) {
             String sig = matcher.group();
-            int beginIndex = sig.indexOf(name);
+            // search after the "function" keyword; name may be a substring of the keyword
+            int beginIndex = sig.indexOf(name, "function".length());
             int endIndex = sig.indexOf(')', beginIndex);
             sig = sig.substring(beginIndex, endIndex + 1);
             signature = sig;
