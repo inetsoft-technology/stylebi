@@ -313,6 +313,9 @@ class ScriptLibraryChangesetApplyServiceTest {
       assertEquals("function newName() { return 1; }", scripts.get("newName"));
       verify(securityEngine).removePermission(ResourceType.SCRIPT, "old");
       verify(securityEngine).setPermission(ResourceType.SCRIPT, "newName", grant);
+      // a rename queues an asynchronous caller rewrite: the snapshot is still taken
+      assertEquals("admin-snapshot/ref", result.backupRef());
+      verify(backupService).backup(anyString());
    }
 
    /** Bug #80189: a grant-less source renamed onto a stale grant must not inherit it. */
@@ -396,6 +399,9 @@ class ScriptLibraryChangesetApplyServiceTest {
 
          assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
          assertFalse(scripts.containsKey("a"));
+         // Bug #81072: a delete has an exact in-process undo, so no snapshot is taken
+         assertNull(result.backupRef());
+         verify(backupService, never()).backup(anyString());
       }
    }
 

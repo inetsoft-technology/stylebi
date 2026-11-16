@@ -182,7 +182,8 @@ class ScriptLibraryChangePlanServiceTest {
       assertFalse(service.resolve(request(c), user).requiresStorageBackup());
    }
 
-   @Test void resolveMixedCreateAndDeleteKeepsStorageBackup() throws Exception {
+   /** Bug #81072: create and delete both have an exact in-process undo, so the mix skips too. */
+   @Test void resolveMixedCreateAndDeleteSkipsTheStorageBackup() throws Exception {
       when(lib.getScript("newScript")).thenReturn(null);
       when(lib.getScript("a")).thenReturn("return 1;");
       when(lib.getScriptComment("a")).thenReturn("desc");
@@ -196,8 +197,23 @@ class ScriptLibraryChangePlanServiceTest {
          ResolvedPlan plan = service.resolve(request(create, delete), user);
 
          assertEquals(2, plan.changes().size());
-         assertTrue(plan.requiresStorageBackup());
+         assertFalse(plan.requiresStorageBackup());
       }
+   }
+
+   /** A rename queues an asynchronous rewrite of the callers, so one rename keeps the snapshot. */
+   @Test void resolveMixedCreateAndRenameKeepsTheStorageBackup() throws Exception {
+      when(lib.getScript("newScript")).thenReturn(null);
+      when(lib.getScript("old")).thenReturn("return 1;");
+      when(lib.getScriptComment("old")).thenReturn("desc");
+      when(lib.getScript("renamedFn")).thenReturn(null);
+      ScriptLibraryChangeRequest create = change(ScriptLibraryChangeRequest.VERB_CREATE, "newScript");
+      create.setText("return 1;");
+      ScriptLibraryChangeRequest rename = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
+      rename.setNewName("renamedFn");
+
+      assertTrue(service.resolve(request(create, rename), user).requiresStorageBackup());
+      assertTrue(service.resolve(request(rename), user).requiresStorageBackup());
    }
 
    @Test void resolveCreateRefusesACollidingName() {
@@ -283,7 +299,7 @@ class ScriptLibraryChangePlanServiceTest {
       PlanChange pc = plan.changes().get(0);
       assertEquals(inetsoft.util.audit.AdminChangeRecord.RISK_LOW, pc.risk());
       assertTrue(pc.proposedValue().contains("new desc"));
-      assertTrue(plan.requiresStorageBackup());
+      assertFalse(plan.requiresStorageBackup(), "Bug #81072: the undo restores the description");
    }
 
    @Test void resolveUpdateRequiresADescription() {
@@ -314,7 +330,8 @@ class ScriptLibraryChangePlanServiceTest {
          assertEquals(inetsoft.util.audit.AdminChangeRecord.RISK_HIGH, pc.risk());
          assertTrue(plan.requiresAgentSignoff());
          assertNull(pc.proposedValue());
-         assertTrue(plan.requiresStorageBackup());
+         assertFalse(plan.requiresStorageBackup(),
+                     "Bug #81072: the undo restores text, comment and grant");
       }
    }
 
