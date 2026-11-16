@@ -2822,6 +2822,32 @@ public class CoreTool {
    }
 
    /**
+    * Get a function that builds, once per string, a key whose ordering is identical to
+    * the case-insensitive string comparison in
+    * {@link #compare(Object, Object, boolean, boolean)}.
+    *
+    * @return the key function, or null if no collator is used for comparison (the plain
+    * comparison is then already cheap) or the collator is a custom one whose keys are not
+    * known to match its comparison.
+    */
+   public static java.util.function.Function<String, java.text.CollationKey>
+      getCaseInsensitiveKeyFunction()
+   {
+      Collator c = getCollator();
+
+      if(c instanceof Collator_CN) {
+         Collator_CN cn = (Collator_CN) c;
+         return str -> cn.getComparisonKey(str.toLowerCase());
+      }
+
+      if(c != null && c.getClass() == java.text.RuleBasedCollator.class) {
+         return str -> c.getCollationKey(str.toLowerCase());
+      }
+
+      return null;
+   }
+
+   /**
     * Compare two values and return >0, 0, or <0 for greater than, equal
     * to, and less than conditions.
     *

@@ -676,7 +676,11 @@ public class BrowseDataController {
       }
 
       Object[] arr = distinct.toArray();
-      Tool.qsort(arr, true);
+
+      if(!sortStringsByKey(arr)) {
+         Tool.qsort(arr, true);
+      }
+
       Object[] items = new Object[arr.length];
       boolean number = AssetUtil.isNumberType(dtype);
 
@@ -685,6 +689,47 @@ public class BrowseDataController {
       }
 
       return items;
+   }
+
+   /**
+    * Sort an all-String array into the order Tool.qsort(arr, true) produces, building each
+    * collation key once instead of running the collator on every comparison.
+    *
+    * @return false (array untouched) if the fast path does not apply.
+    */
+   private static boolean sortStringsByKey(Object[] arr) {
+      if(arr.length < 2 || Tool.isCaseSensitive()) {
+         return false;
+      }
+
+      for(Object obj : arr) {
+         if(!(obj instanceof String)) {
+            return false;
+         }
+      }
+
+      java.util.function.Function<String, java.text.CollationKey> keyFn =
+         CoreTool.getCaseInsensitiveKeyFunction();
+
+      if(keyFn == null) {
+         return false;
+      }
+
+      Object[][] pairs = new Object[arr.length][];
+
+      for(int i = 0; i < arr.length; i++) {
+         pairs[i] = new Object[] { keyFn.apply((String) arr[i]), arr[i] };
+      }
+
+      // stable, like the legacy sort, so ties keep first-occurrence order
+      Arrays.sort(pairs, (a, b) -> ((java.text.CollationKey) a[0]).compareTo(
+         (java.text.CollationKey) b[0]));
+
+      for(int i = 0; i < arr.length; i++) {
+         arr[i] = pairs[i][1];
+      }
+
+      return true;
    }
 
    /**

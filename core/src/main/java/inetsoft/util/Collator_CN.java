@@ -69,6 +69,16 @@ public class Collator_CN extends Collator {
    }
 
    /**
+    * Get a key whose ordering matches {@link #compare(String, String)}, i.e. with the
+    * polyphone replacement applied before the key is built.
+    */
+   public CollationKey getComparisonKey(String source) {
+      Map<String, String> m = map;
+      String val = m == null ? null : m.get(source);
+      return base.getCollationKey(val == null ? source : val);
+   }
+
+   /**
     * Compare two strings.
     */
    @Override

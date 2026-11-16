@@ -157,4 +157,91 @@ class BrowseDataControllerSortedItemsTest {
          Duration.ofSeconds(8), () -> BrowseDataController.toSortedItems(raw, XSchema.STRING));
       assertEquals(n, items.length);
    }
+
+   /**
+    * Runs the body under a non-English default locale, the way a localized server runs,
+    * with CoreTool's cached collator rebuilt for it and restored afterwards.
+    */
+   private static void withLocale(Locale locale, Map<String, String> polyphones,
+                                  Runnable body) throws Exception
+   {
+      Locale old = Locale.getDefault();
+      java.lang.reflect.Field has = inetsoft.util.CoreTool.class.getDeclaredField("hasCollator");
+      java.lang.reflect.Field col = inetsoft.util.CoreTool.class.getDeclaredField("collator");
+      java.lang.reflect.Field map = inetsoft.util.Collator_CN.class.getDeclaredField("map");
+      has.setAccessible(true);
+      col.setAccessible(true);
+      map.setAccessible(true);
+      Object oldMap = map.get(null);
+      Object oldCollator = col.get(null);
+      boolean oldHas = has.getBoolean(null);
+
+      try {
+         Locale.setDefault(locale);
+
+         if(polyphones != null) {
+            map.set(null, polyphones);
+         }
+
+         // the shipped defaults set sree.collator to empty, so CoreTool has no collator;
+         // install the one it builds when that property is absent under a non-English locale
+         col.set(null, inetsoft.util.Collator_CN.getCollator());
+         has.setBoolean(null, true);
+         body.run();
+      }
+      finally {
+         Locale.setDefault(old);
+         map.set(null, oldMap);
+         col.set(null, oldCollator);
+         has.setBoolean(null, oldHas);
+      }
+   }
+
+   private static List<Object> mixedStrings() {
+      List<Object> raw = new ArrayList<>(Arrays.asList(
+         "apple", "Apple", "APPLE", "banana", "Banana", "cherry", "éclair", "Eclair",
+         "ecole", "École", "zebra", "Zebra", "重庆", "重量",
+         "长江", "长大", "中国", "北京", "上海",
+         "über", "Uber", "straße", "strasse", "a1", "A1", "a10", "a2", ""));
+      Random r = new Random(7);
+
+      for(int i = 0; i < 500; i++) {
+         raw.add("Name" + (char) ('a' + r.nextInt(26)) + (char) ('A' + r.nextInt(26)) + r.nextInt(50));
+      }
+
+      Collections.shuffle(raw, r);
+      return raw;
+   }
+
+   @Test
+   void sameOrderAsLegacyUnderNonEnglishLocales() throws Exception {
+      Map<String, String> polyphones = new HashMap<>();
+      polyphones.put("重庆", "崇庆");
+      polyphones.put("长江", "张江");
+
+      for(Locale locale : new Locale[] { Locale.SIMPLIFIED_CHINESE, Locale.GERMANY }) {
+         // plain collator (no polyphone map) and Collator_CN with a polyphone map
+         for(Map<String, String> map : Arrays.asList(null, polyphones)) {
+            withLocale(locale, map, () -> assertSame(mixedStrings(), XSchema.STRING));
+         }
+      }
+   }
+
+   @Test
+   void largeDistinctSetIsFastUnderNonEnglishLocale() throws Exception {
+      int n = 100_000;
+      Random r = new Random(1);
+      List<Object> raw = new ArrayList<>();
+
+      for(int i = 0; i < n; i++) {
+         raw.add("Customer_" + Integer.toHexString(r.nextInt()) + "_" + i);
+      }
+
+      withLocale(Locale.SIMPLIFIED_CHINESE, null, () -> {
+         // the per-comparison collator needs several seconds for this input
+         Object[] items = assertTimeoutPreemptively(
+            Duration.ofSeconds(3), () -> BrowseDataController.toSortedItems(raw, XSchema.STRING));
+         assertEquals(n, items.length);
+      });
+   }
 }
