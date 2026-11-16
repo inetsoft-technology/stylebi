@@ -73,7 +73,7 @@
                   <dynamic-combo-box [valueOnly]="!isVs"
                     [values]="percents" [(value)]="percentageDirection"
                     [vsId]="runtimeId" [variables]="variables"
-                    [assemblyName]="assemblyName"
+                    [assemblyName]="assemblyName" dynamicProperty="tableOption:percentageBy"
                     [label]="getPercentOfLabel()">
                   </dynamic-combo-box>
                   <label>_#(By)</label>

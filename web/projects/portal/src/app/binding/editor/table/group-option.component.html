@@ -25,6 +25,7 @@
   <sort-option [fieldType]="fieldType" [dragIndex]="dragIndex"
     [elemType]="'table'" [dimension]="field" [vsId]="vsId" [variables]="variables"
     [grayedOutValues]="grayedOutValues" [timeSeries]="isTimeSeries()"
+    [bindingShelf]="bindingShelf" [bindingIndex]="bindingIndex"
     [isOtherSupported]="!isOuterDimRef" [source]="source" (dialogOpen)="dialogOpen.emit($event)">
   </sort-option>
   @if (isDateType()) {
@@ -34,7 +35,8 @@
           <dynamic-combo-box [values]="dateLevelOpts" [value]="field.dateLevel"
             [examples]="dateLevelExamples"
             (valueChange)="dateLevelChange($event)" [variables]="variables"
-            [vsId]="vsId">
+            [vsId]="vsId" [assemblyName]="assemblyName"
+            [dynamicProperty]="bindingShelf ? 'binding:' + bindingShelf + '[' + bindingIndex + '].dateLevel' : null">
           </dynamic-combo-box>
           <label>_#(Level)</label>
         </div>

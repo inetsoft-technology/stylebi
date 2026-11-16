@@ -220,6 +220,7 @@ export interface RenderOptions {
    objectType?: string;
    isCube?: boolean;
    wizardOriginalInfo?: any;
+   viewer?: boolean;
 }
 
 export async function renderComponent(opts: RenderOptions = {}) {
@@ -262,7 +263,7 @@ export async function renderComponent(opts: RenderOptions = {}) {
          objectType: opts.objectType ?? "VSChart",
          isCube: opts.isCube ?? false,
          wizardOriginalInfo: opts.wizardOriginalInfo ?? null,
-         viewer: false,
+         viewer: opts.viewer ?? false,
          variableValues: [],
          linkUri: "../",
          temporarySheet: false,

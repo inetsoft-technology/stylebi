@@ -44,6 +44,9 @@ import { FormulaOption } from "../formula-option.component";
 export class AggregateOption implements OnInit {
    @Input() groupNum: number;
    @Input() vsId: any;
+   /** The crosstab aggregate's position, as the plugin's get_binding names it; null when unnamed. */
+   @Input() bindingShelf: string | null = null;
+   @Input() bindingIndex: number = 0;
    @Input() variables: any;
    @Input() percentSupport: boolean = true;
    @Input() grayedOutValues: string[] = [];

@@ -451,5 +451,110 @@
       "calendar"
     ],
     "host": "composer/dialog/vs/calendar-advanced-pane.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].column",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "binding/editor/chart/field/chart-fieldmc.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].column",
+    "assemblyTypes": [
+      "crosstab"
+    ],
+    "host": "binding/editor/table/table-fieldmc.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].dateLevel",
+    "assemblyTypes": [
+      "chart"
+    ],
+    "host": "binding/editor/chart/field/dimension-editor.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].dateLevel",
+    "assemblyTypes": [
+      "crosstab"
+    ],
+    "host": "binding/editor/table/group-option.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].aggregate",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "binding/editor/formula-option.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].secondaryColumn",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "binding/editor/formula-option.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].n",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "binding/editor/formula-option.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].sort.sortByField",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "binding/editor/sort-option.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].ranking.mode",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "binding/editor/sort-option.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].ranking.n",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "binding/editor/sort-option.component.html"
+  },
+  {
+    "name": "binding:<shelf>[<i>].ranking.measure",
+    "assemblyTypes": [
+      "chart",
+      "crosstab"
+    ],
+    "host": "binding/editor/sort-option.component.html"
+  },
+  {
+    "name": "tableOption:rowTotals",
+    "assemblyTypes": [
+      "crosstab"
+    ],
+    "host": "binding/editor/table/crosstab-option.component.html"
+  },
+  {
+    "name": "tableOption:colTotals",
+    "assemblyTypes": [
+      "crosstab"
+    ],
+    "host": "binding/editor/table/crosstab-option.component.html"
+  },
+  {
+    "name": "tableOption:percentageBy",
+    "assemblyTypes": [
+      "crosstab"
+    ],
+    "host": "binding/editor/chart/field/calculate-pane-dialog.component.html"
   }
 ]

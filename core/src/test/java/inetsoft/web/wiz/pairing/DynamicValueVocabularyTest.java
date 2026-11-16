@@ -208,7 +208,8 @@ class DynamicValueVocabularyTest {
 
    @Test
    void tableOptionIsCrosstabOnly() {
-      for(String name : new String[] { "tableOption:rowTotals", "tableOption:colTotals" }) {
+      for(String name : new String[] { "tableOption:rowTotals", "tableOption:colTotals",
+                                       "tableOption:percentageBy" }) {
          for(String type : ALL_TYPES) {
             if(type.equals("crosstab")) {
                assertNull(problem(type, name), name);

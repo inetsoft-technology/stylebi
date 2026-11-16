@@ -25,7 +25,7 @@
             <dynamic-combo-box data-test="rowTotal combo-box"
               [valueOnly]="!isVS" [values]="rtotals"
               [(value)]="option.rowTotalVisibleValue" [label]="getRowTotalLabel()"
-              [assemblyName]="assemblyName"
+              [assemblyName]="assemblyName" dynamicProperty="tableOption:rowTotals"
               (valueChange)="updateOption()" [vsId]="vsId" [variables]="variables">
             </dynamic-combo-box>
             <label>_#(Row Total)</label>
@@ -38,7 +38,7 @@
             <dynamic-combo-box data-test="colTotal combo-box"
               [valueOnly]="!isVS" [values]="ctotals"
               [(value)]="option.colTotalVisibleValue" [label]="getColTotalLabel()"
-              [assemblyName]="assemblyName"
+              [assemblyName]="assemblyName" dynamicProperty="tableOption:colTotals"
               (valueChange)="updateOption()" [vsId]="vsId" [variables]="variables">
             </dynamic-combo-box>
             <label>_#(Column Total)</label>

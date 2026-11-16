@@ -28,6 +28,7 @@
     [isOuterDimRef]="isOuterDimRef"
     [isOtherSupported]="isOtherSupported()"
     [rankingSupported]="isRankingSupported()" [vsId]="vsId"
+    [bindingShelf]="bindingShelf" [bindingIndex]="bindingIndex"
     [sortSupported]="sortSupported" (dialogOpen)="dialogOpen.emit($event)">
   </sort-option>
 
@@ -39,7 +40,8 @@
             <dynamic-combo-box [values]="dateLevelOpts" [value]="dateLevel"
               [examples]="dateLevelExamples"
               (valueChange)="dateLevelChange($event)" [variables]="variables"
-              [vsId]="vsId" [assemblyName]="assemblyName">
+              [vsId]="vsId" [assemblyName]="assemblyName"
+              [dynamicProperty]="bindingShelf ? 'binding:' + bindingShelf + '[' + bindingIndex + '].dateLevel' : null">
             </dynamic-combo-box>
             <label>_#(Level)</label>
           </div>
