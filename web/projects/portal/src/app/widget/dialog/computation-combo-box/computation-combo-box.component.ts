@@ -46,6 +46,7 @@ export class ComputationComboBox implements OnInit {
    @Input() variables: string[] = [];
    @Input() hideDcombox: boolean = false;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @Output() modelChange: EventEmitter<StrategyInfo> = new EventEmitter<StrategyInfo>();
    selectedIndex: number;
    computationList: any[] = [

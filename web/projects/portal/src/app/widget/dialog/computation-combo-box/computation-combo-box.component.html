@@ -31,7 +31,7 @@
 </div>
 <ng-template #computationDialog let-close="close" let-dismiss="dismiss">
   <computation-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
-    [variables]="variables" [model]="dialogModel" [vsId]="vsId"
+    [variables]="variables" [model]="dialogModel" [vsId]="vsId" [assemblyName]="assemblyName"
     [selectedIndex]="selectedIndex" [hideDcombox]="hideDcombox">
   </computation-dialog>
 </ng-template>

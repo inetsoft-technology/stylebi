@@ -33,6 +33,8 @@ export class ValueInputField implements OnInit, OnChanges {
    @Input() variables: string[] = [];
    @Input() formulaSupported: boolean = false;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
+   @Input() dynamicProperty: string = null;
    @Input() hideDcombox: boolean = false;
    @Output() valueChange: EventEmitter<any> = new EventEmitter<any>();
    @Output() enableFormulaLabelOnValueInput: EventEmitter<boolean> = new EventEmitter<boolean>();

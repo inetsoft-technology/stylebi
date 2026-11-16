@@ -35,11 +35,13 @@
         <value-input-field *ngIf="!isDateField()" [value]="model.value" [hideDcombox]="hideDcombox"
                            [variables]="variables" [formulaSupported]="isFormulaSupported()"
                            (valueChange)="onFromValueChange($event)" [vsId]="vsId"
+                           [assemblyName]="assemblyName" dynamicProperty="chartTarget:band.from"
                            (enableFormulaLabelOnValueInput)="enableFromFormulaLabel($event)">
         </value-input-field>
         <date-input-field *ngIf="isDateField()" [value]="model.value" #dateField1
                           [variables]="variables" [formulaSupported]="isFormulaSupported()"
                           [vsId]="vsId" [hideDcombox]="hideDcombox"
+                          [assemblyName]="assemblyName" dynamicProperty="chartTarget:band.from"
                           [timeField]="isTimeField()"
                           (valueChange)="onFromValueChange($event)">
         </date-input-field>
@@ -65,6 +67,7 @@
       <div class="form-floating">
         <label-input-field [label]="model.label" [variables]="variables"
                            [grayedOutFormula]="!isChartScopeEnabled()" [vsId]="vsId"
+                           [assemblyName]="assemblyName" dynamicProperty="chartTarget:band.fromLabel"
                            [enableFormulaLabel]="enableFromFormulaLabelBandPanel"
                            [hideDcombox]="hideDcombox"
                            (labelChange)="onFromLabelChange($event)">
@@ -84,12 +87,14 @@
                            [hideDcombox]="hideDcombox" [variables]="variables"
                            [formulaSupported]="isFormulaSupported()"
                            (valueChange)="onToValueChange($event)" [vsId]="vsId"
+                           [assemblyName]="assemblyName" dynamicProperty="chartTarget:band.to"
                            (enableFormulaLabelOnValueInput)="enableToFormulaLabel($event)">
         </value-input-field>
         <date-input-field *ngIf="isDateField()" [value]="model.toValue" #dateField2
                           [variables]="variables" [formulaSupported]="isFormulaSupported()"
                           [hideDcombox]="hideDcombox" (valueChange)="onToValueChange($event)"
-                          [vsId]="vsId" [timeField]="isTimeField()">
+                          [vsId]="vsId" [timeField]="isTimeField()"
+                          [assemblyName]="assemblyName" dynamicProperty="chartTarget:band.to">
         </date-input-field>
         <label>_#(To Value)</label>
       </div>
@@ -101,6 +106,7 @@
       <div class="form-floating">
         <label-input-field [label]="model.toLabel" [variables]="variables"
                            [grayedOutFormula]="!isChartScopeEnabled()" [vsId]="vsId"
+                           [assemblyName]="assemblyName" dynamicProperty="chartTarget:band.toLabel"
                            [enableFormulaLabel]="enableToFormulaLabelBandPanel"
                            [hideDcombox]="hideDcombox"
                            (labelChange)="onToLabelChange($event)">

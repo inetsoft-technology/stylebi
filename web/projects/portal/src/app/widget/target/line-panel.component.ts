@@ -53,6 +53,7 @@ export class LinePanel {
    @Input() variables: string[] = [];
    @Input() hideDcombox: boolean;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @Input() chartType: number;
    valueType: ComboMode = ComboMode.VALUE;
    alphaInvalid: boolean = false;

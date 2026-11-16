@@ -52,6 +52,7 @@ export class ChartTargetDialog implements OnInit {
    @Input() variables: string[] = [];
    @Input() hideDcombox: boolean;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @Input() assetId: string = null;
    @Input() chartType: number;
    @Output() confirm: EventEmitter<TargetInfo> = new EventEmitter<TargetInfo>();

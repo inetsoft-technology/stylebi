@@ -176,7 +176,8 @@ for(const file of htmlFiles(APP)) {
  * section 5), NONE are hosts that intentionally never pair.
  */
 /** Panes whose combos name a property but need the assembly and runtime id from their parents. */
-const PAIRING_PANES = ["general-prop-pane", "basic-general-pane", "title-prop-pane"];
+const PAIRING_PANES = ["general-prop-pane", "basic-general-pane", "title-prop-pane",
+   "value-input-field", "date-input-field", "label-input-field", "computation-dialog"];
 
 /** The properties each pairing pane names (its combos' `dynamicProperty` literals). */
 const PANE_PROPERTIES: Record<string, string[]> = {
@@ -406,16 +407,6 @@ const ALLOWLIST: Record<string, { reason: string, usages: [string, string][] }> 
          ["vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html", "standardPeriodPaneModel.endDay"],
       ]
    },
-   E: {
-      reason: "PR E: chart target dialog and computation dialog, wired by the E PR",
-      usages: [
-         ["widget/dialog/computation-combo-box/computation-dialog.component.html", "model.value"],
-         ["widget/dialog/computation-combo-box/computation-dialog.component.html", "model.percentageAggregateVal"],
-         ["widget/target/date-input-field.component.html", "displayValue"],
-         ["widget/target/label-input-field.component.html", "label"],
-         ["widget/target/value-input-field.component.html", "displayValue"],
-      ]
-   },
    F: {
       reason: "PR F: chart title and legend format dialogs, wired by the F PR",
       usages: [
@@ -567,6 +558,24 @@ describe("dynamic value pairing completeness guard (bug #80459)", () => {
          const stale = UNPAIRED_PROPERTIES.map(e => `${e.file}#${e.pane}#${e.property}`)
             .filter(key => !used.has(key));
          expect(stale).toEqual([]);
+      });
+
+      it("forwards the chart's own assemblyName, not just some binding, down the chart target chain", () => {
+         const wrong: string[] = [];
+         const forwarded = [
+            "chart-advanced-pane", "chart-target-lines-pane", "chart-target-dialog",
+            "line-panel", "band-panel", "stat-panel", "computation-combo-box",
+            "computation-dialog", "value-input-field", "date-input-field", "label-input-field"];
+
+         for(const [file, html] of templates) {
+            for(const use of scanTags(html, forwarded)) {
+               if(!/\[assemblyName\]="assemblyName"/.test(use.text)) {
+                  wrong.push(`${file}: <${use.tag}> must bind [assemblyName]="assemblyName"`);
+               }
+            }
+         }
+
+         expect(wrong).toEqual([]);
       });
 
       it("never excepts a property that the manifest lists for that type, and says why", () => {
