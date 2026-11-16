@@ -1191,12 +1191,24 @@ public class ScheduleManager implements MessageListener {
       // (e.g. the import) stops partway and reports a saved task as not saved
       try {
          if(!trusted && isOwnerGranted(owner)) {
-            Permission perm = new Permission();
             String orgId = getTaskOrgID(taskId);
-            Set<Permission.PermissionIdentity> users = Collections.singleton(new Permission.PermissionIdentity(owner.name, orgId));
-            perm.setUserGrants(ResourceAction.READ, users);
-            perm.setUserGrants(ResourceAction.WRITE, users);
-            perm.setUserGrants(ResourceAction.DELETE, users);
+            Permission.PermissionIdentity ownerIdentity =
+               new Permission.PermissionIdentity(owner.name, orgId);
+            // Bug #81249, a task that already has explicit grants keeps them on a save (including
+            // a move into a folder), the owner is added to them
+            Permission existing = getSecurityEngine().getPermission(
+               ResourceType.SCHEDULE_TASK, task.getTaskId());
+            Permission perm = existing == null ? new Permission() : (Permission) existing.clone();
+
+            for(ResourceAction grantAction : new ResourceAction[] {
+               ResourceAction.READ, ResourceAction.WRITE, ResourceAction.DELETE })
+            {
+               Set<Permission.PermissionIdentity> users =
+                  new HashSet<>(perm.getAllUserGrants(grantAction));
+               users.add(ownerIdentity);
+               perm.setUserGrants(grantAction, users);
+            }
+
             engine.setPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), perm);
          }
       }
