@@ -27,8 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.util.Arrays;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
@@ -492,45 +491,68 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
    }
 
    /**
-    * Generate runtime scirpt.
+    * Generate runtime scirpt. Every aggregate name in the expression is replaced by an
+    * identifier derived from the name (upper case, illegal characters as '_'). Two different
+    * names never share an identifier: a clash (e.g. "a b" and "a_b") gets a numbered suffix.
     */
    private void generateRuntimeScript() {
-      runtimeFormula = expression.toUpperCase(java.util.Locale.ROOT);
-      char[] runtimes = expression.toCharArray();
+      List<String> names = Arrays.asList(used);
+      String[] ids = new String[used.length];
+      Set<String> taken = new HashSet<>();
+      List<Integer> clashes = new ArrayList<>();
 
       for(int i = 0; i < used.length; i++) {
-         String key = used[i].toUpperCase(java.util.Locale.ROOT);
-         String nname = key;
-
-         for(char illegalChar : illegalChars) {
-            nname = nname.replace(illegalChar, '_');
+         if(used[i] == null) {
+            continue;
          }
 
-         replaceExpression(runtimeFormula, runtimes, key, nname, 0);
-         used[i] = nname;
+         String nname = legacyIdentifier(used[i]);
+
+         if(taken.add(nname)) {
+            ids[i] = nname;
+         }
+         else {
+            clashes.add(i);
+         }
       }
 
-      runtimeFormula = new String(runtimes);
+      for(int i : clashes) {
+         String id = legacyIdentifier(used[i]) + "_" + i;
+
+         while(!taken.add(id)) {
+            id = id + "_";
+         }
+
+         ids[i] = id;
+      }
+
+      StringBuilder runtimes = new StringBuilder();
+      int pos = 0;
+
+      for(AggregateNameMatcher.Span span : AggregateNameMatcher.find(expression, names)) {
+         runtimes.append(expression, pos, span.start);
+         runtimes.append(ids[span.name]);
+         pos = span.end;
+      }
+
+      runtimes.append(expression, pos, expression.length());
+      runtimeFormula = runtimes.toString();
+
+      for(int i = 0; i < used.length; i++) {
+         if(ids[i] != null) {
+            used[i] = ids[i];
+         }
+      }
    }
 
-   /*
-    * replace expession string.
-    */
-   private void replaceExpression(String runtimeFormula, char[] runtimes,
-                                  String key, String value, int index)
-   {
-      int idx = runtimeFormula.indexOf(key, index);
+   private static String legacyIdentifier(String name) {
+      String nname = name.toUpperCase(java.util.Locale.ROOT);
 
-      if(idx >= 0) {
-         int nextidx = idx + key.length();
-
-         for(int i = idx; i < nextidx; i++) {
-            value.getChars(0, value.length(), runtimes, idx);
-         }
-
-         // need to replace again if exp has next substring.
-         replaceExpression(runtimeFormula, runtimes, key, value, nextidx);
+      for(char illegalChar : illegalChars) {
+         nname = nname.replace(illegalChar, '_');
       }
+
+      return nname;
    }
 
    /**
