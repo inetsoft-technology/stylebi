@@ -32,6 +32,10 @@ import java.util.*;
  *       (it is forced to keep its ratio) and an animated GIF has no insets (Redmine #80464).</li>
  *   <li>TextInput: "Multiple Lines" is enabled only for the Text input control type (Redmine
  *       #80464).</li>
+ *   <li>Group container: the same image scale pane, SVG and animated GIF rules as Image, since
+ *       its dialog embeds the same scale pane (Redmine #81420).</li>
+ *   <li>Tab: the tab list dialog keeps {@code labels} and {@code assemblies} in step, which the
+ *       dialog model does not (Redmine #81420).</li>
  * </ul>
  *
  * <p>Every rule is judged on the post-patch model and fires only when the patch changes one of
@@ -59,6 +63,12 @@ final class PatchGuards {
       "imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageSelected";
    private static final String IMAGE_DYNAMIC_VALUE =
       "imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageValue";
+   private static final String GROUP_IMAGE_PANE =
+      "groupContainerGeneralPane.staticImagePane.imagePreviewPaneModel.";
+   private static final String GROUP_SELECTED = GROUP_IMAGE_PANE + "selectedImage";
+   private static final String GROUP_GIF = GROUP_IMAGE_PANE + "animateGifImage";
+   private static final String TAB_LABELS = "tabGeneralPaneModel.tabListPaneModel.labels";
+   private static final String TAB_ASSEMBLIES = "tabGeneralPaneModel.tabListPaneModel.assemblies";
    private static final String TEXT_INPUT_MULTI_LINE = "textInputGeneralPaneModel.multiLine";
    private static final String TEXT_INPUT_TYPE = "textInputColumnOptionPaneModel.type";
    private static final String TEXT_INPUT_OPTION = "textInputColumnOptionPaneModel.";
@@ -95,7 +105,7 @@ final class PatchGuards {
       if(paths.stream().anyMatch(path -> touches(resolvedPaths, path))) {
          // the rules compare siblings, so the whole group is read once any of it is written
          for(String path : paths) {
-            values.put(path, PropertyPath.get(model, path));
+            values.put(path, read(model, path));
          }
       }
 
@@ -120,6 +130,9 @@ final class PatchGuards {
          requireMultiLineForText(before, model);
          requireEditorOfTheSelectedType(before, model);
       }
+      else if("tab".equals(type)) {
+         requireTabLists(before, model);
+      }
       else {
          String prefix = scalePrefix(type);
 
@@ -127,7 +140,11 @@ final class PatchGuards {
             requireScalePane(prefix, before, model);
 
             if("image".equals(type)) {
-               requireSvgAndGif(prefix, before, model);
+               requireSvgAndGif(prefix, IMAGE_SELECTED, IMAGE_GIF, IMAGE_DYNAMIC_SELECTED,
+                                IMAGE_DYNAMIC_VALUE, before, model);
+            }
+            else {
+               requireSvgAndGif(prefix, GROUP_SELECTED, GROUP_GIF, null, null, before, model);
             }
          }
       }
@@ -150,6 +167,10 @@ final class PatchGuards {
          return paths;
       }
 
+      if("tab".equals(type)) {
+         return List.of(TAB_LABELS, TAB_ASSEMBLIES);
+      }
+
       String prefix = scalePrefix(type);
 
       if(prefix == null) {
@@ -165,6 +186,9 @@ final class PatchGuards {
       if("image".equals(type)) {
          paths.addAll(List.of(IMAGE_SELECTED, IMAGE_GIF, IMAGE_DYNAMIC_SELECTED,
                               IMAGE_DYNAMIC_VALUE));
+      }
+      else {
+         paths.addAll(List.of(GROUP_SELECTED, GROUP_GIF));
       }
 
       return paths;
@@ -183,7 +207,21 @@ final class PatchGuards {
    }
 
    private static boolean changed(Map<String, Object> before, Object model, String path) {
-      return !Objects.equals(before.get(path), PropertyPath.get(model, path));
+      return !Objects.equals(before.get(path), read(model, path));
+   }
+
+   /**
+    * The value at the path, with an array copied into a list so that it is compared by content
+    * (an array has identity equality) and a later in-place write cannot alter the snapshot.
+    */
+   private static Object read(Object model, String path) {
+      Object value = PropertyPath.get(model, path);
+
+      if(value instanceof Object[] array) {
+         return new ArrayList<>(Arrays.asList(array));
+      }
+
+      return value;
    }
 
    private static void requireEmbedOrPop(Map<String, Object> before, Object model) {
@@ -324,20 +362,26 @@ final class PatchGuards {
     * the four insets for an animated GIF. Fires only when the patch changes one of the fields
     * involved.
     */
-   private static void requireSvgAndGif(String prefix, Map<String, Object> before, Object model) {
+   private static void requireSvgAndGif(String prefix, String selectedPath, String gifPath,
+                                        String dynamicSelectedPath, String dynamicValuePath,
+                                        Map<String, Object> before, Object model)
+   {
       boolean scale = Boolean.TRUE.equals(PropertyPath.get(model, prefix + SCALE));
       boolean aspect = Boolean.TRUE.equals(PropertyPath.get(model, prefix + ASPECT));
-      Object dynamicValue = PropertyPath.get(model, IMAGE_DYNAMIC_VALUE);
+      // a group container has no dynamic image, only the picked one
+      boolean hasDynamic = dynamicSelectedPath != null && dynamicValuePath != null;
+      Object dynamicValue = hasDynamic ? PropertyPath.get(model, dynamicValuePath) : null;
       String dynamic = dynamicValue == null ? "" : dynamicValue.toString().trim();
-      Object picked = PropertyPath.get(model, IMAGE_SELECTED);
-      String image = Boolean.TRUE.equals(PropertyPath.get(model, IMAGE_DYNAMIC_SELECTED)) &&
+      Object picked = PropertyPath.get(model, selectedPath);
+      String image = hasDynamic && Boolean.TRUE.equals(PropertyPath.get(model, dynamicSelectedPath)) &&
          !dynamic.isEmpty() && !dynamic.startsWith("$(") && !dynamic.startsWith("=") ?
          dynamic : (picked == null ? "" : picked.toString());
 
       if(scale && !aspect && image.endsWith(".svg") &&
          (changed(before, model, prefix + SCALE) || changed(before, model, prefix + ASPECT) ||
-          changed(before, model, IMAGE_SELECTED) || changed(before, model, IMAGE_DYNAMIC_SELECTED) ||
-          changed(before, model, IMAGE_DYNAMIC_VALUE)))
+          changed(before, model, selectedPath) ||
+          hasDynamic && (changed(before, model, dynamicSelectedPath) ||
+                         changed(before, model, dynamicValuePath))))
       {
          throw new IllegalArgumentException(
             prefix + ASPECT + ": the image '" + image + "' is an SVG, which the Composer forces " +
@@ -346,16 +390,82 @@ final class PatchGuards {
             ":true, or pick a raster image. Nothing was changed.");
       }
 
-      if(Boolean.TRUE.equals(PropertyPath.get(model, IMAGE_GIF))) {
+      if(Boolean.TRUE.equals(PropertyPath.get(model, gifPath))) {
          for(String leaf : INSETS) {
             if(changed(before, model, prefix + leaf)) {
                throw new IllegalArgumentException(
-                  prefix + leaf + ": the image is an animated GIF (" + IMAGE_GIF + " is true); " +
+                  prefix + leaf + ": the image is an animated GIF (" + gifPath + " is true); " +
                   "the Composer disables the 9-cell insets for it. Turn the animation off in " +
-                  "the same call (" + IMAGE_GIF + ":false) or leave the insets alone. Nothing " +
+                  "the same call (" + gifPath + ":false) or leave the insets alone. Nothing " +
                   "was changed.");
             }
          }
+      }
+   }
+
+   /**
+    * The tab list dialog keeps {@code labels} and {@code assemblies} the same length and moves
+    * them together; {@code TabPropertyDialogService} trusts what it is sent. A raw write of one
+    * list therefore reached storage in states the dialog cannot produce: labels longer than the
+    * tab with an empty entry past its end threw an ArrayIndexOutOfBounds, an {@code assemblies}
+    * naming something that is not a member silently detached the real members from the tab (and
+    * left the viewsheet reporting a dependency cycle on every later group), and a reorder
+    * without its labels attached each label to the wrong page.
+    *
+    * <p>Labels may be shorter than the tab (a new tab has none and the viewer falls back to the
+    * assembly name), but never longer. {@code assemblies} may only be reordered: it must name
+    * every current member exactly once. A reorder must bring its labels with it. Fires only when
+    * the patch changes one of the two lists, so a tab already in a skewed state stays editable
+    * by unrelated patches and an unchanged echo of a read is never refused.
+    */
+   private static void requireTabLists(Map<String, Object> before, Object model) {
+      boolean labelsChanged = changed(before, model, TAB_LABELS);
+      boolean assembliesChanged = changed(before, model, TAB_ASSEMBLIES);
+
+      if(!labelsChanged && !assembliesChanged) {
+         return;
+      }
+
+      List<?> labels = (List<?>) read(model, TAB_LABELS);
+      List<?> assemblies = (List<?>) read(model, TAB_ASSEMBLIES);
+
+      if(labels == null || assemblies == null) {
+         throw new IllegalArgumentException(
+            (labels == null ? TAB_LABELS : TAB_ASSEMBLIES) + ": must be a list, not null. " +
+            "Nothing was changed.");
+      }
+
+      if(assembliesChanged) {
+         List<?> members = before.get(TAB_ASSEMBLIES) instanceof List<?> list ? list : List.of();
+
+         if(new HashSet<>(assemblies).size() != assemblies.size() ||
+            !new HashSet<>(members).equals(new HashSet<>(assemblies)))
+         {
+            throw new IllegalArgumentException(
+               TAB_ASSEMBLIES + ": must list every assembly in the tab exactly once; it can " +
+               "only reorder them, not add, drop or rename one (a name that is not a member " +
+               "would pull the real members out of the tab). The tab holds " + members + ". To " +
+               "reorder use edit(op:'reorder_container_children') on the tab; to add or remove " +
+               "a member use group_as_tab or move_from_container. Nothing was changed.");
+         }
+      }
+
+      if(labels.size() > assemblies.size()) {
+         throw new IllegalArgumentException(
+            TAB_LABELS + ": has " + labels.size() + " entries for a tab of " + assemblies.size() +
+            " assemblies; labels is paired with assemblies by position, so it can be shorter " +
+            "(the tab then shows the assembly name) but never longer. Nothing was changed.");
+      }
+
+      List<?> oldLabels = before.get(TAB_LABELS) instanceof List<?> list ? list : List.of();
+
+      if(assembliesChanged && !labelsChanged && !oldLabels.isEmpty()) {
+         throw new IllegalArgumentException(
+            TAB_ASSEMBLIES + ": labels is paired with assemblies by position, so reordering " +
+            "assemblies alone would put each label on the wrong page. Use " +
+            "edit(op:'reorder_container_children') on the tab, which moves the labels with " +
+            "their assemblies, or write " + TAB_LABELS + " in the same call. Nothing was " +
+            "changed.");
       }
    }
 }
