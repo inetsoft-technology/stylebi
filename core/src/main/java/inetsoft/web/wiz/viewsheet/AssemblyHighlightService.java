@@ -143,6 +143,7 @@ public class AssemblyHighlightService {
                                    Region region) throws Exception
    {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      requireAssemblyExists(rvs, assemblyName);
       HighlightDialogModel model = read(rvs, assemblyName, region, user);
 
       Map<String, Object> out = new LinkedHashMap<>();
@@ -211,7 +212,9 @@ public class AssemblyHighlightService {
 
       // Refuse before mutate(): a refused call inside it still costs an undo step and a revision.
       // Checked again inside the mutation in case the assembly changed in between.
-      requireHighlightRenderable(sessions.resolve(sessionToken, user), assemblyName);
+      RuntimeViewsheet current = sessions.resolve(sessionToken, user);
+      requireAssemblyExists(current, assemblyName);
+      requireHighlightRenderable(current, assemblyName);
 
       List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireHighlightRenderable(rvs, assemblyName);
@@ -379,6 +382,9 @@ public class AssemblyHighlightService {
       if(name == null || name.isBlank()) {
          throw new IllegalArgumentException("delete_highlight needs the highlight's 'name'.");
       }
+
+      // Refuse before mutate(): a refused call inside it still costs an undo step and a revision.
+      requireAssemblyExists(sessions.resolve(sessionToken, user), assemblyName);
 
       List<String> orphanWarnings = new ArrayList<>();
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
@@ -826,9 +832,23 @@ public class AssemblyHighlightService {
       }
    }
 
+   /**
+    * Refuses an assembly name the viewsheet does not hold. Without it the dialog service
+    * dereferences the missing assembly and throws a NullPointerException, which the agent error
+    * handler reports as an unexpected server error. Same wording as BindingReadService.
+    */
+   private static void requireAssemblyExists(RuntimeViewsheet rvs, String assemblyName) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+      if(vs == null || vs.getAssembly(assemblyName) == null) {
+         throw new IllegalArgumentException("Unknown assembly '" + assemblyName + "'.");
+      }
+   }
+
    private HighlightDialogModel read(RuntimeViewsheet rvs, String assemblyName, Region region,
                                      Principal user) throws Exception
    {
+      requireAssemblyExists(rvs, assemblyName);
       String runtimeId = rvs.getID();
       requireTableRendered(rvs, assemblyName);
       Region target = region == null ? Region.whole() : renderedCell(rvs, assemblyName, region);
