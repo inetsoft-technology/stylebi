@@ -142,6 +142,7 @@ public class MetadataApiService {
 
       XNode rootMetaData = MetadataCallGuard.requireMetaData(
          metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE), dsName);
+      MetadataCallGuard.markConnected();
 
       if(rootMetaData == null) {
          throw new Exception("No meta data found for data source " + dsName);
@@ -414,6 +415,7 @@ public class MetadataApiService {
 
       XNode rootMetaData = MetadataCallGuard.requireMetaData(
          metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE), jdbcDatasource.getFullName());
+      MetadataCallGuard.markConnected();
 
       if(rootMetaData == null) {
          throw new Exception("No meta data found for data source " + jdbcDatasource.getFullName());
@@ -1468,6 +1470,7 @@ public class MetadataApiService {
 
       XNode rootMetaData = MetadataCallGuard.requireMetaData(
          metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE), dsName);
+      MetadataCallGuard.markConnected();
 
       XNode typeQuery = new XNode();
       typeQuery.setAttribute("type", "TABLETYPES");
@@ -2155,6 +2158,7 @@ public class MetadataApiService {
 
       XNode rootMetaData = MetadataCallGuard.requireMetaData(
          metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE), dsName);
+      MetadataCallGuard.markConnected();
 
       if(rootMetaData == null) {
          throw new Exception("No meta data found for data source " + dsName);
@@ -2277,13 +2281,14 @@ public class MetadataApiService {
                continue;
             }
 
+            MetadataCallGuard.checkNotDown(dsName);
             pending.put(dsName, MetadataCallGuard.submit(
                dsName, () -> searchDatasource(
                   dsName, queryLower, fieldNamesLower, searchColumns, principal)));
          }
          catch(Exception e) {
             log.warn("Skipping datasource '{}' during schema search: {}", dsName, e.getMessage());
-            warnings.add("Data source '" + dsName + "' was skipped: " + e.getMessage());
+            warnings.add(skippedWarning(dsName, e));
          }
       }
 
@@ -2302,9 +2307,7 @@ public class MetadataApiService {
          }
          catch(Exception e) {
             log.warn("Skipping datasource '{}' during schema search: {}", dsName, e.getMessage());
-            warnings.add(e instanceof DatasourceUnreachableException
-               ? e.getMessage() + "; its tables are not in these results."
-               : "Data source '" + dsName + "' was skipped: " + e.getMessage());
+            warnings.add(skippedWarning(dsName, e));
          }
       }
 
@@ -2313,6 +2316,13 @@ public class MetadataApiService {
                              ? new ArrayList<>(results.subList(0, MAX_SEARCH_RESULTS)) : results);
       response.setWarnings(warnings.isEmpty() ? null : warnings);
       return response;
+   }
+
+   private static String skippedWarning(String dsName, Exception e) {
+      return e instanceof DatasourceUnreachableException ||
+         e instanceof DatasourceBudgetExceededException
+         ? e.getMessage() + "; its tables are not in these results."
+         : "Data source '" + dsName + "' was skipped: " + e.getMessage();
    }
 
    /**

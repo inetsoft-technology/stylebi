@@ -67,7 +67,45 @@ final class MetadataCallGuard {
          return task.call();
       }
 
+      checkNotDown(datasource);
       return await(datasource, submit(datasource, task), newDeadline());
+   }
+
+   /**
+    * Fails at once for a data source whose connection did not come up within the budget a moment
+    * ago, instead of sending another request into the same blocked connect.
+    *
+    * @throws DatasourceUnreachableException if the data source recently did not answer.
+    */
+   static void checkNotDown(String datasource) throws DatasourceUnreachableException {
+      Long timedOutAt = TIMED_OUT.get(datasource);
+
+      if(timedOutAt == null) {
+         return;
+      }
+
+      long age = System.currentTimeMillis() - timedOutAt;
+
+      if(age < RETRY_INTERVAL_MS) {
+         throw new DatasourceUnreachableException(datasource,
+            "it did not respond " + (age / 1000) + " s ago; not retrying for another " +
+            ((RETRY_INTERVAL_MS - age) / 1000 + 1) + " s");
+      }
+
+      TIMED_OUT.remove(datasource, timedOutAt);
+   }
+
+   /**
+    * Records that the data source answered its first metadata request (the root metadata), so a
+    * later overrun of the budget is slow work on a reachable source, not an unreachable source.
+    * A no-op outside a guard thread.
+    */
+   static void markConnected() {
+      AtomicBoolean connected = CONNECTED.get();
+
+      if(connected != null) {
+         connected.set(true);
+      }
    }
 
    /**
@@ -77,55 +115,44 @@ final class MetadataCallGuard {
       Principal principal = ThreadContext.getContextPrincipal();
       Thread caller = Thread.currentThread();
       AtomicBoolean started = new AtomicBoolean();
+      AtomicBoolean connected = new AtomicBoolean();
 
       Future<T> future = POOL.submit(() -> {
          try {
             started.set(true);
             IN_GUARD.set(true);
+            CONNECTED.set(connected);
             ThreadContext.setContextPrincipal(principal);
             ThreadContext.inheritSession(caller);
             return task.call();
          }
          finally {
             IN_GUARD.remove();
+            CONNECTED.remove();
             ThreadContext.setContextPrincipal(null);
          }
       });
 
-      return new Pending<>(future, started);
+      return new Pending<>(future, started, connected);
    }
 
    /**
-    * A submitted task, and whether a pool thread has picked it up yet.
+    * A submitted task, whether a pool thread has picked it up yet, and whether the data source
+    * has answered its root metadata request.
     */
-   record Pending<T>(Future<T> future, AtomicBoolean started) {
+   record Pending<T>(Future<T> future, AtomicBoolean started, AtomicBoolean connected) {
    }
 
    /**
     * Waits for the task until the deadline.
     *
-    * @throws DatasourceUnreachableException if the task did not finish in time, or the data
-    *         source already timed out recently.
+    * @throws DatasourceUnreachableException if the data source did not answer at all in time.
+    * @throws DatasourceBudgetExceededException if it answered but the work did not finish in time.
     */
    static <T> T await(String datasource, Pending<T> pending, long deadlineNanos)
       throws Exception
    {
       Future<T> future = pending.future();
-      Long timedOutAt = TIMED_OUT.get(datasource);
-
-      if(timedOutAt != null) {
-         long age = System.currentTimeMillis() - timedOutAt;
-
-         if(age < RETRY_INTERVAL_MS) {
-            future.cancel(true);
-            throw new DatasourceUnreachableException(datasource,
-               "it did not respond " + (age / 1000) + " s ago; not retrying for another " +
-               ((RETRY_INTERVAL_MS - age) / 1000 + 1) + " s");
-         }
-
-         TIMED_OUT.remove(datasource, timedOutAt);
-      }
-
       try {
          T result = future.get(Math.max(0L, deadlineNanos - System.nanoTime()),
                                TimeUnit.NANOSECONDS);
@@ -139,6 +166,12 @@ final class MetadataCallGuard {
             // still queued behind other sources: the source itself was never tried
             throw new DatasourceUnreachableException(datasource,
                "it was not reached within the " + (budgetMillis() / 1000) + " s time budget");
+         }
+
+         if(pending.connected().get()) {
+            // the source is answering; reading all of it is just slow. It is not down, so later
+            // requests are not turned away.
+            throw new DatasourceBudgetExceededException(datasource, budgetMillis() / 1000);
          }
 
          TIMED_OUT.put(datasource, System.currentTimeMillis());
@@ -189,6 +222,7 @@ final class MetadataCallGuard {
    static final String BUDGET_PROPERTY = "wiz.metadata.budget.ms";
    private static final long DEFAULT_BUDGET_MS = 20000L;
    private static final int POOL_SIZE = 16;
+   private static final ThreadLocal<AtomicBoolean> CONNECTED = new ThreadLocal<>();
    private static final ThreadLocal<Boolean> IN_GUARD = ThreadLocal.withInitial(() -> false);
    private static final Map<String, Long> TIMED_OUT = new ConcurrentHashMap<>();
    private static final ThreadPoolExecutor POOL;

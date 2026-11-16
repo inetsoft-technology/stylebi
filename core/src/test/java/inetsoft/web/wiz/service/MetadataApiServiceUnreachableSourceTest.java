@@ -33,6 +33,7 @@ import inetsoft.util.ThreadContext;
 import inetsoft.web.composer.AssetTreeService;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.wiz.model.DatabaseTableInfo;
+import inetsoft.web.wiz.model.DatabaseTableMeta;
 import inetsoft.web.wiz.model.DatasourceTablesResponse;
 import inetsoft.web.wiz.model.SchemaSearchResponse;
 import inetsoft.web.wiz.request.SchemaSearchRequest;
@@ -48,6 +49,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.lang.reflect.Constructor;
 import java.security.Principal;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -160,6 +162,7 @@ class MetadataApiServiceUnreachableSourceTest {
       when(dataSourceService.getDataSource(DEAD)).thenReturn(dataSource);
       when(dataSource.getFullName()).thenReturn(DEAD);
       when(dataSource.getDatabaseTypeString()).thenReturn("");
+      when(dataSource.getRuntimeProductName()).thenReturn("UnitTestDatabase");
       when(dataSourceService.getDataModel(DEAD)).thenReturn(mock(XDataModel.class));
       when(dataSourceService.getDefaultMetaDataProvider(eq(dataSource), any()))
          .thenReturn(provider);
@@ -219,6 +222,73 @@ class MetadataApiServiceUnreachableSourceTest {
 
       assertTrue(elapsedMs < 300, "second call answered at once, took " + elapsedMs + " ms");
       assertTrue(ex.getMessage().contains(DEAD));
+   }
+
+   @Test
+   void slowButConnectedDataSourceIsNotMarkedDownAndLaterCallsAreNotRejected() throws Exception {
+      AtomicBoolean slow = new AtomicBoolean(true);
+      DefaultMetaDataProvider provider = mock(DefaultMetaDataProvider.class);
+      when(provider.getRootMetaData(anyString())).thenReturn(new XNode());
+      when(provider.getMetaData(any(XNode.class), eq(true))).thenAnswer(inv -> {
+         if(slow.get()) {
+            // the connection is fine, reading the table's columns takes longer than the budget
+            Thread.sleep(10_000);
+         }
+
+         XNode root = new XNode();
+         XNode result = new XNode("Result");
+         result.addChild(new XNode("ORDER_ID"));
+         root.addChild(result);
+         return root;
+      });
+      when(provider.getTable(any(), any(), eq("Orders"), eq(false))).thenReturn(new XNode("Orders"));
+
+      MetadataApiService service = serviceWith(provider);
+
+      DatasourceBudgetExceededException slowEx = assertThrows(
+         DatasourceBudgetExceededException.class,
+         () -> service.getTableDetails(DEAD, "Orders", null, null, mock(Principal.class)));
+      assertTrue(slowEx.getMessage().contains(DEAD));
+      assertFalse(slowEx.getMessage().contains("unreachable"));
+
+      // the source answers normally again: it was never recorded as down
+      slow.set(false);
+      long start = System.nanoTime();
+      DatabaseTableMeta meta =
+         service.getTableDetails(DEAD, "Orders", null, null, mock(Principal.class));
+      long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+
+      assertEquals(1, meta.getColumns().size());
+      assertTrue(elapsedMs < 5_000, "later call not rejected, took " + elapsedMs + " ms");
+   }
+
+   @Test
+   void searchSchemaWarnsAboutASlowButConnectedSourceWithoutCallingItUnreachable()
+      throws Exception
+   {
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSourceFullNames()).thenReturn(new String[] { DEAD });
+      when(xrepository.getDataSource(anyString())).thenReturn(mock(JDBCDataSource.class));
+
+      MetadataApiService service = spy(new MetadataApiService(
+         xrepository, dataSourceService(), mock(AssetRepository.class),
+         mock(AssetTreeService.class), new ObjectMapper()));
+
+      doAnswer(inv -> {
+         MetadataCallGuard.markConnected();
+         Thread.sleep(10_000);
+         return oneTable("orders");
+      }).when(service).getDatabaseTables(anyString(), any(), any(), any(), any());
+
+      SchemaSearchRequest request = new SchemaSearchRequest();
+      request.setQuery("order");
+      SchemaSearchResponse response = service.searchSchema(request, mock(Principal.class));
+
+      assertEquals(1, response.getWarnings().size());
+      assertTrue(response.getWarnings().get(0).contains("time budget"));
+      assertFalse(response.getWarnings().get(0).contains("unreachable"));
+      // not recorded as down
+      MetadataCallGuard.checkNotDown(DEAD);
    }
 
    @Test
