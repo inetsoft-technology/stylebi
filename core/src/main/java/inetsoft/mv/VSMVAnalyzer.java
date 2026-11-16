@@ -1615,37 +1615,13 @@ public final class VSMVAnalyzer implements MVAnalyzer {
                continue;
             }
 
-            boolean isCorrelated = checkSubQueryValue(clw);
+            boolean isCorrelated = MVTool.hasCorrelatedSubQuery(clw);
 
             if(isCorrelated) {
                return isCorrelated;
             }
          }
 
-         return false;
-      }
-
-      private boolean checkSubQueryValue(ConditionListWrapper wrapper) {
-         ConditionList conds = wrapper.getConditionList();
-
-         for(int i = 0; conds != null && i < conds.getSize(); i += 2) {
-            Object cond = conds.getXCondition(i);
-
-            if(!(cond instanceof AssetCondition)) {
-               continue;
-            }
-
-            AssetCondition acnd = (AssetCondition) cond;
-            SubQueryValue val = acnd.getSubQueryValue();
-
-            if(val == null) {
-               continue;
-            }
-
-            if(val.isCorrelated()) {
-               return true;
-            }
-         }
          return false;
       }
 

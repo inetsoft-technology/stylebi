@@ -495,11 +495,11 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
     * Generate runtime scirpt.
     */
    private void generateRuntimeScript() {
-      runtimeFormula = expression.toUpperCase();
+      runtimeFormula = expression.toUpperCase(java.util.Locale.ROOT);
       char[] runtimes = expression.toCharArray();
 
       for(int i = 0; i < used.length; i++) {
-         String key = used[i].toUpperCase();
+         String key = used[i].toUpperCase(java.util.Locale.ROOT);
          String nname = key;
 
          for(char illegalChar : illegalChars) {

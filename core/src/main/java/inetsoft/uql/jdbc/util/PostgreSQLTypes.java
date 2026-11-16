@@ -39,13 +39,16 @@ public final class PostgreSQLTypes extends SQLTypes {
          ResultSetMetaData meta = result.getMetaData();
 
          if(meta != null && "timetz".equalsIgnoreCase(meta.getColumnTypeName(idx))) {
-            String str = result.getString(idx);
+            // raw bytes are the only transfer-mode independent view of the value: getString()
+            // returns the stored text in text mode but a JVM-zone converted text in binary mode
+            // (and throws for 24:00:00)
+            byte[] raw = result.getBytes(idx);
 
-            if(str == null) {
+            if(raw == null) {
                return null;
             }
 
-            Time time = parseWallClock(str);
+            Time time = parseWallClock(raw);
 
             if(time != null) {
                return time;
@@ -56,6 +59,35 @@ public final class PostgreSQLTypes extends SQLTypes {
       }
 
       return super.getObject(result, idx, type);
+   }
+
+   /**
+    * Build a time from the raw timetz value as returned by {@code ResultSet.getBytes()}. The
+    * pgjdbc driver switches from text to binary transfer once a statement has been executed
+    * {@code prepareThreshold} (default 5) times, so both encodings must give the stored wall
+    * clock: the text form is {@code HH:mm:ss[.f]+zz}, the binary form is 12 bytes, 8 bytes of
+    * microseconds since midnight (the stored wall clock) and 4 bytes of zone offset.
+    *
+    * @return the time, or null if the value is not a representable wall clock (e.g. 24:00:00).
+    */
+   static Time parseWallClock(byte[] raw) {
+      if(raw.length == BINARY_LENGTH && raw[2] != ':') {
+         long micros = 0;
+
+         for(int i = 0; i < 8; i++) {
+            micros = (micros << 8) | (raw[i] & 0xFF);
+         }
+
+         if(micros < 0 || micros >= MICROS_PER_DAY) {
+            // e.g. 24:00:00, leave to the driver
+            return null;
+         }
+
+         Time time = Time.valueOf(java.time.LocalTime.ofSecondOfDay(micros / 1_000_000L));
+         return new Time(time.getTime() + (micros % 1_000_000L) / 1000L);
+      }
+
+      return parseWallClock(new String(raw, java.nio.charset.StandardCharsets.US_ASCII));
    }
 
    /**
@@ -91,6 +123,10 @@ public final class PostgreSQLTypes extends SQLTypes {
       return millis == 0 ? time : new Time(time.getTime() + millis);
    }
 
+   // text form is at least 11 chars and never exactly 12 (HH:mm:ss + sign + HH, fraction or
+   // :mm each add 2-3 chars), so 12 bytes identify the binary form
+   private static final int BINARY_LENGTH = 12;
+   private static final long MICROS_PER_DAY = 86_400_000_000L;
    private static final Pattern PATTERN =
       Pattern.compile("([0-9]{1,2}):([0-9]{2}):([0-9]{2})(?:[.]([0-9]+))?");
 }

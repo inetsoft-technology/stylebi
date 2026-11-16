@@ -1173,4 +1173,29 @@ public class CalcFieldFormulaTest {
       addRows(formula, one("a", "b", "c"));
       assertEquals("a,b,c", formula.getResult());
    }
+
+   // Bug #81203: the runtime script is built with upper-case conversion; under tr_TR the default
+   // locale turns "i" in "field" into a dotted capital I, and FIELD is no longer defined
+   @Test
+   void expression_turkishDefaultLocale_fieldIsStillDefined() {
+      java.util.Locale old = java.util.Locale.getDefault();
+      java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+
+      try {
+         String sum = "field['Sum([a])']";
+         CalcFieldFormula formula = calc(sum + " * 2", new String[] { sum }, new SumFormula());
+         addRows(formula, new Object[] { 3 }, new Object[] { 4 });
+         assertEquals(14.0, asDouble(formula.getResult()), 1e-10);
+
+         String maxNo = "field['Max([orders:orderno])']";
+         String expr = "field['max([orders:orderno])'] * " + maxNo + " - " +
+            "FIELD['MAX([ORDERS:ORDERNO])']";
+         formula = calc(expr, new String[] { maxNo }, new MaxFormula());
+         addRows(formula, new Object[] { 3 }, new Object[] { 5 }, new Object[] { 4 });
+         assertEquals(20.0, asDouble(formula.getResult()), 1e-10);
+      }
+      finally {
+         java.util.Locale.setDefault(old);
+      }
+   }
 }

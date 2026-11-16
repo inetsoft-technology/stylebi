@@ -20,7 +20,7 @@ package inetsoft.mv;
 import inetsoft.mv.data.CompactString;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.uql.*;
-import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.*;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 import inetsoft.util.swap.XSwapUtil;
@@ -142,6 +142,29 @@ public class MVTool {
 
       MVExecutor executor = factory.newExecutor(table, mvName, vars, user);
       return executor;
+   }
+
+   /**
+    * Check if the condition list contains a correlated subquery condition.
+    */
+   public static boolean hasCorrelatedSubQuery(ConditionListWrapper wrapper) {
+      ConditionList conds = wrapper == null ? null : wrapper.getConditionList();
+
+      for(int i = 0; conds != null && i < conds.getSize(); i += 2) {
+         Object cond = conds.getXCondition(i);
+
+         if(!(cond instanceof AssetCondition)) {
+            continue;
+         }
+
+         SubQueryValue val = ((AssetCondition) cond).getSubQueryValue();
+
+         if(val != null && val.isCorrelated()) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
