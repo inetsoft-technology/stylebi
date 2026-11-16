@@ -785,9 +785,15 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
    /**
     * Make sure the data rows are in ascending order with null as the lowest value, which is
     * the order used by the MV and {@link Tool#compare(Object, Object)}. A table that is
-    * already in that order is returned as is.
+    * already in that order is returned as is. A cube table is also returned as is: its MDX
+    * order must be kept, and copying it drops the {@link VSCubeTableLens} wrapper that
+    * {@code Util.findColumn} needs to match the cube column headers (Bug #80153).
     */
    static TableLens sortNullFirst(TableLens lens) {
+      if(lens instanceof VSCubeTableLens) {
+         return lens;
+      }
+
       int hrow = Math.max(1, lens.getHeaderRowCount());
       int ncol = lens.getColCount();
       List<Object[]> rows = new ArrayList<>();
