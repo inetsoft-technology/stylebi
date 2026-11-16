@@ -54,4 +54,13 @@ class PopLocationCloneTest {
       assertEquals(PopVSAssemblyInfo.PopLocation.CENTER, copy.getPopLocation());
       assertEquals(PopVSAssemblyInfo.PopLocation.MOUSE, info.getPopLocation());
    }
+
+   @Test
+   void clonedSubmitInfoDoesNotShareRuntimePopLocation() {
+      SubmitVSAssemblyInfo info = new SubmitVSAssemblyInfo();
+      SubmitVSAssemblyInfo copy = (SubmitVSAssemblyInfo) info.clone();
+      copy.setPopLocation(PopVSAssemblyInfo.PopLocation.CENTER);
+      assertEquals(PopVSAssemblyInfo.PopLocation.CENTER, copy.getPopLocation());
+      assertEquals(PopVSAssemblyInfo.PopLocation.MOUSE, info.getPopLocation());
+   }
 }
