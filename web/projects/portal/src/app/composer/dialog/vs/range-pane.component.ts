@@ -40,6 +40,7 @@ export class RangePane implements OnChanges {
    @Input() model: RangePaneModel;
    @Input() variables: string[];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @Input() mode: ValueMode = ValueMode.TEXT;
    @Input() targetSupported: boolean = false;
    @Input() gradientSupported;

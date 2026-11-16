@@ -37,7 +37,7 @@
           <dynamic-combo-box [editable]="true"
             [variables]="variableValues"
             [(value)]="model.labelText"
-            [vsId]="vsId"
+            [vsId]="vsId" [assemblyName]="assemblyName" dynamicProperty="labelText"
             (typeChange)="selectTextType($event)">
           </dynamic-combo-box>
           <label><span>_#(Label Text)</span></label>

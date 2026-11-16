@@ -42,6 +42,7 @@ export class FillPropPane implements OnInit {
    @Input() model: FillPropPaneModel;
    @Input() variables: string[];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    alphaInvalid: boolean = false;
    fillColors = DefaultPalette.bgWithTransparent;
    @ViewChild("colorType") colorType: DynamicComboBox;

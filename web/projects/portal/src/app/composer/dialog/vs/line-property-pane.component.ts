@@ -29,4 +29,5 @@ export class LinePropertyPane {
    @Input() model: LinePropertyPaneModel;
    @Input() variableValues: string[];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
 }

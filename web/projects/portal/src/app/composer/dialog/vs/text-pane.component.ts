@@ -32,6 +32,7 @@ export class TextPane {
    @Input() variableValues: string[];
    @Input() layoutObject: boolean = false;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
 
    selectTextType(type: ComboMode) {
       let oldType = ComboMode.VALUE;

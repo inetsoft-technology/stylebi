@@ -55,7 +55,7 @@
           <ng-template ngbNavContent>
             <input-label-pane [model]="model.inputLabelPaneModel"
               [variableValues]="variableValues"
-              [vsId]="runtimeId"
+              [vsId]="runtimeId" [assemblyName]="assemblyName"
             (isInputValid)="onLabelValidChanged($event)"></input-label-pane>
           </ng-template>
         </ng-container>

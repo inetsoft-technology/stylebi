@@ -38,6 +38,7 @@ export class RectanglePropertyPane {
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @Input() width: number;
    @Input() height: number;
 }

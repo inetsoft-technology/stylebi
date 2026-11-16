@@ -38,7 +38,7 @@
             <dynamic-combo-box id="column"
               [values]="columnValues" [variables]="variableValues"
               [value]="model.column" (valueChange)="selectColumn($event)"
-              [disable]="columnDisabled()" [vsId]="runtimeId"
+              [disable]="columnDisabled()" [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="column"
               [asTree]="model.logicalModel"
               (typeChange)="selectColType($event)"
               [initSelectedNodesExpanded]="true"
@@ -55,7 +55,7 @@
               <dynamic-combo-box id="aggregate"
                 [values]="aggregates" [variables]="variableValues"
                 [value]="model.aggregate" (valueChange)="selectAgg($event)"
-                (typeChange)="selectAggType($event)" [vsId]="runtimeId"
+                (typeChange)="selectAggType($event)" [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="aggregate"
               [disable]="aggregateDisabled()"></dynamic-combo-box>
               <label>_#(Aggregate)</label>
             </div>
@@ -68,7 +68,7 @@
                 <dynamic-combo-box id="with" [asTree]="model.logicalModel" [grayedOutValues]="grayedOutValues"
                   [values]="withColumnValues" [variables]="variableValues"
                   [(value)]="model.with" [initSelectedNodesExpanded]="true"
-                  [disable]="withDisabled()" [vsId]="runtimeId">
+                  [disable]="withDisabled()" [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="with">
                 </dynamic-combo-box>
                 <label>_#(With)</label>
               </div>
@@ -84,7 +84,7 @@
                     [variables]="variableValues" [editable]="true"
                     [value]="model.num" (onValueTyping)="model.num = $event"
                     (valueChange)="npValueChange($event)"
-                    [vsId]="runtimeId">
+                    [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="nthOperand">
                   </dynamic-combo-box>
                   <label>{{npLabel}}</label>
                 </div>

@@ -44,7 +44,7 @@
         <div class="col">
           <dynamic-combo-box [attr.data-test]="'range' + getIndex(rangeValue.index) + 'ToValue'"
             [(value)]="rangeValue.value" [variables]="variables"
-            [editable]="true" [vsId]="vsId" [mode]="mode">
+            [editable]="true" [vsId]="vsId" [assemblyName]="assemblyName" [dynamicProperty]="'rangeValues[' + rangeValue.index + ']'" [mode]="mode">
           </dynamic-combo-box>
         </div>
         <div class="col-auto">
@@ -63,7 +63,7 @@
       <div class="col-2"></div>
       <div class="col">
         <dynamic-combo-box [(value)]="model.targetValue" [variables]="variables"
-          [editable]="true" [vsId]="vsId" [mode]="mode">
+          [editable]="true" [vsId]="vsId" [assemblyName]="assemblyName" dynamicProperty="targetValue" [mode]="mode">
         </dynamic-combo-box>
       </div>
     </div>

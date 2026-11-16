@@ -31,6 +31,7 @@ export class InputLabelPane implements OnInit {
    @Input() model: InputLabelPaneModel;
    @Input() variableValues: string[];
    @Input() vsId: string;
+   @Input() assemblyName: string = null;
    @Output() isInputValid = new EventEmitter<boolean>();
 
    ngOnInit(): void {

@@ -182,7 +182,9 @@ for(const file of htmlFiles(APP)) {
 const PAIRING_PANES = ["general-prop-pane", "basic-general-pane", "title-prop-pane",
    "value-input-field", "date-input-field", "label-input-field", "computation-dialog",
    "title-format-pane", "legend-format-general-pane",
-   "date-comparison-standard-periods", "date-comparison-custom-periods", "date-comparison-interval-pane"];
+   "date-comparison-standard-periods", "date-comparison-custom-periods", "date-comparison-interval-pane",
+   "input-label-pane", "numeric-range-pane", "fill-prop-pane", "line-prop-pane", "text-pane",
+   "data-output-pane", "number-range-pane", "range-pane"];
 
 /** The properties each pairing pane names (its combos' `dynamicProperty` literals). */
 const PANE_PROPERTIES: Record<string, string[]> = {
@@ -192,6 +194,14 @@ const PANE_PROPERTIES: Record<string, string[]> = {
    "date-comparison-standard-periods": ["dateComparison:periodsBack", "dateComparison:level", "dateComparison:endDate"],
    "date-comparison-custom-periods": ["dateComparison:customPeriods[<x>].start", "dateComparison:customPeriods[<x>].end"],
    "date-comparison-interval-pane": ["dateComparison:interval", "dateComparison:intervalContextLevel", "dateComparison:intervalGranularity", "dateComparison:intervalEndDate"],
+   "input-label-pane": ["labelText"],
+   "numeric-range-pane": ["min", "max", "increment"],
+   "fill-prop-pane": ["fillColor"],
+   "line-prop-pane": ["lineColor"],
+   "text-pane": ["text"],
+   "data-output-pane": ["column", "aggregate", "with", "nthOperand"],
+   "number-range-pane": ["min", "max", "minorIncrement", "majorIncrement"],
+   "range-pane": ["rangeValues[<i>]", "targetValue"],
 };
 
 interface UnpairedProperty {
@@ -357,28 +367,6 @@ function typesOfDialog(d: string): string[] {
 }
 
 const ALLOWLIST: Record<string, { reason: string, usages: [string, string][] }> = {
-   B1: {
-      reason: "PR B1: one-hop property dialog panes, wired by the B1 PR",
-      usages: [
-         ["composer/dialog/vs/data-output-pane.component.html", "model.column"],
-         ["composer/dialog/vs/data-output-pane.component.html", "model.aggregate"],
-         ["composer/dialog/vs/data-output-pane.component.html", "model.with"],
-         ["composer/dialog/vs/data-output-pane.component.html", "model.num"],
-         ["composer/dialog/vs/fill-prop-pane.component.html", "model.color"],
-         ["composer/dialog/vs/input-label-pane.component.html", "model.labelText"],
-         ["composer/dialog/vs/line-prop-pane.component.html", "model.color"],
-         ["composer/dialog/vs/number-range-pane.component.html", "model.min"],
-         ["composer/dialog/vs/number-range-pane.component.html", "model.max"],
-         ["composer/dialog/vs/number-range-pane.component.html", "model.minorIncrement"],
-         ["composer/dialog/vs/number-range-pane.component.html", "model.majorIncrement"],
-         ["composer/dialog/vs/numeric-range-pane.component.html", "model.minimum"],
-         ["composer/dialog/vs/numeric-range-pane.component.html", "model.maximum"],
-         ["composer/dialog/vs/numeric-range-pane.component.html", "model.increment"],
-         ["composer/dialog/vs/range-pane.component.html", "rangeValue.value"],
-         ["composer/dialog/vs/range-pane.component.html", "model.targetValue"],
-         ["composer/dialog/vs/text-pane.component.html", "model.text"],
-      ]
-   },
    B2: {
       reason: "PR B2: property dialog panes with a deeper host chain, wired by the B2 PR",
       usages: [

@@ -221,5 +221,141 @@
       "crosstab"
     ],
     "host": "vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html"
+  },
+  {
+    "name": "column",
+    "assemblyTypes": [
+      "gauge",
+      "text",
+      "image"
+    ],
+    "host": "composer/dialog/vs/data-output-pane.component.html"
+  },
+  {
+    "name": "aggregate",
+    "assemblyTypes": [
+      "gauge",
+      "text",
+      "image"
+    ],
+    "host": "composer/dialog/vs/data-output-pane.component.html"
+  },
+  {
+    "name": "with",
+    "assemblyTypes": [
+      "gauge",
+      "text",
+      "image"
+    ],
+    "host": "composer/dialog/vs/data-output-pane.component.html"
+  },
+  {
+    "name": "nthOperand",
+    "assemblyTypes": [
+      "gauge",
+      "text",
+      "image"
+    ],
+    "host": "composer/dialog/vs/data-output-pane.component.html"
+  },
+  {
+    "name": "fillColor",
+    "assemblyTypes": [
+      "oval",
+      "rectangle"
+    ],
+    "host": "composer/dialog/vs/fill-prop-pane.component.html"
+  },
+  {
+    "name": "labelText",
+    "assemblyTypes": [
+      "combobox",
+      "slider",
+      "spinner",
+      "textinput"
+    ],
+    "host": "composer/dialog/vs/input-label-pane.component.html"
+  },
+  {
+    "name": "lineColor",
+    "assemblyTypes": [
+      "line",
+      "oval",
+      "rectangle"
+    ],
+    "host": "composer/dialog/vs/line-prop-pane.component.html"
+  },
+  {
+    "name": "min",
+    "assemblyTypes": [
+      "gauge"
+    ],
+    "host": "composer/dialog/vs/number-range-pane.component.html"
+  },
+  {
+    "name": "max",
+    "assemblyTypes": [
+      "gauge"
+    ],
+    "host": "composer/dialog/vs/number-range-pane.component.html"
+  },
+  {
+    "name": "minorIncrement",
+    "assemblyTypes": [
+      "gauge"
+    ],
+    "host": "composer/dialog/vs/number-range-pane.component.html"
+  },
+  {
+    "name": "majorIncrement",
+    "assemblyTypes": [
+      "gauge"
+    ],
+    "host": "composer/dialog/vs/number-range-pane.component.html"
+  },
+  {
+    "name": "min",
+    "assemblyTypes": [
+      "slider",
+      "spinner"
+    ],
+    "host": "composer/dialog/vs/numeric-range-pane.component.html"
+  },
+  {
+    "name": "max",
+    "assemblyTypes": [
+      "slider",
+      "spinner"
+    ],
+    "host": "composer/dialog/vs/numeric-range-pane.component.html"
+  },
+  {
+    "name": "increment",
+    "assemblyTypes": [
+      "slider",
+      "spinner"
+    ],
+    "host": "composer/dialog/vs/numeric-range-pane.component.html"
+  },
+  {
+    "name": "rangeValues[<i>]",
+    "assemblyTypes": [
+      "gauge"
+    ],
+    "host": "composer/dialog/vs/range-pane.component.html"
+  },
+  {
+    "name": "targetValue",
+    "assemblyTypes": [
+      "gauge"
+    ],
+    "host": "composer/dialog/vs/range-pane.component.html"
+  },
+  {
+    "name": "text",
+    "assemblyTypes": [
+      "text"
+    ],
+    "host": "composer/dialog/vs/text-pane.component.html"
   }
 ]

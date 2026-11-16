@@ -30,6 +30,7 @@ export class GaugeAdvancedPane {
    @Input() model: GaugeAdvancedPaneModel;
    @Input() variableValues: string[];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
    @Input() targetSupported: boolean;
    @Input() gradientSupported: boolean;
    @Input() numRangesToDisplay: number;

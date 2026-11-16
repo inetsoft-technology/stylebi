@@ -24,7 +24,7 @@
           @if (!layoutObject) {
             <dynamic-combo-box
               [editable]="true" [variables]="variableValues" [(value)]="model.text"
-              [vsId]="vsId" (typeChange)="selectTextType($event)">
+              [vsId]="vsId" [assemblyName]="assemblyName" dynamicProperty="text" (typeChange)="selectTextType($event)">
             </dynamic-combo-box>
           }
           @if (layoutObject) {

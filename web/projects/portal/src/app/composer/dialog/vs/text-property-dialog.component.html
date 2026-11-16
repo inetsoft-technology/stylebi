@@ -37,7 +37,7 @@
       </ng-container>
       <ng-container ngbNavItem="dataTab" [disabled]="layoutObject">
         <a ngbNavLink>_#(Data)</a>
-        <ng-template ngbNavContent><data-output-pane [model]="model.dataOutputPaneModel" [runtimeId]="runtimeId" [variableValues]="variableValues"></data-output-pane></ng-template>
+        <ng-template ngbNavContent><data-output-pane [model]="model.dataOutputPaneModel" [runtimeId]="runtimeId" [assemblyName]="assemblyName" [variableValues]="variableValues"></data-output-pane></ng-template>
       </ng-container>
       <ng-container [ngbNavItem]="scriptTab" [disabled]="layoutObject">
         <a ngbNavLink>_#(Script)</a>
