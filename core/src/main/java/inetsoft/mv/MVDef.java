@@ -842,6 +842,29 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    }
 
    /**
+    * Check if an expression column of the table this MV was built from has been edited in the
+    * specified worksheet since the MV was built. Returns false if it can't be told.
+    *
+    * @param ws the current worksheet holding the bound table.
+    */
+   public boolean isExpressionChanged(Worksheet ws) {
+      Assembly table = ws == null || otname == null ? null : ws.getAssembly(otname);
+
+      return table instanceof TableAssembly &&
+         isExpressionChanged(((TableAssembly) table).getColumnSelection(true));
+   }
+
+   /**
+    * Check if an expression column of the table this MV was built from has a different
+    * expression in the specified column selection. Returns false if it can't be told.
+    *
+    * @param current the current column selection of the table this MV was built from.
+    */
+   public boolean isExpressionChanged(ColumnSelection current) {
+      return data != null && data.isExpressionChanged(current);
+   }
+
+   /**
     * Create mv columns.
     */
    private List<MVColumn> createMVColumns(

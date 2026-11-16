@@ -19,6 +19,7 @@ package inetsoft.mv;
 
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
@@ -576,6 +577,11 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
 
       // not calculate field?
       if(!calc) {
+         if(isExpressionChanged(ref, ref2)) {
+            setHint(Catalog.getCatalog().getString("mv.vs.calc", ref.getName()));
+            return false;
+         }
+
          return true;
       }
 
@@ -594,6 +600,64 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
       }
 
       return sameExp;
+   }
+
+   /**
+    * Check if an expression column of the table this MV was built from has a different
+    * expression in the specified (current) column selection. The MV holds the data computed
+    * by the expression at build time, so it is stale once the expression is edited. A column
+    * that can't be compared (no stored columns, a column missing on either side, no stored
+    * expression text) is treated as unchanged.
+    *
+    * @param current the current column selection of the table the MV was built from.
+    */
+   public boolean isExpressionChanged(ColumnSelection current) {
+      if(columns == null || current == null) {
+         return false;
+      }
+
+      for(int i = 0; i < current.getAttributeCount(); i++) {
+         DataRef ref = current.getAttribute(i);
+         DataRef ref2 = columns.findAttribute(ref);
+
+         if(ref2 != null && isExpressionChanged(ref, ref2)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private boolean isExpressionChanged(DataRef ref, DataRef ref2) {
+      // calculate fields are compared by their own rule
+      if(ref instanceof CalculateRef || ref2 instanceof CalculateRef) {
+         return false;
+      }
+
+      ExpressionRef exp = getColumnExpression(ref);
+      ExpressionRef exp2 = getColumnExpression(ref2);
+
+      if(exp == null || exp2 == null) {
+         return false;
+      }
+
+      try {
+         return ((ColumnRef) ref).isSQL() != ((ColumnRef) ref2).isSQL() ||
+            !Tool.equals(exp.getExpression(), exp2.getExpression());
+      }
+      catch(UnsupportedOperationException ex) {
+         // expression text is not available
+         return false;
+      }
+   }
+
+   private ExpressionRef getColumnExpression(DataRef ref) {
+      if(!(ref instanceof ColumnRef)) {
+         return null;
+      }
+
+      DataRef base = ((ColumnRef) ref).getDataRef();
+      return base instanceof ExpressionRef ? (ExpressionRef) base : null;
    }
 
    private ExpressionRef getExpression(DataRef ref) {

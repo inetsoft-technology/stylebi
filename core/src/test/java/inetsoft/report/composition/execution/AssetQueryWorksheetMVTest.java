@@ -187,6 +187,30 @@ class AssetQueryWorksheetMVTest {
    }
 
    @Test
+   void editedExpressionColumnIsNotGivenTheMV() throws Exception {
+      // Bug #81422, the mv holds the data computed by the expression when it was built
+      MVDef changed = mock(MVDef.class);
+      when(changed.isExpressionChanged(any(ColumnSelection.class))).thenReturn(true);
+      when(mgr.findMV(any(), eq("CUSTOMERS"), any(), isNull())).thenReturn(changed);
+
+      assertFalse(subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
+                                       false)) instanceof MVAssetQuery,
+                  "a worksheet mv built from an edited expression must not be read");
+      assertFalse(WSMVTransformer.containsWSRuntimeMV(root));
+   }
+
+   @Test
+   void unchangedExpressionColumnKeepsTheMV() throws Exception {
+      MVDef unchanged = mock(MVDef.class);
+      when(unchanged.isExpressionChanged(any(ColumnSelection.class))).thenReturn(false);
+      when(mgr.findMV(any(), eq("CUSTOMERS"), any(), isNull())).thenReturn(unchanged);
+
+      assertInstanceOf(MVAssetQuery.class,
+                       subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
+                                            false)));
+   }
+
+   @Test
    void viewsheetConditionReachesTheMVQuery() throws Exception {
       // ViewsheetSandbox.getBoundTable puts the viewsheet conditions and selections on the
       // worksheet table as its pre runtime conditions

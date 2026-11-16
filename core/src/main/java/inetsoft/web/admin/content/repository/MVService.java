@@ -28,7 +28,8 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -488,6 +489,8 @@ public class MVService {
          defs = Arrays.asList(mvManager.list(true, null, principal));
       }
 
+      Map<String, Worksheet> worksheets = new HashMap<>();
+
       for(MVDef def : defs) {
          String sheets = getSheetNames(def);
 
@@ -506,7 +509,8 @@ public class MVService {
                   .status(getStatus(def))
                   .incremental(def.isIncremental())
                   .size(getSize(def))
-                  .valid(def.getMetaData().isValid())
+                  .valid(def.getMetaData().isValid() &&
+                         !isExpressionChanged(def, worksheets, principal))
                   .build()
             );
          }
@@ -521,6 +525,40 @@ public class MVService {
          .runInBackground(runInBackground)
          .dateFormat(Tool.getDateFormatPattern())
          .build();
+   }
+
+   /**
+    * Check if an expression column of the table the MV was built from has been edited in its
+    * worksheet since the MV was built.
+    *
+    * @param worksheets the worksheets loaded so far, by worksheet id.
+    */
+   private boolean isExpressionChanged(MVDef def, Map<String, Worksheet> worksheets,
+                                       Principal principal)
+   {
+      String wsId = def.getMetaData().getWsId();
+
+      if(wsId == null) {
+         return false;
+      }
+
+      try {
+         if(!worksheets.containsKey(wsId)) {
+            AssetEntry entry = AssetEntry.createAssetEntry(wsId);
+            AbstractSheet sheet = entry != null && entry.isWorksheet() ?
+               AssetUtil.getAssetRepository(false).getSheet(
+                  entry, principal, false, AssetContent.ALL) : null;
+            worksheets.put(wsId, sheet instanceof Worksheet ? (Worksheet) sheet : null);
+         }
+
+         return def.isExpressionChanged(worksheets.get(wsId));
+      }
+      catch(Exception ex) {
+         // can't tell, report the status of the mv as is
+         LOG.debug("Failed to check the expressions of worksheet {} for MV {}", wsId,
+                   def.getName(), ex);
+         return false;
+      }
    }
 
    private String getSheetNames(MVDef def) {
