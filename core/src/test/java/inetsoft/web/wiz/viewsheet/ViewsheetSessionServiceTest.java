@@ -20,7 +20,9 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.Test;
@@ -255,7 +257,7 @@ class ViewsheetSessionServiceTest {
          mock(SheetSessionService.class), mock(SheetRuntimeAccess.class),
          mock(SheetAgentBroadcastService.class), undoRedo);
 
-      assertTrue(svc.restoreCheckpoint(rvs, agent, "link", true));
+      assertTrue(svc.restoreCheckpoint(rvs, agent, "link", true).moved());
 
       verify(undoRedo).undo(eq("Viewsheet/foo-7"), eq(agent), eq("link"), any());
       verify(undoRedo, never()).redo(any(), any(), any(), any());
@@ -278,7 +280,7 @@ class ViewsheetSessionServiceTest {
          mock(SheetSessionService.class), mock(SheetRuntimeAccess.class),
          mock(SheetAgentBroadcastService.class), undoRedo);
 
-      assertTrue(svc.restoreCheckpoint(rvs, agent, "", false));
+      assertTrue(svc.restoreCheckpoint(rvs, agent, "", false).moved());
 
       verify(undoRedo, never()).undo(any(), any(), any(), any());
    }
@@ -293,7 +295,7 @@ class ViewsheetSessionServiceTest {
          mock(SheetSessionService.class), mock(SheetRuntimeAccess.class),
          mock(SheetAgentBroadcastService.class), mock(UndoRedoServiceProxy.class));
 
-      assertFalse(svc.restoreCheckpoint(rvs, agent, "", true));
+      assertFalse(svc.restoreCheckpoint(rvs, agent, "", true).moved());
    }
 
    /**
@@ -321,6 +323,57 @@ class ViewsheetSessionServiceTest {
          mock(SheetSessionService.class), mock(SheetRuntimeAccess.class),
          mock(SheetAgentBroadcastService.class), undoRedo);
 
-      assertTrue(svc.restoreCheckpoint(rvs, agent, "", true));
+      assertTrue(svc.restoreCheckpoint(rvs, agent, "", true).moved());
+   }
+
+   /**
+    * Bug #81305: table, crosstab and calc table cells reach the paired canvas only through
+    * LoadTableDataCommand, which the capturing dispatcher swallows, so the restore must hand the
+    * ones the native refresh dispatched back to the caller -- for undo and redo alike -- and only
+    * those: a RemoveVSObjectCommand is already sent by broadcastRemovedAssemblies.
+    */
+   @Test
+   void restoreCheckpointReturnsTheTableDataTheUndoRefreshLoaded() throws Exception {
+      assertTableDataReturned(true);
+   }
+
+   @Test
+   void restoreCheckpointReturnsTheTableDataTheRedoRefreshLoaded() throws Exception {
+      assertTableDataReturned(false);
+   }
+
+   private void assertTableDataReturned(boolean undo) throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("Viewsheet/foo-7");
+      java.util.concurrent.atomic.AtomicInteger current =
+         new java.util.concurrent.atomic.AtomicInteger(3);
+      when(rvs.getCurrent()).thenAnswer(inv -> current.get());
+      LoadTableDataCommand table = mock(LoadTableDataCommand.class);
+      LoadTableDataCommand crosstab = mock(LoadTableDataCommand.class);
+      org.mockito.stubbing.Answer<Object> refresh = inv -> {
+         current.addAndGet(undo ? -1 : 1);
+         CommandDispatcher dispatcher = inv.getArgument(3);
+         dispatcher.sendCommand("Table1", table);
+         dispatcher.sendCommand("Crosstab1", crosstab);
+         dispatcher.sendCommand("Gone1", new RemoveVSObjectCommand());
+         return null;
+      };
+      UndoRedoServiceProxy undoRedo = mock(UndoRedoServiceProxy.class);
+      doAnswer(refresh).when(undoRedo).undo(any(), any(), any(), any());
+      doAnswer(refresh).when(undoRedo).redo(any(), any(), any(), any());
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetSessionService svc = new ViewsheetSessionService(
+         mock(SheetSessionService.class), mock(SheetRuntimeAccess.class),
+         mock(SheetAgentBroadcastService.class), undoRedo);
+
+      ViewsheetSessionService.CheckpointRestore restored =
+         svc.restoreCheckpoint(rvs, agent, "", undo);
+
+      assertTrue(restored.moved());
+      assertEquals(2, restored.tableData().size());
+      assertEquals("Table1", restored.tableData().get(0).getAssembly());
+      assertSame(table, restored.tableData().get(0).getCommand());
+      assertEquals("Crosstab1", restored.tableData().get(1).getAssembly());
+      assertSame(crosstab, restored.tableData().get(1).getCommand());
    }
 }

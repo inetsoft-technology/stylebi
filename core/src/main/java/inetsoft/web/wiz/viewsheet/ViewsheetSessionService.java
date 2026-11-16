@@ -22,6 +22,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldService;
+import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
@@ -123,19 +124,26 @@ public class ViewsheetSessionService {
     * pending edited/added/deleted rows in its cached {@code FormTableLens}) is dropped by the
     * refresh the native service runs after restoring the checkpoint. Restoring the checkpoint
     * alone reported {@code undone:true} while a pending Form edit survived (Bug #81307). The
-    * commands the native service dispatches are captured and discarded; the caller's own broadcast
-    * is what reaches the paired browser. Restoring a checkpoint discards the pending edits of
-    * every Form table on the sheet, not only the one the undone step touched.
+    * commands the native service dispatches are captured; the caller's own broadcast is what
+    * reaches the paired browser, except for the {@code LoadTableDataCommand}s, which are returned
+    * in {@link CheckpointRestore#tableData()} for the caller to forward: table, crosstab and calc
+    * table cells reach the client only through that command, never through the object model the
+    * broadcast carries, so without it a restored table keeps painting the state it had before the
+    * undo (Bug #81305). Every other captured command is dropped on purpose -- a
+    * {@code RemoveVSObjectCommand} is already sent by {@code broadcastRemovedAssemblies}.
+    * Restoring a checkpoint discards the pending edits of every Form table on the sheet, not only
+    * the one the undone step touched.
     *
     * <p>An ERROR the refresh dispatches (a table of the restored state that fails to execute) is
     * logged, not thrown: the checkpoint pointer has already moved by then, so failing the call
     * would skip the caller's broadcast and invite a retry that undoes one more step.
     */
-   public boolean restoreCheckpoint(RuntimeViewsheet rvs, Principal agent, String linkUri,
-                                    boolean undo)
+   public CheckpointRestore restoreCheckpoint(RuntimeViewsheet rvs, Principal agent,
+                                              String linkUri, boolean undo)
       throws Exception
    {
       int before = rvs.getCurrent();
+      List<CommandDispatcher.Command> tableData = new ArrayList<>();
 
       CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
          int mark = dispatcher.capturedCount();
@@ -153,12 +161,28 @@ public class ViewsheetSessionService {
                LOG.warn("The viewsheet refresh after {} reported: {}", undo ? "undo" : "redo",
                         error);
             }
+
+            for(CommandDispatcher.Command command : dispatcher.getCapturedCommands()) {
+               if(command != null && command.getCommand() instanceof LoadTableDataCommand) {
+                  tableData.add(command);
+               }
+            }
          }
 
          return null;
       });
 
-      return rvs.getCurrent() != before;
+      return new CheckpointRestore(rvs.getCurrent() != before, tableData);
+   }
+
+   /**
+    * The outcome of {@link #restoreCheckpoint}.
+    *
+    * @param moved     whether the checkpoint pointer moved
+    * @param tableData the {@code LoadTableDataCommand}s the native refresh dispatched, to be
+    *                  forwarded to the paired browser
+    */
+   public record CheckpointRestore(boolean moved, List<CommandDispatcher.Command> tableData) {
    }
 
    public RuntimeViewsheet resolve(String sessionToken, Principal agent) throws PairingException {
