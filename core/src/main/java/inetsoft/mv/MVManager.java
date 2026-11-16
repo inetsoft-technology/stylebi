@@ -154,9 +154,6 @@ public final class MVManager implements MessageListener {
       }
 
       MVDef mv = findMV(entry, tname, user, null, vbox.getParentVsIds());
-      // TEMP-81422 diagnostic, remove before the final commit
-      LOG.info("TEMP-81422 findRuntimeMV: entry={}, tname={}, vs={}, user={}, mv={}",
-               entry.toIdentifier(), tname, vs != null, user, mv == null ? null : mv.getName());
       RuntimeMV rmv = null;
 
       if(mv != null && vs != null && !isCalcFieldsValid(mv, vs)) {
@@ -167,18 +164,6 @@ public final class MVManager implements MessageListener {
       // the data of an expression column was computed by the expression at build time, don't
       // use the mv once the expression is edited. the mv is replaced (re-analysis or on-demand
       // creation), it's not removed here as this is on the query path.
-      if(mv != null && vs != null) {
-         // TEMP-81422 diagnostic, remove before the final commit
-         try {
-            LOG.info("TEMP-81422 use-time: changed={}, {}",
-                     mv.isExpressionChanged(vs.getBaseWorksheet()),
-                     mv.diagnose81422(vs.getBaseWorksheet()));
-         }
-         catch(Exception ex) {
-            LOG.warn("TEMP-81422 use-time diagnostic failed", ex);
-         }
-      }
-
       if(mv != null && vs != null && mv.isExpressionChanged(vs.getBaseWorksheet())) {
          mv = null;
       }

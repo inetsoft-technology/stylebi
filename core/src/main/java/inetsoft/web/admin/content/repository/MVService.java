@@ -551,14 +551,9 @@ public class MVService {
             worksheets.put(wsId, sheet instanceof Worksheet ? (Worksheet) sheet : null);
          }
 
-         // TEMP-81422 diagnostic, remove before the final commit
-         LOG.info("TEMP-81422 status: wsId={}, sheetLoaded={}, changed={}, {}", wsId,
-                  worksheets.get(wsId) != null, def.isExpressionChanged(worksheets.get(wsId)),
-                  def.diagnose81422(worksheets.get(wsId)));
          return def.isExpressionChanged(worksheets.get(wsId));
       }
       catch(Exception ex) {
-         LOG.warn("TEMP-81422 status check failed for wsId={}", wsId, ex);
          // can't tell, report the status of the mv as is
          LOG.debug("Failed to check the expressions of worksheet {} for MV {}", wsId,
                    def.getName(), ex);

@@ -886,50 +886,6 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       return table instanceof TableAssembly ? (TableAssembly) table : null;
    }
 
-   // TEMP-81422 diagnostic, remove before the final commit
-   public String diagnose81422(Worksheet ws) {
-      StringBuilder sb = new StringBuilder();
-      sb.append("mv=").append(mvname).append(", otname=").append(otname)
-         .append(", tname=").append(tname).append(", wsMV=").append(isWSMV());
-      Worksheet snapshot = getWorksheet();
-      sb.append(", snapshot=").append(snapshot == null ? "null" : "loaded");
-      TableAssembly stable = getBoundTable(snapshot);
-      sb.append(", snapshotTable=").append(stable == null ? null : stable.getName())
-         .append(describe81422(stable == null ? null : stable.getColumnSelection(true)));
-      TableAssembly table = getBoundTable(ws);
-      sb.append(", currentTable=").append(table == null ? null : table.getName())
-         .append(describe81422(table == null ? null : table.getColumnSelection(true)));
-      return sb.toString();
-   }
-
-   private static String describe81422(ColumnSelection cols) {
-      if(cols == null) {
-         return "null";
-      }
-
-      StringBuilder sb = new StringBuilder("[");
-
-      for(int i = 0; i < cols.getAttributeCount(); i++) {
-         DataRef ref = cols.getAttribute(i);
-         sb.append(ref.getClass().getSimpleName()).append(':').append(ref.getName());
-
-         if(ref instanceof ColumnRef) {
-            ColumnRef col = (ColumnRef) ref;
-            DataRef base = col.getDataRef();
-            sb.append('/').append(base == null ? null : base.getClass().getSimpleName())
-               .append("/sql=").append(col.isSQL());
-
-            if(base instanceof ExpressionRef) {
-               sb.append("/exp=").append(((ExpressionRef) base).getExpression());
-            }
-         }
-
-         sb.append(", ");
-      }
-
-      return sb.append(']').toString();
-   }
-
    /**
     * Create mv columns.
     */
