@@ -280,10 +280,16 @@ public class ComposerAdhocFilterService {
       }
 
       final VSAssembly selection = (VSAssembly) assembly;
-      final List<CurrentSelectionVSAssembly> containers = findContainers(vs, selection);
+      // a container that does not allow users to add selections is not a target in the viewer
+      final List<CurrentSelectionVSAssembly> containers =
+         findContainers(vs, selection, rvs.isRuntime());
       CurrentSelectionVSAssembly container = containers.stream()
          .filter(c -> containerName == null || containerName.equals(c.getAbsoluteName()))
-         .findFirst().get();
+         .findFirst().orElse(null);
+
+      if(container == null) {
+         return null;
+      }
       restoreFormats(selection);
       groupingService.groupComponents(rvs, container, selection, true, linkUri, dispatcher, true);
 
@@ -760,7 +766,7 @@ public class ComposerAdhocFilterService {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      List<CurrentSelectionVSAssembly> containers = findContainers(vs, assembly);
+      List<CurrentSelectionVSAssembly> containers = findContainers(vs, assembly, rvs.isRuntime());
       AssetEntry entry = vs.getRuntimeEntry();
 
       if(containers.isEmpty()) {
