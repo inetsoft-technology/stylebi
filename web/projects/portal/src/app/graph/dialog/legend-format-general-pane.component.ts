@@ -47,11 +47,19 @@ export class LegendFormatGeneralPane implements OnInit, OnDestroy {
    @Input() model: LegendFormatGeneralPaneModel;
    @Input() form: UntypedFormGroup;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
+   /** The legend this pane edits, by the index the event and the region tools address. */
+   @Input() legendIndex: number = -1;
    private symbolSizeSubscription: Subscription;
 
    constructor(private modalService: NgbModal,
                private uiContextService: UIContextService)
    {
+   }
+
+   /** No assembly means no pairing, so a missing legend never produces a name the server refuses. */
+   get pairingAssembly(): string {
+      return Number.isInteger(this.legendIndex) && this.legendIndex >= 0 ? this.assemblyName : null;
    }
 
    get borderStyle(): string {

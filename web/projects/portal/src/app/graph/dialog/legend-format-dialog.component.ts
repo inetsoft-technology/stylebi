@@ -48,6 +48,8 @@ export class LegendFormatDialog implements OnInit {
    @Input() model: LegendFormatDialogModel;
    @Input() variableValues: string[] = [];
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
+   @Input() legendIndex: number = -1;
    @Output() onCommit: EventEmitter<LegendFormatDialogModel> =
       new EventEmitter<LegendFormatDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();

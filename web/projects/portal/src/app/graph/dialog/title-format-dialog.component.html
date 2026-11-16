@@ -21,7 +21,8 @@
 @if (model) {
   <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
     <title-format-pane [model]="model.titleFormatPaneModel"
-      [viewer]="viewer" [variableValues]="variableValues" [vsId]="vsId">
+      [viewer]="viewer" [variableValues]="variableValues" [vsId]="vsId"
+      [assemblyName]="assemblyName" [axisTitleType]="axisTitleType">
     </title-format-pane>
   </div>
 }

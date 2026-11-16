@@ -22,6 +22,8 @@
         <div class="form-floating">
           <dynamic-combo-box [(value)]="model.titleValue"
             [origValue]="model.title" [vsId]="vsId"
+            [assemblyName]="pairingAssembly"
+            [dynamicProperty]="'chartRegion:legend/' + legendIndex + '/title'"
             [editable]="true" [variables]="variableValues"
             (valueChange)="onValueChange($event)"
             data-test="legend-title">

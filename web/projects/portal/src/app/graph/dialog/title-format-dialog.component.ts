@@ -38,6 +38,8 @@ export class TitleFormatDialog {
    @Input() variableValues: string[] = [];
    @Input() viewer: boolean = false;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
+   @Input() axisTitleType: string = null;
    formValid = () => this.isValid();
    @Output() onCommit: EventEmitter<TitleFormatDialogModel> =
       new EventEmitter<TitleFormatDialogModel>();

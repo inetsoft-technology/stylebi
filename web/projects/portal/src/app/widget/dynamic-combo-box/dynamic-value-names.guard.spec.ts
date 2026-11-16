@@ -177,7 +177,8 @@ for(const file of htmlFiles(APP)) {
  */
 /** Panes whose combos name a property but need the assembly and runtime id from their parents. */
 const PAIRING_PANES = ["general-prop-pane", "basic-general-pane", "title-prop-pane",
-   "value-input-field", "date-input-field", "label-input-field", "computation-dialog"];
+   "value-input-field", "date-input-field", "label-input-field", "computation-dialog",
+   "title-format-pane", "legend-format-general-pane"];
 
 /** The properties each pairing pane names (its combos' `dynamicProperty` literals). */
 const PANE_PROPERTIES: Record<string, string[]> = {
@@ -241,6 +242,8 @@ const DIALOG_TYPES: Record<string, string> = {
    "vsobjects/dialog/graph/chart-property-dialog.component.ts": "chart",
    "vsobjects/dialog/range-slider-property-dialog.component.ts": "timeslider",
    "vsobjects/dialog/table-view-property-dialog.component.ts": "table",
+   "graph/dialog/title-format-dialog.component.ts": "chart",
+   "graph/dialog/legend-format-dialog.component.ts": "chart",
 };
 
 /**
@@ -261,6 +264,10 @@ const HIDDEN_BY_DIALOG: { property: string, type: string, service: string }[] = 
 
 const JAVA_WEB = resolve(HERE, "../../../../../../../core/src/main/java/inetsoft/web");
 
+/** Dialogs the chart action handler opens from TypeScript: they are dialogs although they are not PropertyDialogs. */
+const HANDLER_OPENED = ["graph/dialog/title-format-dialog.component.ts",
+   "graph/dialog/legend-format-dialog.component.ts"];
+
 /**
  * The selector of the component a template belongs to, or null for a property dialog: a dialog
  * is opened programmatically and gets its own `assemblyName` from PropertyDialog, so the chain
@@ -272,6 +279,7 @@ function selectorOf(file: string): string | null {
    try {
       const source = readFileSync(join(APP, ts), "utf8");
       return /extends\s+PropertyDialog/.test(source) ? null
+         : HANDLER_OPENED.includes(file.replace(/\.html$/, ".ts")) ? null
          : /selector:\s*"([^"]+)"/.exec(source)?.[1] ?? null;
    }
    catch(e) {
@@ -284,7 +292,8 @@ function dialogFileOf(file: string): string | null {
    const ts = file.replace(/\.html$/, ".ts");
 
    try {
-      return /extends\s+PropertyDialog/.test(readFileSync(join(APP, ts), "utf8")) ? ts : null;
+      return /extends\s+PropertyDialog/.test(readFileSync(join(APP, ts), "utf8")) ||
+         HANDLER_OPENED.includes(ts) ? ts : null;
    }
    catch(e) {
       return null;
@@ -405,13 +414,6 @@ const ALLOWLIST: Record<string, { reason: string, usages: [string, string][] }> 
          ["vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html", "standardPeriodPaneModel.preCount.value"],
          ["vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html", "visibleStandardPeriodLevel"],
          ["vsobjects/dialog/date-comparison-dialog/date-comparison-standard-periods.component.html", "standardPeriodPaneModel.endDay"],
-      ]
-   },
-   F: {
-      reason: "PR F: chart title and legend format dialogs, wired by the F PR",
-      usages: [
-         ["graph/dialog/legend-format-general-pane.component.html", "model.titleValue"],
-         ["graph/dialog/title-format-pane.component.html", "model.title"],
       ]
    },
    NONE: {

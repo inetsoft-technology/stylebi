@@ -24,6 +24,8 @@
           <dynamic-combo-box [valueOnly]="viewer" [value]="model.title"
                              [origValue]="model.currentTitle" [selectOnClick]="true"
                              [editable]="true" [vsId]="vsId"
+                             [assemblyName]="pairingAssembly"
+                             [dynamicProperty]="'chartRegion:title/' + axisTitleType + '/title'"
                              (valueChange)="onValueChange($event)"
                              [variables]="variableValues">
           </dynamic-combo-box>

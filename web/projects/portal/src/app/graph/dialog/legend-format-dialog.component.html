@@ -26,6 +26,7 @@
         <ng-template ngbNavContent>
           <legend-format-general-pane [(form)]="form.controls['formatForm']"
             [model]="model.legendFormatGeneralPaneModel" [vsId]="vsId"
+            [assemblyName]="assemblyName" [legendIndex]="legendIndex"
           [variableValues]="variableValues"></legend-format-general-pane></ng-template>
         </ng-container>
         @if (!model.dimension && !model.time) {
