@@ -22,6 +22,7 @@ import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -102,6 +103,7 @@ public class TableStyleController {
       tableStyleModel.setId(id);
       tableStyleModel.setStyleId(style.getID());
       tableStyleModel.setStyleName(style.getName());
+      tableStyleModel.setLastModified(style.getLastModified());
       tableStyleModel.setCssStyleFormat(tableStyleService.getCSSTableStyleModel(style));
 
       return tableStyleModel;
@@ -109,21 +111,33 @@ public class TableStyleController {
 
    @PostMapping("/api/composer/table-style/save")
    @ResponseBody
-   public void saveTableStyle(@RequestBody TableStyleModel tableStyleModel, Principal principal)
+   public TableStyleSaveResult saveTableStyle(@RequestBody TableStyleModel tableStyleModel,
+                                              Principal principal)
       throws Exception
    {
       if(tableStyleModel == null) {
-         return;
+         return null;
       }
 
       LibManager manager = libManagerProvider.getManager(principal);
       TableStyleFormatModel styleFormat = tableStyleModel.getStyleFormat();
 
       if(tableStyleModel.getStyleId() == null) {
-         return;
+         return null;
       }
 
-      XTableStyle style = manager.getTableStyle(tableStyleModel.getStyleId()).clone();
+      XTableStyle stored = manager.getTableStyle(tableStyleModel.getStyleId());
+
+      // the editor was opened on an older version of the style (saved by another user, another
+      // editor tab or a plugin since); don't silently replace those changes (Bug #81335)
+      if(!tableStyleModel.isOverwrite() && tableStyleModel.getLastModified() != null &&
+         tableStyleModel.getLastModified() != stored.getLastModified())
+      {
+         return new TableStyleSaveResult(true, stored.getLastModified(),
+            Catalog.getCatalog().getString("table.style.modifiedElsewhere"));
+      }
+
+      XTableStyle style = stored.clone();
       String objectName = tableStyleService.getObjectName(Tool.getTableStyleLabel(style.getName()));
       ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_EDIT,
          objectName, ActionRecord.OBJECT_TYPE_TABLE_STYLE);
@@ -136,6 +150,7 @@ public class TableStyleController {
          style.setLastModifiedBy(pId.getName());
          manager.setTableStyle(style.getID(), style);
          manager.save();
+         return new TableStyleSaveResult(false, style.getLastModified(), null);
       }
       catch(Exception ex) {
          if(actionRecord != null) {

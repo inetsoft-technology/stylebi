@@ -110,6 +110,47 @@ class TableStyleControllerTest {
    }
 
    @Test
+   void saveRefusedWhenStoredStyleChangedSinceOpen() throws Exception {
+      when(storedStyle.getLastModified()).thenReturn(200L);
+      TableStyleModel model = createSaveModel();
+      model.setLastModified(100L);
+
+      TableStyleSaveResult result = controller.saveTableStyle(model, principal);
+
+      assertTrue(result.isConflict());
+      assertEquals(200L, result.getLastModified());
+      verify(libManager, never()).setTableStyle(anyString(), any());
+      verify(libManager, never()).save();
+   }
+
+   @Test
+   void saveWithOverwriteSucceedsEvenWhenStoredStyleChanged() throws Exception {
+      when(storedStyle.getLastModified()).thenReturn(200L);
+      TableStyleModel model = createSaveModel();
+      model.setLastModified(100L);
+      model.setOverwrite(true);
+
+      TableStyleSaveResult result = controller.saveTableStyle(model, principal);
+
+      assertFalse(result.isConflict());
+      verify(libManager).setTableStyle(STYLE_ID, clonedStyle);
+      verify(libManager).save();
+   }
+
+   @Test
+   void saveSucceedsWhenStoredStyleUnchangedSinceOpen() throws Exception {
+      when(storedStyle.getLastModified()).thenReturn(100L);
+      TableStyleModel model = createSaveModel();
+      model.setLastModified(100L);
+
+      TableStyleSaveResult result = controller.saveTableStyle(model, principal);
+
+      assertFalse(result.isConflict());
+      verify(libManager).setTableStyle(STYLE_ID, clonedStyle);
+      verify(libManager).save();
+   }
+
+   @Test
    void saveAsDeniedDoesNotWriteLibrary() throws Exception {
       denyWrite();
 
