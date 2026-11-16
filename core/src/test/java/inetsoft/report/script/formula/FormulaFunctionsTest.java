@@ -290,6 +290,20 @@ public class FormulaFunctionsTest {
       assertArrayEquals(expected, (Object[]) FormulaFunctions.toList(input.clone(), options));
    }
 
+   // #81461: a fractional Double is not a duplicate of the Integer with the same integer part
+   @Test
+   void toListDistinctKeepsIntegerAndFractionalValues() {
+      assertArrayEquals(new Object[] { 1, 1.5 },
+                        (Object[]) FormulaFunctions.toList(new Object[] { 1, 1.5 }, ""));
+      assertEquals(4, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.5, 2, 2.5 }, "")).length);
+      assertEquals(4, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 2.5, 2, 1.5, 1 }, "")).length);
+      // the same value as a Double and as an Integer is still one value
+      assertEquals(1, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.0 }, "")).length);
+   }
+
    // toList returns a new list; the array passed in is a script value and must stay as it was.
    // Control: with the default distinct=true the input is left alone.
    @Test

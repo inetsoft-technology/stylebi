@@ -1245,21 +1245,23 @@ public class FormulaFunctions {
                return true;
             }
 
+            // a narrower key only matches when the conversion is lossless, otherwise
+            // 1.5 would be taken as a duplicate of 1
             int ival = ((Number) val).intValue();
 
-            if(map.containsKey(ival)) {
+            if(ival == dval && map.containsKey(ival)) {
                return true;
             }
 
             float fval = ((Number) val).floatValue();
 
-            if(map.containsKey(fval)) {
+            if(fval == dval && map.containsKey(fval)) {
                return true;
             }
 
             long lval = ((Number) val).longValue();
 
-            if(map.containsKey(lval)) {
+            if(lval == dval && map.containsKey(lval)) {
                return true;
             }
          }
