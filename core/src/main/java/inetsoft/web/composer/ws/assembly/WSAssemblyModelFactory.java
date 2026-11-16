@@ -31,6 +31,18 @@ public class WSAssemblyModelFactory {
    public static WSAssemblyModel createModelFrom(
       WSAssembly assembly, RuntimeWorksheet rws, Principal principal) throws Exception
    {
+      return createModelFrom(assembly, rws, principal, true);
+   }
+
+   /**
+    * @param liveMetadata false builds a table's model without executing the table (see
+    *                     {@link TableAssemblyModelFactory#createModelFrom(AbstractTableAssembly,
+    *                     RuntimeWorksheet, Principal, boolean)}); other assemblies ignore it.
+    */
+   public static WSAssemblyModel createModelFrom(
+      WSAssembly assembly, RuntimeWorksheet rws, Principal principal, boolean liveMetadata)
+      throws Exception
+   {
       WSAssemblyModel model = null;
 
       GroupedThread.withGroupedThread(groupedThread -> {
@@ -46,7 +58,8 @@ public class WSAssemblyModelFactory {
       });
 
       if(assembly instanceof AbstractTableAssembly) {
-         model = createTableModelFrom((AbstractTableAssembly) assembly, rws, principal);
+         model = TableAssemblyModelFactory.createModelFrom(
+            (AbstractTableAssembly) assembly, rws, principal, liveMetadata);
       }
       else if(assembly instanceof VariableAssembly) {
          model = createVariableModelFrom((VariableAssembly) assembly, rws);
