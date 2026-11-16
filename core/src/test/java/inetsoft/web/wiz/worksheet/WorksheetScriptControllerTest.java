@@ -340,6 +340,157 @@ class WorksheetScriptControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // The draft-only worksheet kinds (Bug #80459): worksheetVariableDefault, worksheetSqlQuery
+   // ---------------------------------------------------------------------------
+
+   /**
+    * A controller over a REAL {@link WorksheetScriptService} whose Free Form SQL check is the test's
+    * own. The edit service is a mock on purpose: a draft never reaches an edit op, and the test
+    * asserts exactly that through {@code worksheetController}.
+    */
+   private record DraftStack(WorksheetScriptController controller, SheetAgentBroadcastService broadcast,
+                             WorksheetAgentController worksheetController) {}
+
+   private static DraftStack buildDraftStack(Worksheet ws, JoinSession session,
+                                             boolean sqlAllowed)
+      throws Exception
+   {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getUser()).thenReturn(agent());
+
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(eq(TOKEN), any())).thenReturn(session);
+
+      WorksheetEditService editService = mock(WorksheetEditService.class);
+      when(editService.resolve(eq(TOKEN), any())).thenReturn(rws);
+
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      when(broadcast.pushScriptRefresh(any(), any(), any(), any(), any(), any(), any()))
+         .thenReturn(true);
+      WorksheetAgentController worksheetController = mock(WorksheetAgentController.class);
+
+      WorksheetScriptService scriptService =
+         new WorksheetScriptService(editService, worksheetController, broadcast) {
+            @Override
+            boolean freeFormSqlAllowed(Principal user) {
+               return sqlAllowed;
+            }
+
+            @Override
+            String syntaxProblem(String text) {
+               return null;
+            }
+         };
+
+      return new DraftStack(
+         new WorksheetScriptController(featureOn(), sessionService, editService, scriptService),
+         broadcast, worksheetController);
+   }
+
+   private static Worksheet draftWorksheet() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new inetsoft.uql.asset.DefaultVariableAssembly(ws, "Var1"));
+      ws.addAssembly(new inetsoft.uql.asset.SQLBoundTableAssembly(ws, "SQL Query1"));
+      return ws;
+   }
+
+   @Test
+   void aVariableDefaultDraftIsPushedOverHttpAndNeverTouchesTheWorksheet() throws Exception {
+      DraftStack stack = buildDraftStack(draftWorksheet(), paneSession(
+         new EditorContext("worksheetVariableDefault", "Var1", null, null)), false);
+      Principal agent = agent();
+
+      var req = new WorksheetScriptController.WriteScriptRequest(
+         null, null, "worksheetVariableDefault", "Var1", null, "= 1 + 1", null, null, null);
+      var result = stack.controller().writeScript(TOKEN, req, agent);
+
+      assertEquals(Boolean.TRUE, result.pending());
+      verify(stack.broadcast()).pushScriptRefresh(any(RuntimeWorksheet.class), eq(RUNTIME_ID),
+         eq(agent), eq("worksheetVariableDefault"), eq("Var1"), isNull(), eq("1 + 1"));
+      verifyNoInteractions(stack.worksheetController());
+
+      ScriptInfo info = stack.controller().readScript(TOKEN, null, null, "worksheetVariableDefault",
+                                                      "Var1", null, agent);
+      assertEquals("", info.text());
+      assertEquals(Boolean.TRUE, info.pending());
+
+      ScriptTargetsResponse targets = stack.controller().targets(TOKEN, agent);
+      assertTrue(targets.supportedKinds().contains("worksheetVariableDefault"));
+      assertTrue(targets.supportedKinds().contains("worksheetSqlQuery"));
+      assertTrue(targets.supportedKinds().contains("vsHyperlinkExpression"));
+      assertEquals(1, targets.targets().size());
+      assertEquals("worksheetVariableDefault", targets.targets().get(0).kind());
+   }
+
+   @Test
+   void aSqlDraftIsPushedByteIdenticalOverHttpForAnAllowedUser() throws Exception {
+      DraftStack stack = buildDraftStack(draftWorksheet(), paneSession(
+         new EditorContext("worksheetSqlQuery", "SQL Query1", null, null)), true);
+      Principal agent = agent();
+
+      var req = new WorksheetScriptController.WriteScriptRequest(
+         null, null, "worksheetSqlQuery", "SQL Query1", null, "select 1 from dual", null, null,
+         null);
+      var result = stack.controller().writeScript(TOKEN, req, agent);
+
+      assertEquals(Boolean.TRUE, result.pending());
+      verify(stack.broadcast()).pushScriptRefresh(any(RuntimeWorksheet.class), eq(RUNTIME_ID),
+         eq(agent), eq("worksheetSqlQuery"), eq("SQL Query1"), isNull(),
+         eq("select 1 from dual"));
+      verifyNoInteractions(stack.worksheetController());
+      assertEquals(1, stack.controller().targets(TOKEN, agent).targets().size());
+   }
+
+   @Test
+   void aDeniedSqlUserGets403OnWriteReadAndAnEmptyTargetsList() throws Exception {
+      DraftStack stack = buildDraftStack(draftWorksheet(), paneSession(
+         new EditorContext("worksheetSqlQuery", "SQL Query1", null, null)), false);
+      Principal agent = agent();
+      var req = new WorksheetScriptController.WriteScriptRequest(
+         null, null, "worksheetSqlQuery", "SQL Query1", null, "select 1", null, null, null);
+
+      PairingException write = assertThrows(PairingException.class,
+         () -> stack.controller().writeScript(TOKEN, req, agent));
+      PairingException read = assertThrows(PairingException.class,
+         () -> stack.controller().readScript(TOKEN, null, null, "worksheetSqlQuery",
+                                             "SQL Query1", null, agent));
+
+      for(PairingException ex : new PairingException[] { write, read }) {
+         var response = stack.controller().handlePairingException(ex);
+
+         assertEquals(org.springframework.http.HttpStatus.FORBIDDEN, response.getStatusCode());
+         assertEquals("USER_MISMATCH", response.getBody().get("errorCode"));
+         assertEquals(SheetPairingService.FREE_FORM_SQL_DENIED, response.getBody().get("error"));
+      }
+
+      verify(stack.broadcast(), never()).pushScriptRefresh(any(), any(), any(), any(), any(), any(),
+                                                            any());
+      verifyNoInteractions(stack.worksheetController());
+      assertTrue(stack.controller().targets(TOKEN, agent).targets().isEmpty());
+   }
+
+   @Test
+   void aWholeSheetSessionCannotWriteEitherDraftKindOverHttp() throws Exception {
+      DraftStack stack = buildDraftStack(draftWorksheet(), wholeSheetSession(), true);
+      Principal agent = agent();
+
+      for(String[] c : new String[][] { { "worksheetVariableDefault", "Var1" },
+                                        { "worksheetSqlQuery", "SQL Query1" } })
+      {
+         var req = new WorksheetScriptController.WriteScriptRequest(
+            null, null, c[0], c[1], null, "x", null, null, null);
+         PairingException ex = assertThrows(PairingException.class,
+            () -> stack.controller().writeScript(TOKEN, req, agent), c[0]);
+
+         assertTrue(ex.getMessage().contains("has no name at sheet level"), ex.getMessage());
+      }
+
+      verify(stack.broadcast(), never()).pushScriptRefresh(any(), any(), any(), any(), any(), any(),
+                                                            any());
+   }
+
+   // ---------------------------------------------------------------------------
    // Feature gate
    // ---------------------------------------------------------------------------
 

@@ -19,10 +19,15 @@ package inetsoft.web.wiz.pairing;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.*;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SQLBoundTableAssembly;
 import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.VariableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
@@ -40,6 +45,8 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.security.SecureRandom;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 
@@ -71,7 +78,17 @@ public class SheetPairingService {
       "viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick", "calcField",
       "worksheetExpression", "worksheetCondition", "worksheetConditionValue",
       EditorContext.CALC_TABLE_CELL, EditorContext.VS_CONDITION_VALUE,
-      EditorContext.DYNAMIC_VALUE);
+      EditorContext.DYNAMIC_VALUE, EditorContext.WORKSHEET_VARIABLE_DEFAULT,
+      EditorContext.VS_HYPERLINK_EXPRESSION, EditorContext.WORKSHEET_SQL_QUERY);
+
+   /**
+    * The refusal for a user without the Free Form SQL permission, on every path that serves the
+    * {@code worksheetSqlQuery} kind. One text for a real and a missing table alike, so the refusal
+    * cannot be used to probe table names.
+    */
+   public static final String FREE_FORM_SQL_DENIED =
+      "You do not have permission to edit free-form SQL (Visual Composer > Free Form SQL), so " +
+      "this editor cannot be paired.";
 
    /**
     * The two assembly-scoped script kinds (as opposed to viewsheetOnInit/viewsheetOnLoad, which
@@ -242,6 +259,22 @@ public class SheetPairingService {
 
       if(EditorContext.DYNAMIC_VALUE.equals(ctx.kind())) {
          validateDynamicValueContext(sheetType, runtimeId, rs, ctx);
+         return;
+      }
+
+      if(EditorContext.WORKSHEET_VARIABLE_DEFAULT.equals(ctx.kind())) {
+         validateWorksheetVariableContext(sheetType, runtimeId, rs, ctx);
+         return;
+      }
+
+      if(EditorContext.VS_HYPERLINK_EXPRESSION.equals(ctx.kind())) {
+         validateHyperlinkContext(sheetType, runtimeId, rs, ctx);
+         return;
+      }
+
+      if(EditorContext.WORKSHEET_SQL_QUERY.equals(ctx.kind())) {
+         // An instance method, unlike its siblings: it needs the Free Form SQL seam.
+         validateWorksheetSqlContext(sheetType, runtimeId, rs, ctx);
          return;
       }
 
@@ -426,6 +459,191 @@ public class SheetPairingService {
          throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
             "editorContext kind 'dynamicValue' on '" + ctx.assembly() + "': " + problem);
       }
+   }
+
+   /**
+    * Verifies a {@code worksheetVariableDefault} context: a worksheet runtime and a variable name.
+    * An existing variable must exist on the worksheet; a pending (new) one must NOT, the same
+    * rule the Variable Properties dialog applies to its Name field, so a stale name can never
+    * alias an unrelated assembly later. Nothing finer: the value is the dialog's draft.
+    */
+   private static void validateWorksheetVariableContext(SheetType sheetType, String runtimeId,
+                                                        RuntimeSheet rs, EditorContext ctx)
+      throws PairingException
+   {
+      Worksheet ws = requireWorksheetDraftContext(sheetType, runtimeId, rs, ctx);
+
+      if(isBlank(ctx.assembly())) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind '" + ctx.kind() + "' requires 'assembly' (the variable's name)");
+      }
+
+      if(!isBlank(ctx.name())) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind '" + ctx.kind() + "' takes no 'name'");
+      }
+
+      Assembly a = ws.getAssembly(ctx.assembly());
+
+      if(ctx.pending()) {
+         if(a != null) {
+            throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+               "Name '" + ctx.assembly() + "' is already used by an assembly of this worksheet");
+         }
+      }
+      else if(!(a instanceof VariableAssembly)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Variable not found: " + ctx.assembly());
+      }
+   }
+
+   /**
+    * Verifies a {@code worksheetSqlQuery} context. The Free Form SQL permission is checked FIRST,
+    * before any lookup, so a user without it cannot tell a real table from a missing one: both get
+    * {@link #FREE_FORM_SQL_DENIED}. The principal is the runtime's owner, whom the ownership check
+    * in {@link #validateEditorContext} has just proven to be the minting user. A runtime with no
+    * owner is denied (fail closed).
+    */
+   private void validateWorksheetSqlContext(SheetType sheetType, String runtimeId,
+                                            RuntimeSheet rs, EditorContext ctx)
+      throws PairingException
+   {
+      if(rs == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+            "Runtime not found or expired: " + runtimeId);
+      }
+
+      if(!freeFormSqlAllowed(rs.getUser())) {
+         throw new PairingException(PairingException.Kind.USER_MISMATCH, FREE_FORM_SQL_DENIED);
+      }
+
+      Worksheet ws = requireWorksheetDraftContext(sheetType, runtimeId, rs, ctx);
+
+      if(isBlank(ctx.assembly())) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind '" + ctx.kind() + "' requires 'assembly' (the query table's name)");
+      }
+
+      if(!isBlank(ctx.name())) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind '" + ctx.kind() + "' takes no 'name'");
+      }
+
+      Assembly a = ws.getAssembly(ctx.assembly());
+
+      if(ctx.pending()) {
+         if(a != null) {
+            throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+               "Name '" + ctx.assembly() + "' is already used by an assembly of this worksheet");
+         }
+      }
+      else if(!(a instanceof SQLBoundTableAssembly)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Not a SQL-bound table: " + ctx.assembly());
+      }
+   }
+
+   /**
+    * Whether {@code user} holds the Free Form SQL permission (Visual Composer > Free Form SQL).
+    * The single seam every path of the {@code worksheetSqlQuery} kind goes through, overridable so
+    * a test can inject allow/deny without a security engine. Fails closed: no user, no security
+    * engine or any exception means no.
+    */
+   boolean freeFormSqlAllowed(Principal user) {
+      return isFreeFormSqlAllowed(user);
+   }
+
+   /**
+    * The production check behind {@link #freeFormSqlAllowed}, shared with the worksheet package's
+    * own seam so the two cannot drift apart.
+    */
+   public static boolean isFreeFormSqlAllowed(Principal user) {
+      if(user == null) {
+         return false;
+      }
+
+      try {
+         return SecurityEngine.getSecurity()
+            .checkPermission(user, ResourceType.FREE_FORM_SQL, "*", ResourceAction.ACCESS);
+      }
+      catch(Exception ex) {
+         return false;
+      }
+   }
+
+   /** The worksheet of a worksheet-only draft kind, or the error naming what was wrong. */
+   private static Worksheet requireWorksheetDraftContext(SheetType sheetType, String runtimeId,
+                                                         RuntimeSheet rs, EditorContext ctx)
+      throws PairingException
+   {
+      if(rs == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+            "Runtime not found or expired: " + runtimeId);
+      }
+
+      if(sheetType != SheetType.WORKSHEET || !(rs instanceof RuntimeWorksheet rws) ||
+         rws.getWorksheet() == null)
+      {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind '" + ctx.kind() + "' requires a worksheet runtime");
+      }
+
+      return rws.getWorksheet();
+   }
+
+   /**
+    * Verifies a {@code vsHyperlinkExpression} context: a viewsheet runtime, an existing assembly,
+    * a well-formed region name and a region that exists on that assembly's type. Nothing finer is
+    * checked on purpose -- the value being edited is the user's open Hyperlink dialog draft.
+    */
+   private static void validateHyperlinkContext(SheetType sheetType, String runtimeId,
+                                                RuntimeSheet rs, EditorContext ctx)
+      throws PairingException
+   {
+      if(rs == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+            "Runtime not found or expired: " + runtimeId);
+      }
+
+      if(sheetType != SheetType.VIEWSHEET || !(rs instanceof RuntimeViewsheet rvs) ||
+         rvs.getViewsheet() == null)
+      {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'vsHyperlinkExpression' requires a viewsheet runtime");
+      }
+
+      if(isBlank(ctx.assembly())) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'vsHyperlinkExpression' requires 'assembly'");
+      }
+
+      String problem = HyperlinkRegionName.problem(ctx.name());
+
+      if(problem != null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'vsHyperlinkExpression' requires a valid 'name': " + problem);
+      }
+
+      Assembly a = rvs.getViewsheet().getAssembly(ctx.assembly());
+
+      if(!(a instanceof VSAssembly)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Assembly not found: " + ctx.assembly());
+      }
+
+      HyperlinkRegionName region = HyperlinkRegionName.parse(ctx.name());
+      Set<String> types = HyperlinkRegionName.typesOf(region.form());
+      String type = PropertyAliases.typeKeyOf(a);
+
+      if(!types.contains(type)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "'" + ctx.name() + "' is not available on " + article(type) + " " + type +
+            "; it applies to " + String.join(", ", new TreeSet<>(types)) + " only");
+      }
+   }
+
+   private static String article(String type) {
+      return type != null && !type.isEmpty() && "aeiou".indexOf(type.charAt(0)) >= 0 ? "an" : "a";
    }
 
    /**

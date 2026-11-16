@@ -191,9 +191,15 @@ public class ScriptEditService {
             "edit_expression/edit_condition) instead.");
          // Fail loud for the same reason: a draft-only value is pushed by writeDraft, never
          // written to the runtime through this method.
-         case VS_CONDITION_VALUE, DYNAMIC_VALUE -> throw new PairingException(
+         case VS_CONDITION_VALUE, DYNAMIC_VALUE, VS_HYPERLINK_EXPRESSION -> throw new PairingException(
             "'" + target.kind().wireName() + "' is a draft-only target; it is pushed into the " +
             "user's open dialog, not written through the viewsheet script API.");
+         // A worksheet draft has no RuntimeViewsheet representation either (and is pushed, not
+         // written): fail loud, never the silent success of an unnamed Location.
+         case WORKSHEET_VARIABLE_DEFAULT, WORKSHEET_SQL_QUERY -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is a worksheet draft-only target; it is pushed " +
+            "into the user's open worksheet dialog by the worksheet session, not written " +
+            "through the viewsheet script API.");
       }
 
       // Bug #80447 symptom 1: the canvas-repaint broadcast apply() already issues (per-assembly
@@ -278,6 +284,12 @@ public class ScriptEditService {
          case DYNAMIC_VALUE -> throw new PairingException(
             "'dynamicValue': a dynamic value has no enable flag; only scripts can be enabled " +
             "or disabled.");
+         case VS_HYPERLINK_EXPRESSION -> throw new PairingException(
+            "'vsHyperlinkExpression': a hyperlink expression has no enable flag; only scripts " +
+            "can be enabled or disabled.");
+         case WORKSHEET_VARIABLE_DEFAULT, WORKSHEET_SQL_QUERY -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is a worksheet draft-only target with no enable " +
+            "flag; it cannot be toggled through the viewsheet script API.");
       }
    }
 
@@ -300,10 +312,36 @@ public class ScriptEditService {
       return switch(target.kind()) {
          case VS_CONDITION_VALUE -> writeConditionDraft(rvs, agent, target, text);
          case DYNAMIC_VALUE -> writeDynamicDraft(rvs, agent, target, text);
+         case VS_HYPERLINK_EXPRESSION -> writeHyperlinkDraft(rvs, agent, target, text);
+         case WORKSHEET_VARIABLE_DEFAULT, WORKSHEET_SQL_QUERY ->
+            throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+               "'" + target.kind().wireName() + "' is a worksheet draft target: it is pushed by " +
+               "a session joined to the worksheet, never through a viewsheet session.");
          default -> throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
             "'" + target.kind().wireName() + "' is not a draft-only target; it is written " +
             "through the script API, not pushed into a dialog.");
       };
+   }
+
+   /**
+    * The Hyperlink dialog's editor holds the expression WITH its leading '=' (the dialog re-adds
+    * it when missing), so the text is normalized to start with one and parsed without it.
+    */
+   private ScriptWriteResult writeHyperlinkDraft(RuntimeViewsheet rvs, Principal agent,
+                                                 ScriptTarget target, String text)
+      throws PairingException
+   {
+      DraftText.Prepared prepared =
+         DraftText.prepare(text, DraftText.EqualsMode.ENSURE, this::conditionSyntaxProblem);
+
+      ScriptReadService.requireAssemblyInfo(requireViewsheet(rvs), target.assemblyName());
+      push(rvs, agent, target, prepared.text());
+
+      String note = VsHyperlinkTargets.note(target, true) + (prepared.changedEquals()
+         ? " A leading '=' was added: the dialog's editor holds the expression with it."
+         : "");
+
+      return new ScriptWriteResult(true, true, note, null);
    }
 
    private ScriptWriteResult writeDynamicDraft(RuntimeViewsheet rvs, Principal agent,

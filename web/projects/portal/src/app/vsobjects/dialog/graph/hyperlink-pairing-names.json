@@ -1,0 +1,78 @@
+[
+  {
+    "name": "link",
+    "assemblyTypes": ["text", "image", "gauge"]
+  },
+  {
+    "name": "title",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "emptyPlot",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "field[Sales]",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "field[Total Sales]",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "field[Region]",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "field[Sum(Total)]",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "field[a]b]",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "axis[Region]",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "axis[Total Sales]",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "text[Sales]",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "text[Total Sales]",
+    "assemblyTypes": ["chart"]
+  },
+  {
+    "name": "cell[0,0]",
+    "assemblyTypes": ["table", "crosstab", "calctable"]
+  },
+  {
+    "name": "cell[0,1]",
+    "assemblyTypes": ["table", "crosstab", "calctable"]
+  },
+  {
+    "name": "cell[1,0]",
+    "assemblyTypes": ["table", "crosstab", "calctable"]
+  },
+  {
+    "name": "cell[1,2]",
+    "assemblyTypes": ["table", "crosstab", "calctable"]
+  },
+  {
+    "name": "cell[2,1]",
+    "assemblyTypes": ["table", "crosstab", "calctable"]
+  },
+  {
+    "name": "cell[10,3]",
+    "assemblyTypes": ["table", "crosstab", "calctable"]
+  },
+  {
+    "name": "cell[999999,999999]",
+    "assemblyTypes": ["table", "crosstab", "calctable"]
+  }
+]

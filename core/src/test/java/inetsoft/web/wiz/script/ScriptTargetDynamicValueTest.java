@@ -45,7 +45,7 @@ class ScriptTargetDynamicValueTest {
    }
 
    @Test
-   void isDraftOnlyIsTrueForExactlyTheTwoDraftKinds() {
+   void isDraftOnlyIsTrueForExactlyTheDraftKinds() {
       Set<ScriptTarget.Kind> draft = EnumSet.noneOf(ScriptTarget.Kind.class);
 
       for(ScriptTarget.Kind k : ScriptTarget.Kind.values()) {
@@ -54,7 +54,10 @@ class ScriptTargetDynamicValueTest {
          }
       }
 
-      assertEquals(EnumSet.of(ScriptTarget.Kind.VS_CONDITION_VALUE, ScriptTarget.Kind.DYNAMIC_VALUE),
+      assertEquals(EnumSet.of(ScriptTarget.Kind.VS_CONDITION_VALUE, ScriptTarget.Kind.DYNAMIC_VALUE,
+                              ScriptTarget.Kind.WORKSHEET_VARIABLE_DEFAULT,
+                              ScriptTarget.Kind.VS_HYPERLINK_EXPRESSION,
+                              ScriptTarget.Kind.WORKSHEET_SQL_QUERY),
                    draft);
    }
 

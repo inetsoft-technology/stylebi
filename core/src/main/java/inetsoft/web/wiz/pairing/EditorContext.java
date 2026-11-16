@@ -30,7 +30,8 @@ package inetsoft.web.wiz.pairing;
  * browser's script panes and formula editor (e.g. {@code "viewsheetOnInit"},
  * {@code "viewsheetOnLoad"}, {@code "assemblyMain"}, {@code "assemblyOnClick"},
  * {@code "calcField"}, {@code "worksheetExpression"}, {@code "worksheetCondition"},
- * {@code "vsConditionValue"}, {@code "dynamicValue"}).
+ * {@code "vsConditionValue"}, {@code "dynamicValue"}, {@code "worksheetVariableDefault"},
+ * {@code "vsHyperlinkExpression"}, {@code "worksheetSqlQuery"}).
  *
  * <p>{@code assembly} names the assembly the location belongs to, for the kinds that are
  * scoped to one; it is {@code null} for the two whole-viewsheet script kinds
@@ -43,7 +44,8 @@ package inetsoft.web.wiz.pairing;
  * {@code assemblyName()} javadoc), {@code assembly} is accepted as the table name too — the
  * intent is unambiguous either way. {@code name} is the calc field's own name.
  *
- * <p>{@code pending}, for {@code kind == "calcField"} and {@code "worksheetExpression"}, marks a
+ * <p>{@code pending}, for {@code kind == "calcField"}, {@code "worksheetExpression"},
+ * {@code "worksheetVariableDefault"} and {@code "worksheetSqlQuery"}, marks a
  * create flow: the browser's "New Calculated Field" / "Create Expression" dialog pre-assigns a
  * real, unique name (e.g. {@code "CalcField1"}, {@code "Expression1"}) before the user has
  * clicked OK, so the field named here intentionally does not exist on the runtime yet. Mint
@@ -105,6 +107,29 @@ public record EditorContext(String kind, String assembly, String name, String ta
     * Draft-only, like {@link #VS_CONDITION_VALUE}, and also a {@code ScriptTarget.Kind}.
     */
    public static final String DYNAMIC_VALUE = "dynamicValue";
+
+   /**
+    * The wire kind of a worksheet pane session scoped to the Expression default value of ONE
+    * variable, in the Variable Properties dialog. {@code assembly} is the variable's name and
+    * there is no {@code name}. Draft-only, and also a {@code ScriptTarget.Kind}.
+    */
+   public static final String WORKSHEET_VARIABLE_DEFAULT = "worksheetVariableDefault";
+
+   /**
+    * The wire kind of a viewsheet pane session scoped to the Web Link Expression of ONE hyperlink,
+    * in the Hyperlink dialog. {@code assembly} is the viewsheet assembly that owns the link and
+    * {@code name} is the region key (see {@link HyperlinkRegionName}). Draft-only, and also a
+    * {@code ScriptTarget.Kind}.
+    */
+   public static final String VS_HYPERLINK_EXPRESSION = "vsHyperlinkExpression";
+
+   /**
+    * The wire kind of a worksheet pane session scoped to the SQL text of ONE query table, in the
+    * Database Query dialog. {@code assembly} is the query table's name and there is no
+    * {@code name}. Draft-only, also a {@code ScriptTarget.Kind}, and gated by the Free Form SQL
+    * permission wherever it is minted, read, written or listed.
+    */
+   public static final String WORKSHEET_SQL_QUERY = "worksheetSqlQuery";
 
    public static final String VS_FILTER_NAME = "filter";
    public static final String VS_HIGHLIGHT_PREFIX = "highlight:";

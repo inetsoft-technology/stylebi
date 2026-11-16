@@ -28,8 +28,10 @@ import inetsoft.uql.XCondition;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SQLBoundTableAssembly;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.util.script.ScriptEnv;
@@ -38,7 +40,9 @@ import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.pairing.SheetPairingService;
 import inetsoft.web.wiz.pairing.SheetType;
+import inetsoft.web.wiz.script.DraftText;
 import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.script.ScriptTarget;
 import inetsoft.web.wiz.script.model.ScriptInfo;
@@ -132,6 +136,10 @@ public class WorksheetScriptService {
       requirePaneScope(session, target);
       rejectExtras(extras);
 
+      if(target.kind().isDraftOnly()) {
+         return writeDraft(session, agent, target, text);
+      }
+
       // Decided from the grant alone, before any column lookup: a pending session is ALWAYS
       // draft-only, even if a column of that name has since appeared (another session added
       // it), so it can never edit an unrelated column.
@@ -171,6 +179,81 @@ public class WorksheetScriptService {
       }
 
       return null;
+   }
+
+   /**
+    * The write of a draft-only kind (a variable default or a query's SQL): nothing on the
+    * worksheet is touched, the text is pushed into the dialog the user has open. For the SQL kind
+    * the Free Form SQL permission is checked FIRST, before the text is looked at, so a user
+    * without it learns nothing and nothing is pushed.
+    */
+   private ScriptWriteResult writeDraft(JoinSession session, Principal agent, ScriptTarget target,
+                                        String text)
+      throws Exception
+   {
+      boolean sql = target.kind() == ScriptTarget.Kind.WORKSHEET_SQL_QUERY;
+
+      if(sql) {
+         requireFreeFormSql(agent);
+      }
+
+      DraftText.Prepared prepared = sql
+         ? DraftText.prepare(text, DraftText.EqualsMode.NONE, null)
+         : DraftText.prepare(text, DraftText.EqualsMode.STRIP, this::syntaxProblem);
+
+      RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
+
+      if(rws == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                    "Runtime not found or expired: " + session.runtimeId());
+      }
+
+      stampSocketSession(rws, session);
+      boolean sent = broadcast.pushScriptRefresh(rws, session.runtimeId(), agent,
+                                                 target.kind().wireName(), target.assemblyName(),
+                                                 target.name(), prepared.text());
+
+      if(!sent) {
+         throw new PairingException(sql
+            ? "The Database Query dialog for '" + target.assemblyName() + "' is not reachable " +
+              "(closed or disconnected), so nothing was pushed. Ask the user to reopen the " +
+              "dialog, edit the SQL directly and click Connect to Claude next to the SQL box."
+            : "The formula dialog for the default value of variable '" + target.assemblyName() +
+              "' is not reachable (closed or disconnected), so nothing was pushed. Ask the user " +
+              "to reopen the formula dialog and click Connect to Claude.");
+      }
+
+      boolean pendingVariable = session.editorContext() != null && session.editorContext().pending();
+      String note = sql ? WorksheetDraftTargets.sqlWriteNote(target)
+         : WorksheetDraftTargets.variableWriteNote(target, pendingVariable,
+                                                   prepared.changedEquals());
+
+      return new ScriptWriteResult(true, true, note, null);
+   }
+
+   /**
+    * The Free Form SQL gate of the {@code worksheetSqlQuery} kind (design: the permission is a
+    * function of a principal, so it lives here and in {@code SheetPairingService}, not in the
+    * principal-free {@link PaneScopeService#matchesGrant}). The same text for every denial.
+    */
+   private void requireFreeFormSql(Principal agent) throws PairingException {
+      if(!freeFormSqlAllowed(agent)) {
+         throw new PairingException(PairingException.Kind.USER_MISMATCH,
+                                    SheetPairingService.FREE_FORM_SQL_DENIED);
+      }
+   }
+
+   /**
+    * Overridable seam: whether {@code user} holds the Free Form SQL permission. Production fails
+    * closed; a test injects allow/deny without a security engine.
+    */
+   boolean freeFormSqlAllowed(Principal user) {
+      return SheetPairingService.isFreeFormSqlAllowed(user);
+   }
+
+   /** Overridable seam: the script engine is not initialised in unit tests. */
+   String syntaxProblem(String text) {
+      return DraftText.jsSyntaxProblem(text);
    }
 
    private static boolean isPendingExpression(JoinSession session, ScriptTarget target) {
@@ -282,6 +365,25 @@ public class WorksheetScriptService {
     * column on every table is a target" enumeration would explode into a list nobody asked for.
     */
    public List<ScriptTargetInfo> list(RuntimeWorksheet rws, JoinSession session) {
+      EditorContext draftGrant = session == null ? null : session.editorContext();
+
+      if(draftGrant != null && (EditorContext.WORKSHEET_VARIABLE_DEFAULT.equals(draftGrant.kind()) ||
+                                EditorContext.WORKSHEET_SQL_QUERY.equals(draftGrant.kind())))
+      {
+         // The value is the user's open dialog draft, so no enumerated target can match it: the
+         // table enumeration is skipped and the one synthetic target comes from the grant. A
+         // session whose Free Form SQL permission was revoked after mint lists nothing (a mint
+         // would already have been refused).
+         if(EditorContext.WORKSHEET_SQL_QUERY.equals(draftGrant.kind()) &&
+            (rws == null || !freeFormSqlAllowed(rws.getUser())))
+         {
+            return List.of();
+         }
+
+         ScriptTargetInfo draft = WorksheetDraftTargets.targetInfo(draftGrant);
+         return draft == null ? List.of() : List.of(draft);
+      }
+
       List<ScriptTargetInfo> all = new ArrayList<>();
       Worksheet ws = rws == null ? null : rws.getWorksheet();
 
@@ -445,6 +547,10 @@ public class WorksheetScriptService {
       requireWorksheetSession(session);
       requirePaneScope(session, target);
 
+      if(target.kind().isDraftOnly()) {
+         return readDraft(session, agent, target);
+      }
+
       if(isPendingExpression(session, target)) {
          return new ScriptInfo(
             target.toString(), "", true, Boolean.TRUE,
@@ -470,6 +576,50 @@ public class WorksheetScriptService {
          default -> throw new PairingException(
             "'" + target.kind().wireName() + "' is not servable by WorksheetScriptService.");
       };
+   }
+
+   /**
+    * The read of a draft-only kind, answered BEFORE any table lookup (a variable is not a table).
+    * A variable default has nothing on the server to read: an empty pending draft. A query table's
+    * SQL is read from the worksheet when the table exists (the same text the shipped
+    * {@code get_query_plan} returns) and is empty for a query that does not exist yet. The Free
+    * Form SQL gate runs first and is stricter than {@code get_query_plan}, which has no check.
+    */
+   private ScriptInfo readDraft(JoinSession session, Principal agent, ScriptTarget target)
+      throws PairingException
+   {
+      boolean pending = session.editorContext() != null && session.editorContext().pending();
+
+      if(target.kind() == ScriptTarget.Kind.WORKSHEET_VARIABLE_DEFAULT) {
+         return WorksheetDraftTargets.readVariable(target, pending);
+      }
+
+      requireFreeFormSql(agent);
+
+      if(pending) {
+         return WorksheetDraftTargets.readPendingSql(target);
+      }
+
+      RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
+      Worksheet ws = rws == null ? null : rws.getWorksheet();
+      Assembly a = ws == null ? null : ws.getAssembly(target.assemblyName());
+
+      if(!(a instanceof SQLBoundTableAssembly sqlTable)) {
+         throw new PairingException(
+            "Not a SQL-bound table: " + target.assemblyName() + ". Open the Database Query " +
+            "dialog of a SQL query table and click Connect to Claude there.");
+      }
+
+      String sql = "";
+
+      if(sqlTable.getInfo() instanceof SQLBoundTableAssemblyInfo info &&
+         info.getQuery() != null && info.getQuery().getSQLDefinition() != null)
+      {
+         String applied = info.getQuery().getSQLDefinition().getSQLString();
+         sql = applied == null ? "" : applied;
+      }
+
+      return WorksheetDraftTargets.readAppliedSql(target, sql);
    }
 
    private static ScriptInfo readExpression(TableAssembly t, ScriptTarget target)
@@ -600,7 +750,8 @@ public class WorksheetScriptService {
 
    private static final Set<ScriptTarget.Kind> SERVED_KINDS = EnumSet.of(
       ScriptTarget.Kind.WORKSHEET_EXPRESSION, ScriptTarget.Kind.WORKSHEET_CONDITION,
-      ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE);
+      ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, ScriptTarget.Kind.WORKSHEET_VARIABLE_DEFAULT,
+      ScriptTarget.Kind.WORKSHEET_SQL_QUERY);
 
    private static void requireServedKind(ScriptTarget target) throws PairingException {
       ScriptTarget.Kind kind = target.kind();
@@ -608,7 +759,8 @@ public class WorksheetScriptService {
       if(!SERVED_KINDS.contains(kind)) {
          throw new PairingException(
             "WorksheetScriptService only serves worksheetExpression/worksheetCondition/" +
-            "worksheetConditionValue, not '" + kind.wireName() + "'.");
+            "worksheetConditionValue/worksheetVariableDefault/worksheetSqlQuery, not '" +
+            kind.wireName() + "'.");
       }
    }
 
@@ -620,7 +772,8 @@ public class WorksheetScriptService {
    private static void requireWorksheetSession(JoinSession session) throws PairingException {
       if(session == null || session.sheetType() != SheetType.WORKSHEET) {
          throw new PairingException(
-            "worksheetExpression/worksheetCondition/worksheetConditionValue require a session " +
+            "worksheetExpression/worksheetCondition/worksheetConditionValue/" +
+            "worksheetVariableDefault/worksheetSqlQuery require a session " +
             "joined to a worksheet runtime, not " +
             (session == null ? "no session" : session.sheetType()) + ".");
       }

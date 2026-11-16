@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.web.wiz.pairing.EditorContext;
+import inetsoft.web.wiz.pairing.HyperlinkRegionName;
 import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
 
@@ -253,9 +254,10 @@ public class PaneScopeService {
 
       if(ASSEMBLY_NAMED_FAMILY.contains(grantedKind)) {
          // Exact (assembly, name). Deliberately NOT the table/assembly alias above: the assembly
-         // here is always the viewsheet assembly that owns the condition.
+         // here is always the viewsheet assembly that owns the condition. A blank grant name is
+         // "no name" (the two nameless worksheet kinds), exactly as ScriptTarget.of stores it.
          return Objects.equals(grant.assembly(), target.assemblyName()) &&
-            Objects.equals(grant.name(), target.name());
+            Objects.equals(blankToNull(grant.name()), blankToNull(target.name()));
       }
 
       // viewsheetOnInit/viewsheetOnLoad carry no assembly/name -- sameDialogFamily already
@@ -263,6 +265,10 @@ public class PaneScopeService {
       // must be classified above; one that is not matches nothing rather than everything.
       return grantedKind == ScriptTarget.Kind.VIEWSHEET_ON_INIT ||
          grantedKind == ScriptTarget.Kind.VIEWSHEET_ON_LOAD;
+   }
+
+   private static String blankToNull(String s) {
+      return s == null || s.isBlank() ? null : s;
    }
 
    /**
@@ -326,6 +332,10 @@ public class PaneScopeService {
             case ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK -> "the script of '" + grant.assembly() + "'";
             case VS_CONDITION_VALUE -> vsConditionDescription(grant.assembly(), grant.name());
             case DYNAMIC_VALUE -> dynamicValueDescription(grant.assembly(), grant.name());
+            case WORKSHEET_VARIABLE_DEFAULT -> variableDefaultDescription(grant.assembly());
+            case VS_HYPERLINK_EXPRESSION ->
+               hyperlinkDescription(grant.assembly(), grant.name());
+            case WORKSHEET_SQL_QUERY -> sqlQueryDescription(grant.assembly());
             default -> "'" + grantedKind.wireName() + "'";
          };
       }
@@ -349,8 +359,36 @@ public class PaneScopeService {
             "'" + target.kind().wireName() + "' on '" + target.assemblyName() + "'";
          case VS_CONDITION_VALUE -> vsConditionDescription(target.assemblyName(), target.name());
          case DYNAMIC_VALUE -> dynamicValueDescription(target.assemblyName(), target.name());
+         case WORKSHEET_VARIABLE_DEFAULT -> variableDefaultDescription(target.assemblyName());
+         case VS_HYPERLINK_EXPRESSION ->
+            hyperlinkDescription(target.assemblyName(), target.name());
+         case WORKSHEET_SQL_QUERY -> sqlQueryDescription(target.assemblyName());
          default -> "'" + target.kind().wireName() + "'";
       };
+   }
+
+   private static String variableDefaultDescription(String variable) {
+      return "the default-value expression of worksheet variable '" + variable + "'";
+   }
+
+   private static String sqlQueryDescription(String table) {
+      return "the SQL of worksheet query table '" + table + "'";
+   }
+
+   private static String hyperlinkDescription(String assembly, String name) {
+      HyperlinkRegionName region = HyperlinkRegionName.parse(name);
+      String where = region == null ? "'" + name + "'" : switch(region.form()) {
+         case HyperlinkRegionName.LINK -> "link";
+         case HyperlinkRegionName.TITLE -> "title link";
+         case HyperlinkRegionName.EMPTY_PLOT -> "empty plot link";
+         case HyperlinkRegionName.CELL -> "link of cell row " + region.row() + ", col " +
+            region.col();
+         case HyperlinkRegionName.FIELD -> "link of field '" + region.column() + "'";
+         case HyperlinkRegionName.AXIS -> "link of the axis of '" + region.column() + "'";
+         default -> "link of text '" + region.column() + "'";
+      };
+
+      return "the web-link expression of the " + where + " on '" + assembly + "'";
    }
 
    private static String vsConditionDescription(String assembly, String name) {
@@ -389,6 +427,15 @@ public class PaneScopeService {
             "the f icon and click Connect to Claude.";
          case DYNAMIC_VALUE -> "a dynamic value has no name at sheet level - open the dialog, " +
             "set the field's type to Expression, click the f icon and click Connect to Claude.";
+         case WORKSHEET_VARIABLE_DEFAULT -> "a worksheet variable's default value has no name at " +
+            "sheet level - open the variable's Properties dialog, set the Default Value type to " +
+            "Expression, click the f icon and click Connect to Claude.";
+         case VS_HYPERLINK_EXPRESSION -> "a hyperlink expression has no name at sheet level - " +
+            "open the Hyperlink dialog, set the link's value type to Expression, click the f " +
+            "icon and click Connect to Claude.";
+         case WORKSHEET_SQL_QUERY -> "a worksheet query's SQL has no name at sheet level - open " +
+            "the query's Database Query dialog, edit its SQL directly and click Connect to " +
+            "Claude next to the SQL box.";
          default -> "'" + kind.wireName() + "' has no identity at sheet level — open it in its " +
             "own editor and click Connect Agent.";
       };
@@ -423,12 +470,19 @@ public class PaneScopeService {
       ScriptTarget.Kind.WORKSHEET_CONDITION, ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE);
 
    /**
-    * Kinds addressed by (viewsheet assembly, name) exactly, with no table alias -- see
-    * {@link ScriptTarget.Kind#VS_CONDITION_VALUE} and {@link ScriptTarget.Kind#DYNAMIC_VALUE}.
-    * The two never match each other: {@link #sameDialogFamily} requires the same kind.
+    * Kinds addressed by (assembly, name) exactly, with no table alias -- see
+    * {@link ScriptTarget.Kind#VS_CONDITION_VALUE}, {@link ScriptTarget.Kind#DYNAMIC_VALUE},
+    * {@link ScriptTarget.Kind#VS_HYPERLINK_EXPRESSION} and the two worksheet kinds that have no
+    * name ({@link ScriptTarget.Kind#WORKSHEET_VARIABLE_DEFAULT},
+    * {@link ScriptTarget.Kind#WORKSHEET_SQL_QUERY}: both sides carry {@code null}, which
+    * {@code Objects.equals} matches exactly). None of them ever matches another:
+    * {@link #sameDialogFamily} requires the same kind.
     */
    private static final Set<ScriptTarget.Kind> ASSEMBLY_NAMED_FAMILY =
-      EnumSet.of(ScriptTarget.Kind.VS_CONDITION_VALUE, ScriptTarget.Kind.DYNAMIC_VALUE);
+      EnumSet.of(ScriptTarget.Kind.VS_CONDITION_VALUE, ScriptTarget.Kind.DYNAMIC_VALUE,
+                 ScriptTarget.Kind.VS_HYPERLINK_EXPRESSION,
+                 ScriptTarget.Kind.WORKSHEET_VARIABLE_DEFAULT,
+                 ScriptTarget.Kind.WORKSHEET_SQL_QUERY);
 
    private final boolean strict;
 }

@@ -126,6 +126,8 @@ class PaneScopeServiceVsConditionGrantTest {
          case VIEWSHEET_ON_INIT, VIEWSHEET_ON_LOAD -> ScriptTarget.of(k, null, null);
          case ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK -> ScriptTarget.of(k, assembly, null);
          case VS_CONDITION_VALUE -> ScriptTarget.of(k, assembly, "filter");
+         case WORKSHEET_VARIABLE_DEFAULT, WORKSHEET_SQL_QUERY -> ScriptTarget.of(k, assembly, null);
+         case VS_HYPERLINK_EXPRESSION -> ScriptTarget.of(k, assembly, "link");
          default -> ScriptTarget.of(k, assembly, "n");
       };
    }

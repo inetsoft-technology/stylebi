@@ -157,10 +157,13 @@ class ScriptReadServiceTest {
       // WorksheetScriptService), so they now belong in this list alongside calcField.
       // worksheetConditionValue (stylebi#4654's second review, finding 1) is the same story.
       // vsConditionValue and dynamicValue (Bug #80459) are served by the draft-push path of the
-      // viewsheet script API.
+      // viewsheet script API. worksheetVariableDefault, vsHyperlinkExpression and
+      // worksheetSqlQuery are the three draft-only dialog kinds added last in that bug.
       assertEquals(List.of("viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick",
                            "calcField", "worksheetExpression", "worksheetCondition",
-                           "worksheetConditionValue", "vsConditionValue", "dynamicValue"),
+                           "worksheetConditionValue", "vsConditionValue", "dynamicValue",
+                           "worksheetVariableDefault", "vsHyperlinkExpression",
+                           "worksheetSqlQuery"),
                    ScriptGrammar.supportedKinds());
    }
 
