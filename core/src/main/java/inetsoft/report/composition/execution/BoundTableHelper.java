@@ -68,6 +68,16 @@ public class BoundTableHelper {
     * @return the contained attributes.
     */
    protected List<AttributeRef> getContainedAttributes(DataRef attr, boolean vonly) {
+      return getContainedAttributes(attr, vonly, Collections.newSetFromMap(new IdentityHashMap<>()));
+   }
+
+   /**
+    * @param visiting the expressions being resolved, used to stop expressions that refer to
+    *                 each other from recursing forever (Bug #81206).
+    */
+   private List<AttributeRef> getContainedAttributes(DataRef attr, boolean vonly,
+                                                     Set<DataRef> visiting)
+   {
       ColumnRef column = attr instanceof ColumnRef ? (ColumnRef) attr : null;
       attr = getBaseAttribute(attr);
       List<AttributeRef> list = null;
@@ -80,7 +90,17 @@ public class BoundTableHelper {
          }
 
          if(list == null) {
-            list = getExprAttributes(attr, vonly, column);
+            if(!visiting.add(attr)) {
+               // circular reference between expressions, nothing more to contribute
+               return new ArrayList<>();
+            }
+
+            try {
+               list = getExprAttributes(attr, vonly, column, visiting);
+            }
+            finally {
+               visiting.remove(attr);
+            }
          }
 
          if(expr != null) {
@@ -104,7 +124,9 @@ public class BoundTableHelper {
       return AssetUtil.getBaseAttribute(attr);
    }
 
-   private List<AttributeRef> getExprAttributes(DataRef attr, boolean vonly, ColumnRef column) {
+   private List<AttributeRef> getExprAttributes(DataRef attr, boolean vonly, ColumnRef column,
+                                                 Set<DataRef> visiting)
+   {
       List<AttributeRef> list = new ArrayList<>();
       Enumeration iter = column != null ? column.getExpAttributes() : attr.getAttributes();
 
@@ -112,7 +134,7 @@ public class BoundTableHelper {
          DataRef ref = (DataRef) iter.nextElement();
 
          if(ref instanceof ExpressionRef) {
-            list.addAll(getContainedAttributes(ref, vonly));
+            list.addAll(getContainedAttributes(ref, vonly, visiting));
             continue;
          }
 
@@ -125,7 +147,7 @@ public class BoundTableHelper {
          ref = convertAttributeInExpression(attr2, attr);
 
          if(ref instanceof ExpressionRef && ref != attr) {
-            list.addAll(getContainedAttributes(ref, vonly));
+            list.addAll(getContainedAttributes(ref, vonly, visiting));
             continue;
          }
 

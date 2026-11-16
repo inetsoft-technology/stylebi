@@ -1768,7 +1768,8 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
          }
 
-         addExpression(column, columns, scripts, headers, ids, types, cols, hinfos, mergeables);
+         addExpression(column, columns, scripts, headers, ids, types, cols, hinfos, mergeables,
+                       new HashSet<>());
       }
 
       if(scripts.size() > 0) {
@@ -1870,7 +1871,27 @@ public abstract class AssetQuery extends PreAssetQuery {
                               List<String> scripts, List<String> headers, List<String> ids,
                               List<Class<?>> types, List<ColumnRef> cols,
                               List<FormulaHeaderInfo> hinfos,
-                              List<Boolean> mergetables)
+                              List<Boolean> mergetables, Set<String> inProgress)
+   {
+      // expressions that refer to each other must not recurse forever (Bug #81206)
+      if(!inProgress.add(getAttributeString(column))) {
+         return;
+      }
+
+      try {
+         addExpression0(column, columns, scripts, headers, ids, types, cols, hinfos,
+                        mergetables, inProgress);
+      }
+      finally {
+         inProgress.remove(getAttributeString(column));
+      }
+   }
+
+   private void addExpression0(ColumnRef column, ColumnSelection columns,
+                               List<String> scripts, List<String> headers, List<String> ids,
+                               List<Class<?>> types, List<ColumnRef> cols,
+                               List<FormulaHeaderInfo> hinfos, List<Boolean> mergetables,
+                               Set<String> inProgress)
    {
       String name = column.getAlias();
       name = name == null ? column.getAttribute() : name;
@@ -1927,7 +1948,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                   }
 
                   addExpression(column2, columns, scripts, headers, ids, types,
-                                cols, hinfos, mergetables);
+                                cols, hinfos, mergetables, inProgress);
                   added.add(column2.getName());
                }
             }
