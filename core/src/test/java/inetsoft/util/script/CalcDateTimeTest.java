@@ -1439,15 +1439,15 @@ public class CalcDateTimeTest {
       return result[0];
    }
 
-   @ParameterizedTest(name = "{0}: {1}-{2}-{3} is {4} / {5}")
+   @ParameterizedTest(name = "{0}: {1}-{2}-{3} is {4}")
    @org.junit.jupiter.params.provider.CsvSource({
-      "en-US,2024,3,5,March,Tuesday",
-      "de-DE,2024,3,5,März,Tuesday",
-      "en-US,2024,2,29,February,Thursday",
-      "de-DE,2024,2,29,Februar,Thursday"
+      "en-US,2024,3,5,March",
+      "de-DE,2024,3,5,März",
+      "en-US,2024,2,29,February",
+      "de-DE,2024,2,29,Februar"
    })
    void monthnameFollowsDefaultLocaleOnFreshThread(String tag, int y, int m, int d,
-                                                   String month, String ignored)
+                                                   String month)
       throws Exception
    {
       Date date = dayStart(y, m, d);

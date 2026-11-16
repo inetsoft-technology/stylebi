@@ -744,16 +744,6 @@ public class FormulaFunctionsTest {
    }
 
    @Test
-   @Disabled("Not filed (not a defect to fix: #81164 chose double comparison on purpose, only ids above 2^53 differ): union of 9007199254740993L and 9007199254740992L has 1 element, expected 2 (compared as double)")
-   void largeDistinctLongsAreDistinctInUnionAndInArray() {
-      long a = 9007199254740993L;
-      long b = 9007199254740992L;
-      assertEquals(2, ((Object[]) FormulaFunctions.union(new Object[] { a },
-                                                         new Object[] { b }, null)).length);
-      assertFalse(FormulaFunctions.inArray(new Object[] { a }, b));
-   }
-
-   @Test
    @Disabled("Bug #81465: union() of Timestamp and Date depends on argument order")
    void timestampAndDateWithEqualMillisAreOneElementInBothOrders() {
       long ms = 1700000000123L;

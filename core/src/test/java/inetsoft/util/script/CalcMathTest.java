@@ -18,7 +18,6 @@
 package inetsoft.util.script;
 
 import inetsoft.test.*;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -1102,19 +1101,5 @@ class CalcMathTest {
       assertEquals(24.0, CalcMath.product(new Object[] { 2.0, 3.0, 4.0 }), 1e-9);
       assertEquals(6.0, CalcMath.product(new Object[] { "2", "x", null, 3.0 }), 1e-9);
       assertEquals(7.0, CalcMath.product(new Object[] { 7.0 }), 1e-9);
-   }
-
-   @Test
-   @Disabled("Not filed (rare: only products above 2^31 overflow): lcm([65536, 65537]) returns 65536, not a multiple of 65537")
-   void lcmOfLargeCoprimeNumbersIsDivisibleByBothOrFails() {
-      try {
-         int lcm = CalcMath.lcm(new Object[] { 65536.0, 65537.0 });
-         assertTrue(lcm > 0, "lcm must be positive, was " + lcm);
-         assertEquals(0, lcm % 65536, "lcm " + lcm);
-         assertEquals(0, lcm % 65537, "lcm " + lcm);
-      }
-      catch(RuntimeException ex) {
-         // an explicit failure instead of a wrapped int is acceptable
-      }
    }
 }
