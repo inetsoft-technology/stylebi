@@ -252,7 +252,6 @@ class NamedRangeRefGroupsTest {
    // The SQL puts the values and the group name between quotes as they are, so a quote ends the
    // string: the expression is a syntax error (#81235).
    @Test
-   @Disabled("#81235: a quote in a value or group name is not escaped in the SQL expression")
    void quoteInAValueOrInAGroupNameInSql() throws Exception {
       NamedRangeRef ref = groups(XSchema.STRING,
                                  "O'Brien family", values("O'Brien", "O'Neil"));
