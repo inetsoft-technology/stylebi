@@ -85,6 +85,27 @@ public class ClearTableHeaderAliasHandler {
       }
    }
 
+   /**
+    * Clears the alias written at exactly {@code dataPaths} -- for a caller that already resolved
+    * which header cell it means (an aggregate that shares its name with another measure), where
+    * {@link #clearAlias(DataRef, FormatInfo, int)} would clear every measure of that name.
+    */
+   public static void clearAliasAt(Collection<TableDataPath> dataPaths, FormatInfo formatInfo) {
+      if(dataPaths == null || formatInfo == null || formatInfo.getFormatMap() == null) {
+         return;
+      }
+
+      for(TableDataPath dataPath : dataPaths) {
+         VSCompositeFormat format = formatInfo.getFormatMap().get(dataPath);
+
+         if(format != null) {
+            VSCompositeFormat nformat = format.clone();
+            formatInfo.getFormatMap().put(dataPath, nformat);
+            clearAlias(nformat);
+         }
+      }
+   }
+
    public static void processClearAliasFormat(Map<TableDataPath, VSCompositeFormat> formatMap,
                                               TableDataPath oldDataPath)
    {
@@ -140,7 +161,9 @@ public class ClearTableHeaderAliasHandler {
       String last = path[path.length - 1];
       DataRef[] aggs = cinfo.getRuntimeAggregates();
 
-      if(aggs == null || !Arrays.asList(VSUtil.buildName(aggs, true)).contains(last)) {
+      if(aggs == null || Arrays.stream(VSUtil.buildName(aggs, true))
+         .noneMatch(name -> isAggregateSegment(name, last)))
+      {
          return false;
       }
 
@@ -200,7 +223,23 @@ public class ClearTableHeaderAliasHandler {
    // TableDataPath -> name), rather than re-deriving the same regex/full-name match a second time.
    static boolean matchAgg(DataRef dataRef, String[] path) {
       return dataRef instanceof VSAggregateRef
-         && ((VSAggregateRef) dataRef).getFullName().equals(path[path.length - 1]);
+         && isAggregateSegment(((VSAggregateRef) dataRef).getFullName(), path[path.length - 1]);
+   }
+
+   /**
+    * Whether {@code segment}, the last segment of a header cell's path, is a rendering of the
+    * aggregate named {@code fullName}: the name itself, or the name with the {@code ".N"} suffix
+    * the crosstab lens appends to the Nth measure that shares a column and formula with an
+    * earlier one ({@code Util.getDupHeader}). Which duplicate a suffixed segment belongs to is
+    * not decided here -- see {@link SetTableHeaderAliasHandler#occurrence}.
+    */
+   public static boolean isAggregateSegment(String fullName, String segment) {
+      if(fullName == null || segment == null || !segment.startsWith(fullName)) {
+         return false;
+      }
+
+      return segment.length() == fullName.length() ||
+         DUPLICATE_SUFFIX_PATTERN.matcher(segment.substring(fullName.length())).matches();
    }
 
    static boolean matchDim(DataRef dataRef, String[] path, int colIndex) {
@@ -222,4 +261,5 @@ public class ClearTableHeaderAliasHandler {
    }
 
    private static final Pattern HEADER_ROW_PATH_PATTERN = Pattern.compile("^Cell \\[(\\d+),(\\d+)]$");
+   private static final Pattern DUPLICATE_SUFFIX_PATTERN = Pattern.compile("\\.\\d+");
 }

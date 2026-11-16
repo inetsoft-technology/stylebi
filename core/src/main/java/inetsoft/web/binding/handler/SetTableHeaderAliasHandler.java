@@ -22,6 +22,7 @@ import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.filter.CrossFilter;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.FormatInfo;
+import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.VSFormat;
 
@@ -30,7 +31,10 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * The header-rename mechanism the real Composer UI uses (a double-click on a table or crosstab
@@ -109,10 +113,9 @@ public class SetTableHeaderAliasHandler {
    /**
     * The missing link a name-based rename needs that a UI click already has for free: given the
     * live {@code DataRef} a shelf/column/index resolved to, scans the rendered lens's header
-    * region and returns the first {@code TableDataPath} that {@link
-    * ClearTableHeaderAliasHandler#matchAgg}/{@code matchDim} would also recognize as this ref's
-    * header cell. {@code null} if the rendered lens currently has no such cell (e.g. the column
-    * does not render at all right now).
+    * region and returns the first {@code TableDataPath} that is also this ref's header cell.
+    * {@code null} if the rendered lens currently has no such cell (e.g. the column does not
+    * render at all right now).
     *
     * <p>A crosstab's header region is an L-shape, not the {@code [0, getHeaderRowCount())} x
     * {@code [0, getHeaderColCount())} rectangle {@code HighlightDialogService.getFirstDataCell}
@@ -127,21 +130,24 @@ public class SetTableHeaderAliasHandler {
     * resolution itself succeeded. The mirrored arm (a header *column* extending past the header
     * *row* rectangle, for the transposed shape with no row dimension) is scanned symmetrically.
     *
-    * @param colIndex the ref's position on its own shelf — {@code matchDim} addresses a dimension
-    *                 header purely positionally (its {@code "Cell [row,col]"} path segment), not
-    *                 by name, so this must be the same index the caller resolved the ref with.
-    *                 Unused when {@code dataRef} is an aggregate ({@code matchAgg} matches by full
-    *                 name instead).
+    * @param colIndex the ref's position on its own shelf — a dimension header is addressed purely
+    *                 positionally (its {@code "Cell [row,col]"} path segment), not by name, so
+    *                 this must be the same index the caller resolved the ref with. Unused when
+    *                 {@code dataRef} is an aggregate.
+    * @param occurrence which of the measures sharing {@code dataRef}'s name this is, as {@link
+    *                 #occurrence} counts it. Used only when {@code dataRef} is an aggregate.
     */
-   public static TableDataPath findHeaderPath(VSTableLens lens, DataRef dataRef, int colIndex) {
-      HeaderCell cell = findHeaderCell(lens, dataRef, colIndex);
+   public static TableDataPath findHeaderPath(VSTableLens lens, DataRef dataRef, int colIndex,
+                                              int occurrence)
+   {
+      HeaderCell cell = findHeaderCell(lens, dataRef, colIndex, occurrence);
       return cell == null ? null : cell.path();
    }
 
    /**
-    * {@link #findHeaderPath} plus the {@code (row, col)} coordinate {@link #scanHeaderRegion}
-    * already finds internally but previously discarded -- needed by a caller that must reach
-    * {@code CrosstabVSAssemblyInfo.addHiddenColumn(int, XTable)}/{@code isColumnHidden}, which
+    * {@link #findHeaderPath} plus the {@code (row, col)} coordinate the scan already finds
+    * internally but previously discarded -- needed by a caller that must reach {@code
+    * CrosstabVSAssemblyInfo.addHiddenColumn(int, XTable)}/{@code isColumnHidden}, which
     * take a raw lens column index, not a {@link TableDataPath}. A hidden dimension's header cell
     * resolves here exactly like any other bound column's: {@code VSTableLens.getTableDataPath}
     * delegates straight to the crosstab's {@code CrossFilterDataDescriptor}, whose {@code
@@ -152,27 +158,11 @@ public class SetTableHeaderAliasHandler {
     * getTableDataPath} returns for that column, so this scan locates a hidden column's header
     * cell the same way it locates a visible one's.
     */
-   public static HeaderCell findHeaderCell(VSTableLens lens, DataRef dataRef, int colIndex) {
-      int headerRows = lens.getHeaderRowCount();
-      int headerCols = lens.getHeaderColCount();
-      int colCount = lens.getColCount();
-      int rowCount = lens.getRowCount();
-
-      // The top headerRows rows are header rows by definition, regardless of column --
-      // side-by-side aggregate headers live here past the headerCols rectangle.
-      int rowArmColBound = colCount < 0 ? headerCols : colCount;
-      HeaderCell found = scanHeaderRegion(lens, dataRef, colIndex, 0, headerRows, 0,
-                                          rowArmColBound);
-
-      if(found != null) {
-         return found;
-      }
-
-      // The left headerCols columns are header columns by definition, regardless of row --
-      // the mirrored (non-side-by-side) summary header column lives here past the headerRows
-      // rectangle. Rows already covered by the arm above are skipped.
-      int colArmRowBound = rowCount < 0 ? headerRows : rowCount;
-      return scanHeaderRegion(lens, dataRef, colIndex, headerRows, colArmRowBound, 0, headerCols);
+   public static HeaderCell findHeaderCell(VSTableLens lens, DataRef dataRef, int colIndex,
+                                           int occurrence)
+   {
+      List<HeaderCell> cells = findAllHeaderCells(lens, dataRef, colIndex, occurrence);
+      return cells.isEmpty() ? null : cells.get(0);
    }
 
    /**
@@ -185,24 +175,12 @@ public class SetTableHeaderAliasHandler {
     * aggregate resolves to the same column.
     */
    public static List<HeaderCell> findHeaderCells(VSTableLens lens, DataRef dataRef,
-                                                  int colIndex)
+                                                  int colIndex, int occurrence)
    {
-      int headerRows = lens.getHeaderRowCount();
-      int headerCols = lens.getHeaderColCount();
-      int colCount = lens.getColCount();
-      int rowCount = lens.getRowCount();
-      List<HeaderCell> found = new ArrayList<>();
-
-      int rowArmColBound = colCount < 0 ? headerCols : colCount;
-      collectHeaderRegion(lens, dataRef, colIndex, 0, headerRows, 0, rowArmColBound, found);
-      int colArmRowBound = rowCount < 0 ? headerRows : rowCount;
-      collectHeaderRegion(lens, dataRef, colIndex, headerRows, colArmRowBound, 0, headerCols,
-                          found);
-
       List<HeaderCell> distinct = new ArrayList<>();
       Set<Integer> cols = new HashSet<>();
 
-      for(HeaderCell cell : found) {
+      for(HeaderCell cell : findAllHeaderCells(lens, dataRef, colIndex, occurrence)) {
          if(cols.add(cell.col())) {
             distinct.add(cell);
          }
@@ -223,27 +201,43 @@ public class SetTableHeaderAliasHandler {
     * keys on the column, which collapses the stacked subtotal and detail rows that share one).
     */
    public static List<TableDataPath> findHeaderPaths(VSTableLens lens, DataRef dataRef,
-                                                     int colIndex)
+                                                     int colIndex, int occurrence)
    {
-      int headerRows = lens.getHeaderRowCount();
-      int headerCols = lens.getHeaderColCount();
-      int colCount = lens.getColCount();
-      int rowCount = lens.getRowCount();
-      List<HeaderCell> found = new ArrayList<>();
-
-      int rowArmColBound = colCount < 0 ? headerCols : colCount;
-      collectHeaderRegion(lens, dataRef, colIndex, 0, headerRows, 0, rowArmColBound, found);
-      int colArmRowBound = rowCount < 0 ? headerRows : rowCount;
-      collectHeaderRegion(lens, dataRef, colIndex, headerRows, colArmRowBound, 0, headerCols,
-                          found);
-
       Set<TableDataPath> distinct = new LinkedHashSet<>();
 
-      for(HeaderCell cell : found) {
+      for(HeaderCell cell : findAllHeaderCells(lens, dataRef, colIndex, occurrence)) {
          distinct.add(cell.path());
       }
 
       return new ArrayList<>(distinct);
+   }
+
+   /**
+    * Which of the measures that share one name {@code aggregates[index]} is: the number of
+    * earlier entries with the same {@code getFullName()}. Two measures on one column with one
+    * formula render under the same name, and the lens tells them apart only by a {@code ".N"}
+    * suffix on the later ones, so a name alone cannot address the second one.
+    *
+    * @param aggregates the aggregates shelf, in binding order
+    */
+   public static int occurrence(List<? extends DataRef> aggregates, int index) {
+      if(index < 0 || index >= aggregates.size() ||
+         !(aggregates.get(index) instanceof VSAggregateRef ref))
+      {
+         return 0;
+      }
+
+      int occurrence = 0;
+
+      for(int i = 0; i < index; i++) {
+         if(aggregates.get(i) instanceof VSAggregateRef other &&
+            Objects.equals(other.getFullName(), ref.getFullName()))
+         {
+            occurrence++;
+         }
+      }
+
+      return occurrence;
    }
 
    /**
@@ -307,22 +301,99 @@ public class SetTableHeaderAliasHandler {
       return new TableDataPath(base.getLevel(), base.getType(), base.getDataType(), segments);
    }
 
-   private static void collectHeaderRegion(VSTableLens lens, DataRef dataRef, int colIndex,
-                                           int rowStart, int rowEnd, int colStart, int colEnd,
-                                           List<HeaderCell> out)
+   /**
+    * The header cells that belong to {@code dataRef}, in scan order, over the L-shaped header
+    * region ({@link #findHeaderPath}). A dimension is matched by position. An aggregate is
+    * matched by the one rendered name that is its own: of every name the lens renders for it
+    * (the full name, or the full name plus a {@code ".N"} duplicate suffix), ordered as the lens
+    * numbers them, the {@code occurrence}-th. A name the ref does not own is never taken, so a
+    * measure that renders under no name of its own yields no cell instead of borrowing the
+    * first measure's.
+    */
+   private static List<HeaderCell> findAllHeaderCells(VSTableLens lens, DataRef dataRef,
+                                                      int colIndex, int occurrence)
+   {
+      List<HeaderCell> cells = headerRegionCells(lens);
+      List<HeaderCell> found = new ArrayList<>();
+
+      if(dataRef instanceof VSAggregateRef aggregate) {
+         String segment = aggregateSegment(cells, aggregate.getFullName(), occurrence);
+
+         for(HeaderCell cell : cells) {
+            if(segment != null && segment.equals(lastSegment(cell))) {
+               found.add(cell);
+            }
+         }
+      }
+      else {
+         for(HeaderCell cell : cells) {
+            if(ClearTableHeaderAliasHandler.matchDim(dataRef, cell.path().getPath(), colIndex)) {
+               found.add(cell);
+            }
+         }
+      }
+
+      return found;
+   }
+
+   private static String aggregateSegment(List<HeaderCell> cells, String fullName,
+                                          int occurrence)
+   {
+      // Ordered by duplicate number, the bare name first: the order the lens numbers them in.
+      Map<Integer, String> byNumber = new TreeMap<>();
+
+      for(HeaderCell cell : cells) {
+         String segment = lastSegment(cell);
+
+         if(ClearTableHeaderAliasHandler.isAggregateSegment(fullName, segment)) {
+            byNumber.put(duplicateNumber(fullName, segment), segment);
+         }
+      }
+
+      List<String> segments = new ArrayList<>(byNumber.values());
+      return occurrence >= 0 && occurrence < segments.size() ? segments.get(occurrence) : null;
+   }
+
+   private static int duplicateNumber(String fullName, String segment) {
+      return segment.length() == fullName.length() ? 0
+         : Integer.parseInt(segment.substring(fullName.length() + 1));
+   }
+
+   private static String lastSegment(HeaderCell cell) {
+      String[] segments = cell.path().getPath();
+      return segments[segments.length - 1];
+   }
+
+   /** Every cell with a non-empty path in the top arm, then the left arm, of the header L. */
+   private static List<HeaderCell> headerRegionCells(VSTableLens lens) {
+      int headerRows = lens.getHeaderRowCount();
+      int headerCols = lens.getHeaderColCount();
+      int colCount = lens.getColCount();
+      int rowCount = lens.getRowCount();
+      List<HeaderCell> cells = new ArrayList<>();
+
+      // The top headerRows rows are header rows by definition, regardless of column --
+      // side-by-side aggregate headers live here past the headerCols rectangle.
+      int rowArmColBound = colCount < 0 ? headerCols : colCount;
+      collectHeaderRegion(lens, 0, headerRows, 0, rowArmColBound, cells);
+
+      // The left headerCols columns are header columns by definition, regardless of row --
+      // the mirrored (non-side-by-side) summary header column lives here past the headerRows
+      // rectangle. Rows already covered by the arm above are skipped.
+      int colArmRowBound = rowCount < 0 ? headerRows : rowCount;
+      collectHeaderRegion(lens, headerRows, colArmRowBound, 0, headerCols, cells);
+      return cells;
+   }
+
+   private static void collectHeaderRegion(VSTableLens lens, int rowStart, int rowEnd,
+                                           int colStart, int colEnd, List<HeaderCell> out)
    {
       for(int row = rowStart; row < rowEnd; row++) {
          for(int col = colStart; col < colEnd; col++) {
             TableDataPath path = lens.getTableDataPath(row, col);
             String[] segments = path == null ? null : path.getPath();
 
-            if(segments == null || segments.length == 0) {
-               continue;
-            }
-
-            if(ClearTableHeaderAliasHandler.matchAgg(dataRef, segments) ||
-               ClearTableHeaderAliasHandler.matchDim(dataRef, segments, colIndex))
-            {
+            if(segments != null && segments.length > 0) {
                out.add(new HeaderCell(path, row, col));
             }
          }
@@ -331,30 +402,6 @@ public class SetTableHeaderAliasHandler {
 
    /** {@code findHeaderCell}'s result: the header's {@code TableDataPath} plus where it was found. */
    public record HeaderCell(TableDataPath path, int row, int col) {}
-
-   private static HeaderCell scanHeaderRegion(VSTableLens lens, DataRef dataRef, int colIndex,
-                                              int rowStart, int rowEnd, int colStart,
-                                              int colEnd)
-   {
-      for(int row = rowStart; row < rowEnd; row++) {
-         for(int col = colStart; col < colEnd; col++) {
-            TableDataPath path = lens.getTableDataPath(row, col);
-            String[] segments = path == null ? null : path.getPath();
-
-            if(segments == null || segments.length == 0) {
-               continue;
-            }
-
-            if(ClearTableHeaderAliasHandler.matchAgg(dataRef, segments) ||
-               ClearTableHeaderAliasHandler.matchDim(dataRef, segments, colIndex))
-            {
-               return new HeaderCell(path, row, col);
-            }
-         }
-      }
-
-      return null;
-   }
 
    private SetTableHeaderAliasHandler() {
    }
