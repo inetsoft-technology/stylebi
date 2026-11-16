@@ -436,11 +436,12 @@ public abstract class StyleCore extends AbstractAssetEngine
             switch(format.charAt(i)) {
             case 'P':
             case 'p':
-               s = "0";
+               // {P,number,000} needs the int argument, plain {P} keeps the String one
+               s = format.startsWith(",", i + 1) ? "3" : "0";
                break;
             case 'N':
             case 'n':
-               s = "1";
+               s = format.startsWith(",", i + 1) ? "4" : "1";
                break;
             case 'D':
             case 'd':
@@ -470,7 +471,7 @@ public abstract class StyleCore extends AbstractAssetEngine
             MessageFormat mf = locale == null ?
              new MessageFormat(format) :
                new MessageFormat(format, locale);
-            return mf.format(new Object[] {num, count, now});
+            return mf.format(new Object[] {num, count, now, pgnum, pgs});
          }
          catch(Exception ex) {
             LOG.error("Failed to format header/footer text: " + format, ex);
