@@ -466,7 +466,10 @@ public class CalcTableService {
          // Ranking is stored as an index into the summary list, which this write can shift or
          // shrink (a summary cell rebound to text/another column/formula). Snapshotted after
          // toCellBindingInfo, which resolved a new rankBy against that same pre-write list.
-         List<RankTarget> rankings = snapshotRankings(rvs, assembly);
+         // A cell-scoped write is formula text of an existing formula cell: it cannot change the
+         // summary list, so there is nothing to remap, and it must not touch other cells (a null
+         // snapshot makes remapRankings a no-op).
+         List<RankTarget> rankings = cellScoped ? null : snapshotRankings(rvs, assembly);
 
          // Bug #80476: setCellBinding applies with checkTrap=false and its event has no trap flag; the
          // Composer asks through a separate pre-write call. Compared on clones here, and the write is

@@ -816,7 +816,9 @@ public final class CalcCellVocabulary {
       out.put("grouping", tokenOf(GROUPING, info.getBtype()));
       out.put("expand", expandTokenOf(info.getExpansion()));
       out.put("value", info.getValue());
-      out.put("formula", info.getFormula());
+      // On a formula cell getFormula() is only leftover aggregate-name metadata (kept when a
+      // summary cell is switched to a formula), so it is reported for column cells only.
+      out.put("formula", info.getType() == CellBinding.BIND_COLUMN ? info.getFormula() : null);
       out.put("mergeCells", info.getMergeCells());
       out.put("rowGroup", info.getRowGroup());
       out.put("colGroup", info.getColGroup());

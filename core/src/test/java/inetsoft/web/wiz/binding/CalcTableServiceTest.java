@@ -25,6 +25,7 @@ import inetsoft.web.binding.event.GetCellScriptEvent;
 import inetsoft.web.binding.command.GetPredefinedNamedGroupCommand;
 import inetsoft.web.binding.command.GetCellScriptCommand;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
+import inetsoft.report.internal.binding.OrderInfo;
 import inetsoft.report.CellBinding;
 import inetsoft.report.GroupableCellBinding;
 import inetsoft.report.TableCellBinding;
@@ -1455,6 +1456,56 @@ class CalcTableServiceTest {
       assertEquals("$A + $B", event.getValue().getBinding().getValue());
       assertEquals("Net", event.getValue().getBinding().getName());
       assertEquals(CellBinding.BIND_FORMULA, event.getValue().getBinding().getType());
+   }
+
+   /** A group cell at [0,0] ranked by summary index 3, which no summary in scope holds. */
+   private static TableCellBinding rankedGroupCell(Harness h) {
+      TableCellBinding group = new TableCellBinding();
+      group.setType(CellBinding.BIND_COLUMN);
+      group.setBType(TableCellBinding.GROUP);
+      group.setValue("Region");
+      group.getTopN(true).setTopN(2);
+      group.getTopN(true).setTopNSummaryCol(3);
+      group.getOrderInfo(true).setOrder(OrderInfo.SORT_VALUE_DESC);
+      group.getOrderInfo(true).setSortByCol(3);
+      TableLayout layout = h.assemblyInfo().getTableLayout();
+      when(layout.getCellBinding(0, 0)).thenReturn(group);
+      return group;
+   }
+
+   /**
+    * Bug #81438: a cell session owns one cell, so its write must not normalize the ranking of
+    * a group cell it has no grant on.
+    */
+   @Test
+   void aCellSessionWriteLeavesAnotherCellsRankingUntouched() throws Exception {
+      Harness h = harness(2, 2);
+      asCellSession(h);
+      TableCellBinding group = rankedGroupCell(h);
+      when(h.layoutService.getCellBindingInfo(any(), eq(1), eq(1)))
+         .thenReturn(currentCell(CellBinding.BIND_FORMULA, CellBinding.SUMMARY, "old"));
+
+      Map<String, Object> body = h.service.setCellBinding(
+         "tok", principal(), "Calc1", 1, 1, spec("content", "formula", "value", "new"));
+
+      assertTrue(body == null || !body.containsKey("rankingNotes"), String.valueOf(body));
+      assertEquals(2, group.getTopN(false).getTopN());
+      assertEquals(3, group.getTopN(false).getTopNSummaryCol());
+      assertEquals(OrderInfo.SORT_VALUE_DESC, group.getOrderInfo(false).getOrder());
+   }
+
+   /** Control for bug #81438: a whole-sheet write still remaps (and discloses) rankings. */
+   @Test
+   void aWholeSheetWriteStillRemapsRankings() throws Exception {
+      Harness h = harness(2, 2);
+      TableCellBinding group = rankedGroupCell(h);
+
+      Map<String, Object> body = h.service.setCellBinding(
+         "tok", principal(), "Calc1", 1, 1, columnCell("Region"));
+
+      assertNotNull(body);
+      assertTrue(body.containsKey("rankingNotes"), String.valueOf(body));
+      assertEquals(0, group.getTopN(false).getTopN());
    }
 
    @Test

@@ -191,6 +191,28 @@ class CalcCellVocabularyTest {
    }
 
    /**
+    * Bug #81438: on a formula cell getFormula() is leftover aggregate-name metadata (a summary
+    * cell switched to a formula keeps it), so it is reported for column cells only.
+    */
+   @Test
+   void reportsTheAggregateFormulaOnlyForAColumnCell() {
+      CellBindingInfo summary = new CellBindingInfo();
+      summary.setType(CellBinding.BIND_COLUMN);
+      summary.setBtype(CellBinding.SUMMARY);
+      summary.setValue("Total");
+      summary.setFormula("Sum");
+
+      CellBindingInfo formula = new CellBindingInfo();
+      formula.setType(CellBinding.BIND_FORMULA);
+      formula.setBtype(CellBinding.SUMMARY);
+      formula.setValue("sum(data['Total'])");
+      formula.setFormula("Sum");
+
+      assertEquals("Sum", CalcCellVocabulary.describe(summary).get("formula"));
+      assertNull(CalcCellVocabulary.describe(formula).get("formula"));
+   }
+
+   /**
     * Bug #79251: a formula group cell is ordered only by its script's toList options, so its
     * stored sort is not reported. Bug #79330: its stored topn limits neither its list nor
     * dependent summary cells, so it is not reported either (this also covers layouts stored
