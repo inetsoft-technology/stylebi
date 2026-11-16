@@ -192,22 +192,25 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
       }
       else if(event.shiftKey) {
          let lastSelectedItem: IdentityModel = this.selectedAddedIdentities[this.selectedAddedIdentities.length - 1];
-         let last = this.addedIdentities.findIndex((item) =>
-            item.type == lastSelectedItem.type && item.identityID == lastSelectedItem.identityID);
+         // compute the range over the list that is displayed (filtered and sorted), not over
+         // addedIdentities, otherwise hidden rows between the two clicks get selected
+         const shown: IdentityModel[] = this.searchAllIdentities();
+         const last = this.findIdentityIndex(shown, lastSelectedItem);
+         const lastIndex = this.findIdentityIndex(shown, identity);
 
-         let lastIndex = this.addedIdentities.findIndex((item) =>
-            item.type == identity.type && item.identityID == identity.identityID);
+         if(last >= 0 && lastIndex >= 0) {
+            const smaller = Math.min(last, lastIndex);
+            const larger = Math.max(last, lastIndex);
 
-         if(last >= 0 && last <= lastIndex) {
-            // the anchor is already selected; never add an identity twice, a duplicate
-            // would make removeIdentities() look up an identity that is already gone
-            for(let i = last; i <= lastIndex; i++) {
-               if(this.findIdentityIndex(this.selectedAddedIdentities, this.addedIdentities[i]) == -1) {
-                  this.selectedAddedIdentities.push(this.addedIdentities[i]);
+            // never add an identity twice, a duplicate would make removeIdentities() look up
+            // an identity that is already gone
+            for(let i = smaller; i <= larger; i++) {
+               if(this.findIdentityIndex(this.selectedAddedIdentities, shown[i]) == -1) {
+                  this.selectedAddedIdentities.push(shown[i]);
                }
             }
          }
-         else {
+         else if(this.findIdentityIndex(this.selectedAddedIdentities, identity) == -1) {
             this.selectedAddedIdentities.push(identity);
          }
       }

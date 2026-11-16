@@ -30,13 +30,13 @@ export class EditableTableComponent {
    @Input() title: string;
    @Input() selectedItems: number[] = [];
    @Output() selectedItemsChange: EventEmitter<number[]> = new EventEmitter<number[]>();
+   // anchor of a shift-click range; moved by plain and ctrl clicks, not by shift clicks
    lastClickedItemIndex: number = -1;
 
    public selectItem(event: MouseEvent, index: number): void {
-      this.lastClickedItemIndex = index;
-
       if(event.ctrlKey || event.metaKey) {
          const placement: number = this.selectedItems.indexOf(index);
+         this.lastClickedItemIndex = index;
 
          if(placement > -1) {
             this.selectedItems.splice(placement, 1);
@@ -47,21 +47,28 @@ export class EditableTableComponent {
       }
       else if(event.shiftKey) {
          if(this.selectedItems.length > 0) {
-            let indexLast: number = this.lastClickedItemIndex;
-            let indexCurrent: number = index;
+            // the selection can also be changed by the parent (e.g. a newly added row), so
+            // fall back to the last selected row when the anchor is no longer selected
+            const anchor: number = this.selectedItems.indexOf(this.lastClickedItemIndex) > -1 ?
+               this.lastClickedItemIndex : this.selectedItems[this.selectedItems.length - 1];
+            const smaller: number = Math.min(anchor, index);
+            const larger: number = Math.max(anchor, index);
+            const range: number[] = [];
 
-            let smaller: number = indexLast < indexCurrent ? indexLast : indexCurrent;
-            let larger: number = indexLast < indexCurrent ? indexCurrent : indexLast;
-
+            // replace the selection with the (duplicate free) range from the anchor
             for(let i = smaller; i <= larger; i++) {
-               this.selectedItems.push(index);
+               range.push(i);
             }
+
+            this.selectedItems = range;
          }
          else {
+            this.lastClickedItemIndex = index;
             this.selectedItems = [index];
          }
       }
       else {
+         this.lastClickedItemIndex = index;
          this.selectedItems = [index];
       }
 
