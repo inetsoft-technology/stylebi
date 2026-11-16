@@ -1534,6 +1534,8 @@ public class DefaultAxis extends Axis {
 
          if(moved) {
             layout(layoutBounds);
+            // layout may put the end labels outside again
+            moveMinMaxInside(layoutBounds);
          }
 
          VDimensionLabel victim = null;
@@ -1555,24 +1557,44 @@ public class DefaultAxis extends Axis {
       }
    }
 
-   // overlap as the label thinning sees it: a little vertical slack, rotated with the text
-   private static boolean overlaps(VDimensionLabel l1, VDimensionLabel l2) {
-      Area a = textArea(l1);
-      a.intersect(textArea(l2));
+   // overlap as the strict label thinning sees it, with the gap it keeps around a label
+   private boolean overlaps(VDimensionLabel l1, VDimensionLabel l2) {
+      boolean cat = !isContinuousLabels(getScale());
+      Area a = getThinningArea(l1, l1.getDisplayLabel(), cat, thinningSpacing);
+      a.intersect(getThinningArea(l2, l2.getDisplayLabel(), cat, thinningSpacing));
       return !a.isEmpty() && a.getBounds2D().getHeight() >= 1;
    }
 
-   private static Area textArea(VDimensionLabel vl) {
-      Font font = vl.getFont();
-      Point2D p = vl.getTextPosition();
-      String[] lines = vl.getDisplayLabel();
+   /**
+    * Get the area a label takes when the thinning checks for overlap: its text box with the
+    * gap kept around it, rotated with the text.
+    */
+   private static Area getThinningArea(VDimensionLabel vl, String[] dlabels, boolean cat,
+                                       double spacing)
+   {
       double angle = Math.toRadians(vl.getTextSpec().getRotation());
-      double yadj = angle == 0 ? 1 : 2;
-      Rectangle2D box = new Rectangle2D.Double(
-         p.getX(), p.getY() + yadj, GTool.stringWidth(lines, font),
-         GTool.getFontMetrics(font).getHeight() * lines.length - yadj * 2);
-      return new Area(AffineTransform.getRotateInstance(angle, p.getX(), p.getY())
-                         .createTransformedShape(box));
+      Font font = vl.getFont();
+      FontMetrics fm = GTool.getFontMetrics(font);
+      double lwidth = GTool.stringWidth(dlabels, font);
+      int lheight = fm.getHeight() * dlabels.length;
+      Point2D p2d = vl.getTextPosition();
+      float x = (float) p2d.getX();
+      float y = (float) p2d.getY();
+      double xadj = (!cat && angle == 0) ? 1 : 0;
+      double yadj = (angle == 0) ? 1 : 2;
+
+      // Bug #58430, determine how much of the spacing value should go towards xAdj and yAdj
+      // based on the angle of the text. Compute the vertical percentage of the text and
+      // multiply it by the spacing
+      double ySpacing = spacing *
+         (Math.abs(Math.sin(angle)) / ((Math.abs(Math.cos(angle)) + Math.abs(Math.sin(angle)))));
+      xadj += spacing - ySpacing;
+      yadj -= ySpacing;
+
+      Rectangle2D box = new Rectangle2D.Double(x - xadj, y + yadj, lwidth + xadj * 2,
+                                               lheight - yadj * 2);
+      AffineTransform trans = AffineTransform.getRotateInstance(angle, x, y);
+      return new Area(trans.createTransformedShape(box));
    }
 
    /**
@@ -1701,6 +1723,7 @@ public class DefaultAxis extends Axis {
       int outsideIdx = -1; // the last outside label
       boolean foundInside = false; // found label that's not outside
       double spacing = getSpacing(scale, bounds2);
+      thinningSpacing = spacing;
 
       for(int i = 0; i < vlabels.length; i++) {
          VDimensionLabel vl = vlabels[i];
@@ -1714,7 +1737,6 @@ public class DefaultAxis extends Axis {
          }
 
          rotation = vl.getTextSpec().getRotation();
-         double angle = Math.toRadians(rotation);
          boolean outside = !vl.isContained(bounds2, 1, 1);
 
          // don't remove all labels even if the label may not all fit.
@@ -1740,35 +1762,15 @@ public class DefaultAxis extends Axis {
             foundInside = true;
          }
 
-         Font font = vl.getFont();
-         FontMetrics fm = GTool.getFontMetrics(font);
          String[] dlabels = vl.getDisplayLabel();
-         double lwidth = GTool.stringWidth(dlabels, font);
-         int lheight = fm.getHeight() * dlabels.length;
-         Point2D p2d = vl.getTextPosition();
-         float x = (float) p2d.getX();
-         float y = (float) p2d.getY();
-         double xadj = (!cat && angle == 0) ? 1 : 0;
-         double yadj = (angle == 0) ? 1 : 2;
-
-         // Bug #58430, determine how much of the spacing value should go towards xAdj and yAdj
-         // based on the angle of the text. Compute the vertical percentage of the text and
-         // multiply it by the spacing
-         double ySpacing = spacing *
-            (Math.abs(Math.sin(angle)) / ((Math.abs(Math.cos(angle)) + Math.abs(Math.sin(angle)))));
-         xadj += spacing - ySpacing;
-         yadj -= ySpacing;
-
-         Rectangle2D box = new Rectangle2D.Double(x - xadj, y + yadj, lwidth + xadj * 2,
-                                                  lheight - yadj * 2);
-         AffineTransform trans = AffineTransform.getRotateInstance(angle, x, y);
+         Area area = getThinningArea(vl, dlabels, cat, spacing);
 
          if(first < 0 && dlabels.length > 0) {
             first = i;
          }
 
          vlabelList.add(vl);
-         areaList.add(new Area(trans.createTransformedShape(box)));
+         areaList.add(area);
       }
 
       first = Math.max(0, first);
@@ -2460,7 +2462,9 @@ public class DefaultAxis extends Axis {
       }
 
       Scale scale = getScale();
-      boolean mmm = ((TimeScale) scale).getType() == TimeScale.MONTH && pattern.endsWith("MMM");
+      // a category axis of dates only drops the repeated prefix
+      boolean mmm = scale instanceof TimeScale &&
+         ((TimeScale) scale).getType() == TimeScale.MONTH && pattern.endsWith("MMM");
       String pstr = formatWithCache(fmt, pattern, prev);
 
       // if two date labels are identical, ignore the subsequent labels
@@ -2627,6 +2631,8 @@ public class DefaultAxis extends Axis {
    private BitSet dupTicks = new BitSet();
    private boolean prepared;
    private transient Shape layoutBounds = null;
+   // the spacing the label thinning kept, for the year move
+   private transient double thinningSpacing;
    private boolean anchorChanged = false;
    private static final double MAX_AXIS_RATIO = 0.9;
    private transient double maxLabelW = -1, maxLabelH = -1;

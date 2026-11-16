@@ -19,9 +19,17 @@ package inetsoft.report.composition.graph;
 
 import inetsoft.graph.AxisSpec;
 import inetsoft.graph.EGraph;
+import inetsoft.graph.Plotter;
+import inetsoft.graph.VGraph;
 import inetsoft.graph.coord.RectCoord;
+import inetsoft.graph.data.AttributeDataSet;
+import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.graph.data.HRef;
+import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.guide.axis.CompactDates;
+import inetsoft.graph.guide.axis.DefaultAxis;
+import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.TimeScale;
 import inetsoft.graph.scale.Scale;
 import inetsoft.report.internal.binding.BaseField;
@@ -36,8 +44,10 @@ import inetsoft.uql.XFormatInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.GradientColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
+import inetsoft.util.ExtendedDateFormat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -47,8 +57,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.text.Format;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -304,14 +318,359 @@ class ModernAxisLabelRuleTest {
    }
 
    @Test
-   void aDateComparisonChartGetsNoCompactDates() {
-      Chart chart = dateChart(XConstants.MONTH_DATE_GROUP, XConstants.SORT_ASC);
+   void aDateComparisonChartGetsNoCompactDatesOnAnyAxis() {
+      Chart chart = monthByMonthChart();
       VSChartInfo spy = Mockito.spy(chart.info());
       Mockito.doReturn(true).when(spy).isAppliedDateComparison();
-      GraphGenerator gen = generator(new Chart(spy, chart.rows()), VizMark.MODERN_LIGHT);
+      GraphGenerator plain = generator(chart, VizMark.MODERN_LIGHT);
+      GraphGenerator dc = generator(new Chart(spy, chart.rows()), VizMark.MODERN_LIGHT);
+      String x = GraphUtil.getName(chart.info().getXField(0));
+      String y = GraphUtil.getName(chart.info().getYField(0));
 
-      assertTrue(gen.isDateComparisonAxis(true));
-      assertFalse(gen.isDateComparisonAxis(false));
+      assertNotNull(compactDates(plain, new CategoricalScale(x)), "premise: a plain X axis");
+      assertNotNull(compactDates(plain, new CategoricalScale(y)), "premise: a plain Y axis");
+      assertNotNull(compactDates(plain, new TimeScale(y)), "premise: a plain time axis");
+      assertNull(compactDates(dc, new CategoricalScale(x)));
+      assertNull(compactDates(dc, new CategoricalScale(y)));
+      assertNull(compactDates(dc, new TimeScale(y)));
+      assertTrue(dc.isDateComparisonAxis(true), "the label rule still skips the X axis only");
+      assertFalse(dc.isDateComparisonAxis(false));
+   }
+
+   @Test
+   void aMarkedLineKeepsItsFittedYRange() {
+      double[] classic = yRange(lineChart(), null);
+      double[] marked = yRange(lineChart(), VizMark.MODERN_LIGHT);
+
+      assertTrue(classic[0] > 0, "premise: a fitted range " + Arrays.toString(classic));
+      assertArrayEquals(classic, marked, 1e-9, "marked " + Arrays.toString(marked));
+   }
+
+   @Test
+   void aMarkedCandleKeepsItsFittedYRange() {
+      double[] classic = yRange(candleChart(), null);
+      double[] marked = yRange(candleChart(), VizMark.MODERN_LIGHT);
+
+      assertTrue(classic[0] > 0, "premise: a fitted range " + Arrays.toString(classic));
+      assertArrayEquals(classic, marked, 1e-9, "marked " + Arrays.toString(marked));
+   }
+
+   @Test
+   void anHourlyGroupedChartDropsTheRepeatedDate() {
+      for(VizMark mark : new VizMark[] { null, VizMark.MODERN_LIGHT }) {
+         GraphGenerator gen = generator(hourlyChart(), mark, new Dimension(800, 240),
+                                        rows -> new HourFormatDataSet(rows));
+         EGraph graph = gen.createEGraph();
+         VGraph vgraph = Plotter.getPlotter(graph).plotAndLayout(gen.getData(), 0, 0, 800, 240);
+         DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getXAxis1();
+         axis.prepareLabels();
+         List<String> texts = shownTexts(axis);
+
+         assertEquals("2026-01-05 09", texts.get(0), mark + " " + texts);
+
+         if(mark != null) {
+            assertEquals("01-05 10", texts.get(1), texts.toString());
+         }
+         else {
+            assertEquals("2026-01-05 10", texts.get(1), "premise: classic repeats the date");
+         }
+      }
+   }
+
+   @Test
+   void ganttTasksStayFlatInAColumn() {
+      EGraph graph = generator(ganttChart(30, false), VizMark.MODERN_LIGHT, new Dimension(400, 480))
+         .createEGraph();
+      Scale tasks = ((RectCoord) graph.getCoordinate()).getXScale();
+
+      assertInstanceOf(CategoricalScale.class, tasks, "premise: the task scale");
+      assertEquals(0, rotation(tasks));
+      assertEquals(110, tasks.getAxisSpec().getLabelLimit(), 0.01);
+   }
+
+   @Test
+   void classicGanttTasksUnchanged() {
+      EGraph graph = generator(ganttChart(30, false), null, new Dimension(400, 480)).createEGraph();
+      Scale tasks = ((RectCoord) graph.getCoordinate()).getXScale();
+
+      assertEquals(0, rotation(tasks));
+      assertEquals(0, tasks.getAxisSpec().getLabelLimit(), 0.01);
+   }
+
+   @Test
+   void aGanttTimeAxisTakesCompactDates() {
+      GraphGenerator gen = generator(ganttChart(6, true), VizMark.MODERN_LIGHT,
+                                     new Dimension(400, 480));
+      EGraph graph = gen.createEGraph();
+      Scale time = ((RectCoord) graph.getCoordinate()).getYScale();
+
+      assertInstanceOf(TimeScale.class, time, "premise: the time scale");
+      assertEquals(new CompactDates(CompactDates.FROM_SCALE, CompactDateRule.locale()),
+                   time.getAxisSpec().getCompactDates());
+
+      VGraph vgraph = Plotter.getPlotter(graph).plotAndLayout(gen.getData(), 0, 0, 400, 480);
+      DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getYAxis1();
+      axis.prepareLabels();
+      List<String> texts = shownTexts(axis);
+
+      assertTrue(texts.size() >= 3, texts.toString());
+      assertEquals(List.of("Jan 2026", "Feb", "Mar"), texts.subList(0, 3));
+   }
+
+   @Test
+   void classicGanttTimeAxisGetsNoCompactDates() {
+      EGraph graph = generator(ganttChart(6, true), null, new Dimension(400, 480)).createEGraph();
+
+      assertNull(((RectCoord) graph.getCoordinate()).getYScale().getAxisSpec().getCompactDates());
+   }
+
+   @Test
+   void aHeatMapsYCategoriesGetTheColumnLimit() {
+      EGraph graph = generator(heatMap(), VizMark.MODERN_LIGHT).createEGraph();
+      Scale y = scaleOf(graph, "State");
+
+      assertTrue(GraphTypeUtil.isHeatMap(heatMap().info()), "premise: a heat map");
+      assertInstanceOf(CategoricalScale.class, y, "premise: a category Y axis");
+      assertEquals(0, rotation(y));
+      assertEquals(110, y.getAxisSpec().getLabelLimit(), 0.01);
+   }
+
+   @Test
+   void aFacetRowKeepsTodaysLabels() {
+      VSChartDimensionRef store = dim("Store");
+      VSChartDimensionRef region = dim("Region");
+      VSChartAggregateRef total = agg("Total");
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_BAR);
+      cinfo.setRTChartType(GraphTypes.CHART_BAR);
+      cinfo.addXField(store);
+      cinfo.addYField(region);
+      cinfo.addYField(total);
+      cinfo.updateChartType(false);
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { GraphUtil.getName(store), GraphUtil.getName(region),
+                              GraphUtil.getName(total) });
+
+      for(int r = 0; r < 2; r++) {
+         for(int s = 0; s < 4; s++) {
+            rows.add(new Object[] { "Store " + s, "Region number " + r, 10.0 * (s + 1) });
+         }
+      }
+
+      EGraph graph = generator(new Chart(cinfo, rows.toArray(new Object[0][])),
+                               VizMark.MODERN_LIGHT).createEGraph();
+      Scale row = scaleOf(graph, "Region");
+
+      assertNotNull(row, "premise: a facet row axis");
+      assertEquals(0, row.getAxisSpec().getLabelLimit(), 0.01);
+   }
+
+   @Test
+   void classicHeatMapsYCategoriesUnchanged() {
+      EGraph graph = generator(heatMap(), null).createEGraph();
+      Scale y = scaleOf(graph, "State");
+
+      assertEquals(0, rotation(y));
+      assertEquals(0, y.getAxisSpec().getLabelLimit(), 0.01);
+   }
+
+   private static CompactDates compactDates(GraphGenerator gen, Scale scale) {
+      AxisSpec axis = new AxisSpec();
+      gen.applyCompactDates(scale, axis, new CompositeTextFormat(), scale.getFields());
+      return axis.getCompactDates();
+   }
+
+   // a month axis on X and on Y
+   private static Chart monthByMonthChart() {
+      VSChartDimensionRef order = dateDim("Order", XConstants.MONTH_DATE_GROUP,
+                                          XConstants.SORT_ASC);
+      VSChartDimensionRef ship = dateDim("Ship", XConstants.MONTH_DATE_GROUP,
+                                         XConstants.SORT_ASC);
+      VSChartAggregateRef total = agg("Total");
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_POINT);
+      cinfo.setRTChartType(GraphTypes.CHART_POINT);
+      cinfo.addXField(order);
+      cinfo.addYField(ship);
+      cinfo.updateChartType(false);
+      Object[][] rows = {
+         { GraphUtil.getName(order), GraphUtil.getName(ship), GraphUtil.getName(total) },
+         { new java.sql.Date(125, 0, 1), new java.sql.Date(125, 1, 1), 10.0 },
+         { new java.sql.Date(125, 1, 1), new java.sql.Date(125, 2, 1), 20.0 },
+      };
+
+      return new Chart(cinfo, rows);
+   }
+
+   private static double[] yRange(Chart chart, VizMark mark) {
+      GraphGenerator gen = generator(chart, mark);
+      VGraph vgraph = Plotter.getPlotter(gen.createEGraph())
+         .plotAndLayout(gen.getData(), 0, 0, 400, 240);
+      Scale y = ((RectCoord) vgraph.getCoordinate()).getYScale();
+      return new double[] { y.getMin(), y.getMax() };
+   }
+
+   // eight stores between 1010 and 1080
+   private static Chart lineChart() {
+      VSChartDimensionRef store = dim("Store");
+      VSChartAggregateRef total = agg("Total");
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_LINE);
+      cinfo.setRTChartType(GraphTypes.CHART_LINE);
+      cinfo.addXField(store);
+      cinfo.addYField(total);
+      cinfo.updateChartType(false);
+      Object[][] rows = new Object[9][];
+      rows[0] = new Object[] { GraphUtil.getName(store), GraphUtil.getName(total) };
+
+      for(int i = 1; i < 9; i++) {
+         rows[i] = new Object[] { "Store " + i, 1000.0 + i * 10 };
+      }
+
+      return new Chart(cinfo, rows);
+   }
+
+   // eight days of prices around 1050
+   private static Chart candleChart() {
+      VSChartAggregateRef high = agg("High");
+      VSChartAggregateRef close = agg("Close");
+      VSChartAggregateRef open = agg("Open");
+      VSChartAggregateRef low = agg("Low");
+      CandleVSChartInfo cinfo = new CandleVSChartInfo();
+      cinfo.addXField(dim("Day"));
+      cinfo.setHighField(high);
+      cinfo.setRTHighField(high);
+      cinfo.setCloseField(close);
+      cinfo.setRTCloseField(close);
+      cinfo.setOpenField(open);
+      cinfo.setRTOpenField(open);
+      cinfo.setLowField(low);
+      cinfo.setRTLowField(low);
+      cinfo.setChartType(GraphTypes.CHART_CANDLE);
+      cinfo.setRTChartType(GraphTypes.CHART_CANDLE);
+      cinfo.updateChartType(false);
+      Object[][] rows = new Object[9][];
+      rows[0] = new Object[] { "Day", GraphUtil.getName(high), GraphUtil.getName(close),
+                               GraphUtil.getName(open), GraphUtil.getName(low) };
+
+      for(int i = 1; i < 9; i++) {
+         rows[i] = new Object[] { "D" + i, 1080.0 + i, 1050.0 + i, 1040.0 + i, 1010.0 + i };
+      }
+
+      return new Chart(cinfo, rows);
+   }
+
+   // eight hours of one day, grouped by hour
+   private static Chart hourlyChart() {
+      VSChartDimensionRef hour = dateDim("Date", XConstants.HOUR_DATE_GROUP, XConstants.SORT_ASC);
+      hour.setDataType(XSchema.TIME_INSTANT);
+      Object[][] rows = new Object[9][];
+      rows[0] = new Object[2];
+
+      for(int i = 1; i < 9; i++) {
+         rows[i] = new Object[] { new java.sql.Timestamp(126, 0, 5, 8 + i, 0, 0, 0), i * 10.0 };
+      }
+
+      return barChart(hour, rows);
+   }
+
+   // the hour level's pattern, as a chart's data carries it
+   private static final class HourFormatDataSet extends DefaultDataSet implements AttributeDataSet {
+      HourFormatDataSet(Object[][] rows) {
+         super(rows);
+      }
+
+      @Override
+      public HRef getHyperlink(int col, int row) {
+         return null;
+      }
+
+      @Override
+      public void setHyperlink(int col, int row, HRef link) {
+      }
+
+      @Override
+      public Format getFormat(int col, int row) {
+         return col == 0 ? new ExtendedDateFormat("yyyy-MM-dd HH") : null;
+      }
+   }
+
+   // tasks with long names, starting on the 1st of each month or every 3 days
+   private static Chart ganttChart(int count, boolean monthly) {
+      VSChartDimensionRef task = dim("Task");
+      VSChartAggregateRef start = agg("Start");
+      start.setFormulaValue("Min");
+      VSChartAggregateRef end = agg("End");
+      end.setFormulaValue("Max");
+      GanttVSChartInfo gantt = new GanttVSChartInfo();
+      gantt.setChartType(GraphTypes.CHART_GANTT);
+      gantt.setRTChartType(GraphTypes.CHART_GANTT);
+      gantt.addYField(task);
+      gantt.setStartField(start);
+      gantt.setEndField(end);
+      gantt.setRTYFields(new ChartRef[] { task });
+      gantt.setRTStartField(start);
+      gantt.setRTEndField(end);
+      Object[][] rows = new Object[count + 1][];
+      rows[0] = new Object[] { "Task", GraphUtil.getName(start), GraphUtil.getName(end) };
+
+      for(int i = 1; i <= count; i++) {
+         Date from = monthly ? date(2026, Calendar.JANUARY + i - 1, 1)
+            : date(2026, Calendar.JANUARY, 1 + i * 3);
+         Date to = monthly ? date(2026, Calendar.JANUARY + i - 1, 20)
+            : date(2026, Calendar.JANUARY, 21 + i * 3);
+         rows[i] = new Object[] { "Workstream task number " + i, from, to };
+      }
+
+      return new Chart(gantt, rows);
+   }
+
+   // regions by state, with the total on Color
+   private static Chart heatMap() {
+      VSChartDimensionRef region = dim("Region");
+      VSChartDimensionRef state = dim("State");
+      VSChartAggregateRef total = agg("Total");
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(total);
+      color.setRTDataRef(total);
+      color.setVisualFrameWrapper(new GradientColorFrameWrapper());
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_POINT);
+      cinfo.setRTChartType(GraphTypes.CHART_POINT);
+      cinfo.addXField(region);
+      cinfo.addYField(state);
+      cinfo.setColorField(color);
+      cinfo.updateChartType(false);
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { GraphUtil.getName(region), GraphUtil.getName(state),
+                              GraphUtil.getName(total) });
+
+      for(int r = 0; r < 3; r++) {
+         for(int s = 0; s < 5; s++) {
+            rows.add(new Object[] { "Region " + r, "State number " + s, 10.0 * (r + s + 1) });
+         }
+      }
+
+      return new Chart(cinfo, rows.toArray(new Object[0][]));
+   }
+
+   private static Date date(int year, int month, int day) {
+      Calendar cal = Calendar.getInstance();
+      cal.clear();
+      cal.set(year, month, day);
+      return cal.getTime();
+   }
+
+   private static List<String> shownTexts(DefaultAxis axis) {
+      List<String> texts = new ArrayList<>();
+
+      for(VLabel label : axis.getLabels()) {
+         if(label.getZIndex() >= 0) {
+            texts.add(String.join("", label.getDisplayLabel()));
+         }
+      }
+
+      return texts;
    }
 
    private static VSChartDimensionRef dateDim(String name, int level, int order) {
@@ -417,14 +776,23 @@ class ModernAxisLabelRuleTest {
    }
 
    private static GraphGenerator generator(Chart chart, VizMark mark) {
+      return generator(chart, mark, new Dimension(400, 240));
+   }
+
+   private static GraphGenerator generator(Chart chart, VizMark mark, Dimension size) {
+      return generator(chart, mark, size, DefaultDataSet::new);
+   }
+
+   private static GraphGenerator generator(Chart chart, VizMark mark, Dimension size,
+                                           java.util.function.Function<Object[][], DataSet> data)
+   {
       ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
       assemblyInfo.setVSChartInfo(chart.info());
       assemblyInfo.setChartDescriptor(new ChartDescriptor());
       assemblyInfo.setVizMark(mark);
 
-      return GraphGenerator.getGenerator(assemblyInfo, null, new DefaultDataSet(chart.rows()),
-                                         new VariableTable(), null, XSourceInfo.NONE,
-                                         new Dimension(400, 240));
+      return GraphGenerator.getGenerator(assemblyInfo, null, data.apply(chart.rows()),
+                                         new VariableTable(), null, XSourceInfo.NONE, size);
    }
 
    private static VSChartDimensionRef dim(String name) {

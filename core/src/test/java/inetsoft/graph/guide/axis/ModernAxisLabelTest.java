@@ -34,6 +34,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.util.ExtendedDateFormat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -326,6 +327,95 @@ class ModernAxisLabelTest {
       assertCleanAcrossWidths(days, new CompactDates(TimeScale.DAY, Locale.US), 2);
    }
 
+   @Test
+   void anHourlyCategoryAxisDropsTheRepeatedYear() {
+      Object[][] rows = new Object[9][];
+      rows[0] = new Object[] { "Date", "Sales" };
+
+      for(int i = 1; i < 9; i++) {
+         rows[i] = new Object[] { new java.sql.Timestamp(126, 0, 5, 8 + i, 0, 0, 0), i * 10.0 };
+      }
+
+      CategoricalScale xscale = new CategoricalScale("Date");
+      xscale.getAxisSpec().getTextSpec().setFormat(new ExtendedDateFormat("yyyy-MM-dd HH"));
+      xscale.getAxisSpec().setAbbreviate(true);
+      xscale.getAxisSpec().setLabelLimit(66);
+      List<String> texts = shownTexts(layout(xscale, rows, 800, 300));
+
+      assertEquals(8, texts.size(), texts.toString());
+      assertEquals("2026-01-05 09", texts.get(0));
+      assertEquals("01-05 10", texts.get(1));
+      assertEquals("01-05 16", texts.get(7));
+   }
+
+   @Test
+   void aMovedYearKeepsTheThinningGap() {
+      // one month every 15px: a grown year label would otherwise touch its neighbour
+      assertThinningGap(400, 240);
+
+      for(int width = 200; width <= 900; width += 7) {
+         assertThinningGap(width, 240);
+      }
+   }
+
+   @Test
+   void theFirstLabelStaysMovedInsideAfterTheYearMoves() {
+      // with the Y labels hidden the first label starts left of the graph
+      CategoricalScale xscale = new CategoricalScale("Date");
+      xscale.getAxisSpec().setCompactDates(new CompactDates(TimeScale.MONTH, Locale.US));
+      xscale.getAxisSpec().setLabelLimit(66);
+      LinearScale yscale = new LinearScale("Sales");
+      yscale.getAxisSpec().setLabelVisible(false);
+      DefaultAxis axis = layout(xscale, yscale, dateRows(months(2025, Calendar.FEBRUARY, 24)),
+                                400, 240);
+      List<String> texts = shownTexts(axis);
+      VLabel first = axis.getLabels()[0];
+      Rectangle2D bounds = axis.getBounds();
+      double centred = bounds.getX() + bounds.getWidth() / 24 / 2 - width(first) / 2;
+
+      assertTrue(texts.contains("Feb 2026") && !shownIndices(axis).contains(11),
+                 "premise: the 2026 year moved to Feb " + texts);
+      assertTrue(first.getZIndex() >= 0, "premise: the first label shows");
+      assertTrue(centred < 0, "premise: centred under its tick it starts at " + centred);
+      assertTrue(first.getTextPosition().getX() > centred + 0.5,
+                 "first label at " + first.getTextPosition().getX() + ", centred at " + centred);
+   }
+
+   // adjacent shown labels keep the 1px each side the thinning keeps around a date label
+   private static void assertThinningGap(int width, int height) {
+      DefaultAxis axis = dateAxis(months(2025, Calendar.FEBRUARY, 24),
+                                  new CompactDates(TimeScale.MONTH, Locale.US), null, width,
+                                  height, 66);
+      List<Rectangle2D> shown = shownBounds(axis);
+      List<String> texts = shownTexts(axis);
+
+      for(int i = 0; i < shown.size() - 1; i++) {
+         double gap = shown.get(i + 1).getX() - shown.get(i).getMaxX();
+
+         assertTrue(gap >= 2 - 1e-3, "gap " + gap + " between " + texts.get(i) + " and " +
+                    texts.get(i + 1) + " at " + width + "x" + height + " " + texts);
+      }
+   }
+
+   private static DefaultAxis layout(CategoricalScale xscale, Object[][] rows, int width,
+                                     int height)
+   {
+      return layout(xscale, new LinearScale("Sales"), rows, width, height);
+   }
+
+   private static DefaultAxis layout(CategoricalScale xscale, LinearScale yscale, Object[][] rows,
+                                     int width, int height)
+   {
+      EGraph graph = new EGraph();
+      graph.addElement(new IntervalElement(xscale.getFields()[0], "Sales"));
+      graph.setCoordinate(new RectCoord(xscale, yscale));
+      VGraph vgraph = Plotter.getPlotter(graph)
+         .plotAndLayout(new DefaultDataSet(rows), 0, 0, width, height);
+      DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getXAxis1();
+      axis.prepareLabels();
+      return axis;
+   }
+
    // every shown label pair up to `reach` apart is apart, and a year starts each year's first
    private static void assertCleanAcrossWidths(Date[] dates, CompactDates compact, int reach) {
       for(int width = 200; width <= 900; width += 7) {
@@ -381,11 +471,21 @@ class ModernAxisLabelTest {
    private static DefaultAxis dateAxis(Date[] dates, CompactDates compact, DefaultTextFrame alias,
                                        int width, double limit)
    {
+      return dateAxis(dates, compact, alias, width, 300, limit);
+   }
+
+   private static DefaultAxis dateAxis(Date[] dates, CompactDates compact, DefaultTextFrame alias,
+                                       int width, int height, double limit)
+   {
       CategoricalScale xscale = new CategoricalScale("Date");
       AxisSpec spec = xscale.getAxisSpec();
       spec.setCompactDates(compact);
       spec.setTextFrame(alias);
       spec.setLabelLimit(limit);
+      return layout(xscale, dateRows(dates), width, height);
+   }
+
+   private static Object[][] dateRows(Date[] dates) {
       Object[][] rows = new Object[dates.length + 1][];
       rows[0] = new Object[] { "Date", "Sales" };
 
@@ -393,14 +493,7 @@ class ModernAxisLabelTest {
          rows[i + 1] = new Object[] { dates[i], (i + 1) * 100 };
       }
 
-      EGraph graph = new EGraph();
-      graph.addElement(new IntervalElement("Date", "Sales"));
-      graph.setCoordinate(new RectCoord(xscale, new LinearScale("Sales")));
-      VGraph vgraph = Plotter.getPlotter(graph)
-         .plotAndLayout(new DefaultDataSet(rows), 0, 0, width, 300);
-      DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getXAxis1();
-      axis.prepareLabels();
-      return axis;
+      return rows;
    }
 
    private static List<String> shownTexts(DefaultAxis axis) {

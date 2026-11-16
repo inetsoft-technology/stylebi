@@ -138,16 +138,24 @@ class CompactDateRuleTest {
    }
 
    @Test
-   void theXPaneOfADateComparisonChartKeepsToday() {
+   void everyPaneOfADateComparisonChartKeepsToday() {
       Format today = new SimpleDateFormat("yyyy-MM");
-      VSChartInfo spy = Mockito.spy(new DefaultVSChartInfo());
+      VSChartDimensionRef x = month();
+      VSChartDimensionRef y = month();
+      y.setDateLevelValue(String.valueOf(XConstants.DAY_DATE_GROUP));
+      VSChartInfo plain = new DefaultVSChartInfo();
+      plain.addXField(x);
+      plain.addYField(y);
+      VSChartInfo spy = Mockito.spy(plain);
       Mockito.doReturn(true).when(spy).isAppliedDateComparison();
       VizContext ctx = context(VizMark.MODERN_LIGHT);
 
-      assertSame(today, CompactDateRule.paneDefault(ctx, spy, true, month(), today));
-      assertNotSame(today, CompactDateRule.paneDefault(ctx, spy, false, month(), today));
-      assertNotSame(today, CompactDateRule.paneDefault(
-         ctx, new DefaultVSChartInfo(), true, month(), today));
+      assertNotSame(today, CompactDateRule.paneDefault(ctx, plain, x, today),
+                    "premise: a plain X pane is compact");
+      assertNotSame(today, CompactDateRule.paneDefault(ctx, plain, y, today),
+                    "premise: a plain Y pane is compact");
+      assertSame(today, CompactDateRule.paneDefault(ctx, spy, x, today));
+      assertSame(today, CompactDateRule.paneDefault(ctx, spy, y, today));
    }
 
    private static VizContext context(VizMark mark) {

@@ -110,21 +110,18 @@ public final class CompactDateRule {
    }
 
    /**
-    * Check if the axis is an X axis of a chart with date comparison applied, which keeps
-    * today's labels.
+    * Check if the chart has date comparison applied, which keeps today's dates on every axis.
     */
-   static boolean isDateComparisonAxis(ChartInfo info, boolean xAxis) {
-      return xAxis && info instanceof VSChartInfo && ((VSChartInfo) info).isAppliedDateComparison();
+   static boolean isDateComparison(ChartInfo info) {
+      return info instanceof VSChartInfo && ((VSChartInfo) info).isAppliedDateComparison();
    }
 
    /**
     * Get the format the Format pane shows as the default of an axis column, which is today's
-    * on an axis that draws today's labels.
+    * on a chart that draws today's dates.
     */
-   public static Format paneDefault(VizContext ctx, ChartInfo info, boolean xAxis, ChartRef ref,
-                                    Format today)
-   {
-      return isDateComparisonAxis(info, xAxis) ? today : paneDefault(ctx, ref, today);
+   public static Format paneDefault(VizContext ctx, ChartInfo info, ChartRef ref, Format today) {
+      return isDateComparison(info) ? today : paneDefault(ctx, ref, today);
    }
 
    /**

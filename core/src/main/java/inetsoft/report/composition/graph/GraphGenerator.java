@@ -2376,7 +2376,7 @@ public abstract class GraphGenerator {
             CompositeTextFormat format = getAxisLabelFormat(xdesc, flds, false);
             Format fmt2 = GraphUtil.getFormat(format);
             AxisSpec xaxis = createAxisSpec(xdesc, plotdesc, flds, xscale, false, inner, true);
-            applyCompactDates(xscale, xaxis, format, flds, true);
+            applyCompactDates(xscale, xaxis, format, flds);
 
             /* the pie axis can be controlled now so shouldn't change the user set options.
             // fix bug1288772087744, since pie cannot set the property of axis
@@ -2417,16 +2417,15 @@ public abstract class GraphGenerator {
             if(xscale instanceof LinearScale) {
                applyAxisDescriptor((LinearScale) xscale, xdesc);
             }
-            // rotate the labels if auto and too crowded
-            else if(xmeasures.size() == 0 && format.getRotation() == null) {
-               setDefaultRotation(xaxis, xscale, xdims, rect.getYScale(), true);
-            }
-            // the categories of a horizontal chart
-            else if(xmeasures.size() > 0 && format.getRotation() == null &&
-                    isRotated(rect) && xscale instanceof CategoricalScale &&
+            // the categories of a horizontal chart or a Gantt's tasks
+            else if(format.getRotation() == null && isTransposedCategories(rect, xscale) &&
                     isModernLabelAxis(xaxis, true))
             {
                setModernColumnLimit(xaxis, xscale, ydims);
+            }
+            // rotate the labels if auto and too crowded
+            else if(xmeasures.size() == 0 && format.getRotation() == null) {
+               setDefaultRotation(xaxis, xscale, xdims, rect.getYScale(), true);
             }
 
             if(inner) {
@@ -2754,7 +2753,7 @@ public abstract class GraphGenerator {
          GraphTypes.isRect(info.getRTChartType());
       PlotDescriptor plotdesc = desc.getPlotDescriptor();
       AxisSpec yaxis = createAxisSpec(ydesc, plotdesc, flds, yscale, secondary, inner, false);
-      applyCompactDates(yscale, yaxis, format, flds, false);
+      applyCompactDates(yscale, yaxis, format, flds);
 
       if(isSparkline()) {
          yaxis.setAxisStyle(AxisSpec.AXIS_NONE);
@@ -2818,6 +2817,12 @@ public abstract class GraphGenerator {
       // rotate the labels if auto and too crowded
       else if(xmeasures.size() > 0 && format.getRotation() == null) {
          setDefaultRotation(yaxis, yscale, ydims, null, false);
+      }
+      // any other category axis on Y, such as a heat map's rows, reads as a column
+      else if(format.getRotation() == null && isYCategories(yscale, inner) &&
+              isModernLabelAxis(yaxis, false))
+      {
+         setModernColumnLimit(yaxis, yscale, ydims);
       }
 
       if(inner) {
@@ -6791,12 +6796,20 @@ public abstract class GraphGenerator {
    }
 
    // draw compact dates on a date axis of a marked chart, unless the author set a format
-   private void applyCompactDates(Scale scale, AxisSpec axis, CompositeTextFormat format,
-                                  String[] fields, boolean xAxis)
+   void applyCompactDates(Scale scale, AxisSpec axis, CompositeTextFormat format,
+                          String[] fields)
    {
       if(!vizContext.modern || fields == null || fields.length == 0 ||
-         CompactDateRule.hasAuthorFormat(format) || isDateComparisonAxis(xAxis))
+         CompactDateRule.hasAuthorFormat(format) || CompactDateRule.isDateComparison(info))
       {
+         return;
+      }
+
+      Locale locale = CompactDateRule.locale();
+
+      // a time axis follows its tick unit, whatever field it shows (a Gantt's is a measure)
+      if(scale instanceof TimeScale) {
+         axis.setCompactDates(new CompactDates(CompactDates.FROM_SCALE, locale));
          return;
       }
 
@@ -6806,13 +6819,6 @@ public abstract class GraphGenerator {
       if(!(ref instanceof XDimensionRef dim) || !dim.isDateTime() ||
          (dim.getRefType() & DataRef.CUBE) != 0)
       {
-         return;
-      }
-
-      Locale locale = CompactDateRule.locale();
-
-      if(scale instanceof TimeScale) {
-         axis.setCompactDates(new CompactDates(CompactDates.FROM_SCALE, locale));
          return;
       }
 
@@ -6846,9 +6852,22 @@ public abstract class GraphGenerator {
       return vizContext.modern && axis.isTruncate() && !isDateComparisonAxis(xAxis);
    }
 
-   // an X axis of a chart with date comparison applied keeps today's labels
+   // an X axis of a chart with date comparison applied keeps today's label rule
    boolean isDateComparisonAxis(boolean xAxis) {
-      return CompactDateRule.isDateComparisonAxis(info, xAxis);
+      return xAxis && CompactDateRule.isDateComparison(info);
+   }
+
+   // an inner category Y axis, or the last Y dimension of a chart without measures
+   private boolean isYCategories(Scale yscale, boolean inner) {
+      String[] flds = yscale.getFields();
+      return yscale instanceof CategoricalScale && (inner || fake && flds.length > 0 &&
+         !ydims.isEmpty() && flds[0].equals(ydims.get(ydims.size() - 1)));
+   }
+
+   // a category X axis drawn down the side of a transposed chart
+   private boolean isTransposedCategories(RectCoord rect, Scale xscale) {
+      return xscale instanceof CategoricalScale &&
+         (isRotated(rect) || GTool.getRotation(rect.getCoordTransform()) != 0);
    }
 
    // set the label limit and, on an X axis, the rotation from the measured labels
@@ -6945,10 +6964,13 @@ public abstract class GraphGenerator {
             CompositeTextFormat format = getAxisLabelFormat(ydesc, primaryY.getFields(), false);
             Format fmt = GraphUtil.getFormat(format);
             Font font = GraphUtil.getTextSpec(format, null, null).getFont();
-            primaryY.init(data);
+            // a copy, so the real scale's range is not fixed before its options are set
+            Scale probe = primaryY instanceof LinearScale ?
+               ((LinearScale) primaryY).clone(false) : primaryY.clone();
+            probe.init(data);
             double widest = 0;
 
-            for(Object val : primaryY.getValues()) {
+            for(Object val : probe.getValues()) {
                widest = Math.max(widest,
                                  GTool.stringWidth(new String[] { GTool.format(fmt, val) }, font));
             }

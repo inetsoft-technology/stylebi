@@ -1825,8 +1825,7 @@ public class FormatPainterService {
             }
          }
 
-         fixAxisDefaultFormat(box.get(), chartInfo, format, name, columnName, VizContext.LEGACY,
-                              false);
+         fixAxisDefaultFormat(box.get(), chartInfo, format, name, columnName, VizContext.LEGACY);
          format.getCSSFormat().setCSSType(CSSConstants.CHART_LEGEND_CONTENT);
       }
       else if(region.equals(ChartFormatConstants.LEGEND_TITLE)) {
@@ -1854,7 +1853,7 @@ public class FormatPainterService {
          .getAxisDescriptor(chartInfo, area, region, index, columnName);
       CompositeTextFormat format = GraphFormatUtil.getAxisLabelTextFormat(
          columnName, chartInfo, descriptor, isX);
-      fixAxisDefaultFormat(box, chartInfo, format, name, columnName, ctx, isX);
+      fixAxisDefaultFormat(box, chartInfo, format, name, columnName, ctx);
       return format;
    }
 
@@ -1885,7 +1884,7 @@ public class FormatPainterService {
 
    private void fixAxisDefaultFormat(ViewsheetSandbox box, VSChartInfo chartInfo,
                                      CompositeTextFormat format, String cname, String columnName,
-                                     VizContext ctx, boolean xAxis)
+                                     VizContext ctx)
       throws Exception
    {
       if(format == null) {
@@ -1894,7 +1893,7 @@ public class FormatPainterService {
 
       Format defFormat = getAxisDefaultFormat(box, chartInfo, cname, columnName);
       defFormat = CompactDateRule.paneDefault(
-         ctx, chartInfo, xAxis, columnName == null ? null : chartInfo.getFieldByName(columnName, true),
+         ctx, chartInfo, columnName == null ? null : chartInfo.getFieldByName(columnName, true),
          defFormat);
       boolean userDefined = !format.getUserDefinedFormat().getFormat().isEmpty();
 
