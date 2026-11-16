@@ -158,7 +158,7 @@ public class CSVInfo implements inetsoft.util.XMLSerializable {
          cols = TextUtil.split(header, delim + "");
       }
       else {
-         cols = header.split(delim + "");
+         cols = header.split(Pattern.quote(delim + ""));
       }
 
       Pattern nonDigital = Pattern.compile("\\D");
