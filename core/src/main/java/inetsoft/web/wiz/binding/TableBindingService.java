@@ -21,12 +21,14 @@ import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.internal.binding.ExpertNamedGroupInfo;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.SortInfo;
@@ -55,6 +57,8 @@ import inetsoft.web.binding.model.table.CalcTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.command.UpdateSortInfoCommand;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
@@ -91,7 +95,6 @@ import java.util.function.Consumer;
  */
 @Service
 public class TableBindingService {
-   @Autowired
    public TableBindingService(ViewsheetSessionService sessions,
                               VSBindingService binding,
                               VSBindingModelService bindingModelService,
@@ -99,6 +102,20 @@ public class TableBindingService {
                               HideColumnsDialogService hideColumnsService,
                               VSAssemblyInfoHandler assemblyInfoHandler)
    {
+      this(sessions, binding, bindingModelService, refModelService, hideColumnsService,
+           assemblyInfoHandler, null);
+   }
+
+   @Autowired
+   public TableBindingService(ViewsheetSessionService sessions,
+                              VSBindingService binding,
+                              VSBindingModelService bindingModelService,
+                              DataRefModelFactoryService refModelService,
+                              HideColumnsDialogService hideColumnsService,
+                              VSAssemblyInfoHandler assemblyInfoHandler,
+                              CoreLifecycleService coreLifecycleService)
+   {
+      this.coreLifecycleService = coreLifecycleService;
       this.sessions = sessions;
       this.binding = binding;
       this.bindingModelService = bindingModelService;
@@ -1202,9 +1219,9 @@ public class TableBindingService {
     * this class: {@code sinfo} round-trips through {@code TableDataVSAssemblyInfo}'s real
     * {@code writeContents}/{@code parseContents} XML pair, not a runtime-only field.
     *
-    * <p>Form tables are refused for now -- the interactive path's form branch
-    * ({@code box.sortFormTableLens} plus an {@code UpdateSortInfoCommand}) needs a live
-    * {@code ViewsheetSandbox} form-lens refresh this call does not drive.
+    * <p>A Form table in a runtime (Preview/viewer) session is sorted in place instead, see
+    * {@link #sortFormTable}; pending form edits are kept. A Form table in the Design tab has no
+    * lens and takes this path unchanged.
     */
    public List<String> setColumnSort(String sessionToken, Principal user, String assemblyName,
                              String column, String direction, String linkUri) throws Exception
@@ -1223,10 +1240,11 @@ public class TableBindingService {
                "rendered column).");
          }
 
-         if(table.getVSAssemblyInfo() instanceof TableVSAssemblyInfo tinfo && tinfo.isForm()) {
-            throw new IllegalArgumentException(
-               "'" + assemblyName + "' is a form table -- set_table_column_sort does not " +
-               "support form tables yet.");
+         boolean formRuntime = rvs.isRuntime() &&
+            table.getVSAssemblyInfo() instanceof TableVSAssemblyInfo tinfo && tinfo.isForm();
+
+         if(formRuntime) {
+            requireFormLens(rvs, assemblyName);
          }
 
          // A hidden column is still bound and its sort still applies; it just lives in the
@@ -1255,6 +1273,11 @@ public class TableBindingService {
                wrapped.setDataType(ref.getDataType());
                base = wrapped;
             }
+         }
+
+         if(formRuntime) {
+            sortFormTable(rvs, table, assemblyName, column, base, order, dispatcher);
+            return;
          }
 
          // Mutate a CLONE, not the assembly's own live info -- table.getVSAssemblyInfo()
@@ -1286,6 +1309,97 @@ public class TableBindingService {
          assemblyInfoHandler.apply(rvs, clone, null, false, false, false, false, dispatcher,
                                    null, null, linkUri, null);
       });
+   }
+
+   /**
+    * The Form-table branch of {@link #setColumnSort}, mirroring the native header click
+    * ({@code BaseTableSortColumnService.tableSortColumn}'s form branch): the new single-column
+    * {@link SortInfo} is set on the live assembly WITHOUT {@code apply()}/execute, and only the
+    * live {@link FormTableLens}'s display order ({@code rowMap}) is rebuilt in place. Routing
+    * through {@code apply()} would flag INPUT_DATA_CHANGED, and the re-execute would drop the
+    * cached lens together with every pending insert/edit/delete (the #80482/#80876 class).
+    * The lens holds one sort column, so a new sort replaces an earlier one; {@code none}
+    * returns the lens to its build order.
+    */
+   private void sortFormTable(RuntimeViewsheet rvs, TableVSAssembly table, String assemblyName,
+                              String column, DataRef base, int order, CommandDispatcher dispatcher)
+      throws Exception
+   {
+      SortRef sortRef = new SortRef(base);
+      sortRef.setOrder(order);
+
+      if(table.getVisibleColumns().indexOfAttribute(sortRef) < 0) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is a hidden column of form table '" + assemblyName + "'; a form " +
+            "table can only be sorted by a shown column. Show it with set_table_field_" +
+            "visibility first.");
+      }
+
+      SortInfo previous = table.getSortInfo();
+      SortInfo sinfo = new SortInfo();
+      List<String> replaced = new ArrayList<>();
+
+      if(previous != null) {
+         for(SortRef old : previous.getSorts()) {
+            if(old.getDataRef() != null && old.getOrder() != StyleConstants.SORT_NONE &&
+               !Objects.equals(old.getDataRef().getName(), base.getName()))
+            {
+               replaced.add(old.getDataRef().getName());
+            }
+         }
+      }
+
+      if(order != StyleConstants.SORT_NONE) {
+         sortRef.setPosition(0);
+         sinfo.addSort(sortRef);
+      }
+
+      table.setSortInfo(sinfo);
+      rvs.getViewsheetSandbox().get().sortFormTableLens(assemblyName, sortRef);
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      ColumnSelection selection = info.getColumnSelection();
+      int columnCount = info.getColumnCount();
+      int[] sortOrders = new int[columnCount];
+      int[] sortPositions = new int[columnCount];
+
+      for(int i = 0; i < columnCount; i++) {
+         DataRef dataRef = selection.getAttribute(i);
+         SortRef columnSort = dataRef instanceof ColumnRef columnRef ?
+            sinfo.getSort(columnRef.getDataRef()) : null;
+         sortOrders[i] = columnSort == null ? XConstants.SORT_NONE : columnSort.getOrder();
+         sortPositions[i] = columnSort == null ? -1 : 0;
+      }
+
+      dispatcher.sendCommand(assemblyName, UpdateSortInfoCommand.builder()
+         .sortOrders(sortOrders).sortPositions(sortPositions).build());
+
+      if(coreLifecycleService != null) {
+         coreLifecycleService.loadTableLens(rvs, assemblyName, null, dispatcher);
+      }
+
+      if(!replaced.isEmpty()) {
+         MessageCommand command = new MessageCommand();
+         command.setType(MessageCommand.Type.WARNING);
+         command.setMessage(
+            "A form table sorts by one column: this sort replaced the earlier sort on " +
+            String.join(", ", replaced) + ". Pending form edits were kept and row indexes now " +
+            "follow the new display order.");
+         dispatcher.sendCommand(assemblyName, command);
+      }
+   }
+
+   private static void requireFormLens(RuntimeViewsheet rvs, String assemblyName)
+      throws Exception
+   {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty() || box.get().getFormTableLens(assemblyName) == null) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' has no runtime form table data in this pairing (its " +
+            "viewsheet sandbox is missing or disposed). Reconnect the Preview or viewer " +
+            "pairing and retry.");
+      }
    }
 
    /**
@@ -3674,6 +3788,7 @@ public class TableBindingService {
       }
    }
 
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetSessionService sessions;
    private final VSBindingService binding;
    private final VSBindingModelService bindingModelService;

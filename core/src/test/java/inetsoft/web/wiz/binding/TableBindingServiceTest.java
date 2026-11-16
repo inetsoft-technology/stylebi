@@ -4089,4 +4089,174 @@ class TableBindingServiceTest {
       assertTrue(sent.getAllValues().stream().anyMatch(
          c -> c.getMessage().startsWith(TableBindingMutator.WARNING_PREFIX)));
    }
+
+   // ── set_table_column_sort on a Form table (bug-81334) ──────────────────────
+
+   private static inetsoft.report.composition.FormTableLens formLens() {
+      return new inetsoft.report.composition.FormTableLens(
+         new inetsoft.report.lens.DefaultTableLens(new Object[][] {
+            { "product_id", "product_name" },
+            { 3, "c" }, { 1, "a" }, { 2, "b" } }));
+   }
+
+   private static TableVSAssembly formTable(String... columns) {
+      TableVSAssembly table = tableWithColumns("TableView1", columns);
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setForm(true);
+      return table;
+   }
+
+   /** Form-table harness: runtime sandbox serving {@code lens}; sort delegates like the real box. */
+   private static class FormHarness {
+      final TableVSAssembly table;
+      final inetsoft.report.composition.FormTableLens lens;
+      final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      final inetsoft.web.wiz.dispatch.CapturingCommandDispatcher dispatcher =
+         mock(inetsoft.web.wiz.dispatch.CapturingCommandDispatcher.class);
+      final inetsoft.web.binding.handler.VSAssemblyInfoHandler handler =
+         mock(inetsoft.web.binding.handler.VSAssemblyInfoHandler.class);
+      final inetsoft.web.viewsheet.service.CoreLifecycleService lifecycle =
+         mock(inetsoft.web.viewsheet.service.CoreLifecycleService.class);
+      final TableBindingService service;
+
+      FormHarness(TableVSAssembly table, inetsoft.report.composition.FormTableLens lens,
+                  boolean runtime) throws Exception
+      {
+         this.table = table;
+         this.lens = lens;
+         Viewsheet vs = mock(Viewsheet.class);
+         when(vs.getAssembly(anyString())).thenReturn(table);
+         when(rvs.getViewsheet()).thenReturn(vs);
+         when(rvs.isRuntime()).thenReturn(runtime);
+         ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+         when(box.getFormTableLens("TableView1")).thenReturn(lens);
+         doAnswer(inv -> {
+            inetsoft.uql.asset.SortRef ref = inv.getArgument(1);
+            lens.sort(table.getVisibleColumns().indexOfAttribute(ref), ref.getOrder());
+            return null;
+         }).when(box).sortFormTableLens(anyString(), any());
+         when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(box));
+
+         ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+         doAnswer(inv -> {
+            ViewsheetSessionService.Mutation mutation = inv.getArgument(2);
+            mutation.run(rvs, "rt1", dispatcher);
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+         service = new TableBindingService(
+            sessions, mock(VSBindingService.class), mock(VSBindingModelService.class),
+            mock(inetsoft.web.binding.service.DataRefModelFactoryService.class),
+            mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class), handler,
+            lifecycle);
+      }
+
+      void sort(String column, String direction) throws Exception {
+         service.setColumnSort("tok", principal(), "TableView1", column, direction, null);
+      }
+
+      List<Object> ids() {
+         List<Object> ids = new ArrayList<>();
+
+         for(int r = 1; r < lens.getRowCount(); r++) {
+            ids.add(lens.getObject(r, 0));
+         }
+
+         return ids;
+      }
+   }
+
+   @Test
+   void setColumnSortSortsARuntimeFormTableInPlaceWithoutApply() throws Exception {
+      FormHarness h = new FormHarness(formTable("product_id", "product_name"), formLens(), true);
+
+      assertEquals(List.of(3, 1, 2), h.ids());
+      h.sort("product_id", "asc");
+      assertEquals(List.of(1, 2, 3), h.ids());
+      h.sort("product_id", "desc");
+      assertEquals(List.of(3, 2, 1), h.ids());
+      h.sort("product_id", "none");
+      assertEquals(List.of(3, 1, 2), h.ids(), "none returns to the lens build order");
+
+      assertFalse(h.lens.isChanged(), "a sort alone is not a pending edit");
+      verify(h.handler, never()).apply(any(), any(), any(), anyBoolean(), anyBoolean(),
+                                      anyBoolean(), anyBoolean(), any(), any(), any(), any(),
+                                      any());
+      verify(h.lifecycle, times(3)).loadTableLens(eq(h.rvs), eq("TableView1"), any(), any());
+      verify(h.dispatcher, times(3)).sendCommand(
+         eq("TableView1"), any(inetsoft.web.viewsheet.command.UpdateSortInfoCommand.class));
+      assertEquals(0, h.table.getSortInfo().getSortCount());
+   }
+
+   @Test
+   void setColumnSortOnAFormTableKeepsPendingEdits() throws Exception {
+      FormHarness h = new FormHarness(formTable("product_id", "product_name"), formLens(), true);
+      h.lens.setObject(2, 0, 7);   // display row 2 (id 1) -> CHANGED, id 7
+      h.lens.deleteRow(3);         // display row 3 (id 2) -> DELETED
+      assertTrue(h.lens.isChanged());
+      assertEquals(List.of(3, 7), h.ids());
+
+      h.sort("product_id", "asc");
+
+      assertEquals(List.of(3, 7), h.ids());
+      h.sort("product_id", "desc");
+      assertEquals(List.of(7, 3), h.ids(), "display order follows the edited value");
+      assertTrue(h.lens.isChanged(), "pending edits must survive the sort");
+      assertEquals(1, h.lens.rows(inetsoft.report.composition.FormTableRow.CHANGED).length);
+      assertEquals(1, h.lens.rows(inetsoft.report.composition.FormTableRow.DELETED).length);
+      verify(h.handler, never()).apply(any(), any(), any(), anyBoolean(), anyBoolean(),
+                                      anyBoolean(), anyBoolean(), any(), any(), any(), any(),
+                                      any());
+   }
+
+   @Test
+   void setColumnSortOnAFormTableReplacesTheEarlierSortAndSaysSo() throws Exception {
+      FormHarness h = new FormHarness(formTable("product_id", "product_name"), formLens(), true);
+
+      h.sort("product_id", "asc");
+      h.sort("product_name", "desc");
+
+      assertEquals(1, h.table.getSortInfo().getSortCount());
+      assertEquals(Integer.valueOf(inetsoft.report.StyleConstants.SORT_DESC),
+                   orderOf(h.table.getSortInfo(), "product_name"));
+      assertNull(orderOf(h.table.getSortInfo(), "product_id"));
+      assertEquals(List.of(3, 2, 1), h.ids());
+
+      ArgumentCaptor<inetsoft.web.viewsheet.command.MessageCommand> sent =
+         ArgumentCaptor.forClass(inetsoft.web.viewsheet.command.MessageCommand.class);
+      verify(h.dispatcher).sendCommand(eq("TableView1"), sent.capture());
+      assertTrue(sent.getValue().getMessage().contains("replaced the earlier sort on product_id"));
+   }
+
+   @Test
+   void setColumnSortRefusesAHiddenColumnOfARuntimeFormTable() throws Exception {
+      TableVSAssembly table = tableWithShownAndHidden(
+         "TableView1", new String[] {"product_name"}, new String[] {"product_id"});
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setForm(true);
+      FormHarness h = new FormHarness(table, formLens(), true);
+
+      Exception thrown = assertThrows(Exception.class, () -> h.sort("product_id", "asc"));
+
+      assertTrue(thrown.getMessage().contains("hidden column"), thrown.getMessage());
+      assertEquals(0, table.getSortInfo().getSortCount());
+   }
+
+   @Test
+   void setColumnSortRefusesARuntimeFormTableWithNoLens() throws Exception {
+      FormHarness h = new FormHarness(formTable("product_id"), null, true);
+
+      Exception thrown = assertThrows(Exception.class, () -> h.sort("product_id", "asc"));
+
+      assertTrue(thrown.getMessage().contains("no runtime form table data"), thrown.getMessage());
+   }
+
+   @Test
+   void setColumnSortOnADesignFormTableStillUsesApply() throws Exception {
+      FormHarness h = new FormHarness(formTable("product_id"), null, false);
+
+      h.sort("product_id", "asc");
+
+      verify(h.handler).apply(any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean(),
+                              anyBoolean(), any(), any(), any(), any(), any());
+      verify(h.lifecycle, never()).loadTableLens(any(), any(), any(), any());
+   }
 }
