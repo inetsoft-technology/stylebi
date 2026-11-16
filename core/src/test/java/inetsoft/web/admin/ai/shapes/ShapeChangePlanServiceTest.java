@@ -259,7 +259,7 @@ class ShapeChangePlanServiceTest {
    }
 
    // -------------------------------------------------------------------------
-   // plan-level shape: always high risk / signoff / backup
+   // plan-level shape: always high risk / signoff; snapshot skipped (exact undo)
    // -------------------------------------------------------------------------
 
    @Test void resolveAlwaysRequiresSignoffButSkipsBackupForANewUpload() throws Exception {

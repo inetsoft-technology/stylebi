@@ -53,7 +53,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * 01-design.md section 2.3 (per-verb apply/rollback), the unconditional Tier-2 backup, and the
+ * 01-design.md section 2.3 (per-verb apply/rollback), the plan-flag-gated Tier-2 backup, and the
  * asymmetric cache-clear (upload clears explicitly; delete relies on {@code deleteDataSpaceNode}'s
  * own internal clear). {@link DataSpace}/{@link DataSpaceContentSettingsService} are backed by a
  * small in-memory fake, matching {@code StoredAssetChangesetApplyServiceTest}'s own approach.

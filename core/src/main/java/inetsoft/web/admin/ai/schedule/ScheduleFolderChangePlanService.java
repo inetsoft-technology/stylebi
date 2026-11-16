@@ -87,6 +87,7 @@ public class ScheduleFolderChangePlanService {
          changes.add(resolveOne(label, change, user, seenPaths, decisions));
       }
 
+      keepDeletesWithInPlanChildren(req.getChanges(), decisions);
       String planHash = hash(changes, decisions.hidden);
       String task = req.getTask().trim();
       // requiresStorageBackup: false only when every change has an exact undo (Bug #80650, #81072,
@@ -115,6 +116,59 @@ public class ScheduleFolderChangePlanService {
       void add(boolean exact, String hiddenInputs) {
          exactUndo.add(exact);
          hidden.add(hiddenInputs);
+      }
+   }
+
+   /**
+    * A delete is classified from the pre-state, but a plan that also creates, renames or moves
+    * something at or under the deleted folder changes what the recursive delete removes, and the
+    * rollback recreates only the leaf. Any other entry touching a path under a deleted folder
+    * therefore keeps the snapshot (the decision then depends on the plan, which is hashed anyway).
+    */
+   private static void keepDeletesWithInPlanChildren(List<ScheduleFolderChangeRequest> requests,
+                                                     Decisions decisions)
+   {
+      for(int i = 0; i < requests.size(); i++) {
+         ScheduleFolderChangeRequest del = requests.get(i);
+
+         if(!ScheduleFolderChangeRequest.VERB_DELETE.equals(del.getVerb()) || del.getPath() == null) {
+            continue;
+         }
+
+         String path = AdminScheduleFolderGateway.normalizePath(del.getPath());
+
+         for(int j = 0; j < requests.size(); j++) {
+            if(j == i) {
+               continue;
+            }
+
+            ScheduleFolderChangeRequest other = requests.get(j);
+            List<String> touched = new ArrayList<>();
+            touched.add(other.getPath());
+            touched.add(other.getNewPath());
+            touched.add(other.getTargetPath());
+
+            if(other.getFolderName() != null && !other.getFolderName().isBlank()) {
+               touched.add(AdminScheduleFolderGateway.joinPath(
+                  AdminScheduleFolderGateway.normalizePath(other.getParentPath()),
+                  other.getFolderName().trim()));
+            }
+            else {
+               touched.add(other.getParentPath());
+            }
+
+            for(String t : touched) {
+               if(t == null || t.isBlank()) {
+                  continue;
+               }
+
+               String n = AdminScheduleFolderGateway.normalizePath(t);
+
+               if(n.equals(path) || n.startsWith(path + "/")) {
+                  decisions.exactUndo.set(i, false);
+               }
+            }
+         }
       }
    }
 

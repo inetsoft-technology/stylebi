@@ -643,6 +643,17 @@ class ScheduleFolderChangePlanServiceTest {
          List.of(deleteChange("A"), renameChange("B", "C"))), user).requiresStorageBackup());
    }
 
+   /** The delete removes what the same plan creates under it, and the rollback recreates only A. */
+   @Test void aCreateUnderTheDeletedFolderInTheSamePlanKeepsTheSnapshot() throws Exception {
+      stubEmptyFolder(0, false, true);
+      when(folderGateway.folderExists("A/B")).thenReturn(false);
+
+      assertTrue(service.resolve(request("mixed",
+         List.of(createChange("A", "B"), deleteChange("A"))), user).requiresStorageBackup());
+      assertTrue(service.resolve(request("mixed",
+         List.of(deleteChange("A"), createChange("A", "B"))), user).requiresStorageBackup());
+   }
+
    @Test void aSkippableDeleteMixedWithACreateSkipsTheSnapshot() throws Exception {
       stubEmptyFolder(0, false, true);
       when(folderGateway.folderExists("NewFolder")).thenReturn(false);

@@ -34,8 +34,11 @@ import java.util.function.Predicate;
  * whose rollback leaves residue, a whole-file rewrite with no rollback) keeps the snapshot for the
  * whole plan (Bug #80650, Bug #81072).
  *
- * <p>The decision is made from live state at resolve time and carried in the hashed plan, so a
- * change between preview and apply returns a conflict instead of a silent disagreement.
+ * <p>The decision is made from live state at resolve time. Inputs the displayed values do not
+ * carry are folded into the plan hash (schedule folder delete), so a change between preview and
+ * apply returns a conflict. The one exception is the raw {@code replet.cache.directory} of a
+ * general cache update: apply recomputes it, so the worst case is an extra snapshot or a skip
+ * where the preview said true after the property was set to its derived default.
  *
  * <p>Accepted drift, deliberately not treated as a reason to keep the snapshot: a timestamp the
  * undo does not restore (task lastModified, script and shape metadata), and an unset property that

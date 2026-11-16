@@ -53,9 +53,10 @@ import java.util.stream.Collectors;
  * custom-shape analog of {@code inetsoft.web.admin.ai.file.StoredAssetChangesetApplyService}
  * (01-design.md section 2.3).
  *
- * <p>A plan is {@code requiresStorageBackup: true} unless every entry is an upload to a new name
- * (Bug #80650); then the Tier-2 snapshot is skipped, since the undo deletes the new file. Otherwise
- * it is taken synchronously here, before any change is attempted. Unlike Stored Assets,
+ * <p>Every verb here (upload of a new or existing shape, delete) has an exact in-process undo, so
+ * the plan resolves {@code requiresStorageBackup: false} and the Tier-2 snapshot is skipped
+ * (Bug #80650, #81072); if the flag is ever true it is taken synchronously here, before any change
+ * is attempted. Unlike Stored Assets,
  * there is no {@code acknowledgeIrreversibleDelete} gate at all -- every entry here is
  * unconditionally compensable by construction (01-design.md section 1.4/3.2), so there is no
  * non-compensable case to acknowledge.
