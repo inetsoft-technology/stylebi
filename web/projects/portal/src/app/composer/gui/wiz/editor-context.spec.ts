@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { dynamicValueLabel } from "./editor-context";
+import { draftTargetLabel, dynamicValueLabel, hyperlinkRegionLabel } from "./editor-context";
 
 describe("dynamicValueLabel", () => {
    it("shows a bare name as the property key", () => {
@@ -39,5 +39,45 @@ describe("dynamicValueLabel", () => {
    it("tolerates a missing name", () => {
       expect(dynamicValueLabel(undefined)).toBe("");
       expect(dynamicValueLabel(null)).toBe("");
+   });
+});
+
+describe("hyperlinkRegionLabel", () => {
+   it("reads each region key in words", () => {
+      expect(hyperlinkRegionLabel("link")).toBe("link");
+      expect(hyperlinkRegionLabel("title")).toBe("title link");
+      expect(hyperlinkRegionLabel("emptyPlot")).toBe("empty plot link");
+      expect(hyperlinkRegionLabel("cell[2,1]")).toBe("cell row 2, col 1");
+      expect(hyperlinkRegionLabel("field[Total Sales]")).toBe("field 'Total Sales'");
+      expect(hyperlinkRegionLabel("axis[Region]")).toBe("axis of 'Region'");
+      expect(hyperlinkRegionLabel("text[Sales]")).toBe("text 'Sales'");
+   });
+
+   it("keeps a bracket inside a column name", () => {
+      expect(hyperlinkRegionLabel("field[a]b]")).toBe("field 'a]b'");
+   });
+
+   it("passes an unknown key through and tolerates a missing one", () => {
+      expect(hyperlinkRegionLabel("weird")).toBe("weird");
+      expect(hyperlinkRegionLabel(undefined)).toBe("");
+   });
+});
+
+describe("draftTargetLabel", () => {
+   it("labels the three draft-only kinds, pending or not", () => {
+      expect(draftTargetLabel({ kind: "worksheetVariableDefault", assembly: "V" }))
+         .toBe("V → default value");
+      expect(draftTargetLabel({ kind: "worksheetVariableDefault", assembly: "V", pending: true }))
+         .toBe("V → default value (new variable)");
+      expect(draftTargetLabel({ kind: "vsHyperlinkExpression", assembly: "T", name: "title" }))
+         .toBe("T → hyperlink: title link");
+      expect(draftTargetLabel({ kind: "worksheetSqlQuery", assembly: "Q" })).toBe("Q → SQL");
+      expect(draftTargetLabel({ kind: "worksheetSqlQuery", assembly: "Q", pending: true }))
+         .toBe("Q → SQL (new query)");
+   });
+
+   it("has no label for any other kind", () => {
+      expect(draftTargetLabel({ kind: "dynamicValue", assembly: "T", name: "visible" })).toBeNull();
+      expect(draftTargetLabel({ kind: "calcField", assembly: "T" })).toBeNull();
    });
 });

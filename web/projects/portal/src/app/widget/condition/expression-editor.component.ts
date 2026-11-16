@@ -36,7 +36,7 @@ import { DataRef } from "../../common/data/data-ref";
 import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.component";
 import { FormsModule } from "@angular/forms";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
-import { VSConditionPairingScope } from "../../composer/gui/wiz/editor-context";
+import { ExpressionPairing, VSConditionPairingScope } from "../../composer/gui/wiz/editor-context";
 
 
 @Component({
@@ -77,6 +77,14 @@ export class ExpressionEditor implements OnChanges, OnDestroy {
     *  threaded through to FormulaEditorDialog so its Connect to Claude pairing is scoped to this
     *  one value. Unset outside the viewsheet Conditions/Highlight dialogs. */
    @Input() vsConditionScope: VSConditionPairingScope;
+   /** A host that is not a condition (a hyperlink, a worksheet variable default) names its own
+    *  pairing target here. A FUNCTION, evaluated once when the formula dialog opens: the dialog
+    *  sits in an ng-template that is re-checked every change detection, so a host getter that
+    *  built a fresh object per read would raise ExpressionChangedAfterItHasBeenChecked.
+    *  Absent means the condition inputs above decide, exactly as before. */
+   @Input() pairing: (() => ExpressionPairing | null) | null = null;
+   /** The result of `pairing`, captured in openFormulaWindow. */
+   dialogPairing: ExpressionPairing | null = null;
    @Output() valueChange = new EventEmitter<ExpressionValue>();
    @ViewChild("formulaEditorDialog") formulaEditorDialog: TemplateRef<any>;
    expressionType: ExpressionType;
@@ -168,6 +176,8 @@ export class ExpressionEditor implements OnChanges, OnDestroy {
    }
 
    openFormulaWindow(): void {
+      this.dialogPairing = this.pairing ? this.pairing() : null;
+
       this.modalService.open(this.formulaEditorDialog,
                              {size: "lg", backdrop: false, keyboard: false})
          .result.then(

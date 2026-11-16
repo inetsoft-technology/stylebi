@@ -48,7 +48,9 @@
     [showOriginalName]="showOriginalName"
     [isCondition]="true" [contextTable]="table" [formulaName]="field?.name"
     [conditionOperation]="operation"
-    [runtimeId]="runtimeId" [socketConnection]="socketConnection"
+    [runtimeId]="dialogPairing?.runtimeId ?? runtimeId"
+    [socketConnection]="dialogPairing?.socketConnection ?? socketConnection"
+    [pairingContext]="dialogPairing?.editorContext"
     [vsConditionScope]="vsConditionScope"
     >
   </formula-editor-dialog>

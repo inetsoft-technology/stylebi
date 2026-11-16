@@ -37,6 +37,13 @@ export interface HyperlinkDialogModel {
    colName?: string;
    table: boolean;
    isAxis?: boolean;
+   // The chart region the link sits on. The server serializes these under exactly these names
+   // (HyperlinkDialogModel.isTitleLink/isEmptyPlotLink/isText/isAxis); `isAxis` above is not
+   // that key and nothing reads it. Optional because only a chart fills them.
+   titleLink?: boolean;
+   emptyPlotLink?: boolean;
+   text?: boolean;
+   axis?: boolean;
    applyToRow?: boolean;
    showRow?: boolean;
    grayedOutFields: DataRef[];

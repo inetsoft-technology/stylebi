@@ -19,6 +19,7 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    Component,
    EventEmitter,
+   inject,
    Input,
    OnInit,
    Output,
@@ -49,6 +50,9 @@ import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dro
 import { ExpressionEditor } from "../../../widget/condition/expression-editor.component";
 import { FormsModule } from "@angular/forms";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { SheetClientRegistry } from "../../../common/viewsheet-client/sheet-client-registry.service";
+import { ExpressionPairing } from "../../../composer/gui/wiz/editor-context";
+import { hyperlinkRegionName } from "./hyperlink-pairing";
 
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 enum LinkType {
@@ -77,6 +81,7 @@ export class HyperlinkDialog implements OnInit {
    @Input() objectName: string;
    @Input() runtimeId: string;
    @Input() isVSContext = true;
+   private readonly sheetClients = inject(SheetClientRegistry, { optional: true });
    @Output() onCommit = new EventEmitter<HyperlinkDialogModel>();
    @Output() onCancel = new EventEmitter<string>();
    @Output() onApply = new EventEmitter<{collapse: boolean, result: any}>();
@@ -118,6 +123,22 @@ export class HyperlinkDialog implements OnInit {
    get model(): HyperlinkDialogModel {
       return this._model;
    }
+
+   /**
+    * The pairing target of the Web Link Expression's formula dialog, read once when that dialog
+    * opens. Offered only for a Composer viewsheet pane: the registry holds a client for exactly
+    * the panes that can mint (the viewer, preview and wizard never register), so a dialog that is
+    * not hosted by one gets null and no Connect button.
+    */
+   hyperlinkPairing = (): ExpressionPairing | null => {
+      const entry = this.sheetClients?.lookup(this.runtimeId);
+      const name = hyperlinkRegionName(this.model);
+
+      return entry && entry.sheetType === "VIEWSHEET" && this.objectName && name
+         ? { runtimeId: this.runtimeId, socketConnection: entry.client,
+             editorContext: { kind: "vsHyperlinkExpression", assembly: this.objectName, name } }
+         : null;
+   };
 
    paramListElementToString: (x: InputParameterDialogModel) => string =
       (x: InputParameterDialogModel) => {
