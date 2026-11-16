@@ -89,6 +89,7 @@ public class DefaultAxis extends Axis {
             vlabels[i] = createLabel(labels[i], prevLabel, isalias, values[i], hor);
             vlabels[i].setTruncate(spec.isTruncate());
             vlabels[i].setWrapping(!spec.isTruncate());
+            vlabels[i].setEllipsis(spec.getLabelLimit() > 0);
             vlabels[i].setLastOrAll(spec.isLastOrAll());
 
             if(spec.isLastOrAll()) {
@@ -987,8 +988,13 @@ public class DefaultAxis extends Axis {
             Dimension2D maxsize = vlabel.getMaxSize();
             boolean truncate = getScale().getAxisSpec().isTruncate();
             double ratio = truncate ? 1 / 2.0 : 2 / 3.0;
+            double[] box = getLabelLimitBox(vlabel);
 
-            if(hor) {
+            if(box != null) {
+               maxsize.setSize(Math.min(maxsize.getWidth(), box[0]),
+                               Math.min(maxsize.getHeight(), box[1]));
+            }
+            else if(hor) {
                double v = Math.max(50, cbounds.getHeight() * ratio);
                maxsize.setSize(maxsize.getWidth(), v);
             }
@@ -1017,6 +1023,36 @@ public class DefaultAxis extends Axis {
       }
 
       return maxSize;
+   }
+
+   /**
+    * Get the width and height a label may take under the label length limit, or null if
+    * there is no limit. A dimension the limit doesn't constrain is unbounded.
+    */
+   private double[] getLabelLimitBox(VLabel vlabel) {
+      double limit = getScale().getAxisSpec().getLabelLimit();
+
+      if(limit <= 0) {
+         return null;
+      }
+
+      double rotation = vlabel.getTextSpec().getRotation();
+
+      if(rotation % 180 == 0) {
+         return new double[] { limit, Double.MAX_VALUE };
+      }
+
+      if((rotation + 90) % 180 == 0) {
+         return new double[] { Double.MAX_VALUE, limit };
+      }
+
+      double angle = Math.toRadians(rotation);
+      double lh = GTool.getFontMetrics(vlabel.getFont()).getHeight();
+      double sin = Math.abs(Math.sin(angle));
+      double cos = Math.abs(Math.cos(angle));
+
+      // whole pixels so the label size matches the (integer) max size
+      return new double[] { Math.ceil(limit * cos + lh * sin), Math.ceil(limit * sin + lh * cos) };
    }
 
    /**
@@ -1173,6 +1209,23 @@ public class DefaultAxis extends Axis {
          double weight = (cscale != null) ? cscale.getWeight(value) : 1;
          double lwidth = hor ? wwidth * weight : wwidth;
          double lheight = hor ? wheight : wheight * weight;
+         double[] limitBox = getLabelLimitBox(vlabels[i]);
+
+         if(limitBox != null) {
+            double lrot = vlabels[i].getTextSpec().getRotation();
+            boolean angled = lrot % 90 != 0;
+
+            // the text, not the slot, sets the width on a horizontal axis so labels can be
+            // thinned instead of cut to the slot
+            if(lrot % 180 == 0 || angled) {
+               lwidth = hor ? limitBox[0] : Math.min(lwidth, limitBox[0]);
+            }
+
+            if((lrot + 90) % 180 == 0 || angled) {
+               lheight = hor ? Math.min(lheight, limitBox[1]) : limitBox[1];
+            }
+         }
+
          Point2D lpos = line.getTickPosition(tlocs[i], 0);
          Point2D anchor;
          int placement;
@@ -1607,12 +1660,13 @@ public class DefaultAxis extends Axis {
 
       first = Math.max(0, first);
 
-      int oH = cat ? 3 : 1;
-      int oW = cat ? 1 : 0;
+      boolean strict = scale.getAxisSpec().getLabelLimit() > 0;
+      int oH = cat && !strict ? 3 : 1;
+      int oW = cat && !strict ? 1 : 0;
       int pass = 0; // number of pass
       boolean adjusted = false;
 
-      if(rotation != 0) {
+      if(rotation != 0 && !strict) {
          int tmp = oW;
          // avoid removing unecessarily. (57512)
          oW = Math.max(oH, 2);
@@ -1667,7 +1721,7 @@ public class DefaultAxis extends Axis {
             // reduce the chance of missing individual labels.
             // for continuous scale, the values can be inferred so it's preferrable to
             // keep the values separate and readable than allowing any overlapping.
-            if(pass == 0 && !changed && i > first + 1 && !adjusted && cat) {
+            if(pass == 0 && !changed && i > first + 1 && !adjusted && cat && !strict) {
                oW += 2;
                oH++;
                adjusted = true;
@@ -1676,7 +1730,9 @@ public class DefaultAxis extends Axis {
             // be left in the spot, which looks pretty bad. here we increase the allowed
             // overlapping so the label is kept instead of creating the hole even if
             // there is a very slight overlapping. (57431, 57443)
-            else if(!adjusted && isKeepingLast && vlabel.getTextSpec().getRotation() != 0) {
+            else if(!adjusted && !strict && isKeepingLast &&
+                    vlabel.getTextSpec().getRotation() != 0)
+            {
                oW += 2;
                oH += 2;
                adjusted = true;

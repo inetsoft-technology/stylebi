@@ -291,6 +291,21 @@ public class AxisSpec implements Cloneable, Serializable {
    }
 
    /**
+    * Get the longest label length in pixels, 0 for no limit.
+    */
+   public double getLabelLimit() {
+      return labelLimit;
+   }
+
+   /**
+    * Set the longest label length in pixels. When above 0, longer labels end in an ellipsis
+    * and category labels are thinned until none overlap.
+    */
+   public void setLabelLimit(double labelLimit) {
+      this.labelLimit = labelLimit;
+   }
+
+   /**
     * Get the axis label visibility.
     */
    @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isLabelVisible.htm")
@@ -615,6 +630,7 @@ public class AxisSpec implements Cloneable, Serializable {
          labelOnSecondaryAxis == axisSpec.labelOnSecondaryAxis &&
          Double.compare(asize, axisSpec.asize) == 0 && minPadding == axisSpec.minPadding &&
          maxPadding == axisSpec.maxPadding && maxLabelSpacing == axisSpec.maxLabelSpacing &&
+         Double.compare(labelLimit, axisSpec.labelLimit) == 0 &&
          Objects.equals(lineColor, axisSpec.lineColor) &&
          Objects.equals(line2Color, axisSpec.line2Color) &&
          Objects.equals(textFrame, axisSpec.textFrame) &&
@@ -630,7 +646,7 @@ public class AxisSpec implements Cloneable, Serializable {
                           labelGap, textFrame, colorFrame, fontFrame, textSpec, abbreviate,
                           allTick, truncate, inPlot, lastOrAll, gridColor, gridStyle, gridAsShape,
                           gridOnTop, gridBetween, labelBetween, facetGrid, labelOnSecondaryAxis, asize,
-                          minPadding, maxPadding, maxLabelSpacing);
+                          minPadding, maxPadding, maxLabelSpacing, labelLimit);
    }
 
    /**
@@ -682,6 +698,7 @@ public class AxisSpec implements Cloneable, Serializable {
    private boolean abbreviate = false;
    private boolean allTick = false; // ignore abbreviated (ignored) ticks
    private boolean truncate = true;
+   private double labelLimit = 0;
    private boolean inPlot = false;
    private boolean lastOrAll = false;
 
