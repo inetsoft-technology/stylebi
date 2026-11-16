@@ -204,7 +204,7 @@ abstract public class BaseJsonTable extends XTableNode {
 
    private LocalDate parseDate(String input) {
       if(input.contains("/")) {
-         return LocalDate.parse(input, usLocale ? US_DATE : EUROPE_DATE);
+         return LocalDate.parse(input, getSlashDateFormatter());
       }
 
       return LocalDate.parse(input, DateTimeFormatter.ISO_DATE);
@@ -212,7 +212,7 @@ abstract public class BaseJsonTable extends XTableNode {
 
    private LocalDateTime parseDateTime(String input) {
       if(input.contains("/")) {
-         return LocalDateTime.parse(input, usLocale ? US_DATE_TIME : EUROPE_DATE_TIME);
+         return LocalDateTime.parse(input, getSlashDateTimeFormatter());
       }
 
       try {
@@ -221,6 +221,31 @@ abstract public class BaseJsonTable extends XTableNode {
       catch(DateTimeParseException ex) {
          return LocalDateTime.parse(input, DateTimeFormatter.ISO_INSTANT);
       }
+   }
+
+   // the formatter for slash separated dates: the declared order of the source if there is one,
+   // otherwise the order of the server locale
+   private DateTimeFormatter getSlashDateFormatter() {
+      if(dmyOrder != null) {
+         return dmyOrder ? DMY_DATE : MDY_DATE;
+      }
+
+      return usLocale ? US_DATE : EUROPE_DATE;
+   }
+
+   private DateTimeFormatter getSlashDateTimeFormatter() {
+      if(dmyOrder != null) {
+         return dmyOrder ? DMY_DATE_TIME : MDY_DATE_TIME;
+      }
+
+      return usLocale ? US_DATE_TIME : EUROPE_DATE_TIME;
+   }
+
+   // parses a date/time text the strict formatters did not accept, in the order of the source
+   // if it declared one
+   private DateTime parseFlexible(String str) {
+      return dmyOrder == null ? DateTime.parse(str) :
+         DateTime.parse(str, CoreTool.getDateTimeConfig(dmyOrder));
    }
 
    // parse string as date/time if type is date/time
@@ -277,7 +302,7 @@ abstract public class BaseJsonTable extends XTableNode {
                   isoDateFailed.add(header);
                }
 
-               return new java.sql.Date(DateTime.parse(str).toMillis());
+               return new java.sql.Date(parseFlexible(str).toMillis());
             }
             else if(XSchema.TIME_INSTANT.equals(type)) {
                try {
@@ -289,7 +314,7 @@ abstract public class BaseJsonTable extends XTableNode {
                   isoDateFailed.add(header);
                }
 
-               return DateTime.parse(str).toTimestamp();
+               return parseFlexible(str).toTimestamp();
             }
             else if(XSchema.TIME.equals(type)) {
                return java.sql.Time.valueOf(parseTime(str));
@@ -367,6 +392,27 @@ abstract public class BaseJsonTable extends XTableNode {
       return colExtents.get(header);
    }
 
+   /**
+    * Set the order in which the source writes the day and month of slash separated dates, e.g.
+    * 5/10/2026. If not set, the order of the server locale is used.
+    *
+    * @param dmyOrder true if the day is before the month, false if the month is before the day,
+    *                 or null if the source does not declare it.
+    */
+   public void setDmyOrder(Boolean dmyOrder) {
+      this.dmyOrder = dmyOrder;
+   }
+
+   /**
+    * Get the order in which the source writes the day and month of slash separated dates.
+    *
+    * @return true if the day is before the month, false if the month is before the day, or null
+    * if the source does not declare it.
+    */
+   public Boolean getDmyOrder() {
+      return dmyOrder;
+   }
+
    public int getMaxRows() {
       return maxRows;
    }
@@ -442,12 +488,20 @@ abstract public class BaseJsonTable extends XTableNode {
    private final Map<String, String> colTypes2 = new Object2ObjectOpenHashMap<>();
    private final Set<String> isoDateFailed = new ObjectOpenHashSet<>();
    private final boolean usLocale = Locale.getDefault().equals(Locale.US);
+   private Boolean dmyOrder;
    private Object jsonMetadata;
 
    private final static DateTimeFormatter US_DATE = DateTimeFormatter.ofPattern("MM/dd/yyyy");
    private final static DateTimeFormatter EUROPE_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
    private final static DateTimeFormatter US_DATE_TIME = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss");
    private final static DateTimeFormatter EUROPE_DATE_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+   // a declared order does not fix the width of the day and month, e.g. 5/10/2026
+   private final static DateTimeFormatter DMY_DATE = DateTimeFormatter.ofPattern("d/M/yyyy");
+   private final static DateTimeFormatter MDY_DATE = DateTimeFormatter.ofPattern("M/d/yyyy");
+   private final static DateTimeFormatter DMY_DATE_TIME =
+      DateTimeFormatter.ofPattern("d/M/yyyy H:mm:ss");
+   private final static DateTimeFormatter MDY_DATE_TIME =
+      DateTimeFormatter.ofPattern("M/d/yyyy H:mm:ss");
 
    private static final Logger LOG = LoggerFactory.getLogger(BaseJsonTable.class.getName());
 }

@@ -51,6 +51,7 @@ public abstract class AbstractQueryRunner<T extends AbstractRestQuery> implement
    protected BaseJsonTable getTable() {
       final BaseJsonTable table = createTable();
       table.applyQueryColumnTypes(query);
+      table.setDmyOrder(query.getDmyOrder());
       table.setMaxRows(query.getMaxRows());
       return table;
    }
