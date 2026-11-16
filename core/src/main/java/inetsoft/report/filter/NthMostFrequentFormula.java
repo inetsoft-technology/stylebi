@@ -224,11 +224,18 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
     */
    @Override
    public Object clone() {
-      NthMostFrequentFormula nmf = new NthMostFrequentFormula(n);
-      nmf.def = def;
-      nmf.map = new Object2IntOpenHashMap<>(map);
+      try {
+         NthMostFrequentFormula nmf = (NthMostFrequentFormula) super.clone();
+         nmf.def = def;
+         nmf.map = new Object2IntOpenHashMap<>(map);
 
-      return nmf;
+         return nmf;
+      }
+      catch(CloneNotSupportedException e) {
+         LOG.error("Failed to clone object", e);
+      }
+
+      return null;
    }
 
    /**
