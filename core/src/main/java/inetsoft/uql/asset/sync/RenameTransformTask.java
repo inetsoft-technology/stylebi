@@ -146,10 +146,25 @@ public class RenameTransformTask
                for(RenameInfo prior : e.getValue() == null ? List.<RenameInfo>of() : e.getValue()) {
                   for(RenameInfo next : info.getRenameInfos()) {
                      if(!isChainable(prior, next)) {
+                        // only log renames that continue each other by name
+                        if(prior != null && next != null && prior.getNewName() != null &&
+                           prior.getNewName().equals(next.getOldName()))
+                        {
+                           LOG.debug("Rename {} -> {} of task {} not chained to pending " +
+                                     "rename {} -> {} of task {}: {}", next.getOldName(),
+                                     next.getNewName(), info.getTaskId(), prior.getOldName(),
+                                     prior.getNewName(), pending.getTaskId(),
+                                     notChainedReason(prior, next));
+                        }
+
                         continue;
                      }
 
-                     RenameInfo chained = next.copyWithOldName(prior.getOldName());
+                     RenameInfo chained = next.copyChainedTo(prior);
+                     LOG.debug("Rename {} -> {} of task {} chained to pending rename {} -> {} " +
+                              "of task {}: {} -> {}", next.getOldName(), next.getNewName(),
+                              info.getTaskId(), prior.getOldName(), prior.getNewName(),
+                              pending.getTaskId(), chained.getOldName(), chained.getNewName());
                      List<RenameInfo> list = merged.computeIfAbsent(
                         e.getKey(), k -> new ArrayList<>());
 
@@ -189,7 +204,7 @@ public class RenameTransformTask
          List<RenameInfo> rinfos = new ArrayList<>(info.getRenameInfos());
          moves.stream().filter(m -> !containsRename(rinfos, m)).forEach(rinfos::add);
          info.setRenameInfos(rinfos);
-         LOG.debug("Rename transform task {} chained to pending renames: {}",
+         LOG.info("Rename transform task {} chained to pending renames: {}",
                    info.getTaskId(), describe(info));
       }
       catch(Exception e) {
@@ -225,8 +240,48 @@ public class RenameTransformTask
          Objects.equals(prior.getPrefix(), next.getPrefix()) &&
          prior.isRest() == next.isRest() &&
          prior.getParentRenameInfo() == null && next.getParentRenameInfo() == null &&
-         prior.getOldPath() == null && prior.getNewPath() == null &&
-         next.getOldPath() == null && next.getNewPath() == null;
+         (!hasPath(prior) && !hasPath(next) || prior.isWorksheet() && next.isWorksheet());
+   }
+
+   /**
+    * Determines if a rename carries a table path. A worksheet rename carries one when its primary
+    * assembly is a bound table, see {@code AbstractAssetEngine.changeSheet0}. The paths are not a
+    * criterion of the chain: the names decide, the paths only follow them.
+    */
+   private static boolean hasPath(RenameInfo rinfo) {
+      return rinfo.getOldPath() != null || rinfo.getNewPath() != null;
+   }
+
+   /**
+    * Gets the reason two renames are not chained, for the log.
+    */
+   private static String notChainedReason(RenameInfo prior, RenameInfo next) {
+      if(prior == null || next == null) {
+         return "missing rename";
+      }
+      else if(prior.getClass() != RenameInfo.class || next.getClass() != RenameInfo.class) {
+         return "not a plain rename";
+      }
+      else if(prior.getType() != next.getType()) {
+         return "different kind of rename";
+      }
+      else if(prior.isTable() || prior.isColumn() || prior.isFolder() || prior.isTableOption()) {
+         return "rename of a table, column, folder or table option";
+      }
+      else if(prior.getParentRenameInfo() != null || next.getParentRenameInfo() != null) {
+         return "has a parent rename";
+      }
+      else if((hasPath(prior) || hasPath(next)) && !(prior.isWorksheet() && next.isWorksheet())) {
+         return "carries a path and is not a worksheet rename";
+      }
+      else if(prior.getNewName() != null && next.getNewName() != null &&
+         prior.getOldName() != null && prior.getOldName().equals(next.getNewName()))
+      {
+         return "renames back to the first name";
+      }
+      else {
+         return "different asset, source or organization";
+      }
    }
 
    private static boolean containsRename(List<RenameInfo> list, RenameInfo rinfo) {
