@@ -170,6 +170,28 @@ class TableStyleControllerTest {
       verify(libManager).save();
    }
 
+   @Test
+   void saveAsReturnsNewTokenAcceptedByNextSave() throws Exception {
+      TableStyleSaveAsResult saved =
+         controller.saveAsTableStyle(createSaveAsModel("Shared", "NewStyle"), principal);
+
+      assertEquals("style-new", saved.getStyleId());
+      assertTrue(saved.getLastModified() > 0);
+
+      ArgumentCaptor<XTableStyle> captor = ArgumentCaptor.forClass(XTableStyle.class);
+      verify(libManager).setTableStyle(eq("style-new"), captor.capture());
+      assertEquals(captor.getValue().getLastModified(), saved.getLastModified());
+
+      when(libManager.getTableStyle("style-new")).thenReturn(storedStyle);
+      when(storedStyle.clone()).thenReturn(clonedStyle);
+      when(storedStyle.getLastModified()).thenReturn(saved.getLastModified());
+      TableStyleModel model = createSaveModel();
+      model.setStyleId("style-new");
+      model.setLastModified(saved.getLastModified());
+
+      assertFalse(controller.saveTableStyle(model, principal).isConflict());
+   }
+
    private void denyWrite() throws Exception {
       doThrow(new MessageException("denied")).when(assetRepository)
          .checkAssetPermission(eq(principal), any(AssetEntry.class), eq(ResourceAction.WRITE));

@@ -1971,12 +1971,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                saveModel: result
             };
 
-            this.http.post<string>(URI_SAVE_AS_TABLESTYLE, request).subscribe((styleId) => {
+            this.http.post<{styleId: string, lastModified: number}>(URI_SAVE_AS_TABLESTYLE, request).subscribe((saved) => {
                this.focusedTab.asset.isModified = false;
                this.focusedTab.asset.label = result.name;
                this.focusedTab.asset.id = TableStyleUtil.styleIdentifier(result.folder, result.name, entry.organization);
                library.newAsset = false;
-               library.styleId = styleId;
+               library.styleId = saved.styleId;
+               library.lastModified = saved.lastModified;
                library.undoRedoList[index].origianlIndex = index;
                library.undoRedoList[0].origianlIndex = index != 0 ? -1 : 0;
                setTimeout(() => { this.stylePaneComponent.showNotifications(); }, 0);

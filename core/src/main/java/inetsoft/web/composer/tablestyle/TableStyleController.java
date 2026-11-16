@@ -207,7 +207,7 @@ public class TableStyleController {
 
    @PostMapping("/api/composer/table-style/save-as")
    @ResponseBody
-   public String saveAsTableStyle(@RequestBody TableStyleRequestModel requestModel, Principal principal)
+   public TableStyleSaveAsResult saveAsTableStyle(@RequestBody TableStyleRequestModel requestModel, Principal principal)
       throws Exception
    {
       if(requestModel == null) {
@@ -262,7 +262,7 @@ public class TableStyleController {
          }
       }
 
-      return style.getID();
+      return new TableStyleSaveAsResult(style.getID(), style.getLastModified());
    }
 
    /**
