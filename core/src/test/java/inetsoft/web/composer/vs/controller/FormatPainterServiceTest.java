@@ -197,6 +197,54 @@ class FormatPainterServiceTest {
    }
 
    /**
+    * Bug #81452: on a multi-style chart Composer's Format pane addresses all measures with the
+    * "(all)" entry, which is never a bound field. The plugin-oriented unresolved-field guard must
+    * not reject it.
+    */
+   @Test
+   void acceptsTheAllMeasuresEntryOnAMultiStyleChart() throws Exception {
+      when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
+
+      VSChartInfo chartInfo = chart.getVSChartInfo();
+      chartInfo.setMultiStyles(true);
+      when(chartRegionHandler.getChartBindable(any(), anyString())).thenReturn(chartInfo);
+
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("currency");
+      format.setFormatSpec("$#,##0");
+
+      FormatVSObjectEvent event = new FormatVSObjectEvent();
+      event.setObjects(new String[0]);
+      event.setCharts(new String[]{ "Chart1" });
+      event.setRegions(new String[]{ "text" });
+      event.setColumnNames(new String[][]{ { "(all)" } });
+      event.setIndexes(new int[][]{ { -1 } });
+      event.setFormat(format);
+
+      assertDoesNotThrow(() -> service.setFormat("Viewsheet1", event, null, dispatcher, ""));
+   }
+
+   /**
+    * Bug #81452: the "(all)" sentinel is only valid on a multi-style chart; on a single-style
+    * chart it is still an unbound field and must keep being refused.
+    */
+   @Test
+   void stillRefusesTheAllMeasuresEntryOnASingleStyleChart() {
+      when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
+
+      FormatVSObjectEvent event = new FormatVSObjectEvent();
+      event.setObjects(new String[0]);
+      event.setCharts(new String[]{ "Chart1" });
+      event.setRegions(new String[]{ "text" });
+      event.setColumnNames(new String[][]{ { "(all)" } });
+      event.setIndexes(new int[][]{ { -1 } });
+      event.setFormat(new VSObjectFormatInfoModel());
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.setFormat("Viewsheet1", event, null, dispatcher, ""));
+   }
+
+   /**
     * VBS-005 correction #1: {@code info.getDCBIndingRef()} only searches
     * {@code getRuntimeDateComparisonRefs()}, not the full runtime-field lookup
     * {@code getChartBindable()} itself falls back to

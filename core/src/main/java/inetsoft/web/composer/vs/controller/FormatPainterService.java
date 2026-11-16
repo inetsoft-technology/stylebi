@@ -1662,7 +1662,14 @@ public class FormatPainterService {
             ref = chartInfo.getFieldByName(columnName, true);
          }
 
-         if(ref == null && (region.equals(ChartFormatConstants.TEXT) ||
+         // On a multi-style chart the Composer Format pane addresses all measures at once with
+         // the "(all)" entry, which is never a bound field; let it through to the
+         // AllChartAggregateRef bindable below.
+         boolean allMeasures = chartInfo.isMultiAesthetic() &&
+            ("(all)".equals(columnName) ||
+             Catalog.getCatalog().getString("(all)").equals(columnName));
+
+         if(ref == null && !allMeasures && (region.equals(ChartFormatConstants.TEXT) ||
             region.equals(ChartFormatConstants.TEXT_FIELD)))
          {
             throw new IllegalArgumentException(
