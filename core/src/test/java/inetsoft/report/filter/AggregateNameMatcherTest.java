@@ -74,4 +74,12 @@ class AggregateNameMatcherTest {
       assertEquals("1=field['Sum([a])'];",
                    describe("field['Sum([a])']", Arrays.asList("Sum([a])", "field['Sum([a])']")));
    }
+
+   @Test
+   void replaceRewritesOnlyNamesWithAReplacement() {
+      assertEquals("X + Sum([b]) + X",
+                   AggregateNameMatcher.replace("Sum([a]) + Sum([b]) + SUM([A])",
+                                                Arrays.asList("Sum([a])", "Sum([b])"),
+                                                Arrays.asList("X", null)));
+   }
 }

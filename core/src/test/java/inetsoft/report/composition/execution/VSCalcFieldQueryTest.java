@@ -828,4 +828,29 @@ class VSCalcFieldQueryTest {
                                      aggregate("c1", "None", XSchema.DOUBLE));
       assertEquals(Arrays.asList(6.0, 3.0), values);
    }
+
+   @Test
+   @DisplayName("Bug #81202: a text output over an aggregate calc field written in another " +
+      "case counts like the one written by the dialog")
+   void outputAggregateNameInOtherCase() throws Exception {
+      for(String spelling : new String[] { "Count([a])", "count([a])", "COUNT([A])" }) {
+         tearDown();
+         initGroupOfEight();
+         vs.addAggrField("D", new AggregateRef(new ColumnRef(new AttributeRef(null, "a")),
+                                               AggregateFormula.COUNT_ALL));
+         addCalc("c1", false, "field['" + spelling + "'] * 1", XSchema.DOUBLE);
+         xmlRoundTrip();
+         TextVSAssembly text = new TextVSAssembly(vs, "T1");
+         ScalarBindingInfo binding = new ScalarBindingInfo();
+         binding.setTableName("D");
+         binding.setColumnValue("c1");
+         binding.setAggregateValue("None");
+         text.setScalarBindingInfo(binding);
+         vs.addAssembly(text);
+         start();
+         Object value = box.getData("T1");
+         assertNotNull(value, spelling);
+         assertEquals(8.0, ((Number) value).doubleValue(), 1e-9, spelling);
+      }
+   }
 }

@@ -18,6 +18,7 @@
 package inetsoft.report.filter;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -34,7 +35,8 @@ import java.util.Locale;
  * The match is done in a single non-overlapping pass. An occurrence written exactly as the name
  * wins over a case-insensitive one, so two names that differ only by case (<code>a</code> and
  * <code>A</code>) each keep their own occurrences. Case-insensitive occurrences are only
- * assigned to the text left over, longest name first.
+ * assigned to the text left over, longest name first. A name that appears twice in the list is
+ * matched by its first index only (the second one finds no free text).
  */
 public final class AggregateNameMatcher {
    private AggregateNameMatcher() {
@@ -78,7 +80,7 @@ public final class AggregateNameMatcher {
       }
 
       // longest first, so a name never claims part of a longer name
-      java.util.Arrays.sort(order, Comparator.comparingInt(
+      Arrays.sort(order, Comparator.comparingInt(
          (Integer i) -> names.get(i) == null ? 0 : names.get(i).length()).reversed());
       boolean[] used = new boolean[expression.length()];
 
@@ -118,7 +120,7 @@ public final class AggregateNameMatcher {
 
          for(int k = 0; k < up.length(); k++) {
             if(upper.length() >= origin.length - 1) {
-               origin = java.util.Arrays.copyOf(origin, origin.length * 2);
+               origin = Arrays.copyOf(origin, origin.length * 2);
             }
 
             origin[upper.length()] = i;
@@ -162,6 +164,34 @@ public final class AggregateNameMatcher {
 
       spans.sort(Comparator.comparingInt((Span s) -> s.start));
       return spans;
+   }
+
+   /**
+    * Replace the occurrences of the names in the expression, using {@link #find}.
+    *
+    * @param replacements the replacement of each name; a null entry leaves that name as is.
+    */
+   public static String replace(String expression, List<String> names,
+                                List<String> replacements)
+   {
+      StringBuilder result = new StringBuilder();
+      int pos = 0;
+
+      for(Span span : find(expression, names)) {
+         String replacement = span.name < replacements.size() ? replacements.get(span.name) : null;
+
+         if(replacement != null) {
+            result.append(expression, pos, span.start);
+            result.append(replacement);
+            pos = span.end;
+         }
+      }
+
+      if(expression != null) {
+         result.append(expression, pos, expression.length());
+      }
+
+      return expression == null ? null : result.toString();
    }
 
    private static boolean free(boolean[] used, int start, int end) {

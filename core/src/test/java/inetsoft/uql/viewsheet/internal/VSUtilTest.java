@@ -158,7 +158,8 @@ public class VSUtilTest {
       assertEquals(onlyA + " + " + onlyLowerA, both);
    }
 
-   // a spelling that is not the exact name of any aggregate falls back to the other case
+   // a spelling that is the exact name of no aggregate takes the case-insensitive fallback; the
+   // exact occurrences keep their own aggregate
    @Test
    void createAOAExpressionExactSpellingWinsOverOtherCase() {
       Viewsheet vs = new Viewsheet();
@@ -176,8 +177,8 @@ public class VSUtilTest {
       String onlyLowerA = VSUtil.createAOAExpression(
          aggs.subList(0, 1), "field['Count([a])']", names.subList(0, 1), vs);
 
-      // the stray COUNT([a]) is taken by the first of the two that is left over, never by
-      // an exact occurrence of the other one
-      assertTrue(exact.startsWith(onlyLowerA + " + " + onlyA + " + "), exact);
+      // the stray COUNT([a]) matches both names in any case; the first listed name takes it, and
+      // the exact occurrences are untouched by it
+      assertEquals(onlyLowerA + " + " + onlyA + " + " + onlyLowerA, exact);
    }
 }
