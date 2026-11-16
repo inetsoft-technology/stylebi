@@ -72,6 +72,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.RadarChartInfo;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
@@ -997,6 +998,49 @@ public class ViewsheetFormatService {
    }
 
    /**
+    * Refuses {@code axisLabel} (the primary value axis's tick labels) for a chart that has no
+    * primary axis to format (bug #81455). A tree, treemap, sunburst or map has no axes at all, and
+    * a polar chart (pie, donut, radar) has no left-Y axis area, so the write reached
+    * {@code ChartRegionHandler.getAxisColumnName} with no axis area and ended in a raw HTTP 500.
+    * Mirrors {@link #refuseAxisLabel2WithoutSecondaryAxis}, which refuses the secondary side.
+    */
+   private static void refuseAxisLabelWithoutAxis(RuntimeViewsheet rvs, List<String> names) {
+      if(rvs == null || rvs.getViewsheet() == null) {
+         return;
+      }
+
+      List<String> offenders = new ArrayList<>();
+
+      for(String name : names) {
+         if(!(rvs.getViewsheet().getAssembly(name) instanceof ChartVSAssembly chart)) {
+            // Not a chart at all -- already refused by refuseChartRegionTargetOnNonChart.
+            continue;
+         }
+
+         ChartRegionResolver.Axes axes = ChartRegionResolver.resolve(rvs, chart);
+         VSChartInfo info = chart.getVSChartInfo();
+         boolean rect = info == null || GraphTypes.isRect(info.getRTChartType());
+
+         if(!axes.has("y")) {
+            offenders.add("'" + name + "' has " + (axes.ordered().isEmpty()
+               ? "no axes at all"
+               : "only: " + String.join(", ", axes.ordered())));
+         }
+         else if(!rect) {
+            offenders.add("'" + name + "' is a polar chart, whose axis labels are not addressable " +
+                          "through this target (use set_chart_region_format with region " +
+                          "'axis_labels' and axis 'y')");
+         }
+      }
+
+      if(!offenders.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: target 'axisLabel' requires a chart with a primary (left) Y-axis; " +
+            String.join("; ", offenders) + ". The request was not applied.");
+      }
+   }
+
+   /**
     * Refuses a legend format write on a chart that renders no legend at all (funnel, waterfall,
     * radar, or any chart without an aesthetic binding), or, for a legend index, one past the
     * legends the chart renders. Without this the write is accepted, applies to nothing and is
@@ -1263,6 +1307,22 @@ public class ViewsheetFormatService {
             }
          }
 
+         else {
+            // Bug #81455: a title for an axis the chart does not draw was stored and reported as
+            // success. Same evidence axis_labels uses: a field on that axis's shelf (a candle's
+            // price fields stand in for an empty y shelf).
+            ChartRef[] refs = axisRefs(chart, axis);
+            boolean candlePrice = axis.equals("y") &&
+               ChartRegionResolver.candlePriceRefs(chart.getVSChartInfo()).length > 0;
+
+            if((refs == null || refs.length == 0) && !candlePrice) {
+               throw new IllegalArgumentException(
+                  tool + ": chart '" + r.assembly() + "' has no field on the " + axis +
+                  " axis, so it renders no " + axis + " axis and there is no " + axis +
+                  " title to format.");
+            }
+         }
+
          return new ChartRegion(axis + "_title", null, index);
       }
 
@@ -1499,6 +1559,10 @@ public class ViewsheetFormatService {
          RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
          refuseChartRegionTargetOnNonChart(resolved == null ? null : resolved.getViewsheet(),
                                            request.assemblies(), target);
+
+         if(AXIS_LABEL.equals(target)) {
+            refuseAxisLabelWithoutAxis(resolved, request.assemblies());
+         }
 
          if(AXIS_LABEL2.equals(target)) {
             refuseAxisLabel2WithoutSecondaryAxis(resolved, request.assemblies());

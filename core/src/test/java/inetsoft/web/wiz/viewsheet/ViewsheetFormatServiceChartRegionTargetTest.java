@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
@@ -208,6 +209,49 @@ class ViewsheetFormatServiceChartRegionTargetTest {
                  e.getMessage().contains("secondary") &&
                  e.getMessage().contains("'Chart1'"), e.getMessage());
       verify(sessions, never()).mutate(anyString(), any(java.security.Principal.class), any());
+      verifyNoInteractions(painter);
+   }
+
+   /** Bug #81455: a chart with no axes (tree, treemap, map) was a raw HTTP 500 here. */
+   @Test
+   void refusesAxisLabelOnAChartWithNoAxes() throws Exception {
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      when(chartInfo.getXFields()).thenReturn(new ChartRef[0]);
+      when(chartInfo.getYFields()).thenReturn(new ChartRef[0]);
+      when(assembly.getVSChartInfo()).thenReturn(chartInfo);
+      ViewsheetSessionService sessions = sessionsFor(rvsWith("Chart1", assembly));
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter),
+                                          mock(CalcTableService.class), null)
+            .setFormat("tok", principal(), request("axisLabel"), ""));
+
+      assertTrue(e.getMessage().contains("'axisLabel'") &&
+                 e.getMessage().contains("no axes at all") &&
+                 e.getMessage().contains("'Chart1'"), e.getMessage());
+      verify(sessions, never()).mutate(anyString(), any(java.security.Principal.class), any());
+      verifyNoInteractions(painter);
+   }
+
+   /** Bug #81455: a pie reports a y measure but has no left-Y axis area, so it also 500ed. */
+   @Test
+   void refusesAxisLabelOnAPolarChartAndPointsAtTheRegionTool() throws Exception {
+      ChartVSAssembly assembly = chartWithoutSecondaryAxis();
+      when(assembly.getVSChartInfo().getRTChartType()).thenReturn(GraphTypes.CHART_PIE);
+      ViewsheetSessionService sessions = sessionsFor(rvsWith("Chart1", assembly));
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter),
+                                          mock(CalcTableService.class), null)
+            .setFormat("tok", principal(), request("axisLabel"), ""));
+
+      assertTrue(e.getMessage().contains("polar") &&
+                 e.getMessage().contains("axis_labels"), e.getMessage());
       verifyNoInteractions(painter);
    }
 
