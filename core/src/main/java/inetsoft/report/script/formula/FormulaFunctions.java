@@ -943,7 +943,8 @@ public class FormulaFunctions {
       }
       // not sort by value but exist ranking n
       else if(opt.getOption("maxrows", null) != null &&
-         opt.getString("manualvalues", null) == null)
+         opt.getString("manualvalues", null) == null &&
+         (opt.getString("sorton", null) == null || opt.getOption("sort2", null) != null))
       {
          sortList(arr, opt, null, true);
       }
