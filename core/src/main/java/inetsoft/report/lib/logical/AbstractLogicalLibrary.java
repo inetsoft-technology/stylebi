@@ -529,18 +529,50 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    @Override
    public List<Transaction<LogicalLibraryEntry<T>>> flushTransactions() {
       ReadWriteLock lock = getLock();
-      lock.readLock().lock();
+      lock.writeLock().lock();
 
       try {
          final List<Transaction<LogicalLibraryEntry<T>>> transactionRecord =
             new ArrayList<>(transactions);
 
          transactions.clear();
+         flushedTransactions.addAll(transactionRecord);
 
          return transactionRecord;
       }
       finally {
-         lock.readLock().unlock();
+         lock.writeLock().unlock();
+      }
+   }
+
+   @Override
+   public void commitFlushedTransactions() {
+      ReadWriteLock lock = getLock();
+      lock.writeLock().lock();
+
+      try {
+         flushedTransactions.clear();
+      }
+      finally {
+         lock.writeLock().unlock();
+      }
+   }
+
+   @Override
+   public void restoreFlushedTransactions() {
+      ReadWriteLock lock = getLock();
+      lock.writeLock().lock();
+
+      try {
+         // put back at the head so that the transactions recorded since the flush stay after them
+         for(int i = flushedTransactions.size() - 1; i >= 0; i--) {
+            transactions.addFirst(flushedTransactions.get(i));
+         }
+
+         flushedTransactions.clear();
+      }
+      finally {
+         lock.writeLock().unlock();
       }
    }
 
@@ -591,6 +623,8 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    private final LibrarySecurity security;
    private final Map<String, LogicalLibraryEntry<T>> nameToEntryMap = new HashMap<>();
    protected final Deque<Transaction<LogicalLibraryEntry<T>>> transactions = new ArrayDeque<>();
+   // transactions flushed for a save that has not been committed yet, guarded by the write lock
+   private final List<Transaction<LogicalLibraryEntry<T>>> flushedTransactions = new ArrayList<>();
    private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());

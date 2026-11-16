@@ -147,6 +147,19 @@ public interface LogicalLibrary<T> {
    List<Transaction<LogicalLibraryEntry<T>>> flushTransactions();
 
    /**
+    * Discards the transactions returned by {@link #flushTransactions()} since the last commit or
+    * restore, to be called once they have been saved.
+    */
+   void commitFlushedTransactions();
+
+   /**
+    * Puts the transactions returned by {@link #flushTransactions()} since the last commit or
+    * restore back at the head of the transaction history, to be called when they could not be
+    * saved so that a later save persists them.
+    */
+   void restoreFlushedTransactions();
+
+   /**
     * @return true if the library has a transaction history, false otherwise.
     */
    boolean hasTransactions();
