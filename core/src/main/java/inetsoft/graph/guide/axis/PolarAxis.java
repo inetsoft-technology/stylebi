@@ -210,6 +210,14 @@ public class PolarAxis extends Axis {
                                                 "polar", values[i], 0, null);
             }
 
+            double limit = axisSpec.getLabelLimit();
+
+            // cut at the limit unless the author named the spoke
+            if(limit > 0 && !isAliased(values[i])) {
+               vlabels[i].setEllipsis(true);
+               vlabels[i].setMaxSize(new DimensionD(limit, Double.MAX_VALUE));
+            }
+
             addVisual(vlabels[i]);
          }
       }

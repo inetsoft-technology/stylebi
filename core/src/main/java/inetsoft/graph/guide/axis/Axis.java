@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.geom.*;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Vector;
 
 /**
@@ -495,17 +496,31 @@ public abstract class Axis extends VContainer {
       Object[] vals = scale.getValues();
       Object[] nvals = new Object[vals.length];
       TextFrame textFrame = scale.getAxisSpec().getTextFrame();
+      Map<Object, String> texts = scale.getAxisSpec().getDisplayTexts();
 
-      if(textFrame != null) {
-         for(int i = 0; i < vals.length; i++) {
+      for(int i = 0; i < vals.length; i++) {
+         if(textFrame != null) {
             nvals[i] = textFrame.getText(vals[i]);
          }
-      }
-      else {
-         System.arraycopy(vals, 0, nvals, 0, vals.length);
+         else {
+            nvals[i] = vals[i];
+         }
+
+         // an author alias wins over the generated text
+         if(texts != null && texts.containsKey(vals[i]) && !isAliased(vals[i])) {
+            nvals[i] = texts.get(vals[i]);
+         }
       }
 
       return nvals;
+   }
+
+   /**
+    * Check whether the author's text frame maps the value.
+    */
+   boolean isAliased(Object value) {
+      TextFrame frame = scale.getAxisSpec().getTextFrame();
+      return frame != null && frame.getKeys().contains(GTool.toString(value));
    }
 
    /**
