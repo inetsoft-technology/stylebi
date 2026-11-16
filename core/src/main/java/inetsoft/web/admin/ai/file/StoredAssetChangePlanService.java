@@ -94,7 +94,7 @@ public class StoredAssetChangePlanService {
     * exist yet is a pure create whose undo deletes it. Shared with {@link
     * StoredAssetChangesetApplyService} so the apply gates its snapshot on the same decision.
     * Bug #81073: an overwrite of a text file, and a delete of a text file no custom theme's jar
-    * points at, are also skipped, since the rollback rewrites the captured text exactly. A rename,
+    * points at, are also skipped, since the rollback rewrites the captured text. A rename,
     * a folder delete and any file whose prior content could not be captured as text keep it. */
    static boolean requiresBackup(List<ResolvedChange> resolved) {
       return StorageBackupPolicy.requiresBackup(
@@ -504,7 +504,7 @@ public class StoredAssetChangePlanService {
     * {@code priorText} together determine whether a live rollback exists for this entry (see
     * 01-design.md section 6.3's per-verb rollback table). {@code pureCreate} is true for a new
     * folder or a write to a path that did not exist (Bug #80650). {@code snapshotSkippable}
-    * is true when the rollback restores the entry exactly from captured text (Bug #81073). */
+    * is true when the rollback restores the entry from captured text (Bug #81073). */
    record ResolvedChange(String unitType, String verb, String path, String newPath, String content,
                         boolean compensable, String priorText, PlanChange planChange,
                         Map<String, String> hidden, boolean pureCreate,

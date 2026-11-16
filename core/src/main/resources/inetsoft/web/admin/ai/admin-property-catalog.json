@@ -424,7 +424,7 @@
     "type": "int",
     "min": 0,
     "max": 65535,
-    "description": "scheduler.rmi.port is the RMI Port Number field on Enterprise Manager's Settings > Schedule > Settings page \u2014 the port the scheduler subprocess's RMI registry binds to. The dedicated Scheduler Settings page stops a locally-managed scheduler on its OLD port before saving a change to this value; a bare property write skips that step, so a locally-managed scheduler can become unreachable until it is manually stopped and restarted at the new port. Takes effect only the next time the scheduler subprocess starts.",
+    "description": "scheduler.rmi.port is the RMI Port Number field on Enterprise Manager's Settings > Schedule > Settings page — the port the scheduler subprocess's RMI registry binds to. The dedicated Scheduler Settings page stops a locally-managed scheduler on its OLD port before saving a change to this value; a bare property write skips that step, so a locally-managed scheduler can become unreachable until it is manually stopped and restarted at the new port. Takes effect only the next time the scheduler subprocess starts.",
     "risk": "high",
     "snapshotScope": "value"
   },
@@ -432,7 +432,7 @@
     "name": "scheduler.classpath",
     "aliases": [],
     "type": "string",
-    "description": "scheduler.classpath is the Scheduler Classpath field on Enterprise Manager's Settings > Schedule > Settings page \u2014 the Java classpath used to launch the scheduler as a local subprocess. It is spliced onto the subprocess's -classpath argument with no format validation, so a bad value breaks only the NEXT scheduler subprocess launch (Start/Restart on the Scheduler status page), not one already running.",
+    "description": "scheduler.classpath is the Scheduler Classpath field on Enterprise Manager's Settings > Schedule > Settings page — the Java classpath used to launch the scheduler as a local subprocess. It is spliced onto the subprocess's -classpath argument with no format validation, so a bad value breaks only the NEXT scheduler subprocess launch (Start/Restart on the Scheduler status page), not one already running.",
     "risk": "high",
     "snapshotScope": "value"
   },
@@ -489,7 +489,7 @@
     "aliases": [],
     "type": "int",
     "min": 1,
-    "description": "schedule.memory.min is the Minimum (MB) field under Memory Usage on Enterprise Manager's Settings > Schedule > Settings page, spliced into the scheduler subprocess's -Xms flag. It is never cross-validated against schedule.memory.max by the server \u2014 only the browser's form checks min <= max \u2014 so an inverted or otherwise invalid pair is accepted silently and only fails the next scheduler launch. Takes effect only the next time the scheduler subprocess starts.",
+    "description": "schedule.memory.min is the Minimum (MB) field under Memory Usage on Enterprise Manager's Settings > Schedule > Settings page, spliced into the scheduler subprocess's -Xms flag. It is never cross-validated against schedule.memory.max by the server — only the browser's form checks min <= max — so an inverted or otherwise invalid pair is accepted silently and only fails the next scheduler launch. Takes effect only the next time the scheduler subprocess starts.",
     "risk": "high",
     "snapshotScope": "value"
   },
