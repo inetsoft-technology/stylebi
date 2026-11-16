@@ -424,7 +424,7 @@
     "type": "int",
     "min": 0,
     "max": 65535,
-    "description": "scheduler.rmi.port is the RMI Port Number field on Enterprise Manager's Settings > Schedule > Settings page — the port the scheduler subprocess's RMI registry binds to. The dedicated Scheduler Settings page stops a locally-managed scheduler on its OLD port before saving a change to this value; a bare property write skips that step, so a locally-managed scheduler can become unreachable until it is manually stopped and restarted at the new port. Takes effect only the next time the scheduler subprocess starts.",
+    "description": "scheduler.rmi.port is the RMI Port Number field on Enterprise Manager's Settings > Schedule > Settings page \u2014 the port the scheduler subprocess's RMI registry binds to. The dedicated Scheduler Settings page stops a locally-managed scheduler on its OLD port before saving a change to this value; a bare property write skips that step, so a locally-managed scheduler can become unreachable until it is manually stopped and restarted at the new port. Takes effect only the next time the scheduler subprocess starts.",
     "risk": "high",
     "snapshotScope": "value"
   },
@@ -432,7 +432,7 @@
     "name": "scheduler.classpath",
     "aliases": [],
     "type": "string",
-    "description": "scheduler.classpath is the Scheduler Classpath field on Enterprise Manager's Settings > Schedule > Settings page — the Java classpath used to launch the scheduler as a local subprocess. It is spliced onto the subprocess's -classpath argument with no format validation, so a bad value breaks only the NEXT scheduler subprocess launch (Start/Restart on the Scheduler status page), not one already running.",
+    "description": "scheduler.classpath is the Scheduler Classpath field on Enterprise Manager's Settings > Schedule > Settings page \u2014 the Java classpath used to launch the scheduler as a local subprocess. It is spliced onto the subprocess's -classpath argument with no format validation, so a bad value breaks only the NEXT scheduler subprocess launch (Start/Restart on the Scheduler status page), not one already running.",
     "risk": "high",
     "snapshotScope": "value"
   },
@@ -489,7 +489,7 @@
     "aliases": [],
     "type": "int",
     "min": 1,
-    "description": "schedule.memory.min is the Minimum (MB) field under Memory Usage on Enterprise Manager's Settings > Schedule > Settings page, spliced into the scheduler subprocess's -Xms flag. It is never cross-validated against schedule.memory.max by the server — only the browser's form checks min <= max — so an inverted or otherwise invalid pair is accepted silently and only fails the next scheduler launch. Takes effect only the next time the scheduler subprocess starts.",
+    "description": "schedule.memory.min is the Minimum (MB) field under Memory Usage on Enterprise Manager's Settings > Schedule > Settings page, spliced into the scheduler subprocess's -Xms flag. It is never cross-validated against schedule.memory.max by the server \u2014 only the browser's form checks min <= max \u2014 so an inverted or otherwise invalid pair is accepted silently and only fails the next scheduler launch. Takes effect only the next time the scheduler subprocess starts.",
     "risk": "high",
     "snapshotScope": "value"
   },
@@ -1779,7 +1779,7 @@
     "type": "string",
     "description": "log.file.discriminator is the string a cluster node stamps into its own log file names, with no declared default \u2014 every reader falls back to this node's own IP address when unset, and there is no Enterprise Manager control for it.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.fluentd.connecttimeout",
@@ -1787,7 +1787,7 @@
     "type": "int",
     "description": "log.fluentd.connecttimeout is the Connect Timeout field on Enterprise Manager's Settings > Logging page \u2014 the milliseconds StyleBI waits when connecting to the Fluentd/Fluent Bit collector \u2014 with no declared default, falling back to 10000 (ten seconds).",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.fluentd.host",
@@ -1795,7 +1795,7 @@
     "type": "string",
     "description": "log.fluentd.host is the Host field on Enterprise Manager's Settings > Logging page \u2014 the hostname or IP address of the Fluentd/Fluent Bit collector StyleBI forwards log records to \u2014 with no declared default, falling back to localhost.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.fluentd.logviewurl",
@@ -1803,7 +1803,7 @@
     "type": "string",
     "description": "log.fluentd.logviewurl is the Log View URL field on Enterprise Manager's Settings > Logging page \u2014 the external link StyleBI shows for viewing logs at the collector's own UI \u2014 read only while log.provider is the exact literal fluentd, with no declared default, so unset shows no link.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.fluentd.orgadminaccess",
@@ -1811,7 +1811,7 @@
     "type": "boolean",
     "description": "log.fluentd.orgadminaccess is the Allow organization administrators to access logging checkbox on Enterprise Manager's Settings > Logging page, shown only when the server is multi-tenant and log.provider is fluentd; ActionPermissionService.isOrgAdminAction reads it to decide whether organization admins everywhere get the monitoring/log viewing permission, with no declared default, so unset behaves as off.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.fluentd.port",
@@ -1819,7 +1819,23 @@
     "type": "int",
     "description": "log.fluentd.port is the Port field on Enterprise Manager's Settings > Logging page \u2014 the TCP port the Fluentd/Fluent Bit collector listens on \u2014 with no declared default, falling back to 24224, Fluentd's own default port.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
+  },
+  {
+    "name": "log.fluentd.security.password",
+    "aliases": [],
+    "type": "string",
+    "description": "log.fluentd.security.password is the Password field on Enterprise Manager's Settings > Logging page \u2014 the credential StyleBI presents when authenticating to the Fluentd/Fluent Bit collector, stored encrypted and withheld on read \u2014 with no declared default. Writing it only changes the in-memory forwarder configuration, and a rollback replays the stored ciphertext.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "log.fluentd.security.sharedkey",
+    "aliases": [],
+    "type": "string",
+    "description": "log.fluentd.security.sharedkey is the Shared Key field on Enterprise Manager's Settings > Logging page \u2014 the secret shared with the Fluentd/Fluent Bit collector's secure-forward input, stored encrypted and withheld on read \u2014 with no declared default. Writing it only changes the in-memory forwarder configuration, and a rollback replays the stored ciphertext.",
+    "risk": "high",
+    "snapshotScope": "value"
   },
   {
     "name": "log.fluentd.security.userauthenticationenabled",
@@ -1827,7 +1843,7 @@
     "type": "boolean",
     "description": "log.fluentd.security.userauthenticationenabled is the User Authentication Enabled checkbox on Enterprise Manager's Settings > Logging page \u2014 it turns on username/password authentication in addition to the shared key when StyleBI connects to the Fluentd/Fluent Bit collector \u2014 with no declared default, so unset behaves as off.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.fluentd.security.username",
@@ -1835,7 +1851,7 @@
     "type": "string",
     "description": "log.fluentd.security.username is the Username field on Enterprise Manager's Settings > Logging page \u2014 the account name StyleBI presents when authenticating to the Fluentd/Fluent Bit collector \u2014 with no declared default.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.fluentd.securityenabled",
@@ -1843,7 +1859,7 @@
     "type": "boolean",
     "description": "log.fluentd.securityenabled is the Security Enabled checkbox on Enterprise Manager's Settings > Logging page \u2014 it turns on shared-key (and optionally username/password) authentication when StyleBI connects to the Fluentd/Fluent Bit collector \u2014 with no declared default, so unset behaves as off.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.fluentd.tls.cacertificatefile",
@@ -1851,7 +1867,7 @@
     "type": "string",
     "description": "log.fluentd.tls.cacertificatefile is the CA Certificate File field on Enterprise Manager's Settings > Logging page \u2014 the filesystem path to the CA certificate StyleBI trusts when connecting to the Fluentd/Fluent Bit collector over TLS.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.fluentd.tlsenabled",
@@ -1859,7 +1875,7 @@
     "type": "boolean",
     "description": "log.fluentd.tlsenabled is the TLS Enabled checkbox on Enterprise Manager's Settings > Logging page \u2014 it turns on an encrypted connection when StyleBI forwards log records to the Fluentd/Fluent Bit collector \u2014 with no declared default of its own, so unset is off.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.level.inetsoft.performance",
@@ -1878,7 +1894,7 @@
     ],
     "description": "log.level.inetsoft.performance turns on StyleBI's performance log \u2014 the per-asset execution timings recorded by LogUtil.logPerformance \u2014 and is OFF by default, so nothing is written until it is raised.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.message.pattern",
@@ -1886,7 +1902,7 @@
     "type": "string",
     "description": "log.message.pattern is the Logback layout pattern StyleBI writes each log-file and console line with \u2014 the string every non-Fluentd appender's encoder uses \u2014 defaulting to %d %level %property{LOCAL_IP_ADDR} [%mdc] %c{1}: %message %n%ex, the exact literal StyleBI's own LogbackInitializer hard-codes for its pre-Spring startup encoder.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.output.file",
@@ -1894,7 +1910,7 @@
     "type": "string",
     "description": "log.output.file is the base path StyleBI's main server log is written to \u2014 the appender inserts -<log.file.discriminator>, defaulting to this node's IP address, before the extension, so a value of sree.log produces sree-<discriminator>.log on disk and sree.log itself never exists \u2014 shown read-only in the Log File field on Enterprise Manager's Settings > Logging page \u2014 defaulting to sree.log.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.output.stderr",
@@ -1902,7 +1918,7 @@
     "type": "boolean",
     "description": "log.output.stderr is the Output to standard output checkbox on Enterprise Manager's Settings > Logging page \u2014 it also echoes log records to the console, in addition to the log file \u2014 defaulting to true.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "log.provider",
@@ -1914,7 +1930,7 @@
     ],
     "description": "log.provider is the Log Type field on Enterprise Manager's Settings > Logging page that decides where StyleBI sends log records \u2014 its own log files, or a Fluent Bit/Fluentd collector \u2014 with no declared default, so unset behaves as file logging.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "mail.attachment.maxbytes",

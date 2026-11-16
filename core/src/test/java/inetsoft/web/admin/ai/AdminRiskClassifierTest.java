@@ -90,6 +90,73 @@ class AdminRiskClassifierTest {
       assertFalse(result.recognized());
    }
 
+   // Bug #81073: a log.* write only changes in-memory logging state (PropertiesEngine
+   // applyLogProperty/reloadLogging) and is undone by replaying the before-value, so its scope is
+   // value; the risk stays high so signoff is still required.
+   @Test
+   void everyCataloguedLogPropertyIsHighRiskExceptDetailLevelAndAlwaysValueScope() {
+      int seen = 0;
+
+      for(CatalogEntry entry : catalog.entries()) {
+         if(!entry.name().startsWith("log.")) {
+            continue;
+         }
+
+         seen++;
+         AdminRiskClassifier.RiskClassification result = classify(entry.name());
+         assertEquals("value", result.snapshotScope(), entry.name());
+         assertEquals("log.detail.level".equals(entry.name()) ? "low" : "high", result.risk(),
+                      entry.name());
+         assertTrue(result.recognized(), entry.name());
+      }
+
+      assertTrue(seen >= 19, "expected the 17 log.* entries plus the 2 fluentd credentials");
+   }
+
+   @Test
+   void logOutputStderrIsHighRiskValueScope() {
+      AdminRiskClassifier.RiskClassification result = classify("log.output.stderr");
+      assertEquals("high", result.risk());
+      assertEquals("value", result.snapshotScope());
+   }
+
+   @Test
+   void fluentdCredentialsAreCataloguedHighRiskValueScope() {
+      for(String property : new String[] { "log.fluentd.security.sharedKey",
+                                           "log.fluentd.security.password" })
+      {
+         AdminRiskClassifier.RiskClassification result = classify(property);
+         assertEquals("high", result.risk(), property);
+         assertEquals("value", result.snapshotScope(), property);
+         assertTrue(result.recognized(), property);
+      }
+   }
+
+   @Test
+   void anUncataloguedLogLevelOverrideIsHighRiskValueScopeButUnrecognized() {
+      for(String property : new String[] { "log.level.inetsoft.web.SomeLogger",
+                                           "log.USER.level.bob^host-org",
+                                           "log.CATEGORY.level.inetsoft.sree" })
+      {
+         AdminRiskClassifier.RiskClassification result = classify(property);
+         assertEquals("high", result.risk(), property);
+         assertEquals("value", result.snapshotScope(), property);
+         assertFalse(result.recognized(), property);
+      }
+   }
+
+   // The log namespace rule is limited to the exact patterns PropertiesEngine.isLogProperty
+   // applies; any other uncatalogued log.* name still fails safe to storage.
+   @Test
+   void anUncataloguedNonLevelLogPropertyStillFailsSafeToStorage() {
+      for(String property : new String[] { "log.something.else", "log.user.level.bob" }) {
+         AdminRiskClassifier.RiskClassification result = classify(property);
+         assertEquals("high", result.risk(), property);
+         assertEquals("storage", result.snapshotScope(), property);
+         assertFalse(result.recognized(), property);
+      }
+   }
+
    @Test
    void forcesHighRiskForUnknownHighRiskNamespaces() {
       for(String property : new String[] { "security.some.future.flag", "cluster.node.address",
