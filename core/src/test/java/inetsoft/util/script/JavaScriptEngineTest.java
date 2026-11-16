@@ -22,7 +22,9 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -647,6 +649,155 @@ class JavaScriptEngineTest {
       "(GraalJavaScriptEnv.getScope).")
    void testFindObject() {
       // Previously: JavaScriptEngine.findObject(name, NativeObject scope chain, visited).
+   }
+
+   static Stream<Arguments> formatNumberRoundingModes() {
+      String[] modes = { "ROUND_HALF_UP", "ROUND_HALF_DOWN", "ROUND_HALF_EVEN", "ROUND_UP",
+                         "ROUND_DOWN", "ROUND_CEILING", "ROUND_FLOOR" };
+      String[] pos = { "3", "2", "2", "3", "2", "3", "2" };
+      String[] neg = { "-3", "-2", "-2", "-3", "-2", "-2", "-3" };
+      Stream.Builder<Arguments> b = Stream.builder();
+
+      for(int i = 0; i < modes.length; i++) {
+         b.add(Arguments.of(2.5, modes[i], pos[i]));
+         b.add(Arguments.of(-2.5, modes[i], neg[i]));
+      }
+
+      b.add(Arguments.of(0.5, "ROUND_HALF_EVEN", "0"));
+      b.add(Arguments.of(1.5, "ROUND_HALF_EVEN", "2"));
+      b.add(Arguments.of(3.5, "ROUND_HALF_EVEN", "4"));
+      return b.build();
+   }
+
+   @ParameterizedTest(name = "formatNumber({0}, #, {1}) = {2}")
+   @MethodSource("formatNumberRoundingModes")
+   void formatNumberAppliesEveryBigDecimalRoundingMode(double num, String mode, String expected) {
+      assertEquals(expected, JavaScriptEngine.formatNumber(num, "#", mode));
+   }
+
+   @Test
+   void formatNumberRoundsDecimalStringOfBinaryInexactValueHalfUp() {
+      assertEquals("1.01", JavaScriptEngine.formatNumber(1.005, "#.##", "ROUND_HALF_UP"));
+   }
+
+   @Test
+   void formatNumberOfBinaryInexactValueUsesJdkRoundingWithoutModeAndDecimalRoundingWithHalfEven() {
+      assertEquals("2.67", JavaScriptEngine.formatNumber(2.675, "#.##", null));
+      assertEquals("2.68", JavaScriptEngine.formatNumber(2.675, "#.##", "ROUND_HALF_EVEN"));
+   }
+
+   @Test
+   void formatNumberTinyNegativePinsCurrentNegativeZeroWithoutModeAndNoneWithHalfEven() {
+      // pins current behavior
+      assertEquals("-.00", JavaScriptEngine.formatNumber(-0.001, "#.00", null));
+      assertEquals(".00", JavaScriptEngine.formatNumber(-0.001, "#.00", "ROUND_HALF_EVEN"));
+   }
+
+   @Test
+   void formatNumberRoundUnnecessaryThrowsWhenRoundingIsNeeded() {
+      assertThrows(ArithmeticException.class,
+                   () -> JavaScriptEngine.formatNumber(2.5, "#", "ROUND_UNNECESSARY"));
+   }
+
+   @Test
+   void formatNumberUsesDefaultLocaleSeparatorsWithAndWithoutRounding() {
+      Locale old = Locale.getDefault();
+
+      try {
+         Locale.setDefault(Locale.GERMANY);
+         assertEquals("1.234.567,89",
+                      JavaScriptEngine.formatNumber(1234567.891, "#,##0.00", null));
+         assertEquals("1.234.567,89",
+                      JavaScriptEngine.formatNumber(1234567.891, "#,##0.00", "ROUND_HALF_UP"));
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+   }
+
+   @Test
+   void formatNumberPercentFormatRoundsHalfUpAndHalfEvenDifferently() {
+      assertEquals("13%", JavaScriptEngine.formatNumber(0.125, "#%", "ROUND_HALF_UP"));
+      assertEquals("12%", JavaScriptEngine.formatNumber(0.125, "#%", "ROUND_HALF_EVEN"));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "a \t\n", "a", "" })
+   void rtrimRemovesTrailingWhitespaceOnly(String in) {
+      assertEquals("a".equals(in.trim()) ? "a" : "", JavaScriptEngine.rtrim(in));
+      // same whitespace set as trim() when the input has no leading whitespace
+      assertEquals(JavaScriptEngine.trim(in), JavaScriptEngine.rtrim(in));
+   }
+
+   @Test
+   @Disabled("Redmine #79674 (closed, fix version 13.8, PR #1189, not in this tree): split(\"a-b--c\", \"--\", null) returns 3 parts and split(\"a-b\", \"--\", null) 2 parts, expected [a-b, c] and [a-b] (delimiter taken as one string)")
+   void splitWithMultiCharDelimiterTreatsItAsOneDelimiter() {
+      assertArrayEquals(new String[] { "a-b", "c" },
+                        JavaScriptEngine.split("a-b--c", "--", null));
+      assertArrayEquals(new String[] { "a-b" }, JavaScriptEngine.split("a-b", "--", null));
+   }
+
+   @Test
+   void splitKeepsEmptyFields() {
+      assertArrayEquals(new String[] { "", "a", "" }, JavaScriptEngine.split(",a,", ",", null));
+      assertArrayEquals(new String[] { "a", "", "b" },
+                        JavaScriptEngine.split("a,,b", ",", null));
+      assertArrayEquals(new String[0], JavaScriptEngine.split(null, ",", null));
+      assertArrayEquals(new String[0], JavaScriptEngine.split("", ",", null));
+   }
+
+   @ParameterizedTest
+   @ValueSource(ints = { 10, -1 })
+   void splitCountAboveLengthOrNegativeReturnsAllParts(int count) {
+      assertArrayEquals(new String[] { "a", "b", "c" },
+                        JavaScriptEngine.split("a,b,c", ",", count));
+   }
+
+   @Test
+   void splitOfPrimitiveDoubleArrayEqualsSplitOfObjectArray() {
+      assertArrayEquals(JavaScriptEngine.split(new Object[] { 1.0, 2.0 }),
+                        JavaScriptEngine.split(new double[] { 1, 2 }));
+      assertArrayEquals(new Object[] { 1.0, 2.0 }, JavaScriptEngine.split(new double[] { 1, 2 }));
+      assertArrayEquals(JavaScriptEngine.split(new Object[] { 1, 2 }),
+                        JavaScriptEngine.split(new int[] { 1, 2 }));
+      assertArrayEquals(new Object[] { 1, 2 }, JavaScriptEngine.split(new int[] { 1, 2 }));
+   }
+
+   @Test
+   void splitOfSingleNullArrayEmptyArrayAndBlankString() {
+      assertArrayEquals(new Object[] { null }, JavaScriptEngine.split(new Object[] { null }));
+      assertArrayEquals(new Object[0], JavaScriptEngine.split(new Object[0]));
+      assertArrayEquals(new Object[] { " " }, JavaScriptEngine.split(" "));
+      assertArrayEquals(JavaScriptEngine.splitStr(" "), JavaScriptEngine.split(" "));
+   }
+
+   @Test
+   void dateAddClampsToLastDayOfMonthAndDateDiffCountsLeapDay() {
+      assertEquals(toDate("2025-02-28T00:00").getTime(),
+                   JavaScriptEngine.dateAdd("yyyy", 1, toDate("2024-02-29T00:00")).getTime());
+      assertEquals(toDate("2024-02-29T00:00").getTime(),
+                   JavaScriptEngine.dateAdd("m", 1, toDate("2024-01-31T00:00")).getTime());
+      assertEquals(toDate("2025-02-28T00:00").getTime(),
+                   JavaScriptEngine.dateAdd("q", 1, toDate("2024-11-30T00:00")).getTime());
+      assertEquals(toDate("2024-02-29T00:00").getTime(),
+                   JavaScriptEngine.dateAdd("d", 1, toDate("2024-02-28T00:00")).getTime());
+      assertEquals(2, JavaScriptEngine.dateDiff("d", toDate("2024-02-28T00:00"),
+                                                toDate("2024-03-01T00:00")));
+      assertEquals(1, JavaScriptEngine.dateDiff("d", toDate("2023-02-28T00:00"),
+                                                toDate("2023-03-01T00:00")));
+   }
+
+   @Test
+   void dateDiffMonthCountsPeriodBoundariesCrossed() {
+      assertEquals(1, JavaScriptEngine.dateDiff("m", toDate("2024-03-31T00:00"),
+                                                toDate("2024-04-01T00:00")));
+   }
+
+   @Test
+   @Disabled("Bug #81467: dateDiff(\"q\") quarter boundary semantics")
+   void dateDiffQuarterCountsPeriodBoundariesCrossed() {
+      assertEquals(1, JavaScriptEngine.dateDiff("q", toDate("2024-03-31T00:00"),
+                                                toDate("2024-04-01T00:00")));
    }
 
    /**

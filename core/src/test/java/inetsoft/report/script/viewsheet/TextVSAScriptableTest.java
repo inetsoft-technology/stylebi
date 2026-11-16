@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -36,8 +37,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
@@ -134,5 +134,70 @@ public class TextVSAScriptableTest {
       textVSAScriptable.setPresenter(qrCodePresenter);
       assertEquals("inetsoft.report.painter.QRCodePresenter",
                    textVSAssemblyInfo.getFormat().getUserDefinedFormat().getPresenter().getName());
+   }
+
+   @Test
+   @Disabled("Bug #81463: popAlpha set by a script is not reset for Text and Image")
+   void popAlphaScriptValueIsRevertedToDesignValueOnReset() {
+      textVSAssemblyInfo.setAlphaValue("30");
+      textVSAScriptable.addProperties();
+      textVSAScriptable.putMember("popAlpha", "70");
+      assertEquals("70", textVSAScriptable.getMember("popAlpha"));
+
+      textVSAssemblyInfo.resetRuntimeValues();
+      assertEquals("30", textVSAScriptable.getMember("popAlpha"));
+   }
+
+   @Test
+   void popLocationScriptValueIsRevertedToDesignValueOnReset() {
+      textVSAssemblyInfo.setPopLocationValue(PopVSAssemblyInfo.PopLocation.CENTER);
+      textVSAScriptable.setPopLocation("MOUSE");
+      assertEquals(PopVSAssemblyInfo.PopLocation.MOUSE.value, textVSAScriptable.getPopLocation());
+
+      textVSAssemblyInfo.resetRuntimeValues();
+      assertEquals(PopVSAssemblyInfo.PopLocation.CENTER.value, textVSAScriptable.getPopLocation());
+   }
+
+   @ParameterizedTest
+   @org.junit.jupiter.params.provider.NullSource
+   @ValueSource(strings = { "center" })
+   void popLocationPinsCurrentCaseSensitiveRejectionOfInvalidValues(String value) {
+      // pins current behavior: only the exact upper-case names are accepted
+      assertThrows(IllegalArgumentException.class, () -> textVSAScriptable.setPopLocation(value));
+   }
+
+   @Test
+   void popComponentTurnsOnRuntimePopOptionAndValueTurnsOnDesignOption() {
+      textVSAScriptable.setPopComponent("c1");
+      assertEquals(PopVSAssemblyInfo.POP_OPTION, textVSAssemblyInfo.getPopOption());
+
+      textVSAScriptable.setPopComponentValue("c2");
+      assertEquals(PopVSAssemblyInfo.POP_OPTION, textVSAssemblyInfo.getPopOptionValue());
+   }
+
+   @Test
+   @Disabled("Bug #81464: clone of Text and Image info shares popLocationValue")
+   void clonedTextInfoDoesNotShareRuntimePopLocation() {
+      textVSAssemblyInfo.setPopLocation(PopVSAssemblyInfo.PopLocation.MOUSE);
+      TextVSAssemblyInfo clone = textVSAssemblyInfo.clone(false);
+      clone.setPopLocation(PopVSAssemblyInfo.PopLocation.CENTER);
+
+      assertEquals(PopVSAssemblyInfo.PopLocation.MOUSE, textVSAssemblyInfo.getPopLocation());
+   }
+
+   @Test
+   void scaledSizeIsTheScaledLayoutSizeWhenSetOtherwiseTheLayoutSize() {
+      textVSAssemblyInfo.setLayoutSize(new java.awt.Dimension(100, 80));
+      textVSAssemblyInfo.setScaledSize(new java.awt.Dimension(300, 200));
+      assertEquals(new java.awt.Dimension(300, 200), vsaScriptable.getScaledSize());
+
+      textVSAssemblyInfo.setScaledSize(null);
+      assertEquals(textVSAssemblyInfo.getLayoutSize(false), vsaScriptable.getScaledSize());
+      assertEquals(new java.awt.Dimension(100, 80), vsaScriptable.getScaledSize());
+   }
+
+   @Test
+   void scaledSizeIsNullWithoutAssembly() {
+      assertNull(new VSAScriptable(viewsheetSandbox).getScaledSize());
    }
 }

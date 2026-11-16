@@ -19,6 +19,7 @@
 package inetsoft.util.script;
 
 import inetsoft.test.*;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -1396,6 +1397,100 @@ public class CalcDateTimeTest {
       }
 
       assertArrayEquals(results[0], results[1], tag + " vs en-US");
+   }
+
+   private static Date dayStart(int y, int m, int d) {
+      return Date.from(LocalDate.of(y, m, d).atStartOfDay(ZoneId.systemDefault()).toInstant());
+   }
+
+   /**
+    * Run the call on a fresh thread (the formatters of monthname/weekdayname are ThreadLocal
+    * caches built with the default locale at first use) after setting the default locale; the
+    * default locale is restored on the calling thread.
+    */
+   private static String onFreshThread(Locale locale, java.util.function.Supplier<String> call)
+      throws Exception
+   {
+      Locale old = Locale.getDefault();
+      String[] result = new String[1];
+      Throwable[] error = { null };
+
+      try {
+         Locale.setDefault(locale);
+         Thread thread = new Thread(() -> {
+            try {
+               result[0] = call.get();
+            }
+            catch(Throwable ex) {
+               error[0] = ex;
+            }
+         });
+         thread.start();
+         thread.join();
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+
+      if(error[0] != null) {
+         throw new AssertionError(error[0]);
+      }
+
+      return result[0];
+   }
+
+   @ParameterizedTest(name = "{0}: {1}-{2}-{3} is {4} / {5}")
+   @org.junit.jupiter.params.provider.CsvSource({
+      "en-US,2024,3,5,March,Tuesday",
+      "de-DE,2024,3,5,März,Tuesday",
+      "en-US,2024,2,29,February,Thursday",
+      "de-DE,2024,2,29,Februar,Thursday"
+   })
+   void monthnameFollowsDefaultLocaleOnFreshThread(String tag, int y, int m, int d,
+                                                   String month, String ignored)
+      throws Exception
+   {
+      Date date = dayStart(y, m, d);
+      assertEquals(month, onFreshThread(Locale.forLanguageTag(tag),
+                                        () -> CalcDateTime.monthname(date)));
+   }
+
+   @ParameterizedTest
+   @org.junit.jupiter.params.provider.CsvSource({
+      "2024,3,5,Tuesday", "2024,2,29,Thursday"
+   })
+   void weekdaynameUnderEnglishLocale(int y, int m, int d, String weekday) throws Exception {
+      Date date = dayStart(y, m, d);
+      assertEquals(weekday, onFreshThread(Locale.US, () -> CalcDateTime.weekdayname(date)));
+   }
+
+   @Test
+   @Disabled("Bug #81466: monthname() keeps the first locale a thread used")
+   void monthnameFollowsThreadContextLocaleChangesOnSameThread() throws Exception {
+      Date date = dayStart(2024, 3, 5);
+      String[] names = new String[2];
+      Throwable[] error = { null };
+
+      Thread thread = new Thread(() -> {
+         try {
+            inetsoft.util.ThreadContext.setLocale(Locale.FRENCH);
+            names[0] = CalcDateTime.monthname(date);
+            inetsoft.util.ThreadContext.setLocale(Locale.GERMAN);
+            names[1] = CalcDateTime.monthname(date);
+         }
+         catch(Throwable ex) {
+            error[0] = ex;
+         }
+      });
+      thread.start();
+      thread.join();
+
+      if(error[0] != null) {
+         throw new AssertionError(error[0]);
+      }
+
+      assertEquals("mars", names[0]);
+      assertEquals("März", names[1]);
    }
 
    /**

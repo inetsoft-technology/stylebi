@@ -29,6 +29,8 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
@@ -663,4 +665,82 @@ public class VSChartBindingScriptableTest {
       vsChartBindingScriptable.setLineFrame(staticLineFrame);
       assertEquals(staticLineFrame, vsChartBindingScriptable.getLineFrame());
    }
- }
+ 
+   /** Binds an aggregate field and returns the name the field is addressed by in scripts. */
+   private String bindAggregateField(String name) {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+      vsChartBindingScriptable = new VSChartBindingScriptable(chartVSAScriptable);
+      vsChartBindingScriptable.setYFields(new Object[] { new Object[] { name, ChartConstants.NUMBER } });
+      return chartVSAScriptable.getChartInfo().getYFields()[0].getFullName();
+   }
+
+   private inetsoft.report.script.AbstractChartArray array(String property) {
+      return (inetsoft.report.script.AbstractChartArray) vsChartBindingScriptable.getMember(property);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "colors", "lines", "sizes" })
+   void frameAssignedByFieldNameIsTheFrameOfTheBoundField(String property) {
+      String field = bindAggregateField("id");
+      Object frame;
+      Object viaGetter;
+
+      switch(property) {
+      case "colors":
+         frame = new CategoricalColorFrame();
+         array(property).putMember(field, frame);
+         viaGetter = vsChartBindingScriptable.getColorFrame();
+         break;
+      case "lines":
+         frame = new StaticLineFrame();
+         array(property).putMember(field, frame);
+         viaGetter = vsChartBindingScriptable.getLineFrame();
+         break;
+      default:
+         frame = new StaticSizeFrame();
+         array(property).putMember(field, frame);
+         viaGetter = vsChartBindingScriptable.getSizeFrame();
+         break;
+      }
+
+      assertSame(frame, array(property).getMember(field));
+      assertEquals(frame, viaGetter);
+   }
+
+   @Test
+   void colorFrameAssignedByFieldNameIsSetOnDesignAndRuntimeRefs() {
+      String field = bindAggregateField("id");
+      AbstractChartInfo info = (AbstractChartInfo) chartVSAScriptable.getChartInfo();
+      // make the runtime ref a different object than the design ref
+      info.setRTYFields(new ChartRef[] { (ChartRef) ((ChartRef) info.getYFields()[0]).clone() });
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+
+      array("colors").putMember(field, frame);
+
+      ChartAggregateRef design = (ChartAggregateRef) info.getFieldByName(field, false);
+      ChartAggregateRef runtime = (ChartAggregateRef) info.getFieldByName(field, true);
+      assertNotSame(design, runtime);
+      assertSame(frame, design.getColorFrame());
+      assertSame(frame, runtime.getColorFrame());
+   }
+
+   @Test
+   void colorFrameAssignedUnderAnyKeyOnMultiStyleChartIsTheChartLevelFrame() {
+      chartVSAssemblyInfo.setVSChartInfo(new RadarVSChartInfo());
+      vsChartBindingScriptable = new VSChartBindingScriptable(chartVSAScriptable);
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+
+      array("colors").putMember("anyKey", frame);
+      assertSame(frame, ((AbstractChartInfo) chartVSAScriptable.getChartInfo()).getColorFrame());
+   }
+
+   @Test
+   void colorFrameAssignedUnderUnboundNamePinsCurrentLenientStorage() {
+      // pins current behavior: an unknown field name is not an error, the value is just stored
+      bindAggregateField("id");
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+
+      assertDoesNotThrow(() -> array("colors").putMember("noSuchField", frame));
+      assertSame(frame, array("colors").getMember("noSuchField"));
+   }
+}

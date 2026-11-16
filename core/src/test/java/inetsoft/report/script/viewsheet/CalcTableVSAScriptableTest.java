@@ -25,6 +25,10 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Disabled;
+import inetsoft.uql.asset.internal.AssetUtil;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
@@ -100,5 +104,31 @@ public class CalcTableVSAScriptableTest {
 
       assertTrue(calcTableVSAScriptable.isCrosstabOrCalc());
       assertNull(calcTableVSAScriptable.getLayoutInfo());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "fillBlankWithZero", "sortOthersLast" })
+   void booleanPropertiesRoundTripTrueThenFalseThroughScript(String name) {
+      calcTableVSAScriptable.addProperties();
+
+      calcTableVSAScriptable.putMember(name, true);
+      assertEquals(true, calcTableVSAScriptable.getMember(name));
+
+      calcTableVSAScriptable.putMember(name, false);
+      assertEquals(false, calcTableVSAScriptable.getMember(name));
+   }
+
+   @Test
+   @Disabled("Not filed (low impact; existing testSetSize pins this behavior): CalcTable.setSize compares pixels with header counts (headerCols+1, headerRows+2) instead of (headerCols+1)*defw and (headerRows+2)*defh like Crosstab")
+   void setSizeEnforcesPixelMinimumOfHeaderCells() {
+      when(viewsheetSandbox.isRuntime()).thenReturn(true);
+      calcTableVSAssemblyInfo.setHeaderColCount(2);
+      calcTableVSAssemblyInfo.setHeaderRowCount(1);
+
+      Dimension dim = new Dimension(1, 1);
+      calcTableVSAScriptable.setSize(dim);
+
+      assertTrue(dim.width >= 3 * AssetUtil.defw, "width " + dim.width);
+      assertTrue(dim.height >= 3 * AssetUtil.defh, "height " + dim.height);
    }
 }

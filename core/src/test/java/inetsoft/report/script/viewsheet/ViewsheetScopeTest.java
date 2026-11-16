@@ -29,10 +29,14 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.Tag;
@@ -50,6 +54,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -351,6 +356,220 @@ public class ViewsheetScopeTest {
       // a name owned by neither scope stays absent
       assertFalse(viewsheetScope.hasMember("NoSuchTable75807"));
       assertNull(viewsheetScope.getMember("NoSuchTable75807"));
+   }
+
+   private static final LocalDateTime SAMPLE_TIME = LocalDateTime.of(2025, 4, 24, 1, 1, 1);
+
+   private Object[] validRow() {
+      return new Object[] { false, SAMPLE_TIME, 2, "b" };
+   }
+
+   @Test
+   void appendRowIgnoresNonArrayData() {
+      int before = getXEmbeddedTable().getRowCount();
+      viewsheetScope.appendRow("Query1", "x");
+      viewsheetScope.appendRow("Query1", null);
+      assertEquals(before, getXEmbeddedTable().getRowCount());
+   }
+
+   @Test
+   void appendRowOfNullsAddsOneRowWithNullCells() {
+      int before = getXEmbeddedTable().getRowCount();
+      viewsheetScope.appendRow("Query1", new Object[] { false, null, null, null });
+
+      XEmbeddedTable table = getXEmbeddedTable();
+      assertEquals(before + 1, table.getRowCount());
+
+      for(int c = 1; c < 4; c++) {
+         assertNull(table.getObject(before, c), "column " + c);
+      }
+   }
+
+   @Test
+   void unknownTableNameIsReportedByAppendRowAndSetCellValue() {
+      RuntimeException append = assertThrows(RuntimeException.class,
+         () -> viewsheetScope.appendRow("NoSuch", validRow()));
+      assertTrue(append.getMessage().contains("NoSuch"), append.getMessage());
+
+      RuntimeException set = assertThrows(RuntimeException.class,
+         () -> viewsheetScope.setCellValue("NoSuch", 1, 0, true));
+      assertTrue(set.getMessage().contains("NoSuch"), set.getMessage());
+   }
+
+   static Stream<Arguments> booleanInputs() {
+      return Stream.of(Arguments.of("TRUE", true), Arguments.of(1, true), Arguments.of(0, false));
+   }
+
+   @ParameterizedTest
+   @MethodSource("booleanInputs")
+   void appendRowConvertsBooleanColumnInput(Object input, boolean expected) {
+      int before = getXEmbeddedTable().getRowCount();
+      viewsheetScope.appendRow("Query1", new Object[] { input, SAMPLE_TIME, 2, "b" });
+      assertEquals(expected, getXEmbeddedTable().getObject(before, 0));
+   }
+
+   @Test
+   void appendRowPinsCurrentTruncationOfFractionalValueInIntColumn() {
+      // pins current behavior: 2.7 is accepted and truncated to 2
+      int before = getXEmbeddedTable().getRowCount();
+      viewsheetScope.appendRow("Query1", new Object[] { false, SAMPLE_TIME, 2.7, "b" });
+      assertEquals(2, ((Number) getXEmbeddedTable().getObject(before, 2)).intValue());
+   }
+
+   @Test
+   void setCellValueIgnoresColumnBeyondLastAndSetsLastColumn() {
+      XEmbeddedTable table = getXEmbeddedTable();
+      int rows = table.getRowCount();
+      int cols = table.getColCount();
+      assertEquals(4, cols);
+
+      viewsheetScope.setCellValue("Query1", 1, cols, "x");
+      assertEquals(rows, getXEmbeddedTable().getRowCount());
+
+      viewsheetScope.setCellValue("Query1", 1, cols - 1, "z");
+      assertEquals("z", getXEmbeddedTable().getObject(1, cols - 1));
+   }
+
+   @Test
+   void setCellValueRejectsInvalidValueAndKeepsTheCell() {
+      Object old = getXEmbeddedTable().getObject(1, 2);
+
+      assertThrows(RuntimeException.class,
+                   () -> viewsheetScope.setCellValue("Query1", 1, 2, "abc"));
+      assertEquals(old, getXEmbeddedTable().getObject(1, 2));
+   }
+
+   @Test
+   void setCellValueWithNullClearsTheCell() {
+      viewsheetScope.setCellValue("Query1", 1, 3, "text");
+      assertEquals("text", getXEmbeddedTable().getObject(1, 3));
+
+      viewsheetScope.setCellValue("Query1", 1, 3, null);
+      assertNull(getXEmbeddedTable().getObject(1, 3));
+   }
+
+   @Test
+   void saveWorksheetPersistsRowAppendedToEmbeddedTable() throws Exception {
+      AssetRepository rep = inetsoft.report.composition.WorksheetEngine
+         .getWorksheetService().getAssetRepository();
+      AssetEntry entry = sandbox.getViewsheet().getBaseEntry();
+      // the saved worksheet is shared by the other tests of this class, put it back at the end
+      Worksheet original = (Worksheet) rep.getSheet(entry, null, false, AssetContent.ALL, false)
+         .clone();
+
+      try {
+         int before = getXEmbeddedTable().getRowCount();
+         viewsheetScope.appendRow("Query1", validRow());
+         viewsheetScope.saveWorksheet();
+
+         Worksheet saved = (Worksheet) rep.getSheet(entry, null, false, AssetContent.ALL, false);
+         EmbeddedTableAssembly table = (EmbeddedTableAssembly) saved.getAssembly("Query1");
+         assertEquals(before + 1, table.getEmbeddedData().getRowCount());
+      }
+      finally {
+         rep.setSheet(entry, original, sandbox.getUser(), true);
+      }
+   }
+
+   @Test
+   void refreshDataSetsTouchTimestampToNow() throws Exception {
+      Thread.sleep(2);
+      long t0 = System.currentTimeMillis();
+      viewsheetScope.refreshData();
+      assertTrue(sandbox.getTouchTimestamp() >= t0);
+   }
+
+   @Test
+   void addImageStoresPngBytesUnderThePath() throws Exception {
+      java.awt.image.BufferedImage image =
+         new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB);
+      viewsheetScope.addImage("p", image);
+
+      assertTrue(Arrays.asList(sandbox.getViewsheet().getUploadedImageNames()).contains("p"));
+      java.awt.image.BufferedImage decoded = ImageIO.read(new java.io.ByteArrayInputStream(
+         sandbox.getViewsheet().getUploadedImageBytes("p")));
+      assertEquals(2, decoded.getWidth());
+      assertEquals(2, decoded.getHeight());
+   }
+
+   @Test
+   void addImageIgnoresNullAndNonImageValues() {
+      int count = sandbox.getViewsheet().getUploadedImageNames().length;
+      viewsheetScope.addImage("n", null);
+      viewsheetScope.addImage("s", "not an image");
+      assertEquals(count, sandbox.getViewsheet().getUploadedImageNames().length);
+   }
+
+   private boolean isHiddenAndScriptControlled(String name) {
+      VSAssemblyInfo info = sandbox.getViewsheet().getAssembly(name).getVSAssemblyInfo();
+      return !info.isVisible() && info.isControlByScript();
+   }
+
+   static Stream<Arguments> ignoredDelayVisibilityCalls() {
+      return Stream.of(Arguments.of(0, "array"), Arguments.of(-5, "array"),
+                       Arguments.of(1000, null), Arguments.of(1000, "str"));
+   }
+
+   @ParameterizedTest
+   @MethodSource("ignoredDelayVisibilityCalls")
+   void delayVisibilityIgnoresNonPositiveTimeAndNonArrayArgument(int time, Object arg) {
+      VSAScriptable scriptable = viewsheetScope.getVSAScriptable("TableView1");
+      Object array = "array".equals(arg) ? new Object[] { scriptable } : arg;
+      viewsheetScope.delayVisibility(time, array);
+
+      VSAssemblyInfo info = sandbox.getViewsheet().getAssembly("TableView1").getVSAssemblyInfo();
+      assertTrue(info.isVisible());
+      assertFalse(info.isControlByScript());
+   }
+
+   @Test
+   void delayVisibilityHidesScriptablesInArrayAndSkipsOtherEntries() {
+      VSAScriptable scriptable = viewsheetScope.getVSAScriptable("TableView1");
+      viewsheetScope.delayVisibility(1000, new Object[] { scriptable, "x", null });
+      assertTrue(isHiddenAndScriptControlled("TableView1"));
+   }
+
+   @Test
+   void isCancelledFollowsSandboxCancelAndResetStartTime() throws Exception {
+      assertFalse(viewsheetScope.isCancelled());
+
+      Thread.sleep(2);
+      sandbox.cancel();
+      assertTrue(viewsheetScope.isCancelled());
+
+      Thread.sleep(2);
+      viewsheetScope.resetStartTime();
+      assertFalse(viewsheetScope.isCancelled());
+   }
+
+   private VSAScriptable scriptableWithScope() {
+      VSAScriptable scriptable = new VSAScriptable(sandbox);
+      scriptable.setAssembly("TableView1");
+      scriptable.setScope(viewsheetScope);
+      return scriptable;
+   }
+
+   @Test
+   void addActionRecordsOneUserActionForRepeatedIdenticalTriple() {
+      VSAScriptable scriptable = scriptableWithScope();
+      int before = sandbox.getViewsheet().getViewsheetInfo().getUserActions().size();
+      scriptable.addAction("icon1", "label1", "event1");
+      scriptable.addAction("icon1", "label1", "event1");
+      assertEquals(before + 1, sandbox.getViewsheet().getViewsheetInfo().getUserActions().size());
+   }
+
+   static Stream<Arguments> incompleteActions() {
+      return Stream.of(Arguments.of(null, "label", "event"), Arguments.of("icon", "", "event"),
+                       Arguments.of("icon", "label", null));
+   }
+
+   @ParameterizedTest
+   @MethodSource("incompleteActions")
+   void addActionRequiresIconLabelAndEvent(String icon, String label, String event) {
+      VSAScriptable scriptable = scriptableWithScope();
+      int before = sandbox.getViewsheet().getViewsheetInfo().getUserActions().size();
+      scriptable.addAction(icon, label, event);
+      assertEquals(before, sandbox.getViewsheet().getViewsheetInfo().getUserActions().size());
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {

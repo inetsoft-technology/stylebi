@@ -25,13 +25,15 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.RectangleVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
@@ -47,6 +49,7 @@ public class RectangleVSAScriptableTest {
    private RectangleVSAssemblyInfo rectangleVSAssemblyInfo;
    private RectangleVSAssembly rectangleVSAssembly;
    private VSAScriptable vsaScriptable;
+   private OvalVSAScriptable ovalVSAScriptable;
 
    @BeforeEach
    void setUp() {
@@ -59,6 +62,10 @@ public class RectangleVSAScriptableTest {
       rectangleVSAssemblyInfo.setName("Rectangle1");
       viewsheet.addAssembly(rectangleVSAssembly);
 
+      OvalVSAssembly ovalVSAssembly = new OvalVSAssembly();
+      ovalVSAssembly.getVSAssemblyInfo().setName("Oval1");
+      viewsheet.addAssembly(ovalVSAssembly);
+
       viewsheetSandbox = mock(ViewsheetSandbox.class);
       when(viewsheetSandbox.getID()).thenReturn("vs1");
       when(viewsheetSandbox.getViewsheet()).thenReturn(viewsheet);
@@ -67,6 +74,8 @@ public class RectangleVSAScriptableTest {
       vsaScriptable = new VSAScriptable(viewsheetSandbox);
       rectangleVSAScriptable.setAssembly("Rectangle1");
       vsaScriptable.setAssembly("Rectangle1");
+      ovalVSAScriptable = new OvalVSAScriptable(viewsheetSandbox);
+      ovalVSAScriptable.setAssembly("Oval1");
    }
 
    @Test
@@ -97,5 +106,36 @@ public class RectangleVSAScriptableTest {
       GradientColor gradientColor = mock(GradientColor.class);
       rectangleVSAScriptable.setGradientColor(gradientColor);
       assertEquals(gradientColor, rectangleVSAScriptable.getGradientColor());
+   }
+
+   @Test
+   void ovalHasOvalClassNameAndSharesShapeProperties() {
+      assertEquals("OvalVSA", ovalVSAScriptable.getClassName());
+      ovalVSAScriptable.addProperties();
+
+      ovalVSAScriptable.putMember("lineStyle", StyleConstants.THICK_LINE);
+      assertEquals(StyleConstants.THICK_LINE, ovalVSAScriptable.getMember("lineStyle"));
+
+      ovalVSAScriptable.putMember("shadow", true);
+      assertEquals(true, ovalVSAScriptable.getMember("shadow"));
+
+      GradientColor gradientColor = mock(GradientColor.class);
+      ovalVSAScriptable.setGradientColor(gradientColor);
+      assertEquals(gradientColor, ovalVSAScriptable.getGradientColor());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "rectangle", "oval" })
+   void shadowInfoRoundTripsAndNullFallsBackToDefault(String shape) {
+      ShapeVSAScriptable scriptable = "oval".equals(shape) ? ovalVSAScriptable
+         : rectangleVSAScriptable;
+      scriptable.addProperties();
+
+      ShapeShadow shadow = new ShapeShadow();
+      scriptable.putMember("shadowInfo", shadow);
+      assertSame(shadow, scriptable.getMember("shadowInfo"));
+
+      scriptable.putMember("shadowInfo", null);
+      assertNotNull(scriptable.getMember("shadowInfo"));
    }
 }

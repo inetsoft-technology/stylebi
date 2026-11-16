@@ -676,6 +676,131 @@ public class FormulaFunctionsTest {
       assertTrue(FormulaFunctions.inArray(new Object[]{3.0}, 3));
    }
 
+   private static double[] numbers(Object result) {
+      Object[] arr = (Object[]) result;
+      double[] res = new double[arr.length];
+
+      for(int i = 0; i < arr.length; i++) {
+         res[i] = ((Number) arr[i]).doubleValue();
+      }
+
+      return res;
+   }
+
+   @Test
+   void unionMergesSameNumericValueOfDifferentNumberTypes() {
+      assertArrayEquals(new double[] { 1, 2, 3 },
+                        numbers(FormulaFunctions.union(new Object[] { 1, 2, 2 },
+                                                       new Object[] { 2.0, 3L, 3 }, null)));
+   }
+
+   @Test
+   @Disabled("Bug #81460: union() with a null argument skips de-duplication")
+   void unionWithNullFirstArgumentEqualsUnionWithEmptyArray() {
+      Object[] dup = { 1, 1 };
+      assertArrayEquals((Object[]) FormulaFunctions.union(new Object[0], dup, null),
+                        (Object[]) FormulaFunctions.union(null, dup, null));
+      assertArrayEquals(new Object[] { 1 }, (Object[]) FormulaFunctions.union(null, dup, null));
+   }
+
+   @Test
+   @Disabled("Bug #81460: union() with a null argument skips de-duplication")
+   void unionWithNullSecondArgumentEqualsUnionWithEmptyArray() {
+      Object[] dup = { 1, 1 };
+      assertArrayEquals((Object[]) FormulaFunctions.union(dup, new Object[0], null),
+                        (Object[]) FormulaFunctions.union(dup, null, null));
+      assertArrayEquals(new Object[] { 1 }, (Object[]) FormulaFunctions.union(dup, null, null));
+   }
+
+   @Test
+   void unionOfDegenerateInputsIsTheSet() {
+      assertArrayEquals(new Object[0], (Object[]) FormulaFunctions.union(null, null, null));
+      assertArrayEquals(new Object[0],
+                        (Object[]) FormulaFunctions.union(new Object[0], new Object[0], null));
+      assertArrayEquals(new Object[] { 5 },
+                        (Object[]) FormulaFunctions.union(new Object[] { 5 },
+                                                          new Object[] { 5 }, null));
+      assertArrayEquals(new Object[] { "a" }, (Object[]) FormulaFunctions.union("a", "a", null));
+   }
+
+   @Test
+   void unionDoesNotMatchAcrossTypesOrFoldCase() {
+      assertArrayEquals(new Object[] { 1, "1" },
+                        (Object[]) FormulaFunctions.union(new Object[] { 1, "1" },
+                                                          new Object[] { 1.0 }, null));
+      assertArrayEquals(new Object[] { "a", "A" },
+                        (Object[]) FormulaFunctions.union(new Object[] { "a", "A" },
+                                                          new Object[] { "a" }, null));
+   }
+
+   @Test
+   @Disabled("Not filed (not a defect to fix: #81164 chose double comparison on purpose, only ids above 2^53 differ): union of 9007199254740993L and 9007199254740992L has 1 element, expected 2 (compared as double)")
+   void largeDistinctLongsAreDistinctInUnionAndInArray() {
+      long a = 9007199254740993L;
+      long b = 9007199254740992L;
+      assertEquals(2, ((Object[]) FormulaFunctions.union(new Object[] { a },
+                                                         new Object[] { b }, null)).length);
+      assertFalse(FormulaFunctions.inArray(new Object[] { a }, b));
+   }
+
+   @Test
+   @Disabled("Bug #81465: union() of Timestamp and Date depends on argument order")
+   void timestampAndDateWithEqualMillisAreOneElementInBothOrders() {
+      long ms = 1700000000123L;
+      java.sql.Timestamp t = new java.sql.Timestamp(ms);
+      Date d = new Date(ms);
+
+      assertEquals(1, ((Object[]) FormulaFunctions.union(new Object[] { t },
+                                                         new Object[] { d }, null)).length);
+      assertEquals(1, ((Object[]) FormulaFunctions.union(new Object[] { d },
+                                                         new Object[] { t }, null)).length);
+      assertTrue(FormulaFunctions.inArray(new Object[] { t }, d));
+      assertTrue(FormulaFunctions.inArray(new Object[] { d }, t));
+   }
+
+   @Test
+   @Disabled("Bug #81461: toList() distinct treats Double 1.5 as a duplicate of Integer 1")
+   void toListDistinctKeepsIntegerAndFractionalValues() {
+      assertArrayEquals(new double[] { 1, 1.5 },
+                        numbers(FormulaFunctions.toList(new Object[] { 1, 1.5 }, null)));
+   }
+
+   private static void permute(Object[] items, int k, java.util.List<Object[]> out) {
+      if(k == items.length) {
+         out.add(items.clone());
+         return;
+      }
+
+      for(int i = k; i < items.length; i++) {
+         Object tmp = items[k];
+         items[k] = items[i];
+         items[i] = tmp;
+         permute(items, k + 1, out);
+         tmp = items[k];
+         items[k] = items[i];
+         items[i] = tmp;
+      }
+   }
+
+   @Test
+   @Disabled("Bug #81461: toList() distinct treats Double 1.5 as a duplicate of Integer 1")
+   void toListCountIsIndependentOfInputOrder() {
+      java.util.List<Object[]> perms = new java.util.ArrayList<>();
+      permute(new Object[] { 1, 1.5, 2, 2.5 }, 0, perms);
+      assertEquals(24, perms.size());
+
+      for(Object[] perm : perms) {
+         assertEquals(4, ((Object[]) FormulaFunctions.toList(perm, null)).length,
+                      java.util.Arrays.toString(perm));
+      }
+   }
+
+   @Test
+   void toListTreatsSameValueOfDifferentNumberTypesAsOneElement() {
+      assertEquals(1, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.0, 1L, 1.0f }, null)).length);
+   }
+
    private static Stream<Arguments> provideUnionArrayTestCases() {
       // Return a stream of arguments for the unionArray method
       return Stream.of(
