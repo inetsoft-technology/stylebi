@@ -21,14 +21,18 @@ import inetsoft.graph.AxisSpec;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.graph.guide.axis.CompactDates;
+import inetsoft.graph.scale.TimeScale;
 import inetsoft.graph.scale.Scale;
 import inetsoft.report.internal.binding.BaseField;
+import inetsoft.report.internal.table.TableFormat;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.XFormatInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
@@ -43,6 +47,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -189,6 +194,144 @@ class ModernAxisLabelRuleTest {
 
       assertFalse(gen.isModernLabelAxis(new AxisSpec(), true));
       assertTrue(gen.isModernLabelAxis(new AxisSpec(), false));
+   }
+
+   @Test
+   void aMonthlyBarGetsCompactDates() {
+      Scale x = xScale(dateChart(XConstants.MONTH_DATE_GROUP, XConstants.SORT_ASC),
+                       VizMark.MODERN_LIGHT);
+
+      assertEquals(new CompactDates(TimeScale.MONTH, CompactDateRule.locale()),
+                   x.getAxisSpec().getCompactDates());
+   }
+
+   @Test
+   void classicDatesGetNone() {
+      Scale x = xScale(dateChart(XConstants.MONTH_DATE_GROUP, XConstants.SORT_ASC), null);
+
+      assertNull(x.getAxisSpec().getCompactDates());
+   }
+
+   @Test
+   void anAuthorsDateFormatKeepsTodaysLabels() {
+      Chart chart = dateChart(XConstants.MONTH_DATE_GROUP, XConstants.SORT_ASC);
+      XFormatInfo fmt = new XFormatInfo(TableFormat.DATE_FORMAT, "yyyy/MM");
+      chart.info().getXField(0).getAxisDescriptor().getAxisLabelTextFormat().setFormat(fmt);
+      Scale x = xScale(chart, VizMark.MODERN_LIGHT);
+
+      assertNull(x.getAxisSpec().getCompactDates());
+      assertEquals("yyyy/MM", ((SimpleDateFormat) x.getAxisSpec().getTextSpec().getFormat())
+         .toPattern());
+   }
+
+   @Test
+   void aDateAxisOutOfOrderShowsTheYearOnEveryLabel() {
+      Scale x = xScale(dateChart(XConstants.MONTH_DATE_GROUP, XConstants.SORT_VALUE_DESC),
+                       VizMark.MODERN_LIGHT);
+
+      assertNull(x.getAxisSpec().getCompactDates());
+      assertEquals("MMM yyyy", ((SimpleDateFormat) x.getAxisSpec().getTextSpec().getFormat())
+         .toPattern());
+   }
+
+   @Test
+   void hourlyDatesDropARepeatedDate() {
+      Scale x = xScale(dateChart(XConstants.HOUR_DATE_GROUP, XConstants.SORT_ASC),
+                       VizMark.MODERN_LIGHT);
+
+      assertTrue(x.getAxisSpec().isAbbreviate());
+      assertNull(x.getAxisSpec().getCompactDates());
+   }
+
+   @Test
+   void aTimeSeriesAxisTakesItsTickUnit() {
+      Chart chart = dateChart(XConstants.MONTH_DATE_GROUP, XConstants.SORT_ASC);
+      ((VSChartDimensionRef) chart.info().getXField(0)).setTimeSeries(true);
+      Scale x = xScale(chart, VizMark.MODERN_LIGHT);
+
+      assertTrue(x instanceof TimeScale, "premise: a time scale");
+      assertEquals(new CompactDates(CompactDates.FROM_SCALE, CompactDateRule.locale()),
+                   x.getAxisSpec().getCompactDates());
+   }
+
+   @Test
+   void aDrilledLevelDrawsItsOwnPattern() {
+      Chart chart = dateChart(XConstants.MONTH_DATE_GROUP, XConstants.SORT_ASC);
+      VSChartDimensionRef design = (VSChartDimensionRef) chart.info().getXField(0);
+      VSChartDimensionRef drilled = (VSChartDimensionRef) design.clone();
+      drilled.setDateLevelValue(String.valueOf(XConstants.DAY_DATE_GROUP));
+      chart.info().setRTXFields(new ChartRef[] { drilled });
+      chart.rows()[0][0] = GraphUtil.getName(drilled);
+      Scale x = xScale(chart, VizMark.MODERN_LIGHT);
+
+      assertEquals(new CompactDates(TimeScale.DAY, CompactDateRule.locale()),
+                   x.getAxisSpec().getCompactDates());
+   }
+
+   @Test
+   void facetDatesAreCompactToo() {
+      VSChartDimensionRef year = dateDim("Year", XConstants.YEAR_DATE_GROUP, XConstants.SORT_ASC);
+      VSChartDimensionRef month = dateDim("Month", XConstants.MONTH_DATE_GROUP,
+                                          XConstants.SORT_ASC);
+      VSChartAggregateRef total = agg("Total");
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_BAR);
+      cinfo.setRTChartType(GraphTypes.CHART_BAR);
+      cinfo.addXField(year);
+      cinfo.addXField(month);
+      cinfo.addYField(total);
+      cinfo.updateChartType(false);
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { GraphUtil.getName(year), GraphUtil.getName(month),
+                              GraphUtil.getName(total) });
+
+      for(int y = 0; y < 2; y++) {
+         for(int m = 0; m < 4; m++) {
+            rows.add(new Object[] { new java.sql.Date(100 + y, 0, 1),
+                                    new java.sql.Date(100 + y, m, 1), 10.0 * (m + 1) });
+         }
+      }
+
+      EGraph graph = generator(new Chart(cinfo, rows.toArray(new Object[0][])),
+                               VizMark.MODERN_LIGHT).createEGraph();
+      Scale inner = scaleOf(graph, "Month");
+      Scale outer = scaleOf(graph, "Year");
+
+      assertNotNull(outer, "premise: a facet outer axis");
+      assertEquals(new CompactDates(TimeScale.MONTH, CompactDateRule.locale()),
+                   inner.getAxisSpec().getCompactDates());
+      assertNull(outer.getAxisSpec().getCompactDates());
+   }
+
+   @Test
+   void aDateComparisonChartGetsNoCompactDates() {
+      Chart chart = dateChart(XConstants.MONTH_DATE_GROUP, XConstants.SORT_ASC);
+      VSChartInfo spy = Mockito.spy(chart.info());
+      Mockito.doReturn(true).when(spy).isAppliedDateComparison();
+      GraphGenerator gen = generator(new Chart(spy, chart.rows()), VizMark.MODERN_LIGHT);
+
+      assertTrue(gen.isDateComparisonAxis(true));
+      assertFalse(gen.isDateComparisonAxis(false));
+   }
+
+   private static VSChartDimensionRef dateDim(String name, int level, int order) {
+      VSChartDimensionRef dim = dim(name);
+      dim.setDataType(XSchema.DATE);
+      dim.setDateLevelValue(String.valueOf(level));
+      dim.setOrder(order);
+      return dim;
+   }
+
+   private static Chart dateChart(int level, int order) {
+      VSChartDimensionRef dim = dateDim("Date", level, order);
+      Object[][] rows = new Object[7][];
+      rows[0] = new Object[2];
+
+      for(int i = 1; i < 7; i++) {
+         rows[i] = new Object[] { new java.sql.Date(100, i, 1), i * 10.0 };
+      }
+
+      return barChart(dim, rows);
    }
 
    private static String[] names(String prefix, int count, boolean numbered) {

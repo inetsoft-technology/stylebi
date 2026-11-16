@@ -23,6 +23,7 @@ import inetsoft.graph.coord.*;
 import inetsoft.graph.data.*;
 import inetsoft.graph.element.*;
 import inetsoft.graph.geometry.ElementGeometry;
+import inetsoft.graph.guide.axis.CompactDates;
 import inetsoft.graph.guide.form.*;
 import inetsoft.graph.guide.legend.LegendGroup;
 import inetsoft.graph.internal.GDefaults;
@@ -2375,6 +2376,7 @@ public abstract class GraphGenerator {
             CompositeTextFormat format = getAxisLabelFormat(xdesc, flds, false);
             Format fmt2 = GraphUtil.getFormat(format);
             AxisSpec xaxis = createAxisSpec(xdesc, plotdesc, flds, xscale, false, inner, true);
+            applyCompactDates(xscale, xaxis, format, flds, true);
 
             /* the pie axis can be controlled now so shouldn't change the user set options.
             // fix bug1288772087744, since pie cannot set the property of axis
@@ -2752,6 +2754,7 @@ public abstract class GraphGenerator {
          GraphTypes.isRect(info.getRTChartType());
       PlotDescriptor plotdesc = desc.getPlotDescriptor();
       AxisSpec yaxis = createAxisSpec(ydesc, plotdesc, flds, yscale, secondary, inner, false);
+      applyCompactDates(yscale, yaxis, format, flds, false);
 
       if(isSparkline()) {
          yaxis.setAxisStyle(AxisSpec.AXIS_NONE);
@@ -6787,13 +6790,65 @@ public abstract class GraphGenerator {
       }
    }
 
+   // draw compact dates on a date axis of a marked chart, unless the author set a format
+   private void applyCompactDates(Scale scale, AxisSpec axis, CompositeTextFormat format,
+                                  String[] fields, boolean xAxis)
+   {
+      if(!vizContext.modern || fields == null || fields.length == 0 ||
+         CompactDateRule.hasAuthorFormat(format) || isDateComparisonAxis(xAxis))
+      {
+         return;
+      }
+
+      ChartRef ref = info.getFieldByName(fields[0], true);
+      ref = ref == null ? info.getFieldByName(ElementVO.getBaseName(fields[0]), true) : ref;
+
+      if(!(ref instanceof XDimensionRef dim) || !dim.isDateTime() ||
+         (dim.getRefType() & DataRef.CUBE) != 0)
+      {
+         return;
+      }
+
+      Locale locale = CompactDateRule.locale();
+
+      if(scale instanceof TimeScale) {
+         axis.setCompactDates(new CompactDates(CompactDates.FROM_SCALE, locale));
+         return;
+      }
+
+      int unit = CompactDateRule.unit(dim.getDateLevel());
+
+      if(unit == TimeScale.HOUR || unit == TimeScale.MINUTE || unit == TimeScale.SECOND) {
+         axis.setAbbreviate(true);
+         return;
+      }
+
+      CompactDates compact = new CompactDates(unit, locale);
+      Format full = unit == -1 ? null : compact.full(scale);
+
+      if(full == null) {
+         return;
+      }
+
+      if(CompactDateRule.inDateOrder(dim)) {
+         axis.setCompactDates(compact);
+      }
+      else if(axis.getTextSpec() != null) {
+         axis.getTextSpec().setFormat(full);
+      }
+   }
+
    /**
     * Whether the axis takes the modern label rule: a marked chart, labels that may be cut, and
     * no date comparison on an X axis.
     */
    boolean isModernLabelAxis(AxisSpec axis, boolean xAxis) {
-      return vizContext.modern && axis.isTruncate() &&
-         !(xAxis && info instanceof VSChartInfo && ((VSChartInfo) info).isAppliedDateComparison());
+      return vizContext.modern && axis.isTruncate() && !isDateComparisonAxis(xAxis);
+   }
+
+   // an X axis of a chart with date comparison applied keeps today's labels
+   boolean isDateComparisonAxis(boolean xAxis) {
+      return CompactDateRule.isDateComparisonAxis(info, xAxis);
    }
 
    // set the label limit and, on an X axis, the rotation from the measured labels
