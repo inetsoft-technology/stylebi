@@ -21,6 +21,7 @@ import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalculateRef;
@@ -35,12 +36,18 @@ import org.w3c.dom.Document;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #81422, an MV kept being used (and reported valid) after the expression of a worksheet
  * expression column it holds the data of was edited.
+ *
+ * <p>The MV built for a viewsheet is built on the mirror table the viewsheet puts over the
+ * worksheet table (the worksheet table is renamed T_O under a mirror T). The columns stored in
+ * the MV metadata are the mirror's, plain attributes without the expression, so the expression
+ * the MV was built with is read from the worksheet snapshot stored with the MV.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -49,74 +56,92 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class MVExpressionChangedTest {
    /**
-    * The stored side is the table's selection written into the MV metadata, the current side
-    * the same table read back from the saved worksheet. An unchanged worksheet must not read as
-    * changed.
+    * The shape the MV analysis stores: the metadata columns are plain attributes of the mirror
+    * table, with no expression text.
     */
    @Test
-   void unchangedWorksheetIsNotChangedAfterRoundTrip() throws Exception {
-      Worksheet ws = worksheet("13", true);
-      MVMetaData stored = roundTrip(metadata(ws));
-      Worksheet saved = roundTrip(ws);
+   void storedMetadataColumnIsPlainWithoutExpression() {
+      ColumnSelection cols = columns(mirrorWorksheet("13", true), "ORDERS");
+      DataRef flag = cols.findAttribute(new ColumnRef(new AttributeRef("ORDERS_O", "Flag")));
 
-      assertFalse(stored.isExpressionChanged(columns(saved)));
+      assertNotNull(flag);
+      assertInstanceOf(AttributeRef.class, ((ColumnRef) flag).getDataRef());
+   }
+
+   /** An unchanged worksheet must not read as changed, however the snapshot is stored. */
+   @Test
+   void unchangedWorksheetIsNotChanged() throws Exception {
+      MVDef def = def(roundTrip(mirrorWorksheet("13", true)));
+
+      // the saved worksheet (status), and the viewsheet's worksheet (use time)
+      assertFalse(def.isExpressionChanged(roundTrip(worksheet("13", true))));
+      assertFalse(def.isExpressionChanged(mirrorWorksheet("13", true)));
    }
 
    @Test
    void editedSqlExpressionIsChanged() throws Exception {
-      MVMetaData stored = roundTrip(metadata(worksheet("13", true)));
-      Worksheet edited = roundTrip(worksheet("17", true));
+      MVDef def = def(roundTrip(mirrorWorksheet("13", true)));
 
-      assertTrue(stored.isExpressionChanged(columns(edited)));
+      assertTrue(def.isExpressionChanged(roundTrip(worksheet("17", true))));
+      assertTrue(def.isExpressionChanged(mirrorWorksheet("17", true)));
    }
 
    @Test
    void editedScriptExpressionIsChanged() throws Exception {
-      MVMetaData stored = roundTrip(metadata(worksheet("field['A'] * 3", false)));
-      Worksheet edited = roundTrip(worksheet("field['A'] * 4", false));
+      MVDef def = def(roundTrip(mirrorWorksheet("field['A'] * 3", false)));
 
-      assertTrue(stored.isExpressionChanged(columns(edited)));
+      assertFalse(def.isExpressionChanged(roundTrip(worksheet("field['A'] * 3", false))));
+      assertTrue(def.isExpressionChanged(roundTrip(worksheet("field['A'] * 4", false))));
    }
 
    @Test
    void switchedExpressionModeIsChanged() throws Exception {
-      MVMetaData stored = roundTrip(metadata(worksheet("13", false)));
+      MVDef def = def(roundTrip(mirrorWorksheet("13", false)));
 
-      assertTrue(stored.isExpressionChanged(columns(roundTrip(worksheet("13", true)))));
+      assertTrue(def.isExpressionChanged(roundTrip(worksheet("13", true))));
+   }
+
+   /** The column selection of a table in another worksheet, e.g. a worksheet MV's bound table. */
+   @Test
+   void currentColumnSelectionIsComparedWithTheSnapshot() throws Exception {
+      MVDef def = def(roundTrip(mirrorWorksheet("13", true)));
+
+      assertFalse(def.isExpressionChanged(columns(worksheet("13", true), "ORDERS")));
+      assertTrue(def.isExpressionChanged(columns(worksheet("17", true), "ORDERS")));
+      assertFalse(def.isExpressionChanged((ColumnSelection) null));
    }
 
    @Test
-   void missingStoredColumnsIsNotChanged() {
-      assertFalse(new MVMetaData("ws", "ORDERS", "ORDERS")
-                     .isExpressionChanged(columns(worksheet("17", true))));
-   }
+   void missingSnapshotOrTableIsNotChanged() {
+      assertFalse(def(null).isExpressionChanged(worksheet("17", true)));
 
-   @Test
-   void nullCurrentColumnsIsNotChanged() {
-      assertFalse(metadata(worksheet("13", true)).isExpressionChanged(null));
+      MVDef def = def(mirrorWorksheet("13", true));
+      assertFalse(def.isExpressionChanged((Worksheet) null));
+      assertFalse(def.isExpressionChanged(new Worksheet()));
    }
 
    /**
-    * An MV saved before the expression text was stored holds a plain column, which can't be
-    * told from the expression column and is kept.
+    * A table the viewsheet has no mirror over (already a worksheet mirror/composed table) has
+    * only plain columns on both sides, nothing to compare.
     */
    @Test
-   void storedPlainColumnIsNotChanged() {
-      ColumnSelection plain = new ColumnSelection();
-      plain.addAttribute(new ColumnRef(new AttributeRef(null, "Flag")));
-      MVMetaData stored = new MVMetaData("ws", "ORDERS", "ORDERS");
-      stored.setColumns(plain);
+   void plainColumnsAreNotChanged() {
+      Worksheet snapshot = new Worksheet();
+      snapshot.addAssembly(plainTable(snapshot, "ORDERS"));
+      Worksheet current = new Worksheet();
+      current.addAssembly(plainTable(current, "ORDERS"));
 
-      assertFalse(stored.isExpressionChanged(columns(worksheet("17", true))));
+      assertFalse(def(snapshot).isExpressionChanged(current));
    }
 
    @Test
-   void columnMissingOnEitherSideIsNotChanged() {
-      MVMetaData stored = metadata(worksheet("13", true));
-      ColumnSelection current = new ColumnSelection();
-      current.addAttribute(new ColumnRef(new AttributeRef(null, "OTHER")));
+   void sameNamedColumnWithoutExpressionOnOneSideIsNotChanged() {
+      ColumnSelection stored = new ColumnSelection();
+      stored.addAttribute(new ColumnRef(new AttributeRef(null, "Flag")));
 
-      assertFalse(stored.isExpressionChanged(current));
+      assertFalse(MVMetaData.isExpressionChanged(stored, columns(worksheet("17", true),
+                                                                   "ORDERS")));
+      assertFalse(MVMetaData.isExpressionChanged(null, stored));
    }
 
    @Test
@@ -125,29 +150,13 @@ class MVExpressionChangedTest {
       stored.addAttribute(calc("1"));
       ColumnSelection current = new ColumnSelection();
       current.addAttribute(calc("2"));
-      MVMetaData data = new MVMetaData("ws", "ORDERS", "ORDERS");
-      data.setColumns(stored);
 
-      assertFalse(data.isExpressionChanged(current));
-   }
-
-   @Test
-   void mvDefComparesTheBoundTableOfTheWorksheet() {
-      Worksheet ws = worksheet("13", true);
-      MVDef def = new MVDef();
-      ReflectionTestUtils.setField(def, "otname", "ORDERS");
-      ReflectionTestUtils.setField(def, "data", metadata(ws));
-
-      assertFalse(def.isExpressionChanged(ws));
-      assertTrue(def.isExpressionChanged(worksheet("17", true)));
-      // no worksheet / no such table can't be told
-      assertFalse(def.isExpressionChanged((Worksheet) null));
-      assertFalse(def.isExpressionChanged(new Worksheet()));
+      assertFalse(MVMetaData.isExpressionChanged(stored, current));
    }
 
    /**
-    * Two MVs built from the same unchanged worksheet still share, an MV built from an edited
-    * expression is not shareable by the stored one.
+    * A metadata that keeps the expression text (e.g. the columns of a worksheet table that has
+    * no mirror) is not shareable by an MV built from another expression.
     */
    @Test
    void sharingFollowsTheExpression() {
@@ -158,26 +167,55 @@ class MVExpressionChangedTest {
       assertNotNull(MVMetaData.SHARE_HINT.get());
    }
 
+   private MVDef def(Worksheet snapshot) {
+      MVDef def = new MVDef();
+      ReflectionTestUtils.setField(def, "otname", "ORDERS");
+      ReflectionTestUtils.setField(def, "tname", "ORDERS");
+      def.container = new MVDef.MVContainer(new ArrayList<>(), snapshot);
+      return def;
+   }
+
    private MVMetaData shareable(Worksheet ws) {
-      MVMetaData data = metadata(ws);
+      MVMetaData data = new MVMetaData("ws", "ORDERS", "ORDERS");
+      data.setColumns(columns(ws, "ORDERS"));
       data.setPlan("plan");
       return data;
    }
 
-   private MVMetaData metadata(Worksheet ws) {
-      MVMetaData data = new MVMetaData("ws", "ORDERS", "ORDERS");
-      data.setColumns(columns(ws));
-      return data;
+   private ColumnSelection columns(Worksheet ws, String table) {
+      return ((TableAssembly) ws.getAssembly(table)).getColumnSelection(true);
    }
 
-   private ColumnSelection columns(Worksheet ws) {
-      return ((TableAssembly) ws.getAssembly("ORDERS")).getColumnSelection(true);
-   }
-
+   /** The worksheet as the author saves it: the table with the expression column. */
    private Worksheet worksheet(String expression, boolean sql) {
       Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "ORDERS");
+      ws.addAssembly(table(ws, "ORDERS", expression, sql));
+      return ws;
+   }
+
+   /** The worksheet of a viewsheet: the table is renamed ORDERS_O under the mirror ORDERS. */
+   private Worksheet mirrorWorksheet(String expression, boolean sql) {
+      Worksheet ws = new Worksheet();
+      TableAssembly table = table(ws, "ORDERS_O", expression, sql);
       ws.addAssembly(table);
+      ws.addAssembly(new MirrorTableAssembly(ws, "ORDERS", table));
+      return ws;
+   }
+
+   private EmbeddedTableAssembly plainTable(Worksheet ws, String name) {
+      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, name);
+      ColumnSelection cols = new ColumnSelection();
+      ColumnRef id = new ColumnRef(new AttributeRef(null, "ID"));
+      id.setDataType(XSchema.INTEGER);
+      cols.addAttribute(id);
+      table.setColumnSelection(cols);
+      return table;
+   }
+
+   private EmbeddedTableAssembly table(Worksheet ws, String name, String expression,
+                                       boolean sql)
+   {
+      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, name);
 
       ColumnSelection cols = new ColumnSelection();
       ColumnRef id = new ColumnRef(new AttributeRef(null, "ID"));
@@ -192,7 +230,7 @@ class MVExpressionChangedTest {
       cols.addAttribute(flag);
 
       table.setColumnSelection(cols);
-      return ws;
+      return table;
    }
 
    private CalculateRef calc(String expression) {
@@ -202,17 +240,6 @@ class MVExpressionChangedTest {
       calc.setDataRef(eref);
       calc.setName("Calc");
       return calc;
-   }
-
-   private MVMetaData roundTrip(MVMetaData data) throws Exception {
-      StringWriter buf = new StringWriter();
-      PrintWriter writer = new PrintWriter(buf);
-      data.writeXML(writer);
-      writer.flush();
-
-      MVMetaData result = new MVMetaData();
-      result.parseXML(parse(buf.toString()).getDocumentElement());
-      return result;
    }
 
    private Worksheet roundTrip(Worksheet ws) throws Exception {

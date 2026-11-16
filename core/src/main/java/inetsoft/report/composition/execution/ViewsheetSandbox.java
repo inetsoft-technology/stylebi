@@ -1256,6 +1256,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          tname = tname.substring(Assembly.SELECTION.length());
       }
 
+      // TEMP-81422 diagnostic, remove before the final commit
+      LOG.info("TEMP-81422 sandbox bound table: tname={}, mvEnabled={}, runtime={}, " +
+               "mvDisabled={}", tname, isMVEnabled(), isRuntime(), isMVDisabled());
+
       if(isMVEnabled()) {
          try {
             RuntimeMV rmv = mgr.findRuntimeMV(entry, vs, vassembly, tname,

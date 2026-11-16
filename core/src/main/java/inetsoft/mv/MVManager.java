@@ -154,6 +154,9 @@ public final class MVManager implements MessageListener {
       }
 
       MVDef mv = findMV(entry, tname, user, null, vbox.getParentVsIds());
+      // TEMP-81422 diagnostic, remove before the final commit
+      LOG.info("TEMP-81422 findRuntimeMV: entry={}, tname={}, vs={}, user={}, mv={}",
+               entry.toIdentifier(), tname, vs != null, user, mv == null ? null : mv.getName());
       RuntimeMV rmv = null;
 
       if(mv != null && vs != null && !isCalcFieldsValid(mv, vs)) {

@@ -603,22 +603,23 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
    }
 
    /**
-    * Check if an expression column of the table this MV was built from has a different
-    * expression in the specified (current) column selection. The MV holds the data computed
-    * by the expression at build time, so it is stale once the expression is edited. A column
-    * that can't be compared (no stored columns, a column missing on either side, no stored
-    * expression text) is treated as unchanged.
+    * Check if an expression column has a different expression in the current column selection
+    * than in the column selection the MV was built from. The MV holds the data computed by the
+    * expression when it was built, so it is stale once the expression is edited. A column that
+    * can't be compared (a column missing on either side, no expression text) is treated as
+    * unchanged.
     *
-    * @param current the current column selection of the table the MV was built from.
+    * @param stored  the column selection of the table the MV was built from.
+    * @param current the current column selection of the table.
     */
-   public boolean isExpressionChanged(ColumnSelection current) {
-      if(columns == null || current == null) {
+   public static boolean isExpressionChanged(ColumnSelection stored, ColumnSelection current) {
+      if(stored == null || current == null) {
          return false;
       }
 
       for(int i = 0; i < current.getAttributeCount(); i++) {
          DataRef ref = current.getAttribute(i);
-         DataRef ref2 = columns.findAttribute(ref);
+         DataRef ref2 = stored.findAttribute(ref);
 
          if(ref2 != null && isExpressionChanged(ref, ref2)) {
             return true;
@@ -628,7 +629,7 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
       return false;
    }
 
-   private boolean isExpressionChanged(DataRef ref, DataRef ref2) {
+   private static boolean isExpressionChanged(DataRef ref, DataRef ref2) {
       // calculate fields are compared by their own rule
       if(ref instanceof CalculateRef || ref2 instanceof CalculateRef) {
          return false;
@@ -651,7 +652,7 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
       }
    }
 
-   private ExpressionRef getColumnExpression(DataRef ref) {
+   private static ExpressionRef getColumnExpression(DataRef ref) {
       if(!(ref instanceof ColumnRef)) {
          return null;
       }
