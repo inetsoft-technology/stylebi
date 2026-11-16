@@ -333,9 +333,10 @@ public final class ChartAestheticMutator {
     * binding keeps its frame ({@link #bindField}); a new one gets none, since a measure's
     * field-less frame is a static one that {@code GraphUtil.fixVisualFrame} replaces.
     *
-    * <p>Decision (A3): the chart-level slot is left alone. {@link #setGanttField} clears it, but a
-    * Gantt chart's chart-level slot can only be a leftover; on another multi-style chart this
-    * write does not own it, and the renderer ignores it either way.
+    * <p>Decision (A3): the chart-level slot of a non-Gantt multi-style chart is left alone: this
+    * write does not own it, and the renderer ignores it either way. On a Gantt chart, whose start
+    * and milestone are the targets ({@link #ganttMeasureTargets}), the chart-level slot can only
+    * be a leftover, so it is cleared as {@link #setGanttField} does.
     *
     * @param perMeasureFrameChannels see {@link #setFrame(ChartBindingModel, String, Map, boolean,
     *        Collection)}; color/shape/size are refused by name when the chart does not render them
@@ -362,6 +363,12 @@ public final class ChartAestheticMutator {
 
       List<ChartAggregateRefModel> all = multiAggregates(model);
       List<ChartAggregateRefModel> targets = selectMeasures(all, name, measure);
+      boolean gantt = GraphTypes.isGantt(model.getChartType());
+
+      if(gantt) {
+         targets = ganttMeasureTargets(model, name, measure, targets);
+      }
+
       List<AestheticInfo> before = new ArrayList<>();
       List<AestheticInfo> beforeState = new ArrayList<>();
 
@@ -395,6 +402,12 @@ public final class ChartAestheticMutator {
          throw e;
       }
 
+      if(gantt) {
+         // A Gantt chart's chart-level slot can only be a leftover: it renders nothing but still
+         // joins the chart's query, as in setGanttField.
+         assign(model, name, null);
+      }
+
       List<Integer> written = new ArrayList<>();
 
       for(ChartAggregateRefModel target : targets) {
@@ -402,6 +415,39 @@ public final class ChartAestheticMutator {
       }
 
       return written;
+   }
+
+   /**
+    * Bug #81486: narrows the measures a per-measure write on a Gantt chart may target to
+    * {@link #ganttFieldTargets}, so a field is never stored where it is never drawn. Only shape
+    * differs from {@link #multiAggregates}: the milestone marker takes its shape from a static
+    * frame, so {@code all} writes the start only, and naming the milestone is refused. The end
+    * field is not a target on any channel; {@link #requireTargetMeasure} already refuses it.
+    */
+   private static List<ChartAggregateRefModel> ganttMeasureTargets(
+      ChartBindingModel model, String channel, String measure,
+      List<ChartAggregateRefModel> selected)
+   {
+      List<ChartAggregateRefModel> allowed = ganttFieldTargets(model, channel);
+
+      if(isAllMeasures(measure)) {
+         if(allowed.isEmpty()) {
+            throw new IllegalArgumentException(
+               "This Gantt chart has no start field yet, and its " + channel + " channel is " +
+               "drawn from the start measure. Bind the start and end fields with " +
+               "set_chart_single_shelf first.");
+         }
+
+         return allowed;
+      }
+
+      if(!allowed.containsAll(selected)) {
+         throw new IllegalArgumentException(
+            "A Gantt chart's milestone markers never draw a " + channel + " field, so '" +
+            measure.trim() + "' cannot carry one. Name the start measure, or omit 'measure'.");
+      }
+
+      return selected;
    }
 
    /**

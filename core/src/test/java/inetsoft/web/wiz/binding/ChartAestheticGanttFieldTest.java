@@ -150,6 +150,79 @@ class ChartAestheticGanttFieldTest {
       assertField(CategoricalTextureFrame.class, bars.getTextureFrame(), "the bars");
    }
 
+   /** Bug #81486: the bars and the markers carry different colour fields, one write each. */
+   @Test
+   void aMeasureScopedColorWriteBindsStartAndMilestoneIndependently() throws Exception {
+      Pipeline gantt = pipeline(true);
+      FieldRef status = new FieldRef("STATUS", "dimension", null, null, null);
+      VSAestheticRef leftover = new VSAestheticRef();
+      leftover.setDataRef(dimension());
+      gantt.info().setColorField(leftover);
+
+      gantt.service.setField("tok", principal(), "Chart1", "color", PHASE, null, "START", "");
+      gantt.service.setField("tok", principal(), "Chart1", "color", status, null, "MILESTONE", "");
+
+      GanttVSChartInfo info = gantt.info();
+      assertEquals("PHASE", fieldName(info.getStartField(), "color"));
+      assertEquals("STATUS", fieldName(info.getMilestoneField(), "color"),
+                   "the second write must not overwrite the first");
+      assertNull(fieldName(info.getEndField(), "color"));
+      assertNull(info.getColorField(), "a chart-level leftover is cleared as setGanttField does");
+
+      @SuppressWarnings("unchecked")
+      Map<String, FieldRef> byMeasure =
+         (Map<String, FieldRef>) gantt.read("color").get("fieldRefsByMeasure");
+      assertEquals("PHASE", byMeasure.get("START").column());
+      assertEquals("STATUS", byMeasure.get("MILESTONE").column());
+   }
+
+   @Test
+   void measureAllOnAGanttWritesStartAndMilestoneAndClearTakesOneMeasure() throws Exception {
+      Pipeline gantt = pipeline(true);
+
+      gantt.service.setField("tok", principal(), "Chart1", "color", PHASE, null, "all", "");
+
+      assertEquals("PHASE", fieldName(gantt.info().getStartField(), "color"));
+      assertEquals("PHASE", fieldName(gantt.info().getMilestoneField(), "color"));
+
+      gantt.service.clearField("tok", principal(), "Chart1", "color", "MILESTONE", "");
+
+      assertEquals("PHASE", fieldName(gantt.info().getStartField(), "color"));
+      assertNull(fieldName(gantt.info().getMilestoneField(), "color"));
+   }
+
+   /** The milestone marker never draws a shape field, so a per-measure write must not store one. */
+   @Test
+   void aMeasureScopedShapeWriteTargetsTheStartOnly() throws Exception {
+      Pipeline gantt = pipeline(true);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> gantt.service.setField("tok", principal(), "Chart1", "shape", PHASE, null,
+                                      "MILESTONE", ""));
+      assertTrue(e.getMessage().contains("MILESTONE"), e.getMessage());
+      assertNull(fieldName(gantt.info().getMilestoneField(), "shape"));
+
+      gantt.service.setField("tok", principal(), "Chart1", "shape", PHASE, null, "all", "");
+
+      assertEquals("PHASE", fieldName(gantt.info().getStartField(), "shape"));
+      assertNull(fieldName(gantt.info().getMilestoneField(), "shape"));
+
+      gantt.service.setField("tok", principal(), "Chart1", "shape", PHASE, null, "START", "");
+      assertEquals("PHASE", fieldName(gantt.info().getStartField(), "shape"));
+   }
+
+   @Test
+   void aMeasureScopedWriteNamingTheEndFieldIsRefused() throws Exception {
+      Pipeline gantt = pipeline(true);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> gantt.service.setField("tok", principal(), "Chart1", "color", PHASE, null, "END",
+                                      ""));
+      assertTrue(e.getMessage().contains("START") && e.getMessage().contains("MILESTONE"),
+                 e.getMessage());
+      assertNull(fieldName(gantt.info().getEndField(), "color"));
+   }
+
    @Test
    void aGanttWithoutAMilestoneBindsTheStartFieldOnly() throws Exception {
       Pipeline gantt = pipeline(false);

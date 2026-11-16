@@ -682,11 +682,12 @@ public class ChartAestheticAgentService {
    /**
     * Bug #80332: the guards of a measure-scoped field write, the replacement for
     * {@link #requireNotMultiAesthetic} when {@code measure} is given. Everything is refused by
-    * name before anything is written: a blank measure, a Gantt chart (whose field writes already
-    * go onto its start/milestone measures; {@code measure} does not apply), a single-style chart
+    * name before anything is written: a blank measure, a single-style chart
     * (the chart-level write is the right one there), a date-comparison-forced multi-style state,
     * and a channel with no per-measure slot. Only the plain design-multi-style case is let
-    * through; the channel/size/colour-shape support checks run before this, unchanged.
+    * through; the channel/size/colour-shape support checks run before this, unchanged. A Gantt chart
+    * is always multi-aesthetic, so it passes: its start and milestone measures are the measures
+    * {@code measure} can name (Bug #81486).
     */
    private void requireMeasureWriteAllowed(String sessionToken, Principal user,
                                            String assemblyName, String channel, String measure,
@@ -702,12 +703,6 @@ public class ChartAestheticAgentService {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       ChartVSAssembly chart = requireChart(rvs, assemblyName);
       VSChartInfo info = chart.getVSChartInfo();
-
-      if(isGantt(chart)) {
-         throw new IllegalArgumentException(
-            "'measure' does not apply to a Gantt chart: its " + channel + " field is already " +
-            "written onto its start and milestone measures. Omit 'measure'.");
-      }
 
       if(info == null || !info.isMultiAesthetic()) {
          throw new IllegalArgumentException(
