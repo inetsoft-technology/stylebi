@@ -335,6 +335,33 @@ class LocalDependencyHandlerTest {
       return model;
    }
 
+   /*
+    * Bug #80472: deleteDependencies() visits every key of the dependency store and used to rewrite
+    * each one that has dependents, even when the deleted asset is not among them. Only keys that
+    * actually list the deleted asset should be written.
+    */
+   @Test
+   void deleteDependenciesOnlyWritesKeysThatListTheEntry() throws Exception {
+      AssetEntry deleted = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "deleted", null);
+      AssetEntry other = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "other", null);
+      DependenciesInfo listing = new DependenciesInfo();
+      listing.setDependencies(new ArrayList<>(List.of(deleted, other)));
+      DependenciesInfo unrelated = new DependenciesInfo();
+      unrelated.setDependencies(new ArrayList<>(List.of(other)));
+      when(dependencyStorageService.getKeys(any())).thenReturn(java.util.Set.of("A", "B"));
+      when(dependencyStorageService.get("A")).thenReturn(listing);
+      when(dependencyStorageService.get("B")).thenReturn(unrelated);
+
+      handler.deleteDependencies(deleted);
+
+      verify(dependencyStorageService).put(eq("A"), any());
+      verify(dependencyStorageService, never()).put(eq("B"), any());
+      assertEquals(List.of(other), listing.getDependencies());
+      assertEquals(List.of(other), unrelated.getDependencies());
+   }
+
    private String identifier(AssetEntry.Type type, String name) {
       return new AssetEntry(AssetRepository.QUERY_SCOPE, type, DATA_SOURCE + "/" + name, null)
          .toIdentifier();
