@@ -362,8 +362,9 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
 
       String owner = getLockOwner(entry);
       String uname = user == null ? null : user.getName();
+      int mode0 = getEntryMode(entry);
 
-      if(owner != null && !owner.equals(uname)) {
+      if(isLockWarningNeeded(owner, uname, mode0)) {
          IdentityID ownerIdentity = IdentityID.getIdentityIDFromKey(owner);
          IdentityID userIdentity = IdentityID.getIdentityIDFromKey(uname);
          String ownerName = ownerIdentity.getName() != null ? ownerIdentity.getName() : "";
@@ -396,7 +397,6 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       sheet = (AbstractSheet) sheet.clone();
 
       String lockedBy = null;
-      int mode0 = getEntryMode(entry);
       // try if this is a request to sync a vs with another
       // (from fullscreen or editing)
       boolean sync = "true".equals(entry.getProperty("sync"));
@@ -505,6 +505,17 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       }
 
       return sheetId;
+   }
+
+   /**
+    * Whether opening a sheet should warn that it is locked by another user. The warning says
+    * changes cannot be saved, which only applies to a design mode open; a runtime mode open
+    * (viewer, preview, snapshot) never saves the asset, so it is not warned. The save itself
+    * is still rejected by {@link #setSheet} while the asset is locked.
+    */
+   static boolean isLockWarningNeeded(String owner, String uname, int mode) {
+      return owner != null && !owner.equals(uname) &&
+         mode == RuntimeViewsheet.VIEWSHEET_DESIGN_MODE;
    }
 
    /**
