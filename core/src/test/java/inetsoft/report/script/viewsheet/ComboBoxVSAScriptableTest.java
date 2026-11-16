@@ -23,7 +23,6 @@ import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ComboBoxVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -172,7 +171,6 @@ public class ComboBoxVSAScriptableTest {
    }
 
    @Test
-   @Disabled("Bug #81462: Date with a time assigned to a Date typed input keeps its milliseconds")
    void dateTypedSelectedObjectFromDateWithTimeIsTruncatedToMidnight() {
       java.util.Calendar cal = java.util.Calendar.getInstance();
       cal.clear();

@@ -503,7 +503,7 @@ public class LocalDependencyHandler implements DependencyHandler {
             return;
          }
 
-         infos.remove(entry);
+         boolean changed = infos.remove(entry);
 
          for(int i = 0; i < infos.size(); i++) {
             AssetObject asset = infos.get(i);
@@ -518,11 +518,15 @@ public class LocalDependencyHandler implements DependencyHandler {
 
             if(Tool.equals(removeId, assetId)) {
                infos.remove(i);
+               changed = true;
                break;
             }
          }
 
-         service.put(id, info);
+         // deleteDependencies visits every key; only write back the ones that listed the entry
+         if(changed) {
+            service.put(id, info);
+         }
       }
       catch(Exception e) {
          LOG.warn("Failed to update the dependencies to file.", e);

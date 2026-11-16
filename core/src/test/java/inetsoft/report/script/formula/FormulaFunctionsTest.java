@@ -299,7 +299,6 @@ public class FormulaFunctionsTest {
       assertArrayEquals(new Object[] { 3, 1, 2 }, distinct);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void toListDateOptionLeavesTheInputArrayAlone() {
       Date original = dt(2021, 3, 15);
@@ -308,7 +307,6 @@ public class FormulaFunctionsTest {
       assertSame(original, dates[0]);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void toListDistinctFalseLeavesTheInputArrayAlone() {
       Object[] unsorted = { 3, 1, 2 };
@@ -316,7 +314,6 @@ public class FormulaFunctionsTest {
       assertArrayEquals(new Object[] { 3, 1, 2 }, unsorted);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void toListRoundDateOptionLeavesTheInputArrayAlone() {
       Object[] dates = { dt(2021, 3, 15), dt(2021, 7, 4) };
@@ -325,7 +322,6 @@ public class FormulaFunctionsTest {
       assertArrayEquals(copy, dates);
    }
 
-   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
    @Test
    void mapListLeavesTheInputArrayAlone() {
       Object[] input = { 4, 1, 3, 2 };
@@ -407,12 +403,28 @@ public class FormulaFunctionsTest {
    }
 
    // the crosstab Week of Year group follows week.start, so date=week must as well
-   @Disabled("Bug #81261: toList date=week ignores the week.start setting")
    @Test
    void dateWeekOptionFollowsTheWeekStartLikeTheCrosstab() {
       WeekStartUtil.withWeekStart("monday", () -> runInNewThread(() ->
          assertWeekMatchesCrosstab(LocalDate.of(2023, 1, 1), LocalDate.of(2023, 12, 31),
                                    ZoneId.systemDefault(), "week.start=monday")));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "sunday", "tuesday", "wednesday", "thursday", "friday", "saturday" })
+   void dateWeekOptionFollowsEveryWeekStartLikeTheCrosstab(String weekStart) {
+      WeekStartUtil.withWeekStart(weekStart, () -> runInNewThread(() ->
+         assertWeekMatchesCrosstab(LocalDate.of(2023, 1, 1), LocalDate.of(2023, 12, 31),
+                                   ZoneId.systemDefault(), "week.start=" + weekStart)));
+   }
+
+   @Test
+   void dateWeekOptionUnderMondayWeekStartStartsWeekTwoOnTheFirstMonday() {
+      WeekStartUtil.withWeekStart("monday", () -> runInNewThread(() -> {
+         Object[] res = (Object[]) FormulaFunctions.toList(
+            new Object[] { dt(2023, 1, 1), dt(2023, 1, 2) }, "date=week");
+         assertArrayEquals(new Object[] { 1, 2 }, res);
+      }));
    }
 
    @ParameterizedTest
@@ -695,7 +707,6 @@ public class FormulaFunctionsTest {
    }
 
    @Test
-   @Disabled("Bug #81460: union() with a null argument skips de-duplication")
    void unionWithNullFirstArgumentEqualsUnionWithEmptyArray() {
       Object[] dup = { 1, 1 };
       assertArrayEquals((Object[]) FormulaFunctions.union(new Object[0], dup, null),
@@ -704,7 +715,6 @@ public class FormulaFunctionsTest {
    }
 
    @Test
-   @Disabled("Bug #81460: union() with a null argument skips de-duplication")
    void unionWithNullSecondArgumentEqualsUnionWithEmptyArray() {
       Object[] dup = { 1, 1 };
       assertArrayEquals((Object[]) FormulaFunctions.union(dup, new Object[0], null),

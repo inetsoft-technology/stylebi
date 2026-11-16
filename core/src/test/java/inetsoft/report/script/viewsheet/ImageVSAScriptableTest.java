@@ -25,7 +25,6 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -157,7 +156,6 @@ public class ImageVSAScriptableTest {
    }
 
    @Test
-   @Disabled("Bug #81463: popAlpha set by a script is not reset for Text and Image")
    void popAlphaScriptValueIsRevertedToDesignValueOnReset() {
       imageVSAssemblyInfo.setAlphaValue("30");
       imageVSAScriptable.addProperties();
@@ -196,7 +194,6 @@ public class ImageVSAScriptableTest {
    }
 
    @Test
-   @Disabled("Bug #81464: clone of Text and Image info shares popLocationValue")
    void clonedImageInfoDoesNotShareRuntimePopLocation() {
       imageVSAssemblyInfo.setPopLocation(PopVSAssemblyInfo.PopLocation.MOUSE);
       ImageVSAssemblyInfo clone = imageVSAssemblyInfo.clone(false);

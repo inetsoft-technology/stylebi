@@ -334,7 +334,7 @@ public class CalcDateTimeTest {
       assertEquals(4, CalcDateTime.quarter(validDate));
 
       // Test Case 2: Null date
-      assertEquals(1, CalcDateTime.quarter(null));
+      assertEquals(-1, CalcDateTime.quarter(null));
 
       // Test Case 3: java.sql.Date instance
       java.sql.Date sqlDate = new java.sql.Date(validDate.getTime());

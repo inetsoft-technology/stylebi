@@ -50,6 +50,7 @@ import java.sql.Timestamp;
 import java.text.*;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Common utilities for exporting.
@@ -578,7 +579,8 @@ public class ExportUtil {
                return "@";
             }
 
-            return format;
+            // Bug #80208, a fixed "0.0" rounds every decimal; use the value's own decimals
+            return DECIMAL_NUMBER_FORMAT.equals(format) ? getDecimalPattern(text) : format;
          }
       }
 
@@ -618,6 +620,13 @@ public class ExportUtil {
 
             if(t instanceof VSFormatTableLens) {
                vsfmt = (VSFormatTableLens) t;
+
+               // Bug #80208, a MessageFormat (e.g. "{0} pcs") has no Excel number pattern, the
+               // display text is the value; the raw value would lose the prefix/suffix
+               if(vsfmt.getCellFormat(r, c) instanceof MessageFormat) {
+                  return obj0;
+               }
+
                obj = vsfmt.getTable().getObject(r, c);
                break;
             }
@@ -772,6 +781,27 @@ public class ExportUtil {
       return getNumberFormat((String) obj) != null;
    }
 
+   private static final String INTEGER_NUMBER_FORMAT = "0";
+   private static final String DECIMAL_NUMBER_FORMAT = "0.0";
+   private static final Pattern PLAIN_DECIMAL = Pattern.compile("-?\\d+\\.\\d+");
+
+   /**
+    * Get the Excel pattern that shows a plain decimal text with exactly its own decimals. The
+    * text is what the dashboard shows (Tool.toString), so the cell displays the same digits.
+    * Anything that is not a plain decimal, or that needs more than 30 decimals, stays General.
+    */
+   private static String getDecimalPattern(String text) {
+      int dot = text == null ? -1 : text.indexOf('.');
+
+      if(dot < 0 || !PLAIN_DECIMAL.matcher(text).matches()) {
+         return "General";
+      }
+
+      int decimals = text.length() - dot - 1;
+
+      return decimals > 30 ? "General" : "0." + "0".repeat(decimals);
+   }
+
    /**
     * Get number format if the text is a number.
     */
@@ -779,7 +809,7 @@ public class ExportUtil {
       try {
          Long.parseLong(text);
 
-         return "0";
+         return INTEGER_NUMBER_FORMAT;
       }
       catch(NumberFormatException ex) {
       }
@@ -787,7 +817,7 @@ public class ExportUtil {
       try {
          Double.parseDouble(text);
 
-         return "0.0";
+         return DECIMAL_NUMBER_FORMAT;
       }
       catch(NumberFormatException ex) {
       }

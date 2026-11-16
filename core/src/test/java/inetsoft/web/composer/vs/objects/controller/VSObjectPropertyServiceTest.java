@@ -18,9 +18,12 @@
 package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.test.*;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.TipVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
@@ -38,6 +41,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -79,6 +83,25 @@ class VSObjectPropertyServiceTest {
       String[] popComponents = controller.getSupportedPopComponents(viewsheet, textAssemblyName);
       assertEquals(1, popComponents.length);
       assertEquals(selectionListAssemblyName, popComponents[0]);
+   }
+
+   @Test
+   void refusedEditKeepsSharedFilterIdOnComponent() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly text = new ChartVSAssembly(vs, "Text1");
+      vs.addAssembly(text);
+      vs.getViewsheetInfo().setFilterID("Text1", "F1");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      VSAssemblyInfo info = (VSAssemblyInfo) text.getVSAssemblyInfo().clone();
+      // a view tip pointing at itself is a dependency cycle, so the edit is refused
+      ((TipVSAssemblyInfo) info).setTipOptionValue(TipVSAssemblyInfo.VIEWTIP_OPTION);
+      ((TipVSAssemblyInfo) info).setTipViewValue("Text1");
+
+      controller.editObjectProperty(rvs, info, "Text1", "Text2", null, null, null);
+
+      assertEquals("F1", vs.getViewsheetInfo().getFilterID("Text1"));
+      assertNull(vs.getViewsheetInfo().getFilterID("Text2"));
    }
 
    @Mock CoreLifecycleService coreLifecycleService;

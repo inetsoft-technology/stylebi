@@ -172,7 +172,6 @@ class AssetQueryExpressionColumnTest {
       assertEquals(Arrays.asList(9, 12), column(box(ws).getTableLens("T", RUNTIME), "v"));
    }
 
-   @Disabled("Bug #81206: Two expression columns that refer to each other end in StackOverflowError")
    @Test
    @DisplayName("Two expressions that refer to each other fail with a handled error")
    void circularReference_isAHandledFailure() throws Exception {
@@ -180,6 +179,22 @@ class AssetQueryExpressionColumnTest {
       addExpression(ws, "a", "field['b'] + 1", XSchema.INTEGER, false, true);
       addExpression(ws, "b", "field['a'] + 1", XSchema.INTEGER, false, true);
       // an exception or a sample table, never a StackOverflowError
+      try {
+         box(ws).getTableLens("T", RUNTIME);
+      }
+      catch(Exception expected) {
+         // handled failure
+      }
+   }
+
+   @Test
+   @DisplayName("Two hidden expressions that refer to each other fail with a handled error")
+   void circularReference_hiddenColumns_isAHandledFailure() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "a", "field['b'] + 1", XSchema.INTEGER, false, false);
+      addExpression(ws, "b", "field['a'] + 1", XSchema.INTEGER, false, false);
+      addExpression(ws, "v", "field['a'] + field['customer_id']", XSchema.INTEGER, false, true);
+      // an exception or a table, never a StackOverflowError (Bug #81206)
       try {
          box(ws).getTableLens("T", RUNTIME);
       }

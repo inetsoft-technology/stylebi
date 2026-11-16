@@ -2166,6 +2166,7 @@ public class CoreTool {
          date.setHours(0);
          date.setMinutes(0);
          date.setSeconds(0);
+         date.setTime(date.getTime() - Math.floorMod(date.getTime(), 1000L));
          return new java.sql.Date(date.getTime());
       }
       else if(val instanceof Number) {
@@ -2613,7 +2614,8 @@ public class CoreTool {
     * @param email email address
     */
    public static boolean matchEmail(String email) {
-      String emailRegex = "^[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*@[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*$";
+      // an apostrophe is legal in the local part (o'brien@example.com), not in the domain
+      String emailRegex = "^[\\w\\d\\-\\+_']+(\\.[\\w\\d\\-\\+_']+)*@[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*$";
       return Pattern.compile(emailRegex).matcher(email.trim()).matches();
    }
 

@@ -190,6 +190,31 @@ public class TimeSliderVSAQueryTest {
    }
 
    /**
+    * Bug #80153: a cube table must keep its VSCubeTableLens wrapper and MDX order, otherwise
+    * Util.findColumn cannot match the cube column headers and the slider shows no values.
+    */
+   @Test
+   void testCompositeCubeTableNotSortedOrUnwrapped() {
+      AttributeRef yearAttr = new AttributeRef("Date.Date.Calendar.Calendar Year");
+      TableLens base = new DefaultTableLens(new Object[][] {
+         { "Date.Date.Calendar.Calendar Year", "Date.Date.Calendar.Month" },
+         { "CY 2001", "July 2001" },
+         { "CY 2001", "August 2001" },
+         { "CY 2002", "January 2002" }
+      });
+      TableLens cube = new VSCubeTableLens(base);
+
+      TableLens result = TimeSliderVSAQuery.sortNullFirst(cube);
+
+      assertSame(cube, result);
+      assertTrue(result instanceof VSCubeTableLens);
+      assertTrue(inetsoft.report.internal.Util.findColumn(
+         result, yearAttr, new inetsoft.uql.asset.internal.ColumnIndexMap(result)) >= 0);
+      assertEquals("July 2001", result.getObject(1, 1));
+      assertEquals("August 2001", result.getObject(2, 1));
+   }
+
+   /**
     * Bug #76942 (Finish-path sub-issue): {@code refreshSingleSelectionValue()}'s NUMBER-range
     * branch recomputes a fresh "nice" tick grid from the current query's own min/max every
     * time, then requires an EXACT match against the previously selected value (sourced from

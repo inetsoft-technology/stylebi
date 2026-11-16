@@ -779,7 +779,6 @@ public class CalcFieldFormulaTest {
       assertEquals("High", formula.getResult());
    }
 
-   @Disabled("Bug #81212: CalcFieldFormula.setTotal does not clear the cached result")
    @Test
    @DisplayName("SetTotal after getResult invalidates the cached result")
    void setTotalAfterGetResult_recomputes() {
@@ -789,6 +788,17 @@ public class CalcFieldFormulaTest {
       formula.setTotal(10.0);
       assertEquals(1.0, asDouble(formula.getResult()), 1e-10);
       formula.setTotal(40.0);
+      assertEquals(0.25, asDouble(formula.getResult()), 1e-10);
+   }
+
+   @Test
+   @DisplayName("SetPercentageType after getResult invalidates the cached result")
+   void setPercentageTypeAfterGetResult_recomputes() {
+      CalcFieldFormula formula = calc(SUM_A, new String[] { SUM_A }, new SumFormula());
+      addRows(formula, new Object[] { 10 });
+      formula.setTotal(40.0);
+      assertEquals(10.0, asDouble(formula.getResult()), 1e-10);
+      formula.setPercentageType(StyleConstants.PERCENTAGE_OF_GRANDTOTAL);
       assertEquals(0.25, asDouble(formula.getResult()), 1e-10);
    }
 
@@ -803,7 +813,6 @@ public class CalcFieldFormulaTest {
       assertTrue(ex.getMessage().contains("Script failed:"), ex.getMessage());
    }
 
-   @Disabled("Bug #81202: Aggregate-name mapping: lower-case name wrong value / a b and a_b collide / ß throws")
    @Test
    @DisplayName("Aggregate names that differ only in space and underscore stay separate")
    void nameCollision_spaceAndUnderscore() {
@@ -816,7 +825,6 @@ public class CalcFieldFormulaTest {
       assertEquals(3.0, asDouble(formula.getResult()), 1e-10);
    }
 
-   @Disabled("Bug #81202: Aggregate-name mapping: lower-case name wrong value / a b and a_b collide / ß throws")
    @Test
    @DisplayName("An aggregate name whose upper case is longer keeps its value")
    void lengthChangingUpperCase() {
@@ -824,6 +832,52 @@ public class CalcFieldFormulaTest {
       CalcFieldFormula formula = calc(name, new String[] { name }, new SumFormula());
       addRows(formula, new Object[] { 4 });
       assertEquals(4.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   @Test
+   @DisplayName("Aggregate names that differ only by case stay separate")
+   void nameCollision_caseOnly() {
+      String lower = "field['Sum([a])']";
+      String upper = "field['Sum([A])']";
+      CalcFieldFormula formula = calc(lower + " - " + upper, new String[] { lower, upper },
+                                      new SumFormula(), new SumFormula());
+      addRows(formula, new Object[] { 5, 2 });
+      assertEquals(3.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   @Test
+   @DisplayName("A name written in another case still finds its aggregate")
+   void nameInOtherCase() {
+      CalcFieldFormula formula = calc("field['SUM([a])'] + field['sum([A])']",
+                                      new String[] { SUM_A }, new SumFormula());
+      addRows(formula, new Object[] { 4 });
+      assertEquals(8.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   @Test
+   @DisplayName("A sharp-s name written as SS finds its aggregate")
+   void sharpSWrittenAsSS() {
+      String name = "field['Sum([straße])']";
+      CalcFieldFormula formula = calc("field['Sum([STRASSE])'] + 1", new String[] { name },
+                                      new SumFormula());
+      addRows(formula, new Object[] { 4 });
+      assertEquals(5.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   @Test
+   @DisplayName("Names that clash after the case and symbol mapping, next to a " +
+      "length-changing name, keep their own values")
+   void severalClashingNames() {
+      String n1 = "field['Sum([a b])']";
+      String n2 = "field['Sum([a_b])']";
+      String n3 = "field['Sum([A B])']";
+      String n4 = "field['Sum([straße])']";
+      CalcFieldFormula formula = calc(n1 + " * 1000 + " + n2 + " * 100 + " + n3 + " * 10 + " + n4,
+                                      new String[] { n1, n2, n3, n4 },
+                                      new SumFormula(), new SumFormula(), new SumFormula(),
+                                      new SumFormula());
+      addRows(formula, new Object[] { 1, 2, 3, 4 });
+      assertEquals(1000 + 200 + 30 + 4, asDouble(formula.getResult()), 1e-10);
    }
 
    @Test
@@ -1162,5 +1216,45 @@ public class CalcFieldFormulaTest {
                                       Util.createFormula(null, "Concat"));
       addRows(formula, one("a", "b", "c"));
       assertEquals("a,b,c", formula.getResult());
+   }
+
+   // Bug #81203: the runtime script is built with upper-case conversion; under tr_TR the default
+   // locale turns "i" in "field" into a dotted capital I, and FIELD is no longer defined
+   @Test
+   void expression_turkishDefaultLocale_fieldIsStillDefined() {
+      java.util.Locale old = java.util.Locale.getDefault();
+      java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+
+      try {
+         String sum = "field['Sum([a])']";
+         CalcFieldFormula formula = calc(sum + " * 2", new String[] { sum }, new SumFormula());
+         addRows(formula, new Object[] { 3 }, new Object[] { 4 });
+         assertEquals(14.0, asDouble(formula.getResult()), 1e-10);
+
+         String maxNo = "field['Max([orders:orderno])']";
+         String expr = "field['max([orders:orderno])'] * " + maxNo + " - " +
+            "FIELD['MAX([ORDERS:ORDERNO])']";
+         formula = calc(expr, new String[] { maxNo }, new MaxFormula());
+         addRows(formula, new Object[] { 3 }, new Object[] { 5 }, new Object[] { 4 });
+         assertEquals(20.0, asDouble(formula.getResult()), 1e-10);
+      }
+      finally {
+         java.util.Locale.setDefault(old);
+      }
+   }
+
+   @Test
+   @DisplayName("Bug #81202: names with regex/script-special characters that map to the same " +
+      "identifier keep their own values when used several times")
+   void specialCharacterNamesUsedRepeatedly() {
+      String n1 = "field['Sum([a$1])']";
+      String n2 = "field['Sum([a.1])']";
+      String n3 = "field['Sum([a_1])']";
+      CalcFieldFormula formula = calc(n1 + " + " + n2 + " * 10 + " + n3 + " * 100 + " + n1 +
+                                      " + " + n3,
+                                      new String[] { n1, n2, n3 },
+                                      new SumFormula(), new SumFormula(), new SumFormula());
+      addRows(formula, new Object[] { 1, 2, 3 });
+      assertEquals(1 + 20 + 300 + 1 + 3, asDouble(formula.getResult()), 1e-10);
    }
 }

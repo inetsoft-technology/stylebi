@@ -166,7 +166,7 @@ public class TableCellBinding extends GroupableCellBinding {
 
    private static final char BACK = '_';
 
-   private static String getValidName(String name) {
+   static String getValidName(String name) {
       StringBuilder vname = new StringBuilder();
 
       for(int i = 0; i < name.length(); i++) {

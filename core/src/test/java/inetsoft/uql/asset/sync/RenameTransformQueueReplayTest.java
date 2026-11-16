@@ -619,8 +619,28 @@ class RenameTransformQueueReplayTest {
     */
    @Test
    void renameChainedToAPendingRenameLeavesNoDependentOnTheMissingName() throws Exception {
+      chainedLeavesNoDependentOnTheMissingName(false);
+   }
+
+   /**
+    * Bug #79721: the same with the table paths that a worksheet rename carries when its primary
+    * assembly is a bound table.
+    */
+   @Test
+   void pathCarryingRenameChainedToAPendingRenameLeavesNoDependentOnTheMissingName()
+      throws Exception
+   {
+      chainedLeavesNoDependentOnTheMissingName(true);
+   }
+
+   private void chainedLeavesNoDependentOnTheMissingName(boolean paths) throws Exception {
       mockRepository();
       RenameDependencyInfo first = newTaskWithDependent();
+
+      if(paths) {
+         setPaths(first, "OldWS/N", "NewWS/N");
+      }
+
       cluster().dropRenameTransform = true;
       handler().addTransformTask(first, true);
       // the node stopped after the index move, before any dependent was rewritten
@@ -629,6 +649,11 @@ class RenameTransformQueueReplayTest {
       assertTrue(found != null && found.contains(DEPENDENT), String.valueOf(found));
 
       RenameDependencyInfo second = newerTask(found);
+
+      if(paths) {
+         setPaths(second, "NewWS/N", "NewerWS/N");
+      }
+
       handler().addTransformTask(second, true);
       cluster().dropRenameTransform = false;
       assertEquals(2, queueSize());
@@ -661,14 +686,36 @@ class RenameTransformQueueReplayTest {
    void renameChainedToAPendingRenameWhoseIndexMoveDidNotRunTakesItsDependents()
       throws Exception
    {
+      indexMoveDidNotRun(false);
+   }
+
+   /**
+    * Bug #79721: the same with the table paths of a bound-table worksheet.
+    */
+   @Test
+   void pathCarryingRenameWhoseIndexMoveDidNotRunTakesItsDependents() throws Exception {
+      indexMoveDidNotRun(true);
+   }
+
+   private void indexMoveDidNotRun(boolean paths) throws Exception {
       mockRepository();
       RenameDependencyInfo first = newTaskWithDependent();
+
+      if(paths) {
+         setPaths(first, "OldWS/N", "NewWS/N");
+      }
+
       cluster().dropRenameTransform = true;
       handler().addTransformTask(first, true);
       List<AssetObject> none = DependencyTransformer.getDependencies(NEW_WS);
       assertTrue(none == null || none.isEmpty(), String.valueOf(none));
 
       RenameDependencyInfo second = newerTask(List.of());
+
+      if(paths) {
+         setPaths(second, "NewWS/N", "NewerWS/N");
+      }
+
       handler().addTransformTask(second, true);
       cluster().dropRenameTransform = false;
 
@@ -708,6 +755,108 @@ class RenameTransformQueueReplayTest {
          RenameTransformTask.chainPendingRenames(later, queue);
          assertEquals(1, later.getRenameInfos().size(), next.getOldName());
          assertTrue(later.getDependencyMap().isEmpty(), next.getOldName());
+      }
+   }
+
+   /**
+    * Bug #79721: the chained rename starts at the old name and the old path of the pending rename
+    * and ends at the new name and the new path of this one, which a schedule task dependent reads
+    * as {@code OldWS/N -> NewerWS/N}.
+    */
+   @Test
+   void chainedRenameCarriesTheOldPathOfThePendingRename() {
+      RenameDependencyInfo pending = pendingWithPaths();
+      RenameTransformQueue queue = new RenameTransformQueue();
+      queue.add(pending);
+      RenameDependencyInfo later = newerTask(List.of());
+      setPaths(later, "NewWS/N", "NewerWS/N");
+      RenameTransformTask.chainPendingRenames(later, queue);
+
+      RenameInfo chained = later.getRenameInfos().stream()
+         .filter(r -> OLD_WS.equals(r.getOldName())).findFirst().orElseThrow();
+      assertEquals(NEWER_WS, chained.getNewName());
+      assertEquals("OldWS/N", chained.getOldPath());
+      assertEquals("NewerWS/N", chained.getNewPath());
+      // the own rename and the pending one are not touched
+      assertEquals("NewWS/N", later.getRenameInfos().get(0).getOldPath());
+      assertEquals("OldWS/N", pending.getRenameInfos().get(0).getOldPath());
+   }
+
+   /**
+    * The paths are not a criterion: a worksheet edited between the renames may have a path on
+    * one rename only, and it still chains.
+    */
+   @Test
+   void renamesChainWhenOnlyOneCarriesAPath() {
+      RenameDependencyInfo pending = pendingWithPaths();
+      RenameTransformQueue queue = new RenameTransformQueue();
+      queue.add(pending);
+      RenameDependencyInfo later = newerTask(List.of());
+      RenameTransformTask.chainPendingRenames(later, queue);
+
+      RenameInfo chained = later.getRenameInfos().stream()
+         .filter(r -> OLD_WS.equals(r.getOldName())).findFirst().orElseThrow();
+      assertEquals(NEWER_WS, chained.getNewName());
+      assertNull(chained.getOldPath());
+      assertNull(chained.getNewPath());
+   }
+
+   @Test
+   void renamesWithoutPathsStillChain() {
+      RenameDependencyInfo pending = pendingWithPaths();
+      pending.getRenameInfos().get(0).setOldPath(null);
+      pending.getRenameInfos().get(0).setNewPath(null);
+      RenameTransformQueue queue = new RenameTransformQueue();
+      queue.add(pending);
+      RenameDependencyInfo later = newerTask(List.of());
+      RenameTransformTask.chainPendingRenames(later, queue);
+      assertEquals(2, later.getRenameInfos().size());
+      assertEquals(OLD_WS, later.getRenameInfos().get(1).getOldName());
+      assertEquals(NEWER_WS, later.getRenameInfos().get(1).getNewName());
+   }
+
+   /**
+    * Only a worksheet rename is chained when it carries paths: a rename of another kind that
+    * sets paths (here a viewsheet, which has no ASSET bit) is left alone.
+    */
+   @Test
+   void nonWorksheetRenameWithPathsIsNotChained() {
+      RenameInfo aToB = new RenameInfo(OLD_WS, NEW_WS, RenameInfo.VIEWSHEET | RenameInfo.SOURCE);
+      aToB.setOldPath("OldWS/N");
+      aToB.setNewPath("NewWS/N");
+      RenameDependencyInfo pending = new RenameDependencyInfo();
+      pending.setRenameInfos(new ArrayList<>(List.of(aToB)));
+      pending.setRenameInfo(DEPENDENT, pending.getRenameInfos());
+      RenameTransformQueue queue = new RenameTransformQueue();
+      queue.add(pending);
+
+      RenameInfo bToC = new RenameInfo(NEW_WS, NEWER_WS, RenameInfo.VIEWSHEET | RenameInfo.SOURCE);
+      bToC.setOldPath("NewWS/N");
+      bToC.setNewPath("NewerWS/N");
+      RenameDependencyInfo later = new RenameDependencyInfo();
+      later.setRenameInfos(new ArrayList<>(List.of(bToC)));
+      RenameTransformTask.chainPendingRenames(later, queue);
+      assertEquals(1, later.getRenameInfos().size());
+      assertTrue(later.getDependencyMap().isEmpty());
+   }
+
+   private RenameDependencyInfo pendingWithPaths() {
+      RenameDependencyInfo pending = newerTask(List.of(DEPENDENT));
+      RenameInfo aToB = new RenameInfo(OLD_WS, NEW_WS, RenameInfo.ASSET | RenameInfo.SOURCE);
+      pending.setRenameInfos(new ArrayList<>(List.of(aToB)));
+      pending.setRenameInfo(DEPENDENT, pending.getRenameInfos());
+      setPaths(pending, "OldWS/N", "NewWS/N");
+      return pending;
+   }
+
+   /**
+    * Sets the table paths that {@code AbstractAssetEngine.changeSheet0} sets on the rename of a
+    * worksheet whose primary assembly is a bound table.
+    */
+   private static void setPaths(RenameDependencyInfo task, String oldPath, String newPath) {
+      for(RenameInfo rinfo : task.getRenameInfos()) {
+         rinfo.setOldPath(oldPath);
+         rinfo.setNewPath(newPath);
       }
    }
 

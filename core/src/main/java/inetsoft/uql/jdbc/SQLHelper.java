@@ -1949,6 +1949,11 @@ public class SQLHelper implements KeywordProvider {
             else if(!isCaseSensitive() && !(uniformSql.getTableName(table) instanceof UniformSQL)) {
                qcolumn = quoteAggregateColumn(column);
             }
+            // a column of a physical table on a case-sensitive helper: it names a column, not an
+            // alias, so a helper may quote aliases differently (#80212)
+            else if(isCaseSensitive() && !(uniformSql.getTableName(table) instanceof UniformSQL)) {
+               qcolumn = quoteCaseSensitiveAggregateColumn(column);
+            }
             else {
                qcolumn = quoteColumnAlias(column);
             }
@@ -4906,6 +4911,25 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Quote the column of a physical table as the only argument of a function (sum(t.col)) on
+    * a case-sensitive helper. The column is not a select alias, so a helper that quotes every
+    * alias (see quoteColumnAlias) must not quote it by the alias rule: the column found
+    * ignoring case may be another one.
+    */
+   protected String quoteCaseSensitiveAggregateColumn(String column) {
+      return quoteColumnAlias(column);
+   }
+
+   /**
+    * The alias of a derived table column is the column part of table.alias, a reference to
+    * the select alias of the derived table (see quoteColumnAlias), not to a column of a
+    * physical table (see quoteColumnPartAlias).
+    */
+   protected String quoteAliasColumnPart(String alias) {
+      return quoteColumnPartAlias(alias);
+   }
+
+   /**
     * Quote the column of a physical table written unquoted as the only argument of a
     * function (sum(t.col)), only if needed.
     */
@@ -5492,7 +5516,7 @@ public class SQLHelper implements KeywordProvider {
                // oracle sql helper will quote any column alias when
                // calling the method quoteColumnAlias, which is not
                // allowed if is table.calias pattern
-               cpart = tpart == null ? quoteColumnAlias(cpart) : quoteColumnPartAlias(cpart);
+               cpart = tpart == null ? quoteColumnAlias(cpart) : quoteAliasColumnPart(cpart);
             }
             else {
                cpart = tpart == null ? XUtil.quoteName(cpart, this) :

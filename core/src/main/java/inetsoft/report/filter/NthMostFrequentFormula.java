@@ -181,7 +181,12 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
          return ((Number) obj).doubleValue();
       }
       else if(obj instanceof String) {
-         return Double.valueOf((String) obj);
+         try {
+            return Double.parseDouble(((String) obj).trim());
+         }
+         catch(NumberFormatException ex) {
+            return 0;
+         }
       }
 
       return 0;
@@ -224,11 +229,18 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
     */
    @Override
    public Object clone() {
-      NthMostFrequentFormula nmf = new NthMostFrequentFormula(n);
-      nmf.def = def;
-      nmf.map = new Object2IntOpenHashMap<>(map);
+      try {
+         NthMostFrequentFormula nmf = (NthMostFrequentFormula) super.clone();
+         nmf.def = def;
+         nmf.map = new Object2IntOpenHashMap<>(map);
 
-      return nmf;
+         return nmf;
+      }
+      catch(CloneNotSupportedException e) {
+         LOG.error("Failed to clone object", e);
+      }
+
+      return null;
    }
 
    /**

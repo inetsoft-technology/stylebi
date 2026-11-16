@@ -17,6 +17,7 @@
  */
 package inetsoft.report.lib.logical;
 
+import inetsoft.report.lib.ScriptEntry;
 import inetsoft.test.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 @ExtendWith(SpringExtension.class)
@@ -42,6 +44,57 @@ class ScriptLogicalLibraryTest {
    @Test
    void userSignatureWithoutParens() {
       assertNull(lib.getSignature("CALC"));
+   }
+
+   @Test
+   void signatureForNameWithRegexChars() {
+      String func = "function a$b(x, y) { return 1; }";
+      assertEquals("a$b(x, y)", ScriptEntry.builder().from("a$b", func).build().signature());
+      // '.' must not match loosely
+      assertEquals("a.b()", ScriptEntry.builder()
+         .from("a.b", "function axb(p) { }\nfunction a.b() { }").build().signature());
+   }
+
+   @Test
+   void signatureForNamesThatAreSubstringsOfFunctionKeyword() {
+      for(String name : new String[] { "f", "fn", "n", "un", "ion", "unction", "function", "normal" }) {
+         String func = "function " + name + "(x, y) { return 1; }";
+         assertEquals(name + "(x, y)", ScriptEntry.builder().from(name, func).build().signature(),
+                      name);
+      }
+   }
+
+   @Test
+   void renameEntryDoesNotRewriteFunctionKeyword() {
+      for(String name : new String[] { "f", "fn", "n", "un", "ion", "unction" }) {
+         ScriptEntry old = ScriptEntry.builder()
+            .function("function " + name + "(x, y) {}").signature(name + "(x, y)").build();
+         LogicalLibraryEntry<ScriptEntry> entry = LogicalLibraryEntry.<ScriptEntry>builder()
+            .asset(old).audit(false).build();
+         assertEquals("g(x, y)", lib.renameEntry(entry, name, "g").asset().signature(), name);
+      }
+
+      // signature persisted by the buggy version still carries the keyword
+      ScriptEntry legacy = ScriptEntry.builder().function("").signature("function f(x, y)").build();
+      LogicalLibraryEntry<ScriptEntry> entry = LogicalLibraryEntry.<ScriptEntry>builder()
+         .asset(legacy).audit(false).build();
+      assertEquals("function g(x, y)", lib.renameEntry(entry, "f", "g").asset().signature());
+   }
+
+   @Test
+   void renameEntryToNameWithRegexChars() {
+      ScriptEntry old = ScriptEntry.builder().function("function f(x) {}").signature("f(x)").build();
+      LogicalLibraryEntry<ScriptEntry> entry = LogicalLibraryEntry.<ScriptEntry>builder()
+         .asset(old).audit(false).build();
+      assertEquals("a$1b(x)", lib.renameEntry(entry, "f", "a$1b").asset().signature());
+
+      ScriptEntry dotted = ScriptEntry.builder().function("").signature("a.b(x)").build();
+      entry = LogicalLibraryEntry.<ScriptEntry>builder().asset(dotted).audit(false).build();
+      assertEquals("c(x)", lib.renameEntry(entry, "a.b", "c").asset().signature());
+      // old name '.' must not match a different character
+      dotted = ScriptEntry.builder().function("").signature("axb(a.b)").build();
+      entry = LogicalLibraryEntry.<ScriptEntry>builder().asset(dotted).audit(false).build();
+      assertEquals("axb(c)", lib.renameEntry(entry, "a.b", "c").asset().signature());
    }
 
    ScriptLogicalLibrary lib;

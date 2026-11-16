@@ -1896,7 +1896,7 @@ public class LayoutTool {
             }
 
             String gexpr = createScalarGroupExpression(gfields[i]);
-            uniqueGroups.add("\"" + cnames[i] + "\"," + gexpr);
+            uniqueGroups.add("\"" + Tool.escapeJavascript(cnames[i]) + "\"," + gexpr);
          }
 
          cond.append("inGroups([");

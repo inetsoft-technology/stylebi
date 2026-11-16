@@ -361,17 +361,43 @@ public class ExcelSelectionListHelper extends ExporterHelper {
       int top = PoiExcelVSUtil.floorY(rawY);
       int firstRow = exporter.getRowCol(x, top, new Point()).y;
       int dataRow = exporter.getRowCol(x, top + excelTitleHeight, new Point()).y;
-      int endRow = firstRow;
+      int endRow = getBoxEndRow(exporter, x, rawY, rawHeight);
+      endRow = Math.min(endRow, getNeighborRow(assembly, info, exporter, x, firstRow));
+      // the dashboard title takes its full height (even hidden in a container)
+      int rawTitle = info.isTitleVisible() || incs ? info.getTitleHeight() : 0;
+      return mapRows(exporter, x, dataRow, endRow, rawY + rawTitle, rowHeights);
+   }
+
+   /**
+    * Get the grid row after the last row of the box's own grid extent, the box top row when
+    * the height is unknown. This is a floor bound: the list never takes a partly covered last
+    * row. The tree (ExcelSelectionTreeHelper.writeTree) uses the touched-row bound instead,
+    * because a title that rounds up to the grid shifts its data start up to one row.
+    */
+   static int getBoxEndRow(PoiExcelVSExporter exporter, int x, int rawY, int rawHeight) {
+      int top = PoiExcelVSUtil.floorY(rawY);
+      int endRow = exporter.getRowCol(x, top, new Point()).y;
 
       if(rawHeight > 0) {
          int bottom = Math.max(PoiExcelVSUtil.floorY(rawY + rawHeight), top + AssetUtil.defh);
          endRow = exporter.getRowCol(x, bottom, new Point()).y;
       }
 
-      endRow = Math.min(endRow, getNeighborRow(assembly, info, exporter, x, firstRow));
-      // the dashboard title takes its full height (even hidden in a container)
-      int rawTitle = info.isTitleVisible() || incs ? info.getTitleHeight() : 0;
-      double rawTop = rawY + rawTitle;
+      return endRow;
+   }
+
+   /**
+    * Map consecutive raw pixel row heights onto grid rows cumulatively, so rounding error
+    * does not accumulate per row. Shared by the list and the tree writers.
+    * @param dataRow the grid row of the first data row.
+    * @param endRow the grid row after the last row that may be used.
+    * @param rawTop the raw pixel top of the first data row.
+    * @return bounds, bounds[k] is the first grid row of row k and bounds[n] the row after the
+    * last row that fits (n rows fit).
+    */
+   static int[] mapRows(PoiExcelVSExporter exporter, int x, int dataRow, int endRow,
+                        double rawTop, List<Double> rowHeights)
+   {
       List<Integer> bounds = new ArrayList<>();
       int prev = dataRow;
       bounds.add(prev);
@@ -396,8 +422,8 @@ public class ExcelSelectionListHelper extends ExporterHelper {
     * Get the first grid row (below the list's first row) owned by another exported assembly
     * that overlaps the list horizontally.
     */
-   private int getNeighborRow(SelectionListVSAssembly assembly, SelectionListVSAssemblyInfo info,
-                              PoiExcelVSExporter exporter, int x, int firstRow)
+   static int getNeighborRow(VSAssembly assembly, VSAssemblyInfo info,
+                             PoiExcelVSExporter exporter, int x, int firstRow)
    {
       int row = Integer.MAX_VALUE;
       Viewsheet vs = info.getViewsheet();
