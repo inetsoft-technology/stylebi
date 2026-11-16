@@ -407,12 +407,28 @@ public class FormulaFunctionsTest {
    }
 
    // the crosstab Week of Year group follows week.start, so date=week must as well
-   @Disabled("Bug #81261: toList date=week ignores the week.start setting")
    @Test
    void dateWeekOptionFollowsTheWeekStartLikeTheCrosstab() {
       WeekStartUtil.withWeekStart("monday", () -> runInNewThread(() ->
          assertWeekMatchesCrosstab(LocalDate.of(2023, 1, 1), LocalDate.of(2023, 12, 31),
                                    ZoneId.systemDefault(), "week.start=monday")));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "sunday", "tuesday", "wednesday", "thursday", "friday", "saturday" })
+   void dateWeekOptionFollowsEveryWeekStartLikeTheCrosstab(String weekStart) {
+      WeekStartUtil.withWeekStart(weekStart, () -> runInNewThread(() ->
+         assertWeekMatchesCrosstab(LocalDate.of(2023, 1, 1), LocalDate.of(2023, 12, 31),
+                                   ZoneId.systemDefault(), "week.start=" + weekStart)));
+   }
+
+   @Test
+   void dateWeekOptionUnderMondayWeekStartStartsWeekTwoOnTheFirstMonday() {
+      WeekStartUtil.withWeekStart("monday", () -> runInNewThread(() -> {
+         Object[] res = (Object[]) FormulaFunctions.toList(
+            new Object[] { dt(2023, 1, 1), dt(2023, 1, 2) }, "date=week");
+         assertArrayEquals(new Object[] { 1, 2 }, res);
+      }));
    }
 
    @ParameterizedTest
