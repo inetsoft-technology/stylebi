@@ -38,6 +38,7 @@ const COLUMNS_URI: string = "../vs/dataOutput/selection/columns";
 export class SelectionMeasurePane implements OnInit {
    @Input() model: SelectionMeasurePaneModel;
    @Input() runtimeId: string;
+   @Input() assemblyName: string = null;
    @Input() variableValues: string[];
    @Input() grayedOutValues: string[] = [];
    @Output() measuresChange: EventEmitter<OutputColumnRefModel[]> = new EventEmitter<OutputColumnRefModel[]>();

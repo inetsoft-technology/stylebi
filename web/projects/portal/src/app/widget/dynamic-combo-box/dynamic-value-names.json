@@ -357,5 +357,99 @@
       "text"
     ],
     "host": "composer/dialog/vs/text-pane.component.html"
+  },
+  {
+    "name": "dataInputPaneModel.columnValue",
+    "assemblyTypes": [
+      "combobox",
+      "radiobutton",
+      "slider",
+      "spinner",
+      "textinput"
+    ],
+    "host": "composer/dialog/vs/data-input-pane.component.html"
+  },
+  {
+    "name": "dataInputPaneModel.rowValue",
+    "assemblyTypes": [
+      "combobox",
+      "radiobutton",
+      "slider",
+      "spinner",
+      "textinput"
+    ],
+    "host": "composer/dialog/vs/data-input-pane.component.html"
+  },
+  {
+    "name": "imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageValue",
+    "assemblyTypes": [
+      "image"
+    ],
+    "host": "composer/dialog/vs/dynamic-image-pane.component.html"
+  },
+  {
+    "name": "source:measure",
+    "assemblyTypes": [
+      "selectionlist",
+      "selectiontree"
+    ],
+    "host": "composer/dialog/vs/selection-measure-pane.component.html"
+  },
+  {
+    "name": "formula",
+    "assemblyTypes": [
+      "selectionlist",
+      "selectiontree"
+    ],
+    "host": "composer/dialog/vs/selection-measure-pane.component.html"
+  },
+  {
+    "name": "source:parentIdColumn",
+    "assemblyTypes": [
+      "selectiontree"
+    ],
+    "host": "composer/dialog/vs/selection-tree-id-pane.component.html"
+  },
+  {
+    "name": "source:idColumn",
+    "assemblyTypes": [
+      "selectiontree"
+    ],
+    "host": "composer/dialog/vs/selection-tree-id-pane.component.html"
+  },
+  {
+    "name": "source:labelColumn",
+    "assemblyTypes": [
+      "selectiontree"
+    ],
+    "host": "composer/dialog/vs/selection-tree-id-pane.component.html"
+  },
+  {
+    "name": "minDate",
+    "assemblyTypes": [
+      "combobox"
+    ],
+    "host": "vsobjects/dialog/combo-box-editor.component.html"
+  },
+  {
+    "name": "maxDate",
+    "assemblyTypes": [
+      "combobox"
+    ],
+    "host": "vsobjects/dialog/combo-box-editor.component.html"
+  },
+  {
+    "name": "min",
+    "assemblyTypes": [
+      "calendar"
+    ],
+    "host": "composer/dialog/vs/calendar-advanced-pane.component.html"
+  },
+  {
+    "name": "max",
+    "assemblyTypes": [
+      "calendar"
+    ],
+    "host": "composer/dialog/vs/calendar-advanced-pane.component.html"
   }
 ]

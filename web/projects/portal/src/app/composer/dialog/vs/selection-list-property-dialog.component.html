@@ -38,7 +38,7 @@
         <a ngbNavLink>_#(Data)</a>
         <ng-template ngbNavContent>
           <selection-list-pane [model]="model.selectionListPaneModel"
-            [runtimeId]="runtimeId"  [variableValues]="variableValues"
+            [runtimeId]="runtimeId" [assemblyName]="assemblyName"  [variableValues]="variableValues"
             (onSelectColumn)="getGrayedOutFields()">
           </selection-list-pane>
         </ng-template>

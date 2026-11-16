@@ -108,7 +108,7 @@
     <div class="form-row-float-label row">
       <div class="col">
         <div class="form-floating">
-          <dynamic-value-editor [valueModel]="model.min"
+          <dynamic-value-editor [valueModel]="model.min" dynamicProperty="min" [dynamicAssembly]="assemblyName" [pairingRuntimeId]="runtimeId"
             [variableValues]="variableValues"
             [columnTreeRoot]="columnTreeRoot"
             [functionTreeRoot]="functionTreeRoot"
@@ -122,7 +122,7 @@
       </div>
       <div class="col">
         <div class="form-floating">
-          <dynamic-value-editor [valueModel]="model.max"
+          <dynamic-value-editor [valueModel]="model.max" dynamicProperty="max" [dynamicAssembly]="assemblyName" [pairingRuntimeId]="runtimeId"
             [variableValues]="variableValues"
             [columnTreeRoot]="columnTreeRoot"
             [functionTreeRoot]="functionTreeRoot"

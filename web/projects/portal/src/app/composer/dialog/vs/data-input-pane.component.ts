@@ -44,6 +44,7 @@ export class DataInputPane implements OnInit, OnChanges {
    @Input() model: DataInputPaneModel;
    @Input() variableValues: string[] = [];
    @Input() runtimeId: string = "";
+   @Input() assemblyName: string = null;
    @Input() checkBox: boolean = false;
    @Input() comboBox: boolean = false;
    @Input() dataType: string = "";

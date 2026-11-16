@@ -22,7 +22,7 @@
         <div class="form-floating">
           <dynamic-combo-box id="measure"
                              [value]="localMeasure" (valueChange)="selectMeasure($event)"
-                             [vsId]="runtimeId" (typeChange)="selectMeasureType($event)"
+                             [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="source:measure" (typeChange)="selectMeasureType($event)"
                              [(values)]="measureLabels" [(variables)]="variableValues"
                              [grayedOutValues]="grayedOutValues">
           </dynamic-combo-box>
@@ -51,7 +51,7 @@
         <div class="form-floating">
           <dynamic-combo-box id="aggregate"
                              [(value)]="localFormula" (valueChange)="selectAggregate($event)"
-                             [vsId]="runtimeId" [(values)]="aggregateLabels"
+                             [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="formula" [(values)]="aggregateLabels"
                              [(variables)]="variableValues"
                              [disable]="isAggregateDisabled()"></dynamic-combo-box>
           <label>_#(Aggregate)</label>

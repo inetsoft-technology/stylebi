@@ -49,6 +49,7 @@ export class SelectionTreeIdPane implements OnInit, AfterViewInit {
    @Input() iconFunction: (node: TreeNodeModel) => string;
    @Input() measureTooltips: string[] = [];
    @Input() runtimeId: string;
+   @Input() assemblyName: string = null;
    @Input() grayedOutValues: string[] = [];
    @ViewChild("idTree") idTree: TreeComponent;
    _singleSelection: boolean;

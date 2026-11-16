@@ -45,6 +45,7 @@ import { AdditionalTableSelectionPaneComponent } from "../../../widget/dialog/ad
 export class SelectionListPane implements AfterViewInit {
    @Input() model: SelectionListPaneModel;
    @Input() runtimeId: string;
+   @Input() assemblyName: string = null;
    @Input() variableValues: string[];
    @Output() onSelectColumn = new EventEmitter();
 

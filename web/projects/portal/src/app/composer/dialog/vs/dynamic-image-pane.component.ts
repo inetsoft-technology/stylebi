@@ -31,6 +31,7 @@ export class DynamicImagePane {
    @Input() variableValues: string[];
    @Input() layoutObject: boolean = false;
    @Input() vsId: string = null;
+   @Input() assemblyName: string = null;
 
    get imageName(): string {
       if(!this.model || !this.model.dynamicImageSelected) {

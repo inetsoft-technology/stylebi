@@ -41,7 +41,7 @@
     <div class="form-row-float-label row local-parent-id">
       <div class="col-9">
         <div class="form-floating">
-          <dynamic-combo-box [(value)]="localParentId" [vsId]="runtimeId"
+          <dynamic-combo-box [(value)]="localParentId" [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="source:parentIdColumn"
                              [grayedOutValues]="grayedOutValues"
                              (valueChange)="selectParentId($event)"
                              (typeChange)="selectParentIdType($event)"
@@ -55,7 +55,7 @@
     <div class="form-row-float-label row local-id">
       <div class="col-9">
         <div class="form-floating">
-          <dynamic-combo-box [(value)]="localId" [vsId]="runtimeId"
+          <dynamic-combo-box [(value)]="localId" [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="source:idColumn"
                              [grayedOutValues]="grayedOutValues"
                              (valueChange)="selectId($event)"
                              (typeChange)="selectIdType($event)"
@@ -69,7 +69,7 @@
     <div class="form-row-float-label row local-label">
       <div class="col-9">
         <div class="form-floating">
-          <dynamic-combo-box [(value)]="localLabel" [vsId]="runtimeId"
+          <dynamic-combo-box [(value)]="localLabel" [vsId]="runtimeId" [assemblyName]="assemblyName" dynamicProperty="source:labelColumn"
                              [grayedOutValues]="grayedOutValues"
                              (valueChange)="selectLabel($event)"
                              (typeChange)="selectLabelType($event)"

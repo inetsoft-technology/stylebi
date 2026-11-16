@@ -184,7 +184,9 @@ const PAIRING_PANES = ["general-prop-pane", "basic-general-pane", "title-prop-pa
    "title-format-pane", "legend-format-general-pane",
    "date-comparison-standard-periods", "date-comparison-custom-periods", "date-comparison-interval-pane",
    "input-label-pane", "numeric-range-pane", "fill-prop-pane", "line-prop-pane", "text-pane",
-   "data-output-pane", "number-range-pane", "range-pane"];
+   "data-output-pane", "number-range-pane", "range-pane", "data-input-pane", "dynamic-image-pane",
+   "selection-measure-pane", "selection-tree-id-pane", "combo-box-editor",
+   "calendar-advanced-pane"];
 
 /** The properties each pairing pane names (its combos' `dynamicProperty` literals). */
 const PANE_PROPERTIES: Record<string, string[]> = {
@@ -202,6 +204,12 @@ const PANE_PROPERTIES: Record<string, string[]> = {
    "data-output-pane": ["column", "aggregate", "with", "nthOperand"],
    "number-range-pane": ["min", "max", "minorIncrement", "majorIncrement"],
    "range-pane": ["rangeValues[<i>]", "targetValue"],
+   "data-input-pane": ["dataInputPaneModel.columnValue", "dataInputPaneModel.rowValue"],
+   "dynamic-image-pane": ["imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageValue"],
+   "selection-measure-pane": ["source:measure", "formula"],
+   "selection-tree-id-pane": ["source:parentIdColumn", "source:idColumn", "source:labelColumn"],
+   "combo-box-editor": ["minDate", "maxDate"],
+   "calendar-advanced-pane": ["min", "max"],
 };
 
 interface UnpairedProperty {
@@ -226,6 +234,20 @@ const UNPAIRED_PROPERTIES: UnpairedProperty[] = [
       assemblyType: "viewsheet",
       reason: "the server has no `enabled` alias for an embedded viewsheet, and its dialog sets " +
          "showEnabledGroup(false), so the Enabled combo is never shown"
+   },
+   {
+      file: "vsobjects/dialog/column-option-dialog.component.html",
+      pane: "combo-box-editor",
+      property: "minDate",
+      assemblyType: "table",
+      reason: "the column option dialog's ComboBox editor cannot store min/max dates per column (columnOptionTools.ts), and the dialog passes no assembly name, so it never pairs"
+   },
+   {
+      file: "vsobjects/dialog/column-option-dialog.component.html",
+      pane: "combo-box-editor",
+      property: "maxDate",
+      assemblyType: "table",
+      reason: "the column option dialog's ComboBox editor cannot store min/max dates per column (columnOptionTools.ts), and the dialog passes no assembly name, so it never pairs"
    },
 ];
 
@@ -268,7 +290,14 @@ const DIALOG_TYPES: Record<string, string> = {
  * service that hides it. The Java service must really hide it (checked below), and the manifest
  * must NOT list the type: a name the UI cannot produce has no business in the vocabulary.
  */
-const HIDDEN_BY_DIALOG: { property: string, type: string, service: string }[] = [
+interface Evidence {
+   root: "app" | "java";
+   file: string;
+   pattern: RegExp;
+}
+
+const HIDDEN_BY_DIALOG: { property: string, type: string, service?: string,
+   evidence?: Evidence[] }[] = [
    {
       property: "enabled", type: "groupcontainer",
       service: "composer/vs/dialog/GroupContainerPropertyDialogService.java"
@@ -276,6 +305,92 @@ const HIDDEN_BY_DIALOG: { property: string, type: string, service: string }[] = 
    {
       property: "enabled", type: "viewsheet",
       service: "composer/vs/dialog/ViewsheetObjectPropertyDialogService.java"
+   },
+   {
+      property: "dataInputPaneModel.columnValue", type: "checkbox",
+      evidence: [
+         { root: "app", file: "composer/dialog/vs/checkbox-property-dialog.component.html",
+           pattern: /<data-input-pane[^>]*\[checkBox\]="true"/ },
+         { root: "app", file: "composer/dialog/vs/data-input-pane.component.html",
+           pattern: /@if \(!checkBox\) \{(?:(?!@if)[\s\S])*?column_id/ }
+      ]
+   },
+   {
+      property: "dataInputPaneModel.rowValue", type: "checkbox",
+      evidence: [
+         { root: "app", file: "composer/dialog/vs/checkbox-property-dialog.component.html",
+           pattern: /<data-input-pane[^>]*\[checkBox\]="true"/ },
+         { root: "app", file: "composer/dialog/vs/data-input-pane.component.html",
+           pattern: /@if \(!checkBox\) \{(?:(?!@if)[\s\S])*?row_id/ }
+      ]
+   },
+   {
+      property: "minDate", type: "checkbox",
+      evidence: [
+         { root: "app", file: "composer/dialog/vs/list-values-pane.component.html",
+           pattern: /<combo-box-editor[^>]*\[showCalendar\]="isComboBox"/ },
+         { root: "app", file: "vsobjects/dialog/combo-box-editor.component.html",
+           pattern: /@if \(enableDataType && showCalendar\) \{/ },
+         { root: "app", file: "composer/dialog/vs/combobox-general-pane.component.html",
+           pattern: /<list-values-pane[^>]*\[isComboBox\]="true"/ },
+         { root: "app", file: "composer/dialog/vs/checkbox-general-pane.component.html",
+           pattern: /^(?![\s\S]*isComboBox)/ },
+         { root: "java", file: "wiz/viewsheet/PropertyAliases.java",
+           pattern: /for\(String type : List\.of\("checkbox", "radiobutton"\)\) \{[^}]{0,300}?dead\.addAll\(CALENDAR_EDITOR_DEAD\)/ },
+         { root: "java", file: "wiz/viewsheet/PropertyAliases.java",
+           pattern: /CALENDAR_EDITOR_DEAD = List\.of\([^)]*"comboBoxEditorModel\.minDate",\s*"comboBoxEditorModel\.maxDate"[^)]*\)/ }
+      ]
+   },
+   {
+      property: "maxDate", type: "checkbox",
+      evidence: [
+         { root: "app", file: "composer/dialog/vs/list-values-pane.component.html",
+           pattern: /<combo-box-editor[^>]*\[showCalendar\]="isComboBox"/ },
+         { root: "app", file: "vsobjects/dialog/combo-box-editor.component.html",
+           pattern: /@if \(enableDataType && showCalendar\) \{/ },
+         { root: "app", file: "composer/dialog/vs/combobox-general-pane.component.html",
+           pattern: /<list-values-pane[^>]*\[isComboBox\]="true"/ },
+         { root: "app", file: "composer/dialog/vs/checkbox-general-pane.component.html",
+           pattern: /^(?![\s\S]*isComboBox)/ },
+         { root: "java", file: "wiz/viewsheet/PropertyAliases.java",
+           pattern: /for\(String type : List\.of\("checkbox", "radiobutton"\)\) \{[^}]{0,300}?dead\.addAll\(CALENDAR_EDITOR_DEAD\)/ },
+         { root: "java", file: "wiz/viewsheet/PropertyAliases.java",
+           pattern: /CALENDAR_EDITOR_DEAD = List\.of\([^)]*"comboBoxEditorModel\.minDate",\s*"comboBoxEditorModel\.maxDate"[^)]*\)/ }
+      ]
+   },
+   {
+      property: "minDate", type: "radiobutton",
+      evidence: [
+         { root: "app", file: "composer/dialog/vs/list-values-pane.component.html",
+           pattern: /<combo-box-editor[^>]*\[showCalendar\]="isComboBox"/ },
+         { root: "app", file: "vsobjects/dialog/combo-box-editor.component.html",
+           pattern: /@if \(enableDataType && showCalendar\) \{/ },
+         { root: "app", file: "composer/dialog/vs/combobox-general-pane.component.html",
+           pattern: /<list-values-pane[^>]*\[isComboBox\]="true"/ },
+         { root: "app", file: "composer/dialog/vs/radiobutton-general-pane.component.html",
+           pattern: /^(?![\s\S]*isComboBox)/ },
+         { root: "java", file: "wiz/viewsheet/PropertyAliases.java",
+           pattern: /for\(String type : List\.of\("checkbox", "radiobutton"\)\) \{[^}]{0,300}?dead\.addAll\(CALENDAR_EDITOR_DEAD\)/ },
+         { root: "java", file: "wiz/viewsheet/PropertyAliases.java",
+           pattern: /CALENDAR_EDITOR_DEAD = List\.of\([^)]*"comboBoxEditorModel\.minDate",\s*"comboBoxEditorModel\.maxDate"[^)]*\)/ }
+      ]
+   },
+   {
+      property: "maxDate", type: "radiobutton",
+      evidence: [
+         { root: "app", file: "composer/dialog/vs/list-values-pane.component.html",
+           pattern: /<combo-box-editor[^>]*\[showCalendar\]="isComboBox"/ },
+         { root: "app", file: "vsobjects/dialog/combo-box-editor.component.html",
+           pattern: /@if \(enableDataType && showCalendar\) \{/ },
+         { root: "app", file: "composer/dialog/vs/combobox-general-pane.component.html",
+           pattern: /<list-values-pane[^>]*\[isComboBox\]="true"/ },
+         { root: "app", file: "composer/dialog/vs/radiobutton-general-pane.component.html",
+           pattern: /^(?![\s\S]*isComboBox)/ },
+         { root: "java", file: "wiz/viewsheet/PropertyAliases.java",
+           pattern: /for\(String type : List\.of\("checkbox", "radiobutton"\)\) \{[^}]{0,300}?dead\.addAll\(CALENDAR_EDITOR_DEAD\)/ },
+         { root: "java", file: "wiz/viewsheet/PropertyAliases.java",
+           pattern: /CALENDAR_EDITOR_DEAD = List\.of\([^)]*"comboBoxEditorModel\.minDate",\s*"comboBoxEditorModel\.maxDate"[^)]*\)/ }
+      ]
    },
 ];
 
@@ -367,28 +482,6 @@ function typesOfDialog(d: string): string[] {
 }
 
 const ALLOWLIST: Record<string, { reason: string, usages: [string, string][] }> = {
-   B2: {
-      reason: "PR B2: property dialog panes with a deeper host chain, wired by the B2 PR",
-      usages: [
-         ["composer/dialog/vs/data-input-pane.component.html", "model.columnValue"],
-         ["composer/dialog/vs/data-input-pane.component.html", "selectedRow"],
-         ["composer/dialog/vs/dynamic-image-pane.component.html", "imageName"],
-         ["composer/dialog/vs/selection-measure-pane.component.html", "localMeasure"],
-         ["composer/dialog/vs/selection-measure-pane.component.html", "localFormula"],
-         ["composer/dialog/vs/selection-tree-id-pane.component.html", "localParentId"],
-         ["composer/dialog/vs/selection-tree-id-pane.component.html", "localId"],
-         ["composer/dialog/vs/selection-tree-id-pane.component.html", "localLabel"],
-         ["vsobjects/dialog/combo-box-editor.component.html", "model.minDate"],
-         ["vsobjects/dialog/combo-box-editor.component.html", "model.maxDate"],
-      ]
-   },
-   B3: {
-      reason: "PR B3: the calendar advanced pane, wired by the B3 PR",
-      usages: [
-         ["composer/dialog/vs/calendar-advanced-pane.component.html", "model.min"],
-         ["composer/dialog/vs/calendar-advanced-pane.component.html", "model.max"],
-      ]
-   },
    C: {
       reason: "PR C: binding editor panes, wired by the C PR (own runtime, needs a live check)",
       usages: [
@@ -633,8 +726,20 @@ describe("dynamic value pairing completeness guard (bug #80459)", () => {
             expect(reached, `${h.property}@${h.type} is not reached, drop the entry`).toContain(h.type);
             expect(entry.assemblyTypes, `${h.property}@${h.type} must not be in the manifest`)
                .not.toContain(h.type);
-            expect(readFileSync(join(JAVA_WEB, h.service), "utf8"))
-               .toMatch(/setShowEnabledGroup\(\s*false\s*\)/);
+
+            if(h.service) {
+               expect(readFileSync(join(JAVA_WEB, h.service), "utf8"))
+                  .toMatch(/setShowEnabledGroup\(\s*false\s*\)/);
+            }
+
+            expect(!!h.service !== !!h.evidence, `${h.property}@${h.type}: give a service or evidence`)
+               .toBe(true);
+
+            for(const e of h.evidence ?? []) {
+               const source = e.root === "app" ? templates.get(e.file) : readFileSync(join(JAVA_WEB, e.file), "utf8");
+
+               expect(source, `${h.property}@${h.type}: ${e.file}`).toMatch(e.pattern);
+            }
          }
       });
    });
