@@ -63,7 +63,7 @@ class ViewsheetImageExportInProgressTest {
    private static final String URL = "/api/wiz/v1/agent/viewsheet/tok/image";
 
    @Test
-   void wholeSheetAndTableTargetRetriesAnswer503WhileTheAbandonedExportHoldsTheClaim()
+   void wholeSheetAndTableTargetRetriesJoinTheStillRunningExport()
       throws Exception
    {
       RuntimeViewsheet rvs = claimableViewsheet();
@@ -122,27 +122,28 @@ class ViewsheetImageExportInProgressTest {
          assertEquals(503, first.getResponse().getStatus(), body(first));
          assertTrue(body(first).contains("not ready"), body(first));
 
-         // 2nd call (the agent's retry): the first export still holds the claim
+         // 2nd call (the agent's retry): it joins the still-running export instead of starting
+         // another one or being refused, so it is the same documented "not ready" answer
          MvcResult retry = mvc.perform(get(URL).principal(user).accept(MediaType.APPLICATION_JSON))
             .andReturn();
          assertEquals(503, retry.getResponse().getStatus(), body(retry));
-         assertEquals("2", retry.getResponse().getHeader("Retry-After"));
-         assertTrue(body(retry).contains("EXPORT_IN_PROGRESS"), body(retry));
-         assertTrue(body(retry).contains("Exporting Dashboard in progress"), body(retry));
-         assertFalse(body(retry).contains("retrying will fail"), body(retry));
+         assertTrue(body(retry).contains("not ready"), body(retry));
+         assertFalse(body(retry).contains("EXPORT_IN_PROGRESS"), body(retry));
+         assertEquals(1, exports.get(), "the retry must join the running export, not start one");
 
-         // a table target falls back to the same whole-sheet export, so the same answer
+         // a table target falls back to the same whole-sheet export, so it joins it as well
          MvcResult table = mvc.perform(get(URL).param("target", "TableView1").principal(user)
                                           .accept(MediaType.APPLICATION_JSON))
             .andReturn();
          assertEquals(503, table.getResponse().getStatus(), body(table));
-         assertTrue(body(table).contains("EXPORT_IN_PROGRESS"), body(table));
+         assertTrue(body(table).contains("not ready"), body(table));
+         assertEquals(1, exports.get(), "the table target must join the running export too");
       }
       finally {
          release.countDown();
       }
 
-      // once the abandoned export ends and releases the claim, the same call succeeds
+      // once the export ends, the same call collects its result
       assertTrue(firstEnded.await(30, TimeUnit.SECONDS), "the first export did not end");
       MvcResult after = mvc.perform(get(URL).principal(user).accept(MediaType.APPLICATION_JSON))
          .andReturn();
