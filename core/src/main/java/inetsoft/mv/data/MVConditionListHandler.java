@@ -64,6 +64,7 @@ public class MVConditionListHandler extends ConditionListHandler {
       super();
 
       this.mvdef = def;
+      this.table = table;
       this.mv = mv;
       this.vars = vars;
       Worksheet ws = table.getWorksheet();
@@ -332,8 +333,103 @@ public class MVConditionListHandler extends ConditionListHandler {
       DataRef dref = item.getAttribute();
       cond.replaceVariable(vars);
       XExpression field = createXExpression(dref);
-      XFilterNode condnode = createCondNode(cond, field, vars, isDbEvaluated(dref));
+      XFilterNode condnode = createCondNode(cond, field, vars, isDbEvaluated(resolveSourceColumn(dref)));
       return new XFilterNodeItem(condnode, item.getLevel());
+   }
+
+   /**
+    * Get the column that defines the values of a condition column. The MV transformers move a
+    * condition up through a mirror/composed table and rewrite its column to a plain
+    * attribute of the child table (AssetUtil.getOuterAttribute), which erases whether the
+    * column is a physical column, an SQL expression or a script expression. The kind is
+    * restored here from the child table's own column. The MV column does not keep it either.
+    *
+    * @return the column of the table that defines the values, or the condition column
+    * itself if it can't be resolved.
+    */
+   private DataRef resolveSourceColumn(DataRef dref) {
+      DataRef ref = dref;
+
+      for(int i = 0; i < 20; i++) {
+         AttributeRef attr = getOuterAttribute(ref);
+
+         if(attr == null) {
+            return ref;
+         }
+
+         TableAssembly owner = findTable(table, attr.getEntity(), 0);
+         ColumnRef source = null;
+
+         if(owner != null) {
+            ColumnSelection cols = owner.getColumnSelection(false);
+
+            for(int j = 0; cols != null && j < cols.getAttributeCount(); j++) {
+               DataRef col = cols.getAttribute(j);
+
+               if(col instanceof ColumnRef && attr.getAttribute().equals(col.getAttribute())) {
+                  source = (ColumnRef) col;
+                  break;
+               }
+            }
+         }
+
+         if(source == null) {
+            return ref;
+         }
+
+         // a column of a bound table is the real kind, a column of a mirror/composed table
+         // refers to its child table
+         if(!(owner instanceof ComposedTableAssembly)) {
+            return source;
+         }
+
+         ref = source;
+      }
+
+      return ref;
+   }
+
+   /**
+    * Get the attribute of a table column (entity set) if the reference is only a reference to
+    * a column of a child table.
+    */
+   private static AttributeRef getOuterAttribute(DataRef ref) {
+      while(ref instanceof ColumnRef || ref instanceof GroupRef) {
+         ref = ref instanceof ColumnRef ? ((ColumnRef) ref).getDataRef() :
+            ((GroupRef) ref).getDataRef();
+      }
+
+      if(ref instanceof AttributeRef && ref.getEntity() != null) {
+         return (AttributeRef) ref;
+      }
+
+      return null;
+   }
+
+   private static TableAssembly findTable(TableAssembly table, String name, int depth) {
+      if(table == null || name == null || depth > 20) {
+         return null;
+      }
+
+      if(name.equals(table.getName())) {
+         return table;
+      }
+
+      if(table instanceof ComposedTableAssembly) {
+         TableAssembly[] tables = ((ComposedTableAssembly) table).getTableAssemblies(false);
+
+         for(int i = 0; tables != null && i < tables.length; i++) {
+            TableAssembly found = findTable(tables[i], name, depth + 1);
+
+            if(found != null) {
+               return found;
+            }
+         }
+      }
+
+      Worksheet ws = table.getWorksheet();
+      Assembly assembly = ws == null ? null : ws.getAssembly(name);
+      return assembly instanceof TableAssembly ? (TableAssembly) assembly : null;
    }
 
    /**
@@ -344,7 +440,13 @@ public class MVConditionListHandler extends ConditionListHandler {
    static boolean isDbEvaluated(DataRef dref) {
       for(int i = 0; i < 20 && dref != null; i++) {
          if(dref instanceof ColumnRef) {
-            dref = ((ColumnRef) dref).getDataRef();
+            ColumnRef col = (ColumnRef) dref;
+            dref = col.getDataRef();
+
+            // the SQL flag of the column decides a worksheet expression column
+            if(dref instanceof ExpressionRef && !(dref instanceof AliasDataRef)) {
+               return col.isSQL() || ((ExpressionRef) dref).isSQL();
+            }
          }
          else if(dref instanceof GroupRef) {
             dref = ((GroupRef) dref).getDataRef();
@@ -411,6 +513,7 @@ public class MVConditionListHandler extends ConditionListHandler {
    // column name in mirror mapping to sub-table (with formula rewrite)
    private Map<String, String> colmap = new HashMap<>();
    private MVDef mvdef;
+   private TableAssembly table;
    private static final Logger LOG = LoggerFactory.getLogger(MVConditionListHandler.class);
    private MVColumn mvcol;
    private Boolean likeCaseSensitive;

@@ -134,7 +134,9 @@ class MVConditionListHandlerLikeCaseTest {
    void scriptExpressionColumnHasNoFlag() {
       ExpressionRef exp = new ExpressionRef(null, "E");
       exp.setExpression("field['PRODUCT_NAME'] + ''");
-      assertNull(flagOf(new ColumnRef(exp)));
+      ColumnRef col = new ColumnRef(exp);
+      col.setSQL(false);
+      assertNull(flagOf(col));
    }
 
    @Test
@@ -153,6 +155,7 @@ class MVConditionListHandlerLikeCaseTest {
       ExpressionRef exp = new ExpressionRef(null, "E");
       exp.setExpression("field['PRODUCT_NAME'] + ''");
       ColumnRef inner = new ColumnRef(exp);
+      inner.setSQL(false);
       assertNull(flagOf(new ColumnRef(new AliasDataRef("E2", inner))));
    }
 
