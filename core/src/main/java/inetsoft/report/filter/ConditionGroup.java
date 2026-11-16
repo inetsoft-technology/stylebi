@@ -717,6 +717,19 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
     * @return the script value.
     */
    protected final Object getScriptValue(Object val, String type) {
+      if(val instanceof TableRow) {
+         // a row is not a scalar: stringifying it would silently mis-compare (bug #81453)
+         TableRow row = (TableRow) val;
+
+         if(row.getArraySize() != 1) {
+            throw new ScriptException(
+               "Condition expression evaluated to a table row with " + row.getArraySize() +
+               " columns; use an explicit cell such as table.data[1][0] to pick one value");
+         }
+
+         val = row.getArrayElement(0);
+      }
+
       if(val instanceof java.util.Date) {
          val = Condition.getDateObject(type, val);
       }
