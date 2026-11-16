@@ -2417,7 +2417,14 @@ public abstract class GraphGenerator {
             }
             // rotate the labels if auto and too crowded
             else if(xmeasures.size() == 0 && format.getRotation() == null) {
-               setDefaultRotation(xaxis, xscale, xdims);
+               setDefaultRotation(xaxis, xscale, xdims, rect.getYScale(), true);
+            }
+            // the categories of a horizontal chart
+            else if(xmeasures.size() > 0 && format.getRotation() == null &&
+                    isRotated(rect) && xscale instanceof CategoricalScale &&
+                    isModernLabelAxis(xaxis, true))
+            {
+               setModernColumnLimit(xaxis, xscale, ydims);
             }
 
             if(inner) {
@@ -2807,7 +2814,7 @@ public abstract class GraphGenerator {
       }
       // rotate the labels if auto and too crowded
       else if(xmeasures.size() > 0 && format.getRotation() == null) {
-         setDefaultRotation(yaxis, yscale, ydims);
+         setDefaultRotation(yaxis, yscale, ydims, null, false);
       }
 
       if(inner) {
@@ -6721,7 +6728,9 @@ public abstract class GraphGenerator {
    /**
     * Get the default rotation.
     */
-   private void setDefaultRotation(AxisSpec axis, Scale scale, List<String> dims) {
+   private void setDefaultRotation(AxisSpec axis, Scale scale, List<String> dims,
+                                   Scale primaryY, boolean xAxis)
+   {
       TextSpec spec = axis.getTextSpec();
       String[] fields = scale.getFields();
       int idx = dims.size() - 1;
@@ -6730,6 +6739,11 @@ public abstract class GraphGenerator {
       scale.getAxisSpec().getTextSpec().setFormat(spec.getFormat());
       scale.init(data);
       Object[] vals = scale.getValues();
+
+      if(isModernLabelAxis(axis, xAxis)) {
+         setModernRotation(axis, scale, dims, vals, primaryY, xAxis);
+         return;
+      }
 
       // always rotate if inner coord of facet with more than a couple of items
       if(dims.size() > 1) {
@@ -6771,6 +6785,155 @@ public abstract class GraphGenerator {
       else {
          spec.setRotation(0);
       }
+   }
+
+   /**
+    * Whether the axis takes the modern label rule: a marked chart, labels that may be cut, and
+    * no date comparison on an X axis.
+    */
+   boolean isModernLabelAxis(AxisSpec axis, boolean xAxis) {
+      return vizContext.modern && axis.isTruncate() &&
+         !(xAxis && info instanceof VSChartInfo && ((VSChartInfo) info).isAppliedDateComparison());
+   }
+
+   // set the label limit and, on an X axis, the rotation from the measured labels
+   private void setModernRotation(AxisSpec axis, Scale scale, List<String> dims, Object[] vals,
+                                  Scale primaryY, boolean xAxis)
+   {
+      TextSpec spec = axis.getTextSpec();
+      String[] fields = scale.getFields();
+      boolean inner = dims.size() <= 1 ||
+         fields.length > 0 && dims.get(dims.size() - 1).equals(fields[fields.length - 1]);
+
+      // the outer axes of a facet keep flat, uncut labels
+      if(!inner) {
+         spec.setRotation(0);
+         return;
+      }
+
+      Font font = spec.getFont();
+
+      if(!xAxis) {
+         setModernColumnLimit(axis, scale, dims);
+         return;
+      }
+
+      double limit = ModernLabelRule.limitPx(font);
+      AxisDescriptor desc = getAxisDescriptor(scale, null);
+      double widest = 0;
+
+      for(Object val : vals) {
+         String lbl = GTool.format(spec.getFormat(), val);
+         String alias = desc == null ? null : desc.getLabelAlias(Tool.getDataString(val));
+         lbl = alias != null ? alias : lbl;
+         widest = Math.max(widest, Math.min(limit, GTool.stringWidth(new String[] { lbl }, font)));
+      }
+
+      axis.setLabelLimit(limit);
+
+      if(vals.length == 0) {
+         spec.setRotation(0);
+         return;
+      }
+
+      double slot = estimateAxisLength(primaryY) / panelCount(dims) / vals.length;
+      int dimIdx = dims.size() - 1;
+      ChartRef ref = dimIdx < 0 ? null : info.getFieldByName(dims.get(dimIdx), true);
+      boolean dateOrNumber = ref instanceof XDimensionRef && ((XDimensionRef) ref).isDateTime() ||
+         ref != null && XSchema.isNumericType(ref.getDataType());
+      spec.setRotation(ModernLabelRule.rotation(dateOrNumber, widest, slot));
+   }
+
+   // a category column reads flat and is cut at the column limit
+   private void setModernColumnLimit(AxisSpec axis, Scale scale, List<String> dims) {
+      String[] fields = scale.getFields();
+      TextSpec spec = axis.getTextSpec();
+      spec.setRotation(0);
+
+      if(dims.size() <= 1 || fields.length > 0 &&
+         dims.get(dims.size() - 1).equals(fields[fields.length - 1]))
+      {
+         double width = graphSize != null ? graphSize.width : 1000;
+         axis.setLabelLimit(ModernLabelRule.columnLimitPx(spec.getFont(), width));
+      }
+   }
+
+   // the product of the distinct values of the outer dimensions of a facet
+   private int panelCount(List<String> dims) {
+      int panels = 1;
+
+      for(int i = 0; i < dims.size() - 1; i++) {
+         Set<Object> distinct = new HashSet<>();
+
+         if(data.indexOfHeader(dims.get(i)) >= 0) {
+            for(int r = 0; r < data.getRowCount(); r++) {
+               distinct.add(data.getData(dims.get(i), r));
+            }
+         }
+
+         panels *= Math.max(1, distinct.size());
+      }
+
+      return panels;
+   }
+
+   // the plot width an X axis draws in: the graph less padding, the Y labels, title and legend
+   private double estimateAxisLength(Scale primaryY) {
+      double width = graphSize != null ? graphSize.width : 1000;
+      Insets padding = VSDensityDefaults.chartPadding(vizContext);
+      double length = width - padding.left - padding.right;
+
+      if(primaryY != null) {
+         AxisDescriptor ydesc = getAxisDescriptor(primaryY, "y");
+
+         if(!maxMode && ydesc.isLabelVisible() || maxMode && ydesc.isMaxModeLabelVisible()) {
+            CompositeTextFormat format = getAxisLabelFormat(ydesc, primaryY.getFields(), false);
+            Format fmt = GraphUtil.getFormat(format);
+            Font font = GraphUtil.getTextSpec(format, null, null).getFont();
+            primaryY.init(data);
+            double widest = 0;
+
+            for(Object val : primaryY.getValues()) {
+               widest = Math.max(widest,
+                                 GTool.stringWidth(new String[] { GTool.format(fmt, val) }, font));
+            }
+
+            length -= widest + 8;
+         }
+      }
+
+      TitlesDescriptor titles = desc.getTitlesDescriptor();
+      TitleDescriptor ytitle = titles == null ? null : titles.getYTitleDescriptor();
+
+      if(ytitle != null && (maxMode ? ytitle.isMaxModeVisible(vizContext) : ytitle.isVisible())) {
+         length -= 16;
+      }
+
+      if(hasSideLegend()) {
+         length -= 0.25 * width;
+      }
+
+      return Math.max(length, 1);
+   }
+
+   // whether a legend is drawn at the left or right of the plot
+   private boolean hasSideLegend() {
+      LegendsDescriptor legends = desc.getLegendsDescriptor();
+
+      if(legends == null || legends.getLayout() != LegendsDescriptor.LEFT &&
+         legends.getLayout() != LegendsDescriptor.RIGHT)
+      {
+         return false;
+      }
+
+      return legendDrawn(info.getColorField(), legends.getColorLegendDescriptor()) ||
+         legendDrawn(info.getShapeField(), legends.getShapeLegendDescriptor()) ||
+         legendDrawn(info.getSizeField(), legends.getSizeLegendDescriptor());
+   }
+
+   private boolean legendDrawn(AestheticRef field, LegendDescriptor legend) {
+      return field != null && legend != null &&
+         (maxMode ? legend.isMaxModeVisible() : legend.isVisible());
    }
 
    // apply scale format to merge dates cell.
