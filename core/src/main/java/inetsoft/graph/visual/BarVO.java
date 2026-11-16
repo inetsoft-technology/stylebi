@@ -875,9 +875,17 @@ public class BarVO extends ElementVO {
       double totalw2 = 0;
       Point2D center = new Point2D.Double(cx, rect.getCenterY());
 
+      List<List<ElementVO>> placed = stacks;
+
+      // place the series from the far end so the first reads first on a reversed axis
+      if(elem instanceof IntervalElement && ((IntervalElement) elem).isDodgeReversed()) {
+         placed = new ArrayList<>(stacks);
+         Collections.reverse(placed);
+      }
+
       // shift to the right to unwind the bar
-      for(int i = 0; i < stacks.size(); i++) {
-         List<ElementVO> stack = stacks.get(i);
+      for(int i = 0; i < placed.size(); i++) {
+         List<ElementVO> stack = placed.get(i);
          double barw = 0;
 
          for(int j = 0; j < stack.size(); j++) {

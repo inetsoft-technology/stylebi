@@ -911,8 +911,17 @@ public abstract class GraphGenerator {
    public EGraph createEGraph() {
       fixComparer();
       fixDefaultFormats();
+      topDownApplied = false;
       createEGraph0();
       fixGraphProperties();
+
+      if(topDownApplied) {
+         for(int i = 0; i < graph.getElementCount(); i++) {
+            if(graph.getElement(i) instanceof IntervalElement) {
+               ((IntervalElement) graph.getElement(i)).setDodgeReversed(true);
+            }
+         }
+      }
 
       if(dateComparison != null) {
          GraphDefault.setDefaultOutlines(graph);
@@ -2414,6 +2423,11 @@ public abstract class GraphGenerator {
                }
             }
 
+            if(isTopDownBars() && isTransposedCategories(rect, xscale)) {
+               ((CategoricalScale) xscale).setReversed(true);
+               topDownApplied = true;
+            }
+
             if(xscale instanceof LinearScale) {
                applyAxisDescriptor((LinearScale) xscale, xdesc);
             }
@@ -2677,7 +2691,7 @@ public abstract class GraphGenerator {
 
             // bars are displayed from bottom up sorted by dates, so we should
             // reverse the lines so it displays bottom up instead of top down.
-            xaxis.getTextSpec().setReverseLines(true);
+            xaxis.getTextSpec().setReverseLines(reverseDcLines());
          }
       }
    }
@@ -4224,10 +4238,8 @@ public abstract class GraphGenerator {
             yscale = GTool.createFakeScale(xscale);
          }
 
-         if(isGantt(chartType)) {
-            if(yscale instanceof CategoricalScale) {
-               ((CategoricalScale) yscale).setReversed(true);
-            }
+         if((isGantt(chartType) || topDownApplied) && yscale instanceof CategoricalScale) {
+            ((CategoricalScale) yscale).setReversed(true);
          }
 
          RectCoord outer = new RectCoord(xscale, yscale);
@@ -6914,6 +6926,17 @@ public abstract class GraphGenerator {
          !ydims.isEmpty() && flds[0].equals(ydims.get(ydims.size() - 1)));
    }
 
+   // a marked horizontal bar, interval or stack of measures on X against dimensions on Y
+   boolean isTopDownBars() {
+      return vizContext.modern && !fake && !xmeasures.isEmpty() && ymeasures.isEmpty() &&
+         !ydims.isEmpty() && isGraphType(CHART_BAR, CHART_BAR_STACK, CHART_INTERVAL);
+   }
+
+   // whether date comparison label lines read bottom-up, as the bars do
+   boolean reverseDcLines() {
+      return !topDownApplied;
+   }
+
    // a category X axis drawn down the side of a transposed chart
    private boolean isTransposedCategories(RectCoord rect, Scale xscale) {
       return xscale instanceof CategoricalScale &&
@@ -8174,6 +8197,7 @@ public abstract class GraphGenerator {
    protected Map<String, String> ymeasurelabels; // y measure labels
    protected Map<String, Scale> scales; // col -> scale
    protected boolean fake; // fake chart indicator
+   private boolean topDownApplied; // category axis reversed to list the first at the top
    protected ChartInfo info; // chart info stores data info
    protected final ChartDescriptor desc; // chart descriptor stores view info
    protected final ChartDescriptor desc0; // original (non-runtime) chart descriptor

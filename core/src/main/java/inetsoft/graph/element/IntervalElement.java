@@ -779,6 +779,20 @@ public class IntervalElement extends StackableElement {
    }
 
    /**
+    * Check whether the series of each dodged cluster are placed in reverse order.
+    */
+   public boolean isDodgeReversed() {
+      return dodgeReversed;
+   }
+
+   /**
+    * Set whether the series of each dodged cluster are placed in reverse order.
+    */
+   public void setDodgeReversed(boolean dodgeReversed) {
+      this.dodgeReversed = dodgeReversed;
+   }
+
+   /**
     * Get the shortest a bar with a non-zero interval draws along the value axis, in screen
     * pixels. 0 turns the minimum off.
     */
@@ -835,6 +849,7 @@ public class IntervalElement extends StackableElement {
             Objects.equals(visualStacked, elem.visualStacked) &&
             cornerRadius == elem.cornerRadius && roundAllCorners == elem.roundAllCorners &&
             cornerFloor == elem.cornerFloor && widthClamp == elem.widthClamp &&
+            dodgeReversed == elem.dodgeReversed &&
             minStepPx == elem.minStepPx &&
             Objects.equals(bridgeLineColor, elem.bridgeLineColor) &&
             Objects.equals(bridgeLineStyle, elem.bridgeLineStyle) &&
@@ -1012,6 +1027,7 @@ public class IntervalElement extends StackableElement {
    private boolean roundAllCorners = false;
    private boolean cornerFloor = false;
    private boolean widthClamp = false;
+   private boolean dodgeReversed = false;
    private double minStepPx = 0;
    private Boolean visualStacked;
    private Color bridgeLineColor = null;
