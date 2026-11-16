@@ -24,6 +24,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.viewsheet.AbstractContainerVSAssembly;
 import inetsoft.uql.viewsheet.AbstractSelectionVSAssembly;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
@@ -952,6 +953,16 @@ public class ViewsheetEditService {
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Viewsheet vs = rvs.getViewsheet();
+
+         if(requireVSAssembly(rvs, vs, containerName) instanceof TabVSAssembly tab) {
+            if(reorderTabPages(tab, desired)) {
+               coreLifecycleService.execute(
+                  rvs, tab.getAbsoluteName(), linkUri, VSAssembly.VIEW_CHANGED, dispatcher);
+            }
+
+            return;
+         }
+
          CurrentSelectionVSAssembly container = requireSelectionContainer(
             rvs, vs, containerName, request.op());
          List<String> order = new ArrayList<>(childrenOf(container));
@@ -980,6 +991,52 @@ public class ViewsheetEditService {
          container.layout();
          coreLifecycleService.refreshVSAssembly(rvs, container, dispatcher);
       });
+   }
+
+   /**
+    * Puts the pages of a Tab in the given complete order, as the tab list dialog's move up/down
+    * does: the labels move with their pages (the dialog moves both lists by the same index), so
+    * a page keeps its label. A tab with no labels stays without. A page that had no label while
+    * others did gets its own name as its label, which is what the dialog stores on apply. The
+    * selected page is kept by name.
+    *
+    * @return false when the tab was already in that order and nothing changed.
+    */
+   private static boolean reorderTabPages(TabVSAssembly tab, List<String> desired) {
+      List<String> order = new ArrayList<>(childrenOf(tab));
+
+      if(new HashSet<>(desired).size() != desired.size() || desired.size() != order.size() ||
+         !new HashSet<>(order).equals(new HashSet<>(desired)))
+      {
+         throw new IllegalArgumentException(
+            "'assemblies' must list every page of Tab '" + tab.getAbsoluteName() +
+            "' exactly once, in the new order. Current pages, in order: " + order + ".");
+      }
+
+      if(order.equals(desired)) {
+         return false;
+      }
+
+      String[] labels = tab.getLabelsValue();
+      String[] moved = null;
+
+      if(labels != null && labels.length > 0) {
+         moved = new String[desired.size()];
+
+         for(int p = 0; p < moved.length; p++) {
+            int from = order.indexOf(desired.get(p));
+            String label = from < labels.length ? labels[from] : null;
+            moved[p] = label == null || label.isEmpty() ? desired.get(p) : label;
+         }
+      }
+
+      tab.setAssemblies(desired.toArray(new String[0]));
+
+      if(moved != null) {
+         tab.setLabelsValue(moved);
+      }
+
+      return true;
    }
 
    /** The container name: {@code assembly}, or its alias {@code container}; a conflict is loud. */
@@ -1017,7 +1074,8 @@ public class ViewsheetEditService {
                ? " -- it is a child of Selection Container '" + parent.getAbsoluteName() +
                   "', pass that name as 'assembly'"
                : "") + ". edit(op:'" + op + "') works on a container made by " +
-            "group_as_selection_container.");
+            "group_as_selection_container" +
+            ("reorder_container_children".equals(op) ? ", or on a Tab (group_as_tab)." : "."));
       }
 
       // groupComponents sends the filter to the GROUP when its target sits in one; a Tab is fine.
@@ -1032,7 +1090,7 @@ public class ViewsheetEditService {
       return container;
    }
 
-   private static List<String> childrenOf(CurrentSelectionVSAssembly container) {
+   private static List<String> childrenOf(AbstractContainerVSAssembly container) {
       String[] children = container.getAssemblies();
       return children == null ? List.of() : List.of(children);
    }

@@ -346,4 +346,56 @@ class ViewsheetEditServiceSelectionContainerTest {
       refused(() -> reorder("OrderTable", "ListA"));
       refused(() -> reorder("GroupedBox", "ListA"));
    }
+
+   // ── bug #81420: the same op orders the pages of a Tab, labels with their pages ──
+
+   private TabVSAssembly tab() {
+      return (TabVSAssembly) vs.getAssembly("Tab1");
+   }
+
+   @Test
+   void reorderMovesTheLabelsWithTheirPagesOfATab() throws Exception {
+      setup();
+      tab().setLabelsValue(new String[] { "Drop-down", "Notes" });
+      tab().setSelectedValue("Text1");
+      reorder("Tab1", "Text1", "ListD");
+
+      assertEquals(List.of("Text1", "ListD"), Arrays.asList(tab().getAssemblies()));
+      assertEquals(List.of("Notes", "Drop-down"), Arrays.asList(tab().getLabelsValue()));
+      assertEquals("Text1", tab().getSelectedValue());
+      verify(lifecycle).execute(any(RuntimeViewsheet.class), eq("Tab1"), any(),
+                                eq(VSAssembly.VIEW_CHANGED), any());
+   }
+
+   @Test
+   void reorderOfATabWithoutLabelsAddsNone() throws Exception {
+      setup();
+      reorder("Tab1", "Text1", "ListD");
+      assertEquals(List.of("Text1", "ListD"), Arrays.asList(tab().getAssemblies()));
+      assertEquals(0, tab().getLabelsValue() == null ? 0 : tab().getLabelsValue().length);
+   }
+
+   @Test
+   void reorderGivesAPageThatHadNoLabelItsOwnNameWhenOthersHaveOne() throws Exception {
+      setup();
+      tab().setLabelsValue(new String[] { "Drop-down" });
+      reorder("Tab1", "Text1", "ListD");
+      assertEquals(List.of("Text1", "Drop-down"), Arrays.asList(tab().getLabelsValue()));
+   }
+
+   @Test
+   void reorderOfATabInOrderIsANoOpAndAWrongListNamesTheCurrentPages() throws Exception {
+      setup();
+      tab().setLabelsValue(new String[] { "Drop-down", "Notes" });
+      reorder("Tab1", "ListD", "Text1");
+      verify(lifecycle, never()).execute(any(RuntimeViewsheet.class), eq("Tab1"), any(),
+                                         eq(VSAssembly.VIEW_CHANGED), any());
+
+      IllegalArgumentException e = refused(() -> reorder("Tab1", "Text1"));
+      assertTrue(e.getMessage().contains("[ListD, Text1]"), e.getMessage());
+      refused(() -> reorder("Tab1", "Text1", "no_such_assembly"));
+      refused(() -> reorder("Tab1", "Text1", "Text1"));
+      assertEquals(List.of("ListD", "Text1"), Arrays.asList(tab().getAssemblies()));
+      assertEquals(List.of("Drop-down", "Notes"), Arrays.asList(tab().getLabelsValue()));
+   }
 }
