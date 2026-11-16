@@ -2840,6 +2840,8 @@ class PropertyAliasesTest {
          String note = AssemblyPropertyService.dateComparisonOffNote(List.of(path), model);
          assertNotNull(note, type);
          assertTrue(note.contains("set_date_comparison"), note);
+         // marked as a note on the write's effect, so the plugin does not frame it as a script failure
+         assertTrue(note.startsWith(AssemblyPropertyService.PROPERTY_NOTE_PREFIX), note);
 
          Object on = "chart".equals(type) ?
             chartModelWithDateComparison(true) : crosstabModelWithDateComparison(true);
@@ -2847,6 +2849,31 @@ class PropertyAliasesTest {
          assertNull(AssemblyPropertyService.dateComparisonOffNote(List.of("other.path"), model),
                     type);
       }
+   }
+
+   /** The dialog's Alpha is a percentage; StyleBI clamps 500 to 100 and reports success. */
+   @Test
+   void refusesAStaticImageAlphaOutsideZeroToOneHundred() {
+      for(String type : List.of("image", "groupcontainer")) {
+         String path = PropertyAliases.resolveForWrite(type, "staticImageAlpha");
+
+         for(Object bad : new Object[] { 500, 101, -1, "250", 100.5 }) {
+            Exception e = assertThrows(IllegalArgumentException.class,
+               () -> AssemblyPropertyService.requireStaticImageAlphaInRange(
+                  "staticImageAlpha", path, bad), type + " " + bad);
+            assertTrue(e.getMessage().contains("staticImageAlpha") &&
+                       e.getMessage().contains("0 and 100"), e.getMessage());
+         }
+
+         for(Object ok : new Object[] { 0, 60, 100, "75" }) {
+            assertDoesNotThrow(() -> AssemblyPropertyService.requireStaticImageAlphaInRange(
+               "staticImageAlpha", path, ok), type + " " + ok);
+         }
+      }
+
+      // the image's popup alpha is another pane and is not judged here
+      assertDoesNotThrow(() -> AssemblyPropertyService.requireStaticImageAlphaInRange(
+         "alpha", PropertyAliases.resolveForWrite("image", "alpha"), 500));
    }
 
    private static Object chartModelWithDateComparison(boolean enabled) {

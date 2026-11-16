@@ -7451,5 +7451,12 @@ class AssemblyPropertyServiceTest {
       assertEquals("^UPLOADED^2.png", preview.selectedImage());
       assertTrue(preview.animateGifImage());
       assertEquals(60, preview.alpha());
+
+      // out of range: refused with the field named, the stored alpha is unchanged
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Group1", Map.of("staticImageAlpha", 500), ""));
+      assertTrue(e.getMessage().contains("staticImageAlpha"), e.getMessage());
+      assertEquals(60, model.getGroupContainerGeneralPane().getStaticImagePane()
+         .imagePreviewPaneModel().alpha());
    }
 }

@@ -493,6 +493,7 @@ public class AssemblyPropertyService {
          requirePositiveTitleHeight(entry.getKey(), entry.getValue(), value);
          requireNonNegativePadding(entry.getKey(), entry.getValue(), value);
          requireNonNegativeTrailerCount(entry.getKey(), entry.getValue(), value);
+         requireStaticImageAlphaInRange(entry.getKey(), entry.getValue(), value);
          OutputFormulaGuard.requireValidOperand(entry.getKey(), entry.getValue(), value);
 
          if("textinput".equals(type) && entry.getValue().equalsIgnoreCase(INPUT_CONTROL_PATH)) {
@@ -1016,6 +1017,27 @@ public class AssemblyPropertyService {
    }
 
    /**
+    * The static image's Alpha field is a percentage (0-100) in the dialog, and the image's apply
+    * clamps anything outside it to that range, so a written 500 reports success and stores 100
+    * (bug #81419). Keyed on the preview pane's path suffix: image and group container share it.
+    * The image's popup {@code alpha} sits on another pane and is not judged here.
+    */
+   static void requireStaticImageAlphaInRange(String key, String path, Object value) {
+      if(!path.endsWith(".imagePreviewPaneModel.alpha")) {
+         return;
+      }
+
+      Double number = numberOf(value);
+
+      if(number != null && (number < 0 || number > 100)) {
+         throw new IllegalArgumentException(
+            key + ": alpha must be between 0 and 100 (got " + value + "). StyleBI clamps an " +
+            "out-of-range alpha to that range, so this write would report success and store a " +
+            "different value.");
+      }
+   }
+
+   /**
     * The number a written value spells, or null when it is not numeric (left to the model's own
     * type handling).
     */
@@ -1035,6 +1057,14 @@ public class AssemblyPropertyService {
 
       return null;
    }
+
+   /**
+    * Marks a warning as a note about the write's own effect (it was applied, and it also changed
+    * something the caller did not name), not a script failure. The plugin relays entries with
+    * this prefix as notes instead of wrapping them in its script-failure sentence, as it does
+    * for {@link FilterEffectGuard#PREFIX}.
+    */
+   static final String PROPERTY_NOTE_PREFIX = "Property note: ";
 
    private static final String TREND_LINE_MEASURES_PATH = "chartLinePaneModel.trendLineMeasures";
    private static final String CHART_MEASURES_PATH = "chartLinePaneModel.measures";
@@ -1079,8 +1109,8 @@ public class AssemblyPropertyService {
              path.equals(CROSSTAB_DATE_COMPARISON_ENABLED_PATH)) &&
             Boolean.FALSE.equals(PropertyPath.get(model, path)))
          {
-            return "dateComparisonEnabled=false also discards the date comparison stored on " +
-               "this assembly. Turning it back on does not restore it; set it again with " +
+            return PROPERTY_NOTE_PREFIX + "dateComparisonEnabled=false also discards the date " +
+               "comparison stored on this assembly. Turning it back on does not restore it; set it again with " +
                "set_date_comparison.";
          }
       }
