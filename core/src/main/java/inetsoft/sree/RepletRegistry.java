@@ -907,7 +907,7 @@ public class RepletRegistry implements Serializable {
          writer.print("<Replet name=\"" + Tool.escape(folder) + "\"" +
                          (alias == null ? "" : " alias=\"" + Tool.escape(alias) + "\"") +
                          " orgID=\"" + orgID + "\" folder=\"true\"" +
-                         " favoritesUser=\"" + getFolderFavoritesUser(Tool.escape(folder)) + "\"" + ">");
+                         " favoritesUser=\"" + Tool.escape(getFolderFavoritesUser(folder)) + "\"" + ">");
 
          if(getFolderDescription(folder) != null) {
             writer.print("<![CDATA[" + getFolderDescription(folder) + "]]>");

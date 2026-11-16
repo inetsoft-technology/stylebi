@@ -63,6 +63,19 @@ class CoreToolTemporalDataTest {
    }
 
    @Test
+   void dateDataFromDateWithTimeIsTruncatedToMidnight() {
+      java.util.Calendar cal = java.util.Calendar.getInstance();
+      cal.clear();
+      cal.set(2025, java.util.Calendar.FEBRUARY, 20, 15, 30, 45);
+      cal.set(java.util.Calendar.MILLISECOND, 678);
+      java.sql.Date result = CoreTool.getDateData(cal.getTime());
+
+      cal.clear();
+      cal.set(2025, java.util.Calendar.FEBRUARY, 20, 0, 0, 0);
+      assertEquals(cal.getTimeInMillis(), result.getTime());
+   }
+
+   @Test
    void existingTypesUnchanged() {
       Timestamp ts = new Timestamp(1000L);
       assertSame(ts, CoreTool.getTimeInstantData(ts));

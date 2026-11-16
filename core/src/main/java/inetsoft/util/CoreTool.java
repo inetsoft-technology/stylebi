@@ -2166,6 +2166,7 @@ public class CoreTool {
          date.setHours(0);
          date.setMinutes(0);
          date.setSeconds(0);
+         date.setTime(date.getTime() - Math.floorMod(date.getTime(), 1000L));
          return new java.sql.Date(date.getTime());
       }
       else if(val instanceof Number) {

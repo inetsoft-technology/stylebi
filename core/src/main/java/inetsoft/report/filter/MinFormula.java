@@ -412,7 +412,7 @@ public class MinFormula implements PercentageFormula {
    short smin = Short.MAX_VALUE;
    boolean sflag = false;
 
-   private boolean parseNum = "true".equals(SreeEnv.getProperty("formula.min.number", "true"));
+   private boolean parseNum = "true".equals(SreeEnv.getProperty("formula.parse.number", "true"));
    private short percentageType = (short) StyleConstants.PERCENTAGE_NONE;
    private Object total = null;
    private Comparer comp = null;

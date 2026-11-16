@@ -202,18 +202,16 @@ class CSVInfoDetectionTest {
       assertTrue(guess("a,b", "1,2").isFirstRowAsHeader());
    }
 
-   // with the quote handling off the first row is split with String.split, which reads the
-   // delimiter as a regular expression: '|' matches the empty string, the row is cut into single
-   // characters and a digit in it is a cell of only digits. The same rows with ',' have a header.
-   // Pins the current behavior, reported as Bug #81220.
+   // with the quote handling off the first row is cut with the delimiter as a plain string, so
+   // a '|' delimiter gives the same header answer as ',' (Bug #81220).
    @Test
-   void firstRowOfAPipeFileWithoutQuoteHandlingIsCutIntoCharacters() {
+   void firstRowOfAPipeFileWithoutQuoteHandlingIsCutWithLiteralDelimiter() {
       CSVInfo pipe = guess("\"a|b\"|c1", "\"d|e\"|f2");
       CSVInfo comma = guess("\"a,b\",c1", "\"d,e\",f2");
 
       assertEquals('|', pipe.getDelimiter());
       assertFalse(pipe.isRemoveQuotationMark());
-      assertFalse(pipe.isFirstRowAsHeader());
+      assertTrue(pipe.isFirstRowAsHeader());
       assertEquals(',', comma.getDelimiter());
       assertFalse(comma.isRemoveQuotationMark());
       assertTrue(comma.isFirstRowAsHeader());

@@ -526,6 +526,7 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
 
          synchronized(params) {
             req.params = new ConcurrentHashMap<>(params);
+            req.dateTimeList = new Vector<>(dateTimeList);
          }
 
          if(hints != null) {

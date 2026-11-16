@@ -104,7 +104,7 @@ public class FormulaFunctions {
       }
       else {
          isArray = JavaScriptEngine.isArray(arrObj);
-         arr = isArray ? JavaScriptEngine.split(arrObj) : new Object[] {arrObj};
+         arr = isArray ? JavaScriptEngine.split(arrObj).clone() : new Object[] {arrObj};
          // @see comment in mapList
          // arr = (isArray || arrObj == null) ? JavaScriptEngine.split(arrObj) :
          //   new Object[] {arrObj};
@@ -344,11 +344,12 @@ public class FormulaFunctions {
       if(arr1 == null && arr2 == null) {
          return new Object[0];
       }
-      else if(arr1 == null) {
-         return arr2;
+      if(arr1 == null) {
+         arr1 = new Object[0];
       }
-      else if(arr2 == null) {
-         return arr1;
+
+      if(arr2 == null) {
+         arr2 = new Object[0];
       }
 
       List list = new ArrayList();
@@ -806,7 +807,7 @@ public class FormulaFunctions {
          // create a zero length array, it will cause the value be ignored,
          // function toArray, toList also have problem
          // fix bug1285489437478
-         arr = isArray ? JavaScriptEngine.split(arrObj) : new Object[] {arrObj};
+         arr = isArray ? JavaScriptEngine.split(arrObj).clone() : new Object[] {arrObj};
          // arr = (isArray || arrObj == null) ? JavaScriptEngine.split(arrObj) :
          //    new Object[] {arrObj};
       }
@@ -944,7 +945,8 @@ public class FormulaFunctions {
       }
       // not sort by value but exist ranking n
       else if(opt.getOption("maxrows", null) != null &&
-         opt.getString("manualvalues", null) == null)
+         opt.getString("manualvalues", null) == null &&
+         (opt.getString("sorton", null) == null || opt.getOption("sort2", null) != null))
       {
          sortList(arr, opt, null, true);
       }

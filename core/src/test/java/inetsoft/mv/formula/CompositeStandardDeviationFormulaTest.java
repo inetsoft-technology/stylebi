@@ -78,4 +78,12 @@ class CompositeStandardDeviationFormulaTest {
    void testGetResultType() {
       assertEquals(Double.class, formula.getResultType());
    }
+
+   // Bug #80342: a single value gives 0 (not NaN) in every accessor
+   @Test
+   void testSingleValueIsZero() {
+      formula.addValue(new double[]{1, 25, 5});
+      assertEquals(0.0, ((Number) formula.getResult()).doubleValue());
+      assertEquals(0.0, formula.getDoubleResult());
+   }
 }

@@ -466,14 +466,12 @@ class VSTableConverterTest {
 
    // the converted cell name of a dimension is the same as the name a freehand cell gets by
    // default (TableCellBinding.getValidName)
-   @Disabled("Bug #81255: TopN/Others cell name keeps characters invalid in a script identifier")
    @Test
    void dimensionNameWithHyphenGetsTheDefaultCellName() {
       TableLayout layout = convert(new String[] { "Sales-Region" }, new String[0], null);
       assertEquals("Sales_Region", groupBinding(layout, "Sales-Region").getCellName());
    }
 
-   @Disabled("Bug #81255: TopN/Others cell name keeps characters invalid in a script identifier")
    @ParameterizedTest(name = "dimension named [{0}] gets the default cell name")
    @ValueSource(strings = { "a/b", "a&b", "Qty(x)", "a\"b", "a,b" })
    void dimensionNameWithSpecialCharacterGetsTheDefaultCellName(String name) {
