@@ -4428,6 +4428,94 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(idRef.isVisible(), "the join key must remain visible after the refusal");
    }
 
+   private static boolean visible(TableAssembly t, String col) {
+      return ((ColumnRef) t.getColumnSelection(false).getAttribute(col)).isVisible();
+   }
+
+   @Test
+   void setColumnVisibilityRefusesHidingTheLastVisibleColumnOfAnEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "E", "id", "name", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("E", "id", false));
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("E", "name", false));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setColumnVisibility("E", "val", false)));
+      assertTrue(ex.getMessage().toLowerCase().contains("at least one visible column"),
+         ex.getMessage());
+      assertTrue(visible(t, "val"));
+
+      // confirmed must not bypass the rule
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setColumnVisibility("E", "val", false, true)));
+      assertTrue(visible(t, "val"));
+
+      // re-hiding an already hidden column and showing are never refusals
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("E", "id", false));
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("E", "id", true));
+      assertTrue(visible(t, "id"));
+      assertFalse(visible(t, "name"));
+   }
+
+   @Test
+   void setColumnVisibilityRefusesHidingTheLastVisibleColumnOfASnapshotEmbeddedTable()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t =
+         TestWorksheets.snapshotTableWithColumns(ws, "S", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("S", "a", false));
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setColumnVisibility("S", "b", false)));
+      assertTrue(visible(t, "b"));
+   }
+
+   @Test
+   void setColumnVisibilityRefusesHidingTheLastVisibleColumnOfAMirrorAndKeepsOthersHidden()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "E", "id", "name", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "E"));
+      MirrorTableAssembly m = (MirrorTableAssembly) ws.getAssembly("M");
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("M", "id", false));
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("M", "name", false));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setColumnVisibility("M", "val", false)));
+      assertTrue(ex.getMessage().toLowerCase().contains("at least one visible column"),
+         ex.getMessage());
+      assertTrue(visible(m, "val"));
+      assertFalse(visible(m, "id"), "id must stay hidden after the refused hide");
+      assertFalse(visible(m, "name"), "name must stay hidden after the refused hide");
+   }
+
+   @Test
+   void setColumnVisibilityStillHidesTheOnlyColumnOfOtherTableTypes() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "B", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("B", "a", false));
+
+      assertFalse(visible(t, "a"));
+   }
+
    @Test
    void renameColumnRefusesRenamingAJoinKeyStillUsedByADependentJoin() throws Exception {
       Worksheet ws = new Worksheet();
