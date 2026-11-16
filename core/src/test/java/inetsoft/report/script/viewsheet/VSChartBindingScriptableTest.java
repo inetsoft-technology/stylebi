@@ -665,7 +665,7 @@ public class VSChartBindingScriptableTest {
       vsChartBindingScriptable.setLineFrame(staticLineFrame);
       assertEquals(staticLineFrame, vsChartBindingScriptable.getLineFrame());
    }
- 
+
    /** Binds an aggregate field and returns the name the field is addressed by in scripts. */
    private String bindAggregateField(String name) {
       chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);

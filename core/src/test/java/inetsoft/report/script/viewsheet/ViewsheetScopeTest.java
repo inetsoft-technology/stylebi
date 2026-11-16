@@ -473,7 +473,7 @@ public class ViewsheetScopeTest {
 
    @Test
    void refreshDataSetsTouchTimestampToNow() throws Exception {
-      Thread.sleep(2);
+      awaitClockTick();
       long t0 = System.currentTimeMillis();
       viewsheetScope.refreshData();
       assertTrue(sandbox.getTouchTimestamp() >= t0);
@@ -498,6 +498,18 @@ public class ViewsheetScopeTest {
       viewsheetScope.addImage("n", null);
       viewsheetScope.addImage("s", "not an image");
       assertEquals(count, sandbox.getViewsheet().getUploadedImageNames().length);
+   }
+
+   /**
+    * Spins until the millisecond clock has advanced, so timestamps taken before and after
+    * this call are strictly ordered even on coarse-clock runners.
+    */
+   private static void awaitClockTick() {
+      long start = System.currentTimeMillis();
+
+      while(System.currentTimeMillis() <= start) {
+         Thread.onSpinWait();
+      }
    }
 
    private boolean isHiddenAndScriptControlled(String name) {
@@ -533,11 +545,11 @@ public class ViewsheetScopeTest {
    void isCancelledFollowsSandboxCancelAndResetStartTime() throws Exception {
       assertFalse(viewsheetScope.isCancelled());
 
-      Thread.sleep(2);
+      awaitClockTick();
       sandbox.cancel();
       assertTrue(viewsheetScope.isCancelled());
 
-      Thread.sleep(2);
+      awaitClockTick();
       viewsheetScope.resetStartTime();
       assertFalse(viewsheetScope.isCancelled());
    }

@@ -722,9 +722,9 @@ class JavaScriptEngineTest {
    }
 
    @ParameterizedTest
-   @ValueSource(strings = { "a \t\n", "a", "" })
-   void rtrimRemovesTrailingWhitespaceOnly(String in) {
-      assertEquals("a".equals(in.trim()) ? "a" : "", JavaScriptEngine.rtrim(in));
+   @CsvSource(value = { "'a \t\n',a", "a,a", "'',''" })
+   void rtrimRemovesTrailingWhitespaceOnly(String in, String expected) {
+      assertEquals(expected, JavaScriptEngine.rtrim(in));
       // same whitespace set as trim() when the input has no leading whitespace
       assertEquals(JavaScriptEngine.trim(in), JavaScriptEngine.rtrim(in));
    }
