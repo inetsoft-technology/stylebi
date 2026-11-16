@@ -212,7 +212,9 @@ public class ChartRegionPropertyService {
       if(time) {
          out.put("note", "This is a time (date) axis. minimum/maximum are listed as epoch " +
             "milliseconds with the date they mean, and are set as an ISO date or date-time " +
-            "(or epoch milliseconds). increment is a number of the axis's date periods. " +
+            "(or epoch milliseconds). increment is a number of the axis's date periods (a larger " +
+            "increment gives fewer labels); the period unit itself is not an axis property and can " +
+            "only be set from the chart's script. " +
             "logarithmicScale, reverse, shared and minorIncrement do not apply." +
             (primary == null ? "" : " This Gantt draws the axis from the settings of '" +
                primary + "' (the minimum/maximum listed here are that field's); set the axis " +
