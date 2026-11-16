@@ -722,7 +722,37 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     */
    public Worksheet getWorksheet() {
       MVContainer container = getContainer();
-      return container == null ? null : container.ws;
+
+      if(container == null) {
+         return null;
+      }
+
+      Worksheet ws = container.ws;
+
+      if(ws == null) {
+         ws = reloadWorksheet(container);
+      }
+
+      return ws;
+   }
+
+   /**
+    * Reload the worksheet of a registered MV from the storage it was persisted to, after it was
+    * cleared from the container (persistAndClearWorksheet). The analysis of a viewsheet that
+    * shares a registered MV returns that registered definition, so its container is cleared
+    * too. The worksheet is kept in the container once reloaded.
+    */
+   private synchronized Worksheet reloadWorksheet(MVContainer container) {
+      if(container.ws == null && MVManager.getManager().containsMV(this)) {
+         try {
+            container.ws = parseWorksheet();
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to reload the MV worksheet: {}", mvname, ex);
+         }
+      }
+
+      return container.ws;
    }
 
    /**
@@ -839,6 +869,51 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
 
    public MVMetaData getMetaData() {
       return data;
+   }
+
+   /**
+    * Check if an expression column of the table this MV was built from has been edited in the
+    * specified worksheet since the MV was built. Returns false if it can't be told.
+    *
+    * @param ws the current worksheet holding the bound table.
+    */
+   public boolean isExpressionChanged(Worksheet ws) {
+      TableAssembly table = getBoundTable(ws);
+      return table != null && isExpressionChanged(table.getColumnSelection(true));
+   }
+
+   /**
+    * Check if an expression column of the table this MV was built from has a different
+    * expression in the specified column selection than when the MV was built. The columns
+    * stored in the MV metadata are those of the (mirror) table the MV was built on, which hold
+    * a plain attribute for an expression column, so the expression is read from the worksheet
+    * the MV was built from. Returns false if it can't be told.
+    *
+    * @param current the current column selection of the table this MV was built from.
+    */
+   public boolean isExpressionChanged(ColumnSelection current) {
+      TableAssembly table = getBoundTable(getWorksheet());
+      return table != null &&
+         MVMetaData.isExpressionChanged(table.getColumnSelection(true), current);
+   }
+
+   /**
+    * Get the bound table, the table the viewsheet's table is based on, from a worksheet. The
+    * viewsheet moves the bound table under a mirror table of the same name (named with the
+    * outer table suffix), the expression columns are in the table under the mirror.
+    */
+   private TableAssembly getBoundTable(Worksheet ws) {
+      Assembly table = ws == null || otname == null ? null : ws.getAssembly(otname);
+
+      if(table instanceof MirrorTableAssembly) {
+         String inner = ((MirrorTableAssembly) table).getAssemblyName();
+
+         if(inner != null && inner.equals(otname + Viewsheet.OUTER_TABLE_SUFFIX)) {
+            table = ws.getAssembly(inner);
+         }
+      }
+
+      return table instanceof TableAssembly ? (TableAssembly) table : null;
    }
 
    /**

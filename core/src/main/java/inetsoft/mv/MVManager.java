@@ -161,6 +161,13 @@ public final class MVManager implements MessageListener {
          mv = null;
       }
 
+      // the data of an expression column was computed by the expression at build time, don't
+      // use the mv once the expression is edited. the mv is replaced (re-analysis or on-demand
+      // creation), it's not removed here as this is on the query path.
+      if(mv != null && vs != null && mv.isExpressionChanged(vs.getBaseWorksheet())) {
+         mv = null;
+      }
+
       MVDef smv = mv != null ? null : getSubMV(entry, tname, user, vbox.getParentVsIds());
 
       if(mv != null && !mv.isSuccess()) {

@@ -455,8 +455,14 @@ public abstract class AssetQuery extends PreAssetQuery {
          if(sub instanceof BoundTableAssembly) {
             // the mv holds the data for the default values of the variables
             if(sub.getRuntimeMV() == null && !isVariableDependent(sub, new HashSet<>())) {
+               String wsTable = getWSTableName(sub);
                RuntimeMV rmv = MVManager.getManager().findRuntimeMV(
-                  wsEntry, null, null, getWSTableName(sub), user, null, true, true);
+                  wsEntry, null, null, wsTable, user, null, true, true);
+
+               // the mv holds the data computed by the expression columns when it was built
+               if(rmv != null && isWSMVExpressionChanged(wsEntry, wsTable, user, sub)) {
+                  rmv = null;
+               }
 
                if(rmv != null) {
                   mvs.put(sub.getName(), rmv);
@@ -467,6 +473,17 @@ public abstract class AssetQuery extends PreAssetQuery {
             findWSRuntimeMV((ComposedTableAssembly) sub, wsEntry, user, mvs, visited);
          }
       }
+   }
+
+   /**
+    * Check if an expression column of the bound table has been edited since its worksheet mv
+    * was built.
+    */
+   private static boolean isWSMVExpressionChanged(AssetEntry wsEntry, String wsTable,
+                                                  XPrincipal user, TableAssembly table)
+   {
+      MVDef def = MVManager.getManager().findMV(wsEntry, wsTable, user, null);
+      return def != null && def.isExpressionChanged(table.getColumnSelection(true));
    }
 
    /**
