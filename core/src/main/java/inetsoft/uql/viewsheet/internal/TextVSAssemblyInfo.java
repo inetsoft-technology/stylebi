@@ -149,7 +149,7 @@ public class TextVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
          }
 
          if(popLocationValue != null) {
-            info.popLocationValue = popLocationValue;
+            info.popLocationValue = (DynamicValue) popLocationValue.clone();
          }
 
          if(popComponentValue != null) {
