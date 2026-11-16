@@ -46,10 +46,10 @@ public class TableStyleHelper extends ReportHelper {
          new DefaultTableLens(1, 1) :
          (TableLens) param);
 
-      style.setID(Tool.byteDecode(Tool.getAttribute(tag, "id")));
-      style.setName(Tool.byteDecode(Tool.getAttribute(tag, "name")));
-      style.setCreatedBy(Tool.getAttribute(tag, "createdBy"));
-      style.setLastModifiedBy(Tool.getAttribute(tag, "modifiedBy"));
+      style.setID(XTableStyle.decodeAttribute(Tool.getAttribute(tag, "id")));
+      style.setName(XTableStyle.decodeAttribute(Tool.getAttribute(tag, "name")));
+      style.setCreatedBy(XTableStyle.decodeAttribute(Tool.getAttribute(tag, "createdBy")));
+      style.setLastModifiedBy(XTableStyle.decodeAttribute(Tool.getAttribute(tag, "modifiedBy")));
       String attrVal = Tool.getAttribute(tag, "created");
 
       if(attrVal != null) {
