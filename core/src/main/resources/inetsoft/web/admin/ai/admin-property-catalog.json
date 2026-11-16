@@ -2818,7 +2818,7 @@
     "type": "int",
     "description": "report.log.count is the BackUp Log File Count field (Enterprise Manager's catalog resolves the label to Number of backup log files) on Enterprise Manager's Settings > Logging page \u2014 how many rolled-over copies of the server log file StyleBI keeps once the active file reaches report.log.max, defaulting to 2.",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "report.log.max",
@@ -2826,7 +2826,7 @@
     "type": "int",
     "description": "report.log.max is the Max Log File Size field (Enterprise Manager's catalog resolves the label to Maximum log file size) on Enterprise Manager's Settings > Logging page \u2014 the size, in kilobytes, at which StyleBI rolls the server log file over to a new one, defaulting to 10240 (10 MB).",
     "risk": "high",
-    "snapshotScope": "storage"
+    "snapshotScope": "value"
   },
   {
     "name": "report.output.maxpages",
