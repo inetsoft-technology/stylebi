@@ -1137,12 +1137,13 @@ public class TableBindingService {
                List<SetTableHeaderAliasHandler.HeaderCell> cells = new ArrayList<>();
 
                if(aggregate) {
-                  cells.addAll(
-                     SetTableHeaderAliasHandler.findHeaderCells(lens, ref, target.index()));
+                  cells.addAll(SetTableHeaderAliasHandler.findHeaderCells(
+                     lens, ref, target.index(),
+                     headerOccurrence(crossInfo, target.shelf(), target.index())));
                }
                else {
                   SetTableHeaderAliasHandler.HeaderCell first =
-                     SetTableHeaderAliasHandler.findHeaderCell(lens, ref, target.index());
+                     SetTableHeaderAliasHandler.findHeaderCell(lens, ref, target.index(), 0);
 
                   if(first != null) {
                      cells.add(first);
@@ -2111,6 +2112,7 @@ public class TableBindingService {
       List<String> errors = new ArrayList<>();
       List<DataRef> clearRefs = new ArrayList<>();
       List<Integer> clearIdx = new ArrayList<>();
+      List<TableDataPath> clearPaths = new ArrayList<>();
       List<TableDataPath> setPaths = new ArrayList<>();
       List<String> setLabels = new ArrayList<>();
 
@@ -2138,7 +2140,11 @@ public class TableBindingService {
             continue;
          }
 
-         if(target.label().isEmpty()) {
+         // An empty label clears the alias. Clearing by name reaches every measure of that name,
+         // so a measure sharing its name with another is cleared at its own resolved paths.
+         boolean clearing = target.label().isEmpty();
+
+         if(clearing && !sharesAggregateName(crossInfo, target.shelf(), ref)) {
             clearRefs.add(ref);
             clearIdx.add(target.index());
             continue;
@@ -2157,7 +2163,9 @@ public class TableBindingService {
          List<TableDataPath> paths;
 
          if("aggregates".equals(target.shelf())) {
-            paths = SetTableHeaderAliasHandler.findHeaderPaths(lens, ref, target.index());
+            paths = SetTableHeaderAliasHandler.findHeaderPaths(
+               lens, ref, target.index(),
+               headerOccurrence(crossInfo, target.shelf(), target.index()));
 
             if(!paths.isEmpty()) {
                paths = SetTableHeaderAliasHandler.withUnrenderedLevels(
@@ -2166,7 +2174,7 @@ public class TableBindingService {
          }
          else {
             TableDataPath path =
-               SetTableHeaderAliasHandler.findHeaderPath(lens, ref, target.index());
+               SetTableHeaderAliasHandler.findHeaderPath(lens, ref, target.index(), 0);
             paths = path == null ? List.of() : List.of(path);
          }
 
@@ -2175,6 +2183,11 @@ public class TableBindingService {
                "Could not find '" + target.shelf() + "[" + target.index() + "]' on the " +
                "rendered header of '" + crosstab.getAbsoluteName() + "' -- it may not currently " +
                "render (suppressed, filtered out, or hidden by the crosstab's current shape).");
+            continue;
+         }
+
+         if(clearing) {
+            clearPaths.addAll(paths);
             continue;
          }
 
@@ -2191,6 +2204,8 @@ public class TableBindingService {
       for(int i = 0; i < clearRefs.size(); i++) {
          ClearTableHeaderAliasHandler.clearAlias(clearRefs.get(i), formatInfo, clearIdx.get(i));
       }
+
+      ClearTableHeaderAliasHandler.clearAliasAt(clearPaths, formatInfo);
 
       for(int i = 0; i < setPaths.size(); i++) {
          SetTableHeaderAliasHandler.setAliasWithHeaderDuality(
@@ -2239,16 +2254,43 @@ public class TableBindingService {
             DataRef[] cols = crossInfo.getColHeaders();
             return index >= 0 && index < cols.length ? cols[index] : null;
          default:
-            List<DataRef> aggregates = new ArrayList<>();
-
-            for(DataRef agg : crossInfo.getAggregates()) {
-               if(!VSUtil.isFake(agg)) {
-                  aggregates.add(agg);
-               }
-            }
-
+            List<DataRef> aggregates = liveAggregates(crossInfo);
             return index >= 0 && index < aggregates.size() ? aggregates.get(index) : null;
       }
+   }
+
+   private static List<DataRef> liveAggregates(VSCrosstabInfo crossInfo) {
+      List<DataRef> aggregates = new ArrayList<>();
+
+      for(DataRef agg : crossInfo.getAggregates()) {
+         if(!VSUtil.isFake(agg)) {
+            aggregates.add(agg);
+         }
+      }
+
+      return aggregates;
+   }
+
+   private static boolean sharesAggregateName(VSCrosstabInfo crossInfo, String shelf, DataRef ref)
+   {
+      if(!"aggregates".equals(shelf) || !(ref instanceof VSAggregateRef aggregate)) {
+         return false;
+      }
+
+      return liveAggregates(crossInfo).stream()
+         .filter(other -> other instanceof VSAggregateRef o &&
+                 Objects.equals(o.getFullName(), aggregate.getFullName()))
+         .count() > 1;
+   }
+
+   /**
+    * Which of the same-named measures {@code shelf[index]} is, for locating its rendered header:
+    * two measures on one column with one formula render under one name and the lens numbers the
+    * later ones. {@code 0} for a dimension, which is addressed by position.
+    */
+   private static int headerOccurrence(VSCrosstabInfo crossInfo, String shelf, int index) {
+      return "aggregates".equals(shelf)
+         ? SetTableHeaderAliasHandler.occurrence(liveAggregates(crossInfo), index) : 0;
    }
 
    /**
@@ -2700,12 +2742,23 @@ public class TableBindingService {
 
             if(Objects.equals(column, val == null ? null : val.toString()) &&
                !matches.contains(col) &&
-               (headerPaths == null || headerPaths.contains(lastPathSegment(lens, row, col))))
+               (headerPaths == null ||
+                isAggregateHeader(headerPaths, lastPathSegment(lens, row, col))))
             {
                matches.add(col);
             }
          }
       }
+   }
+
+   /**
+    * Whether a header path segment renders one of {@code aggregateNames}: the name itself, or
+    * the name the lens suffixes ({@code "Sum(X).1"}) on a second measure of the same column and
+    * formula. Without the suffixed form, that second measure's label cell is not recognized.
+    */
+   private static boolean isAggregateHeader(Set<String> aggregateNames, String segment) {
+      return segment != null && aggregateNames.stream()
+         .anyMatch(name -> ClearTableHeaderAliasHandler.isAggregateSegment(name, segment));
    }
 
    private static String lastPathSegment(VSTableLens lens, int row, int col) {
@@ -2974,12 +3027,15 @@ public class TableBindingService {
                boolean aggregate = "aggregates".equals(shelf);
                List<SetTableHeaderAliasHandler.HeaderCell> cells = new ArrayList<>();
 
+               int occurrence = headerOccurrence(crossInfo, shelf, i);
+
                if(aggregate) {
-                  cells.addAll(SetTableHeaderAliasHandler.findHeaderCells(lens, ref, i));
+                  cells.addAll(
+                     SetTableHeaderAliasHandler.findHeaderCells(lens, ref, i, occurrence));
                }
                else {
                   SetTableHeaderAliasHandler.HeaderCell first =
-                     SetTableHeaderAliasHandler.findHeaderCell(lens, ref, i);
+                     SetTableHeaderAliasHandler.findHeaderCell(lens, ref, i, occurrence);
 
                   if(first != null) {
                      cells.add(first);
@@ -2999,7 +3055,8 @@ public class TableBindingService {
 
                if(aggregate) {
                   String coverage = labelCoverageNote(
-                     formatInfo, SetTableHeaderAliasHandler.findHeaderPaths(lens, ref, i),
+                     formatInfo,
+                     SetTableHeaderAliasHandler.findHeaderPaths(lens, ref, i, occurrence),
                      ref instanceof VSAggregateRef agg ? agg.getFullName() : field.column());
 
                   if(coverage != null) {

@@ -111,8 +111,8 @@ class SetTableHeaderAliasHandlerTest {
 
       VSDimensionRef dimension = new VSDimensionRef();
 
-      assertSame(col1, SetTableHeaderAliasHandler.findHeaderPath(lens, dimension, 1));
-      assertSame(col0, SetTableHeaderAliasHandler.findHeaderPath(lens, dimension, 0));
+      assertSame(col1, SetTableHeaderAliasHandler.findHeaderPath(lens, dimension, 1, 0));
+      assertSame(col0, SetTableHeaderAliasHandler.findHeaderPath(lens, dimension, 0, 0));
    }
 
    /**
@@ -137,14 +137,14 @@ class SetTableHeaderAliasHandlerTest {
       VSDimensionRef dimension = new VSDimensionRef();
 
       SetTableHeaderAliasHandler.HeaderCell cell1 =
-         SetTableHeaderAliasHandler.findHeaderCell(lens, dimension, 1);
+         SetTableHeaderAliasHandler.findHeaderCell(lens, dimension, 1, 0);
       assertNotNull(cell1);
       assertSame(col1, cell1.path());
       assertEquals(0, cell1.row());
       assertEquals(1, cell1.col());
 
       SetTableHeaderAliasHandler.HeaderCell cell0 =
-         SetTableHeaderAliasHandler.findHeaderCell(lens, dimension, 0);
+         SetTableHeaderAliasHandler.findHeaderCell(lens, dimension, 0, 0);
       assertNotNull(cell0);
       assertSame(col0, cell0.path());
       assertEquals(0, cell0.row());
@@ -162,7 +162,7 @@ class SetTableHeaderAliasHandlerTest {
 
       VSDimensionRef dimension = new VSDimensionRef();
 
-      assertNull(SetTableHeaderAliasHandler.findHeaderCell(lens, dimension, 5));
+      assertNull(SetTableHeaderAliasHandler.findHeaderCell(lens, dimension, 5, 0));
    }
 
    @Test
@@ -176,7 +176,7 @@ class SetTableHeaderAliasHandlerTest {
 
       VSDimensionRef dimension = new VSDimensionRef();
 
-      assertNull(SetTableHeaderAliasHandler.findHeaderPath(lens, dimension, 5));
+      assertNull(SetTableHeaderAliasHandler.findHeaderPath(lens, dimension, 5, 0));
    }
 
    /**
@@ -212,7 +212,7 @@ class SetTableHeaderAliasHandlerTest {
       VSAggregateRef aggregate = mock(VSAggregateRef.class);
       when(aggregate.getFullName()).thenReturn("Sum(PAID)");
 
-      assertSame(aggHeader, SetTableHeaderAliasHandler.findHeaderPath(lens, aggregate, 0));
+      assertSame(aggHeader, SetTableHeaderAliasHandler.findHeaderPath(lens, aggregate, 0, 0));
    }
 
    /**
@@ -228,12 +228,12 @@ class SetTableHeaderAliasHandlerTest {
          headerPath("ROW_GRAND_TOTAL", "Sum(REV)"));
 
       List<TableDataPath> paths = SetTableHeaderAliasHandler.findHeaderPaths(
-         lens, aggregate("Sum(REV)"), 0);
+         lens, aggregate("Sum(REV)"), 0, 0);
 
       assertEquals(List.of(headerPath("Year", "Quarter", "Sum(REV)"),
                            headerPath("Year", "Sum(REV)"),
                            headerPath("ROW_GRAND_TOTAL", "Sum(REV)")), paths);
-      assertEquals(SetTableHeaderAliasHandler.findHeaderPath(lens, aggregate("Sum(REV)"), 0),
+      assertEquals(SetTableHeaderAliasHandler.findHeaderPath(lens, aggregate("Sum(REV)"), 0, 0),
                    paths.get(0), "element 0 is findHeaderPath's own result");
    }
 
@@ -242,7 +242,7 @@ class SetTableHeaderAliasHandlerTest {
       VSTableLens lens = stackedLens(headerPath("Year", "Count(ID)"));
 
       assertTrue(SetTableHeaderAliasHandler.findHeaderPaths(
-         lens, aggregate("Sum(REV)"), 0).isEmpty());
+         lens, aggregate("Sum(REV)"), 0, 0).isEmpty());
    }
 
    /** Only the detail level renders: the subtotal and grand-total levels are synthesized. */
