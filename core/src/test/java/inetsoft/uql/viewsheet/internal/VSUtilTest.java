@@ -21,6 +21,11 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.report.composition.graph.calc.RunningTotalCalc;
 import inetsoft.report.composition.graph.calc.RunningTotalColumn;
 import inetsoft.test.*;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -29,7 +34,10 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 // Bug #76797
 @ExtendWith(SpringExtension.class)
@@ -88,5 +96,88 @@ public class VSUtilTest {
 
       assertEquals(AbstractCalc.COLUMN_INNER, calc.getBreakBy());
       assertEquals(RunningTotalColumn.YEAR, calc.getResetLevel());
+   }
+
+   private static AggregateRef agg(String column, AggregateFormula formula) {
+      return new AggregateRef(new ColumnRef(new AttributeRef(null, column)), formula);
+   }
+
+   // Bug #81202: the rewrite must find the text the way addUsedAggregateRef matched it
+   @Test
+   void createAOAExpressionRewritesNameInOtherCase() {
+      Viewsheet vs1 = new Viewsheet();
+      List<AggregateRef> aggs = new ArrayList<>();
+      aggs.add(agg("a", AggregateFormula.COUNT_ALL));
+      List<String> names = new ArrayList<>();
+      names.add("field['Count([a])']");
+
+      String proper = VSUtil.createAOAExpression(aggs, "field['Count([a])'] * 1", names, vs1);
+      String lower = VSUtil.createAOAExpression(aggs, "field['count([A])'] * 1", names, vs1);
+      String upper = VSUtil.createAOAExpression(aggs, "field['COUNT([A])'] * 1", names, vs1);
+
+      assertNotEquals("field['Count([a])'] * 1", proper);
+      assertEquals(proper, lower);
+      assertEquals(proper, upper);
+   }
+
+   @Test
+   void createAOAExpressionMatchesSharpSWrittenAsSS() {
+      Viewsheet vs = new Viewsheet();
+      List<AggregateRef> aggs = new ArrayList<>();
+      aggs.add(agg("straße", AggregateFormula.COUNT_ALL));
+      List<String> names = new ArrayList<>();
+      names.add("field['Count([straße])']");
+
+      String proper = VSUtil.createAOAExpression(
+         aggs, "field['Count([straße])'] + 1", names, vs);
+      String ss = VSUtil.createAOAExpression(aggs, "field['Count([STRASSE])'] + 1", names, vs);
+
+      assertNotEquals("field['Count([straße])'] + 1", proper);
+      assertEquals(proper, ss);
+   }
+
+   // columns a and A, both counted: each spelling is rewritten with its own aggregate
+   @Test
+   void createAOAExpressionKeepsColumnsThatDifferOnlyByCaseApart() {
+      Viewsheet vs = new Viewsheet();
+      List<AggregateRef> aggs = new ArrayList<>();
+      aggs.add(agg("a", AggregateFormula.COUNT_ALL));
+      aggs.add(agg("A", AggregateFormula.COUNT_ALL));
+      List<String> names = new ArrayList<>();
+      names.add("field['Count([a])']");
+      names.add("field['Count([A])']");
+
+      String both = VSUtil.createAOAExpression(
+         aggs, "field['Count([A])'] + field['Count([a])']", names, vs);
+      String onlyA = VSUtil.createAOAExpression(
+         aggs.subList(1, 2), "field['Count([A])']", names.subList(1, 2), vs);
+      String onlyLowerA = VSUtil.createAOAExpression(
+         aggs.subList(0, 1), "field['Count([a])']", names.subList(0, 1), vs);
+
+      assertNotEquals(onlyA, onlyLowerA);
+      assertEquals(onlyA + " + " + onlyLowerA, both);
+   }
+
+   // a spelling that is not the exact name of any aggregate falls back to the other case
+   @Test
+   void createAOAExpressionExactSpellingWinsOverOtherCase() {
+      Viewsheet vs = new Viewsheet();
+      List<AggregateRef> aggs = new ArrayList<>();
+      aggs.add(agg("a", AggregateFormula.COUNT_ALL));
+      aggs.add(agg("A", AggregateFormula.COUNT_ALL));
+      List<String> names = new ArrayList<>();
+      names.add("field['Count([a])']");
+      names.add("field['Count([A])']");
+
+      String exact = VSUtil.createAOAExpression(
+         aggs, "field['Count([a])'] + field['Count([A])'] + field['COUNT([a])']", names, vs);
+      String onlyA = VSUtil.createAOAExpression(
+         aggs.subList(1, 2), "field['Count([A])']", names.subList(1, 2), vs);
+      String onlyLowerA = VSUtil.createAOAExpression(
+         aggs.subList(0, 1), "field['Count([a])']", names.subList(0, 1), vs);
+
+      // the stray COUNT([a]) is taken by the first of the two that is left over, never by
+      // an exact occurrence of the other one
+      assertTrue(exact.startsWith(onlyLowerA + " + " + onlyA + " + "), exact);
    }
 }

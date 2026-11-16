@@ -762,7 +762,6 @@ class VSCalcFieldQueryTest {
       assertEquals(expected, ((Number) values.get(1)).doubleValue(), 1e-9, label);
    }
 
-   @Disabled("Bug #81202: Aggregate-name mapping: lower-case name wrong value / a b and a_b collide / ß throws")
    @ParameterizedTest(name = "aggregate name in lower case: {0}")
    @MethodSource("aggregateCalcFormulas")
    void aggregateNameInOtherCase_matchesLikeTheNameWrittenByTheDialog(String formula,
@@ -781,5 +780,52 @@ class VSCalcFieldQueryTest {
       List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
                                      aggregate("c1", "None", XSchema.DOUBLE));
       assertCells(expected, values, formula);
+   }
+
+   /** D(city, c1, c2): one group A with the given int rows. */
+   private void initTwoColumns(String c1, String c2, Object[][] rows) throws Exception {
+      Object[][] data = new Object[rows.length + 1][];
+      data[0] = new Object[] { "city", c1, c2 };
+
+      for(int i = 0; i < rows.length; i++) {
+         data[i + 1] = new Object[] { "A", rows[i][0], rows[i][1] };
+      }
+
+      init(new String[] { XSchema.STRING, XSchema.INTEGER, XSchema.INTEGER }, data);
+   }
+
+   @Test
+   @DisplayName("Bug #81202: column names that differ only by a space or an underscore stay separate")
+   void aggregateNames_spaceAndUnderscore() throws Exception {
+      initTwoColumns("a b", "a_b", new Object[][] { { 5, 2 }, { 1, 1 } });
+      addCalc("c1", false, "field['Sum([a b])'] - field['Sum([a_b])']", XSchema.DOUBLE);
+      List<Object> values = crosstab(aggregate("a b", "Sum", XSchema.INTEGER),
+                                     aggregate("a_b", "Sum", XSchema.INTEGER),
+                                     aggregate("c1", "None", XSchema.DOUBLE));
+      // Sum(a b) 6, Sum(a_b) 3
+      assertEquals(Arrays.asList(6.0, 3.0, 3.0), values);
+   }
+
+   @Test
+   @DisplayName("Bug #81202: a sharp-s column name does not throw")
+   void aggregateNames_sharpS() throws Exception {
+      initTwoColumns("straße", "b", new Object[][] { { 1, 1 }, { 2, 1 }, { 3, 1 } });
+      addCalc("c1", false, "field['Sum([straße])'] * 1", XSchema.DOUBLE);
+      List<Object> values = crosstab(aggregate("straße", "Sum", XSchema.INTEGER),
+                                     aggregate("c1", "None", XSchema.DOUBLE));
+      assertEquals(Arrays.asList(6.0, 6.0), values);
+   }
+
+   @Test
+   @DisplayName("Bug #81202: a sharp-s column written in upper case (STRASSE) matches and is rewritten")
+   void aggregateNames_sharpSWrittenAsSS() throws Exception {
+      initTwoColumns("straße", "b", new Object[][] { { 1, 1 }, { 2, 1 }, { 3, 1 } });
+      vs.addAggrField("D", new AggregateRef(new ColumnRef(new AttributeRef(null, "straße")),
+                                            AggregateFormula.COUNT_ALL));
+      addCalc("c1", false, "field['Count([STRASSE])'] * 1", XSchema.DOUBLE);
+      xmlRoundTrip();
+      List<Object> values = crosstab(aggregate("straße", "Sum", XSchema.INTEGER),
+                                     aggregate("c1", "None", XSchema.DOUBLE));
+      assertEquals(Arrays.asList(6.0, 3.0), values);
    }
 }

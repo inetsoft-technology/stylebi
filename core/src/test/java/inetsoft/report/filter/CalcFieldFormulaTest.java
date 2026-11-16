@@ -803,7 +803,6 @@ public class CalcFieldFormulaTest {
       assertTrue(ex.getMessage().contains("Script failed:"), ex.getMessage());
    }
 
-   @Disabled("Bug #81202: Aggregate-name mapping: lower-case name wrong value / a b and a_b collide / ß throws")
    @Test
    @DisplayName("Aggregate names that differ only in space and underscore stay separate")
    void nameCollision_spaceAndUnderscore() {
@@ -816,7 +815,6 @@ public class CalcFieldFormulaTest {
       assertEquals(3.0, asDouble(formula.getResult()), 1e-10);
    }
 
-   @Disabled("Bug #81202: Aggregate-name mapping: lower-case name wrong value / a b and a_b collide / ß throws")
    @Test
    @DisplayName("An aggregate name whose upper case is longer keeps its value")
    void lengthChangingUpperCase() {
@@ -824,6 +822,52 @@ public class CalcFieldFormulaTest {
       CalcFieldFormula formula = calc(name, new String[] { name }, new SumFormula());
       addRows(formula, new Object[] { 4 });
       assertEquals(4.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   @Test
+   @DisplayName("Aggregate names that differ only by case stay separate")
+   void nameCollision_caseOnly() {
+      String lower = "field['Sum([a])']";
+      String upper = "field['Sum([A])']";
+      CalcFieldFormula formula = calc(lower + " - " + upper, new String[] { lower, upper },
+                                      new SumFormula(), new SumFormula());
+      addRows(formula, new Object[] { 5, 2 });
+      assertEquals(3.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   @Test
+   @DisplayName("A name written in another case still finds its aggregate")
+   void nameInOtherCase() {
+      CalcFieldFormula formula = calc("field['SUM([a])'] + field['sum([A])']",
+                                      new String[] { SUM_A }, new SumFormula());
+      addRows(formula, new Object[] { 4 });
+      assertEquals(8.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   @Test
+   @DisplayName("A sharp-s name written as SS finds its aggregate")
+   void sharpSWrittenAsSS() {
+      String name = "field['Sum([straße])']";
+      CalcFieldFormula formula = calc("field['Sum([STRASSE])'] + 1", new String[] { name },
+                                      new SumFormula());
+      addRows(formula, new Object[] { 4 });
+      assertEquals(5.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   @Test
+   @DisplayName("Names that clash after the case and symbol mapping, next to a " +
+      "length-changing name, keep their own values")
+   void severalClashingNames() {
+      String n1 = "field['Sum([a b])']";
+      String n2 = "field['Sum([a_b])']";
+      String n3 = "field['Sum([A B])']";
+      String n4 = "field['Sum([straße])']";
+      CalcFieldFormula formula = calc(n1 + " * 1000 + " + n2 + " * 100 + " + n3 + " * 10 + " + n4,
+                                      new String[] { n1, n2, n3, n4 },
+                                      new SumFormula(), new SumFormula(), new SumFormula(),
+                                      new SumFormula());
+      addRows(formula, new Object[] { 1, 2, 3, 4 });
+      assertEquals(1000 + 200 + 30 + 4, asDouble(formula.getResult()), 1e-10);
    }
 
    @Test
