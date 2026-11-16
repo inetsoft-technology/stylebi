@@ -25,15 +25,30 @@ import java.util.function.Predicate;
  * snapshot ({@link ResolvedPlan#requiresStorageBackup()}).
  *
  * <p>A snapshot is a full export of every key-value and blob store with no restore method, so it
- * is only worth paying for when the plan can overwrite, delete or otherwise alter something that
- * already exists. A <em>pure create</em> makes a brand-new object, overwrites nothing, touches no
- * other record, and has a live undo that deletes it; the snapshot adds nothing the undo does not
- * already give. A plan skips the snapshot only when EVERY change in it is a pure create: a plan
- * that mixes a create with a delete/update/overwrite keeps the snapshot (Bug #80650).
+ * is only worth paying for when the plan can alter something that already exists and the live
+ * rollback cannot put it back exactly. A change has an <em>exact undo</em> when the in-process
+ * rollback restores everything a reader of that object can observe (a pure create whose undo
+ * deletes the new object, a setting whose captured pre-image is written back, an upload or delete
+ * whose prior bytes are captured at resolve time). A plan skips the snapshot only when EVERY change
+ * in it has an exact undo: one change without it (a rename that rewrites dependents, a sub-model
+ * whose rollback leaves residue, a whole-file rewrite with no rollback) keeps the snapshot for the
+ * whole plan (Bug #80650, Bug #81072).
  *
- * <p>Plan services use {@link #requiresBackup} to fill the plan flag, and the apply services that
- * re-resolve entries themselves (stored assets, shapes) gate {@code backupService.backup} on the
- * same decision, so preview and apply cannot disagree.
+ * <p>The decision is made from live state at resolve time and carried in the hashed plan, so a
+ * change between preview and apply returns a conflict instead of a silent disagreement.
+ *
+ * <p>Accepted drift, deliberately not treated as a reason to keep the snapshot: a timestamp the
+ * undo does not restore (task lastModified, script and shape metadata), and an unset property that
+ * the undo leaves pinned to its static default (performance, email, presentation global scope, and
+ * an unset {@code replet.cache.clean}, which is pinned to "true"). These are observable only if a
+ * product upgrade changes a static default.
+ *
+ * <p>Skipping the snapshot removes recovery from a crash between write and rollback, from a
+ * rollback that itself fails, and from regret after a successful apply; the apply result and the
+ * audit trail still name every entry left changed.
+ *
+ * <p>Plan services use {@link #requiresBackup} to fill the plan flag, and every apply service
+ * gates {@code backupService.backup} on the same decision, so preview and apply cannot disagree.
  */
 public final class StorageBackupPolicy {
    private StorageBackupPolicy() {
@@ -41,16 +56,16 @@ public final class StorageBackupPolicy {
 
    /**
     * @param changes      every change of the plan.
-    * @param isPureCreate true when the change creates a new object that did not exist, with a live
-    *                     undo and no side effect on another record.
+    * @param hasExactUndo true when the live rollback of the change restores everything a reader
+    *                     can observe.
     *
-    * @return false only when the plan is non-empty and every change is a pure create.
+    * @return false only when the plan is non-empty and every change has an exact undo.
     */
-   public static <T> boolean requiresBackup(Collection<T> changes, Predicate<T> isPureCreate) {
+   public static <T> boolean requiresBackup(Collection<T> changes, Predicate<T> hasExactUndo) {
       if(changes == null || changes.isEmpty()) {
          return true;
       }
 
-      return !changes.stream().allMatch(isPureCreate);
+      return !changes.stream().allMatch(hasExactUndo);
    }
 }
