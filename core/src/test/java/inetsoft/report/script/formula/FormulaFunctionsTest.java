@@ -688,6 +688,20 @@ public class FormulaFunctionsTest {
    }
 
    /**
+    * Bug #81465: a Timestamp and a Date with the same time are one element in
+    * either argument order, consistent with intersect and inArray.
+    */
+   @Test
+   void timestampAndDateWithEqualMillisAreOneElementInBothOrders() {
+      long t = 1700000000000L;
+      Object[] ts = {new java.sql.Timestamp(t)};
+      Object[] dt = {new Date(t)};
+
+      assertEquals(1, ((Object[]) FormulaFunctions.union(ts, dt, null)).length);
+      assertEquals(1, ((Object[]) FormulaFunctions.union(dt, ts, null)).length);
+   }
+
+   /**
     * Bug #81460: a null argument is an empty set, so duplicates are still removed.
     */
    @Test
