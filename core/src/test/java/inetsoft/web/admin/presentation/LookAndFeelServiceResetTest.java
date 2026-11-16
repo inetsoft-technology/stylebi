@@ -81,7 +81,13 @@ class LookAndFeelServiceResetTest {
       auditStatic.when(Audit::getInstance).thenReturn(mock(Audit.class));
 
       service = new LookAndFeelService();
-      inject("portalThemesManager", mock(PortalThemesManager.class));
+      PortalThemesManager manager = mock(PortalThemesManager.class);
+      // the update runs its mutation against the manager, as the real one does
+      doAnswer(inv -> {
+         inv.<PortalThemesManager.Mutation>getArgument(0).apply(manager);
+         return null;
+      }).when(manager).updateChecked(any());
+      inject("portalThemesManager", manager);
       inject("dataSpace", mock(DataSpace.class));
       inject("notificationService", mock(NotificationService.class));
    }
