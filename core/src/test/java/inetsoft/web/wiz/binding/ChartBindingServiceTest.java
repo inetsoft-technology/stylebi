@@ -2278,4 +2278,90 @@ class ChartBindingServiceTest {
 
       assertEquals("https://example.com/s", linkOf(info.getStartField()).getLink());
    }
+
+   // ── a pareto chart sorts its dimension by the last measure, descending (bug #81513) ──
+
+   private record ParetoSeen(int order, String sortBy) {}
+
+   /**
+    * Drives the real setShelf on a chart of type {@code chartType} that already has a measure on
+    * the other shelf, and reports the dimension's sort as it is when changeChartRef (which
+    * executes the chart) is invoked.
+    */
+   private static ParetoSeen shelfAtExecute(int chartType, boolean dimOnY, boolean namedGroup)
+      throws Exception
+   {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.setChartType(chartType);
+      info.setRTChartType(chartType);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      ChartAggregateRefModel measure = new ChartAggregateRefModel();
+      measure.setFormula("Sum");
+      measure.setColumnValue("TOTAL");
+      ChartBindingModel model = new ChartBindingModel();
+      (dimOnY ? model.getXFields() : model.getYFields()).add(measure);
+
+      ParetoSeen[] seen = new ParetoSeen[1];
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+      doAnswer(invocation -> {
+         ChangeChartRefEvent event = invocation.getArgument(1);
+         ChartBindingModel m = event.getModel();
+         ChartDimensionRefModel dim = (ChartDimensionRefModel)
+            (dimOnY ? m.getYFields() : m.getXFields()).get(0);
+         seen[0] = new ParetoSeen(dim.getOrder(), dim.getSortByCol());
+         return null;
+      }).when(refs).changeChartRef(anyString(), any(), any(), any(), anyString());
+
+      harnessWithAssembly(chart, model, refs, mock(ChangeChartTypeService.class),
+                          mock(SwapXYBindingService.class),
+                          mock(ChangeSeparateStatusService.class))
+         .setShelf("tok", principal(), "Chart1", dimOnY ? "y" : "x",
+                   List.of(new FieldRef("CATEGORY", "dimension", null, null, null)), null, "");
+
+      return seen[0];
+   }
+
+   @Test
+   void paretoDimensionOnXIsSortedByMeasureBeforeTheChartExecutes() throws Exception {
+      ParetoSeen seen = shelfAtExecute(GraphTypes.CHART_PARETO, false, false);
+      assertEquals(XConstants.SORT_VALUE_DESC, seen.order());
+      assertEquals("Sum(TOTAL)", seen.sortBy());
+   }
+
+   @Test
+   void paretoDimensionOnYIsSortedByMeasureBeforeTheChartExecutes() throws Exception {
+      ParetoSeen seen = shelfAtExecute(GraphTypes.CHART_PARETO, true, false);
+      assertEquals(XConstants.SORT_VALUE_DESC, seen.order());
+      assertEquals("Sum(TOTAL)", seen.sortBy());
+   }
+
+   @Test
+   void nonParetoChartKeepsTheAscendingSort() throws Exception {
+      ParetoSeen seen = shelfAtExecute(GraphTypes.CHART_BAR, false, false);
+      assertEquals(XConstants.SORT_ASC, seen.order());
+      assertNull(seen.sortBy());
+   }
+
+   @Test
+   void paretoKeepsANamedGroupsSpecificOrder() {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.setChartType(GraphTypes.CHART_PARETO);
+      info.setRTChartType(GraphTypes.CHART_PARETO);
+      ChartAggregateRefModel measure = new ChartAggregateRefModel();
+      measure.setFormula("Sum");
+      measure.setColumnValue("TOTAL");
+      ChartDimensionRefModel dim = new ChartDimensionRefModel();
+      dim.setOrder(XConstants.SORT_SPECIFIC);
+      dim.setNamedGroupInfo(new inetsoft.web.binding.model.NamedGroupInfoModel());
+      ChartBindingModel model = new ChartBindingModel();
+      model.getXFields().add(dim);
+      model.getYFields().add(measure);
+
+      ChartBindingService.fixParetoSorting(model, info);
+
+      assertEquals(XConstants.SORT_SPECIFIC, dim.getOrder());
+      assertEquals("Sum(TOTAL)", dim.getSortByCol());
+   }
 }
