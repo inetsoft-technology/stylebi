@@ -3347,6 +3347,13 @@ public class AssemblyPropertyService {
       Map<String, Integer> viewMode = new LinkedHashMap<>();
       viewMode.put("single", CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE);
       viewMode.put("double", CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
+      // The Advanced pane's View Mode radios are captioned "Simple View" (1) and "Range" (2);
+      // accept those captions as write-side aliases (single/double stay the canonical tokens).
+      viewMode.put("simple view", CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE);
+      viewMode.put("simple_view", CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE);
+      viewMode.put("simpleview", CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE);
+      viewMode.put("simple", CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE);
+      viewMode.put("range", CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
 
       // The Composer's grid-line dropdown offers NONE plus the nine ChartTargetLineService styles;
       // only the trend-line dropdown also offers -1 (default).

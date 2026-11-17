@@ -5855,6 +5855,36 @@ class AssemblyPropertyServiceTest {
    }
 
    @Test
+   void acceptsComposerCaptionsForCalendarViewMode() throws Exception {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+
+      for(String range : new String[] { "range", "Range", "RANGE", " range " }) {
+         service.set("tok", principal(), "Calendar1", Map.of("viewMode", 1), "");
+         service.set("tok", principal(), "Calendar1", Map.of("viewMode", range), "");
+         assertEquals(2, model.getCalendarAdvancedPaneModel().getViewMode(), range);
+      }
+
+      for(String simple : new String[] { "Simple View", "simple view", "simple_view",
+                                         "SimpleView", "simple" })
+      {
+         service.set("tok", principal(), "Calendar1", Map.of("viewMode", 2), "");
+         service.set("tok", principal(), "Calendar1", Map.of("viewMode", simple), "");
+         assertEquals(1, model.getCalendarAdvancedPaneModel().getViewMode(), simple);
+      }
+
+      service.set("tok", principal(), "Calendar1", Map.of("viewMode", "range"), "");
+
+      for(Object bad : new Object[] { "triple", 999, 0, -5 }) {
+         assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Calendar1", Map.of("viewMode", bad), ""));
+      }
+
+      assertEquals(2, model.getCalendarAdvancedPaneModel().getViewMode());
+   }
+
+   @Test
    void canonicalizesAndRefusesChartLineStyles() throws Exception {
       ChartPropertyDialogModel model = new ChartPropertyDialogModel();
       AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
