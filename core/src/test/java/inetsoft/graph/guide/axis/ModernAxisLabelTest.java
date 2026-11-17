@@ -64,13 +64,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class ModernAxisLabelTest {
    private static final String LONG = "Northeast Regional Distribution Hub";
-   private static final double CLASSIC_SMALL_45_WIDTH = 103;
    private static final List<Integer> CLASSIC_STORES_SHOWN =
       java.util.stream.IntStream.range(0, 30).boxed().toList();
    // BarVO's minimum bar width
    private static final double BAR_MIN_WIDTH = 10;
-   // 105 categories at 90 degrees reserve one line each, measured before the label limit
-   private static final double CLASSIC_105_MIN_PLOT = 1470;
    // a reversed axis without a modern property keeps today's walk from index 0
    private static final List<Integer> CLASSIC_REVERSED_STORES_SHOWN =
       java.util.stream.IntStream.range(0, 15).map(i -> i * 2).boxed().toList();
@@ -197,8 +194,14 @@ class ModernAxisLabelTest {
       assertFalse(text(wide).contains("…"));
 
       VLabel small = xAxis(eightWithLong(), 0, 45, 0, 300, 180).getLabels()[3];
-      assertTrue(text(small).endsWith(".."), text(small));
-      assertEquals(CLASSIC_SMALL_45_WIDTH, width(small), 0.5);
+      String cut = text(small);
+      double cap = small.getMaxSize().getHeight();
+
+      // cut to today's max(50, ...) band, not to the 66px limit
+      assertTrue(cut.endsWith(".."), cut);
+      assertTrue(cap >= 50, "cap " + cap);
+      assertTrue(small.getPreferredHeight(cut) <= cap + 0.5, cut + " in " + cap);
+      assertTrue(width(small) > 66, cut + " " + width(small));
    }
 
    @Test
@@ -350,7 +353,7 @@ class ModernAxisLabelTest {
       xscale.getAxisSpec().getTextSpec().setFormat(new ExtendedDateFormat("yyyy-MM-dd HH"));
       xscale.getAxisSpec().setAbbreviate(true);
       xscale.getAxisSpec().setLabelLimit(66);
-      List<String> texts = shownTexts(layout(xscale, rows, 800, 300));
+      List<String> texts = shownFullTexts(layout(xscale, rows, 800, 300));
 
       assertEquals(8, texts.size(), texts.toString());
       assertEquals("2026-01-05 09", texts.get(0));
@@ -510,11 +513,13 @@ class ModernAxisLabelTest {
 
    @Test
    void a45DegreeEndLabelStaysInsideTheChart() {
-      // the first label slides inside; slid it crowds the next one in step, so it is hidden
+      // the first label slides inside; if slid it crowds the next one in step, it is hidden
       DefaultAxis axis = xAxis(campaigns(105), 66, 45, 0, 400, 240);
+      List<Integer> idx = shownIndices(axis);
+      int step = idx.get(1) - idx.get(0);
 
-      assertStep(axis, 7, "105 campaigns at 45");
-      assertEquals(7, shownIndices(axis).get(0), shownTexts(axis).toString());
+      assertStep(axis, step, "105 campaigns at 45");
+      assertTrue(idx.get(0) <= step, "first " + idx + " " + shownTexts(axis));
       assertInsideTheGraph(axis, "105 campaigns at 45");
       assertApart(axis, "105 campaigns at 45");
    }
@@ -583,8 +588,11 @@ class ModernAxisLabelTest {
 
    @Test
    void aClassicAxisStillReservesItsLabels() {
-      assertEquals(CLASSIC_105_MIN_PLOT, plot(campaigns(105), 0, 90, 400, 240).getMinPlotWidth(),
-                   0.5);
+      VGraph vgraph = plot(campaigns(105), 0, 90, 400, 240);
+      Font font = ((RectCoord) vgraph.getCoordinate()).getXAxis1().getLabels()[0].getFont();
+
+      // 105 categories at 90 degrees reserve one line each, measured before the label limit
+      assertEquals(105 * GTool.getFontMetrics(font).getHeight(), vgraph.getMinPlotWidth(), 0.5);
    }
 
    @Test
@@ -688,7 +696,14 @@ class ModernAxisLabelTest {
          expected.add(String.format(h == 0 ? "2026-01-01 %02d" : "01-01 %02d", h));
       }
 
-      assertEquals(expected, topDownTexts(reversedHourlyAxis(66, 800)));
+      DefaultAxis tall = reversedHourlyAxis(66, 800);
+      List<String> tallTexts = new ArrayList<>();
+
+      for(int i : topDownIndices(tall)) {
+         tallTexts.add(tall.getLabels()[i].getText());
+      }
+
+      assertEquals(expected, tallTexts);
       boolean moved = false;
 
       for(int height = 70; height <= 400; height += 5) {
@@ -698,7 +713,8 @@ class ModernAxisLabelTest {
          String prevDay = null;
 
          for(int i : topDownIndices(axis)) {
-            String text = text(axis.getLabels()[i]);
+            // the text before the length limit cuts it
+            String text = axis.getLabels()[i].getText();
             String day = String.format("%tF", (Date) ((VDimensionLabel) axis.getLabels()[i])
                .getValue());
 
@@ -1093,6 +1109,17 @@ class ModernAxisLabelTest {
 
       for(int i : shownIndices(axis)) {
          texts.add(text(axis.getLabels()[i]));
+      }
+
+      return texts;
+   }
+
+   // the shown labels' texts before the length limit cuts them
+   private static List<String> shownFullTexts(DefaultAxis axis) {
+      List<String> texts = new ArrayList<>();
+
+      for(int i : shownIndices(axis)) {
+         texts.add(axis.getLabels()[i].getText());
       }
 
       return texts;

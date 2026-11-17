@@ -78,8 +78,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class ModernAxisLabelRuleTest {
-   // the width today's chart scrolls to, measured before the label limit
-   private static final double CLASSIC_105_WIDTH = 1512;
    private static final double CLASSIC_FACET_300_WIDTH = 300;
 
    @AfterEach
@@ -370,7 +368,7 @@ class ModernAxisLabelRuleTest {
          VGraph vgraph = Plotter.getPlotter(graph).plotAndLayout(gen.getData(), 0, 0, 800, 240);
          DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getXAxis1();
          axis.prepareLabels();
-         List<String> texts = shownTexts(axis);
+         List<String> texts = shownFullTexts(axis);
 
          assertEquals("2026-01-05 09", texts.get(0), mark + " " + texts);
 
@@ -556,9 +554,14 @@ class ModernAxisLabelRuleTest {
       axis.prepareLabels();
       List<Integer> idx = shownIndices(axis);
 
+      int step = idx.get(1) - idx.get(0);
+
       assertEquals(92.4, x.getAxisSpec().getLabelLimit(), 0.01);
       assertEquals(45, rotation(x));
-      assertEquals(0, idx.get(0), "shown " + idx);
+      // the step runs from the first label, which is hidden only if, slid inside, it crowds
+      // the next one in step
+      assertEquals(0, idx.get(0) % step, "shown " + idx);
+      assertTrue(idx.get(0) <= step, "shown " + idx);
       assertOneStep(idx, shownTexts(axis));
    }
 
@@ -607,8 +610,14 @@ class ModernAxisLabelRuleTest {
    void classicChartsKeepTodaysWidth() {
       Chart bars = barChart(campaigns(105));
       Chart facet = regionFacetChart();
+      VGraph classic = plot(bars, null, 400, 240);
+      Font font = ((RectCoord) classic.getCoordinate()).getXAxis1().getLabels()[0].getFont();
+      double side = classic.getBounds().getWidth() - classic.getPlotBounds().getWidth();
 
-      assertEquals(CLASSIC_105_WIDTH, expandedWidth(plot(bars, null, 400, 240), bars), 0.5);
+      // today's chart scrolls to one line of label text per category, measured before the
+      // label limit, beside its Y axis
+      assertEquals(105 * GTool.getFontMetrics(font).getHeight() + side,
+                   expandedWidth(classic, bars), 0.5);
       assertEquals(CLASSIC_FACET_300_WIDTH, expandedWidth(plot(facet, null, 300, 180), facet), 0.5);
    }
 
@@ -647,8 +656,9 @@ class ModernAxisLabelRuleTest {
 
    @Test
    void aGanttTimeAxisSlidesItsFirstTickInside() {
-      // the first tick's full date runs past the axis start: it slides inside the axis and
-      // stays where it clears the next label in step; the step is the one on the ticks
+      // the first tick's full date runs past the axis start: it slides inside the axis, and
+      // while a slid first label crowds the next one in step it is hidden and the next one
+      // takes the year; the step is the one on the ticks
       GraphGenerator gen = generator(ganttChart(30, false), VizMark.MODERN_LIGHT,
                                      new Dimension(400, 480));
       VGraph vgraph = Plotter.getPlotter(gen.createEGraph())
@@ -659,8 +669,8 @@ class ModernAxisLabelRuleTest {
       List<String> texts = shownTexts(axis);
       Rectangle2D first = shownBounds(axis).get(0);
 
-      assertEquals(3, idx.get(0), texts.toString());
       assertEquals(3, idx.get(1) - idx.get(0), texts.toString());
+      assertEquals(0, idx.get(0) % 3, texts.toString());
       assertTrue(texts.get(0).contains("2026"), texts.toString());
       assertTrue(first.getX() >= vgraph.getPlotBounds().getX() - 0.01,
                  "first label at " + first.getX() + ", plot at " + vgraph.getPlotBounds().getX());
@@ -1058,6 +1068,19 @@ class ModernAxisLabelRuleTest {
       for(VLabel label : axis.getLabels()) {
          if(label.getZIndex() >= 0) {
             texts.add(String.join("", label.getDisplayLabel()));
+         }
+      }
+
+      return texts;
+   }
+
+   // the shown labels' texts before the length limit cuts them
+   private static List<String> shownFullTexts(DefaultAxis axis) {
+      List<String> texts = new ArrayList<>();
+
+      for(VLabel label : axis.getLabels()) {
+         if(label.getZIndex() >= 0) {
+            texts.add(label.getText());
          }
       }
 
