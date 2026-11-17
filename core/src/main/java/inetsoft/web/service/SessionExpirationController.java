@@ -19,7 +19,6 @@
 package inetsoft.web.service;
 
 import inetsoft.sree.RepletRepository;
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SecurityEngine;
@@ -29,6 +28,7 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
@@ -38,6 +38,7 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 public class SessionExpirationController {
@@ -61,18 +62,10 @@ public class SessionExpirationController {
       String httpSessionId =
          stompHeaderAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString();
       httpSessionIdMap.put(stompHeaderAccessor.getSessionId(), httpSessionId);
-
-      synchronized(subscribedSessionIds) {
-         subscribedSessionIds.add(httpSessionId);
-      }
    }
 
    @EventListener(SessionDisconnectEvent.class)
    public void onSessionDisconnect(SessionDisconnectEvent event) {
-      synchronized(subscribedSessionIds) {
-         subscribedSessionIds.remove(event.getSessionId());
-      }
-
       httpSessionIdMap.remove(event.getSessionId());
    }
 
@@ -85,32 +78,41 @@ public class SessionExpirationController {
    }
 
    private void onSessionExpiringSoonEvent(SessionExpiringSoonEvent event) {
-      boolean subscribed = false;
+      Principal principal = event.getPrincipalCookie();
 
-      synchronized(subscribedSessionIds) {
-         subscribed = subscribedSessionIds.contains(event.getSessionId());
+      // a guest is not asked to stay logged in, the page is reloaded with a new guest
+      // session when the session expires (see SessionConnectionService)
+      boolean guest = principal != null && isGuest(principal);
+
+      if(principal == null || (guest && !event.isNodeProtection())) {
+         return;
       }
 
-      if(subscribed) {
-         Principal principal = event.getPrincipalCookie();
+      SessionExpirationModel model = SessionExpirationModel.builder()
+         .remainingTime(event.getRemainingTime())
+         .expiringSoon(event.isExpiringSoon())
+         .nodeProtection(event.isNodeProtection())
+         .guest(guest)
+         .build();
 
-         // a guest is not asked to stay logged in, the page is reloaded with a new guest
-         // session when the session expires (see SessionConnectionService)
-         boolean guest = principal != null && isGuest(principal);
-
-         if(principal != null && !(guest && !event.isNodeProtection())) {
-            SessionExpirationModel model = SessionExpirationModel.builder()
-               .remainingTime(event.getRemainingTime())
-               .expiringSoon(event.isExpiringSoon())
-               .nodeProtection(event.isNodeProtection())
-               .guest(guest)
-               .build();
-            messagingTemplate
-               .convertAndSendToUser(SUtil.getUserDestination(principal), TOPIC, model);
+      // Bug #80406: send to the windows of the expiring HTTP session only. The user destination
+      // is shared by every window of the principal (and by all anonymous windows when security
+      // is disabled), so a warning for an idle session would reappear in the active window
+      // after "stay logged in" refreshed only its own session.
+      for(Map.Entry<String, String> entry : httpSessionIdMap.entrySet()) {
+         if(Objects.equals(entry.getValue(), event.getSessionId())) {
+            sendToWindow(entry.getKey(), model);
          }
       }
    }
 
+   private void sendToWindow(String stompSessionId, SessionExpirationModel model) {
+      SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create();
+      headerAccessor.setSessionId(stompSessionId);
+      headerAccessor.setLeaveMutable(true);
+      messagingTemplate.convertAndSendToUser(
+         stompSessionId, TOPIC, model, headerAccessor.getMessageHeaders());
+   }
 
    private boolean isGuest(Principal principal) {
       IdentityID identity = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -139,9 +141,8 @@ public class SessionExpirationController {
 
    private final Cluster cluster;
    private final MessageListener listener = this::messageReceived;
-   private final Map<String, String> httpSessionIdMap = new HashMap<>(); // key = simp session id, value = http session id
+   private final Map<String, String> httpSessionIdMap = new ConcurrentHashMap<>(); // key = simp session id, value = http session id
    private final SimpMessagingTemplate messagingTemplate;
    private final IgniteSessionRepository sessionRepository;
-   private final Set<String> subscribedSessionIds = new HashSet<>();
    private static final String TOPIC = "/session-expiration";
 }

@@ -27,10 +27,18 @@ import inetsoft.web.session.SessionExpiringSoonEvent;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.user.*;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.session.MapSession;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.security.Principal;
 import java.util.HashMap;
@@ -68,6 +76,7 @@ class SessionExpirationControllerTest {
       accessor.setSessionId("ws-1");
       accessor.setSessionAttributes(attributes);
       controller.subscribeToTopic(accessor);
+      this.controller = controller;
    }
 
    @AfterEach
@@ -126,10 +135,80 @@ class SessionExpirationControllerTest {
       verifySent(1);
    }
 
+   // Bug #80406: a warning for one HTTP session must not reach another window of the same
+   // principal (all anonymous windows share one principal when security is disabled), or "stay
+   // logged in" in the active window never silences the idle window's warning
+   @Test
+   void warningIsSentOnlyToTheExpiringHttpSession() throws Exception {
+      subscribe("ws-2", "http-2");
+      expiringSoon("admin", "host-org", false, SESSION_ID);
+      verify(messagingTemplate).convertAndSendToUser(
+         eq("ws-1"), eq("/session-expiration"), any(Object.class), any(MessageHeaders.class));
+      verify(messagingTemplate, never()).convertAndSendToUser(
+         eq("ws-2"), anyString(), any(Object.class), any(MessageHeaders.class));
+   }
+
+   @Test
+   void warningIsSentToEveryWindowOfTheHttpSession() throws Exception {
+      subscribe("ws-2", SESSION_ID);
+      expiringSoon("admin", "host-org", false);
+      verifySent(2);
+   }
+
+   @Test
+   void disconnectedWindowGetsNoWarning() throws Exception {
+      controller.onSessionDisconnect(
+         new SessionDisconnectEvent(this, mock(Message.class), "ws-1", CloseStatus.NORMAL));
+      expiringSoon("admin", "host-org", false);
+      verifySent(0);
+   }
+
+   // the headers the controller sends must resolve to the window's own subscription
+   @Test
+   void sentMessageResolvesToTheWindowSubscription() {
+      expiringSoon("admin", "host-org", false);
+      ArgumentCaptor<MessageHeaders> captor = ArgumentCaptor.forClass(MessageHeaders.class);
+      verify(messagingTemplate).convertAndSendToUser(
+         eq("ws-1"), eq("/session-expiration"), any(Object.class), captor.capture());
+
+      DefaultUserDestinationResolver resolver =
+         new DefaultUserDestinationResolver(mock(SimpUserRegistry.class));
+      SimpMessageHeaderAccessor sent = SimpMessageHeaderAccessor.create();
+      sent.copyHeaders(captor.getValue());
+      sent.setDestination("/user/ws-1/session-expiration");
+      UserDestinationResult sendResult = resolver.resolveDestination(
+         MessageBuilder.createMessage(new byte[0], sent.getMessageHeaders()));
+
+      SimpMessageHeaderAccessor sub = SimpMessageHeaderAccessor.create(SimpMessageType.SUBSCRIBE);
+      sub.setSessionId("ws-1");
+      sub.setSubscriptionId("0");
+      sub.setDestination("/user/session-expiration");
+      UserDestinationResult subResult = resolver.resolveDestination(
+         MessageBuilder.createMessage(new byte[0], sub.getMessageHeaders()));
+
+      Assertions.assertNotNull(sendResult);
+      Assertions.assertNotNull(subResult);
+      Assertions.assertEquals(subResult.getTargetDestinations(),
+                              sendResult.getTargetDestinations());
+   }
+
+   private void subscribe(String stompId, String httpId) throws Exception {
+      StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+      Map<String, Object> attributes = new HashMap<>();
+      attributes.put("HTTP.SESSION.ID", httpId);
+      accessor.setSessionId(stompId);
+      accessor.setSessionAttributes(attributes);
+      controller.subscribeToTopic(accessor);
+   }
+
    private void expiringSoon(String name, String orgID, boolean nodeProtection) {
+      expiringSoon(name, orgID, nodeProtection, SESSION_ID);
+   }
+
+   private void expiringSoon(String name, String orgID, boolean nodeProtection, String httpId) {
       String key = new IdentityID(name, orgID).convertToKey();
       Principal principal = () -> key;
-      MapSession session = new MapSession(SESSION_ID);
+      MapSession session = new MapSession(httpId);
       session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
       SessionExpiringSoonEvent event =
          new SessionExpiringSoonEvent("test", session, 30000L, true, nodeProtection);
@@ -138,16 +217,19 @@ class SessionExpirationControllerTest {
 
    private void verifySent(int count) {
       verify(messagingTemplate, times(count))
-         .convertAndSendToUser(anyString(), eq("/session-expiration"), any(Object.class));
+         .convertAndSendToUser(anyString(), eq("/session-expiration"), any(Object.class),
+                             any(MessageHeaders.class));
    }
 
    private SessionExpirationModel sentModel() {
       ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
       verify(messagingTemplate)
-         .convertAndSendToUser(anyString(), eq("/session-expiration"), captor.capture());
+         .convertAndSendToUser(anyString(), eq("/session-expiration"), captor.capture(),
+                             any(MessageHeaders.class));
       return (SessionExpirationModel) captor.getValue();
    }
 
+   private SessionExpirationController controller;
    private SimpMessagingTemplate messagingTemplate;
    private MessageListener listener;
    private SecurityEngine security;
