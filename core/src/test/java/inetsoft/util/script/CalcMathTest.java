@@ -1095,4 +1095,11 @@ class CalcMathTest {
       assertEquals(32.0, CalcMath.sumproduct(new Object[] {
          new Object[] {1.0, 2.0, 3.0}, new Object[] {4.0, 5.0, 6.0}}), 1e-9);
    }
+
+   @Test
+   void productMultipliesNumbersAndSkipsNonNumericEntries() {
+      assertEquals(24.0, CalcMath.product(new Object[] { 2.0, 3.0, 4.0 }), 1e-9);
+      assertEquals(6.0, CalcMath.product(new Object[] { "2", "x", null, 3.0 }), 1e-9);
+      assertEquals(7.0, CalcMath.product(new Object[] { 7.0 }), 1e-9);
+   }
 }

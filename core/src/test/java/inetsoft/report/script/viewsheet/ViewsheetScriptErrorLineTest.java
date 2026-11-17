@@ -87,6 +87,14 @@ class ViewsheetScriptErrorLineTest {
       assertTrue(msg.contains("undefinedFn77322c") && msg.endsWith("(line 1)"), msg);
    }
 
+   @Test
+   void dynamicValueScriptErrorOfRootAssemblyDoesNotEscapeReset() {
+      sandbox.getViewsheet().getAssembly("TableView1").getVSAssemblyInfo()
+         .setVisibleValue("=undefinedFn81000()");
+
+      assertDoesNotThrow(() -> sandbox.reset(new inetsoft.report.composition.ChangedAssemblyList()));
+   }
+
    private String runOnLoad(String script) throws Exception {
       ViewsheetInfo info = sandbox.getViewsheet().getViewsheetInfo();
       info.setOnLoad(script);
