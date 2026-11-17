@@ -44,6 +44,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.util.*;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -230,7 +231,8 @@ class AirtableCatalogTest {
    void rateLimitingIsNamedAsSuch() {
       stubFor(get(urlPathEqualTo("/v0/meta/bases")).willReturn(aResponse().withStatus(429)));
 
-      Exception ex = assertThrows(Exception.class, () -> runtime.listDatasets(dataSource));
+      Exception ex = assertThrows(Exception.class, () -> AirtableCatalog.listDatasets(
+         new AirtableMetaClient(dataSource, ms -> { })));
 
       assertTrue(ex.getMessage().contains("429"), ex.getMessage());
    }
@@ -443,6 +445,108 @@ class AirtableCatalogTest {
       assertTrue(ex.getMessage().contains("schema.bases:read"), ex.getMessage());
    }
 
+
+   // ===================================================================================
+   // Retry and schema reuse
+   // ===================================================================================
+
+   @Test
+   void aRateLimitedCallIsRetriedAfterTheWaitAirtableAsksFor() throws Exception {
+      stubFor(get(urlPathEqualTo("/v0/meta/bases")).inScenario("429").whenScenarioStateIs(STARTED)
+         .willReturn(aResponse().withStatus(429).withHeader("Retry-After", "2"))
+         .willSetStateTo("limited"));
+      stubFor(get(urlPathEqualTo("/v0/meta/bases")).inScenario("429")
+         .whenScenarioStateIs("limited")
+         .willReturn(okJson("{\"bases\":[" + base("appAAA111", "Sales", "read") + "]}")));
+      stubTables("appAAA111", table("Customers", "singleLineText"));
+      List<Long> sleeps = new ArrayList<>();
+
+      TabularCatalog catalog = AirtableCatalog.listDatasets(
+         new AirtableMetaClient(dataSource, sleeps::add));
+
+      assertEquals(List.of("appAAA111/Customers"), ids(catalog));
+      assertEquals(List.of(2000L), sleeps);
+      verify(2, getRequestedFor(urlPathEqualTo("/v0/meta/bases")));
+   }
+
+   @Test
+   void aTransientServerErrorIsRetriedWithTheDefaultBackOff() throws Exception {
+      stubFor(get(urlPathEqualTo("/v0/meta/bases")).inScenario("503").whenScenarioStateIs(STARTED)
+         .willReturn(aResponse().withStatus(503)).willSetStateTo("up"));
+      stubFor(get(urlPathEqualTo("/v0/meta/bases")).inScenario("503").whenScenarioStateIs("up")
+         .willReturn(okJson("{\"bases\":[]}")));
+      List<Long> sleeps = new ArrayList<>();
+
+      assertTrue(AirtableCatalog.listDatasets(new AirtableMetaClient(dataSource, sleeps::add))
+         .datasets().isEmpty());
+      assertEquals(List.of(1000L), sleeps);
+   }
+
+   @Test
+   void aCallThatStaysRateLimitedGivesUpLoudlyAfterABoundedNumberOfRetries() {
+      stubFor(get(urlPathEqualTo("/v0/meta/bases")).willReturn(aResponse().withStatus(429)
+         .withHeader("Retry-After", "120")));
+      List<Long> sleeps = new ArrayList<>();
+
+      Exception ex = assertThrows(Exception.class, () -> AirtableCatalog.listDatasets(
+         new AirtableMetaClient(dataSource, sleeps::add)));
+
+      assertTrue(ex.getMessage().contains("429"), ex.getMessage());
+      assertEquals(AirtableMetaClient.MAX_RETRIES, sleeps.size());
+      assertTrue(sleeps.stream().allMatch(ms -> ms == AirtableMetaClient.MAX_WAIT_MS),
+                 "an oversized Retry-After must be capped: " + sleeps);
+      verify(AirtableMetaClient.MAX_RETRIES + 1, getRequestedFor(urlPathEqualTo("/v0/meta/bases")));
+   }
+
+   @Test
+   void aMissingScopeIsNeverRetried() {
+      stubFor(get(urlPathEqualTo("/v0/meta/bases")).willReturn(aResponse().withStatus(403)));
+      List<Long> sleeps = new ArrayList<>();
+
+      assertThrows(Exception.class, () -> AirtableCatalog.listDatasets(
+         new AirtableMetaClient(dataSource, sleeps::add)));
+
+      assertEquals(List.of(), sleeps);
+      verify(1, getRequestedFor(urlPathEqualTo("/v0/meta/bases")));
+   }
+
+   @Test
+   void describingSeveralTablesOfOneBaseFetchesItsSchemaOnce() throws Exception {
+      stubTables("appAAA111", table("Customers", "singleLineText"), table("Orders", "number"));
+
+      runtime.describeDataset(dataSource, "appAAA111/Customers");
+      runtime.describeDataset(dataSource, "appAAA111/Orders");
+
+      verify(1, getRequestedFor(urlPathEqualTo("/v0/meta/bases/appAAA111/tables")));
+   }
+
+   @Test
+   void aListingAlwaysRefetchesSoANewTableIsSeen() throws Exception {
+      stubFor(get(urlPathEqualTo("/v0/meta/bases")).willReturn(okJson(
+         "{\"bases\":[" + base("appAAA111", "Sales", "read") + "]}")));
+      stubTables("appAAA111", table("Customers", "singleLineText"));
+      assertEquals(1, runtime.listDatasets(dataSource).datasets().size());
+
+      stubTables("appAAA111", table("Customers", "singleLineText"), table("Orders", "number"));
+
+      assertEquals(2, runtime.listDatasets(dataSource).datasets().size());
+      // and the listing refreshed what a following describe reads
+      assertEquals("appAAA111/Orders",
+                   runtime.describeDataset(dataSource, "appAAA111/Orders").datasetId());
+      verify(2, getRequestedFor(urlPathEqualTo("/v0/meta/bases/appAAA111/tables")));
+   }
+
+   @Test
+   void aFailedSchemaFetchIsNotCached() throws Exception {
+      stubFor(get(urlPathEqualTo("/v0/meta/bases/appAAA111/tables"))
+         .willReturn(aResponse().withStatus(403)));
+      assertThrows(Exception.class, () -> runtime.describeDataset(dataSource, "appAAA111/Customers"));
+
+      stubTables("appAAA111", table("Customers", "singleLineText"));
+
+      assertEquals("appAAA111/Customers",
+                   runtime.describeDataset(dataSource, "appAAA111/Customers").datasetId());
+   }
    // ===================================================================================
    // The declared columns are the columns a Records query really returns
    // ===================================================================================
@@ -456,11 +560,17 @@ class AirtableCatalogTest {
          "{\"id\":\"f3\",\"name\":\"Credit Limit\",\"type\":\"currency\"}," +
          "{\"id\":\"f4\",\"name\":\"Signup Date\",\"type\":\"date\"}," +
          "{\"id\":\"f5\",\"name\":\"Tags\",\"type\":\"multipleSelects\"}," +
-         "{\"id\":\"f6\",\"name\":\"Order / No.\",\"type\":\"singleLineText\"}]}]}")));
+         "{\"id\":\"f6\",\"name\":\"Order / No.\",\"type\":\"singleLineText\"}," +
+         "{\"id\":\"f7\",\"name\":\"Visits\",\"type\":\"count\"}," +
+         "{\"id\":\"f8\",\"name\":\"Seq\",\"type\":\"autoNumber\"}," +
+         "{\"id\":\"f9\",\"name\":\"Stars\",\"type\":\"rating\"}," +
+         "{\"id\":\"f10\",\"name\":\"Units\",\"type\":\"number\"}," +
+         "{\"id\":\"f11\",\"name\":\"Whole Credit\",\"type\":\"currency\"}]}]}")));
       stubFor(get(urlPathEqualTo("/v0/appAAA111/Customers")).willReturn(okJson(
          "{\"records\":[{\"id\":\"rec1\",\"createdTime\":\"2026-01-01T00:00:00.000Z\",\"fields\":{" +
          "\"Name\":\"Acme\",\"Active\":true,\"Credit Limit\":5000.5,\"Signup Date\":\"2026-01-05\"," +
-         "\"Tags\":[\"vip\",\"wholesale\"],\"Order / No.\":\"SO-1\"}}]}")));
+         "\"Tags\":[\"vip\",\"wholesale\"],\"Order / No.\":\"SO-1\",\"Visits\":3,\"Seq\":7,\"Stars\":4,\"Units\":12,\"Whole Credit\":5000}}," +
+         "{\"id\":\"rec2\",\"createdTime\":\"2026-01-02T00:00:00.000Z\",\"fields\":{\"Units\":14,\"Whole Credit\":5000.25}}]}")));
 
       TabularDatasetSchema schema = runtime.describeDataset(dataSource, "appAAA111/Customers");
 
@@ -479,16 +589,37 @@ class AirtableCatalogTest {
       schema.columns().forEach(c -> declared.put(c.name(), c.type()));
       Map<Class<?>, String> byClass = Map.of(
          String.class, XSchema.STRING, Boolean.class, XSchema.BOOLEAN,
-         Double.class, XSchema.DOUBLE, java.sql.Date.class, XSchema.DATE,
+         Double.class, XSchema.DOUBLE, Integer.class, XSchema.INTEGER,
+         Long.class, XSchema.LONG, java.sql.Date.class, XSchema.DATE,
          java.sql.Timestamp.class, XSchema.TIME_INSTANT);
 
-      assertEquals(8, table.getColCount());
+      assertEquals(13, table.getColCount());
 
       for(int i = 0; i < table.getColCount(); i++) {
          String name = table.getName(i);
          assertTrue(declared.containsKey(name), "declared columns miss the real column " + name);
-         assertEquals(byClass.get(table.getType(i)), declared.get(name), "type of " + name);
+         String actual = byClass.get(table.getType(i));
+
+         if(XSchema.DOUBLE.equals(declared.get(name))) {
+            // A number column is typed from the rows returned: all-whole values come back
+            // Integer, any decimal makes it Double. DOUBLE is the lossless superset.
+            assertTrue(XSchema.DOUBLE.equals(actual) || XSchema.INTEGER.equals(actual) ||
+                       XSchema.LONG.equals(actual), "type of " + name + ": " + actual);
+         }
+         else {
+            assertEquals(actual, declared.get(name), "type of " + name);
+         }
       }
+
+      // pin the inference rule the comment above relies on
+      Map<String, Class<?>> actualByName = new HashMap<>();
+
+      for(int i = 0; i < table.getColCount(); i++) {
+         actualByName.put(table.getName(i), table.getType(i));
+      }
+
+      assertEquals(Integer.class, actualByName.get("records.fields.Units"));
+      assertEquals(Double.class, actualByName.get("records.fields.Whole Credit"));
    }
 
    // ===================================================================================

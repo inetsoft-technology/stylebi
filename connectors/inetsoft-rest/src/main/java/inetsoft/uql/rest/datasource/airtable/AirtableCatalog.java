@@ -49,6 +49,12 @@ import java.util.regex.Pattern;
  * That is injective over (base, table): two different pairs cannot give the same id because the
  * base id can never absorb the separator. Table names are unique within a base, so ids are unique.
  *
+ * <h2>Cost</h2>
+ * A listing is 1 request per 100 bases plus 1 per base (each returns that base's full schema,
+ * the only form the Meta API offers). A describe is 1 request, and reuses a schema fetched for the
+ * same base in the last 30 seconds. 429 and 502/503/504 are retried up to 3 times (honoring
+ * Retry-After, capped at 30 s); everything else fails at once.
+ *
  * <h2>Columns</h2>
  * Named as a {@code Records} query names them (checked against a real query run over a stubbed
  * response, see the test): {@code records.id}, {@code records.createdTime}, then {@code
@@ -104,7 +110,7 @@ final class AirtableCatalog {
       JsonNode table = null;
       List<String> names = new ArrayList<>();
 
-      for(JsonNode candidate : client.listTables(baseId)) {
+      for(JsonNode candidate : client.listTables(baseId, true)) {
          String name = requireTableName(candidate, baseId);
          names.add(name);
 
