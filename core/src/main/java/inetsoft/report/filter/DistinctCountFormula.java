@@ -32,6 +32,9 @@ import java.util.*;
  * @author InetSoft Technology Corp
  */
 public class DistinctCountFormula implements PercentageFormula {
+   private static final Double ZERO_DOUBLE = 0.0;
+   private static final Float ZERO_FLOAT = 0.0F;
+
    /**
     * Reset the formula to start over.
     */
@@ -306,7 +309,7 @@ public class DistinctCountFormula implements PercentageFormula {
     * Key of a Timestamp with sub-millisecond precision. It is distinct from every Date
     * and from Timestamps of other nanos, and symmetric in equals.
     */
-   private static final class SubMillisKey {
+   private static final class SubMillisKey implements java.io.Serializable {
       SubMillisKey(long time, int nanos) {
          this.time = time;
          this.nanos = nanos;
@@ -327,8 +330,6 @@ public class DistinctCountFormula implements PercentageFormula {
       private final int nanos;
    }
 
-   private static final Double ZERO_DOUBLE = 0.0;
-   private static final Float ZERO_FLOAT = 0.0F;
    private short percentageType = (short) StyleConstants.PERCENTAGE_NONE;
    private Object total = null;
    private Set<Object> set = Collections.newSetFromMap(new Hashtable<>());

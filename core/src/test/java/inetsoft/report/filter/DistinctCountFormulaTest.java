@@ -327,6 +327,47 @@ class DistinctCountFormulaTest {
       addAll(f2, new Date(time), b, a, a);
       assertEquals(3, f1.getResult());
       assertEquals(3, f2.getResult());
+
+      // the formula is Serializable, so the sub-millisecond keys must survive a round trip
+      DistinctCountFormula copy = roundTrip(f1);
+      assertEquals(3, copy.getResult());
+      copy.addValue((Object) a);
+      copy.addValue((Object) new Date(time));
+      assertEquals(3, copy.getResult());
+      copy.addValue((Object) new java.sql.Timestamp(time + 1));
+      assertEquals(4, copy.getResult());
+   }
+
+   @Test
+   @DisplayName("A clone keeps the normalized values")
+   void clone_keepsNormalizedValues() {
+      long time = 1_700_000_000_000L;
+      DistinctCountFormula original = new DistinctCountFormula();
+      addAll(original, 0.0, new java.sql.Timestamp(time));
+      DistinctCountFormula copy = (DistinctCountFormula) original.clone();
+      addAll(copy, -0.0, new Date(time));
+      assertEquals(2, copy.getResult());
+      assertEquals(2, original.getResult());
+   }
+
+   @SuppressWarnings("unchecked")
+   private static <T> T roundTrip(T obj) {
+      try {
+         java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+
+         try(java.io.ObjectOutputStream out = new java.io.ObjectOutputStream(bytes)) {
+            out.writeObject(obj);
+         }
+
+         try(java.io.ObjectInputStream in = new java.io.ObjectInputStream(
+            new java.io.ByteArrayInputStream(bytes.toByteArray())))
+         {
+            return (T) in.readObject();
+         }
+      }
+      catch(Exception ex) {
+         throw new AssertionError(ex);
+      }
    }
 
    private static void addAll(Formula formula, Object... values) {
