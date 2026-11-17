@@ -706,8 +706,8 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
    @Override
    protected boolean isTopNReverse(XDimensionRef dim) {
       if(dim instanceof VSDimensionRef) {
-         return ((VSDimensionRef) dim).getRankingOptionValue().equals(
-            "" + XCondition.BOTTOM_N);
+         return ("" + XCondition.BOTTOM_N).equals(
+            ((VSDimensionRef) dim).getRankingOptionValue());
       }
 
       LOG.warn("Dimension column not found: " + dim.getName());

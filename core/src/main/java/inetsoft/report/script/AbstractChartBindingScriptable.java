@@ -1572,8 +1572,10 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          XDimensionRef[] flds = getInfo().getAllDimensions(ref, false);
          return isBindingTopNReverse(flds);
       }
-
-      return false;
+      else {
+         XDimensionRef[] flds = getInfo().getAllDimensions(ref, true);
+         return isBindingTopNReverse(flds);
+      }
    }
 
    /**
@@ -1869,8 +1871,12 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          return flds == null || flds.length == 0
             ? DateRangeRef.YEAR_INTERVAL : getDateLevelValue(flds[0]);
       }
+      else {
+         XDimensionRef[] flds = getInfo().getAllDimensions(ref, true);
 
-      return DateRangeRef.YEAR_INTERVAL;
+         return flds == null || flds.length == 0
+            ? DateRangeRef.YEAR_INTERVAL : getDateLevelValue(flds[0]);
+      }
    }
 
    /**
@@ -2209,9 +2215,20 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     * Get date level value.
     */
    protected int getDateLevelValue(XDimensionRef ref) {
-      return ref instanceof VSDimensionRef ?
-         Integer.parseInt(((VSDimensionRef) ref).getDateLevelValue()) :
-         ref.getDateLevel();
+      if(ref instanceof VSDimensionRef) {
+         String value = ((VSDimensionRef) ref).getDateLevelValue();
+
+         if(value != null) {
+            try {
+               return Integer.parseInt(value.trim());
+            }
+            catch(NumberFormatException ex) {
+               // variable or empty level, use the runtime level
+            }
+         }
+      }
+
+      return ref.getDateLevel();
    }
 
    /**

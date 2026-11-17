@@ -597,7 +597,9 @@ public class LibManager implements AutoCloseable {
     *
     * @throws IOException if an I/O error occurs.
     */
-   private synchronized void save(PhysicalLibrary library, SaveOptions options) throws IOException {
+   synchronized void save(PhysicalLibrary library, SaveOptions options) throws IOException {
+      Throwable failure = null;
+
       try {
          // save version
          PhysicalLibraryEntry entry = library.createEntry(CURR_VERSION, null);
@@ -610,8 +612,34 @@ public class LibManager implements AutoCloseable {
          styles.save(library, options);
          styleFolders.save(library, options);
       }
+      catch(Throwable ex) {
+         failure = ex;
+         throw ex;
+      }
       finally {
-         library.close();
+         try {
+            library.close();
+         }
+         catch(Throwable ex) {
+            if(failure == null) {
+               failure = ex;
+               throw ex;
+            }
+
+            failure.addSuppressed(ex);
+         }
+         finally {
+            // the transactions were flushed by the writers, put them back if the save (including
+            // the commit by close) failed, otherwise the changes would never be persisted
+            for(LogicalLibrary<?> logicalLibrary : getLogicalLibraries()) {
+               if(failure == null) {
+                  logicalLibrary.commitFlushedTransactions();
+               }
+               else {
+                  logicalLibrary.restoreFlushedTransactions();
+               }
+            }
+         }
       }
    }
 

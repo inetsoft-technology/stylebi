@@ -45,6 +45,7 @@ import { BaseTableModel } from "../model/base-table-model";
 import { FocusObjectEventModel } from "../model/focus-object-event-model";
 import { GuideBounds } from "../model/layout/guide-bounds";
 import { VSAnnotationModel } from "../model/annotation/vs-annotation-model";
+import { VSCalendarModel } from "../model/calendar/vs-calendar-model";
 import { VSChartModel } from "../model/vs-chart-model";
 import { VSObjectModel } from "../model/vs-object-model";
 import { VSSelectionBaseModel } from "../model/vs-selection-base-model";
@@ -546,6 +547,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       return false;
    }
 
+   private isOpenDropdownCalendar(vsObject: VSObjectModel): boolean {
+      const calendar = vsObject as VSCalendarModel;
+      return this.viewer && vsObject.objectType === "VSCalendar" &&
+         !!calendar.dropdownCalendar && !!calendar.calendarsShown;
+   }
+
    needsZIndexBoost(vsObject: VSObjectModel): boolean {
       // Boost the z-index of a max-mode assembly (or an embedded viewsheet containing one)
       // so its stacking context escapes any ancestor's local z-order and renders above
@@ -612,6 +619,15 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          // legitimately authored above an embedded viewsheet, and permanently reordering them
          // would break those layouts. The boost stays well below popUpContentBoostZIndex so it
          // never competes with the max-mode/pop-component/data-tip tiers below.
+         if(this.isOpenDropdownCalendar(vsObject)) {
+            // Bug #78478: in the viewer every assembly is its own stacking context, so the
+            // +9999 the calendar applies to itself (vs-calendar.component.html) stays trapped
+            // inside this wrapper. Raise the wrapper too, or a later, higher-z-index assembly
+            // paints over the open date grid and takes the clicks. Same boost the composer
+            // already gives it.
+            return this.zIndex(vsObject) + 9999;
+         }
+
          return this.isHoveredEmbeddedViewsheet(vsObject)
             ? this.zIndex(vsObject) + GuiTool.MINI_TOOLBAR_MIN_ZINDEX
             : this.zIndex(vsObject);

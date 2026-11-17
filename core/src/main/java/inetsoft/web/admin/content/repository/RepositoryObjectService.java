@@ -1675,6 +1675,13 @@ public class RepositoryObjectService {
                                          actions, true, principal);
       }
       else if((type & RepositoryEntry.FOLDER) != 0) {
+         // Bug #81497, a per-user home node (My Dashboards / My Portal Dashboards of a user) has
+         // no permission resource and is not deleted here; say so instead of a permission denial
+         if(resource.getType() == null) {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "em.content.repository.userNodeNotDeletable", src));
+         }
+
          registryManager.checkPermission(src, src, resource.getType(),
             actions, true, principal);
       }

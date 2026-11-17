@@ -209,30 +209,33 @@ class PreAssetQueryConditionMergeableTest {
                        compare(integer("k"), XCondition.ONE_OF, 1)));
    }
 
-   // merge() first takes out the conditions that cannot be pushed down one by one
-   // (isConditionItemMergeable), so the others still are, and then asks about the whole list
-   // (isConditionListMergeable). The one-of check for Mongo is only in the second, so a "one of"
-   // is not taken out: the whole list fails and every condition is done in memory, also the one
-   // that could be pushed down. Another condition that cannot be pushed down only keeps itself in
-   // memory. The result is the same, only less is pushed down. Pins the current behavior, reported
-   // as Bug #81229.
+   /** Runs merge() of the query and returns it. */
+   private static SQLBoundQuery merged(SQLBoundQuery query) throws Exception {
+      query.merge(new inetsoft.uql.VariableTable());
+      return query;
+   }
+
+   // merge() takes out the conditions that cannot be pushed down one by one
+   // (isConditionItemMergeable) and then asks about the rest (isConditionListMergeable). The
+   // one-of check for Mongo is in both, so only the "one of" is done in memory and the other
+   // conditions are pushed down. Bug #81229.
    @Test
-   void oneOfOnMongoKeepsTheOtherConditionsInMemoryToo() throws Exception {
+   void oneOfOnMongoIsTheOnlyConditionKeptInMemory() throws Exception {
       MergeableFixture.Built built = MergeableFixture.simple("derby");
       built.table.setPreConditionList(list(compare(integer("k"), XCondition.EQUAL_TO, 1),
                                            compare(integer("k"), XCondition.ONE_OF, 1, 2)));
-      SQLBoundQuery mongo = mongoQuery(built);
-      mongo.merge(new inetsoft.uql.VariableTable());
+      SQLBoundQuery mongo = merged(mongoQuery(built));
 
-      assertNull(mongo.getUniformSQL().getWhere());
-      assertEquals(3, mongo.preconds.getSize());
+      assertNotNull(mongo.getUniformSQL().getWhere());
+      assertEquals(1, mongo.preconds.getSize());
+      assertEquals(XCondition.ONE_OF,
+                   mongo.preconds.getConditionItem(0).getXCondition().getOperation());
 
       // the same conditions on another database are both pushed down
       built = MergeableFixture.simple("derby");
       built.table.setPreConditionList(list(compare(integer("k"), XCondition.EQUAL_TO, 1),
                                            compare(integer("k"), XCondition.ONE_OF, 1, 2)));
-      SQLBoundQuery other = built.query();
-      other.merge(new inetsoft.uql.VariableTable());
+      SQLBoundQuery other = merged(built.query());
 
       assertNotNull(other.getUniformSQL().getWhere());
       assertEquals(0, other.preconds.getSize());
@@ -242,11 +245,49 @@ class PreAssetQueryConditionMergeableTest {
       built.table.setPreConditionList(list(
          compare(integer("k"), XCondition.EQUAL_TO, 1),
          compare(scriptColumn("twice", "field['k'] * 2"), XCondition.EQUAL_TO, 2)));
-      SQLBoundQuery script = built.query();
-      script.merge(new inetsoft.uql.VariableTable());
+      SQLBoundQuery script = merged(built.query());
 
       assertNotNull(script.getUniformSQL().getWhere());
       assertEquals(1, script.preconds.getSize());
+   }
+
+   // a "one of" that is the only condition is done in memory, nothing is pushed down
+   @Test
+   void oneOfAloneOnMongoIsKeptInMemory() throws Exception {
+      MergeableFixture.Built built = MergeableFixture.simple("derby");
+      built.table.setPreConditionList(list(compare(integer("k"), XCondition.ONE_OF, 1, 2)));
+      SQLBoundQuery mongo = merged(mongoQuery(built));
+
+      assertNull(mongo.getUniformSQL().getWhere());
+      assertEquals(1, mongo.preconds.getSize());
+      assertEquals(XCondition.ONE_OF,
+                   mongo.preconds.getConditionItem(0).getXCondition().getOperation());
+   }
+
+   // with an OR the list is not split, so a "one of" keeps every condition in memory
+   @Test
+   void oneOfInAnOrOnMongoKeepsEveryConditionInMemory() throws Exception {
+      MergeableFixture.Built built = MergeableFixture.simple("derby");
+      ConditionList conditions = list(compare(integer("k"), XCondition.EQUAL_TO, 1),
+                                      compare(integer("k"), XCondition.ONE_OF, 1, 2));
+      conditions.setJunctionOperator(1, JunctionOperator.OR);
+      built.table.setPreConditionList(conditions);
+      SQLBoundQuery mongo = merged(mongoQuery(built));
+
+      assertNull(mongo.getUniformSQL().getWhere());
+      assertEquals(3, mongo.preconds.getSize());
+   }
+
+   // conditions that are not a "one of" are all pushed down to Mongo
+   @Test
+   void otherConditionsOnMongoAreAllPushedDown() throws Exception {
+      MergeableFixture.Built built = MergeableFixture.simple("derby");
+      built.table.setPreConditionList(list(compare(integer("k"), XCondition.EQUAL_TO, 1),
+                                           compare(integer("v"), XCondition.GREATER_THAN, 5)));
+      SQLBoundQuery mongo = merged(mongoQuery(built));
+
+      assertNotNull(mongo.getUniformSQL().getWhere());
+      assertEquals(0, mongo.preconds.getSize());
    }
 
    // ---- a sub query ----
