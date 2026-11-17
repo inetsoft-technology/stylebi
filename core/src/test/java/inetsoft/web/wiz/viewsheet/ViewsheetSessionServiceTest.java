@@ -142,6 +142,49 @@ class ViewsheetSessionServiceTest {
                             "the write; the calc field was saved"), warnings);
    }
 
+   /**
+    * Bug #81569: what the paired viewer draws is read before the edit runs; an assembly the edit
+    * shows again is added to it before the refresh, and the table data of the added assembly
+    * follows the refresh next to the data the edit itself produced.
+    */
+   @Test
+   void mutateAddsTheAssembliesTheEditShowsAgainBeforeTheRefresh() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      java.util.Set<String> drawnBefore = java.util.Set.of("Text2");
+      when(broadcast.drawnAssemblyNames(rvs)).thenReturn(drawnBefore);
+      CommandDispatcher.Command addedData = mock(CommandDispatcher.Command.class);
+      when(broadcast.broadcastNewlyDrawnAssemblies(eq(rvs), any(), any(), eq(drawnBefore), any()))
+         .thenReturn(List.of(addedData));
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
+      boolean[] snapshotBeforeEdit = new boolean[1];
+
+      svc.mutate("TOK", agent, (r, runtimeId, dispatcher) ->
+         snapshotBeforeEdit[0] = !mockingDetails(broadcast).getInvocations().stream()
+            .noneMatch(i -> i.getMethod().getName().equals("drawnAssemblyNames")));
+
+      assertTrue(snapshotBeforeEdit[0], "the drawn assemblies must be read before the edit runs");
+      org.mockito.InOrder order = inOrder(broadcast);
+      order.verify(broadcast).broadcastNewlyDrawnAssemblies(eq(rvs), eq("Viewsheet/foo-7"),
+                                                           eq(agent), eq(drawnBefore), any());
+      order.verify(broadcast).broadcastRefresh(eq(rvs), eq(SheetType.VIEWSHEET),
+                                               eq("Viewsheet/foo-7"), eq(agent),
+                                               eq(List.of(addedData)));
+   }
+
    /** A mutation that dispatches nothing must not report a phantom warning. */
    @Test
    void mutateReturnsAnEmptyListWhenNothingWarned() throws Exception {

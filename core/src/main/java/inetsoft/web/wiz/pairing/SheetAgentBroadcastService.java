@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.pairing;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
@@ -63,10 +64,12 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class SheetAgentBroadcastService {
@@ -247,6 +250,196 @@ public class SheetAgentBroadcastService {
    }
 
    /**
+    * The absolute names of the assemblies a viewer of {@code rvs} draws right now, by the same
+    * rule the native viewer uses ({@link VSEventUtil#isVisible}). Take it before a mutation and
+    * hand it to {@link #broadcastNewlyDrawnAssemblies} afterwards.
+    *
+    * @return the names, or {@code null} when they cannot be determined (the caller then skips the
+    *         diff; nothing is lost beyond the add of a re-shown assembly)
+    */
+   public Set<String> drawnAssemblyNames(RuntimeViewsheet rvs) {
+      try {
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs == null) {
+            return null;
+         }
+
+         Set<String> names = new HashSet<>();
+
+         for(Assembly a : vs.getAssemblies(true, false)) {
+            if(a instanceof VSAssembly vsAssembly && VSEventUtil.isVisible(rvs, vsAssembly)) {
+               names.add(vsAssembly.getAbsoluteName());
+            }
+         }
+
+         return names;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to determine the drawn assemblies (runtimeId={})", rvs.getID(), e);
+         return null;
+      }
+   }
+
+   /**
+    * Adds to the browser every assembly that is drawn now but was not before the mutation (a
+    * re-shown assembly, an undone hide, the children of a re-shown group container).
+    *
+    * <p>The refresh broadcast only updates objects the viewer already holds: the Preview
+    * ({@code viewer-app}) ignores a refresh for an object it no longer has, and removes an
+    * assembly it was told is hidden, so a re-shown assembly stays missing until the page is
+    * reloaded (Bug #81569). The native service adds it with an {@code AddVSObjectCommand}; this
+    * runs that same {@link CoreLifecycleService#addDeleteVSObject} (and the table load of
+    * {@link CoreLifecycleService#initTable}) under a capturing dispatcher and forwards the
+    * commands with the address the native service gave them (selection-container and embedded
+    * viewsheet children). Call before {@link #broadcastRefresh}, which then updates the added
+    * objects like any other.
+    *
+    * <p>Best effort: a failure is logged and swallowed, the mutation already happened.
+    *
+    * @param drawnBefore    {@link #drawnAssemblyNames} taken before the mutation; null skips
+    * @param alreadyLoaded  commands the mutation produced; a table whose data is among them is
+    *                       not loaded again
+    * @return the {@code LoadTableDataCommand}s of the added tables, for the caller to pass to
+    *         {@link #broadcastRefresh} so they follow the refresh that carries the table model
+    */
+   public List<CommandDispatcher.Command> broadcastNewlyDrawnAssemblies(
+      RuntimeViewsheet rvs, String runtimeId, Principal owner, Set<String> drawnBefore,
+      List<CommandDispatcher.Command> alreadyLoaded)
+   {
+      String sessionId = rvs.getSocketSessionId();
+      Viewsheet vs = rvs.getViewsheet();
+      List<CommandDispatcher.Command> tableData = new ArrayList<>();
+
+      if(sessionId == null || vs == null || drawnBefore == null) {
+         return tableData;
+      }
+
+      String user = rvs.getSocketUserName();
+
+      if(user == null) {
+         user = owner == null ? null : owner.getName();
+      }
+
+      List<VSAssembly> added = newlyDrawn(rvs, vs, drawnBefore);
+
+      if(added.isEmpty()) {
+         return tableData;
+      }
+
+      Set<String> loaded = new HashSet<>();
+
+      if(alreadyLoaded != null) {
+         for(CommandDispatcher.Command c : alreadyLoaded) {
+            if(c != null && c.getCommand() instanceof LoadTableDataCommand &&
+               c.getAssembly() != null)
+            {
+               loaded.add(c.getAssembly());
+            }
+         }
+      }
+
+      List<CommandDispatcher.Command> captured = new ArrayList<>();
+
+      try {
+         CapturingCommandDispatcher.withCapturingDispatcher(owner, dispatcher -> {
+            try {
+               for(VSAssembly assembly : added) {
+                  coreLifecycleService.addDeleteVSObject(rvs, assembly, dispatcher, true);
+
+                  if(!loaded.contains(assembly.getAbsoluteName())) {
+                     coreLifecycleService.initTable(rvs, dispatcher, "", assembly);
+                  }
+               }
+            }
+            finally {
+               captured.addAll(dispatcher.getCapturedCommands());
+            }
+
+            return null;
+         });
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to add the re-shown assemblies to the paired browser (runtimeId={})",
+                  runtimeId, e);
+      }
+
+      for(CommandDispatcher.Command c : captured) {
+         if(c == null || c.getCommand() == null) {
+            continue;
+         }
+
+         Object command = c.getCommand();
+
+         try {
+            if(command instanceof LoadTableDataCommand) {
+               tableData.add(c);
+            }
+            else if(command instanceof AddVSObjectCommand ||
+                    command instanceof RemoveVSObjectCommand ||
+                    command instanceof RefreshEmbeddedVSCommand)
+            {
+               String assembly = c.getAssembly();
+               sendToBrowser(user, sessionId, runtimeId,
+                             assembly == null || assembly.isEmpty() ? null : assembly, command);
+            }
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to forward a re-shown assembly to the paired browser (runtimeId={})",
+                     runtimeId, e);
+         }
+      }
+
+      LOG.info("Pairing broadcast added re-shown assemblies (runtimeId={}, sessionId={}, " +
+               "assemblies={})", runtimeId, sessionId, added.size());
+      return tableData;
+   }
+
+   /**
+    * The assemblies drawn now and not in {@code drawnBefore}, without those inside an embedded
+    * viewsheet that is itself among them: adding the embedded viewsheet adds its children.
+    */
+   private List<VSAssembly> newlyDrawn(RuntimeViewsheet rvs, Viewsheet vs,
+                                       Set<String> drawnBefore)
+   {
+      List<VSAssembly> added = new ArrayList<>();
+      Set<String> addedViewsheets = new HashSet<>();
+
+      try {
+         for(Assembly a : vs.getAssemblies(true, false)) {
+            if(a instanceof VSAssembly vsAssembly &&
+               !drawnBefore.contains(vsAssembly.getAbsoluteName()) &&
+               VSEventUtil.isVisible(rvs, vsAssembly))
+            {
+               added.add(vsAssembly);
+
+               if(vsAssembly instanceof Viewsheet) {
+                  addedViewsheets.add(vsAssembly.getAbsoluteName());
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to determine the re-shown assemblies (runtimeId={})", rvs.getID(), e);
+         return List.of();
+      }
+
+      added.removeIf(a -> {
+         for(Viewsheet parent = a.getViewsheet(); parent != null && parent != vs;
+             parent = parent.getViewsheet())
+         {
+            if(addedViewsheets.contains(parent.getAbsoluteName())) {
+               return true;
+            }
+         }
+
+         return false;
+      });
+
+      return added;
+   }
+
+   /**
     * Refresh every visible top-level assembly on the browser's open viewsheet.
     *
     * <p>Unlike the worksheet path (a single {@code RefreshWorksheetCommand} carrying a list
@@ -273,6 +466,10 @@ public class SheetAgentBroadcastService {
          VSObjectModel<?> model;
 
          try {
+            // an output assembly's runtime state (a text's display text) is only computed by the
+            // native refresh, so a model built without it draws an untouched text empty
+            rvs.getViewsheetSandbox().ifPresent(
+               box -> coreLifecycleService.prepareOutputAssemblyForRefresh(vsAssembly, rvs, box));
             model = vsObjectModelFactoryService.createModel(vsAssembly, rvs);
          }
          catch(Exception e) {

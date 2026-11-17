@@ -99,6 +99,7 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -4445,17 +4446,11 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       Viewsheet before = rvs.getViewsheet() == null ? null : rvs.getViewsheet().clone();
+      Set<String> drawnBefore = broadcast.drawnAssemblyNames(rvs);
       ViewsheetSessionService.CheckpointRestore restored =
          sessions.restoreCheckpoint(rvs, user, linkUri, true);
       boolean undone = restored.moved();
-
-      if(undone) {
-         broadcast.broadcastRemovedAssemblies(rvs, rvs.getID(), user, before);
-      }
-
-      // the restored tables' cells reach the paired canvas only as LoadTableDataCommand (#81305)
-      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user,
-                                 restored.tableData());
+      broadcastRestored(rvs, user, before, drawnBefore, restored);
       return undoState("undone", undone, rvs);
    }
 
@@ -4468,18 +4463,32 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       Viewsheet before = rvs.getViewsheet() == null ? null : rvs.getViewsheet().clone();
+      Set<String> drawnBefore = broadcast.drawnAssemblyNames(rvs);
       ViewsheetSessionService.CheckpointRestore restored =
          sessions.restoreCheckpoint(rvs, user, linkUri, false);
       boolean redone = restored.moved();
+      broadcastRestored(rvs, user, before, drawnBefore, restored);
+      return undoState("redone", redone, rvs);
+   }
 
-      if(redone) {
+   /**
+    * Tells the paired browser what an undo/redo changed: the assemblies it removed, the ones it
+    * shows again (Bug #81569), then the refresh. The restored tables' cells reach the paired
+    * canvas only as LoadTableDataCommand (#81305), so those follow the refresh.
+    */
+   private void broadcastRestored(RuntimeViewsheet rvs, Principal user, Viewsheet before,
+                                  Set<String> drawnBefore,
+                                  ViewsheetSessionService.CheckpointRestore restored)
+   {
+      List<CommandDispatcher.Command> tableData = new ArrayList<>(restored.tableData());
+
+      if(restored.moved()) {
          broadcast.broadcastRemovedAssemblies(rvs, rvs.getID(), user, before);
+         tableData.addAll(broadcast.broadcastNewlyDrawnAssemblies(
+            rvs, rvs.getID(), user, drawnBefore, restored.tableData()));
       }
 
-      // the restored tables' cells reach the paired canvas only as LoadTableDataCommand (#81305)
-      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user,
-                                 restored.tableData());
-      return undoState("redone", redone, rvs);
+      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user, tableData);
    }
 
    private static Map<String, Object> undoState(String key, boolean applied, RuntimeViewsheet rvs) {

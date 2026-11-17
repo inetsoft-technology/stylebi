@@ -38,6 +38,7 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Resolves a pairing session to a live viewsheet runtime and runs mutations against it.
@@ -305,6 +306,9 @@ public class ViewsheetSessionService {
       // no step for the partial change. The partial edit is real, so it gets an undo step and the
       // browser is told about it.
       persistCalcFieldAggregates(rvs);
+      // what the paired viewer draws before the edit, so an assembly the edit shows again is
+      // added to it instead of refreshed (the viewer ignores a refresh for an object it removed)
+      Set<String> drawnBefore = broadcast.drawnAssemblyNames(rvs);
 
       try {
          warnings = CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
@@ -348,6 +352,9 @@ public class ViewsheetSessionService {
          // 2026-08-17-write-coordination-design.md / -implementation.md.
          rvs.bumpWriteRevision();
 
+         producedCommands.addAll(
+            broadcast.broadcastNewlyDrawnAssemblies(rvs, session.runtimeId(), agent, drawnBefore,
+                                                    producedCommands));
          notDelivered = broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(),
                                                    agent, producedCommands);
       }
