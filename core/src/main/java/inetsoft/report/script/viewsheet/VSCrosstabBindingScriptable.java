@@ -615,7 +615,14 @@ public class VSCrosstabBindingScriptable extends PropertyScriptable {
 
       for(DataRef dim : dims) {
          if(Tool.equals(dim.getName(), field)) {
-            topN = Integer.parseInt(((VSDimensionRef) dim).getRankingNValue());
+            String value = ((VSDimensionRef) dim).getRankingNValue();
+
+            try {
+               topN = value == null ? 0 : Integer.parseInt(value.trim());
+            }
+            catch(NumberFormatException ex) {
+               topN = 0;
+            }
          }
       }
 
@@ -690,8 +697,8 @@ public class VSCrosstabBindingScriptable extends PropertyScriptable {
 
       for(DataRef dim : dims) {
          if(Tool.equals(dim.getName(), field)) {
-            reserve = ((VSDimensionRef) dim).getRankingOptionValue().
-               equals("" + XCondition.BOTTOM_N);
+            reserve = ("" + XCondition.BOTTOM_N).equals(
+               ((VSDimensionRef) dim).getRankingOptionValue());
          }
       }
 
@@ -767,7 +774,18 @@ public class VSCrosstabBindingScriptable extends PropertyScriptable {
 
       for(DataRef dim : dims) {
          if(Tool.equals(dim.getName(), field)) {
-            order = Integer.parseInt(((VSDimensionRef) dim).getDateLevelValue());
+            VSDimensionRef vdim = (VSDimensionRef) dim;
+            String value = vdim.getDateLevelValue();
+            order = vdim.getDateLevel();
+
+            if(value != null) {
+               try {
+                  order = Integer.parseInt(value.trim());
+               }
+               catch(NumberFormatException ex) {
+                  // variable or empty level, use the runtime level
+               }
+            }
          }
       }
 

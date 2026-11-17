@@ -23,6 +23,8 @@ import inetsoft.test.*;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -143,5 +145,47 @@ public class VSCrosstabBindingScriptableTest {
       assertEquals(XConstants.YEAR_DATE_GROUP,
                    vsCrosstabBindingScriptable.getGroupOrder("date", XConstants.COL_HEADER));
       assertTrue(vsCrosstabBindingScriptable.getGroupTotal("date", XConstants.COL_HEADER));
+   }
+
+   @Test
+   void unsetFieldGettersReturnDefaults() {
+      vsCrosstabBindingScriptable.setRowFields(new String[]{"name"});
+      vsCrosstabBindingScriptable.setColFields(new String[]{"date"});
+
+      assertEquals(0, vsCrosstabBindingScriptable.getTopN("name", XConstants.ROW_HEADER));
+      assertFalse(vsCrosstabBindingScriptable.isTopNReverse("name", XConstants.ROW_HEADER));
+      assertEquals(DateRangeRef.YEAR_INTERVAL,
+                   vsCrosstabBindingScriptable.getGroupOrder("date", XConstants.COL_HEADER));
+   }
+
+   @Test
+   void literalDesignLevelWinsOverRuntimeLevel() {
+      vsCrosstabBindingScriptable.setColFields(new String[]{"date"});
+      VSDimensionRef dim = (VSDimensionRef)
+         crosstabVSAScriptable.getCrosstabInfo().getDesignColHeaders()[0];
+      dim.setDateLevelValue("3");
+      dim.setDateLevel(4);
+
+      assertEquals(3, vsCrosstabBindingScriptable.getGroupOrder("date", XConstants.COL_HEADER));
+   }
+
+   @Test
+   void variableDesignLevelFallsBackToRuntimeLevel() {
+      vsCrosstabBindingScriptable.setColFields(new String[]{"date"});
+      VSDimensionRef dim = (VSDimensionRef)
+         crosstabVSAScriptable.getCrosstabInfo().getDesignColHeaders()[0];
+      dim.setDateLevelValue("$(v)");
+      dim.setDateLevel(2);
+
+      assertEquals(2, vsCrosstabBindingScriptable.getGroupOrder("date", XConstants.COL_HEADER));
+   }
+
+   @Test
+   void bottomNRoundTripsAfterNullSafeCompare() {
+      vsCrosstabBindingScriptable.setRowFields(new String[]{"name"});
+      vsCrosstabBindingScriptable.setTopNReverse("name", XConstants.ROW_HEADER, true);
+      assertTrue(vsCrosstabBindingScriptable.isTopNReverse("name", XConstants.ROW_HEADER));
+      vsCrosstabBindingScriptable.setTopNReverse("name", XConstants.ROW_HEADER, false);
+      assertFalse(vsCrosstabBindingScriptable.isTopNReverse("name", XConstants.ROW_HEADER));
    }
 }
