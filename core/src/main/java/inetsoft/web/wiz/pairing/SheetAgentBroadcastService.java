@@ -83,6 +83,14 @@ public class SheetAgentBroadcastService {
     */
    static final String PAIRING_JOINED_TOPIC = "/commands/wiz/pairing/joined";
 
+   /**
+    * What {@link #broadcastRefresh} reports when the browser's socket session no longer exists:
+    * the edit is on the server, the open page was not told.
+    */
+   public static final String SESSION_GONE_NOTICE =
+      "The edit is saved on the server, but the open page is no longer connected, so it was " +
+      "not refreshed. Reload the page or re-pair to see the change.";
+
    @Autowired
    public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService,
                                      VSObjectModelFactoryService vsObjectModelFactoryService,
@@ -120,10 +128,10 @@ public class SheetAgentBroadcastService {
     * @param runtimeId the sheet runtime ID (used as the RUNTIME_ID_ATTR header value)
     * @param owner     the agent principal (used as a fallback user name if socketUserName is null)
     */
-   public void broadcastRefresh(RuntimeSheet rs, SheetType sheetType, String runtimeId,
-                                Principal owner)
+   public String broadcastRefresh(RuntimeSheet rs, SheetType sheetType, String runtimeId,
+                                  Principal owner)
    {
-      broadcastRefresh(rs, sheetType, runtimeId, owner, List.of());
+      return broadcastRefresh(rs, sheetType, runtimeId, owner, List.of());
    }
 
    /**
@@ -139,16 +147,27 @@ public class SheetAgentBroadcastService {
     *
     * @param capturedCommands commands the mutation dispatched; only {@code LoadTableDataCommand}s
     *                         for visible tables (calc tables included) are used. May be null.
+    * @return {@link #SESSION_GONE_NOTICE} when the browser session the runtime addresses no longer
+    *         exists, so nothing was pushed; the caller relays it to the agent next to the other
+    *         warnings of the call. {@code null} otherwise, including when no browser session was
+    *         ever recorded (nothing is open to refresh). A session that is gone but not yet
+    *         reaped (a half-open connection) still reads as live and is not reported.
     */
-   public void broadcastRefresh(RuntimeSheet rs, SheetType sheetType, String runtimeId,
-                                Principal owner, List<CommandDispatcher.Command> capturedCommands)
+   public String broadcastRefresh(RuntimeSheet rs, SheetType sheetType, String runtimeId,
+                                  Principal owner, List<CommandDispatcher.Command> capturedCommands)
    {
       String sessionId = rs.getSocketSessionId();
 
       if(sessionId == null) {
          LOG.warn("Pairing broadcast skipped — no socket session recorded (runtimeId={}, runtimeClass={})",
                   runtimeId, rs.getClass().getSimpleName());
-         return;
+         return null;
+      }
+
+      if(!commandDispatcherService.isSessionLive(sessionId)) {
+         LOG.warn("Pairing broadcast not delivered — the browser's socket session is gone " +
+                  "(runtimeId={}, sessionId={})", runtimeId, sessionId);
+         return SESSION_GONE_NOTICE;
       }
 
       String user = rs.getSocketUserName();
@@ -165,7 +184,7 @@ public class SheetAgentBroadcastService {
          broadcastCapturedTableData((RuntimeViewsheet) rs, runtimeId, sessionId, user,
                                     capturedCommands);
          sendUndoState(rs, runtimeId, sessionId, user);
-         return;
+         return null;
       }
 
       Object command = buildCommand(sheetType, rs, owner);
@@ -174,6 +193,7 @@ public class SheetAgentBroadcastService {
 
       LOG.info("Pairing broadcast refresh sent (sheetType={}, runtimeId={}, sessionId={})",
                sheetType, runtimeId, sessionId);
+      return null;
    }
 
    /**

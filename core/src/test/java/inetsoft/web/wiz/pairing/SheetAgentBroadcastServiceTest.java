@@ -72,7 +72,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void worksheetBroadcastTargetsSocketSessionWithoutClientId() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         noopCoreLifecycleService());
@@ -102,7 +102,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void nullSocketSessionSkipsBroadcast() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         noopCoreLifecycleService());
@@ -126,7 +126,7 @@ class SheetAgentBroadcastServiceTest {
     */
    @Test
    void pairingJoinedNoticeAddressesTheMintingBrowser() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         noopCoreLifecycleService());
@@ -157,7 +157,7 @@ class SheetAgentBroadcastServiceTest {
     */
    @Test
    void focusChangedNoticeReusesTheJoinedTopicWithTheFlagSet() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         noopCoreLifecycleService());
@@ -184,7 +184,7 @@ class SheetAgentBroadcastServiceTest {
     */
    @Test
    void pairingJoinedNoticeSkippedWithoutADestinationUser() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         noopCoreLifecycleService());
@@ -200,7 +200,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void viewsheetBroadcastSendsOneRefreshVSObjectCommandPerVisibleAssembly() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       VSObjectModelFactoryService modelFactory = mock(VSObjectModelFactoryService.class);
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, modelFactory, noopBindingTreeService(),
@@ -234,7 +234,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void fallsBackToOwnerNameWhenSocketUserNameIsNull() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         noopCoreLifecycleService());
@@ -253,7 +253,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void broadcastRefreshSendsUpdateUndoStateCommandWithRuntimeUndoPosition() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         noopCoreLifecycleService());
@@ -287,7 +287,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void broadcastSaveSendsUpdateUndoStateCommandSoIndicatorClears() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         noopCoreLifecycleService());
@@ -339,7 +339,7 @@ class SheetAgentBroadcastServiceTest {
     */
    @Test
    void broadcastSaveSendsSetViewsheetInfoCommandForAViewsheetRuntime() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
@@ -395,7 +395,7 @@ class SheetAgentBroadcastServiceTest {
     */
    @Test
    void broadcastSaveDelegatesToCoreLifecycleServiceForAFullyPopulatedBaseEntry() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
@@ -442,7 +442,7 @@ class SheetAgentBroadcastServiceTest {
     */
    @Test
    void broadcastBindingTreeRefreshSendsTheTreeVsBindingTreeServiceBuilds() throws Exception {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       VSBindingTreeService bindingTreeService = mock(VSBindingTreeService.class);
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), bindingTreeService,
@@ -469,7 +469,7 @@ class SheetAgentBroadcastServiceTest {
    /** No open sandbox / stale runtime -- a null tree must not send a command with a null payload. */
    @Test
    void broadcastBindingTreeRefreshSendsNothingWhenNoTreeCanBeBuilt() throws Exception {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       VSBindingTreeService bindingTreeService = mock(VSBindingTreeService.class);
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), bindingTreeService,
@@ -489,7 +489,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void broadcastBindingTreeRefreshSkippedWithoutASocketSession() throws Exception {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       VSBindingTreeService bindingTreeService = mock(VSBindingTreeService.class);
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), bindingTreeService,
@@ -512,7 +512,7 @@ class SheetAgentBroadcastServiceTest {
     */
    @Test
    void broadcastViewsheetInfoRefreshSendsTheFullyPopulatedCommand() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
@@ -543,7 +543,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void broadcastViewsheetInfoRefreshSkippedWithoutASocketSession() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
@@ -561,7 +561,7 @@ class SheetAgentBroadcastServiceTest {
    /** A build failure is a paper cut (stale status bar), not lost data -- must not propagate. */
    @Test
    void broadcastViewsheetInfoRefreshSwallowsBuildFailures() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
@@ -623,7 +623,7 @@ class SheetAgentBroadcastServiceTest {
 
    /** A viewsheet whose model factory yields no model, so only the commands under test are sent. */
    private static final class Fixture {
-      final CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      final CommandDispatcherService dispatcher = TestDispatchers.live();
       final SheetAgentBroadcastService svc;
       final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
 
@@ -864,7 +864,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void removedAssemblyIsSentAsRemoveVSObjectCommand() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         removingCoreLifecycleService("Probe", null));
@@ -889,7 +889,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void removedContainerChildCarriesTheContainerHeader() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         removingCoreLifecycleService("Child", "Container1"));
@@ -908,7 +908,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void nothingIsSentWhenNoAssemblyWasRemoved() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
                                         noopCoreLifecycleService());
@@ -922,7 +922,7 @@ class SheetAgentBroadcastServiceTest {
 
    @Test
    void removedAssembliesSkippedWithoutSocketSession() {
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CommandDispatcherService dispatcher = TestDispatchers.live();
       CoreLifecycleService core = noopCoreLifecycleService();
       SheetAgentBroadcastService svc =
          new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),

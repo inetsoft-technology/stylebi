@@ -102,6 +102,11 @@ export class ViewsheetClientService implements OnDestroy {
          });
          this.client.reconnectError().subscribe((error) => {
             this.connectionErrorSubject.next(error);
+
+            // a null error is a successful reconnect: the page now holds a new socket session
+            if(error == null) {
+               this.rebindPairing();
+            }
          });
          this.client.connect("../vs-events", false, customElement).subscribe(
             (connection) => {
@@ -126,6 +131,21 @@ export class ViewsheetClientService implements OnDestroy {
 
    public connectionError(): Observable<string> {
       return this.connectionErrorSubject.asObservable();
+   }
+
+   /**
+    * After a reconnect this client has a new socket session id, but a sheet an agent is paired
+    * to still addresses its pushes to the id it was paired under, which no longer exists. Tells
+    * the server which runtime this client shows so it can re-point the pairing at the new
+    * session. Sent from here, by the client that owns the runtime and its socket, so it covers
+    * every surface (Design, worksheet panes, Preview) whatever the toolbar currently shows. The
+    * server ignores it unless the user has an agent paired to that runtime.
+    */
+   private rebindPairing(): void {
+      if(this.connection && this._runtimeId) {
+         this.connection.send("/events/wiz/pairing/rebind", {},
+                              JSON.stringify({ runtimeId: this._runtimeId }));
+      }
    }
 
    /**

@@ -61,7 +61,7 @@ import static org.mockito.Mockito.*;
 class SheetAgentBroadcastBudget81415Test {
    private final Worksheet ws = new Worksheet();
    private final RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
-   private final CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+   private final CommandDispatcherService dispatcher = TestDispatchers.live();
    private final SheetAgentBroadcastService svc = new SheetAgentBroadcastService(
       dispatcher, mock(VSObjectModelFactoryService.class), mock(VSBindingTreeService.class),
       mock(CoreLifecycleService.class));

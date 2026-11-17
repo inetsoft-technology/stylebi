@@ -302,6 +302,35 @@ public class SheetPairingController {
       }
    }
 
+   /**
+    * Payload for the STOMP rebind.
+    *
+    * @param runtimeId the runtime the sending page shows
+    */
+   public record RebindRequest(String runtimeId) {}
+
+   /**
+    * STOMP rebind -- sent by a page right after its websocket reconnected under a new session id,
+    * so the agent pushes of a sheet paired to it reach the new session instead of the one that no
+    * longer exists. Sent for every runtime the page shows, paired or not; nothing happens unless
+    * the user has an agent attached to it. Fire-and-forget like {@link #detachViaSocket}:
+    * nothing to report back. The session id and user name come from the accessor, never from the
+    * payload; see {@link SheetJoinService#rebindSocket} for what is checked.
+    *
+    * <p>Send to: {@code /app/wiz/pairing/rebind}
+    */
+   @MessageMapping("/wiz/pairing/rebind")
+   public void rebindViaSocket(@Payload RebindRequest req, Principal user,
+                               SimpMessageHeaderAccessor accessor)
+   {
+      if(req == null || req.runtimeId() == null) {
+         return;
+      }
+
+      joinService.rebindSocket(req.runtimeId(), user, accessor.getSessionId(),
+                               destinationUserName(user));
+   }
+
    @ExceptionHandler(PairingException.class)
    public ResponseEntity<Map<String, String>> handlePairingException(PairingException e) {
       HttpStatus status = switch(e.getKind()) {

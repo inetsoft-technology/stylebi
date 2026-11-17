@@ -255,7 +255,9 @@ public class ViewsheetSessionService {
     * human's Ctrl+Z steps back through agent edits one at a time.
     *
     * @return the messages of any {@code MessageCommand}s of {@code Type.WARNING} the mutation
-    *         dispatched, plus any script-execution failure it reported as an INFO (see
+    *         dispatched, plus {@link SheetAgentBroadcastService#SESSION_GONE_NOTICE} when the
+    *         paired browser's socket session no longer exists and so was not refreshed, plus
+    *         any script-execution failure it reported as an INFO (see
     *         {@link CapturingCommandDispatcher#getScriptFailures()}) -- e.g. a best-effort post-write refresh step that was contained rather
     *         than allowed to fail the whole call. Empty when nothing warned. Unlike an ERROR
     *         (which fails the call via {@link CommandErrorException}), a WARNING does not stop
@@ -289,6 +291,8 @@ public class ViewsheetSessionService {
       boolean cellScoped = PaneScopeService.isCellGrant(session.editorContext());
 
       List<String> warnings = List.of();
+      // set by the broadcast in the finally block below when the browser's socket session is gone
+      String notDelivered = null;
       // LoadTableDataCommands the mutation dispatched; the capturing dispatcher swallows them, so
       // they are forwarded to the paired browser after the refresh (Bug #80736)
       List<CommandDispatcher.Command> producedCommands = new ArrayList<>();
@@ -344,8 +348,14 @@ public class ViewsheetSessionService {
          // 2026-08-17-write-coordination-design.md / -implementation.md.
          rvs.bumpWriteRevision();
 
-         broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent,
-                                    producedCommands);
+         notDelivered = broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(),
+                                                   agent, producedCommands);
+      }
+
+      if(notDelivered != null) {
+         // the dispatcher's list may be immutable
+         warnings = new ArrayList<>(warnings);
+         warnings.add(notDelivered);
       }
 
       return warnings;
