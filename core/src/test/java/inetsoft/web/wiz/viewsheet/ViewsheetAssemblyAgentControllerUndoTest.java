@@ -29,8 +29,10 @@ import org.mockito.InOrder;
 
 import java.lang.reflect.Constructor;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -91,6 +93,49 @@ class ViewsheetAssemblyAgentControllerUndoTest {
       InOrder order = inOrder(broadcast);
       order.verify(broadcast).broadcastRemovedAssemblies(rvs, "vs-1", user, snapshot);
       order.verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user, tableData);
+   }
+
+   /** Bug #81569: an undone hide is added back to the paired viewer, between removals and refresh. */
+   @Test
+   void undoAndRedoAddTheShownAgainAssembliesFromTheSnapshotTakenBeforeTheRestore()
+      throws Exception
+   {
+      Set<String> drawnBefore = Set.of("Text1");
+      List<CommandDispatcher.Command> addedTableData =
+         List.of(mock(CommandDispatcher.Command.class));
+      when(broadcast.drawnAssemblyNames(rvs)).thenReturn(drawnBefore);
+      when(broadcast.broadcastVisibilityChanges(rvs, "vs-1", user, drawnBefore, tableData))
+         .thenReturn(addedTableData);
+      List<CommandDispatcher.Command> allTableData = new ArrayList<>(tableData);
+      allTableData.addAll(addedTableData);
+
+      arrange(true, false);
+      controller.undo("tok", user, "");
+
+      InOrder order = inOrder(broadcast, sessions);
+      order.verify(broadcast).drawnAssemblyNames(rvs);
+      order.verify(sessions).restoreCheckpoint(eq(rvs), eq(user), any(), eq(true));
+      order.verify(broadcast).broadcastRemovedAssemblies(rvs, "vs-1", user, snapshot);
+      order.verify(broadcast).broadcastVisibilityChanges(rvs, "vs-1", user, drawnBefore,
+                                                           tableData);
+      order.verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user,
+                                               allTableData);
+
+      clearInvocations(broadcast, sessions);
+      arrange(true, true);
+      controller.redo("tok", user, "");
+
+      verify(broadcast).broadcastVisibilityChanges(rvs, "vs-1", user, drawnBefore, tableData);
+      verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user, allTableData);
+   }
+
+   @Test
+   void aNoOpUndoAddsNothing() throws Exception {
+      arrange(false, false);
+
+      controller.undo("tok", user, "");
+
+      verify(broadcast, never()).broadcastVisibilityChanges(any(), any(), any(), any(), any());
    }
 
    @Test

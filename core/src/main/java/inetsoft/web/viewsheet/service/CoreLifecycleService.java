@@ -1381,13 +1381,7 @@ public class CoreLifecycleService {
    public void refreshVSObject(VSAssembly assembly, RuntimeViewsheet rvs, String sharedHint,
                                ViewsheetSandbox box, CommandDispatcher dispatcher)
    {
-      if(assembly instanceof OutputVSAssembly && box != null) {
-         OutputVSAssemblyInfo info = (OutputVSAssemblyInfo) assembly.getVSAssemblyInfo();
-         box = getSandbox(box, info.getAbsoluteName());
-         info.setLinkVarTable(box.getAllVariables());
-         info.setLinkSelections(box.getSelections());
-         parameterService.refreshTextParameters(rvs, assembly);
-      }
+      prepareOutputAssemblyForRefresh(assembly, rvs, box);
 
       RefreshVSObjectCommand command = new RefreshVSObjectCommand();
 
@@ -1413,6 +1407,24 @@ public class CoreLifecycleService {
       }
       else {
          dispatcher.sendCommand(command);
+      }
+   }
+
+   /**
+    * Brings an output assembly's runtime state up to date before its object model is built: the
+    * link variables and selections it resolves, and the display text computed from them (the
+    * runtime-mode model of a text reads the display text, which is empty until this has run).
+    * Does nothing for other assembly types.
+    */
+   public void prepareOutputAssemblyForRefresh(VSAssembly assembly, RuntimeViewsheet rvs,
+                                               ViewsheetSandbox box)
+   {
+      if(assembly instanceof OutputVSAssembly && box != null) {
+         OutputVSAssemblyInfo info = (OutputVSAssemblyInfo) assembly.getVSAssemblyInfo();
+         box = getSandbox(box, info.getAbsoluteName());
+         info.setLinkVarTable(box.getAllVariables());
+         info.setLinkSelections(box.getSelections());
+         parameterService.refreshTextParameters(rvs, assembly);
       }
    }
 
