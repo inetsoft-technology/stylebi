@@ -47,7 +47,8 @@ public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompre
          CSVConfig config = (CSVConfig) extraConfig;
          String delimiter = config.isTabDelimited() ? "\t" : config.getDelimiter();
 
-         if(delimiter == null) {
+         // a delimiter field left blank is stored as "", which would write no separator at all
+         if(delimiter == null || delimiter.isEmpty()) {
             delimiter = ",";
          }
 

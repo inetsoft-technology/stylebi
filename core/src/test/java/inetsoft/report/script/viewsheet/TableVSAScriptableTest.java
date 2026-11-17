@@ -381,6 +381,14 @@ public class TableVSAScriptableTest {
       tableVSAScriptable2.setAssembly(tableVSAssembly2.getName());
    }
 
+   @Test
+   void applyChangesWritesBackFormDataOfTheTableOnce() {
+      tableVSAScriptable.applyChanges();
+
+      org.mockito.Mockito.verify(viewsheetSandbox, org.mockito.Mockito.times(1))
+         .writeBackFormData(tableVSAssembly);
+   }
+
    public static final String ASSET_ID = "1^128^__NULL__^TableVSAScriptableTest";
 
    @RegisterExtension

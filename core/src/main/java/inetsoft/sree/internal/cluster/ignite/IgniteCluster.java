@@ -122,9 +122,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          throw new RuntimeException("Failed to resolve local cluster IP: " + localIp, e);
       }
 
+      // file transfers use TLS exactly when Ignite itself does, with the same factory
+      javax.net.ssl.SSLContext fileTransferSsl = config.getSslContextFactory() == null ?
+         null : config.getSslContextFactory().create();
       clusterFileTransfer = new ClusterFileTransfer(
          InetsoftConfig.getInstance().getCluster().getFileTransferPort(),
-         fileTransferAddress);
+         fileTransferAddress, fileTransferSsl);
       messageExecutor = Executors.newFixedThreadPool(
          Runtime.getRuntime().availableProcessors(),
          r -> new GroupedThread(r, "IgniteMessages"));

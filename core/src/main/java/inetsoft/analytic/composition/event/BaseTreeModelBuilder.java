@@ -449,7 +449,17 @@ public abstract class BaseTreeModelBuilder {
       }
 
       String aname = addLMEntryLevel ? "" : (assembly.getName() + "/");
-      list.sort(new VSUtil.DataRefComparator());
+
+      // for a logical model entity's own attribute list, keep the order defined in the
+      // model instead of alphabetizing it (Bug #81269). This only applies to the
+      // addLMEntryLevel=false call site (browsing the entity's attributes): a calc
+      // field appended above via VSUtil.appendCalcFields on that path now keeps the
+      // model's order too, since it is part of this same list. addLMEntryLevel is
+      // excluded from the skip so the dedicated call site for this entity's own calc
+      // fields (addLMEntryLevel=true) always sorts alphabetically, as before.
+      if(addLMEntryLevel || baseEntry == null || !baseEntry.isLogicModel()) {
+         list.sort(new VSUtil.DataRefComparator());
+      }
 
       if(info instanceof TableVSAssemblyInfo) {
          for(int i = 0; i < list.size(); i++) {

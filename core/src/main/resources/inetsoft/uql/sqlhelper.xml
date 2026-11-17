@@ -195,9 +195,6 @@
    <aggregate type="oracle" function="varp" name="var_pop" />
    <aggregate type="oracle" function="stddevp" name="stddev_pop" />
 
-   <aggregate type="db2" function="correl" name="correlation" />
-   <aggregate type="db2" function="covar" name="covariance" />
-
    <aggregate type="mysql" function="stddev" name="stddev_samp" />
    <aggregate type="mysql" function="stddevp" name="stddev_pop" />
    <aggregate type="mysql" function="var" name="var_samp" />

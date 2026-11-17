@@ -1101,4 +1101,24 @@ class CalcStatTest {
          CalcStat.steyx(new Object[] {1.0, null, 3.0, 4.0}, new Object[] {2.0, 4.0, null, 8.0}));
       assertEquals("Arrays should have at least 3 data points, / by zero", exception.getMessage());
    }
+
+   @Test
+   void averageSkipsNonNumericEntries() {
+      assertEquals(3.0, CalcStat.average(new Object[] { 2.0, 4.0, "x", null }), 1e-9);
+      assertEquals(7.0, CalcStat.average(new Object[] { 7.0 }), 1e-9);
+   }
+
+   @ParameterizedTest
+   @MethodSource("modeCases")
+   void modeIsTheMostFrequentValue(Object[] values, double expected) {
+      assertEquals(expected, CalcStat.mode(values), 1e-9);
+   }
+
+   static Stream<Arguments> modeCases() {
+      return Stream.of(
+         Arguments.of(new Object[] { 1.0, 2.0, 2.0, 3.0 }, 2.0),
+         Arguments.of(new Object[] { 0.0, 1.0, 1.0 }, 1.0),
+         Arguments.of(new Object[] { 0.0, 0.0, 1.0 }, 0.0),
+         Arguments.of(new Object[] { 5.0 }, 5.0));
+   }
 }

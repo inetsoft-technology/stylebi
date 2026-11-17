@@ -292,7 +292,9 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return null;
       }
 
-      String[] arr = new String[rangeValues.length];
+      // only the design ranges: a script write that grows the backing array adds placeholder
+      // entries that must not be shown in the property dialog or stored back by it (#81550)
+      String[] arr = new String[Math.min(rangeDesignCount, rangeValues.length)];
 
       for(int i = 0; i < arr.length; i++) {
          arr[i] = rangeValues[i].getDValue();

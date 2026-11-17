@@ -24,6 +24,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.util.DefaultTable;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -701,30 +702,108 @@ public class FormulaFunctionsTest {
       assertTrue(FormulaFunctions.inArray(new Object[]{3.0}, 3));
    }
 
-   /**
-    * Bug #81465: a Timestamp and a Date with the same time are one element in
-    * either argument order, consistent with intersect and inArray.
-    */
-   @Test
-   void timestampAndDateWithEqualMillisAreOneElementInBothOrders() {
-      long t = 1700000000000L;
-      Object[] ts = {new java.sql.Timestamp(t)};
-      Object[] dt = {new Date(t)};
+   private static double[] numbers(Object result) {
+      Object[] arr = (Object[]) result;
+      double[] res = new double[arr.length];
 
-      assertEquals(1, ((Object[]) FormulaFunctions.union(ts, dt, null)).length);
-      assertEquals(1, ((Object[]) FormulaFunctions.union(dt, ts, null)).length);
+      for(int i = 0; i < arr.length; i++) {
+         res[i] = ((Number) arr[i]).doubleValue();
+      }
+
+      return res;
    }
 
-   /**
-    * Bug #81460: a null argument is an empty set, so duplicates are still removed.
-    */
    @Test
-   void testUnionWithNullArgumentRemovesDuplicates() {
-      Object[] dup = {1, 1};
-      assertArrayEquals(new Object[]{1}, (Object[]) FormulaFunctions.union(null, dup, null));
-      assertArrayEquals(new Object[]{1}, (Object[]) FormulaFunctions.union(dup, null, null));
-      assertArrayEquals(new Object[]{1}, (Object[]) FormulaFunctions.union(new Object[0], dup, null));
-      assertEquals(0, ((Object[]) FormulaFunctions.union(null, null, null)).length);
+   void unionMergesSameNumericValueOfDifferentNumberTypes() {
+      assertArrayEquals(new double[] { 1, 2, 3 },
+                        numbers(FormulaFunctions.union(new Object[] { 1, 2, 2 },
+                                                       new Object[] { 2.0, 3L, 3 }, null)));
+   }
+
+   @Test
+   void unionWithNullFirstArgumentEqualsUnionWithEmptyArray() {
+      Object[] dup = { 1, 1 };
+      assertArrayEquals((Object[]) FormulaFunctions.union(new Object[0], dup, null),
+                        (Object[]) FormulaFunctions.union(null, dup, null));
+      assertArrayEquals(new Object[] { 1 }, (Object[]) FormulaFunctions.union(null, dup, null));
+   }
+
+   @Test
+   void unionWithNullSecondArgumentEqualsUnionWithEmptyArray() {
+      Object[] dup = { 1, 1 };
+      assertArrayEquals((Object[]) FormulaFunctions.union(dup, new Object[0], null),
+                        (Object[]) FormulaFunctions.union(dup, null, null));
+      assertArrayEquals(new Object[] { 1 }, (Object[]) FormulaFunctions.union(dup, null, null));
+   }
+
+   @Test
+   void unionOfDegenerateInputsIsTheSet() {
+      assertArrayEquals(new Object[0], (Object[]) FormulaFunctions.union(null, null, null));
+      assertArrayEquals(new Object[0],
+                        (Object[]) FormulaFunctions.union(new Object[0], new Object[0], null));
+      assertArrayEquals(new Object[] { 5 },
+                        (Object[]) FormulaFunctions.union(new Object[] { 5 },
+                                                          new Object[] { 5 }, null));
+      assertArrayEquals(new Object[] { "a" }, (Object[]) FormulaFunctions.union("a", "a", null));
+   }
+
+   @Test
+   void unionDoesNotMatchAcrossTypesOrFoldCase() {
+      assertArrayEquals(new Object[] { 1, "1" },
+                        (Object[]) FormulaFunctions.union(new Object[] { 1, "1" },
+                                                          new Object[] { 1.0 }, null));
+      assertArrayEquals(new Object[] { "a", "A" },
+                        (Object[]) FormulaFunctions.union(new Object[] { "a", "A" },
+                                                          new Object[] { "a" }, null));
+   }
+
+   @Test
+   void timestampAndDateWithEqualMillisAreOneElementInBothOrders() {
+      long ms = 1700000000123L;
+      java.sql.Timestamp t = new java.sql.Timestamp(ms);
+      Date d = new Date(ms);
+
+      assertEquals(1, ((Object[]) FormulaFunctions.union(new Object[] { t },
+                                                         new Object[] { d }, null)).length);
+      assertEquals(1, ((Object[]) FormulaFunctions.union(new Object[] { d },
+                                                         new Object[] { t }, null)).length);
+      assertTrue(FormulaFunctions.inArray(new Object[] { t }, d));
+      assertTrue(FormulaFunctions.inArray(new Object[] { d }, t));
+   }
+
+   private static void permute(Object[] items, int k, java.util.List<Object[]> out) {
+      if(k == items.length) {
+         out.add(items.clone());
+         return;
+      }
+
+      for(int i = k; i < items.length; i++) {
+         Object tmp = items[k];
+         items[k] = items[i];
+         items[i] = tmp;
+         permute(items, k + 1, out);
+         tmp = items[k];
+         items[k] = items[i];
+         items[i] = tmp;
+      }
+   }
+
+   @Test
+   void toListCountIsIndependentOfInputOrder() {
+      java.util.List<Object[]> perms = new java.util.ArrayList<>();
+      permute(new Object[] { 1, 1.5, 2, 2.5 }, 0, perms);
+      assertEquals(24, perms.size());
+
+      for(Object[] perm : perms) {
+         assertEquals(4, ((Object[]) FormulaFunctions.toList(perm, null)).length,
+                      java.util.Arrays.toString(perm));
+      }
+   }
+
+   @Test
+   void toListTreatsSameValueOfDifferentNumberTypesAsOneElement() {
+      assertEquals(1, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.0, 1L, 1.0f }, null)).length);
    }
 
    private static Stream<Arguments> provideUnionArrayTestCases() {
