@@ -370,6 +370,20 @@ public class HyperlinkDialogService {
                   "purpose, or name a dimension to link its axis labels.");
             }
 
+            // A treemap-family chart has no axis, so an axis link on one of its fields lands on
+            // the color/shape/size/text ref that carries the same column: a second destination
+            // the plain address never reads and the data-point lookup may shadow. Wiz path only:
+            // the Composer GUI cannot offer an axis link there. Clearing is let through so a link
+            // stored by an earlier build can still be removed.
+            if(model.isRejectDerivedMeasure() && model.isAxis() &&
+               model.getLinkType() != NONE && GraphTypes.isTreemap(chartInfo.getRTChartType()))
+            {
+               throw new IllegalArgumentException(
+                  "'" + model.getColName() + "' is on a chart type that has no axis, so " +
+                  "axis:true has no axis label to carry a link here. Drop axis:true to set the " +
+                  "link on the field's data points.");
+            }
+
             if(chartInfo instanceof MergedVSChartInfo &&
                !(GraphUtil.isDimension(ref) && !(ref instanceof VSChartGeoRef)))
             {
@@ -611,6 +625,25 @@ public class HyperlinkDialogService {
             String.join(", ", matches) + "). Pass the exact name." :
             "'colName' '" + colName + "' is not a field bound on this chart, so a link set on it " +
             "would be stored nowhere. The chart's fields are: " + String.join(", ", bound) + ".");
+   }
+
+   /**
+    * Whether the data-point address (plain) and the axis-label address ({@code axis:true}) of
+    * {@code colName} resolve to the same {@code ChartRef}, i.e. share its one Hyperlink slot.
+    * They resolve to different refs on a treemap-family chart, whose group field is a different
+    * ref from the color/size field carrying the same column. Null when either address resolves
+    * to nothing, so the caller keeps its own answer.
+    */
+   public static Boolean sharesLinkSlot(ChartVSAssemblyInfo info, String colName, boolean isText) {
+      VSChartInfo chartInfo = info == null ? null : info.getVSChartInfo();
+
+      if(chartInfo == null || colName == null) {
+         return null;
+      }
+
+      ChartRef plain = getMeasure(chartInfo, colName, true, false, isText);
+      ChartRef axis = getMeasure(chartInfo, colName, true, true, isText);
+      return plain == null || axis == null ? null : plain == axis;
    }
 
    /** Whether a write for {@code colName} finds a field to store the link on. */

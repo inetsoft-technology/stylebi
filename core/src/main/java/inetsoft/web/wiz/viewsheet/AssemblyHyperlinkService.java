@@ -176,7 +176,8 @@ public class AssemblyHyperlinkService {
          rvs.getID(), assemblyName, cell.row(), cell.col(), target.colName(), target.axis(),
          target.text(), target.titleLink(), target.emptyPlotLink(), user);
       Map<String, Object> out = describe(assemblyName, model, target,
-         model == null ? null : tableLinkScope(rvs, assemblyName, cell, model.isApplyToRow()));
+         model == null ? null : tableLinkScope(rvs, assemblyName, cell, model.isApplyToRow()),
+         chartSharesLinkSlot(rvs, assemblyName, target));
       List<Map<String, Object>> inherited = tableInheritedLinks(rvs, assemblyName, cell);
 
       if(inherited == null) {
@@ -214,6 +215,25 @@ public class AssemblyHyperlinkService {
       {
          HyperlinkDialogService.requireChartColName(info, target.colName(), target.axis());
       }
+   }
+
+   /**
+    * Whether a chart field's data-point and axis-label addresses resolve to one ChartRef; null
+    * when there is no chart or colName to resolve, which leaves the caller's own answer.
+    */
+   private static Boolean chartSharesLinkSlot(RuntimeViewsheet rvs, String assemblyName,
+                                              Region target)
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly instanceof ChartVSAssembly &&
+         assembly.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo info)
+      {
+         return HyperlinkDialogService.sharesLinkSlot(info, target.colName(), target.text());
+      }
+
+      return null;
    }
 
    /** One {@code sessions.mutate}, so one undo checkpoint. */
@@ -1498,7 +1518,8 @@ public class AssemblyHyperlinkService {
    }
 
    private static Map<String, Object> describe(String assemblyName, HyperlinkDialogModel model,
-                                               Region asked, CellLinkScope scope)
+                                               Region asked, CellLinkScope scope,
+                                               Boolean chartSharesLinkSlot)
    {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
@@ -1569,10 +1590,13 @@ public class AssemblyHyperlinkService {
       // a title/empty-plot-link request, is exactly the shape where axis:true resolves to the same
       // ChartRef (and therefore the same Hyperlink) as a plain colName call. Setting one overwrites
       // the other's destination. This is the "fail loud" half of VHL-001 (bug #76580): a caller is
-      // told plainly rather than silently losing the other link.
+      // told plainly rather than silently losing the other link. Not so where the two addresses
+      // resolve to different refs (a treemap-family chart's group field vs its color field), so
+      // the resolved answer, when there is one, overrides the shape test.
       out.put("axisAndDataPointShareLink",
               model.getColName() != null &&
-              !(asked != null && (asked.titleLink() || asked.emptyPlotLink())));
+              !(asked != null && (asked.titleLink() || asked.emptyPlotLink())) &&
+              (chartSharesLinkSlot == null || chartSharesLinkSlot));
 
       // A table cell's link is stored under the cell's kind, not its position, so the row/col
       // above only address it; these say which rendered cells actually fire it (bug #78931).
