@@ -1114,6 +1114,10 @@ public class PolarCoord extends Coordinate {
             }
          }
 
+         if(pieCapRatio > 0 && pieRatio == 0) {
+            radius = Math.min(radius, Math.min(w, h) * pieCapRatio / 2);
+         }
+
          // leave gap so the edge doesn't overlap border
          radius = Math.min(radius - 1, Math.min(w, h) / 2 - 2);
          radius = Math.max(radius, 1);
@@ -1155,6 +1159,23 @@ public class PolarCoord extends Coordinate {
    @TernMethod
    public void setPieRatio(double pieRatio) {
       this.pieRatio = pieRatio;
+   }
+
+   /**
+    * Get the share of the shorter side that an automatic pie may span.
+    * @hidden
+    */
+   public double getPieCapRatio() {
+      return pieCapRatio;
+   }
+
+   /**
+    * Set the share of the shorter side that an automatic pie may span. Default is 0,
+    * which is no cap.
+    * @hidden
+    */
+   public void setPieCapRatio(double pieCapRatio) {
+      this.pieCapRatio = pieCapRatio;
    }
 
    /**
@@ -1200,7 +1221,8 @@ public class PolarCoord extends Coordinate {
 
       PolarCoord coord = (PolarCoord) obj;
       return type == coord.type && holeRatio == coord.holeRatio &&
-             pieRatio == coord.pieRatio && webGrid == coord.webGrid &&
+             pieRatio == coord.pieRatio && pieCapRatio == coord.pieCapRatio &&
+             webGrid == coord.webGrid &&
              spokeLabelRule == coord.spokeLabelRule;
    }
 
@@ -1277,6 +1299,7 @@ public class PolarCoord extends Coordinate {
    private Double pradius = null; // polar radius
    private double holeRatio = 0.3;
    private double pieRatio = 0;
+   private double pieCapRatio = 0;
    private boolean webGrid = false;
    private boolean spokeLabelRule = false;
    private boolean minApplied;
