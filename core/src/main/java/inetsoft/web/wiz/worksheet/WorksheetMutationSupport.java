@@ -674,6 +674,56 @@ public final class WorksheetMutationSupport {
       }
    }
 
+   /**
+    * Bug #81556: rewrites the text of the EXPRESSION value of the single condition on
+    * {@code field}, keeping its type (JavaScript or SQL) and operator. The worksheet condition
+    * value pane edits an Expression value; routing its text through {@link #replaceFilter} stored
+    * it as a plain literal and dropped the Expression.
+    *
+    * @throws IllegalArgumentException if {@code text} is blank, the field has no condition or more
+    *                                  than one, or the condition's first value is not an Expression
+    */
+   public static void replaceFilterExpressionValue(TableAssembly t, String field, String text) {
+      if(text == null || text.isBlank()) {
+         throw new IllegalArgumentException(
+            "An expression condition value needs a non-blank expression.");
+      }
+
+      boolean post = resolveUnambiguousAggregateAlias(t, field) != null;
+      ConditionListWrapper existing = post ? t.getPostConditionList() : t.getPreConditionList();
+      List<Integer> matches = existing == null || existing.isEmpty()
+         ? List.of() : filterMatches(t, existing.getConditionList(), field);
+
+      if(matches.size() != 1) {
+         throw new IllegalArgumentException(
+            "\"" + field + "\" has " + matches.size() + " conditions in this table's " +
+            (post ? "post-aggregate (HAVING)" : "pre-aggregate") + " filter, so its expression " +
+            "value cannot be rewritten. Nothing was changed.");
+      }
+
+      ConditionList cl = existing.getConditionList();
+      ConditionItem item = (ConditionItem) cl.getItem(matches.get(0));
+
+      if(!(item.getXCondition() instanceof Condition c) || c.getValueCount() == 0 ||
+         !(c.getValue(0) instanceof ExpressionValue current))
+      {
+         throw new IllegalArgumentException(
+            "The condition on \"" + field + "\" does not have an Expression value, so there is " +
+            "no expression to rewrite. Nothing was changed.");
+      }
+
+      ExpressionValue next = (ExpressionValue) current.clone();
+      next.setExpression(text);
+      c.setValue(0, next);
+
+      if(post) {
+         t.setPostConditionList(cl);
+      }
+      else {
+         t.setPreConditionList(cl);
+      }
+   }
+
    /** A built (not yet applied) add_filter/edit_condition item and the list it belongs to. */
    private record FilterItem(ConditionItem item, boolean post) {}
 

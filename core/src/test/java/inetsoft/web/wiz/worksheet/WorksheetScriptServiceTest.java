@@ -453,6 +453,49 @@ class WorksheetScriptServiceTest {
       assertEquals(List.of("5"), req.values());
    }
 
+   /** Bug #81556: an Expression value must stay an Expression, not be stored as a literal. */
+   private void seedExpressionCondition(String type, String text) throws PairingException {
+      seedCondition("Query1", "Price", "=", "0");
+      Worksheet ws = editService.resolve("TOK", agent).getWorksheet();
+      inetsoft.uql.asset.TableAssembly t = (inetsoft.uql.asset.TableAssembly) ws.getAssembly("Query1");
+      inetsoft.uql.ConditionItem item = (inetsoft.uql.ConditionItem)
+         t.getPreConditionList().getConditionList().getItem(0);
+      inetsoft.uql.asset.ExpressionValue ev = new inetsoft.uql.asset.ExpressionValue();
+      ev.setType(type);
+      ev.setExpression(text);
+      ((inetsoft.uql.Condition) item.getXCondition()).setValue(0, ev);
+   }
+
+   @Test
+   void anExpressionValueIsWrittenAsAnExpressionNotALiteral() throws Exception {
+      seedExpressionCondition(inetsoft.uql.asset.ExpressionValue.JAVASCRIPT, "1+1");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      service.write(session, agent, target, "2*1");
+
+      ArgumentCaptor<EditRequest> captor = ArgumentCaptor.forClass(EditRequest.class);
+      verify(worksheetController).editOp(eq("TOK"), captor.capture(), eq(agent));
+      EditRequest req = captor.getValue();
+      assertEquals("edit_condition_expression", req.op());
+      assertEquals("Price", req.field());
+      assertEquals("2*1", req.expression());
+      assertNull(req.values());
+   }
+
+   @Test
+   void anExpressionValueReadsBackAsItsText() throws Exception {
+      seedExpressionCondition(inetsoft.uql.asset.ExpressionValue.SQL, "1+0");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      assertEquals("1+0", service.read(session, agent, target).text());
+   }
+
    /**
     * The load-bearing case: {@code isEqual()} folded into the operator symbol, exactly as
     * {@code editCondition} itself interprets {@code LESS_THAN}/{@code GREATER_THAN} plus that
