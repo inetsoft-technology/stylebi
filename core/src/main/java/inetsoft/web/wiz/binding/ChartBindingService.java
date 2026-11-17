@@ -64,6 +64,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -139,7 +140,7 @@ public class ChartBindingService {
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
          fixNewMeasureColors(requireChart(rvs, assemblyName).getVSChartInfo(), measuresBefore);
 
-         Set<String> reported = new java.util.HashSet<>();
+         Set<String> reported = new HashSet<>();
          notes.addAll(ChartHyperlinkCarry.reapply(
             requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links, reported));
          notes.addAll(ChartHighlightSweep.sweep(
@@ -918,7 +919,7 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
-         Set<String> reported = new java.util.HashSet<>();
+         Set<String> reported = new HashSet<>();
          notes.addAll(ChartHyperlinkCarry.reapply(
             requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links, reported));
          notes.addAll(ChartHighlightSweep.sweep(
