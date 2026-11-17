@@ -73,6 +73,57 @@ class ConditionVocabularyTest {
       return new ConditionVocabulary.Clause(field, operator, values, junction, false, equal, level);
    }
 
+   // ── comparison operators carried by the equal / negated flags (#81507) ────
+
+   private static ConditionModel single(String operator, boolean negated, boolean equal) {
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(new ConditionVocabulary.Clause("Revenue", operator, List.of(10), null,
+                                                negated, equal, 0)), FIELDS);
+      return (ConditionModel) list[0];
+   }
+
+   @Test
+   void greaterOrEqualMapsToGreaterThanWithEqual() {
+      ConditionModel c = single(">=", false, false);
+      assertEquals(XCondition.GREATER_THAN, c.getOperation());
+      assertTrue(c.isEqual());
+      assertFalse(c.isNegated());
+   }
+
+   @Test
+   void lessOrEqualMapsToLessThanWithEqual() {
+      ConditionModel c = single("<=", false, false);
+      assertEquals(XCondition.LESS_THAN, c.getOperation());
+      assertTrue(c.isEqual());
+      assertFalse(c.isNegated());
+   }
+
+   @Test
+   void notEqualTokensMapToEqualsNegated() {
+      for(String token : new String[] { "!=", "<>" }) {
+         ConditionModel c = single(token, false, false);
+         assertEquals(XCondition.EQUAL_TO, c.getOperation(), token);
+         assertTrue(c.isNegated(), token);
+         assertFalse(c.isEqual(), token);
+      }
+   }
+
+   @Test
+   void conflictingFlagsOnComparisonTokensAreNamed() {
+      Exception e = assertThrows(IllegalArgumentException.class, () -> single(">=", true, false));
+      assertTrue(e.getMessage().contains(">=") && e.getMessage().contains("negated"));
+      e = assertThrows(IllegalArgumentException.class, () -> single("!=", true, false));
+      assertTrue(e.getMessage().contains("!=") && e.getMessage().contains("negated"));
+      e = assertThrows(IllegalArgumentException.class, () -> single("<>", false, true));
+      assertTrue(e.getMessage().contains("<>") && e.getMessage().contains("equal"));
+   }
+
+   @Test
+   void unknownOperatorErrorPointsAtEqualAndNegated() {
+      Exception e = assertThrows(IllegalArgumentException.class, () -> single("~=", false, false));
+      assertTrue(e.getMessage().contains("equal") && e.getMessage().contains("negated"));
+   }
+
    // ── the alternating array ─────────────────────────────────────────────────
 
    @Test

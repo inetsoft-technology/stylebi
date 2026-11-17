@@ -57,6 +57,12 @@ public final class ConditionVocabulary {
    /** Operator tokens, with the aliases an agent naturally reaches for. */
    private static final Map<String, Integer> OPERATORS = operators();
 
+   /** Operator tokens that are a base operation plus the equal flag ({@code >=}, {@code <=}). */
+   private static final Set<String> EQUAL_TOKENS = Set.of(">=", "<=");
+
+   /** Operator tokens that are a base operation plus the negated flag ({@code !=}, {@code <>}). */
+   private static final Set<String> NEGATED_TOKENS = Set.of("!=", "<>");
+
    /** Operators that take no values at all. */
    private static final Set<String> VALUELESS = Set.of("null", "is_null");
 
@@ -234,8 +240,32 @@ public final class ConditionVocabulary {
       ConditionModel condition = new ConditionModel();
       condition.setField(field);
       condition.setOperation(operation);
-      condition.setNegated(clause.negated());
-      condition.setEqual(clause.equal());
+      boolean negated = clause.negated();
+      boolean equal = clause.equal();
+
+      if(EQUAL_TOKENS.contains(operator)) {
+         if(negated) {
+            throw new IllegalArgumentException(
+               "Condition " + index + " uses '" + operator + "', which already means " +
+               "greater/less than with equal=true; it conflicts with negated=true. Drop " +
+               "'negated', or use less_than/greater_than with the equal and negated flags.");
+         }
+
+         equal = true;
+      }
+      else if(NEGATED_TOKENS.contains(operator)) {
+         if(negated || equal) {
+            throw new IllegalArgumentException(
+               "Condition " + index + " uses '" + operator + "', which already means equals " +
+               "with negated=true; it conflicts with " + (negated ? "negated=true" : "equal=true") +
+               ". Drop the '" + (negated ? "negated" : "equal") + "' flag.");
+         }
+
+         negated = true;
+      }
+
+      condition.setNegated(negated);
+      condition.setEqual(equal);
       condition.setLevel(clause.level());
 
       if(operation == XCondition.TOP_N || operation == XCondition.BOTTOM_N) {
@@ -795,7 +825,9 @@ public final class ConditionVocabulary {
       if(!OPERATORS.containsKey(name)) {
          throw new IllegalArgumentException(
             "Condition " + index + " has operator '" + operator + "'. Valid operators: " +
-            new TreeSet<>(OPERATORS.keySet()) + ".");
+            new TreeSet<>(OPERATORS.keySet()) + ". Other comparisons are expressed with the " +
+            "'equal' flag (>=, <= : greater_than/less_than with equal=true) and the 'negated' " +
+            "flag (not equals, not one_of, not between, ... : negated=true).");
       }
 
       return name;
@@ -983,6 +1015,10 @@ public final class ConditionVocabulary {
       map.put("<", XCondition.LESS_THAN);
       map.put("greater_than", XCondition.GREATER_THAN);
       map.put(">", XCondition.GREATER_THAN);
+      map.put(">=", XCondition.GREATER_THAN);
+      map.put("<=", XCondition.LESS_THAN);
+      map.put("!=", XCondition.EQUAL_TO);
+      map.put("<>", XCondition.EQUAL_TO);
       map.put("between", XCondition.BETWEEN);
       map.put("starts_with", XCondition.STARTING_WITH);
       map.put("startswith", XCondition.STARTING_WITH);
