@@ -572,7 +572,8 @@ public class BindingAgentController {
    public record SelectionSourceRequest(String assembly, String table, List<String> columns,
                                         List<String> additionalTables, String measure,
                                         String parentIdColumn, String idColumn,
-                                        String labelColumn, Boolean force) {}
+                                        String labelColumn, Boolean force,
+                                        String formula, String title) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/selection/source")
    public Map<String, Object> setSelectionSource(
@@ -585,7 +586,8 @@ public class BindingAgentController {
                                         request.columns(), request.additionalTables(),
                                         request.measure(), request.parentIdColumn(),
                                         request.idColumn(), request.labelColumn(),
-                                        Boolean.TRUE.equals(request.force()), linkUri);
+                                        Boolean.TRUE.equals(request.force()), linkUri,
+                                        request.formula(), request.title());
    }
 
    /**

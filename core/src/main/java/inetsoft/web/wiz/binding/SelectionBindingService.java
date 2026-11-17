@@ -136,6 +136,32 @@ public class SelectionBindingService {
                                         String labelColumn, boolean force, String linkUri)
       throws Exception
    {
+      return setSource(sessionToken, user, assemblyName, table, columns, additionalTables, measure,
+                       parentIdColumn, idColumn, labelColumn, force, linkUri, null, null);
+   }
+
+   /**
+    * Same as the overload above, plus the two writes the plugin used to send as separate calls
+    * after the binding, each its own undo checkpoint (#81535). Applied inside this one
+    * {@code sessions.mutate}, so one call is one checkpoint and one undo restores the levels, the
+    * measure, the aggregate and the title together, as the Composer property dialog's Apply does.
+    *
+    * @param formula  selection list or tree only -- the measure's aggregate (Count, Sum, Max, Min,
+    *                 or a {@code "$(..)"}/{@code "=.."} dynamic value), resolved and checked the
+    *                 same way the {@code formula} property write checks it. Null leaves the stored
+    *                 aggregate alone. Refused for a range slider or calendar, and refused when the
+    *                 selection ends up with no measure.
+    * @param title    the assembly's title text, for every type this method binds. Null leaves the
+    *                 stored title alone; an empty string clears it.
+    */
+   public Map<String, Object> setSource(String sessionToken, Principal user, String assemblyName,
+                                        String table, List<String> columns,
+                                        List<String> additionalTables, String measure,
+                                        String parentIdColumn, String idColumn,
+                                        String labelColumn, boolean force, String linkUri,
+                                        String formula, String title)
+      throws Exception
+   {
       if(table == null || table.isBlank()) {
          throw new IllegalArgumentException(
             "set_selection_source requires 'table' — the source table's name. " +
@@ -214,6 +240,10 @@ public class SelectionBindingService {
 
             applyMeasure(pane.getSelectionMeasurePaneModel(), runtimeId, user, assemblyName,
                          resolvedTable, pane.getAdditionalTables(), measure, result);
+            applyFormula(pane.getSelectionMeasurePaneModel(), runtimeId, user, assemblyName,
+                         resolvedTable, pane.getAdditionalTables(), formula,
+                         measure != null && !measure.isBlank());
+            applyTitle(model.getSelectionGeneralPaneModel().getTitlePropPaneModel(), title);
 
             List<String> selectedBefore = selectedListValues((SelectionListVSAssembly) assembly);
             selectionListService.setSelectionListPropertyModel(
@@ -250,6 +280,10 @@ public class SelectionBindingService {
             // write.
             applyMeasure(pane.getSelectionMeasurePaneModel(), runtimeId, user, assemblyName,
                          resolvedTable, pane.getAdditionalTables(), measure, result);
+            applyFormula(pane.getSelectionMeasurePaneModel(), runtimeId, user, assemblyName,
+                         resolvedTable, pane.getAdditionalTables(), formula,
+                         measure != null && !measure.isBlank());
+            applyTitle(model.getSelectionGeneralPaneModel().getTitlePropPaneModel(), title);
 
             if(idMode) {
                // #76768/#79252: an arbitrary-depth tree from one flat, self-referencing table,
@@ -342,11 +376,13 @@ public class SelectionBindingService {
          }
          else if(assembly instanceof TimeSliderVSAssembly) {
             refuseMeasure(assemblyName, "a range slider", measure);
+            refuseFormula(assemblyName, "a range slider", formula);
             requireArity(assemblyName, "a range slider", resolvedColumns, 1, null);
             requireSingleRangeType(assemblyName, resolvedTable, resolvedColumns);
             RangeSliderPropertyDialogModel model =
                rangeSliderService.getRangeSliderPropertyModel(runtimeId, assemblyName, user);
             RangeSliderDataPaneModel pane = model.getRangeSliderDataPaneModel();
+            applyTitle(model.getRangeSliderGeneralPaneModel().getTitlePropPaneModel(), title);
             requireRepoint(assemblyName, tables, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
             pane.setAssemblySource(component != null);
@@ -404,11 +440,13 @@ public class SelectionBindingService {
          }
          else if(assembly instanceof CalendarVSAssembly) {
             refuseMeasure(assemblyName, "a calendar", measure);
+            refuseFormula(assemblyName, "a calendar", formula);
             requireArity(assemblyName, "a calendar", resolvedColumns, 1, 1);
             requireDateType(assemblyName, resolvedTable, resolvedColumns.get(0));
             CalendarPropertyDialogModel model =
                calendarService.getCalendarPropertyModel(runtimeId, assemblyName, user);
             CalendarDataPaneModel pane = model.getCalendarDataPaneModel();
+            applyTitle(model.getCalendarGeneralPaneModel().getTitlePropPaneModel(), title);
             requireRepoint(assemblyName, tables, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
 
@@ -947,6 +985,75 @@ public class SelectionBindingService {
             "'measure' is not supported for " + kind + " ('" + assemblyName +
             "') — selection list or tree only. Omit it.");
       }
+   }
+
+   private static void refuseFormula(String assemblyName, String kind, String formula) {
+      if(formula != null && !formula.isBlank()) {
+         throw new IllegalArgumentException(
+            "'formula' is not supported for " + kind + " ('" + assemblyName +
+            "') -- selection list or tree only. Omit it.");
+      }
+   }
+
+   /** A null title keeps the stored one; any other value (even empty) replaces it. */
+   private static void applyTitle(TitlePropPaneModel titlePane, String title) {
+      if(title != null) {
+         titlePane.setTitle(title);
+      }
+   }
+
+   /**
+    * Writes the measure aggregate into the same pane the binding is applied from, after
+    * {@link #applyMeasure} so the measure is final. Resolved to the canonical name and checked
+    * against the measure's type exactly as the {@code formula} property write does, before
+    * anything is applied, so a refusal leaves nothing half-written. Null leaves it alone.
+    */
+   private void applyFormula(SelectionMeasurePaneModel measurePane, String runtimeId,
+                             Principal user, String assemblyName, String table,
+                             List<String> additionalTables, String formula,
+                             boolean measureSentThisCall)
+      throws Exception
+   {
+      if(formula == null || formula.isBlank()) {
+         return;
+      }
+
+      String measure = measurePane.getMeasure();
+
+      if(measure == null || measure.isBlank()) {
+         throw new IllegalArgumentException(
+            "'formula' applies to a measure, but '" + assemblyName + "' has none after this " +
+            "call. Pass 'measure' together with it.");
+      }
+
+      String resolved = SelectionFormulaResolver.resolve(assemblyName, formula);
+
+      if(SelectionFormulaResolver.isSum(resolved) && !isDynamicMeasure(measure)) {
+         SelectionMeasureResolver.Resolved typed = null;
+
+         try {
+            typed = SelectionMeasureResolver.resolveTyped(
+               dataOutputService, runtimeId, user, assemblyName, table, additionalTables, measure);
+         }
+         catch(IllegalArgumentException e) {
+            // A stored measure the dropdown does not list (an aggregate calculated field, a legacy
+            // value) is not judged, as the formula property write does; one sent in this call
+            // was already resolved by applyMeasure, so a refusal here is real.
+            if(measureSentThisCall) {
+               throw e;
+            }
+
+            LOG.debug("Not judging the stored measure '{}' of '{}' against Sum", measure,
+                      assemblyName, e);
+         }
+
+         if(typed != null) {
+            SelectionFormulaResolver.requireFitsMeasure(
+               assemblyName, resolved, typed.name(), typed.type());
+         }
+      }
+
+      measurePane.setFormula(resolved);
    }
 
    private String resolveMeasure(String runtimeId, Principal user, String assemblyName,
