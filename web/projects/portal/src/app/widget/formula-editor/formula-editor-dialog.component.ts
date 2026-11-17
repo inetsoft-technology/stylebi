@@ -520,7 +520,20 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
          if(this.followFocusPushed) {
             this.pushedEditorContext = pushedContext;
+            // A session retargeted here never minted a code from this dialog, so the connect
+            // component reports nothing for it; the switch is reported for the pushed context.
+            this.reportPushedPaneState();
          }
+      }
+   }
+
+   /** Reports the SQL/Script switch for the context Follow Focus pushed, when there is one. */
+   private reportPushedPaneState(): void {
+      const sql = this.paneSqlMode;
+
+      if(this.pushedEditorContext && sql !== undefined) {
+         this.followFocusService.reportPaneState(
+            this.runtimeId, this.socketConnection, this.pushedEditorContext, sql);
       }
    }
 
@@ -572,6 +585,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
          this.form.get("formulaType").valueChanges.forEach((value) => {
             this.populateTrees();
             this.checkValid();
+            this.reportPushedPaneState();
             // Need to do this because message dialog causes blur and modifies formControl.touched
             this.form.get("formulaType").markAsTouched();
          });

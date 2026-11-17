@@ -776,6 +776,37 @@ class SheetSessionServiceTest {
       assertEquals(PaneState.DEFAULT, svc.paneStateOf(reopened));
    }
 
+   /**
+    * A toolbar session retargeted to the dialog by Follow Focus never minted a code there, so the
+    * state the dialog reports for the pushed context is what the retargeted session reads, and
+    * popping the focus drops it with the pane.
+    */
+   @Test
+   void aFollowFocusRetargetedSessionReadsThePushedPanesStateAndPopDropsIt()
+      throws PairingException
+   {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession toolbar = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+      svc.setFollowFocus("sock-1", "vs-1", true);
+      // a location the back-compat pairing service accepts with no runtime; the keying under test
+      // does not depend on the kind
+      EditorContext pane = new EditorContext("viewsheetOnInit", null, null, null);
+
+      svc.setPaneState("sock-1", "vs-1", pane, new PaneState(true));
+      JoinSession retargeted = svc.retarget("sock-1", "vs-1", pane);
+
+      assertEquals(toolbar.sessionToken(), retargeted.sessionToken());
+      assertEquals(new PaneState(true), svc.paneStateOf(retargeted));
+
+      svc.popFocus("sock-1", "vs-1");
+      svc.retarget("sock-1", "vs-1", pane);
+
+      assertEquals(PaneState.DEFAULT,
+                   svc.paneStateOf(svc.resolve(toolbar.sessionToken(), "owner~;~org")),
+                   "the pane was closed, so its reported state must not outlive it");
+   }
+
    @Test
    void aSocketGoingAwayDropsItsPaneStatesButNotAnotherSocketsAndIgnoresIncompleteReports() {
       SheetSessionService svc = serviceAt(FIXED_NOW);

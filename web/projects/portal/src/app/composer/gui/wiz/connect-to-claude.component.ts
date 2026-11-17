@@ -538,11 +538,8 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          return;
       }
 
-      const payload = { runtimeId: this.runtimeId, editorContext: context, sql: this.sqlMode };
-
-      this.socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
-         conn.send("/events/wiz/pairing/pane-state", {}, JSON.stringify(payload));
-      });
+      this.followFocusService.reportPaneState(
+         this.runtimeId, this.socketConnection, context, this.sqlMode);
    }
 
    ngOnDestroy(): void {

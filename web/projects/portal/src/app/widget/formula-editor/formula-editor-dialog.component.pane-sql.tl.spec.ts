@@ -85,3 +85,65 @@ describe("FormulaEditorDialog - paneSqlMode (bug #81541)", () => {
       expect(comp.paneSqlMode).toBeUndefined();
    });
 });
+
+describe("FormulaEditorDialog - paneSqlMode through Follow Focus (bug #81541)", () => {
+   // A session paired from the toolbar and retargeted here never minted a code from this
+   // dialog, so the connect component reports nothing for it; the dialog reports for the context
+   // it pushed.
+   function followingDialog(pushed: boolean) {
+      const { comp, followFocusService } = createDialog();
+      comp.runtimeId = "rt-1";
+      comp.socketConnection = {} as any;
+      comp.isCalc = true;
+      comp.isVSContext = true;
+      comp.contextTable = "Orders";
+      comp.assemblyName = "Orders";
+      comp.returnTypeVisible = true;
+      (followFocusService.pushFocus as any).mockReturnValue(pushed);
+      comp.ngOnInit();
+      return { comp, report: followFocusService.reportPaneState as any };
+   }
+
+   it("reports the switch for the pushed context when the dialog opens", () => {
+      const { comp, report } = followingDialog(true);
+
+      expect(report).toHaveBeenCalledTimes(1);
+      expect(report).toHaveBeenCalledWith("rt-1", comp.socketConnection, comp.editorContext, false);
+   });
+
+   it("reports every flip, under the context that was pushed even after a rename", () => {
+      const { comp, report } = followingDialog(true);
+      const pushed = report.mock.calls[0][2];
+
+      comp.formulaName = "Renamed";
+      comp.form.get("formulaType").setValue(FormulaType.SQL);
+      comp.form.get("formulaType").setValue(FormulaType.SCRIPT);
+
+      expect(report.mock.calls.map((c: any[]) => c[3])).toEqual([false, true, false]);
+      expect(report.mock.calls.every((c: any[]) => c[2] === pushed)).toBe(true);
+      expect(pushed.name).toBe("CalcField1");
+   });
+
+   it("reports nothing when Follow Focus did not push this dialog", () => {
+      const { comp, report } = followingDialog(false);
+
+      comp.form.get("formulaType").setValue(FormulaType.SQL);
+
+      expect(report).not.toHaveBeenCalled();
+   });
+
+   it("reports nothing for a pushed location without the switch", () => {
+      const { comp, followFocusService } = createDialog();
+      comp.runtimeId = "rt-1";
+      comp.socketConnection = {} as any;
+      comp.isVSContext = true;
+      comp.contextTable = "Text1";
+      comp.assemblyName = "Text1";
+      comp.dynamicProperty = "visible";
+      (followFocusService.pushFocus as any).mockReturnValue(true);
+      comp.ngOnInit();
+
+      expect(followFocusService.pushFocus).toHaveBeenCalled();
+      expect(followFocusService.reportPaneState).not.toHaveBeenCalled();
+   });
+});

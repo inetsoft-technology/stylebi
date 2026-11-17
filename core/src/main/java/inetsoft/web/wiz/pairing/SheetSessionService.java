@@ -529,6 +529,9 @@ public class SheetSessionService {
          return null;
       }
 
+      // the pane being left no longer has a session bound to it through this focus
+      paneStates.remove(new PaneKey(session.socketSessionId(), session.runtimeId(),
+                                    session.editorContext()));
       JoinSession restored = withEditorContext(session, frame.editorContext());
       sessions.put(session.sessionToken(), restored);
       return restored;
