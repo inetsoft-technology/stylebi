@@ -88,9 +88,8 @@ public class SheetAgentBroadcastService {
     * the edit is on the server, the open page was not told.
     */
    public static final String SESSION_GONE_NOTICE =
-      "The edit is saved on the server, but the open page is no longer connected to it " +
-      "(its connection was replaced), so the page was not refreshed. Reload the page or " +
-      "re-pair to see the change.";
+      "The edit is saved on the server, but the open page is no longer connected, so it was " +
+      "not refreshed. Reload the page or re-pair to see the change.";
 
    @Autowired
    public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService,
