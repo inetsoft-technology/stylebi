@@ -88,6 +88,21 @@ describe("Arrange Dashboard Dialog Unit Test", () => {
       fixture.detectChanges();
    }));
 
+   //Bug #80984 the pinboard arrange dialog is labeled Pinboard/Pin, not Dashboard
+   it("should label the dialog and first column with Pinboard wording", () => {
+      arrangeDashboardDialog.model.dashboards = [createDashModel("dash1")];
+      fixture.detectChanges();
+
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.textContent).toContain("_#(Arrange Pinboard)");
+      expect(el.textContent).not.toContain("_#(Arrange Dashboards)");
+
+      const headers = Array.from(el.querySelectorAll("th"))
+         .map((th) => th.textContent.trim());
+      expect(headers[0]).toBe("_#(Pin)");
+      expect(headers).not.toContain("_#(Dashboard)");
+   });
+
    //Bug #18799 not enabled dashboard should display in list
    it("should display dashboard which is not enabled", () => {
        arrangeDashboardDialog.model.dashboards =

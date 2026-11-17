@@ -1216,14 +1216,14 @@ public class ContentRepositoryTreeService {
       final Catalog catalog = Catalog.getCatalog();
       List<ContentRepositoryTreeNode> globalDashboards = getGlobalDashboardNodes(principal);
       final ContentRepositoryTreeNode globalDashboardRoot = ContentRepositoryTreeNode.builder()
-         .label(catalog.getString("Portal Dashboard Tab"))
+         .label(catalog.getString("Pinboard Tab"))
          .path("/")
          .type(RepositoryEntry.DASHBOARD_FOLDER)
          .children(globalDashboards)
          .build();
       List<ContentRepositoryTreeNode> userDashboards = getUserDashboardNodes(userNodes);
       final ContentRepositoryTreeNode userDashboardRoot = ContentRepositoryTreeNode.builder()
-         .label(catalog.getString("User Portal Dashboard Tab"))
+         .label(catalog.getString("User Pinboard Tab"))
          .path(RepositoryEntry.USERS_DASHBOARD_FOLDER)
          .type(RepositoryEntry.USER | FOLDER)
          .children(userDashboards)
