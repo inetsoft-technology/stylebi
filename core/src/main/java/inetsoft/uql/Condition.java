@@ -33,7 +33,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.PrintWriter;
-import java.sql.Timestamp;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1439,19 +1438,6 @@ public class Condition extends AbstractCondition {
    }
 
    /**
-    * Get the date(only includes year, month and day) from a calendar.
-    */
-   private long getDate(Calendar cal) {
-      int year = cal.get(Calendar.YEAR);
-      int month = cal.get(Calendar.MONTH);
-      int day = cal.get(Calendar.DAY_OF_MONTH);
-      cal.clear();
-      cal.set(year, month, day);
-
-      return cal.getTimeInMillis();
-   }
-
-   /**
     * Calculates the date range relative to the time provided.
     *
     * @param timeInMillis  the time to base the range on
@@ -1497,25 +1483,11 @@ public class Condition extends AbstractCondition {
     }
 
    private boolean isBoolMonth(int from, int to, Date value, Date now) {
-      boolean isTimestamp = false;
-
-      if(value instanceof Timestamp) {
-         isTimestamp = true;
-      }
-      else if(value == null) {
+      if(value == null) {
          return false;
       }
 
-      long date = value.getTime();
-      CALENDAR.setTime(now);
-      CALENDAR.add(Calendar.MONTH, -to + 1);
-      long date1 =
-         isTimestamp ? CALENDAR.getTimeInMillis() : getDate(CALENDAR);
-
-      CALENDAR.setTime(now);
-      CALENDAR.add(Calendar.MONTH, from);
-      long date2 = isTimestamp ? CALENDAR.getTimeInMillis() : getDate(CALENDAR);
-      return date1 <= date && date2 >= date;
+      return DateCondition.isInMonthsWindow(value.getTime(), now.getTime(), from, to);
    }
 
    /**

@@ -81,6 +81,17 @@ class RangeOutputVSAssemblyInfoTest {
       assertArrayEquals(new double[] { 4000000.0, 8000000.0 }, info.getRanges(), 1e-6);
    }
 
+   // Bug #81550: a script write longer than the design must not leak into the design getter
+   @Test
+   void getRangeValuesIgnoresScriptGrownPlaceholderSlots() {
+      GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();
+      info.setRangeValues(new Object[] { "35", "70", "100" });
+      info.setRanges(new Object[] { "30", "60", "90", "", "" });
+
+      assertArrayEquals(new String[] { "35", "70", "100" }, info.getRangeValues());
+      assertEquals(5, info.getRanges().length);
+   }
+
    @Test
    void setRangeColorsShrinksExactlyToTheShorterWriteWithNoStaleTail() {
       GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();

@@ -370,10 +370,12 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
       //Only separates the condition list if it has no OR junctions
       if(onlyAndJunction) {
+         SQLHelper sqlHelper = getSQLHelper(getUniformSQL());
+
          for(int i = 0; i < conds.getSize(); i += 2) {
             ConditionItem item = conds.getConditionItem(i);
 
-            if(!isConditionItemMergeable(item)) {
+            if(!isConditionItemMergeable(item, sqlHelper)) {
                conds.remove(i);
 
                if(i >= 0) {
@@ -451,7 +453,19 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       return mergeSuccess;
    }
 
-   private boolean isConditionItemMergeable(ConditionItem item) throws Exception {
+   /**
+    * Check if the condition is a "one of" that the data source can not execute (Mongo).
+    * Shared by the per-item and the whole-list mergeable checks so they stay in step.
+    */
+   private static boolean isOneOfUnsupported(XCondition xcond, SQLHelper sqlHelper) {
+      return xcond != null && sqlHelper != null &&
+         "mongo".equals(sqlHelper.getSQLHelperType()) &&
+         xcond.getOperation() == XCondition.ONE_OF;
+   }
+
+   private boolean isConditionItemMergeable(ConditionItem item, SQLHelper sqlHelper)
+      throws Exception
+   {
       DataRef ref = item.getAttribute();
       ref = findColumn(ref);
 
@@ -460,6 +474,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       XCondition xcond = item.getXCondition();
+
+      if(isOneOfUnsupported(xcond, sqlHelper)) {
+         return false;
+      }
 
       if((xcond instanceof DateCondition) && !(xcond instanceof DateRange)) {
          return true;
@@ -3137,10 +3155,8 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
          XCondition xcond = item.getXCondition();
 
-         if(xcond != null && sqlHelper != null && "mongo".equals(sqlHelper.getSQLHelperType())) {
-            if(xcond.getOperation() == XCondition.ONE_OF) {
-               return false;
-            }
+         if(isOneOfUnsupported(xcond, sqlHelper)) {
+            return false;
          }
 
          if((xcond instanceof DateCondition) && !(xcond instanceof DateRange)) {

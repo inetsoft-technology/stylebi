@@ -447,10 +447,12 @@ public class AssistantProxyController {
       try {
          var cmBuilder = PoolingHttpClientConnectionManagerBuilder.create();
 
-         // SSL verification is configurable via chat.app.server.ssl.verify.
-         // Default: trust all, suitable for private-network deployments with self-signed certs
-         // (matching the nginx "proxy_ssl_verify off" used in Docker Compose).
-         // Set to "true" to use the JVM default trust store in production.
+         // SSL verification is configurable via chat.app.server.ssl.verify (defaults to true).
+         // With verification on, this falls through to Apache httpclient5's own JVM default
+         // trust store and hostname check -- import a self-signed/private-CA cert into the
+         // JVM's cacerts (e.g. keytool -importcert) to use one without disabling verification.
+         // Set to "false" to trust all certificates instead, e.g. to match the nginx
+         // "proxy_ssl_verify off" used in Docker Compose.
          // Changing this property requires a server restart.
          if(!AIAssistantController.isSslVerifyEnabled()) {
             LOG.warn("SSL certificate verification is disabled for AI assistant proxy connections " +
