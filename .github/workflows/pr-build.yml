@@ -59,8 +59,10 @@ jobs:
       # is written as each test class finishes). If these lines keep coming while the report age
       # grows, it is a hang, and the threads of the surefire forks are dumped (at most every 10
       # minutes) once no class has finished for 5 minutes, which is as long as one test may run
-      # (surefire.testTimeout). If the lines stop too, the runner died. The forks are also dumped
-      # at 40 minutes of step time, shortly before the fork timeout in core/pom.xml.
+      # (surefire.testTimeout). If the lines stop too, the runner died. Each fork is also dumped
+      # once when its own age reaches 35 minutes: the slowest healthy fork seen took 31.3 minutes,
+      # and the fork timeout in core/pom.xml (38 minutes) counts from the fork's start, not the
+      # step's, so a step-relative time would land on the kill.
       - name: Build with Maven
         run: |
           dump_forks() {
@@ -71,6 +73,7 @@ jobs:
           }
           (
             last_dump=0
+            aged=" "
             while sleep 60; do
               now=$(date +%s)
               newest=$(find core/target/surefire-reports -name '*.txt' -printf '%T@\n' 2>/dev/null | sort -n | tail -1)
@@ -81,15 +84,18 @@ jobs:
                 last_dump=$now
                 dump_forks "no test class finished for ${age}s"
               fi
+              for pid in $(pgrep -f surefirebooter); do
+                case "$aged" in *" $pid "*) continue ;; esac
+                if [ "$(ps -o etimes= -p "$pid" | tr -d ' ')" -ge 2100 ] 2>/dev/null; then
+                  aged="$aged$pid "
+                  echo "[ci-monitor] thread dump of surefire fork $pid (fork is 35 minutes old)"
+                  jcmd "$pid" Thread.print || true
+                fi
+              done
             done
           ) &
           monitor=$!
-          (
-            sleep 2400
-            dump_forks "40 minutes into the build"
-          ) &
-          dumper=$!
-          trap 'kill $monitor $dumper 2>/dev/null || true' EXIT
+          trap 'kill $monitor 2>/dev/null || true' EXIT
           ./mvnw --batch-mode -T 2 clean install
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
