@@ -75,15 +75,12 @@ class ChartRegionPropertyServiceGanttScenarioTest {
    void theReportersFlowListsAndSetsADateRangeThatMovesTheRenderedAxis() throws Exception {
       Gantt g = gantt(true);
 
-      // The time axis is offered on y with minimum/maximum; x points at y + the start field.
+      // The time axis is offered on y with minimum/maximum (bug #81591: x now resolves from the
+      // start/end fields too, so it is no longer refused).
       Map<String, Object> listed = g.h.service.list("tok", principal(), "Chart1", "axis", "y",
                                                     "Min(START_DATE)");
       assertTrue(names(listed).containsAll(List.of("minimum", "maximum")), listed.toString());
       assertNotNull(listed.get("note"));
-      Exception noX = assertThrows(IllegalArgumentException.class,
-         () -> g.h.service.list("tok", principal(), "Chart1", "axis", "x", null));
-      assertTrue(noX.getMessage().contains("target 'y' with field 'Min(START_DATE)'"),
-                 noX.getMessage());
 
       g.h.service.set("tok", principal(), "Chart1", "axis", "y", "Min(START_DATE)",
                       Map.of("minimum", "2025-01-01", "maximum", "2025-06-20"), "");
