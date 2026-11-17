@@ -13,7 +13,7 @@
     {
       "name": "Balance Transactions",
       "paged": true,
-      "suffix": "/v1/balance_transactions?payout={Payout ID?}&type={Type?:charge|refund|...}&available_on={Available On?:Unix timestamp}&Created={Created?:Unix timestamp}&currency={Currency?:ISO currency code}&source={Source ID?}"
+      "suffix": "/v1/balance_transactions?payout={Payout ID?}&type={Type?:charge|refund|...}&available_on={Available On?:Unix timestamp}&created={Created?:Unix timestamp}&currency={Currency?:ISO currency code}&source={Source ID?}"
     },
     {
       "name": "Charge",
@@ -48,9 +48,7 @@
             "Bank Accounts",
             "Cards",
             "Customer Balance Transactions",
-            "Tax IDs",
-            "Upcoming Invoice",
-            "Upcoming Invoice Line Items"
+            "Tax IDs"
           ],
           "jsonPath": "$.data.[*]",
           "key": "id",
@@ -279,16 +277,6 @@
       "suffix": "/v1/invoices/{Invoice ID}/lines"
     },
     {
-      "name": "Upcoming Invoice",
-      "paged": false,
-      "suffix": "/v1/invoices/upcoming?customer={Customer ID}&subscription={Subscription?}&coupon={Coupon?}"
-    },
-    {
-      "name": "Upcoming Invoice Line Items",
-      "paged": true,
-      "suffix": "/v1/invoices/upcoming/lines?customer={Customer ID}&subscription={Subscription?}&coupon={Coupon?}"
-    },
-    {
       "name": "Invoices",
       "paged": true,
       "suffix": "/v1/invoices?customer={Customer ID?}&status={Status?:draft|open|paid|uncollectible|void}&subscription={Subscription?}&collection_method={Collection Method?:charge_automatically|send_invoice}&created={Created?:Unix timestamp}&due_date={Due Date?:Unix timestamp}",
@@ -496,7 +484,7 @@
     {
       "name": "Transfers",
       "paged": true,
-      "suffix": "/v1/transfers?destination={Destination?}created={Created?:Unix timestamp}&transfer_group={Transfer Group}",
+      "suffix": "/v1/transfers?destination={Destination?}&created={Created?:Unix timestamp}&transfer_group={Transfer Group?}",
       "lookups": [
         {
           "endpoint": "Reversals",
