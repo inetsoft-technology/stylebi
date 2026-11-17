@@ -2278,4 +2278,66 @@ class ChartBindingServiceTest {
 
       assertEquals("https://example.com/s", linkOf(info.getStartField()).getLink());
    }
+
+   // ── a pareto chart sorts its dimension by the last measure, descending (bug #81513) ──
+
+   private static DefaultVSChartInfo paretoInfo(boolean dimOnY) {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.setChartType(GraphTypes.CHART_PARETO);
+      info.setRTChartType(GraphTypes.CHART_PARETO);
+      VSChartDimensionRef dim = linkDimension("CATEGORY", XConstants.NONE_DATE_GROUP);
+      dim.setOrder(XConstants.SORT_ASC);
+      VSChartAggregateRef measure = linkMeasure("TOTAL");
+
+      if(dimOnY) {
+         info.addYField(dim);
+         info.addXField(measure);
+      }
+      else {
+         info.addXField(dim);
+         info.addYField(measure);
+      }
+
+      return info;
+   }
+
+   @Test
+   void paretoDimensionOnXSortsByMeasureDescending() {
+      DefaultVSChartInfo info = paretoInfo(false);
+      ChartBindingService.fixParetoSorting(info);
+      VSChartDimensionRef dim = (VSChartDimensionRef) info.getXFields()[0];
+      assertEquals(XConstants.SORT_VALUE_DESC, dim.getOrder());
+      assertEquals(info.getYFields()[0] instanceof VSChartAggregateRef m ? m.getFullName(false) : null,
+                   dim.getSortByCol());
+   }
+
+   @Test
+   void paretoDimensionOnYSortsByMeasureDescending() {
+      DefaultVSChartInfo info = paretoInfo(true);
+      ChartBindingService.fixParetoSorting(info);
+      VSChartDimensionRef dim = (VSChartDimensionRef) info.getYFields()[0];
+      assertEquals(XConstants.SORT_VALUE_DESC, dim.getOrder());
+      assertEquals(((VSChartAggregateRef) info.getXFields()[0]).getFullName(false),
+                   dim.getSortByCol());
+   }
+
+   @Test
+   void paretoKeepsNamedGroupSpecificOrder() {
+      DefaultVSChartInfo info = paretoInfo(false);
+      VSChartDimensionRef dim = (VSChartDimensionRef) info.getXFields()[0];
+      dim.setNamedGroupInfo(new inetsoft.report.internal.binding.ExpertNamedGroupInfo());
+      dim.setOrder(XConstants.SORT_SPECIFIC);
+      ChartBindingService.fixParetoSorting(info);
+      assertEquals(XConstants.SORT_SPECIFIC, dim.getOrder());
+   }
+
+   @Test
+   void nonParetoChartSortIsUntouched() {
+      DefaultVSChartInfo info = paretoInfo(false);
+      info.setChartType(GraphTypes.CHART_BAR);
+      info.setRTChartType(GraphTypes.CHART_BAR);
+      ChartBindingService.fixParetoSorting(info);
+      assertEquals(XConstants.SORT_ASC, ((VSChartDimensionRef) info.getXFields()[0]).getOrder());
+      ChartBindingService.fixParetoSorting(null);
+   }
 }

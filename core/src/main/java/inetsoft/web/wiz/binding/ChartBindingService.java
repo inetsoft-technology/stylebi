@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -129,6 +130,11 @@ public class ChartBindingService {
          Set<String> measuresBefore = measureNames(chart.getVSChartInfo());
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
          fixNewMeasureColors(requireChart(rvs, assemblyName).getVSChartInfo(), measuresBefore);
+
+         if("x".equals(shelf) || "y".equals(shelf)) {
+            fixParetoSorting(requireChart(rvs, assemblyName).getVSChartInfo());
+         }
+
          notes.addAll(ChartHyperlinkCarry.reapply(
             requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links));
 
@@ -173,6 +179,18 @@ public class ChartBindingService {
       }
 
       return names;
+   }
+
+   /**
+    * Bug #81513: a pareto chart sorts its last dimension by the last measure, descending, as the
+    * Composer does on every drop ({@code ChangeChartDataProcessor} -> {@code fixParetoSorting}).
+    * {@code changeChartRef} does not run that step, so binding after {@code set_chart_type pareto}
+    * left the dimension on the ascending default. A no-op for any other chart type.
+    */
+   static void fixParetoSorting(VSChartInfo info) {
+      if(info != null) {
+         new ChangeChartProcessor().fixParetoSorting(info);
+      }
    }
 
    /**
