@@ -20,6 +20,7 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -128,12 +129,13 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          Set<String> measuresBefore = measureNames(chart.getVSChartInfo());
-         refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
-         fixNewMeasureColors(requireChart(rvs, assemblyName).getVSChartInfo(), measuresBefore);
 
          if("x".equals(shelf) || "y".equals(shelf)) {
-            fixParetoSorting(requireChart(rvs, assemblyName).getVSChartInfo());
+            fixParetoSorting(model, chart.getVSChartInfo());
          }
+
+         refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+         fixNewMeasureColors(requireChart(rvs, assemblyName).getVSChartInfo(), measuresBefore);
 
          notes.addAll(ChartHyperlinkCarry.reapply(
             requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links));
@@ -184,13 +186,49 @@ public class ChartBindingService {
    /**
     * Bug #81513: a pareto chart sorts its last dimension by the last measure, descending, as the
     * Composer does on every drop ({@code ChangeChartDataProcessor} -> {@code fixParetoSorting}).
-    * {@code changeChartRef} does not run that step, so binding after {@code set_chart_type pareto}
-    * left the dimension on the ascending default. A no-op for any other chart type.
+    * The sort is written on the model, before {@code changeChartRef} executes the chart: a value
+    * sort applies at query time, so fixing it on the chart afterwards left the cached data in the
+    * ascending order. A no-op for any other chart type; a named group's specific order is kept.
     */
-   static void fixParetoSorting(VSChartInfo info) {
-      if(info != null) {
-         new ChangeChartProcessor().fixParetoSorting(info);
+   static void fixParetoSorting(ChartBindingModel model, VSChartInfo info) {
+      if(model == null || info == null ||
+         new ChangeChartProcessor().getRTChartType(info) != GraphTypes.CHART_PARETO)
+      {
+         return;
       }
+
+      ChartDimensionRefModel dimension = lastRef(model.getXFields(), model.getYFields(),
+                                                 ChartDimensionRefModel.class);
+      ChartAggregateRefModel aggregate = lastRef(model.getYFields(), model.getXFields(),
+                                                 ChartAggregateRefModel.class);
+
+      if(dimension == null || aggregate == null) {
+         return;
+      }
+
+      dimension.setSortByCol(((XAggregateRef) aggregate.createDataRef()).getFullName(false));
+
+      if((dimension.getOrder() & XConstants.SORT_SPECIFIC) == 0 ||
+         dimension.getNamedGroupInfo() == null)
+      {
+         dimension.setOrder(XConstants.SORT_VALUE_DESC);
+      }
+   }
+
+   private static <T> T lastRef(List<ChartRefModel> first, List<ChartRefModel> second,
+                                Class<T> type)
+   {
+      for(List<ChartRefModel> refs : java.util.Arrays.asList(first, second)) {
+         if(refs != null) {
+            for(int i = refs.size() - 1; i >= 0; i--) {
+               if(type.isInstance(refs.get(i))) {
+                  return type.cast(refs.get(i));
+               }
+            }
+         }
+      }
+
+      return null;
    }
 
    /**
