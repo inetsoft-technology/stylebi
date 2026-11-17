@@ -65,11 +65,14 @@ jobs:
       # step's, so a step-relative time would land on the kill.
       - name: Build with Maven
         run: |
+          # in the background and bounded, so a fork stuck in a long safepoint cannot stall the
+          # sampling loop; kill -3 makes the JVM print the dump to its own stdout instead
+          dump_fork() {
+            echo "[ci-monitor] thread dump of surefire fork $1 ($2)"
+            ( timeout 30 jcmd "$1" Thread.print || { echo "[ci-monitor] jcmd failed or timed out for $1, sending SIGQUIT"; kill -3 "$1"; } ) &
+          }
           dump_forks() {
-            for pid in $(pgrep -f surefirebooter); do
-              echo "[ci-monitor] thread dump of surefire fork $pid ($1)"
-              jcmd "$pid" Thread.print || true
-            done
+            for pid in $(pgrep -f surefirebooter); do dump_fork "$pid" "$1"; done
           }
           (
             last_dump=0
@@ -88,8 +91,7 @@ jobs:
                 case "$aged" in *" $pid "*) continue ;; esac
                 if [ "$(ps -o etimes= -p "$pid" | tr -d ' ')" -ge 2100 ] 2>/dev/null; then
                   aged="$aged$pid "
-                  echo "[ci-monitor] thread dump of surefire fork $pid (fork is 35 minutes old)"
-                  jcmd "$pid" Thread.print || true
+                  dump_fork "$pid" "fork is 35 minutes old"
                 fi
               done
             done
