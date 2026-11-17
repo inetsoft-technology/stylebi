@@ -62,18 +62,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    private BlobStorage<Metadata> getMetadataStorage(String orgID) {
-      if(LOG.isDebugEnabled() && Organization.getSelfOrganizationID().equals(orgID)) {
-         LOG.debug("Getting indexed storage for self organization", new Exception("Stack trace"));
-      }
-
       if(orgID == null) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();
-
-         if(LOG.isDebugEnabled() && Organization.getSelfOrganizationID().equals(orgID)) {
-            LOG.debug(
-               "Getting indexed storage for current (self) organization",
-               new Exception("Stack trace"));
-         }
       }
 
       String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
