@@ -744,22 +744,13 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
-    * L2 Group 2 findings 13/14 root-cause narrowing: live testing showed {@code secondaryColumn}/
-    * {@code percentageOf} have no effect on {@code preview_worksheet_data}'s actual output despite
-    * looking structurally correct in {@link WorksheetMutationSupport#applyAggregateInfo}. This test
-    * rules out the wiz-agent mutation path itself (and, transitively, Jackson record
-    * deserialization of {@link WorksheetMutationSupport.AggregateSpec}, which a standalone
-    * {@code ObjectMapper} repro also confirmed picks the canonical 6-arg constructor correctly):
-    * the {@link AggregateRef} added to the {@link TableAssembly}'s {@link AggregateInfo} carries
-    * both fields correctly immediately after {@code setGroupAggregate} returns, through the exact
-    * code path the live MCP tool call uses. The still-undiagnosed part of the defect is therefore
-    * downstream, in the query-execution layer ({@code AssetQuery}'s summary-building loops, e.g.
-    * {@code AssetQuery.java:1994-2104} and {@code :2717-2790}, both of which iterate an
-    * {@code AggregateRef[] aggregates} array whose ultimate source was not traced this pass) — not
-    * in any code this lane's audit or fixes touch.
+    * {@code secondaryColumn} reaches the {@link AggregateRef} through {@code setGroupAggregate};
+    * {@code percentageOf} is covered by {@code setGroupAggregateAppliesPercentageOfGrandTotal}. Bug #81559: their effect on the worksheet's rows is pinned by
+    * {@code AggregatePercentageTest}, which runs the real query engine; the controller's own
+    * pass-through by {@code WorksheetAgentControllerTest#editDispatchesSetGroupAggregateWithPercentageOf}.
     */
    @Test
-   void setGroupAggregateAppliesSecondaryColumnAndPercentageToTheAggregateInfo() throws Exception {
+   void setGroupAggregateAppliesSecondaryColumnToTheAggregateInfo() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val", "val2");
       ws.addAssembly(t);
@@ -770,15 +761,49 @@ class WorksheetEditServiceMutatorsTest {
          ed.setGroupAggregate("T",
             groups("cat"),
             List.of(new WorksheetMutationSupport.AggregateSpec(
-               "val", "First", "first_val", null, "val2", "grand_total")))
+               "val", "First", "first_val", null, "val2", null)))
       );
 
       AggregateInfo ai = t.getAggregateInfo();
       inetsoft.uql.asset.AggregateRef ar = ai.getAggregate(0);
       assertNotNull(ar.getSecondaryColumn(), "secondaryColumn should survive setGroupAggregate");
       assertEquals("val2", ar.getSecondaryColumn().getName());
-      assertTrue(ar.isPercentage());
-      assertEquals(inetsoft.uql.XConstants.PERCENTAGE_OF_GRANDTOTAL, ar.getPercentageOption());
+   }
+
+   /** Bug #81559: Percentage is refused, by name, for a formula the Composer does not offer it for. */
+   @Test
+   void setGroupAggregateRefusesPercentageOfForAFormulaWithoutPercentage() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      Exception ex = assertThrows(Exception.class, () -> svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cat"), List.of(
+            new WorksheetMutationSupport.AggregateSpec(
+               "val", "First", null, null, null, "group")))));
+
+      assertTrue(ex.getMessage().contains("percentageOf") && ex.getMessage().contains("First"),
+                 ex.getMessage());
+   }
+
+   /** Bug #81559: an unknown percentageOf value is refused, naming the accepted values. */
+   @Test
+   void setGroupAggregateRefusesAnUnknownPercentageOf() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      Exception ex = assertThrows(Exception.class, () -> svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cat"), List.of(
+            new WorksheetMutationSupport.AggregateSpec(
+               "val", "Sum", null, null, null, "parent")))));
+
+      assertTrue(ex.getMessage().contains("'parent'") && ex.getMessage().contains("grand_total"),
+                 ex.getMessage());
    }
 
    // N must be ignored (not throw, not corrupt the ref) for a formula that doesn't use it.

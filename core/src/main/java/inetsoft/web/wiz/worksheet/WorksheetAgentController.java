@@ -4570,12 +4570,10 @@ public class WorksheetAgentController {
          case "set_group_aggregate" ->
             editor.setGroupAggregate(req.table(),
                                      req.groups() != null ? req.groups() : List.of(),
-                                     req.aggregates() != null
-                                        ? req.aggregates().stream()
-                                            .map(a -> new WorksheetMutationSupport.AggregateSpec(
-                                                a.field(), a.formula(), a.alias(), a.n()))
-                                            .toList()
-                                        : List.of(),
+                                     // the spec is passed whole: rebuilding it from a subset
+                                     // of its fields silently dropped secondaryColumn and
+                                     // percentageOf (Bug #81559)
+                                     req.aggregates() != null ? req.aggregates() : List.of(),
                                      Boolean.TRUE.equals(req.crosstab()),
                                      Boolean.TRUE.equals(req.confirmed()));
          case "add_expression_column" -> {

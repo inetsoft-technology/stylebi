@@ -284,6 +284,28 @@ class WorksheetReadServiceTest {
       assertNull(agg.n());
    }
 
+   // Bug #81559: the Percentage setting reads back in set_group_aggregate's own vocabulary.
+   @Test
+   void readsPercentageOfBackInWriteVocabulary() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val", "val2");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("cat", null)),
+         List.of(new WorksheetMutationSupport.AggregateSpec("val", "SUM", null, null, null, "group"),
+                 new WorksheetMutationSupport.AggregateSpec("val2", "SUM", null)));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetModel m = new WorksheetReadService().read(rws);
+      List<WorksheetModel.AggregateModel.AggregateRefModel> aggs =
+         m.tables().get(0).aggregates().aggregates();
+      assertEquals("group", aggs.get(0).percentageOf());
+      assertNull(aggs.get(1).percentageOf());
+   }
+
    @Test
    void nullOrEmptyAggregateInfoReturnsNullAggregates() {
       Worksheet ws = new Worksheet();
