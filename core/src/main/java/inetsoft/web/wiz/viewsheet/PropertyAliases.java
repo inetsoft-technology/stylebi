@@ -417,10 +417,10 @@ public final class PropertyAliases {
       // Bug #81544: Selection List/Tree General pane captions (selection-general-pane).
       labels.put("quickSwitchAllowed", "Allow toggle between single and multi-selection");
       labels.put("selectFirstItem", "Select First Item on Dashboard Load");
-      labels.put("xGridLineStyle", "X Grid Line Style (the plot's Y axis grid on an inverted chart)");
-      labels.put("xGridLineColor", "X Grid Line Color (the plot's Y axis grid on an inverted chart)");
-      labels.put("yGridLineStyle", "Y Grid Line Style (the plot's X axis grid on an inverted chart)");
-      labels.put("yGridLineColor", "Y Grid Line Color (the plot's X axis grid on an inverted chart)");
+      labels.put("xGridLineStyle", "X Grid Line Style (the vertical grid lines, on any chart orientation)");
+      labels.put("xGridLineColor", "X Grid Line Color (the vertical grid lines, on any chart orientation)");
+      labels.put("yGridLineStyle", "Y Grid Line Style (the horizontal grid lines, on any chart orientation)");
+      labels.put("yGridLineColor", "Y Grid Line Color (the horizontal grid lines, on any chart orientation)");
       // Bug #81419: names that are not the dialog captions.
       labels.put("drillEnabled", "Enable Drilling");
       labels.put("dateComparisonEnabled", "Enable Date Comparison");
