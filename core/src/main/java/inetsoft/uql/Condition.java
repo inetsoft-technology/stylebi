@@ -1497,25 +1497,11 @@ public class Condition extends AbstractCondition {
     }
 
    private boolean isBoolMonth(int from, int to, Date value, Date now) {
-      boolean isTimestamp = false;
-
-      if(value instanceof Timestamp) {
-         isTimestamp = true;
-      }
-      else if(value == null) {
+      if(value == null) {
          return false;
       }
 
-      long date = value.getTime();
-      CALENDAR.setTime(now);
-      CALENDAR.add(Calendar.MONTH, -to + 1);
-      long date1 =
-         isTimestamp ? CALENDAR.getTimeInMillis() : getDate(CALENDAR);
-
-      CALENDAR.setTime(now);
-      CALENDAR.add(Calendar.MONTH, from);
-      long date2 = isTimestamp ? CALENDAR.getTimeInMillis() : getDate(CALENDAR);
-      return date1 <= date && date2 >= date;
+      return DateCondition.isInMonthsWindow(value.getTime(), now.getTime(), from, to);
    }
 
    /**

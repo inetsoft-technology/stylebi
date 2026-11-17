@@ -404,6 +404,36 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
    }
 
    /**
+    * Check if a time falls in the "last N months" window, which is whole days: from the start of
+    * the first day to the end of the last day. This is the same window as the one used by
+    * the sql condition, for every date type.
+    * @param time the time of the value, in milliseconds.
+    * @param now the current time, in milliseconds.
+    * @param from the number of months after now.
+    * @param to the number of months before now, plus one.
+    */
+   public static boolean isInMonthsWindow(long time, long now, int from, int to) {
+      Calendar cal = new GregorianCalendar();
+      cal.setTimeInMillis(now);
+      cal.add(Calendar.MONTH, -to + 1);
+      cal.set(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH),
+              0, 0, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      long start = cal.getTimeInMillis();
+
+      cal.setTimeInMillis(now);
+      cal.add(Calendar.MONTH, from);
+      // the start of the day after the last day, calendar arithmetic is used for DST
+      cal.set(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH),
+              0, 0, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      cal.add(Calendar.DAY_OF_MONTH, 1);
+      long end = cal.getTimeInMillis();
+
+      return start <= time && time < end;
+   }
+
+   /**
     * Create a sql condition, this condition is date type which is between date1
     * and date2.
     * @param date1 the earlier date.
@@ -2207,27 +2237,11 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
        */
       @Override
       public boolean evaluate(Object value) {
-         boolean isTimestamp = false;
-
-         if(value instanceof Timestamp) {
-            isTimestamp = true;
-         }
-         else if(!(value instanceof Date)) {
+         if(!(value instanceof Date)) {
             return false;
          }
 
-         long date = ((Date) value).getTime();
-         CALENDAR.setTime(new Date(System.currentTimeMillis()));
-         CALENDAR.add(Calendar.MONTH, -to + 1);
-         long date1 =
-            isTimestamp ? CALENDAR.getTimeInMillis() : getDate(CALENDAR);
-
-         CALENDAR.setTime(new Date(System.currentTimeMillis()));
-         CALENDAR.add(Calendar.MONTH, from);
-         long date2 =
-            isTimestamp ? CALENDAR.getTimeInMillis() : getDate(CALENDAR);
-
-         boolean rc = date1 <= date && date2 >= date;
+         boolean rc = isInMonthsWindow(((Date) value).getTime(), System.currentTimeMillis(), from, to);
          return isNegated() ? !rc : rc;
       }
 

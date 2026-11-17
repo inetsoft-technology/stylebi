@@ -22,6 +22,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.Condition;
 import inetsoft.uql.XCondition;
+import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -258,20 +259,74 @@ class DateConditionBuiltinTest {
       assertFalse(new DateCondition.MonthsCondition(3, 1).isValid());
    }
 
-   // a timestamp is compared with the instant of the start and end, a date with the days. A
-   // timestamp earlier in the day of the start is in the pushed down sql (the start is the start
-   // of that day) but not in the in-memory evaluation (the start is this time of that day).
-   // Pins the current behavior, reported as Bug #81178 (also later today, and a java.util.Date).
+   // the window is whole days, from the start of the first day to the end of today, for every
+   // date type, so the in-memory evaluation keeps the same rows as the pushed down sql
+   // (Bug #81178: a timestamp was compared with the current time of day, a java.util.Date with the
+   // start of today). Only the 1 second 23:59:59.001-23:59:59.999 that the sql truncates is kept.
    @Test
-   void timestampEarlierOnTheStartDayIsInSqlButNotInMemory() {
+   void timestampEarlierOnTheStartDayIsInSqlAndInMemory() {
       LocalDateTime before = LocalDateTime.now();
       DateCondition cond = new DateCondition.MonthsCondition(0, 3);
       LocalDateTime startOfDay = before.minusMonths(2).toLocalDate().atStartOfDay();
 
       assertEquals(millis(ts(startOfDay)), millis(between(cond, true).getValue(0)));
-      // the instant of the start, one minute later is in, one minute earlier is out
-      assertTrue(cond.evaluate(ts(before.minusMonths(2).plusMinutes(1))));
-      assertFalse(cond.evaluate(ts(before.minusMonths(2).minusMinutes(1))));
+      assertTrue(cond.evaluate(ts(startOfDay)));
+      assertTrue(cond.evaluate(ts(startOfDay.plusSeconds(1))));
+      assertTrue(cond.evaluate(ts(before.minusMonths(2).minusMinutes(1))));
+      assertFalse(cond.evaluate(ts(startOfDay.minusSeconds(1))));
+   }
+
+   private static Object dateOf(String type, LocalDateTime t) {
+      long time = ts(t).getTime();
+
+      switch(type) {
+      case "timestamp":
+         return new Timestamp(time);
+      case "sqlDate":
+         return new java.sql.Date(time);
+      default:
+         return new Date(time);
+      }
+   }
+
+   private static void assertLastMonthsWindow(String type, XCondition cond, int to) {
+      LocalDate today = LocalDate.now();
+      LocalDate first = today.minusMonths(to - 1);
+
+      assertTrue(cond.evaluate(dateOf(type, first.atTime(0, 0, 1))), "first day 00:00:01");
+      assertTrue(cond.evaluate(dateOf(type, first.atStartOfDay())), "first day 00:00:00");
+      assertTrue(cond.evaluate(dateOf(type, today.atTime(23, 59, 59))), "today 23:59:59");
+      assertTrue(cond.evaluate(dateOf(type, today.atTime(12, 0))), "today 12:00");
+      assertTrue(cond.evaluate(dateOf(type, today.minusMonths(1).atTime(10, 0))), "mid range");
+      assertFalse(cond.evaluate(dateOf(type, first.minusDays(1).atTime(23, 59, 59))),
+                  "day before the range");
+      assertFalse(cond.evaluate(dateOf(type, today.plusDays(1).atStartOfDay())), "tomorrow");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "timestamp", "utilDate", "sqlDate" })
+   void monthsConditionIsWholeDaysForEveryDateType(String type) {
+      assertLastMonthsWindow(type, new DateCondition.MonthsCondition(0, 4), 4);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "timestamp", "utilDate", "sqlDate" })
+   void dateInLastThreeMonthsIsWholeDaysForEveryDateType(String type) {
+      // "Last 3 months" of the UI is MonthsCondition(0, 4) in dateConditions.xml
+      Condition cond = new Condition(XSchema.DATE);
+      cond.setOperation(XCondition.DATE_IN);
+      cond.addValue("Last 3 months");
+      assertLastMonthsWindow(type, cond, 4);
+   }
+
+   @Test
+   void monthsUpperBoundIsTheEndOfTheLastDay() {
+      LocalDate today = LocalDate.now();
+      DateCondition cond = new DateCondition.MonthsCondition(0, 4);
+
+      // 23:59:59.500 is in memory (the sql truncates it to 23:59:59), the next day is out
+      assertTrue(cond.evaluate(ts(today.atTime(23, 59, 59, 500_000_000))));
+      assertFalse(cond.evaluate(ts(today.plusDays(1).atStartOfDay())));
    }
 
    // ---- the last N days ----
