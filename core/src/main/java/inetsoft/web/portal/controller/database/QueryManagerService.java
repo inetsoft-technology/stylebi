@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller.database;
 
+import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
@@ -976,7 +977,13 @@ public class QueryManagerService {
                                                      String dataSource, Principal principal)
       throws Exception
    {
+      // dispose() nulls the worksheet; read it once so the dialog sees one consistent sheet
       Worksheet ws = rws.getWorksheet();
+
+      if(ws == null) {
+         throw new ExpiredSheetException(rws.getID(), principal);
+      }
+
       SQLBoundTableAssembly assembly = (SQLBoundTableAssembly) ws.getAssembly(assemblyName);
       SQLQueryDialogModel model = new SQLQueryDialogModel();
       JDBCQuery query = null;
@@ -1035,7 +1042,7 @@ public class QueryManagerService {
 
       model.setName(assemblyName);
       model.setDataSource(dataSource);
-      model.setVariableNames(getVariableList(rws, principal));
+      model.setVariableNames(getVariableList(ws, rws, principal));
 
       for(String dsName : repository.getDataSourceFullNames()) {
          if(repository.getDataSource(dsName) instanceof JDBCDataSource) {
@@ -1065,8 +1072,7 @@ public class QueryManagerService {
    /**
     * Get a list of variable assembly names.
     */
-   private String[] getVariableList(RuntimeWorksheet rws, Principal principal) {
-      Worksheet ws = rws.getWorksheet();
+   private String[] getVariableList(Worksheet ws, RuntimeWorksheet rws, Principal principal) {
       ArrayList<String> list = new ArrayList<>();
       Set<String> added = new HashSet<>();
 
