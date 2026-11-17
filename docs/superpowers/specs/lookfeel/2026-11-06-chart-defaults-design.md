@@ -757,6 +757,7 @@ Amended 2026-11-17, after the owner reviewed S6 against the S5 head (`bug-80455-
 - With the title hidden there is no extra gap: the graph already starts at `padding.top`.
 - The contour map is exempt: the bundle's point page gives it "its own margin" and excludes it from C19. Other maps follow the rule (geo page: "C19 applies without extra work").
 - The band is inside the graph area, so the client, the tile offset and the exports do not change. The graph gives up that height: a 400×240 card at compact goes from 190 to 178px.
+- A polar chart's slice regions are measured from the graph top (`GraphBounds` uses the full graph box for polar charts), so `PlotArea` adds the band back when it flips them. The live checks found the regions one band too high before this (S6-8c and S6-8e). Facet, sunburst and top-legend charts already measure from the right edge.
 - A top legend moves down with the content. The expanded (scrolling) graph must carry the same band, so a scrolled plot lines up with its tiles.
 - Classic charts draw as today.
 
@@ -788,8 +789,9 @@ Amended 2026-11-17, after the owner reviewed S6 against the S5 head (`bug-80455-
 - 3D pie keeps the classic start (D103): its front-face logic (`Pie3DVO:236-310`) assumes the classic angle.
 - A script that rotated or reflected the coordinate keeps the classic start. The generator never sets `PolarCoord`'s own transform, so a non-identity transform means a script set it (D102).
 
-**S6-9 Gantt end (D104).**
-- On a marked Gantt the time scale ends one density padding (8, 12 or 16px) past the last end date, so the last bar no longer touches the plot's right edge. The start is unchanged.
+**S6-9 Gantt end (D104, D108).**
+- On a marked Gantt the time scale ends one right padding past the last end date, so the last bar no longer touches the plot's right edge. The start is unchanged.
+- The pad is the chart's own `padding.right` (D108): the density padding the seed writes (8, 12 or 16), an author's padding, or a `format.css` padding, as the S6-1 gap uses `padding.top`. A right padding of 0 gives no pad. Before the live checks it read the server's density, so a dashboard seeded comfortable drew an 8px pad under an EM density of dense.
 - Built as a gated gap on `TimeScale`, added in `getMax()` only when the author set no maximum. Ticks are unchanged and no gridline is added. The last between-label moves right by half the pad, and the bars compress slightly. Brush and selection regions follow the drawn bars.
 - The pad is in time units, converted from pixels with the estimated plot width, so it is close to the density padding rather than exact.
 - An author's axis maximum turns it off.
@@ -1056,10 +1058,11 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D101 | S6-3 needs no radar code: the radar's radius already reads the coordinate bounds, and S6-1 adds the only missing side. The plan checks it live (S6-3) | Design |
 | D102 | Pie start at 12 o'clock and clockwise is a drawing rule on `PolarCoord`, set from the mark; no stored property, flag or slot. A script that rotated or reflected the coordinate keeps the classic start (S6-8, revises D20) | Design |
 | D103 | The pie cap covers every `GraphTypes.isPie` type, the 3D pie included; the 12 o'clock start does not cover the 3D pie, whose front-face logic assumes the classic angle (S6-2, S6-8) | Design |
-| D104 | The Gantt end pad is a gated gap on its `TimeScale`, at the right end only, the density padding converted to time; an author's axis maximum turns it off (S6-9) | Design |
+| D104 | The Gantt end pad is a gated gap on its `TimeScale`, at the right end only, the density padding converted to time; an author's axis maximum turns it off (S6-9). Its source is revised by D108 | Design |
 | D105 | The contour-map fit covers non-web, non-faceted contour maps only, with a 0.1 margin so edge clusters keep their density cell; an untouched map fits again after each filter. The stored `lonlat` base extent and the zoom-out below 1 apply to the same marked non-web contour maps only. A contour map zoomed while marked draws its zoom against the world after Revert or in an older build, accepted under M9 (S6-7) | Design, scope and fallback from the builder check |
 | D106 | On a marked circular network the node-count minimum radius is dropped, so the circle stays inside 80% of the plot; neighbours may touch at high node counts, the bundle's known limit (S6-4) | Design |
 | D107 | A marked tree opens with its root in view, centred along the breadth, on the first draw and whenever the plot size changes; exports keep drawing the whole tree shrunk to the card; a box under 25px tall takes S4-2's 2px corner floor. Only the breadth is fitted; a deep tree scrolls along its depth as today (S6-6, resolves D61; depth from the builder check) | Design |
+| D108 | The Gantt end pad is the chart's own right padding, not the server's density padding, so it agrees with the S6-1 gap's use of the chart's top padding (S6-9) | Owner, 2026-11-17, after the S6a live checks |
 
 ## 11. Testing
 
@@ -1083,7 +1086,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
   - S5-6's two label modes; S5-7 with an ascending sort, a descending Top N, facets and a clustered horizontal bar whose first series sits at the top.
   - Every S5 item renders a classic chart identically before and after.
 - **Padding and sizing (S6):**
-  - S6-1: on a marked, titled chart the plot top is `padding.top` below the title lane, at the three densities and with an author's padding; no extra gap with the title hidden or on a contour map; the expanded graph lines up.
+  - S6-1: on a marked, titled chart the plot top is `padding.top` below the title lane, at the three densities and with an author's padding; no extra gap with the title hidden or on a contour map; the expanded graph lines up; a titled pie's, donut's and 3D pie's slice regions sit on the drawn slices.
   - S6-2: an automatic marked pie is at most 80% of the shorter side on a wide and a tall card; a labelled pie that already shrinks draws as before; an author's `pieRatio` wins; the label mode is unchanged.
   - S6-3: a live radar at the three densities keeps the padding from the title, the card edges and the legend.
   - S6-7: an untouched contour map fits its points; the nav bar zooms out to the world and the left view stays after reopening; clear returns to the fit; a web map, a marked polygon map (its data zoom still reframes) and a classic contour map are unchanged.

@@ -340,9 +340,14 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
             // the top legend. (56853, 57019, 57482)
             boolean legendOnTop = egraph.getLegendLayout() == GraphConstants.TOP;
             boolean sunburst = chartInfo.getChartType() == GraphTypes.CHART_SUNBURST;
-            double topY = legendOnTop && !(tgraph.getCoordinate() instanceof FacetCoord) && !sunburst
-               ? tgraph.getBounds().getMaxY()
-               : tgraph.getPlotBounds().getMaxY();
+            boolean fullTop = legendOnTop && !(tgraph.getCoordinate() instanceof FacetCoord) &&
+               !sunburst;
+            double topY = fullTop ? tgraph.getBounds().getMaxY() : tgraph.getPlotBounds().getMaxY();
+
+            // a polar plot's regions are measured from the graph top, above any title band
+            if(!fullTop && tgraph.getCoordinate() instanceof PolarCoord) {
+               topY += tgraph.getEGraph().getTopInset();
+            }
             VisualObjectArea varea = new VisualObjectArea(
                elemVO, trans, palette, region0.getBounds(), topY, lineIdx);
             boolean ignore = false;

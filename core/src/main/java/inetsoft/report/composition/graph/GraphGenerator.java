@@ -223,6 +223,7 @@ public abstract class GraphGenerator {
       super();
 
       this.vizContext = VizContext.of(chart);
+      this.chartPadding = chart.getPadding();
       this.companionBrushing = resolveCompanionBrushing(vizContext);
       this.graphSize = size;
       this.bconds = chart.getBrushConditionList(null, false);
@@ -455,6 +456,7 @@ public abstract class GraphGenerator {
       super();
 
       this.vizContext = VizContext.LEGACY;
+      this.chartPadding = null;
       this.companionBrushing = resolveCompanionBrushing(vizContext);
       this.graphSize = size;
       adata = getFixedDataSet(info, adata, true);
@@ -8217,6 +8219,7 @@ public abstract class GraphGenerator {
     * assembly; the report constructor knows there is none.
     */
    protected final VizContext vizContext;
+   protected final Insets chartPadding; // the assembly's padding, null without an assembly
    private final Set<AxisSpec> seededOffLines = Collections.newSetFromMap(new IdentityHashMap<>());
    protected EGraph graph; // element graph
    protected DataSet adata; // all data if brushing exists, null otherwise

@@ -80,6 +80,38 @@ class ModernGanttEndTest {
    }
 
    @Test
+   void theChartsOwnRightPaddingSetsThePad() {
+      // the server density would give 8px; the chart's own padding wins
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      Gantt g = gantt(8, VizMark.MODERN_LIGHT, new Dimension(400, 240));
+      g.info.setPadding(new Insets(12, 12, 12, 24));
+      g = new Gantt(GraphGenerator.getGenerator(g.info, null, g.gen.getData(),
+                                                new VariableTable(), null, XSourceInfo.NONE,
+                                                new Dimension(400, 240)), g.info, g.start);
+      EGraph graph = g.gen.createEGraph();
+      VGraph vgraph = Plotter.getPlotter(graph)
+         .plotAndLayout(g.gen.getData(), 0, 0, 400, 240);
+      Scale time = ((RectCoord) vgraph.getCoordinate()).getYScale();
+      double lastEnd = date(2026, Calendar.JANUARY, 21 + 8 * 3).getTime();
+      double plotWidth = vgraph.getPlotBounds().getWidth();
+      double gap = (time.getMax() - lastEnd) / (time.getMax() - time.getMin()) * plotWidth;
+
+      assertTrue(gap >= 0.9 * 24 && gap <= 1.5 * 24, "gap " + gap + " for padding 24");
+   }
+
+   @Test
+   void aZeroRightPaddingGivesNoPad() {
+      Gantt g = gantt(8, VizMark.MODERN_LIGHT, new Dimension(400, 240));
+      g.info.setPadding(new Insets(12, 12, 12, 0));
+      GraphGenerator gen = GraphGenerator.getGenerator(g.info, null, g.gen.getData(),
+                                                       new VariableTable(), null,
+                                                       XSourceInfo.NONE, new Dimension(400, 240));
+      TimeScale time = (TimeScale) ((RectCoord) gen.createEGraph().getCoordinate()).getYScale();
+
+      assertEquals(0, time.getEndPadRatio(), 0);
+   }
+
+   @Test
    void classicAndAuthorMaxGanttsTouchTheEdge() {
       Gantt classic = gantt(8, null, new Dimension(400, 240));
       TimeScale time = (TimeScale) ((RectCoord) classic.gen.createEGraph().getCoordinate())
@@ -133,6 +165,8 @@ class ModernGanttEndTest {
       info.setVSChartInfo(gantt);
       info.setChartDescriptor(new ChartDescriptor());
       info.setVizMark(mark);
+      // the padding the chrome seed writes
+      info.setPadding(VSDensityDefaults.chartPadding(VizContext.of(info)));
       GraphGenerator gen = GraphGenerator.getGenerator(info, null, new DefaultDataSet(rows),
                                                        new VariableTable(), null,
                                                        XSourceInfo.NONE, size);

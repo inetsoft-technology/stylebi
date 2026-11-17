@@ -149,7 +149,9 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
          yScale.getAxisSpec().setLabelBetween(true);
 
          if(vizContext.modern && yScale instanceof TimeScale) {
-            Insets padding = VSDensityDefaults.chartPadding(vizContext);
+            // the chart's own padding, as the title gap uses
+            Insets padding = chartPadding != null ? chartPadding
+               : VSDensityDefaults.chartPadding(vizContext);
             double width = graphSize != null ? graphSize.width : 1000;
             double tasks = coord.getXScale() == null ? 0 :
                ModernLabelRule.columnLimitPx(
