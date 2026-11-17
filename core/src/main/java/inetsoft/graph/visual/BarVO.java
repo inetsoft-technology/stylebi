@@ -1578,7 +1578,7 @@ public class BarVO extends ElementVO {
          }
       }
 
-      extent = Math.min(360, extent);
+      extent = clockwise ? Math.max(-360, extent) : Math.min(360, extent);
 
       if(isWholeCircle(extent, clockwise) || isWholeCircle(overext, clockwise)) {
          return shape;

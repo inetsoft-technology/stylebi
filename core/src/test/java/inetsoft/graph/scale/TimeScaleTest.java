@@ -223,6 +223,18 @@ class TimeScaleTest {
    }
 
    @Test
+   void aMinPastTheDataGetsNoNegativePad() {
+      TimeScale plain = filledScale();
+      TimeScale padded = filledScale();
+      java.util.Date min = new java.util.Date(JAN_31_2024 + 10L * 86400000L);
+      plain.setMin(min);
+      padded.setMin(min);
+      padded.setEndPadRatio(0.1);
+
+      assertEquals(plain.getMax(), padded.getMax(), 0);
+   }
+
+   @Test
    void anAuthorMaxTurnsThePadOff() {
       TimeScale scale = filledScale();
       scale.setEndPadRatio(0.1);

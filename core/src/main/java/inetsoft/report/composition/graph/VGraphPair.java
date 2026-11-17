@@ -270,9 +270,6 @@ public class VGraphPair {
    }
 
    /**
-    * Intialize visual graphs.
-    */
-   /**
     * The space kept between a visible title lane and the plot of a marked chart.
     */
    static int titleGap(ChartVSAssemblyInfo ainfo) {
@@ -289,6 +286,9 @@ public class VGraphPair {
       return ainfo.getPadding().top;
    }
 
+   /**
+    * Intialize visual graphs.
+    */
    private void initGraph0(ViewsheetSandbox box, String cname, Dimension maxsize,
                            boolean export, double scaleFont, boolean forceExpand)
       throws Exception

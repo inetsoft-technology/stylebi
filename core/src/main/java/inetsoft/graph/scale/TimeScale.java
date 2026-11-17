@@ -336,7 +336,7 @@ public class TimeScale extends Scale {
    @Override
    @TernMethod
    public double getMax() {
-      double pad = umax == null && endPadRatio > 0 ? (getMax0() - getMin0()) * endPadRatio : 0;
+      double pad = umax == null && endPadRatio > 0 ? Math.max(0, getMax0() - getMin0()) * endPadRatio : 0;
       return getMax0() + getGap() + pad;
    }
 
