@@ -2271,6 +2271,14 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    get inContainer(): boolean {
       return this.model.containerType == "VSSelectionContainer";
    }
+   /**
+    * Bottom border of the selected-values half of the title row. It must follow the title border
+    * (no stylesheet default), otherwise a title with its border set to none still shows a line.
+    */
+   get selectedTextBorderBottom(): string {
+      return this.headerBorderBottom || "none";
+   }
+
    get headerBorderBottom(): string {
       if(this.model?.titleFormat?.border?.bottom) {
          return this.model.titleFormat.border.bottom;
