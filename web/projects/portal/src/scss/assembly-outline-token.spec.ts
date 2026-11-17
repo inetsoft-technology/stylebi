@@ -25,9 +25,13 @@ describe("assembly outline token", () => {
    });
 
    it("rootDefaultFollowsTheSelectedBorderToken", () => {
+      // The legacy state tokens live in a mixin so the dark shell can re-declare them on dashboard
+      // content (_shell-dark.scss); :root includes it, so the root default is unchanged.
       const root = tokens.match(/:root\s*\{[\s\S]*?\}/)[0];
-      expect(root).toMatch(/--inet-viz-selected-border:\s*var\(--inet-primary-color\)/);
-      expect(root).toMatch(/--inet-viz-assembly-outline:\s*var\(--inet-viz-selected-border\)/);
+      expect(root).toMatch(/@include\s+inet-viz-legacy-state-tokens\s*;/);
+      const state = tokens.match(/@mixin\s+inet-viz-legacy-state-tokens\s*\{[^}]*\}/)[0];
+      expect(state).toMatch(/--inet-viz-selected-border:\s*var\(--inet-primary-color\)/);
+      expect(state).toMatch(/--inet-viz-assembly-outline:\s*var\(--inet-viz-selected-border\)/);
    });
 
    it("darkMapsToTheDarkOutline", () => {
