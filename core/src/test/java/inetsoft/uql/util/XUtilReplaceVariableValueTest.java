@@ -298,6 +298,17 @@ class XUtilReplaceVariableValueTest {
          assertEquals("2024-03-15", formatted(ts, "yyyy-MM-dd"));
       }
 
+      @DisplayName("X04(b) a Timestamp with a time-of-day format keeps the time")
+      @Test
+      void x04b_timestampTimeFormat() {
+         java.sql.Timestamp ts = new java.sql.Timestamp(
+            new GregorianCalendar(2024, Calendar.MARCH, 15, 10, 30, 0).getTimeInMillis());
+
+         assertEquals("2024-03-15 10:30", formatted(ts, "yyyy-MM-dd HH:mm"));
+         assertEquals("2024-03-15 10:30",
+                      formatted(new java.util.Date(ts.getTime()), "yyyy-MM-dd HH:mm"));
+      }
+
       @DisplayName("X05 a null element is written as empty text, null variables keep the text")
       @Test
       void x05_nullElement() {
@@ -332,7 +343,6 @@ class XUtilReplaceVariableValueTest {
                       formatted(date, "d MMM yyyy"));
       }
 
-      @Disabled("mismatch X09 #81117")
       @DisplayName("X09 a Date[] with a registered format is formatted per element")
       @Test
       void x09_dateArrayWithFormat() {
