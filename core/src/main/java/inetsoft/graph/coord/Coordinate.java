@@ -455,6 +455,14 @@ public abstract class Coordinate extends AbstractCoord implements Cloneable, ILa
    }
 
    /**
+    * Discard the cached element bounds so a re-plot measures the new visuals.
+    */
+   void clearElementBounds() {
+      elemBounds = null;
+      elemBounds0 = null;
+   }
+
+   /**
     * Set the cached element bounds.
     */
    void setElementBounds(Rectangle2D box) {

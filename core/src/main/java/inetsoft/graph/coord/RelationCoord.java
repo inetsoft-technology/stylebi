@@ -23,6 +23,7 @@ import inetsoft.graph.data.DataSetIndex;
 import inetsoft.graph.element.RelationElement;
 import inetsoft.graph.geometry.RelationGeometry;
 import inetsoft.graph.guide.axis.Axis;
+import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.scale.Scale;
 import inetsoft.graph.visual.RelationVO;
 
@@ -35,6 +36,14 @@ import java.util.Map;
  */
 public class RelationCoord extends Coordinate {
    public RelationCoord() {
+   }
+
+   // a re-plot reuses this coordinate, so drop what was measured from the previous visuals
+   @Override
+   public void setVGraph(VGraph vgraph) {
+      super.setVGraph(vgraph);
+      clearElementBounds();
+      needLayout = true;
    }
 
    @Override
@@ -186,6 +195,10 @@ public class RelationCoord extends Coordinate {
     */
    @Override
    public double getUnitMinWidth() {
+      if(isPlotFitted()) {
+         return 1;
+      }
+
       Rectangle2D box = getVisualObjectBounds();
 
       if(box == null) {
@@ -208,6 +221,10 @@ public class RelationCoord extends Coordinate {
     */
    @Override
    public double getUnitMinHeight() {
+      if(isPlotFitted()) {
+         return 1;
+      }
+
       // Horizontal mode: read natural mxcell bounds directly. Visual bounds union scaled node
       // positions with fixed-pixel text labels; back-dividing then amplifies the label
       // contribution by 1/scaleY, padding each cell well beyond the rotated tree's actual
@@ -228,6 +245,63 @@ public class RelationCoord extends Coordinate {
 
       double scaleY = Math.abs(getVGraph().getScreenTransform().getScaleY());
       return (box.getMaxY() - box.getY()) / scaleY + GAP * 2;
+   }
+
+   /**
+    * Get the box a plot-fitted layout lays out in: the plot less the gaps and the
+    * anti-aliasing margin. Null before the coordinate bounds are known or in a facet.
+    * @hidden
+    */
+   public Dimension2D getPlotBox() {
+      Rectangle2D bounds = getCoordBounds();
+
+      if(bounds == null || getParentCoordinate() != null) {
+         return null;
+      }
+
+      return new DimensionD(Math.max(0, bounds.getWidth() - GAP * 2 - 1),
+                            Math.max(0, bounds.getHeight() - GAP * 2 - 1));
+   }
+
+   /**
+    * Re-plot when a plot-fitted element laid out in a box other than the plot box.
+    * @hidden
+    */
+   @Override
+   public boolean requiresReplot() {
+      Dimension2D box = getPlotBox();
+      VGraph vgraph = getVGraph();
+
+      if(box == null || vgraph == null || vgraph.getEGraph() == null) {
+         return false;
+      }
+
+      EGraph egraph = vgraph.getEGraph();
+
+      for(int i = 0; i < egraph.getElementCount(); i++) {
+         if(egraph.getElement(i) instanceof RelationElement re && re.isPlotFit() &&
+            re.getLaidOutBox() != null)
+         {
+            Dimension2D laidOut = re.getLaidOutBox();
+
+            if(Math.abs(laidOut.getWidth() - box.getWidth()) > 0.5 ||
+               Math.abs(laidOut.getHeight() - box.getHeight()) > 0.5)
+            {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   // whether the first element lays out in the plot box and so never needs to scroll
+   private boolean isPlotFitted() {
+      VGraph vg = getVGraph();
+      EGraph eg = vg != null ? vg.getEGraph() : null;
+      return getParentCoordinate() == null && eg != null && eg.getElementCount() > 0
+         && eg.getElement(0) instanceof RelationElement re
+         && re.isPlotFit() && re.getAlgorithm() == RelationElement.Algorithm.CIRCLE;
    }
 
    private Rectangle2D getNaturalLayoutBounds() {

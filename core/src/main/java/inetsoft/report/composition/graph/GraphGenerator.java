@@ -5229,6 +5229,10 @@ public abstract class GraphGenerator {
       else if(elem instanceof AreaElement area && chartType == GraphTypes.CHART_FILL_RADAR) {
          area.setSolidOutline(true);
       }
+      else if(elem instanceof RelationElement relation) {
+         // an author's plot resize keeps today's layout
+         relation.setPlotFit(!info.isWidthResized() && !info.isHeightResized());
+      }
    }
 
    /**

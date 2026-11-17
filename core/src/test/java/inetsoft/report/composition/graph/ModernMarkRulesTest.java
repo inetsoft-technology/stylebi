@@ -615,7 +615,58 @@ class ModernMarkRulesTest {
       return ((Number) elem.getHint(GraphElement.HINT_ALPHA)).doubleValue();
    }
 
+   @Test
+   void aMarkedRelationChartFitsThePlot() {
+      for(int type : RELATION_TYPES) {
+         assertTrue(relation(relationChart(type), VizMark.MODERN_LIGHT).isPlotFit(),
+                    "chart type " + type);
+      }
+   }
+
+   @Test
+   void aClassicRelationChartDoesNot() {
+      for(int type : RELATION_TYPES) {
+         assertFalse(relation(relationChart(type), null).isPlotFit(), "chart type " + type);
+      }
+   }
+
+   @Test
+   void anAuthorsPlotResizeKeepsTodaysLayout() {
+      for(int type : RELATION_TYPES) {
+         Chart wide = relationChart(type);
+         wide.info().setWidthResized(true);
+         assertFalse(relation(wide, VizMark.MODERN_LIGHT).isPlotFit(), "width, type " + type);
+
+         Chart tall = relationChart(type);
+         tall.info().setHeightResized(true);
+         assertFalse(relation(tall, VizMark.MODERN_LIGHT).isPlotFit(), "height, type " + type);
+      }
+   }
+
+   private static final int[] RELATION_TYPES = {
+      GraphTypes.CHART_TREE, GraphTypes.CHART_NETWORK, GraphTypes.CHART_CIRCULAR };
+
+   private static RelationElement relation(Chart chart, VizMark mark) {
+      EGraph graph = generator(chart, mark, null).createEGraph();
+      RelationElement relation = null;
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof RelationElement elem) {
+            relation = elem;
+         }
+      }
+
+      assertNotNull(relation, "premise: a relation element");
+      return relation;
+   }
+
    private static double edgeLargest(VizMark mark) {
+      RelationElement edge = relation(relationChart(GraphTypes.CHART_TREE), mark);
+      assertInstanceOf(LinearSizeFrame.class, edge.getSizeFrame(), "premise: a bound size");
+      return ((LinearSizeFrame) edge.getSizeFrame()).getLargest();
+   }
+
+   private static Chart relationChart(int chartType) {
       VSChartDimensionRef source = dim("Parent");
       VSChartDimensionRef target = dim("Child");
       VSChartAggregateRef qty = agg("Qty", "Sum");
@@ -627,26 +678,15 @@ class ModernMarkRulesTest {
       size.setRTDataRef(qty);
       size.setVisualFrameWrapper(new LinearSizeFrameWrapper());
       RelationVSChartInfo cinfo = new RelationVSChartInfo();
-      cinfo.setChartType(GraphTypes.CHART_TREE);
-      cinfo.setRTChartType(GraphTypes.CHART_TREE);
+      cinfo.setChartType(chartType);
+      cinfo.setRTChartType(chartType);
       cinfo.setSourceField(source);
       cinfo.setTargetField(target);
       cinfo.setRTSourceField(source);
       cinfo.setRTTargetField(target);
       cinfo.setSizeField(size);
       cinfo.updateChartType(false);
-      EGraph graph = generator(new Chart(cinfo, rows), mark, null).createEGraph();
-      RelationElement edge = null;
-
-      for(int i = 0; i < graph.getElementCount(); i++) {
-         if(graph.getElement(i) instanceof RelationElement elem) {
-            edge = elem;
-         }
-      }
-
-      assertNotNull(edge, "premise: a relation element");
-      assertInstanceOf(LinearSizeFrame.class, edge.getSizeFrame(), "premise: a bound size");
-      return ((LinearSizeFrame) edge.getSizeFrame()).getLargest();
+      return new Chart(cinfo, rows);
    }
 
    private static double milestoneSize(VizMark mark) {
