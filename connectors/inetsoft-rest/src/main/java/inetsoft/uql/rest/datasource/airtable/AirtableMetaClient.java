@@ -241,8 +241,8 @@ final class AirtableMetaClient {
          throw new IllegalStateException(e);
       }
 
-      return OrganizationManager.getInstance().getCurrentOrgID() + " " +
-         dataSource.getFullName() + " " + digest + " " + baseId;
+      return OrganizationManager.getInstance().getCurrentOrgID() + "\0" +
+         dataSource.getFullName() + "\0" + digest + "\0" + baseId;
    }
 
    private static long parseSeconds(String value) {

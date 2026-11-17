@@ -563,7 +563,8 @@ class AirtableCatalogTest {
             return "tok-other";
          }
       };
-      other.setName(dataSource.getName());
+      other.setName(dataSource.getFullName());
+      assertEquals(dataSource.getFullName(), other.getFullName());
 
       runtime.describeDataset(dataSource, "appAAA111/Customers");
       runtime.describeDataset(other, "appAAA111/Customers");
