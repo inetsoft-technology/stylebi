@@ -959,6 +959,15 @@ public class WorksheetEditService {
                "'. If it is hidden, use set_column_visibility to show it instead.");
          }
 
+         // Bug #81498: before any write. Embedded tables also count the physical data columns,
+         // which the native InsertDataService checks.
+         int existing = cs.getAttributeCount();
+
+         if(t instanceof EmbeddedTableAssembly emb) {
+            existing = Math.max(existing, emb.getEmbeddedData().getColCount());
+         }
+
+         WorksheetMutationSupport.requireColumnCapacity(existing, table);
          requireModelColumnRestore(table, name, t, cs);
 
          // For embedded tables, also insert the data column into XEmbeddedTable
@@ -2060,13 +2069,7 @@ public class WorksheetEditService {
       private static void requireColumnCapacity(ColumnSelection cs, String table)
          throws PairingException
       {
-         int max = inetsoft.report.internal.Util.getOrganizationMaxColumn();
-
-         if(cs.getAttributeCount() >= max) {
-            throw new PairingException(
-               "\"" + table + "\" already has " + cs.getAttributeCount() + " columns, the maximum " +
-               "this organization allows (" + max + "). Remove a column before adding another.");
-         }
+         WorksheetMutationSupport.requireColumnCapacity(cs.getAttributeCount(), table);
       }
 
       /**
