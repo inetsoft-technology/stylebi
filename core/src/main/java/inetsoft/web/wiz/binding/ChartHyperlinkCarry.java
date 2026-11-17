@@ -31,8 +31,10 @@ import inetsoft.uql.viewsheet.graph.HyperlinkRef;
 import inetsoft.uql.viewsheet.graph.RelationChartInfo;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Carries the hyperlink and highlights of a field across a shelf rewrite (bugs #80003, #80210).
@@ -102,6 +104,17 @@ final class ChartHyperlinkCarry {
     *         different formula or date level.
     */
    static List<String> reapply(ChartInfo info, String shelf, List<Saved> saved) {
+      return reapply(info, shelf, saved, new HashSet<>());
+   }
+
+   /**
+    * As {@link #reapply(ChartInfo, String, List)}, also adding the full name of each field whose
+    * dropped highlight it reported to {@code reported}, so {@link ChartHighlightSweep} does not
+    * report the same highlight a second time.
+    */
+   static List<String> reapply(ChartInfo info, String shelf, List<Saved> saved,
+                               Set<String> reported)
+   {
       List<String> notes = new ArrayList<>();
 
       if(saved.isEmpty()) {
@@ -148,6 +161,7 @@ final class ChartHyperlinkCarry {
 
       for(Saved dropped : pool) {
          if(dropped.hasHighlight() && sameColumn(dropped.ref(), now)) {
+            reported.add(fullName(dropped.ref()));
             notes.add("The highlight on " + fullName(dropped.ref()) + " was removed: its field " +
                "stays on the " + shelf + " shelf under a different " +
                (dropped.ref() instanceof VSDimensionRef ? "date level" : "aggregate formula") +
@@ -172,7 +186,7 @@ final class ChartHyperlinkCarry {
       return false;
    }
 
-   private static String fullName(ChartRef ref) {
+   static String fullName(ChartRef ref) {
       return ref instanceof VSAggregateRef a ? a.getFullName() :
          ref instanceof VSDimensionRef d ? d.getFullName() : ref.getName();
    }
@@ -191,7 +205,7 @@ final class ChartHyperlinkCarry {
       return false;
    }
 
-   private static List<ChartRef> refs(ChartInfo info, String shelf) {
+   static List<ChartRef> refs(ChartInfo info, String shelf) {
       List<ChartRef> refs = new ArrayList<>();
 
       if(info == null || shelf == null) {

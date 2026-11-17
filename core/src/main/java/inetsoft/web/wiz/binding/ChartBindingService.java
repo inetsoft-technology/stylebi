@@ -119,6 +119,8 @@ public class ChartBindingService {
          applySource(model, sourceTable);
          List<ChartHyperlinkCarry.Saved> links =
             ChartHyperlinkCarry.snapshot(chart.getVSChartInfo(), shelf);
+         ChartHighlightSweep.Snapshot highlights =
+            ChartHighlightSweep.snapshot(chart.getVSChartInfo());
          ChartBindingMutator.setShelf(
             model, shelf, fields, rvs,
             BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
@@ -137,8 +139,11 @@ public class ChartBindingService {
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
          fixNewMeasureColors(requireChart(rvs, assemblyName).getVSChartInfo(), measuresBefore);
 
+         Set<String> reported = new java.util.HashSet<>();
          notes.addAll(ChartHyperlinkCarry.reapply(
-            requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links));
+            requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links, reported));
+         notes.addAll(ChartHighlightSweep.sweep(
+            requireChart(rvs, assemblyName).getVSChartInfo(), highlights, reported));
 
          try {
             requireCalculatorsResolved(requireChart(rvs, assemblyName).getVSChartInfo(), shelf,
@@ -901,6 +906,8 @@ public class ChartBindingService {
          applySource(model, sourceTable);
          List<ChartHyperlinkCarry.Saved> links =
             ChartHyperlinkCarry.snapshot(chart.getVSChartInfo(), shelf);
+         ChartHighlightSweep.Snapshot highlights =
+            ChartHighlightSweep.snapshot(chart.getVSChartInfo());
          ChartBindingMutator.setSingleShelf(
             model, shelf, field, rvs,
             BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
@@ -911,8 +918,11 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+         Set<String> reported = new java.util.HashSet<>();
          notes.addAll(ChartHyperlinkCarry.reapply(
-            requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links));
+            requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links, reported));
+         notes.addAll(ChartHighlightSweep.sweep(
+            requireChart(rvs, assemblyName).getVSChartInfo(), highlights, reported));
       }));
 
       return withNotes(warnings, notes);
