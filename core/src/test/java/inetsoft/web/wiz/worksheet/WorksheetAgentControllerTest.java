@@ -3224,6 +3224,124 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #81559: {@code percentageOf} and {@code secondaryColumn} on a
+    * {@code set_group_aggregate} aggregate entry must reach the {@link AggregateRef} through
+    * the controller's dispatch switch. The switch rebuilt each spec from four of its six fields,
+    * so both were accepted and dropped.
+    */
+   @Test
+   void editDispatchesSetGroupAggregateWithPercentageOf() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      JoinSession s = session("TOK-PCT");
+      when(sessions.resolve(eq("TOK-PCT"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      List<WorksheetMutationSupport.GroupSpec> groups = List.of(
+         new WorksheetMutationSupport.GroupSpec("cust", null),
+         new WorksheetMutationSupport.GroupSpec("store", null));
+      List<WorksheetMutationSupport.AggregateSpec> aggregates = List.of(
+         new WorksheetMutationSupport.AggregateSpec(
+            "amount", "SUM", null, null, null, "group"));
+
+      EditRequest req = new EditRequest(
+         "set_group_aggregate", // op
+         "T",                   // table
+         null,                  // column
+         null,                  // name
+         null,                  // type
+         null,                  // newName
+         null,                  // field
+         null,                  // operation
+         null,                  // values
+         null,                  // direction
+         groups,                // groups
+         aggregates,            // aggregates
+         null,                  // expression
+         false,                 // sql
+         null,                  // leftTable
+         null,                  // leftKey
+         null,                  // rightTable
+         null,                  // rightKey
+         null,                  // joinType
+         null,                  // visible
+         null,                  // tables
+         null,                  // source
+         null,                  // concatType
+         null,                  // conditions
+         null,                  // ranking
+         null,                  // headerColumns
+         null,                  // dateOption
+         null,                  // boundaries
+         null,                  // datasource
+         null,                  // schema
+         null,                  // catalog
+         null,                  // logicalModel
+         null,                  // leftKeys
+         null,                  // rightKeys
+         null,                  // row
+         null,                  // col
+         null,                  // value
+         null,                  // index
+         null,                  // alias
+         null,                  // description
+         null,                  // maxRows
+         null,                  // distinct
+         null,                  // columnOrder
+         null,                  // groupMappings
+         null,                  // groupOthers
+         null,                  // variableValues
+         null,                  // x
+         null,                  // y
+         null,                  // label
+         null,                  // defaultValue
+         null,                  // mode
+         null,                  // insert
+         null,                  // subtables
+         null,                  // sourceTable
+         null,                  // attribute
+         null,                  // endpoint
+         null,                  // parameters
+         null,                  // lookup
+         null,                  // lookupExpandArrays
+         null,                  // lookupTopLevelOnly
+         null,                  // suffix
+         null,                  // customLookups
+         null,                  // crosstab
+         null,                  // labels
+         null,                  // choices
+         null,                  // joinPaths
+         null,                  // mergeable
+         null,                  // visibleInViewsheet
+         null,                  // confirmed
+         null,                  // rowCount
+         null                   // concatDistinct
+      );
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-PCT", req, agent);
+
+      AggregateRef ref = t.getAggregateInfo().getAggregate(0);
+      assertTrue(ref.isPercentage(), "percentageOf must reach the AggregateRef");
+      assertEquals(inetsoft.uql.XConstants.PERCENTAGE_OF_GROUP, ref.getPercentageOption());
+   }
+
+   /**
     * Bug #76626: no {@code mcp__composer-chat__*} tool (nor, until now, the agent-bridge
     * itself) could read or write a worksheet table's MV incremental-refresh condition fields.
     * Confirms {@code set_mv_conditions} reaches {@link WorksheetEditService.Editor#setMVConditions}

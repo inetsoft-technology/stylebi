@@ -1533,7 +1533,7 @@ public final class WorksheetMutationSupport {
             ar.setSecondaryColumn(secondaryColRef);
          }
 
-         applyPercentageOption(ar, spec.percentageOf());
+         applyPercentageOption(ar, spec.percentageOf(), formula, spec.field());
 
          if(ainfo.containsAggregate(ar)) {
             // Second aggregate on the same column: clone the ref before aliasing.
@@ -1559,7 +1559,7 @@ public final class WorksheetMutationSupport {
                secondary.setSecondaryColumn(secondaryColRef);
             }
 
-            applyPercentageOption(secondary, spec.percentageOf());
+            applyPercentageOption(secondary, spec.percentageOf(), formula, spec.field());
 
             ainfo.addSecondaryAggregate(secondary);
          }
@@ -2109,20 +2109,48 @@ public final class WorksheetMutationSupport {
     * percentage setting untouched, so a caller updating an unrelated field on an already-
     * percentage-of aggregate doesn't need to restate it.
     */
-   private static void applyPercentageOption(AggregateRef ref, String percentageOf) {
+   private static void applyPercentageOption(AggregateRef ref, String percentageOf,
+                                             AggregateFormula formula, String field)
+      throws inetsoft.web.wiz.pairing.PairingException
+   {
       if(percentageOf == null) {
          return;
       }
 
-      ref.setPercentageOption(switch(percentageOf.toLowerCase()) {
+      int option = switch(percentageOf.toLowerCase()) {
          case "none" -> XConstants.PERCENTAGE_NONE;
          case "group", "sub_total", "subtotal" -> XConstants.PERCENTAGE_OF_GROUP;
          case "grand_total", "grandtotal" -> XConstants.PERCENTAGE_OF_GRANDTOTAL;
          default -> throw new IllegalArgumentException(
             "'" + percentageOf + "' is not a percentage-of option. Accepted: none, group, " +
             "grand_total.");
-      });
+      };
+
+      if(option != XConstants.PERCENTAGE_NONE && !supportsPercentage(formula)) {
+         throw new inetsoft.web.wiz.pairing.PairingException(
+            "percentageOf '" + percentageOf + "' is not available for " + formula.getFormulaName() +
+            "(" + field + "): the Composer offers Percentage only for Average, Count, " +
+            "DistinctCount, Max, Min, Sum, Median, Variance, StandardDeviation, " +
+            "PopulationVariance and PopulationStandardDeviation.");
+      }
+
+      ref.setPercentageOption(option);
    }
+
+   /**
+    * The formulas the Composer's aggregate dialog enables the Percentage dropdown for
+    * (aggregate-formula.ts, supportPercentage).
+    */
+   private static boolean supportsPercentage(AggregateFormula formula) {
+      return formula == AggregateFormula.AVG || formula == AggregateFormula.COUNT_ALL ||
+         formula == AggregateFormula.COUNT_DISTINCT || formula == AggregateFormula.MAX ||
+         formula == AggregateFormula.MIN || formula == AggregateFormula.SUM ||
+         formula == AggregateFormula.MEDIAN || formula == AggregateFormula.VARIANCE ||
+         formula == AggregateFormula.STANDARD_DEVIATION ||
+         formula == AggregateFormula.POPULATION_VARIANCE ||
+         formula == AggregateFormula.POPULATION_STANDARD_DEVIATION;
+   }
+
 
    /**
     * Names the direct downstream {@link CompositeTableAssembly} (join/concat/etc.)
