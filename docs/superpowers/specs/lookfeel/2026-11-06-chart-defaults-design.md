@@ -97,10 +97,11 @@ Every item in §5 is one of these kinds:
 | **D**: drawing rule | Code that runs when the chart draws: layout, fit, or anything that depends on the data or the card size | No. An older build doesn't have the code | Applies only while the author has not set the setting it replaces |
 | **C**: creation-time default | A binding, sort, chart type or date level chosen when a chart is created or changes type | Yes. It is ordinary saved binding | It is the author's binding afterwards (M6) |
 
-**Principle.** Where a rule can be stated as a value of a property that older builds already read, it is built as kind V, even if a drawing rule would be simpler. Example: pie size is seeded into the existing `pieRatio` field at 0.8, instead of computing 80% at draw time. A rule becomes D only when it depends on:
+**Principle.** Where a rule can be stated as a value of a property that older builds already read, it is built as kind V, even if a drawing rule would be simpler. Example: the bar corner is seeded into the existing `barCornerRadius` field at 0.08 (S4-1); only its 2px floor is drawn (S4-2). A rule becomes D only when it depends on:
 - the data, such as the diverging ramp
 - the card size, such as the label rule
 - new layout code, such as legend caps, pixel floors and zero lines
+- an existing property that means something else. This spec first gave the pie as the example of kind V: seed `pieRatio` at 0.8. But `pieRatio` fixes the size and also switches the pie's labels to another layout mode, so the 80% cap is a drawing rule (S6-2, D95).
 
 The legend's entry count (S3-1) depends on the data, but it is not a drawing rule: the owner ruled on 2026-11-11 that a legend stays where the chart was designed. The count is taken once, when the composer draws the chart after a seed, and the resulting position is saved (kind V).
 
@@ -283,7 +284,8 @@ Ruled by the owner on 2026-11-06. Each overrides the decision named. The older d
 | S4b | The other marks: S4-7 to S4-12 | Later | S4a |
 | S5a | The label rule and compact dates: S5-1, S5-2 and facet inner axes | Later | S1. Stacked on S4b |
 | S5b | Titles, radar labels and horizontal order: S5-3 to S5-7 | Later | S5a |
-| S6 | Padding and sizing | Later | S4 for the pie ratio flag pattern |
+| S6a | Padding and the pie: S6-1, S6-2, S6-3, S6-7, S6-8 and S6-9 | Later | S5. Stacked on S5 (`bug-80455-s5`) |
+| S6b | Relation layouts: S6-4 to S6-6 | Later | S6a |
 | S7 | Creation-time defaults | Later | 80398, for the reset path |
 | S8 | Family items | Later | S1 to S4 |
 
@@ -634,7 +636,7 @@ Amended 2026-11-16, after the owner reviewed S5 against the S4b head (`40f883e30
 | # | Item | Bundle | Where | Kind | Notes |
 |---|---|---|---|---|---|
 | S5-1 | Automatic label rule when the author has not set the rotation | C5, bar 3, Gantt 4, financial, line | Rotation: `GraphGenerator.setDefaultRotation:6724`. Thinning: `DefaultAxis.removeOverlappedLabels:1503`; on an axis with a label limit, `DefaultAxis.thinInOneStep` instead (S5a). Band and truncation: `DefaultAxis.getMaxLabelSize:965`, `VLabel.getDisplayLabel:360` | D | See "S5-1 label rule". S5a. |
-| S5-2 | Compact dates on every date axis | C5, Gantt 2 | Patterns: `XUtil.DEFAULT_PATTERN:6640-6654`, `GraphGenerator.getDefaultFormat`, `GanttGraphGenerator.getDefaultFormat:196-206`. Year dropping: `setAbbreviate:2942`, `DefaultAxis.abbreviateDate:2273`. Format resolution: `GraphUtil.getTextSpec:446-452`. Format pane default: `FormatPainterService.fixAxisDefaultFormat:1885-1899` | D | See "S5-2 compact dates". S5a. The Gantt time axis keeps the density padding beyond the last date. |
+| S5-2 | Compact dates on every date axis | C5, Gantt 2 | Patterns: `XUtil.DEFAULT_PATTERN:6640-6654`, `GraphGenerator.getDefaultFormat`, `GanttGraphGenerator.getDefaultFormat:196-206`. Year dropping: `setAbbreviate:2942`, `DefaultAxis.abbreviateDate:2273`. Format resolution: `GraphUtil.getTextSpec:446-452`. Format pane default: `FormatPainterService.fixAxisDefaultFormat:1885-1899` | D | See "S5-2 compact dates". S5a. The Gantt's padding beyond the last date is plot padding, not a label rule; it moved to S6-9. |
 | S5-3 | A generated axis title longer than its axis is hidden, never cut | C6 | `VGraph.createTitle:328`, bounds in `layout0` (about `:850` and `:876`), cut in `VLabel.getDisplayLabel:360` | D | A new `TitleSpec` flag, set only in the generated branch of `getTitleSpec` (`:6549` on). A typed title (`:6526-6545`) is cut as today (D74). Its space goes back to the plot. S5b. |
 | S5-4 | Point axis titles drop the default formula | point 2 | `getTitleSpec:6396` → `getRefLabel:6598` → `GraphUtil.getLabel:205` (`toView()`) | D | On point charts only (resolved type). Only Sum on a number field, the default formula (`AggregateFormula.getDefaultFormula:268`), is dropped: "Sum(Price)" reads "Price". Every other formula stays ("Avg(Price)", "Count(Order)", "Max(Price)"), and so does a formula with a second column or a percentage (D75). An author's title alias (`ymeasurelabels`, `xmeasurelabels`) still wins. Scatter contour already shows the field name because its measures are not aggregated. S5b. |
 | S5-5 | Radar spoke labels: the S5-4 text, truncated | radar 2 | Spoke values are the full measure names (`ParallelCoord.ParallelScale.initValues:126`), shown through the alias `TextFrame` and `setTruncate` in `RadarGraphGenerator.fixParallelCoord:169-210` | D | Change the displayed text only. The `_Parallel_Label_` values key the aliases, formats and selection (`ChartRegionHandler`, `PlotArea`, `FormatPainterService`). The S5-4 text rule, then an ellipsis at the S5-1 length limit. An author's alias shows in full (D76). S5b. |
@@ -710,16 +712,101 @@ Amended 2026-11-16, after the owner reviewed S5 against the S4b head (`40f883e30
 
 ### S6. Padding and sizing
 
+Amended 2026-11-17, after the owner reviewed S6 against the S5 head (`bug-80455-s5`, `2bd6b1d681`, rebased onto `epic-74519` after S2 to S4b merged; its tree is identical to the earlier `77f9622d35`). The owner's rulings are D94 to D99; the design calls made with them are D100 to D107 (§10). Lines in this section are at `2bd6b1d681`. The owner read two rulings off the bundle's own pages: the drawn cards place the plot one density padding below the title block (D94), and the pie page rules a labelled pie "No change" (D95).
+
+**Facts that shape this slice.**
+- **The top padding sits above the title, not under it.**
+  - The client places the title at `top = padding.top` (`web/projects/portal/src/app/vsobjects/objects/chart/vs-chart.component.html:64-66`). The graph starts at `titleHeight + padding.top + border.top` (`web/projects/portal/src/app/graph/objects/chart-area.component.ts`, `chartContainerTop`).
+  - The server tile does the same (`VGraphPair:2667`, `g.translate(padding.left, padding.top + titleHeight)`), and so do the exports (`AbstractVSExporter:1578-1582`, `:1639-1646`, `:2690-2694`).
+  - So on a titled chart the plot starts about 1px under the title lane (`VGraph.layout:606-611`). Left, right and bottom padding sit between the card edge and the graph. That is why the bundle's experiment saw the bottom and left grow 4px per density step while the top stayed at 4-5px.
+  - With the title hidden, the graph starts at `padding.top`, so the gap is already right.
+  - The bundle's guess that it measured "the top value label sitting on the top gridline" is wrong: the top label is slid inside the plot (`DefaultAxis:1456`, `Axis.moveInside`), and the max gridline is removed when the top tick equals the scale max (`RectCoord.fit:655-667`).
+  - S1's removed title rule changed no geometry; it was the title's own bottom border.
+- **`pieRatio` is a fixed size, not a cap** (`PolarCoord.getRadius:1085-1124`). A ratio above 0 sets the diameter to `ratio × min(w, h)` of the coordinate bounds. It also makes the labels moveable (`isLabelMoveable:1180`): force-in-plot is off, `ArcHelper` moves labels, label widths narrow and tiny truncated labels are hidden. The automatic size (0) shrinks the pie for outside labels, down to `graph.pie.min.ratio` (0.5). With no labels it fills the shorter side less 2px.
+- **New pies have no labels** (bundle pie page: "labels are off until the author adds Text"). For them a cap and a seeded 0.8 draw the same pie; they differ only once an author adds Text.
+- **The radar has no fit of its own.** `AbstractParallelCoord.fit` is never called for it (`PolarCoord.createAxis:446-447`). The radius is `PolarCoord.getRadius` → `PolarUtil.getLabelPieRadius`, against coordinate bounds that already exclude the card padding, the legend and its density gap (`GraphGenerator:1785`).
+- **The Gantt's last date is the plot edge.** The time scale is built with `setFill(true)` (`GanttGraphGenerator:131`), so `TimeScale.getGap()` is 0 and `getMax()` (`:338`) is the last end date. `AxisSpec.maxPadding` only narrows where end labels are pushed.
+- **A contour map draws the whole world.** `GeoCoord.fullMap` defaults to true and walks every shape, and `MapGenerator.getFixedInfo:1436` adds the World background layer to a map with no polygon field.
+  - `isZooming()` (`GraphGenerator:643`) is the viewer's data zoom or exclude, not the author's map zoom. The earlier S6-7 row read it as the author's.
+  - Web maps already fit the data (`applyWebMap:1286-1304`: `fullMap` false, the stored `lonlat` as the extent, padding 0.05 when untouched).
+  - The author's extent is in plain `PlotDescriptor` fields (`:2024-2029`): `webMap`, `zoom` (1), `zoomLevel` (-1), `panX`/`panY` (0), `lonlat` (null). The first nav-bar zoom or pan saves the extent drawn at that moment as `lonlat` (`VSChartMapService.applyZoomPan:163-164`); the nav bar's clear resets `zoom`, pan and `lonlat` (`:149`). All at their defaults means untouched; no flag is needed.
+  - A non-web map cannot zoom out past its default view (`GeoCoord:398-401`).
+- **Relation layouts are sized for the whole card, not the plot.** The layout size is the content size: the assembly less its borders and title (`VGraphPair.initSize:268`, `VSUtil.getContentSize`), passed to `RelationElement.setLayoutSize` from `GraphGenerator`. The card padding, the legend and `RelationCoord`'s gap are not taken out, and the layout runs before the plot bounds exist (`GGraph` creates geometry before `VGraph.layout`). A replot hook exists: `Coordinate.requiresReplot` (`Plotter:104`, used by `GeoCoord:586`).
+  - The circle's radius is `(min(layoutW, layoutH) − largest node) × 0.9 / 2` (`RelationElement.mxLayout:333-334`), and `mxCircleLayout:246` also forces `r ≥ nodes × node size × 0.75 / π`, which wins from about 63 nodes. Bug 02's draft missed this second cause.
+  - The organic layout is never scaled up (positions move to the top left and scale only by zoom), so a network keeps its natural size of about 32px per edge on any card (bug 03).
+  - Tree boxes are 44×30 (`nodeWidth 40 × widthRatio + size × 4` by `30 × heightRatio`, `RelationElement:614-618`, `GraphGenerator:3989-3990`), with a sibling gap of 24 and a level gap of 22. Each parent is centred over its children, so the root is at the top centre of a tree that can be thousands of pixels wide. The repro trees are about 590px (15 nodes), 2,700px (60) and 9,100px (200) wide; a 400×240 card's plot is about 370px.
+  - Relation coordinates always scroll, and the client resets the scroll to 0,0 when the plot size changes (`chart-area.component.ts`, `resetScrollPosition`). So a wide tree opens on its far-left leaves.
+
+**Split (D99).** S6a covers S6-1, S6-2, S6-3, S6-7, S6-8 and S6-9, stacked on S5. S6b covers S6-4 to S6-6, stacked on S6a.
+
 | # | Item | Bundle | Where | Kind | Notes |
 |---|---|---|---|---|---|
-| S6-1 | Plot keeps the density padding on all four sides | C19 | The card inset is already seeded on all four sides and travels: `ChartVSAssemblyInfo.seedChromeDefaults:131-135` (`!isUserPadding() && !isCssPaddingDefined()`), `VSDensityDefaults.chartPadding` 8, 12, 16. The chart draws `padding.top` below the title lane (`VGraphPair:3019`) | verify | The bundle measured about 5px at the top, while GEO §1.1.1 found no gap at render. Measure on a live chart first (§7). Fix only what takes the space. |
-| S6-2 | Pie and donut diameter at most 80% of the plot height | pie 3 | `PolarCoord.getRadius:986` uses `pieRatio` (plain, 0 = auto), set in `createPolarCoord:928` | V + flag | Seed 0.8 under modern (the principle in M2). The donut hole stays about 45–50%, because the ring is size 15 of 30 (`:5222`); `holeRatio` is for another type. |
-| S6-3 | Radar keeps the density padding from the title, the card edges and the legend | radar 6, C19 | `AbstractParallelCoord.fit:136`, `PolarCoord.fit:532` (no padding input) | D | Check S6-1 first: the card inset may already bound the radar. Long labels must still fit. |
-| S6-4 | Circular network inside the plot, at most 80% of its height | relation 4 | `RelationElement.mxLayout:327-334`: radius 90% of the smaller layout side, minus the node size | D | The overflow itself is the separate bug 02. This item adds only the 80% cap and the padding. |
-| S6-5 | Network graph keeps the density padding | relation 5c | `mxLayout:360-366`, gap `min(20px, 5%)` | D | Not spreading on a large card is the separate bug 03. |
-| S6-6 | Tree opens at its root and scales to the card width, down to a minimum box size, then scrolls | relation 1 | `mxLayout:341-348` (`COMPACT_TREE`, gap 12, `scalePositions` false). The client resets the scroll to 0,0 (`web/projects/portal/src/app/graph/objects/chart-area.component.ts:444-464`) | D | Server fit plus client initial scroll (root at the top, centred). A box under 25px takes the 0.08 corner below 2px, so this item decides whether the tree corner gets S4-2's floor (D61). |
-| S6-7 | Contour map fits its extent to the data | point 7 | `MapGenerator:405` `setFullMap(!isZooming())`; web maps already pad 0.05 (`:415`) | D | Only when the author has no zoom, pan or `lonlat` (`PlotDescriptor:1937-1940`). |
-| S6-8 | Pie and donut start at 12 o'clock and run clockwise | pie 2 | `PolarCoord.transformPoint0:402-407` (θ = 0 at 3 o'clock, counter-clockwise); `rotate` (`:168`) is reachable only from script | N | A new start-angle and direction property on the coordinate. The modern default is seeded. This is look, so it follows the mark. The largest-first sort is S7-3. |
+| S6-1 | The density padding between the title lane and the plot | C19 | Graph area: `VGraphPair:2667` and the client's `chartContainerTop`. Layout inside the graph: `VGraph.layout0:617` | D | See "S6-1 top gap". S6a. |
+| S6-2 | Pie and donut at most 80% of the plot's shorter side | pie 3 | `PolarCoord.getRadius:1085`, `pieRatio` set in `GraphGenerator.createPolarCoord:946` | D | See "S6-2 pie cap". S6a. Not a seed (D95). |
+| S6-3 | Radar keeps the density padding from the title, the card edges and the legend | radar 6, C19 | `PolarCoord.getRadius:1085` → `PolarUtil.getLabelPieRadius` | verify | S6-1 adds the only missing side, the top. No radar code (D101). The plan checks a live radar at the three densities. S6a. |
+| S6-4 | Circular network inside the plot, at most 80% of its shorter side | relation 4 | `RelationElement.mxLayout:327-334`, `mxCircleLayout:246` | D | See "S6b relation layouts". |
+| S6-5 | Network graph fills the plot, inside the density padding | relation 5c, relation 7 | `mxLayout:360-372` (organic, gap `min(20px, 5%)`), positions moved to the top left and scaled by zoom only | D | See "S6b relation layouts". On marked charts this also does what bug 03 asks (D97). |
+| S6-6 | Tree opens at its root and shrinks to the card width, down to a minimum box, then scrolls | relation 1 | `mxLayout:341-348` (`COMPACT_TREE`, `setNodeDistance(12)`), box size `RelationElement:614-618`, client `resetScrollPosition` | D | See "S6b relation layouts". Decides D61's corner floor. |
+| S6-7 | Contour map fits its extent to the data | point 7 | `MapGenerator:404-423` (`setFullMap(!isZooming())`, the web-map padding), `applyWebMap:1286-1304`, `GeoCoord:398-401` | D | See "S6-7 contour map". S6a. |
+| S6-8 | Pie and donut start at 12 o'clock and run clockwise | pie 2 | `PolarCoord.transformPoint0:398` (θ = 0 at 3 o'clock, counter-clockwise), also `transformRectangle` and `transformLine`; `rotate:169` is reachable only from script | D | See "S6-8 pie start". S6a. A drawing rule, not a stored property (D102, revises D20). The largest-first sort is S7-3. |
+| S6-9 | The Gantt keeps the density padding beyond the last date | Gantt 2, C19 | `GanttGraphGenerator:128-131` (`TimeScale`, `setFill(true)`), `TimeScale.getMax:338` | D | See "S6-9 Gantt end". Moved from S5-2 (S5a plan C6). S6a. |
+
+**S6-1 top gap (D94, D100).**
+- On a marked chart whose title is visible, the plot sits one top padding below the title lane, and the graph lays out in the height that remains. The title keeps the same padding above it, so it has equal room above and below.
+- The gap is the chart's own `padding.top` (D100): the density padding the seed writes (8, 12 or 16; `ChartVSAssemblyInfo.seedChromeDefaults:140`), an author's padding, or a `format.css` padding. One value then moves both bands, and an author who sets the top padding to 0 gets neither.
+- With the title hidden there is no extra gap: the graph already starts at `padding.top`.
+- The contour map is exempt: the bundle's point page gives it "its own margin" and excludes it from C19. Other maps follow the rule (geo page: "C19 applies without extra work").
+- The band is inside the graph area, so the client, the tile offset and the exports do not change. The graph gives up that height: a 400×240 card at compact goes from 190 to 178px.
+- A top legend moves down with the content. The expanded (scrolling) graph must carry the same band, so a scrolled plot lines up with its tiles.
+- Classic charts draw as today.
+
+**S6-2 pie cap (D95, D103).**
+- On a marked chart whose `pieRatio` is 0 (automatic), the pie's diameter is the smaller of today's automatic size and 80% of the plot's shorter side. "Plot height" in the bundle is the shorter side on its wide cards; on a tall card 80% of the height would be wider than the plot.
+- `pieRatio` is not seeded and gets no flag. The label mode is unchanged, because it keys on `pieRatio > 0` and on the automatic minimum, not on the cap.
+- An author's `pieRatio` (Plot Options, script `pieRatio`, a graph script's `PolarCoord.setPieRatio`) wins as today: a fixed size with moveable labels.
+- A pie with outside labels already shrinks below 80% (the bundle's "Category names as Text" capture is about 45% of the card height), so it draws as today, which the bundle rules.
+- Covers every `GraphTypes.isPie` type: pie, 3D pie, donut and the multi-style donut (D103). The donut's hole scales with its ring, so the hole stays about 45% of the diameter.
+- An older build draws today's size. Plot Options shows a blank (automatic) ratio, as it does today.
+
+**S6-7 contour map (D96, D105).**
+- On a marked contour map (`CHART_MAP_CONTOUR`) that is not a web map and not faceted, while the author has not zoomed or panned (`zoom` 1, `panX` and `panY` 0, no `lonlat`) and the viewer has no data zoom, the map fits its extent to the points: `fullMap` off, a margin of 0.1, and the polygon layers taken out of the plot fit. With them left in, `GeoCoord.fit` shrinks the map back to the world.
+- The margin is 0.1, not the web map's 0.05, so that a cluster at the edge is not cut by the 5% density cell (D105).
+- An untouched map fits again after each filter, as an untouched web map does today.
+- On a marked non-web contour map the stored `lonlat` becomes the base extent, as for web maps (`applyWebMap:1299-1302`). Without it the first nav-bar zoom, which saves `lonlat` and moves `zoom` off 1, would turn the fit off and jump back to the world. Like a web map, a map with a stored `lonlat` then keeps that extent under a viewer data zoom.
+- **The world view (D96).** On a marked non-web contour map the nav bar may zoom out below 1, beyond the fitted view, up to the whole layer. The view the author leaves is saved in `zoom`, pan and `lonlat`, as today, and stays. The nav bar's clear returns to the fit.
+- **Scope of the `lonlat` base and the zoom-out (D105).** Marked non-web contour maps only, the maps the fit applies to. Other marked maps keep today's extent rules, so a polygon map's data zoom still reframes it.
+- **Revert and older builds.** The stored `zoom` and pan are relative to the fitted `lonlat`, which classic ignores on non-web maps, and classic clamps `zoom` to at least 1. So a contour map the author zoomed while marked draws, after Revert or in an older build, as that zoom and pan applied to the world view, and a zoom below 1 shows the world. This is the ordinary drawing-rule fallback (M9) and is accepted; the nav bar's clear returns to the classic world.
+- Point maps on lat/lon with no polygon field also draw the world, but the bundle decided only the contour map. They are unchanged here and recorded as a candidate.
+- An older build draws the world.
+
+**S6-8 pie start (D102).**
+- On a marked chart, a pie or donut starts at 12 o'clock and runs clockwise. It is a drawing rule: fields on `PolarCoord` set in `createPolarCoord` from `vizContext.modern`, as `RadarGraphGenerator:164` sets the spoke label rule.
+- No stored property, flag, reset slot or XML. Nothing in the UI sets the angle, so there is no author value to keep. Modernize, Revert, bookmarks and exports follow the mark. An older build draws classic, which is what it would do with an ignored stored property.
+- The new mapping applies wherever `PolarCoord` maps the angle: `transformPoint0`, `transformRectangle` and `transformLine`.
+- **Already follow the slice geometry:** label placement and label-room fitting (`BarVO.layoutTextArc`, `PolarUtil`), explode, hit regions (built from the slice shapes), the tooltip anchor, the client (it draws no arcs), the inline-SVG sweep (it reads each arc's own sweep flag, `SVGAnimationDOMInjector`), and the exports (Excel and PowerPoint export a chart as an image). A polar legend is not reversed (`Legend.isReversed:677-679`), so it reads clockwise from 12 in scale order, as the slices do.
+- **Assume the classic angle and need work:** the quadrant ranges in `ArcHelper:34-39` (active whenever labels are moveable), and the full-circle and explode tests in `BarVO` (about `:166`, `:625`, `:1554`).
+- 3D pie keeps the classic start (D103): its front-face logic (`Pie3DVO:236-310`) assumes the classic angle.
+- A script that rotated or reflected the coordinate keeps the classic start. The generator never sets `PolarCoord`'s own transform, so a non-identity transform means a script set it (D102).
+
+**S6-9 Gantt end (D104).**
+- On a marked Gantt the time scale ends one density padding (8, 12 or 16px) past the last end date, so the last bar no longer touches the plot's right edge. The start is unchanged.
+- Built as a gated gap on `TimeScale`, added in `getMax()` only when the author set no maximum. Ticks are unchanged and no gridline is added. The last between-label moves right by half the pad, and the bars compress slightly. Brush and selection regions follow the drawn bars.
+- The pad is in time units, converted from pixels with the estimated plot width, so it is close to the density padding rather than exact.
+- An author's axis maximum turns it off.
+
+**S6b relation layouts (D97, D98, D106, D107).**
+- **The plot box.** Each item below lays out inside the plot box (the coordinate bounds), which already sits inside the card's density padding and S6-1's top gap. No second padding is added inside it. Whether the box comes from a replot or from an estimate before plotting is the builder's choice (§9).
+- **Marked charts only (D97).** Classic charts keep today's layout, overflow and spread. Bugs 02 and 03 later switch the same layout on for every chart.
+- **S6-4 circle.** On a marked circular network, the circle with its nodes is at most 80% of the plot box's shorter side and centred in it, as for the pie (D95). The node-count minimum radius in `mxCircleLayout` is dropped under the mark, so the circle never outgrows the plot; at 120 nodes neighbours may touch, which the bundle accepts as a known density limit (D106).
+- **S6-5 network.** On a marked network, the finished organic layout is scaled to fill the plot box, positions only: nodes keep their size, as `scaleGeometries` keeps them when it scales by zoom. The whole drawing, node extents included, stays inside the box.
+- **S6-6 tree (D98, D107).**
+  - On a marked tree wider than the plot box, the gaps between sibling boxes close first (24 to 8px). Then boxes and all gaps shrink together, down to 75% of the natural box (33×23 for the default 44×30). Past that the tree scrolls.
+  - The label font is unchanged; labels are cut to the smaller box, about 4 to 5 characters at the floor.
+  - Only the breadth is fitted (the bundle: "scales to the card width"), to the matching side: the width for a top-to-bottom or bottom-to-top tree, the height for a left-to-right or right-to-left tree. The level gaps do not close first; they shrink only with the shared scale. A tree deeper than the plot scrolls along its depth, as today.
+  - **First view (D107).** The tree opens with the root in view and centred along the breadth: at the top centre for a top-to-bottom tree, at the left and vertically centred for a left-to-right tree, and at the far end for the reversed orientations. This applies on the first draw and whenever the plot size changes, in the composer and the viewer. The server sends the root's position; the client sets the scroll from it.
+  - Exports keep drawing the whole tree shrunk to the card, as today.
+  - A box under 25px tall takes S4-2's 2px corner floor under the mark (resolves D61).
+  - An author's plot resize turns the fit off: `VSChartPlotResizeService:70-76` sets `isWidthResized` / `isHeightResized` and a unit ratio percent, which reaches the element as its width and height ratio (`GraphGenerator:4006-4007`). The same holds for S6-4 and S6-5. Faceted relation charts keep today's layout.
 
 ### S7. Creation-time defaults
 
@@ -801,7 +888,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 
 | Check | Slice | What to find out |
 |---|---|---|
-| The top gap below the title | S6-1 | The bundle measured about 5px at the top against 12 at the bottom. GEO §1.1.1 found no gap at render. Did the measurement count the top value label, which sits centred on the top gridline? |
+| The top gap below the title | S6-1 | Answered 2026-11-17 by code reading: `padding.top` sits above the title, so the plot starts about 1px under the title lane, and the top label is slid inside the plot rather than centred on a gridline (S6 facts). The plan still measures the gap on a live chart before and after. |
 | 9px or 10px labels | — | The chart-type sizes ticket maps tick and data labels to 9px (`DEFAULT_SMALL_FONT`). The bundle observed 10px. C13 stays as shipped either way; record which is true. |
 | Stacked-legend order | S3-4 | The code already reverses vertical stacked legends. Is the observed order really reversed? Record the order of a side legend and of a top legend on a vertical and on a horizontal stacked bar. |
 | Legend overflow | S3-2 | What a legend that hits today's 50% cap does with entries that do not fit, on screen and in a PDF export. The capped modern legend keeps that behaviour. |
@@ -815,8 +902,9 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 
 **Bugs logged separately**, fixed for every chart and not gated on the mark. The drafts are in `E:/Temp/chart-defaults-bugs/`:
 - 01: the pie clipped in Preview. Probably a duplicate of Bug #80312; re-check first.
-- 02: the circular network cut off.
+- 02: the circular network cut off. A second cause was found in 2026-11-17's S6 research: `mxCircleLayout:246` forces a minimum radius that grows with the node count.
 - 03: the network not spreading on a large card.
+- S6b builds the plot-box layout that 02 and 03 need, for marked charts only (D97). The bugs then switch it on for every chart.
 - 04: the gradient legend labelled "2K" at both ends.
 - 05: waterfall ticks skipping zero.
 
@@ -853,10 +941,15 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 - How the clustered-bar re-pack runs at layout time, and how the width clamp survives a faceted chart's rescale (S4-4).
 - The `ChartRegion` field that carries the corner rule to the browser outline (S4-2).
 - How the box plot's pixel width reaches the painter's logical-unit layout so regions, bounds and dodge agree (S4-3).
+- How the S6-1 band reaches the expanded (scrolling) graph, so a scrolled plot lines up with its tiles and regions.
+- How `ArcHelper`'s quadrant ranges and `BarVO`'s full-circle and explode tests handle the clockwise direction (S6-8).
+- How the S6-9 pad is converted from pixels to time, and what else reads the time scale's maximum (zoom, range, brushing).
+- How `GeoCoord` caps a marked non-web map's zoom-out at the whole layer (S6-7, D96).
+- For S6b: whether the plot box comes from a replot (`Coordinate.requiresReplot`) or an estimate before plotting; how the 75% box floor applies to a tree whose node size is bound; how the tree's root position reaches the client, and when the client applies it instead of today's reset to 0,0.
 
 ## 10. Decisions
 
-"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, or on 2026-11-16 from D69 on. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, or while amending S5 for D83 to D85 and D87 to D90.
+"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, on 2026-11-16 from D69 on, or on 2026-11-17 from D94 on. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, while amending S5 for D83 to D85 and D87 to D90, or while amending S6 for D100 to D107.
 
 | # | Decision | Who |
 |---|---|---|
@@ -879,7 +972,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D17 | Hierarchy level steps use the palette's shade function (S2-11) | Design |
 | D18 | The Gantt milestone takes slot 2 by measure order, and its legend loses the "Measures" title through S3-6 | Design |
 | D19 | A waterfall's "data order" means no sort (S7-4) | Design |
-| D20 | Pie start angle and direction are look, a new property that follows the mark. The largest-first sort is creation-time (S6-8, S7-3) | Design |
+| D20 | Pie start angle and direction are look, a new property that follows the mark. The largest-first sort is creation-time (S6-8, S7-3). Revised by D102: a drawing rule, not a stored property | Design |
 | D21 | The bundle's text is mirrored into the repo without images; the zip remains the full source | Design |
 | D22 | DEFAULT tiers are saved on marked charts only. Classic charts keep their XML and their `format.css` lookup (M3) | Design, from the reviewer's check |
 | D23 | A plain value in a file saved before its flag existed counts as the author's when it differs from every classic creation default (M4) | Design, from the reviewer's check |
@@ -920,7 +1013,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D58 | The bubble cap applies only where Size draws a point shape: word clouds and contour charts keep their sizes (S4-8) | Design, from the builder check |
 | D59 | A waterfall step of exactly zero draws no bar; a shorter step grows from its start in the direction of its change (S4-6) | Design, from the builder check |
 | D60 | The tree-corner flag is derived on every chart type a released build saved, so a released chart changed into a tree keeps square nodes until the reset copy (S4-11) | Design, from the builder check |
-| D61 | The tree corner takes no pixel floor in S4; S6-6 decides it when it shrinks tree boxes (S4-11, S6-6) | Design, from the builder check |
+| D61 | The tree corner takes no pixel floor in S4; S6-6 decides it when it shrinks tree boxes (S4-11, S6-6). Resolved by D107: a box under 25px tall takes the 2px floor | Design, from the builder check |
 | D62 | The filled-radar alpha reset slot is type-conditional: the reset copy keeps an author's alpha on every other type (S4-12, D54) | Design, from the builder check |
 | D63 | A bar floors at 3px or at its share of its slot, whichever is smaller, so the floor never makes bars overlap (S4-4, D45) | Owner, 2026-11-13 |
 | D64 | D63 covers the candle body (3px) and the stock ticks (3px each side): each floor drops to the mark's share of a slot too narrow for it (S4-7) | Owner, 2026-11-13 |
@@ -953,6 +1046,20 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D91 | On a horizontal axis with a label limit, labels reserve no width when the plot is sized, so a marked chart with many categories stays the width of its card and its labels thin; only the marks' own minimum width can make it scroll (S5-1) | Owner, 2026-11-16, after the S5a live checks |
 | D92 | Thinning on a limited axis picks one step for the whole axis, with at least 4px between flat labels side by side and 2px across the text between 45° labels ((line height + 2) / sin 45° between slots), and a year label's full text is part of that choice; it replaces the year move's hiding of single neighbours. Labels stacked down a Y axis keep today's tolerance (S5-1, S5-2) | Design, from the S5a live checks |
 | D93 | On an axis with a label limit, a first or last label that would pass the axis end slides inside it, as today, and is dropped only when the slid label, or a new first label that takes the year, would come closer to its neighbour than the minimum gap or reach past it along the axis; the next label in step then becomes the end. End labels never change the step (S5-1, D92) | Owner, 2026-11-16, after the S5a re-check |
+| D94 | On a marked chart with a visible title, the density padding sits between the title lane and the plot as well as above the title; the plot gives up that height. Read from the bundle's drawn cards, which place the plot one density padding below the title block (S6-1) | Owner, 2026-11-17 |
+| D95 | The pie and donut cap is a drawing rule: on a marked chart with an automatic `pieRatio`, the diameter is the smaller of today's automatic size and 80% of the plot's shorter side. `pieRatio` is not seeded. Read from the bundle: a labelled pie is ruled "No change", which a seeded fixed 0.8 would break. Revises M2's example (S6-2) | Owner, 2026-11-17 |
+| D96 | An author gets the world view on a fitted contour map by zooming out with the nav bar past the fit, up to the whole layer; the view left is saved as today's zoom, pan and `lonlat` (S6-7) | Owner, 2026-11-17 |
+| D97 | S6b builds the plot-box layout for relation charts on marked charts only; bugs 02 and 03 later switch it on for every chart (S6-4 to S6-6, §8) | Owner, 2026-11-17 |
+| D98 | A marked tree wider than its plot closes its gaps first (24 to 8px), then shrinks boxes and gaps together to 75% of the natural box (33×23 for 44×30), then scrolls. The label font is unchanged (S6-6) | Owner, 2026-11-17 |
+| D99 | S6 is split: S6a (S6-1, S6-2, S6-3, S6-7, S6-8, S6-9) stacked on S5, then S6b (S6-4 to S6-6) on S6a | Owner, 2026-11-17 |
+| D100 | The S6-1 gap is the chart's own `padding.top` (the density seed, the author's or a `format.css` padding), so one value moves both bands; a hidden title adds no gap; the contour map is exempt, as the bundle's point page rules (S6-1) | Design |
+| D101 | S6-3 needs no radar code: the radar's radius already reads the coordinate bounds, and S6-1 adds the only missing side. The plan checks it live (S6-3) | Design |
+| D102 | Pie start at 12 o'clock and clockwise is a drawing rule on `PolarCoord`, set from the mark; no stored property, flag or slot. A script that rotated or reflected the coordinate keeps the classic start (S6-8, revises D20) | Design |
+| D103 | The pie cap covers every `GraphTypes.isPie` type, the 3D pie included; the 12 o'clock start does not cover the 3D pie, whose front-face logic assumes the classic angle (S6-2, S6-8) | Design |
+| D104 | The Gantt end pad is a gated gap on its `TimeScale`, at the right end only, the density padding converted to time; an author's axis maximum turns it off (S6-9) | Design |
+| D105 | The contour-map fit covers non-web, non-faceted contour maps only, with a 0.1 margin so edge clusters keep their density cell; an untouched map fits again after each filter. The stored `lonlat` base extent and the zoom-out below 1 apply to the same marked non-web contour maps only. A contour map zoomed while marked draws its zoom against the world after Revert or in an older build, accepted under M9 (S6-7) | Design, scope and fallback from the builder check |
+| D106 | On a marked circular network the node-count minimum radius is dropped, so the circle stays inside 80% of the plot; neighbours may touch at high node counts, the bundle's known limit (S6-4) | Design |
+| D107 | A marked tree opens with its root in view, centred along the breadth, on the first draw and whenever the plot size changes; exports keep drawing the whole tree shrunk to the card; a box under 25px tall takes S4-2's 2px corner floor. Only the breadth is fitted; a deep tree scrolls along its depth as today (S6-6, resolves D61; depth from the builder check) | Design |
 
 ## 11. Testing
 
@@ -975,6 +1082,15 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
   - S5-2: the pattern for each level; the year on the first shown label after thinning; every label with its year out of date order; a drill drawing the drilled level's pattern; the Format pane showing the full pattern on a marked chart and today's on a classic one; an author's format untouched; date-comparison axes unchanged.
   - S5-6's two label modes; S5-7 with an ascending sort, a descending Top N, facets and a clustered horizontal bar whose first series sits at the top.
   - Every S5 item renders a classic chart identically before and after.
+- **Padding and sizing (S6):**
+  - S6-1: on a marked, titled chart the plot top is `padding.top` below the title lane, at the three densities and with an author's padding; no extra gap with the title hidden or on a contour map; the expanded graph lines up.
+  - S6-2: an automatic marked pie is at most 80% of the shorter side on a wide and a tall card; a labelled pie that already shrinks draws as before; an author's `pieRatio` wins; the label mode is unchanged.
+  - S6-3: a live radar at the three densities keeps the padding from the title, the card edges and the legend.
+  - S6-7: an untouched contour map fits its points; the nav bar zooms out to the world and the left view stays after reopening; clear returns to the fit; a web map, a marked polygon map (its data zoom still reframes) and a classic contour map are unchanged.
+  - S6-8: the first slice starts at 12 o'clock and runs clockwise; labels, moveable labels, explode, hit regions and the inline-SVG sweep agree with the slices; a scripted rotation keeps the classic start; 3D pie unchanged.
+  - S6-9: the last Gantt bar ends about one density padding before the plot edge; an author's maximum removes the pad.
+  - S6b: the circle and network stay inside the plot box at 8, 30 and 120 nodes, with and without a legend; the canonical 15-node tree fits a 400×240 card's width with no horizontal scroll; 60 and 200 nodes scroll and open on the root; an author's plot resize keeps today's layout.
+  - Every S6 item renders a classic chart identically before and after.
 - **Spring context:** Java tests that reach the seed or the generator need the Spring context set up as `CLAUDE.md` describes.
 - **Manual:**
   - Rebuild the bundle's dashboards from `repro/charts.md` on the built server.
