@@ -743,4 +743,29 @@ public class VSChartBindingScriptableTest {
       assertDoesNotThrow(() -> array("colors").putMember("noSuchField", frame));
       assertSame(frame, array("colors").getMember("noSuchField"));
    }
+
+   @Test
+   void unsetFieldGettersReturnDefaults() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+      vsChartBindingScriptable.setXFields(new Object[][] {
+         { "state", ChartConstants.STRING }, { "date", ChartConstants.DATE } });
+
+      assertEquals(0, vsChartBindingScriptable.getTopN("state", ChartConstants.BINDING_FIELD));
+      assertFalse(vsChartBindingScriptable.isTopNReverse("state", ChartConstants.BINDING_FIELD));
+      assertEquals(ChartConstants.YEAR_INTERVAL,
+                   vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+      assertEquals(ChartConstants.YEAR_INTERVAL,
+                   vsChartBindingScriptable.getGroupOrder("state", ChartConstants.BINDING_FIELD));
+   }
+
+   @Test
+   void literalDesignLevelWinsOverRuntimeLevel() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+      vsChartBindingScriptable.setXFields(new Object[][] { { "date", ChartConstants.DATE } });
+      VSDimensionRef dim = (VSDimensionRef) chartVSAScriptable.getChartInfo().getXFields()[0];
+      dim.setDateLevelValue("3");
+      dim.setDateLevel(4);
+
+      assertEquals(3, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+   }
 }

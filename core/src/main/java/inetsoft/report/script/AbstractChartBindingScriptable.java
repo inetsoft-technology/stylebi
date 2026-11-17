@@ -2209,9 +2209,20 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     * Get date level value.
     */
    protected int getDateLevelValue(XDimensionRef ref) {
-      return ref instanceof VSDimensionRef ?
-         Integer.parseInt(((VSDimensionRef) ref).getDateLevelValue()) :
-         ref.getDateLevel();
+      if(ref instanceof VSDimensionRef) {
+         String value = ((VSDimensionRef) ref).getDateLevelValue();
+
+         if(value != null) {
+            try {
+               return Integer.parseInt(value.trim());
+            }
+            catch(NumberFormatException ex) {
+               // variable or empty level, use the runtime level
+            }
+         }
+      }
+
+      return ref.getDateLevel();
    }
 
    /**
