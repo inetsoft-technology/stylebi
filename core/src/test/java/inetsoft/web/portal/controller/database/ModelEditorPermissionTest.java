@@ -31,6 +31,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.ColumnCache;
 import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.data.DatabaseDatasourcesController;
 import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.portal.model.database.*;
@@ -737,6 +738,37 @@ class ModelEditorPermissionTest {
 
       assertTrue(vpmController(tree).getAvailableTreeNodes(node, principal).isEmpty());
       verify(tree).getAlias(node);
+   }
+
+   @Test
+   void vpmFullTree_sourceReadOnly_isDenied() throws Exception {
+      grant(ResourceType.DATA_SOURCE, DS, ResourceAction.READ);
+      DatabaseTreeService tree = mock(DatabaseTreeService.class);
+
+      assertDenied(() -> vpmController(tree).getAvailableTree(DS, principal));
+      verify(tree, never()).getFullDatabaseTree(any(), any(), any(), anyBoolean(), anyBoolean(),
+                                                any(), any());
+      verify(tree, never()).getAllAlias(any(), any());
+   }
+
+   @Test
+   void vpmFullTree_noGrant_isDenied() throws Exception {
+      DatabaseTreeService tree = mock(DatabaseTreeService.class);
+
+      assertDenied(() -> vpmController(tree).getAvailableTree(DS, principal));
+      verify(tree, never()).getAllAlias(any(), any());
+   }
+
+   @Test
+   void vpmFullTree_sourceWrite_reachesTree() throws Exception {
+      grantSourceReadWrite(DS);
+      DatabaseTreeService tree = mock(DatabaseTreeService.class);
+      when(tree.getFullDatabaseTree(any(), any(), any(), anyBoolean(), anyBoolean(), any(), any()))
+         .thenReturn(new ArrayList<>());
+      when(tree.getAllAlias(any(), any())).thenReturn(mock(TreeNodeModel.class));
+
+      assertNotNull(vpmController(tree).getAvailableTree(DS, principal));
+      verify(tree).getAllAlias(DS, principal);
    }
 
    // ---- data model folder rename: #103 ----
