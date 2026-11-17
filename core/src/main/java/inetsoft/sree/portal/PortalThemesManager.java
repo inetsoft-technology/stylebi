@@ -159,11 +159,16 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     * @param index the specified index.
     */
    public void addPortalTab(PortalTab tab, int index) {
-      if(index < 0 || index > portalTabs.size()) {
-         return;
-      }
+      synchronized(portalTabsLock) {
+         List<PortalTab> tabs = new ArrayList<>(portalTabs);
 
-      portalTabs.add(index, tab);
+         if(index < 0 || index > tabs.size()) {
+            return;
+         }
+
+         tabs.add(index, tab);
+         portalTabs = tabs;
+      }
    }
 
    /**
@@ -172,11 +177,17 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     * @return the removed portal tab.
     */
    public PortalTab removePortalTab(int index) {
-      if(index < 0 || index >= portalTabs.size()) {
-         return null;
-      }
+      synchronized(portalTabsLock) {
+         List<PortalTab> tabs = new ArrayList<>(portalTabs);
 
-      return portalTabs.remove(index);
+         if(index < 0 || index >= tabs.size()) {
+            return null;
+         }
+
+         PortalTab removed = tabs.remove(index);
+         portalTabs = tabs;
+         return removed;
+      }
    }
 
    /**
@@ -185,11 +196,13 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     * @return a portal tab in the specified index.
     */
    public PortalTab getPortalTab(int index) {
-      if(index < 0 || index >= portalTabs.size()) {
+      List<PortalTab> tabs = portalTabs;
+
+      if(index < 0 || index >= tabs.size()) {
          return null;
       }
 
-      return portalTabs.get(index);
+      return tabs.get(index);
    }
 
    /**
@@ -570,6 +583,14 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       return portalTabs;
    }
 
+   /**
+    * Get a stable, unmodifiable snapshot of the portal tabs. A reload swaps the whole
+    * list, so iterating one snapshot never observes a partially loaded or shrinking list.
+    */
+   public List<PortalTab> getPortalTabsSnapshot() {
+      return Collections.unmodifiableList(portalTabs);
+   }
+
    public void setPortalTabs(List<PortalTab> portalTabs) {
       this.portalTabs = portalTabs;
    }
@@ -687,10 +708,12 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          writer.println("</userFontFaces>");
       }
 
-      if(portalTabs.size() > 0) {
+      List<PortalTab> tabs = portalTabs;
+
+      if(tabs.size() > 0) {
          writer.println("<portalTabs>");
 
-         for(PortalTab portalTab : portalTabs) {
+         for(PortalTab portalTab : tabs) {
             portalTab.writeXML(writer);
          }
 
@@ -878,15 +901,20 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       node = Tool.getChildNodeByTagName(tag, "portalTabs");
 
       if(node != null) {
-         portalTabs.clear();
+         List<PortalTab> newTabs = new ArrayList<>();
          NodeList list = Tool.getChildNodesByTagName(node, "portalTab");
 
          for(int i = 0; i < list.getLength(); i++) {
             Element elem = (Element) list.item(i);
             PortalTab ptab = new PortalTab();
             ptab.parseXML(elem);
-            portalTabs.add(ptab);
+            newTabs.add(ptab);
          }
+
+         portalTabs = newTabs;
+      }
+      else {
+         portalTabs = new ArrayList<>();
       }
 
       node = Tool.getChildNodeByTagName(tag, "cssEntries");
@@ -1147,7 +1175,6 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       fontStyle = false;
       userFonts = new ArrayList<>();
       welcomePage = null;
-      portalTabs.clear();
    }
 
    private int reportListType;
@@ -1169,7 +1196,8 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private final Map<String, String> logoEntries = new ConcurrentHashMap<>();
    private final Map<String, PortalWelcomePage> welcomePageEntries = new ConcurrentHashMap<>();
    private PortalWelcomePage welcomePage;
-   private List<PortalTab> portalTabs = new ArrayList<>();
+   private volatile List<PortalTab> portalTabs = new ArrayList<>();
+   private final Object portalTabsLock = new Object();
    private String copyright;
    private volatile String themesFile;
    /**
