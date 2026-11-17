@@ -106,6 +106,9 @@ public class BlobStorageManager implements AutoCloseable {
    @Override
    @PreDestroy
    public void close() {
+      // a store closed from here is closed by the shutdown, not evicted, see Bug #81573
+      storages.asMap().values().forEach(BlobStorage::markShutdown);
+      keyValueStorageManager.markShutdown();
       storages.asMap().values().forEach(s -> {
          try {
             s.close();
