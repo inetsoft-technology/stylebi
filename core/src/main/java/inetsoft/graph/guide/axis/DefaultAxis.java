@@ -1818,8 +1818,8 @@ public class DefaultAxis extends Axis {
 
    /**
     * Slide the first and last shown labels inside the axis. An end label that would then come
-    * within the gap of its neighbour is hidden, and the next shown label becomes the end (the
-    * new first label takes the year).
+    * within the gap of its neighbour, or reach past it along the axis, is hidden, and the next
+    * shown label becomes the end (the new first label takes the year).
     * @param shown the shown positions in the candidates, updated for hidden end labels.
     * @return how far the first and the last shown label slide along the axis.
     */
@@ -1842,8 +1842,15 @@ public class DefaultAxis extends Axis {
 
          firstBox = box.shifted(along[0] * first, along[1] * first);
 
-         if(shown.size() == 1 ||
-            !firstBox.isNear((fulls[1] ? fullBoxes : briefBoxes)[shown.get(1)], sweep))
+         if(shown.size() == 1) {
+            break;
+         }
+
+         LabelBox next = (fulls[1] ? fullBoxes : briefBoxes)[shown.get(1)];
+
+         // parallel rotated labels can be apart across the text in either order
+         if(!firstBox.isNear(next, sweep) &&
+            firstBox.center(along[0], along[1]) < next.center(along[0], along[1]))
          {
             break;
          }
@@ -1860,8 +1867,11 @@ public class DefaultAxis extends Axis {
          last = Math.min(0, extent[1] - box.max(along[0], along[1]));
          LabelBox prev = end == 1 ? firstBox :
             (fulls[end - 1] ? fullBoxes : briefBoxes)[shown.get(end - 1)];
+         LabelBox slid = box.shifted(along[0] * last, along[1] * last);
 
-         if(!prev.isNear(box.shifted(along[0] * last, along[1] * last), sweep)) {
+         if(!prev.isNear(slid, sweep) &&
+            prev.center(along[0], along[1]) < slid.center(along[0], along[1]))
+         {
             break;
          }
 
@@ -2080,6 +2090,11 @@ public class DefaultAxis extends Axis {
          }
 
          return v;
+      }
+
+      // the middle of this box along (nx, ny)
+      double center(double nx, double ny) {
+         return (min(nx, ny) + max(nx, ny)) / 2;
       }
 
       double max(double nx, double ny) {

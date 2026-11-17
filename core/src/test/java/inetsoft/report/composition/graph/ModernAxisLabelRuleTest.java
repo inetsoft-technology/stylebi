@@ -529,17 +529,26 @@ class ModernAxisLabelRuleTest {
    }
 
    @Test
-   void thirtyStoresShowEveryOtherLabelAt45() {
+   void thirtyStoresAt45ShowTheSmallestStepThatKeepsTheGap() {
       // at 45 degrees neighbours need (line height + 2) / sin 45 between slots
       Chart chart = barChart(names("Store ", 30, true));
       DefaultAxis axis = ((RectCoord) plot(chart, VizMark.MODERN_LIGHT, 400, 240).getCoordinate())
          .getXAxis1();
       axis.prepareLabels();
-      List<Integer> every2nd = java.util.stream.IntStream.range(0, 15).map(i -> i * 2).boxed()
-         .toList();
+      List<Integer> idx = shownIndices(axis);
+      List<String> texts = shownTexts(axis);
+      int step = idx.get(2) - idx.get(1);
+      VLabel a = axis.getLabels()[idx.get(1)];
+      VLabel b = axis.getLabels()[idx.get(2)];
+      double slot = (b.getTextPosition().getX() - a.getTextPosition().getX()) / step;
+      double need = (GTool.getFontMetrics(a.getFont()).getHeight() + 2) / Math.sin(Math.PI / 4);
 
       assertEquals(45, (int) axis.getScale().getAxisSpec().getTextSpec().getRotation());
-      assertEquals(every2nd, shownIndices(axis), shownTexts(axis).toString());
+      assertTrue(step * slot >= need - 1e-6, step + " x " + slot + " for " + need + " " + texts);
+      assertTrue((step - 1) * slot < need, step + " x " + slot + " for " + need + " " + texts);
+      assertEquals(0, idx.get(0) % step, idx + " " + texts);
+      assertTrue(idx.get(0) <= step, idx + " " + texts);
+      assertOneStep(idx, texts);
    }
 
    @Test

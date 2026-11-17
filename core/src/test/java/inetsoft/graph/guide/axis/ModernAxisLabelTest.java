@@ -530,10 +530,33 @@ class ModernAxisLabelTest {
       xscale.getAxisSpec().setLabelLimit(66);
       xscale.getAxisSpec().getTextSpec().setRotation(45);
       DefaultAxis axis = layout(xscale, hiddenY(), campaigns(105), 400, 240);
+      List<Integer> idx = shownIndices(axis);
 
-      assertStep(axis, 6, "105 campaigns at 45 without Y labels");
+      assertStep(axis, idx.get(1) - idx.get(0), "105 campaigns at 45 without Y labels");
       assertInsideTheGraph(axis, "105 campaigns at 45 without Y labels");
       assertApart(axis, "105 campaigns at 45 without Y labels");
+   }
+
+   @Test
+   void aSlidEndLabelNeverPassesItsNeighbour() {
+      // long 45-degree labels slide in further than the step, past the labels after them
+      Object[][] rows = new Object[61][];
+      rows[0] = new Object[] { "Name", "Sales" };
+
+      for(int i = 1; i <= 60; i++) {
+         rows[i] = new Object[] { String.format("Northeast Distribution Center %02d", i), i };
+      }
+
+      CategoricalScale xscale = new CategoricalScale("Name");
+      xscale.getAxisSpec().setLabelLimit(120);
+      xscale.getAxisSpec().getTextSpec().setRotation(45);
+      DefaultAxis axis = layout(xscale, hiddenY(), rows, 400, 240);
+      String where = "60 long names at 45 without Y labels";
+
+      assertInReadingOrder(axis, where);
+      assertInsideTheGraph(axis, where);
+      assertOneStep(axis, where);
+      assertApart(axis, where);
    }
 
    @Test
@@ -781,6 +804,20 @@ class ModernAxisLabelTest {
       for(int i = 1; i < idx.size(); i++) {
          assertEquals(step, idx.get(i) - idx.get(i - 1),
                       "step at " + where + " " + idx + " " + shownTexts(axis));
+      }
+   }
+
+   // the shown labels run along the axis in the order of their values
+   private static void assertInReadingOrder(DefaultAxis axis, String where) {
+      List<Integer> idx = shownIndices(axis);
+      List<String> texts = shownTexts(axis);
+
+      for(int i = 1; i < idx.size(); i++) {
+         double prev = textArea(axis.getLabels()[idx.get(i - 1)], 0).getBounds2D().getCenterX();
+         double next = textArea(axis.getLabels()[idx.get(i)], 0).getBounds2D().getCenterX();
+
+         assertTrue(prev < next, texts.get(i - 1) + " at " + prev + " after " + texts.get(i) +
+                    " at " + next + " at " + where + " " + texts);
       }
    }
 

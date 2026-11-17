@@ -535,6 +535,8 @@ public class PolarCoord extends Coordinate {
    /**
     * Show the labels of equal spokes on the spoke nearest twelve o'clock only, and only the
     * outermost label of each spoke when the scales differ.
+    * @param thetas each spoke's angle, at its axis's index in vaxes (both lists are appended
+    * together).
     */
    private void applySpokeLabelModes(List<Axis> vaxes, List<Double> thetas) {
       List<Integer> shown = new ArrayList<>();

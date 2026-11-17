@@ -7048,7 +7048,7 @@ public abstract class GraphGenerator {
                                  GTool.stringWidth(new String[] { GTool.format(fmt, val) }, font));
             }
 
-            length -= widest + 8;
+            length -= widest + EST_Y_LABEL_GAP;
          }
       }
 
@@ -7056,11 +7056,11 @@ public abstract class GraphGenerator {
       TitleDescriptor ytitle = titles == null ? null : titles.getYTitleDescriptor();
 
       if(ytitle != null && (maxMode ? ytitle.isMaxModeVisible(vizContext) : ytitle.isVisible())) {
-         length -= 16;
+         length -= EST_Y_TITLE_BAND;
       }
 
       if(hasSideLegend()) {
-         length -= 0.25 * width;
+         length -= EST_SIDE_LEGEND_SHARE * width;
       }
 
       return Math.max(length, 1);
@@ -8186,6 +8186,12 @@ public abstract class GraphGenerator {
 
    // RED for sparkline
    private static final Color SOFT_RED = new Color(212, 71, 71);
+   // estimates for an X axis's length before layout: the gap between the Y labels and the
+   // plot, the band a Y axis title takes, and the share of the width a side legend takes
+   // (a typical legend, under the 30% cap of a modern side legend)
+   private static final double EST_Y_LABEL_GAP = 8;
+   private static final double EST_Y_TITLE_BAND = 16;
+   private static final double EST_SIDE_LEGEND_SHARE = 0.25;
 
    protected ArrayList<String> xdims; // x dimensions
    protected ArrayList<String> xmeasures; // x measures
