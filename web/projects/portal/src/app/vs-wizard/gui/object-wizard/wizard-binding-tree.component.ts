@@ -191,9 +191,18 @@ export class WizardBindingTree extends CommandProcessor implements OnInit, OnDes
             return;
          }
 
-         // all dimensions and measures. don't alphabetize here: for a logical model
-         // entity this list must keep the order defined in the model (Bug #81269).
-         tbl.children = tbl.children[0].children.concat(tbl.children[1].children);
+         // all dimensions and measures.
+         let merged = tbl.children[0].children.concat(tbl.children[1].children);
+
+         // Bug #81269: a logical model entity's attributes must keep the order defined
+         // in the model instead of being alphabetized. Other entity/table sources keep
+         // the pre-existing merged-alphabetical behavior.
+         if(tbl.data?.properties?.sourceType != "LOGIC_MODEL") {
+            merged.sort((calc1, calc2) =>
+               calc1.label.toLocaleLowerCase().localeCompare(calc2.label.toLocaleLowerCase()));
+         }
+
+         tbl.children = merged;
       });
    }
 
