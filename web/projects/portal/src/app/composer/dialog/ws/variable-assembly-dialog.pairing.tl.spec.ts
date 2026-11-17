@@ -26,7 +26,7 @@
 // The recording stub binds many inputs of the component it replaces; listing them in `inputs`
 // is far shorter than one @Input() per property.
 /* eslint-disable @angular-eslint/no-inputs-metadata-property */
-import { Component, EventEmitter, NO_ERRORS_SCHEMA } from "@angular/core";
+import { Component, EventEmitter, NO_ERRORS_SCHEMA, Output } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { render } from "@testing-library/angular";
 import { of } from "rxjs";
@@ -46,16 +46,15 @@ import { ExpressionEditor } from "../../../widget/condition/expression-editor.co
                       "isHyperLink", "functionTreeEnabled", "scriptDefinitions", "resizeable",
                       "showOriginalName", "isCondition", "contextTable", "formulaName",
                       "conditionOperation", "runtimeId", "socketConnection", "vsConditionScope",
-                      "pairingContext"],
-             outputs: ["onCommit", "onCancel"] })
+                      "pairingContext"] })
 class StubFormulaDialog {
    static instances: StubFormulaDialog[] = [];
    runtimeId: string;
    socketConnection: any;
    pairingContext: EditorContext;
    isVSContext: boolean;
-   onCommit = new EventEmitter<any>();
-   onCancel = new EventEmitter<any>();
+   @Output() onCommit = new EventEmitter<any>();
+   @Output() onCancel = new EventEmitter<any>();
    constructor() { StubFormulaDialog.instances.push(this); }
 }
 
