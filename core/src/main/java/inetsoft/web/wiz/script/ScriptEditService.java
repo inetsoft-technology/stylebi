@@ -377,11 +377,32 @@ public class ScriptEditService {
 
       ScriptReadService.requireAssemblyInfo(requireViewsheet(rvs), target.assemblyName());
 
+      boolean highlight = EditorContext.parseVsConditionName(target.name()).highlight();
+      boolean dollar = DynamicValueTargets.callsDollar(text);
+
+      if(dollar && !highlight) {
+         // A filter expression is always JavaScript, where $ is not defined, and it parses fine,
+         // so it would only fail when the user clicks OK.
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "That expression calls $(...). A filter Expression is JavaScript and $ is not " +
+            "defined in it, so it would fail with 'ReferenceError: $ is not defined'. Use " +
+            "parameter.<name> or a component's own property, e.g. RadioButton1.selectedObject. " +
+            "Nothing was pushed.");
+      }
+
       String problem = conditionSyntaxProblem(text);
       String warning = null;
 
+      if(dollar) {
+         // A highlight value of type SQL legitimately uses $(var), which the server cannot see.
+         warning = "The draft calls $(...). Ignore this if the value type is SQL; if it is " +
+            "JavaScript, $ is not defined and it fails with 'ReferenceError: $ is not defined' " +
+            "- use parameter.<name> or a component's own property, e.g. " +
+            "RadioButton1.selectedObject.";
+      }
+
       if(problem != null) {
-         if(!EditorContext.parseVsConditionName(target.name()).highlight()) {
+         if(!highlight) {
             // A filter expression is always evaluated as JavaScript and its dialog has no
             // SQL toggle, so a parse error is certain to fail the refresh.
             throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
@@ -391,8 +412,9 @@ public class ScriptEditService {
 
          // A highlight's dialog also offers SQL, which the server cannot see and which does not
          // parse as JavaScript (e.g. $(var)), so only warn.
-         warning = "The draft does not parse as a JavaScript expression (" + problem +
+         String parse = "The draft does not parse as a JavaScript expression (" + problem +
             "). Ignore this if the expression is SQL; otherwise fix it before the user clicks OK.";
+         warning = warning == null ? parse : warning + " " + parse;
       }
 
       push(rvs, agent, target, text);

@@ -29,6 +29,7 @@ import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInterval;
@@ -119,6 +120,69 @@ class DateComparisonServiceTest {
          () -> h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), ""));
 
       assertTrue(thrown.getMessage().toLowerCase().contains("custom"), thrown.getMessage());
+   }
+
+   /**
+    * Bug 81528: with Enable Date Comparison off the engine ignores any comparison on the assembly
+    * and the Composer offers none, so {@code set} refuses, naming the setting and the way out,
+    * instead of reporting ok with a false "no date-typed field" reason. Nothing is stored.
+    */
+   @Test
+   void refusesAChartWhoseEnableDateComparisonIsOff() throws Exception {
+      assertRefusedWhenFlagOff(mock(ChartVSAssemblyInfo.class));
+   }
+
+   @Test
+   void refusesACrosstabWhoseEnableDateComparisonIsOff() throws Exception {
+      assertRefusedWhenFlagOff(mock(CrosstabVSAssemblyInfo.class));
+   }
+
+   /** Only the target's own flag counts: a share source's flag is never consulted by the engine. */
+   @Test
+   void aFlagOffTargetIsRefusedEvenWhenItNamesAShareSource() throws Exception {
+      VSAssembly assembly = mock(VSAssembly.class);
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      when(info.isDateComparisonEnabled()).thenReturn(false);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      Harness h = harness(model(), assembly);
+
+      DateComparisonService.Comparison share = new DateComparisonService.Comparison(
+         null, null, null, false, null, null, null, null, "Chart2", null, null);
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", share, ""));
+
+      assertTrue(thrown.getMessage().contains("dateComparisonEnabled"), thrown.getMessage());
+   }
+
+   /** Control: with the flag on the same call is not refused for it and reaches the save. */
+   @Test
+   void aChartWhoseEnableDateComparisonIsOnIsNotRefused() throws Exception {
+      VSAssembly assembly = mock(VSAssembly.class);
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      when(info.isDateComparisonEnabled()).thenReturn(true);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      Harness h = harness(model(), assembly);
+
+      h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      verify(h.comparisons).setDateComparison(eq("rt1"), eq("Chart1"), any(), any(), any(),
+                                              any(), any());
+   }
+
+   private static void assertRefusedWhenFlagOff(DataVSAssemblyInfo info) throws Exception {
+      VSAssembly assembly = mock(VSAssembly.class);
+      when(info.isDateComparisonEnabled()).thenReturn(false);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      Harness h = harness(model(), assembly);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), ""));
+
+      assertTrue(thrown.getMessage().contains("dateComparisonEnabled"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Enable Date Comparison"), thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("no date-typed field"), thrown.getMessage());
+      verify(h.comparisons, never()).setDateComparison(any(), any(), any(), any(), any(),
+                                                       any(), any());
    }
 
    /** Bug 79765: every entry point refuses an unknown assembly the way get_assembly_properties does. */
@@ -616,6 +680,9 @@ class DateComparisonServiceTest {
       ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
       when(info.getComparisonShareFrom()).thenReturn(null);
       when(info.getDateComparisonInfo()).thenReturn(dcInfo);
+      // A real chart has Enable Date Comparison on by default; a mock's boolean would read false,
+      // which set() refuses (Bug 81528).
+      when(info.isDateComparisonEnabled()).thenReturn(true);
       VSChartInfo chartInfo = mock(VSChartInfo.class);
       when(chartInfo.isAppliedDateComparison()).thenReturn(applied);
       when(info.getVSChartInfo()).thenReturn(chartInfo);

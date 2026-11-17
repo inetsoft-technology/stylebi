@@ -2069,6 +2069,8 @@ class PropertyAliasesTest {
    private static final String RADIO = "radioButtonGeneralPaneModel";
    private static final String TEXT_OPTION = "textInputColumnOptionPaneModel.";
    private static final String LIST_EDITOR = ".listValuesPaneModel.comboBoxEditorModel.dataType";
+   private static final String LIST_QUERY_EDITOR =
+      ".listValuesPaneModel.comboBoxEditorModel.selectionListDialogModel.selectionListEditorModel";
 
    private static final List<AliasCase> FORM_OUTPUT_ALIASES = List.of(
       // size pane: Title Height / Cell Height render only for the two titled list inputs
@@ -2184,6 +2186,15 @@ class PropertyAliasesTest {
       new AliasCase("dataType", "integer", paths(
          "checkbox", CHECKBOX + LIST_EDITOR, "combobox", COMBOBOX + LIST_EDITOR,
          "radiobutton", RADIO + LIST_EDITOR)),
+      // Query > Edit dialog Value column and Apply Selection (inverse of `form`), Redmine #81537
+      new AliasCase("valueColumn", "c2", paths(
+         "checkbox", CHECKBOX + LIST_QUERY_EDITOR + ".value",
+         "combobox", COMBOBOX + LIST_QUERY_EDITOR + ".value",
+         "radiobutton", RADIO + LIST_QUERY_EDITOR + ".value")),
+      new AliasCase("applySelectionDisabled", true, paths(
+         "checkbox", CHECKBOX + LIST_QUERY_EDITOR + ".form",
+         "combobox", COMBOBOX + LIST_QUERY_EDITOR + ".form",
+         "radiobutton", RADIO + LIST_QUERY_EDITOR + ".form")),
       new AliasCase("sortType", 1, paths(
          "checkbox", CHECKBOX + ".listValuesPaneModel.sortType",
          "combobox", COMBOBOX + ".listValuesPaneModel.sortType",
@@ -2236,7 +2247,7 @@ class PropertyAliasesTest {
          }
       }
 
-      assertEquals(82, checked);
+      assertEquals(88, checked);
    }
 
    /**

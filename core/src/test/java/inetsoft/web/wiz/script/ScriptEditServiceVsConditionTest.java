@@ -117,6 +117,45 @@ class ScriptEditServiceVsConditionTest {
    }
 
    @Test
+   void aFilterCallingDollarIsRefusedWithGuidanceAndNothingIsPushed() throws Exception {
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.writeDraft(rvs, agent, filter(), "String($(RadioButton1)) == 'true'"));
+
+      assertTrue(ex.getMessage().contains("$(...)") &&
+                 ex.getMessage().contains("parameter.<name>") &&
+                 ex.getMessage().contains("RadioButton1.selectedObject"), ex.getMessage());
+      verify(broadcast, never()).pushScriptRefresh(any(), any(), any(), any(), any(), any(),
+                                                    any());
+   }
+
+   @Test
+   void aHighlightCallingDollarIsPushedWithAWarning() throws Exception {
+      ScriptWriteResult result =
+         service.writeDraft(rvs, agent, highlight(), "String($(RadioButton1)) == 'true'");
+
+      assertTrue(result.ok());
+      assertNotNull(result.warning());
+      assertTrue(result.warning().contains("$(...)") && result.warning().contains("SQL") &&
+                 result.warning().contains("parameter.<name>"), result.warning());
+      verify(broadcast).pushScriptRefresh(any(), any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void dollarInsideAStringLiteralIsNeitherRefusedNorWarned() throws Exception {
+      assertNull(service.writeDraft(rvs, agent, filter(), "'$(x)' == 'a'").warning());
+      assertNull(service.writeDraft(rvs, agent, highlight(), "'$(x)' == 'a'").warning());
+   }
+
+   @Test
+   void aFilterThatBothFailsToParseAndCallsDollarIsRefusedOnce() throws Exception {
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.writeDraft(rvs, agent, filter(), "$(x) +"));
+
+      assertTrue(ex.getMessage().contains("$(...)"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("does not parse"), ex.getMessage());
+   }
+
+   @Test
    void nullAndBlankTextAreRefused() throws Exception {
       PairingException nul = assertThrows(PairingException.class,
          () -> service.writeDraft(rvs, agent, filter(), null));

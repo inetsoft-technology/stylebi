@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.CustomPeriods;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
@@ -315,7 +316,8 @@ public class DateComparisonService {
     * {@code onlyShowMostRecentDate} whenever the caller leaves it unspecified, standard period or
     * not (see {@link #describeOnlyShowMostRecentDateDefaulted}).
     *
-    * <p>Refuses, before changing anything, an invalid or dropped share source (see
+    * <p>Refuses, before changing anything, an assembly whose Enable Date Comparison is off (see
+    * {@link #requireDateComparisonEnabled}), an invalid or dropped share source (see
     * {@link #requireValidShareTarget}) and chart-only options on a crosstab (see
     * {@link #requireChartOnlyOptionsOnChart}).
     */
@@ -336,6 +338,7 @@ public class DateComparisonService {
                "dimension in its binding.");
          }
 
+         requireDateComparisonEnabled(rvs.getViewsheet(), assemblyName);
          requireValidShareTarget(rvs.getViewsheet(), assemblyName, comparison);
          requireChartOnlyOptionsOnChart(rvs.getViewsheet(), assemblyName, comparison);
 
@@ -370,6 +373,28 @@ public class DateComparisonService {
 
       ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
+   }
+
+   /**
+    * Refuses a comparison on an assembly whose "Enable Date Comparison" property is off: the
+    * Composer offers no date comparison on such a chart or crosstab, and the engine ignores any
+    * comparison on it ({@link DateComparisonUtil#getDesignDateComparison}), so a saved one would
+    * silently never render. Only the target assembly's own flag counts, also when it names a
+    * {@code shareAssembly}: the engine never consults the share source's flag.
+    */
+   private static void requireDateComparisonEnabled(Viewsheet vs, String assemblyName) {
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+      VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+
+      if(info instanceof DataVSAssemblyInfo &&
+         !((DataVSAssemblyInfo) info).isDateComparisonEnabled())
+      {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' has Enable Date Comparison turned off " +
+            "(dateComparisonEnabled:false), so a date comparison would never apply to it. Call " +
+            "set_assembly_properties {assembly:'" + assemblyName + "', properties:" +
+            "{dateComparisonEnabled:true}} first, then set the date comparison again.");
+      }
    }
 
    /**
