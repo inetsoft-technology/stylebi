@@ -296,6 +296,20 @@ fieldset.float-title {
   }
 }
 
+// switches have their own knob; no check mark
+.form-switch .form-check-input:checked::after,
+.form-check-input[role=switch]:checked::after {
+  content: none;
+}
+
+// forced colors (Windows High Contrast) overrides background-color, which would hide the mask fill
+@media (forced-colors: active) {
+  .form-check-input:checked::after {
+    forced-colors-adjust: none;
+    background-color: CanvasText;
+  }
+}
+
 .form-check {
   padding-left: 0;
   display: flex;
