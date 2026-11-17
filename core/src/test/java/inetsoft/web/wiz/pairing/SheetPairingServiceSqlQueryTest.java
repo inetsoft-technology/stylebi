@@ -23,6 +23,11 @@ import inetsoft.uql.asset.SQLBoundTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import org.junit.jupiter.api.Test;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import org.mockito.MockedStatic;
+
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +35,10 @@ import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -356,5 +365,30 @@ class SheetPairingServiceSqlQueryTest {
          new EditorContext("worksheetVariableDefault", "NewVar", null, null, true)));
       assertNotNull(other.mint("ws-1", OWNER_IDENTITY, "s", "alice", SheetType.WORKSHEET,
          new EditorContext("worksheetCondition", "Query1", "price", null)));
+   }
+
+   /**
+    * The real seam against an engine that behaves like production: a principal tagged wiz=true
+    * (every agent/JWT principal, see WizServiceAuthenticationFilter and Redmine #76630) bypasses
+    * the check, a plain one is really checked. The mint judges the runtime OWNER (the real
+    * browser-session principal), so a denied owner is refused.
+    */
+   @Test
+   void theRealSeamChecksTheRuntimeOwnerWhichIsNotWizTagged() throws Exception {
+      SecurityEngine engine = mock(SecurityEngine.class);
+      when(engine.checkPermission(any(), eq(ResourceType.FREE_FORM_SQL), eq("*"),
+                                  eq(ResourceAction.ACCESS))).thenReturn(false);
+      SheetPairingService svc = new SheetPairingService(() -> NOW,
+         id -> runtime(OWNER), id -> null);
+
+      try(MockedStatic<SecurityEngine> security = mockStatic(SecurityEngine.class)) {
+         security.when(SecurityEngine::getSecurity).thenReturn(engine);
+
+         PairingException ex = assertThrows(PairingException.class,
+            () -> mint(svc, "SQL Query1", null, false));
+         assertEquals(PairingException.Kind.USER_MISMATCH, ex.getKind(), ex.getMessage());
+         verify(engine).checkPermission(OWNER, ResourceType.FREE_FORM_SQL, "*",
+                                        ResourceAction.ACCESS);
+      }
    }
 }

@@ -32,6 +32,12 @@ import inetsoft.web.wiz.script.model.ScriptWriteResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.XPrincipal;
+import org.mockito.MockedStatic;
+
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +63,7 @@ class WorksheetScriptServiceDraftKindsTest {
    private static final Principal OWNER = TestPrincipals.user("alice", "host-org");
    private static final String SQL_TEXT = "select a, b from t where c = $(v) and d = '=x'";
 
-   private final Principal agent = TestPrincipals.user("alice", "host-org");
+   private final Principal agent = TestPrincipals.user("wiz-agent", "host-org");
    private final WorksheetEditService editService = mock(WorksheetEditService.class);
    private final WorksheetAgentController worksheetController =
       mock(WorksheetAgentController.class);
@@ -65,7 +71,9 @@ class WorksheetScriptServiceDraftKindsTest {
 
    /** The principals the Free Form SQL seam was asked about, in order. */
    private final List<Principal> asked = new ArrayList<>();
+   /** What the seam answers for the runtime OWNER; the agent has its own answer below. */
    private boolean sqlAllowed = true;
+   private boolean agentAllowed = true;
    private boolean sqlSeamForbidden = false;
 
    private final WorksheetScriptService service =
@@ -77,7 +85,7 @@ class WorksheetScriptServiceDraftKindsTest {
             }
 
             asked.add(user);
-            return sqlAllowed;
+            return user == agent ? agentAllowed : sqlAllowed;
          }
 
          // The script engine is not initialised in unit tests: "1 +" is told apart by hand.
@@ -343,7 +351,7 @@ class WorksheetScriptServiceDraftKindsTest {
       assertTrue(info.note().contains("Text typed in the open dialog and not yet applied (OK) " +
                                       "is not visible here"), info.note());
       assertTrue(info.note().contains("update_script pushes a DRAFT"), info.note());
-      assertEquals(List.of(agent), asked, "the read is gated on the agent principal, once");
+      assertEquals(List.of(OWNER), asked, "the read is gated on the runtime owner, once");
    }
 
    @Test
@@ -361,9 +369,9 @@ class WorksheetScriptServiceDraftKindsTest {
 
       denied(() -> service.read(sessionScopedTo(sql("SQL Query1", false)), agent,
                                 sqlTarget("SQL Query1")));
-      verifyNoInteractions(editService);
+      verify(editService).resolve("TOK", agent);
       verify(rws, never()).getWorksheet();
-      assertEquals(List.of(agent), asked);
+      assertEquals(List.of(OWNER), asked);
    }
 
    /** The probe test: a denied user learns nothing about which tables exist. */
@@ -385,7 +393,7 @@ class WorksheetScriptServiceDraftKindsTest {
       PairingException pending = assertThrows(PairingException.class,
          () -> service.read(sessionScopedTo(sql("Brand New", true)), agent, sqlTarget("Brand New")));
       assertEquals(reference, pending.getMessage());
-      verifyNoInteractions(editService);
+      verify(rws, never()).getWorksheet();
    }
 
    @Test
@@ -410,8 +418,8 @@ class WorksheetScriptServiceDraftKindsTest {
       assertTrue(info.note().contains("NEW query table 'SQL Query2'"), info.note());
       assertTrue(info.note().contains("no SQL is applied yet"), info.note());
       assertTrue(info.note().contains("not yet applied (OK) is not visible here"), info.note());
-      assertEquals(List.of(agent), asked, "even a pending read is gated");
-      verifyNoInteractions(editService);
+      assertEquals(List.of(OWNER), asked, "even a pending read is gated");
+      verify(rws, never()).getWorksheet();
    }
 
    @Test
@@ -433,13 +441,13 @@ class WorksheetScriptServiceDraftKindsTest {
    }
 
    @Test
-   void aSqlReadWithoutARuntimeFailsAsNotASqlTable() throws Exception {
+   void aSqlReadWithoutARuntimeIsRefusedAsExpired() throws Exception {
       when(editService.resolve("TOK", agent)).thenReturn(null);
 
       PairingException ex = assertThrows(PairingException.class,
          () -> service.read(sessionScopedTo(sql("SQL Query1", false)), agent,
                             sqlTarget("SQL Query1")));
-      assertTrue(ex.getMessage().startsWith("Not a SQL-bound table"), ex.getMessage());
+      assertEquals(PairingException.Kind.SESSION_EXPIRED, ex.getKind(), ex.getMessage());
    }
 
    // ---------------------------------------------------------------------------
@@ -465,7 +473,7 @@ class WorksheetScriptServiceDraftKindsTest {
       assertTrue(result.note().contains("Parse Now"), result.note());
       assertTrue(result.note().contains("with the user's own permissions"), result.note());
       assertWorksheetUntouched();
-      assertEquals(List.of(agent), asked);
+      assertEquals(List.of(OWNER), asked);
    }
 
    @Test
@@ -476,7 +484,7 @@ class WorksheetScriptServiceDraftKindsTest {
                                  sqlTarget("SQL Query1"), "select 1"));
 
       assertNothingPushed();
-      verifyNoInteractions(editService);
+      verify(rws, never()).getWorksheet();
       assertWorksheetUntouched();
    }
 
@@ -572,7 +580,7 @@ class WorksheetScriptServiceDraftKindsTest {
                                                      any());
 
       sqlAllowed = false;
-      clearInvocations(editService);
+      clearInvocations(rws);
 
       denied(() -> service.write(s, agent, sqlTarget("SQL Query1"), "select 2"));
       denied(() -> service.read(s, agent, sqlTarget("SQL Query1")));
@@ -580,7 +588,7 @@ class WorksheetScriptServiceDraftKindsTest {
 
       verify(broadcast, times(1)).pushScriptRefresh(any(), any(), any(), any(), any(), any(),
                                                      any());
-      verifyNoInteractions(editService);
+      verify(rws, never()).getWorksheet();
    }
 
    // ---------------------------------------------------------------------------
@@ -719,5 +727,114 @@ class WorksheetScriptServiceDraftKindsTest {
          () -> service.write(s, agent, sqlTarget("SQL Query1"), "select 1"));
       assertNothingPushed();
       assertTrue(asked.isEmpty());
+   }
+
+   // ---------------------------------------------------------------------------
+   // The gate judges the runtime OWNER, never the agent principal
+   // ---------------------------------------------------------------------------
+
+   /**
+    * The seam is called with the runtime owner for read, write and list, never with the agent.
+    * Two distinct principals make a swap visible: agent allowed + owner denied is refused,
+    * agent denied + owner allowed is allowed.
+    */
+   @Test
+   void theGateJudgesTheRuntimeOwnerAndNeverTheAgentForReadWriteAndList() throws Exception {
+      JoinSession s = sessionScopedTo(sql("SQL Query1", false));
+
+      // agent allowed, owner denied: refused everywhere
+      agentAllowed = true;
+      sqlAllowed = false;
+      denied(() -> service.read(s, agent, sqlTarget("SQL Query1")));
+      denied(() -> service.write(s, agent, sqlTarget("SQL Query1"), "select 1"));
+      assertTrue(service.list(rws, s).isEmpty());
+      assertNothingPushed();
+      assertEquals(List.of(OWNER, OWNER, OWNER), asked);
+      assertTrue(asked.stream().noneMatch(p -> p == agent), "the agent was judged");
+
+      // agent denied, owner allowed: allowed everywhere
+      asked.clear();
+      agentAllowed = false;
+      sqlAllowed = true;
+      assertEquals(SQL_TEXT, service.read(s, agent, sqlTarget("SQL Query1")).text());
+      assertTrue(service.write(s, agent, sqlTarget("SQL Query1"), "select 1").ok());
+      assertEquals(1, service.list(rws, s).size());
+      assertEquals(List.of(OWNER, OWNER, OWNER), asked);
+      assertTrue(asked.stream().noneMatch(p -> p == agent), "the agent was judged");
+   }
+
+   @Test
+   void aNewQueryIsJudgedOnTheOwnerToo() throws Exception {
+      JoinSession s = sessionScopedTo(sql("SQL Query2", true));
+
+      agentAllowed = true;
+      sqlAllowed = false;
+      denied(() -> service.read(s, agent, sqlTarget("SQL Query2")));
+      denied(() -> service.write(s, agent, sqlTarget("SQL Query2"), "select 1"));
+
+      agentAllowed = false;
+      sqlAllowed = true;
+      assertEquals("", service.read(s, agent, sqlTarget("SQL Query2")).text());
+   }
+
+   @Test
+   void aRuntimeWithNoOwnerIsRefusedByReadAndWriteEvenForAnAllowedAgent() throws Exception {
+      when(rws.getUser()).thenReturn(null);
+      agentAllowed = true;
+      sqlAllowed = true;
+      // the stub allows everything but null: a null owner must be passed down, not replaced
+      WorksheetScriptService strict = new WorksheetScriptService(editService, worksheetController,
+                                                                 broadcast) {
+         @Override
+         boolean freeFormSqlAllowed(Principal user) {
+            return user != null;
+         }
+      };
+      JoinSession s = sessionScopedTo(sql("SQL Query1", false));
+
+      denied(() -> strict.read(s, agent, sqlTarget("SQL Query1")));
+      denied(() -> strict.write(s, agent, sqlTarget("SQL Query1"), "select 1"));
+      assertNothingPushed();
+   }
+
+   /**
+    * The production seam against an engine that behaves like production: every agent/JWT principal
+    * is tagged {@code wiz=true} by {@code WizServiceAuthenticationFilter} (lines 378-381), which
+    * makes {@code WizDelegatingCheckPermissionStrategy} bypass every permission check for it
+    * (accepted trust boundary, Redmine #76630). A gate on the agent principal is therefore always
+    * true in production; only the runtime owner, the real browser-session principal, is really
+    * checked. This test uses the REAL seam (no override) and a stubbed engine with that behaviour:
+    * a wiz agent plus a denied owner must be refused. Gating the agent makes it red.
+    */
+   @Test
+   void aWizTaggedAgentCannotBypassTheOwnersDeniedPermission() throws Exception {
+      XPrincipal wizAgent = (XPrincipal) TestPrincipals.user("wiz-agent", "host-org");
+      wizAgent.setProperty("wiz", "true");
+      Principal deniedOwner = TestPrincipals.user("tmp80459", "host-org");
+      when(rws.getUser()).thenReturn(deniedOwner);
+      when(editService.resolve("TOK", wizAgent)).thenReturn(rws);
+
+      SecurityEngine engine = mock(SecurityEngine.class);
+      when(engine.checkPermission(any(), eq(ResourceType.FREE_FORM_SQL), eq("*"),
+                                  eq(ResourceAction.ACCESS)))
+         .thenAnswer(inv -> inv.getArgument(0) instanceof XPrincipal p &&
+                            "true".equals(p.getProperty("wiz")));
+      WorksheetScriptService real =
+         new WorksheetScriptService(editService, worksheetController, broadcast);
+      JoinSession s = sessionScopedTo(sql("SQL Query1", false));
+
+      try(MockedStatic<SecurityEngine> security = mockStatic(SecurityEngine.class)) {
+         security.when(SecurityEngine::getSecurity).thenReturn(engine);
+
+         denied(() -> real.read(s, wizAgent, sqlTarget("SQL Query1")));
+         denied(() -> real.write(s, wizAgent, sqlTarget("SQL Query1"), "select 1"));
+         assertTrue(real.list(rws, s).isEmpty());
+         assertNothingPushed();
+
+         // control: the same engine allows the owner once it is the (bypassing) wiz principal,
+         // and denies a plain principal, so the refusals above are the owner's denial
+         assertTrue(real.freeFormSqlAllowed(wizAgent));
+         assertFalse(real.freeFormSqlAllowed(deniedOwner));
+      }
    }
 }

@@ -193,20 +193,22 @@ public class WorksheetScriptService {
    {
       boolean sql = target.kind() == ScriptTarget.Kind.WORKSHEET_SQL_QUERY;
 
-      if(sql) {
-         requireFreeFormSql(agent);
-      }
-
-      DraftText.Prepared prepared = sql
-         ? DraftText.prepare(text, DraftText.EqualsMode.NONE, null)
-         : DraftText.prepare(text, DraftText.EqualsMode.STRIP, this::syntaxProblem);
-
+      // Resolved first so the gate can judge the runtime OWNER. This is not a probe: resolve only
+      // proves the session belongs to the agent's user and names no table.
       RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
 
       if(rws == null) {
          throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
                                     "Runtime not found or expired: " + session.runtimeId());
       }
+
+      if(sql) {
+         requireFreeFormSql(rws);
+      }
+
+      DraftText.Prepared prepared = sql
+         ? DraftText.prepare(text, DraftText.EqualsMode.NONE, null)
+         : DraftText.prepare(text, DraftText.EqualsMode.STRIP, this::syntaxProblem);
 
       stampSocketSession(rws, session);
       boolean sent = broadcast.pushScriptRefresh(rws, session.runtimeId(), agent,
@@ -235,12 +237,24 @@ public class WorksheetScriptService {
     * The Free Form SQL gate of the {@code worksheetSqlQuery} kind (design: the permission is a
     * function of a principal, so it lives here and in {@code SheetPairingService}, not in the
     * principal-free {@link PaneScopeService#matchesGrant}). The same text for every denial.
+    *
+    * <p>The principal is the runtime OWNER ({@code rws.getUser()}), the real browser-session
+    * principal, never the agent principal: {@code WizServiceAuthenticationFilter} tags every
+    * agent/JWT principal {@code wiz=true}, which makes {@code WizDelegatingCheckPermissionStrategy}
+    * bypass every permission check for it (accepted trust boundary, Redmine #76630), so a check on
+    * the agent would always be true. {@code editService.resolve} has already proven that the owner
+    * is the agent's user.
     */
-   private void requireFreeFormSql(Principal agent) throws PairingException {
-      if(!freeFormSqlAllowed(agent)) {
+   private void requireFreeFormSql(RuntimeWorksheet rws) throws PairingException {
+      if(!sqlAllowedFor(rws)) {
          throw new PairingException(PairingException.Kind.USER_MISMATCH,
                                     SheetPairingService.FREE_FORM_SQL_DENIED);
       }
+   }
+
+   /** The single place the runtime owner is judged; no runtime or no owner is denied. */
+   private boolean sqlAllowedFor(RuntimeWorksheet rws) {
+      return rws != null && freeFormSqlAllowed(rws.getUser());
    }
 
    /**
@@ -374,9 +388,7 @@ public class WorksheetScriptService {
          // table enumeration is skipped and the one synthetic target comes from the grant. A
          // session whose Free Form SQL permission was revoked after mint lists nothing (a mint
          // would already have been refused).
-         if(EditorContext.WORKSHEET_SQL_QUERY.equals(draftGrant.kind()) &&
-            (rws == null || !freeFormSqlAllowed(rws.getUser())))
-         {
+         if(EditorContext.WORKSHEET_SQL_QUERY.equals(draftGrant.kind()) && !sqlAllowedFor(rws)) {
             return List.of();
          }
 
@@ -594,14 +606,22 @@ public class WorksheetScriptService {
          return WorksheetDraftTargets.readVariable(target, pending);
       }
 
-      requireFreeFormSql(agent);
+      // Resolved first so the gate can judge the runtime OWNER (see requireFreeFormSql); the
+      // worksheet itself is not looked at before the gate.
+      RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
+
+      if(rws == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                    "Runtime not found or expired: " + session.runtimeId());
+      }
+
+      requireFreeFormSql(rws);
 
       if(pending) {
          return WorksheetDraftTargets.readPendingSql(target);
       }
 
-      RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
-      Worksheet ws = rws == null ? null : rws.getWorksheet();
+      Worksheet ws = rws.getWorksheet();
       Assembly a = ws == null ? null : ws.getAssembly(target.assemblyName());
 
       if(!(a instanceof SQLBoundTableAssembly sqlTable)) {
