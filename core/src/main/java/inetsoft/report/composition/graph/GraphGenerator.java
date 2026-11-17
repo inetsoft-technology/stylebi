@@ -945,6 +945,8 @@ public abstract class GraphGenerator {
       if(GraphTypeUtil.isPolar(info, true)) {
          coord.setPieRatio(desc.getPlotDescriptor().getPieRatio());
          coord.setPieCapRatio(vizContext.modern && GraphTypes.isPie(type) ? 0.8 : 0);
+         coord.setClockwiseFromTop(vizContext.modern && GraphTypes.isPie(type) &&
+                                   type != CHART_3D_PIE);
       }
 
       return coord;
