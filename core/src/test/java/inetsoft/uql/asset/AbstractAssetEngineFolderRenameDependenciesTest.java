@@ -158,6 +158,49 @@ class AbstractAssetEngineFolderRenameDependenciesTest {
       assertNull(stored.getProperty(AssetEntry.WORKSHEET_TYPE));
    }
 
+   // a failure while recording the first sheet must not leave its dependencies unrenamed
+   @Test
+   void dependenciesAreRenamedWhenRecordingTheFirstSheetFails() throws Exception {
+      String oldFolder = prefix + "Old";
+      AssetEntry folder = folder(oldFolder);
+      AssetEntry dependent = sheet(AssetEntry.Type.WORKSHEET, oldFolder + "/a");
+      AssetEntry bound = sheet(AssetEntry.Type.WORKSHEET, "other" + prefix);
+      store.put(bound.toIdentifier(), dependents(dependent));
+      doThrow(new IllegalStateException("boom")).when(dependencyHandler)
+         .getRenameDependencyInfo(any(), any());
+
+      assertThrows(IllegalStateException.class,
+                   () -> engine.changeFolder(folder, target(prefix + "New"), null, true, false));
+
+      AssetEntry stored = (AssetEntry) ((DependenciesInfo) store.get(bound.toIdentifier()))
+         .getDependencies().get(0);
+      assertEquals(sheet(AssetEntry.Type.WORKSHEET, prefix + "New/a").toIdentifier(),
+                   stored.toIdentifier());
+   }
+
+   // one failing queued transform must not skip the transforms queued after it
+   @Test
+   void aFailingTransformDoesNotSkipTheOthers() throws Exception {
+      String oldFolder = prefix + "Old";
+      AssetEntry folder = folder(oldFolder);
+      sheet(AssetEntry.Type.WORKSHEET, oldFolder + "/a");
+      sheet(AssetEntry.Type.WORKSHEET, oldFolder + "/b");
+      List<String> attempted = new ArrayList<>();
+      doAnswer(i -> {
+         attempted.add(((RenameInfo) i.getArgument(0)).getOldName());
+
+         if(attempted.size() == 1) {
+            throw new IllegalStateException("boom");
+         }
+
+         return null;
+      }).when(xRepository).renameTransform(any(RenameInfo.class));
+
+      engine.changeFolder(folder, target(prefix + "New"), null, true, false);
+
+      assertEquals(2, attempted.size());
+   }
+
    private DependenciesInfo dependents(AssetEntry... entries) {
       DependenciesInfo info = new DependenciesInfo();
       info.setDependencies(new ArrayList<>(List.of(entries)));

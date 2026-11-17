@@ -3561,8 +3561,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          AssetEntry snapshot = Tool.equals(oentry, nentry) ? nentry : (AssetEntry) nentry.clone();
          Pending pending = new Pending(oentry, snapshot, wsTransform);
          pendings.add(pending);
-         add(handler.getRenameDependencyInfo(oentry, nentry));
          this.handler = handler;
+         add(handler.getRenameDependencyInfo(oentry, nentry));
          return pending;
       }
 
@@ -3579,15 +3579,20 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             }
 
             handler.updateDependencies(renames);
-
-            for(Pending pending : pendings) {
-               if(pending.completed && pending.wsTransform != null) {
-                  XRepository.getRepository().renameTransform(pending.wsTransform);
-               }
-            }
          }
          catch(Exception ex) {
             LOG.warn("Failed to update the dependencies of the renamed folder", ex);
+         }
+
+         for(Pending pending : pendings) {
+            if(pending.completed && pending.wsTransform != null) {
+               try {
+                  XRepository.getRepository().renameTransform(pending.wsTransform);
+               }
+               catch(Exception ex) {
+                  LOG.warn("Failed to transform the dependents of {}", pending.oentry, ex);
+               }
+            }
          }
       }
 
