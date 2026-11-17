@@ -103,6 +103,7 @@ public class KeyValueStorageManager implements AutoCloseable {
    @Override
    @PreDestroy
    public void close() {
+      markShutdown();
       storages.asMap().values().forEach(s -> {
          try {
             s.close();
@@ -112,6 +113,18 @@ public class KeyValueStorageManager implements AutoCloseable {
          }
       });
       storages.invalidateAll();
+   }
+
+   /**
+    * Marks the cached stores as closed by the shutdown of the node, not by an eviction, so that
+    * their enumeration does not read the map of a stopped cluster. Bug #81573.
+    */
+   void markShutdown() {
+      storages.asMap().values().forEach(s -> {
+         if(s instanceof LocalKeyValueStorage<?> local) {
+            local.markShutdown();
+         }
+      });
    }
 
    /**
