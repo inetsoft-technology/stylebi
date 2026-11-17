@@ -336,7 +336,24 @@ public class TimeScale extends Scale {
    @Override
    @TernMethod
    public double getMax() {
-      return getMax0() + getGap();
+      double pad = umax == null && endPadRatio > 0 ? (getMax0() - getMin0()) * endPadRatio : 0;
+      return getMax0() + getGap() + pad;
+   }
+
+   /**
+    * Set the fraction of the range added past the last date, ignored when a maximum is set.
+    * @hidden
+    */
+   public void setEndPadRatio(double endPadRatio) {
+      this.endPadRatio = endPadRatio;
+   }
+
+   /**
+    * Get the fraction of the range added past the last date.
+    * @hidden
+    */
+   public double getEndPadRatio() {
+      return endPadRatio;
    }
 
    /**
@@ -854,6 +871,7 @@ public class TimeScale extends Scale {
    private Object nullLabel; // others label
    private boolean nodata = false;
    private boolean fill = false; // default to leave gap
+   private double endPadRatio = 0; // range fraction added past the last date
    private transient AxisSpec cacheSpec; // cached spec
    private double interval = -1; // smallest interval in data
    private Number increment = null; // increment for ticks
