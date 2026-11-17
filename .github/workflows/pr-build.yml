@@ -53,25 +53,41 @@ jobs:
       # while core runs its tests; tests tagged slow, and the lockcycle suite with the pool off,
       # are left to the daily slow-tests.yml
       #
-      # A hosted runner that dies mid-build (Bug #81520: "The runner has received a shutdown
-      # signal", then the job sits until the cap) leaves nothing in the log to say why, so print
-      # the load, memory and biggest processes every minute. A fork that is about to hit the
-      # surefire fork timeout (core/pom.xml) also gets its threads dumped first, so a hang names
-      # its stack.
+      # A hosted runner that dies mid-build (Bug #81520: the job log and the Build step just stop,
+      # and the job sits until the cap) leaves nothing in the log to say why. Every minute print
+      # the load, memory, biggest processes and the age of the newest core surefire report (one
+      # is written as each test class finishes). If these lines keep coming while the report age
+      # grows, it is a hang, and the threads of the surefire forks are dumped (at most every 10
+      # minutes) once no class has finished for 5 minutes, which is as long as one test may run
+      # (surefire.testTimeout). If the lines stop too, the runner died. The forks are also dumped
+      # at 40 minutes of step time, shortly before the fork timeout in core/pom.xml.
       - name: Build with Maven
         run: |
+          dump_forks() {
+            for pid in $(pgrep -f surefirebooter); do
+              echo "[ci-monitor] thread dump of surefire fork $pid ($1)"
+              jcmd "$pid" Thread.print || true
+            done
+          }
           (
+            last_dump=0
             while sleep 60; do
-              echo "[ci-monitor] $(date -u +%T) load=$(cut -d' ' -f1-3 /proc/loadavg) $(free -m | awk '/^Mem:/{print "used_mb="$3" avail_mb="$7}') top: $(ps -eo rss,comm --sort=-rss | awk 'NR>1 && NR<=5{printf "%s=%dMB ",$2,$1/1024}')"
+              now=$(date +%s)
+              newest=$(find core/target/surefire-reports -name '*.txt' -printf '%T@
+' 2>/dev/null | sort -n | tail -1)
+              age=-1
+              if [ -n "$newest" ]; then age=$((now - ${newest%.*})); fi
+              echo "[ci-monitor] $(date -u +%T) load=$(cut -d' ' -f1-3 /proc/loadavg) $(free -m | awk '/^Mem:/{print "used_mb="$3" avail_mb="$7}') last_report_age=${age}s top: $(ps -eo rss,comm --sort=-rss | awk 'NR>1 && NR<=5{printf "%s=%dMB ",$2,$1/1024}')"
+              if [ "$age" -gt 300 ] && [ $((now - last_dump)) -gt 600 ]; then
+                last_dump=$now
+                dump_forks "no test class finished for ${age}s"
+              fi
             done
           ) &
           monitor=$!
           (
             sleep 2400
-            for pid in $(pgrep -f surefirebooter); do
-              echo "[ci-monitor] thread dump of surefire fork $pid"
-              jcmd "$pid" Thread.print || true
-            done
+            dump_forks "40 minutes into the build"
           ) &
           dumper=$!
           trap 'kill $monitor $dumper 2>/dev/null || true' EXIT
