@@ -31,8 +31,14 @@ import java.util.List;
  * {@code null} for a print layout that has never had {@code set_print_layout} called on it (as
  * opposed to a zeroed-out {@link PrintLayoutSettingsModel}, which would look like a real "every
  * field at its default" configuration).
+ *
+ * <p>{@code objects} is the printable body. {@code headerObjects}/{@code footerObjects} are the
+ * print layout's header and footer bands (coordinates relative to the band); both are {@code
+ * null} for a device layout, which has no such bands.
  */
 public record LayoutModel(String name, String type, Boolean mobileOnly,
                            List<String> selectedDevices, PrintLayoutSettingsModel printSettings,
-                           List<LayoutObjectModel> objects) {
+                           List<LayoutObjectModel> objects,
+                           List<LayoutObjectModel> headerObjects,
+                           List<LayoutObjectModel> footerObjects) {
 }

@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.model.vs.VSPrintLayoutDialogModel;
@@ -142,6 +143,17 @@ public class LayoutReadService {
          .stream()
          .map(assemblyLayout -> toObjectModel(masterVs, assemblyLayout, printPageSize))
          .collect(Collectors.toList());
+      // The header/footer bands have no pages of their own, so no pageIndex.
+      List<LayoutObjectModel> headerObjects = !print ? null : vsLayoutService
+         .getVSAssemblyLayouts(layout, VSLayoutService.HEADER)
+         .stream()
+         .map(assemblyLayout -> toObjectModel(masterVs, assemblyLayout, null))
+         .collect(Collectors.toList());
+      List<LayoutObjectModel> footerObjects = !print ? null : vsLayoutService
+         .getVSAssemblyLayouts(layout, VSLayoutService.FOOTER)
+         .stream()
+         .map(assemblyLayout -> toObjectModel(masterVs, assemblyLayout, null))
+         .collect(Collectors.toList());
 
       Boolean mobileOnly = print ? null : ((ViewsheetLayout) layout).isMobileOnly();
       List<String> selectedDevices = print ? null
@@ -151,7 +163,7 @@ public class LayoutReadService {
          : null;
 
       return new LayoutModel(layoutName, print ? "print" : "device", mobileOnly, selectedDevices,
-                              printSettings, objects);
+                              printSettings, objects, headerObjects, footerObjects);
    }
 
    /**
@@ -220,7 +232,20 @@ public class LayoutReadService {
          vsSize == null ? 0 : vsSize.height,
          vsLayoutService.supportTableLayout(assembly),
          assemblyLayout.getTableLayout(),
-         pageIndex);
+         pageIndex,
+         layoutOnlyText(assemblyLayout));
+   }
+
+   /** The text of a layout-only text object, {@code null} for any other object. */
+   private static String layoutOnlyText(VSAssemblyLayout assemblyLayout) {
+      if(assemblyLayout instanceof VSEditableAssemblyLayout editable &&
+         editable.getInfo() instanceof TextVSAssemblyInfo text)
+      {
+         String value = text.getTextValue();
+         return value == null ? "" : value;
+      }
+
+      return null;
    }
 
    private Map<String, Object> summarize(String name, String type, Boolean mobileOnly,

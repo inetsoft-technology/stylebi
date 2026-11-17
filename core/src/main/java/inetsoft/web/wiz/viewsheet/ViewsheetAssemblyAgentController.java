@@ -3523,7 +3523,8 @@ public class ViewsheetAssemblyAgentController {
    }
 
    public record LayoutObjectsRequest(String layoutName, String op,
-                                      List<Map<String, Object>> objects, Boolean confirmed) {}
+                                      List<Map<String, Object>> objects, Boolean confirmed,
+                                      String area) {}
 
    /** {@code edit_layout_objects}. */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/objects")
@@ -3534,7 +3535,8 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       return layoutMutationService.editObjects(sessionToken, user, request.layoutName(),
-                                               request.op(), VSLayoutService.CONTENT,
+                                               request.op(),
+                                               LayoutMutationService.regionForArea(request.area()),
                                                request.objects(),
                                                Boolean.TRUE.equals(request.confirmed()));
    }

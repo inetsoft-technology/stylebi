@@ -3477,7 +3477,7 @@ class ViewsheetAssemblyAgentControllerTest {
    void getLayoutDelegatesToTheReadService() throws Exception {
       LayoutReadService readService = mock(LayoutReadService.class);
       LayoutModel expected =
-         new LayoutModel("Print Layout", "print", null, null, null, List.of());
+         new LayoutModel("Print Layout", "print", null, null, null, List.of(), null, null);
       when(readService.get(eq("tok"), any(Principal.class), eq("Print Layout")))
          .thenReturn(expected);
 
@@ -3592,10 +3592,29 @@ class ViewsheetAssemblyAgentControllerTest {
 
       Map<String, Object> result = controller.editLayoutObjects("tok",
          new ViewsheetAssemblyAgentController.LayoutObjectsRequest(
-            "Print Layout", "move_resize", objects, null),
+            "Print Layout", "move_resize", objects, null, null),
          principal());
 
       assertSame(expected, result);
+   }
+
+   @Test
+   void editLayoutObjectsPassesTheFooterAreaAsTheFooterRegion() throws Exception {
+      LayoutMutationService mutationService = mock(LayoutMutationService.class);
+      List<Map<String, Object>> objects = List.of(Map.of("name", "PageNo"));
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         mock(LayoutReadService.class), mock(PrintDeviceLayoutPropertyService.class),
+         mutationService, mock(LayoutUndoService.class));
+
+      controller.editLayoutObjects("tok",
+         new ViewsheetAssemblyAgentController.LayoutObjectsRequest(
+            "Print Layout", "add", objects, null, "footer"),
+         principal());
+
+      verify(mutationService).editObjects(eq("tok"), any(Principal.class), eq("Print Layout"),
+                                          eq("add"), eq(VSLayoutService.FOOTER), eq(objects),
+                                          eq(false));
    }
 
    @Test

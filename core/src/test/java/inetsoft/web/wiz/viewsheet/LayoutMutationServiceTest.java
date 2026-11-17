@@ -384,6 +384,94 @@ class LayoutMutationServiceTest {
       assertTrue(thrown.getMessage().contains("page size"), thrown.getMessage());
    }
 
+   // ── Bug 81554: header / footer area ───────────────────────────────────────
+
+   @Test
+   void addTextToTheHeaderAndFooterLandsInThoseBandsNotTheBody() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      int bodyBefore = fx.printLayoutObjectNames().size();
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.HEADER,
+         List.of(Map.of("name", "HeaderCaption", "type", "text", "x", 5, "y", 2,
+                        "text", "Sales Report")), false);
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.FOOTER,
+         List.of(Map.of("name", "PageNo", "type", "text", "x", 5, "y", 2,
+                        "text", "{P} / {N}")), false);
+
+      PrintLayout print = fx.masterVs.getLayoutInfo().getPrintLayout();
+      assertEquals(bodyBefore, print.getVSAssemblyLayouts().size());
+      assertEquals(List.of("HeaderCaption"),
+                   print.getHeaderLayouts().stream().map(VSAssemblyLayout::getName).toList());
+      assertEquals(List.of("PageNo"),
+                   print.getFooterLayouts().stream().map(VSAssemblyLayout::getName).toList());
+      TextVSAssemblyInfo footer = (TextVSAssemblyInfo)
+         ((VSEditableAssemblyLayout) print.getFooterLayouts().get(0)).getInfo();
+      assertEquals("{P} / {N}", footer.getTextValue());
+   }
+
+   @Test
+   void aHeaderObjectCanBeMovedAndRemovedByArea() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.HEADER,
+         List.of(Map.of("name", "HeaderCaption", "type", "text", "x", 5, "y", 2)), false);
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.HEADER,
+         List.of(Map.of("name", "HeaderCaption", "x", 40, "y", 3, "text", "Edited")), false);
+
+      VSAssemblyLayout header = fx.masterVs.getLayoutInfo().getPrintLayout()
+         .getHeaderLayouts().get(0);
+      assertEquals(new Point(40, 3), header.getPosition());
+      assertEquals("Edited", ((TextVSAssemblyInfo)
+         ((VSEditableAssemblyLayout) header).getInfo()).getTextValue());
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "remove", VSLayoutService.HEADER,
+         List.of(Map.of("name", "HeaderCaption")), false);
+      assertTrue(fx.masterVs.getLayoutInfo().getPrintLayout().getHeaderLayouts().isEmpty());
+   }
+
+   @Test
+   void headerOrFooterAreaOnADeviceLayoutIsRefusedWithoutSideEffect() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installDeviceLayout();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "add", VSLayoutService.FOOTER,
+            List.of(Map.of("name", "Caption", "type", "text", "x", 0, "y", 0)), false));
+
+      assertTrue(thrown.getMessage().contains("footer") &&
+                 thrown.getMessage().contains("device layout"), thrown.getMessage());
+      assertTrue(fx.deviceLayoutObjects().isEmpty());
+   }
+
+   @Test
+   void aPagebreakInTheHeaderIsRefused() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.HEADER,
+            List.of(Map.of("name", "Break1", "type", "pagebreak", "x", 0, "y", 0)), false));
+
+      assertTrue(thrown.getMessage().contains("pagebreak"), thrown.getMessage());
+      assertTrue(fx.masterVs.getLayoutInfo().getPrintLayout().getHeaderLayouts().isEmpty());
+   }
+
+   @Test
+   void regionForAreaMapsTheAreaAndRefusesAnythingElseNamingTheField() {
+      assertEquals(VSLayoutService.CONTENT, LayoutMutationService.regionForArea(null));
+      assertEquals(VSLayoutService.CONTENT, LayoutMutationService.regionForArea(" "));
+      assertEquals(VSLayoutService.CONTENT, LayoutMutationService.regionForArea("Content"));
+      assertEquals(VSLayoutService.HEADER, LayoutMutationService.regionForArea(" Header "));
+      assertEquals(VSLayoutService.FOOTER, LayoutMutationService.regionForArea("FOOTER"));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> LayoutMutationService.regionForArea("top"));
+      assertTrue(thrown.getMessage().contains("'area'"), thrown.getMessage());
+   }
+
    /** Positive control: a successful op on another layout still switches focus and resets undo. */
    @Test
    void aSuccessfulOpOnAnotherLayoutStillSwitchesFocusAndResetsTheUndoStack() throws Exception {
