@@ -96,6 +96,12 @@
     box-shadow: var(--inet-focus-ring), var(--inet-shadow-medium);
     outline: var(--inet-focus-ring-outline);
   }
+
+  // hover is not a focus state: a dark shell draws no ring around the hover border
+  &:hover:not(:focus-visible) {
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-dark-hover-ring-color, var(--inet-focus-ring-color)),
+                var(--inet-shadow-medium);
+  }
 }
 
 .landing-card__icon-wrap {

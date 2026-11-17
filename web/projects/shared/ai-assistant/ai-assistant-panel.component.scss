@@ -187,7 +187,7 @@
 }
 
 .assistant-server-offline {
-  color: var(--inet-danger-color);
+  color: var(--inet-dark-danger-text-color, var(--inet-danger-color));
 }
 
 // ::ng-deep is required here because #assistant-root lives inside the <ai-assistant>

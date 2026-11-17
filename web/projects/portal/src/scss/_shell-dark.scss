@@ -20,9 +20,21 @@
 // The composer canvas, the portal viewer, the visualization recommender preview and the chart
 // editor preview. Only the assembly area: the editors' own bars and panes are shell.
 $dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container";
+// An assembly's own value pickers, attached to body: the combo box's value list when it has too
+// many labels for a native select, and the date calendar of a combo box, text input or table cell.
+// They are the dashboard's input controls, not app commands, so they are content and compute as in
+// a light shell, like the native select they stand beside (whose popup follows the content's light
+// color-scheme). Other BI apps' dark modes do the same: chrome only, a report's controls follow the
+// report (Power BI and Tableau dark mode docs, Power BI slicer dropdown theme colors). App command
+// menus attached to body (context menus, the mini-toolbar More menu) and tooltips stay shell chrome.
+// A dark-marked assembly keeps the light popup it gets in a light shell today: the calendar carries
+// no mark from its assembly and draws from the shell's dropdown tokens. Hanging it off the
+// assembly's mark, so a dark-marked dashboard gets a dark calendar, is separate viz work, since it
+// also changes the light shell.
+$content-popup: ".vs-combo-box__list, .dropdown-datepicker";
 // Matches an element outside dashboard content without adding specificity, for dark rules that
 // would otherwise also reach the content.
-$outside-content: ":where(:not(:is(#{$dashboard-content}) *))";
+$outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))";
 
 /***
  * Shell dark
@@ -194,7 +206,8 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-overlay-scrim-bg-color: rgba(0, 0, 0, 0.55);
   --inet-overlay-subtle-bg-color: rgba(255, 255, 255, 0.03);
   --inet-overlay-hover-bg-color: rgba(255, 255, 255, 0.08);
-  --inet-focus-ring-color: rgba(229, 138, 42, 0.45);
+  // focus indicators need 3:1 against the dark surfaces they sit on
+  --inet-focus-ring-color: rgba(229, 138, 42, 0.75);
 
   // Dark-only roles. Components write var(--inet-dark-<role>, <light literal>), so the light
   // shell keeps its literal and only a dark shell supplies a value. See $dark-only-tokens.
@@ -215,6 +228,27 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-dark-shadow-low-filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .4)) drop-shadow(0 1px 3px rgba(0, 0, 0, .3));
   // text on a primary-color fill, which stays orange in the dark shell
   --inet-dark-on-primary-text-color: #{$dark-surface-canvas};
+  // error text: the danger color is kept for borders and fills, which pass 3:1, but as text it
+  // reads 3.4:1 on the dark surface
+  --inet-dark-danger-text-color: #{$dark-danger-text};
+  // soft fills, for components that draw a light literal tint
+  --inet-dark-warning-soft-color: var(--inet-warning-color-light);
+  --inet-dark-info-soft-color: var(--inet-info-color-light);
+  // the halo around a checked tree checkbox, which is not a focus state: it keeps the dark
+  // shell's earlier focus-ring strength
+  --inet-dark-check-halo-color: rgba(229, 138, 42, 0.45);
+  // The ring a clickable card draws on hover, outside its orange hover border. Hover is not a focus
+  // state. A light shell's faint ring blends into its light page as a glow, but on a dark page a
+  // translucent orange turns brown and reads as a second edge, so a dark shell shows the border only.
+  --inet-dark-hover-ring-color: transparent;
+  // a faint tint for a selected row that holds chips drawn in the hover surface, so the chips
+  // still stand out from it
+  --inet-dark-selected-tint-color: rgba(255, 255, 255, 0.05);
+  // a neutral chip beside soft-tinted ones (the text layout designer's spacer): the hover surface
+  // barely separates from that selected tint, so it is one step lighter
+  --inet-dark-neutral-chip-color: #{$dark-border-default};
+  // Bootstrap's invalid-feedback text outside an input group
+  --bs-form-invalid-color: #{$dark-danger-text};
 
   // Names some components read with a light fallback, var(--inet-border-color, #d9d4c8), that no
   // theme defines, so the light shell uses the fallback. Defined for the dark shell only.
@@ -285,7 +319,9 @@ $dark-ws-row-hover-bg: #302D27;
   --ck-color-base-active: var(--inet-primary-color);
   --ck-color-base-active-focus: var(--inet-primary-color-dark);
   --ck-color-focus-border: var(--inet-primary-color);
-  --ck-color-focus-outer-shadow: var(--inet-focus-ring-color);
+  // CKEditor draws its outer focus shadow 3px wide, also around the focused item of a list it
+  // opens, so it keeps the dark shell's earlier focus-ring strength
+  --ck-color-focus-outer-shadow: rgba(229, 138, 42, 0.45);
   --ck-color-text: var(--inet-text-color);
   --ck-color-shadow-drop: rgba(0, 0, 0, 0.4);
   --ck-color-shadow-drop-active: rgba(0, 0, 0, 0.5);
@@ -320,10 +356,6 @@ $dark-ws-row-hover-bg: #302D27;
   --ck-color-dialog-background: var(--inet-dialog-bg-color);
   --ck-color-engine-placeholder-text: var(--inet-text-subtle-color);
   --ck-color-link-default: var(--inet-link-color);
-  --ck-powered-by-background: var(--inet-shell-surface-subtle);
-
-  // Bootstrap component images and filters that embed a light-mode color
-  --bs-navbar-toggler-icon-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
 }
 
 /***
@@ -385,6 +417,13 @@ $dark-ws-row-hover-bg: #302D27;
 
   .bg-white2 {
     background-color: var(--inet-shell-surface-canvas);
+  }
+
+  // The chart binding pane's toolbar strip also carries .bg-white2. In the light shell the toolbar
+  // rule in _themeable.scss comes after .bg-white2 and wins, so the strip matches the pane; the
+  // rule above comes later still, so the toolbar color is restored here.
+  .chart-style-container {
+    background-color: var(--inet-toolbar-bg-color);
   }
 
   .bg-white3 {
@@ -458,6 +497,12 @@ $dark-ws-row-hover-bg: #302D27;
   .selection-box {
     background-color: rgba(255, 255, 255, 0.08);
   }
+
+  // Bootstrap bakes the light focus ring into .nav-link (navbar, tree toolbars). Dashboard content
+  // keeps the light ring.
+  .nav-link:focus-visible#{$outside-content} {
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+  }
 }
 
 /***
@@ -476,7 +521,8 @@ $fallback-only-tokens: border-color, cell-bg-color, panel-bg-color, hover-bg-col
 $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, border-color,
   border-strong-color, input-bg-color, input-border-color, text-color, icon-color, stroke-color,
   drag-indicator-bg, drag-indicator-text-color, shadow-color, shadow-low-filter,
-  on-primary-text-color;
+  on-primary-text-color, danger-text-color, warning-soft-color, info-soft-color, check-halo-color,
+  hover-ring-color, selected-tint-color, neutral-chip-color;
 
 // The hidden-annotation tooltip and the visible annotation's overflow tooltip, unless the
 // annotation sits in a dark-marked assembly, whose tooltip keeps the viz dark look. Other tooltips
@@ -487,11 +533,14 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
 // left alone; an annotation fill set by the author is not carried over (Bug #81352).
 $annotation-tooltip: ".hidden__annotation-tooltip:not(.widget__tooltip--dark), .vs-annotation__tooltip:not(.widget__tooltip--dark)";
 
-:root.shell-dark :is(#{$dashboard-content}, #{$annotation-tooltip}) {
+:root.shell-dark :is(#{$dashboard-content}, #{$annotation-tooltip}, #{$content-popup}) {
   color-scheme: light;
   // content inherits the body's text color, computed from the dark token before this point
   color: var(--inet-text-color);
   @include inet-runtime-tokens;
+  // the scroll bar color is inherited from <html>, computed there from the dark token, so it is
+  // declared again to compute from the light token below (same expression as _html-override.scss)
+  scrollbar-color: color-mix(in srgb, var(--inet-text-muted-color) 55%, transparent) transparent;
 
   // back to each component's light literal
   @each $role in $dark-only-tokens {
@@ -529,6 +578,7 @@ $annotation-tooltip: ".hidden__annotation-tooltip:not(.widget__tooltip--dark), .
   --bs-box-shadow-sm: #{$box-shadow-sm};
   --bs-box-shadow-lg: #{$box-shadow-lg};
   --bs-box-shadow-inset: #{$box-shadow-inset};
+  --bs-form-invalid-color: #{$form-invalid-color};
   @each $color, $value in $theme-colors-bg-subtle {
     --bs-#{$color}-bg-subtle: #{$value};
   }
@@ -538,7 +588,6 @@ $annotation-tooltip: ".hidden__annotation-tooltip:not(.widget__tooltip--dark), .
   @each $color, $value in $theme-colors-border-subtle {
     --bs-#{$color}-border-subtle: #{$value};
   }
-  --bs-navbar-toggler-icon-bg: #{escape-svg($navbar-light-toggler-icon-bg)};
 }
 
 // The legacy viz state tokens derive from shell tokens where :root declares them, so a dark shell
@@ -546,12 +595,12 @@ $annotation-tooltip: ".hidden__annotation-tooltip:not(.widget__tooltip--dark), .
 // the content root or any ancestor already declares its own (.viz-shell / .viz-shell-dark on body
 // for the org, .viz-modern / .viz-dark on a marked assembly such as the chart editor preview).
 $viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-theme=\"v2\"]";
-:root.shell-dark :is(#{$dashboard-content}):not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *) {
+:root.shell-dark :is(#{$dashboard-content}, #{$content-popup}):not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *) {
   @include inet-viz-legacy-state-tokens;
 }
 
 // the rules above whose dark value is not a token
-:where(.shell-dark) :where(#{$dashboard-content}) {
+:where(.shell-dark) :where(#{$dashboard-content}, #{$content-popup}) {
   .form-select {
     --bs-form-select-bg-img: #{escape-svg($form-select-indicator)};
   }
@@ -610,9 +659,23 @@ $viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-the
   }
 }
 
-// The annotation editor edits dashboard content: its text keeps the annotation's default black, so
-// the editing area keeps CKEditor's light default. An annotation background set by the author is
+// Every rich text editor edits authored content: an annotation, or an email message that is mailed
+// and read on white. Its text defaults to black and the author picks colors against white, so the
+// editing area keeps CKEditor's light defaults. An annotation background set by the author is
 // written inline on the wrapper and still wins. Toolbar, menus and inputs use their own variables.
-:where(.shell-dark) rich-text-dialog ckeditor-wrapper {
+:where(.shell-dark) ckeditor-wrapper {
   --ck-color-base-background: #fff;
+  --ck-color-engine-placeholder-text: hsl(0, 0%, 44%);
+  // the inner shadow of a focused editing area, CKEditor's default. --ck-inner-shadow is resolved
+  // on :root from the dark --ck-color-shadow-inner, so the shadow itself is declared again.
+  --ck-inner-shadow: 2px 2px 3px rgba(0, 0, 0, 0.1) inset;
+
+  // A link in the text takes the app's link color, which the dark shell makes too light for the
+  // white editing area: it keeps the light shell's colors. These are the build-time values, as
+  // dashboard content restores them; the dark block above has already replaced the runtime ones.
+  // The link balloon is attached to body and stays dark.
+  .ck-editor__editable {
+    --inet-link-color: #{$link-color};
+    --inet-link-hover-color: #{$link-hover-color};
+  }
 }

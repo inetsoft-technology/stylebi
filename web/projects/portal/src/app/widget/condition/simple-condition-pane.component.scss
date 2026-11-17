@@ -142,7 +142,7 @@
 
   &:hover {
     background: var(--inet-danger-color-light);
-    color: var(--inet-danger-color);
+    color: var(--inet-dark-danger-text-color, var(--inet-danger-color));
   }
 }
 

@@ -180,3 +180,62 @@
     color: #9C9E9E !important;
   }
 }
+
+// In a dark shell this sheet is the default script theme (ShellDarkMode). The rules below fix the
+// parts of the CodeMirror addons that the Darcula palette leaves on light-theme colors, so they
+// apply only there: a light shell whose administrator picked Darcula keeps today's look.
+:where(.shell-dark) {
+  .CodeMirror-hints.inetsoft, .CodeMirror-Tern-tooltip {
+    &, .CodeMirror-hint, .CodeMirror-hint-active {
+      color: #BBBFC4 !important;
+    }
+  }
+
+  // the selected completion, in Darcula's selection color (the text reads 5.2:1 on it)
+  .CodeMirror-hints.inetsoft .CodeMirror-hint-active {
+    background-color: #214283 !important;
+  }
+
+  // The addon sheets load after this one, so each selector carries two classes to outrank their
+  // silver border (the tooltip has no second class, so its own is repeated).
+  .CodeMirror-hints.inetsoft,
+  .CodeMirror-Tern-tooltip.CodeMirror-Tern-tooltip {
+    border-color: #4E5254;
+  }
+
+  .CodeMirror-Tern-tooltip {
+    .CodeMirror-Tern-fname {
+      color: #FFC66D;
+    }
+
+    .CodeMirror-Tern-farg {
+      color: #B9A0D0;
+    }
+
+    .CodeMirror-Tern-type {
+      color: #8DB8DE;
+    }
+
+    // the function help link is colored inline
+    a {
+      color: #8DB8DE !important;
+    }
+  }
+
+  // an error mark draws on the dark danger fill, and the gutter icon on the editor
+  .cm-s-inetsoft span.cm-error,
+  .cm-s-inetsoft .CodeMirror-gutter-elt .cm-error {
+    color: #F2A3A3;
+  }
+
+  // the search dialog is drawn inside the editor, so the theme class can scope it to outrank the
+  // addon sheet
+  .cm-s-inetsoft .CodeMirror-dialog-top {
+    border-bottom-color: #3B3E3F;
+  }
+
+  // the search hint is colored inline
+  .CodeMirror-search-hint {
+    color: #A9B7C6 !important;
+  }
+}
