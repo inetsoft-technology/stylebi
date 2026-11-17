@@ -165,6 +165,24 @@ public class GeoCoord extends Coordinate {
    }
 
    /**
+    * Check if a zoom below 1 may show more of the layer than the default view.
+    * @hidden
+    */
+   public boolean isZoomOutToLayer() {
+      return zoomOutToLayer;
+   }
+
+   /**
+    * Set if a zoom below 1 may show more of the layer than the default view, up to the
+    * bounds of every shape. Default is false, which keeps the zoom at least 1. Applies
+    * to a non-web map only.
+    * @hidden
+    */
+   public void setZoomOutToLayer(boolean zoomOutToLayer) {
+      this.zoomOutToLayer = zoomOutToLayer;
+   }
+
+   /**
     * Get the pan offset of x (lon).
     */
    public double getPanX() {
@@ -339,6 +357,8 @@ public class GeoCoord extends Coordinate {
       }
 
       lonlat = new Rectangle2D.Double(xmin, ymin, xmax - xmin, ymax - ymin);
+      Rectangle2D layer = zoomOutToLayer && zoom != 1 && !isWebMap()
+         ? getLayerBounds(dset, xpair, ypair) : null;
 
       // apply user set extent
       if(!Double.isNaN(this.minX)) {
@@ -395,15 +415,21 @@ public class GeoCoord extends Coordinate {
 
       // apply zoom in projected space
       if(zoom != 1) {
-         // if not web map, makes no sense to zoom out from the default (complete) view.
-         if(!isWebMap()) {
-            zoom = Math.max(1, zoom);
-         }
-
          double cx = (xmin + xmax) / 2;
          double cy = (ymin + ymax) / 2;
          double rx = (xmax - xmin) / 2;
          double ry = (ymax - ymin) / 2;
+
+         // zoom out up to the layer, never in
+         if(layer != null && layer.getWidth() > 0 && layer.getHeight() > 0) {
+            double layerRx = layer.getWidth() / 2;
+            double layerRy = layer.getHeight() / 2;
+            zoom = Math.max(zoom, Math.min(1, Math.max(rx / layerRx, ry / layerRy)));
+         }
+         // if not web map, makes no sense to zoom out from the default (complete) view.
+         else if(!isWebMap()) {
+            zoom = Math.max(1, zoom);
+         }
 
          // don't zoom out too much. mapbox x range is -360 to 360,
          // and y (projected) range is -180 to 180.
@@ -588,6 +614,67 @@ public class GeoCoord extends Coordinate {
       // web map layout.
       Rectangle2D bounds = getCoordBounds();
       return bounds != null && (initW != bounds.getWidth() || initH != bounds.getHeight());
+   }
+
+   /**
+    * Get the projected bounds of every shape in the layer and of the points, or of the
+    * projection when there are no shapes.
+    */
+   private Rectangle2D getLayerBounds(DataSet dset, double[] xpair, double[] ypair) {
+      double xmin = Double.MAX_VALUE;
+      double xmax = -Double.MAX_VALUE;
+      double ymin = Double.MAX_VALUE;
+      double ymax = -Double.MAX_VALUE;
+      int cnt = dset instanceof GeoDataSet ? ((GeoDataSet) dset).getFullRowCount()
+         : dset.getRowCount();
+
+      for(int c = 0; c < dset.getColCount(); c++) {
+         String field = dset.getHeader(c);
+
+         if(!GeoShape.class.equals(dset.getType(field))) {
+            continue;
+         }
+
+         for(int i = 0; i < cnt; i++) {
+            GeoShape feature = (GeoShape) dset.getData(field, i);
+
+            if(feature != null) {
+               Rectangle2D bounds = feature.getBounds();
+               xmin = Math.min(xmin, bounds.getMinX());
+               ymin = Math.min(ymin, bounds.getMinY());
+               xmax = Math.max(xmax, bounds.getMaxX());
+               ymax = Math.max(ymax, bounds.getMaxY());
+            }
+         }
+      }
+
+      if(xmin == Double.MAX_VALUE) {
+         xmin = projection.getXMin();
+         xmax = projection.getXMax();
+         ymin = projection.getYMin();
+         ymax = projection.getYMax();
+      }
+      else {
+         if(!isEmptyPair(xpair)) {
+            xmin = Math.min(xmin, xpair[0]);
+            xmax = Math.max(xmax, xpair[1]);
+         }
+
+         if(!isEmptyPair(ypair)) {
+            ymin = Math.min(ymin, ypair[0]);
+            ymax = Math.max(ymax, ypair[1]);
+         }
+
+         xmin = Math.max(xmin, projection.getXMin());
+         xmax = Math.min(xmax, projection.getXMax());
+         ymin = Math.max(ymin, projection.getYMin());
+         ymax = Math.min(ymax, projection.getYMax());
+      }
+
+      Point2D min = project(xmin, ymin);
+      Point2D max = project(xmax, ymax);
+      return new Rectangle2D.Double(min.getX(), min.getY(), max.getX() - min.getX(),
+                                    max.getY() - min.getY());
    }
 
    /**
@@ -905,7 +992,7 @@ public class GeoCoord extends Coordinate {
 
       GeoCoord coord = (GeoCoord) obj;
       return projection.getClass().equals(coord.projection.getClass()) &&
-         fullmap == coord.fullmap;
+         fullmap == coord.fullmap && zoomOutToLayer == coord.zoomOutToLayer;
    }
 
    public WebMapService getWebMapService() {
@@ -945,6 +1032,7 @@ public class GeoCoord extends Coordinate {
    private double maxX = Double.NaN;
    private double maxY = Double.NaN;
    private double zoom = 1;
+   private boolean zoomOutToLayer = false;
    private double panX, panY;
    private double padding = 0;
    private Rectangle2D lonlat;
