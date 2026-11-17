@@ -370,7 +370,7 @@ public class ActionPermissionService {
 
          if(catalog.getString("Dashboard").equals(name)) {
             builder.addFilteredChildren(ActionTreeNode.builder()
-                                           .label(name)
+                                           .label(catalog.getString("Pinboard"))
                                            .resource("*")
                                            .folder(false)
                                            .grant(false)

@@ -15,7 +15,7 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<w-standard-dialog [title]="isNew ? '_#(New Pin)' : '_#(Edit Dashboard)'"
+<w-standard-dialog [title]="isNew ? '_#(New Pin)' : '_#(Edit Pin)'"
   (onClose)="closeDialog()"
   [cshid]="'DeployingDashboard'"
   [submitOnEnter]="isValid"
@@ -28,10 +28,10 @@
             <div class="form-group form-row one-col-form-flex">
               <div class="form-floating col">
                 <input class="form-control dashboard_name_id" type="text" trim [(ngModel)]="name" [formControl]="nameControl"
-                  placeholder="_#(Dashboard Name)"
+                  placeholder="_#(Pin Name)"
                   defaultFocus [autoSelect]="false" aria-required="true"
                   [class.is-invalid]="!nameControl.valid && nameControl.dirty">
-                <label>_#(Dashboard Name)</label>
+                <label>_#(Pin Name)</label>
                 @if (nameControl.getError('required')) {
                   <span class="invalid-feedback">
                     _#(enter.name)
@@ -54,10 +54,10 @@
             </div>
           </div>
           <fieldset>
-            <legend>_#(Select Viewsheet)</legend>
+            <legend>_#(Select Pin)</legend>
           </fieldset>
           <div class="form-group select-viewsheet bd-gray">
-            <span class="visually-hidden" role="heading" aria-required="true" aria-label="_#(Select Viewsheet)"></span>
+            <span class="visually-hidden" role="heading" aria-required="true" aria-label="_#(Select Pin)"></span>
             <repository-tree #repositoryTree class="repository-tree"
               [root]="rootNode" [selector]="selector"
               [isReport]="false" [showVS]="true"

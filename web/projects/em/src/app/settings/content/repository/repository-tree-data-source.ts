@@ -527,7 +527,7 @@ export class RepositoryTreeDataSource
       if(!states.newDashboardDisabled) {
          items.push({
             name: "new-dashboard",
-            label: "_#(js:New Dashboard)",
+            label: "_#(js:New Pin)",
             disabled: () => false
          });
       }
