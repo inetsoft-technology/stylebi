@@ -17,7 +17,6 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
-import inetsoft.graph.GraphConstants;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -1300,22 +1299,11 @@ public class ChartTargetLineService {
    private static final String QUANTILES = "Quantiles";
    private static final String PERCENTAGE = "Percentage";
 
-   /** The {@code GraphConstants} line styles, named. Insertion order is the listed order. */
-   static final Map<String, Integer> LINE_STYLES;
-
-   static {
-      Map<String, Integer> styles = new LinkedHashMap<>();
-      styles.put("ultra_thin", GraphConstants.ULTRA_THIN_LINE);
-      styles.put("thin_thin", GraphConstants.THIN_THIN_LINE);
-      styles.put("thin", GraphConstants.THIN_LINE);
-      styles.put("medium", GraphConstants.MEDIUM_LINE);
-      styles.put("thick", GraphConstants.THICK_LINE);
-      styles.put("dotted", GraphConstants.DOT_LINE);
-      styles.put("dashed", GraphConstants.DASH_LINE);
-      styles.put("medium_dash", GraphConstants.MEDIUM_DASH);
-      styles.put("large_dash", GraphConstants.LARGE_DASH);
-      LINE_STYLES = Collections.unmodifiableMap(styles);
-   }
+   /**
+    * The {@code GraphConstants} line styles, named. Insertion order is the listed order. The
+    * names are shared with the shape line styles, see {@link LineStyleNames}.
+    */
+   static final Map<String, Integer> LINE_STYLES = LineStyleNames.CHART;
 
    private final ViewsheetSessionService sessions;
    private final ChartPropertyDialogService chartService;

@@ -3720,6 +3720,181 @@ class AssemblyPropertyServiceTest {
       assertEquals(Boolean.TRUE, options.get(1).get("builtIn"));
    }
 
+   // ── named options for every closed-vocabulary property (bug #81539) ──────────
+   //
+   // list reports a closed int enum as a bare int; options ({value, label, stored}) carry the name
+   // to write and the int it reads back as, keyed by resolved path like the write side.
+
+   /** The {@code value -> stored} of a listed property's options, in listed order. */
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> optionStored(
+      AssemblyPropertyService service, String assembly, String alias) throws Exception
+   {
+      List<Map<String, Object>> properties =
+         (List<Map<String, Object>>) service.list("tok", principal(), assembly).get("properties");
+      Map<String, Object> property = properties.stream()
+         .filter(p -> alias.equals(p.get("name"))).findFirst().orElseThrow();
+      List<Map<String, Object>> options = (List<Map<String, Object>>) property.get("options");
+      assertNotNull(options, alias + " carries no options");
+      Map<String, Object> stored = new LinkedHashMap<>();
+
+      for(Map<String, Object> option : options) {
+         assertNotNull(option.get("label"), alias + " " + option);
+         assertNull(stored.put((String) option.get("value"), option.get("stored")),
+                    alias + " lists " + option.get("value") + " twice");
+      }
+
+      return stored;
+   }
+
+   @Test
+   void listNamesShowTypeByTheAssemblyItIsOn() throws Exception {
+      Map<String, Object> list = optionStored(
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class),
+                                  new SelectionListPropertyDialogModel()),
+         "Selection1", "showType");
+      Map<String, Object> calendar = optionStored(
+         serviceWithCalendar(mock(CalendarVSAssembly.class), new CalendarPropertyDialogModel()),
+         "Calendar1", "showType");
+
+      assertEquals(Map.of("list", 0, "dropdown", 1), list);
+      assertEquals(Map.of("calendar", 1, "dropdown", 2), calendar);
+   }
+
+   @Test
+   void listNamesViewModeAndSelectionSortTypeAndTreeMode() throws Exception {
+      assertEquals(Map.of("single", 1, "double", 2),
+                   optionStored(serviceWithCalendar(mock(CalendarVSAssembly.class),
+                                                    new CalendarPropertyDialogModel()),
+                                "Calendar1", "viewMode"));
+      // One option per distinct int: the write-side aliases (unsorted, ascending, ...) are not listed.
+      assertEquals(List.of("none", "asc", "desc", "specific"),
+                   List.copyOf(optionStored(
+                      serviceWithSelectionList(mock(SelectionListVSAssembly.class),
+                                               new SelectionListPropertyDialogModel()),
+                      "Selection1", "sortType").keySet()));
+      assertEquals(List.of("column", "id"),
+                   List.copyOf(optionStored(
+                      serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class),
+                                               new SelectionTreePropertyDialogModel()),
+                      "SelectionTree1", "mode").keySet()));
+   }
+
+   @Test
+   void listNamesTheChartLineStylesAndOnlyTrendLineHasDefault() throws Exception {
+      AssemblyPropertyService service =
+         serviceWith(mock(ChartVSAssembly.class), new ChartPropertyDialogModel());
+      Map<String, Object> grid = optionStored(service, "Chart1", "xGridLineStyle");
+      Map<String, Object> trend = optionStored(service, "Chart1", "trendLineStyle");
+
+      assertEquals(0, grid.get("none"));
+      assertEquals(GraphConstants.DASH_LINE, grid.get("dashed"));
+      assertEquals(GraphConstants.DOT_LINE, grid.get("dotted"));
+      assertEquals(10, grid.size());
+      assertNull(grid.get("default"));
+      assertEquals(-1, trend.get("default"));
+      assertEquals(GraphConstants.MEDIUM_LINE, trend.get("medium"));
+      assertEquals(GraphConstants.THIN_LINE,
+                   optionStored(service, "Chart1", "diagonalLineStyle").get("thin"));
+      assertEquals(GraphConstants.THICK_LINE,
+                   optionStored(service, "Chart1", "quadrantGridLineStyle").get("thick"));
+      assertEquals(GraphConstants.DASH_LINE,
+                   optionStored(service, "Chart1", "yGridLineStyle").get("dashed"));
+   }
+
+   /** A stored value no option names (a saved asset's) is still returned as is. */
+   @Test
+   @SuppressWarnings("unchecked")
+   void listKeepsAnUnnamedStoredValueAlongsideTheOptions() throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      model.getChartLinePaneModel().setxGridLineStyle(999);
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+      Map<String, Object> property =
+         ((List<Map<String, Object>>) service.list("tok", principal(), "Chart1")
+            .get("properties")).stream()
+            .filter(p -> "xGridLineStyle".equals(p.get("name"))).findFirst().orElseThrow();
+
+      assertEquals(999, property.get("value"));
+      assertFalse(((Map<String, Object>) optionStored(service, "Chart1", "xGridLineStyle"))
+                     .containsValue(999));
+   }
+
+   @Test
+   void listNamesTheOutputMagnitudeWithAsIsFirst() throws Exception {
+      GaugePropertyDialogModel gauge = gaugeBoundTo("Table1", "Total");
+      AssemblyPropertyService service = pr3Output(
+         gauge, mock(GaugeVSAssembly.class), "Table1", columnsWithType("Total", XSchema.DOUBLE));
+
+      assertEquals(Map.of("as is", 1, "thousands", 1000, "millions", 1000000,
+                          "billions", 1000000000),
+                   optionStored(service, "Gauge1", "magnitude"));
+   }
+
+   @Test
+   void listNamesTheShapeLineStyleByTheTokenItReadsBackAs() throws Exception {
+      Map<String, Object> line = optionStored(
+         serviceWithShape(mock(LineVSAssembly.class), new LinePropertyDialogModel()),
+         "Line1", "lineStyle");
+      Map<String, Object> rectangle = optionStored(
+         serviceWithShape(mock(RectangleVSAssembly.class), new RectanglePropertyDialogModel()),
+         "Rectangle1", "lineStyle");
+      Map<String, Object> oval = optionStored(
+         serviceWithShape(mock(OvalVSAssembly.class), new OvalPropertyDialogModel()),
+         "Oval1", "lineStyle");
+
+      assertEquals("DASH_LINE", line.get("dashed"));
+      assertEquals("DOT_LINE", line.get("dotted"));
+      assertEquals("DOUBLE_LINE", line.get("double"));
+      // A no-line shape reads back as NO_BORDER although NONE is what is written.
+      assertEquals("NO_BORDER", line.get("none"));
+      assertEquals(line, rectangle);
+      assertEquals(line, oval);
+   }
+
+   /** The natural names a shape accepts are the ones its options list: write one, read it back. */
+   @Test
+   void shapeLineStyleOptionsAreAcceptedOnWriteAndReadBackAsStored() throws Exception {
+      for(Map.Entry<String, Object> option : optionStored(
+         serviceWithShape(mock(LineVSAssembly.class), new LinePropertyDialogModel()),
+         "Line1", "lineStyle").entrySet())
+      {
+         LinePropertyDialogModel model = new LinePropertyDialogModel();
+         AssemblyPropertyService service = serviceWithShape(mock(LineVSAssembly.class), model);
+
+         service.set("tok", principal(), "Line1", Map.of("lineStyle", option.getKey()), "");
+
+         assertEquals("none".equals(option.getKey()) ? "NONE" : option.getValue(),
+                      model.getLinePropertyPaneModel().getLinePropPaneModel().getStyle(),
+                      option.getKey());
+      }
+   }
+
+   /** A Line/Oval/Rectangle service whose dialog service hands back {@code model}. */
+   private static AssemblyPropertyService serviceWithShape(VSAssembly assembly, Object model) {
+      AssemblyPropertyService service = serviceWith(assembly, model);
+
+      try {
+         if(model instanceof LinePropertyDialogModel line) {
+            when(lastLine.getLinePropertyDialogModel(anyString(), anyString(),
+                                                     any(Principal.class))).thenReturn(line);
+         }
+         else if(model instanceof RectanglePropertyDialogModel rectangle) {
+            when(lastRectangle.getRectanglePropertyDialogModel(anyString(), anyString(),
+                                                               any(Principal.class)))
+               .thenReturn(rectangle);
+         }
+         else if(model instanceof OvalPropertyDialogModel oval) {
+            when(lastOval.getOvalPropertyDialogModel(anyString(), anyString(),
+                                                     any(Principal.class))).thenReturn(oval);
+         }
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return service;
+   }
+
    /** Clearing the style (empty string) is a legitimate "no style" request, not a dangling name. */
    @Test
    void allowsClearingTableStyleToEmpty() throws Exception {
