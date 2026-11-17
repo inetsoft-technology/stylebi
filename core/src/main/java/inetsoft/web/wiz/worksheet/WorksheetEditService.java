@@ -838,11 +838,29 @@ public class WorksheetEditService {
             List<String> ownReferences = dedupe(
                WorksheetControllerService.findOwnColumnReferences(t, cr));
 
+            // Bug #81523: a variable's query picker (table + value/label column) reads the
+            // column too, but the downstream walker above skips every non-table dependent.
+            List<String> pickerVariables = findVariablePickersReading(ws, table, cr);
+
             if(!aggregateConflicts.isEmpty() || !referenceConflicts.isEmpty() ||
-               !ownReferences.isEmpty())
+               !ownReferences.isEmpty() || !pickerVariables.isEmpty())
             {
-               throw new PairingException(describeRemoveColumnConflicts(
-                  table, ownReferences, aggregateConflicts, referenceConflicts));
+               String message = describeRemoveColumnConflicts(
+                  table, ownReferences, aggregateConflicts, referenceConflicts);
+
+               if(!pickerVariables.isEmpty()) {
+                  message = "Removing column '" + col + "' from table '" + table + "' would " +
+                     "leave the choices picker of variable(s) " +
+                     String.join(", ", pickerVariables.stream()
+                        .map(v -> "'" + v + "'").toList()) +
+                     " pointing at a column that no longer exists. " +
+                     (aggregateConflicts.isEmpty() && referenceConflicts.isEmpty() &&
+                        ownReferences.isEmpty() ?
+                        "Confirm with the user before retrying with confirmed:true. Nothing was " +
+                           "changed." : message);
+               }
+
+               throw new PairingException(message);
             }
          }
 
@@ -870,6 +888,41 @@ public class WorksheetEditService {
             WorksheetMutationSupport.renameSecondaryAggregateColumn(
                t, removed.getAttribute(), null);
          }
+      }
+
+      /**
+       * Names of the variables whose query-mode choices picker reads {@code ref} of
+       * {@code table} as its value or label column (Bug #81523).
+       */
+      private static List<String> findVariablePickersReading(Worksheet ws, String table,
+                                                             ColumnRef ref)
+      {
+         List<String> names = new ArrayList<>();
+
+         for(Assembly a : ws.getAssemblies()) {
+            if(!(a instanceof DefaultVariableAssembly va) || va.getVariable() == null) {
+               continue;
+            }
+
+            AssetVariable var = va.getVariable();
+
+            if(!table.equals(var.getTableName())) {
+               continue;
+            }
+
+            if(pickerAttributeMatches(var.getValueAttribute(), ref) ||
+               pickerAttributeMatches(var.getLabelAttribute(), ref))
+            {
+               names.add(va.getName());
+            }
+         }
+
+         return names;
+      }
+
+      private static boolean pickerAttributeMatches(DataRef attr, ColumnRef ref) {
+         return attr != null && attr.getAttribute() != null &&
+            attr.getAttribute().equals(ref.getAttribute());
       }
 
       private static List<String> dedupe(List<String> references) {
