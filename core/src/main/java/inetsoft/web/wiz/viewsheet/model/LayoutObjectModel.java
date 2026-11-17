@@ -42,9 +42,13 @@ package inetsoft.web.wiz.viewsheet.model;
  * {@code PrintInfo} has never been configured (mirroring {@link LayoutModel#printSettings()}'s
  * own null-vs-zeroed convention, rather than a sentinel int that could be mistaken for a real
  * page).
+ *
+ * <p>{@code text} is the content of a layout-only text object (one that exists only inside this
+ * layout, such as a header/footer caption) -- {@code null} for every other object.
  */
 public record LayoutObjectModel(String name, int layoutX, int layoutY, int layoutWidth,
                                 int layoutHeight, int viewsheetX, int viewsheetY,
                                 int viewsheetWidth, int viewsheetHeight,
-                                boolean supportsTableLayout, int tableLayout, Integer pageIndex) {
+                                boolean supportsTableLayout, int tableLayout, Integer pageIndex,
+                                String text) {
 }

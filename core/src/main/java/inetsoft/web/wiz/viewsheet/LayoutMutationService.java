@@ -172,6 +172,20 @@ public class LayoutMutationService {
             "edit_layout_objects needs at least one object in \"objects\".");
       }
 
+      // Bug 81554: a header/footer band exists only on a print layout. Refuse before any layout
+      // session is touched, rather than silently editing the device layout's single object list.
+      if(region != VSLayoutService.CONTENT) {
+         AbstractLayout target = requireLayout(viewsheetSessions.resolve(sessionToken, agent),
+                                               layoutName);
+
+         if(!(target instanceof PrintLayout)) {
+            throw new IllegalArgumentException(
+               "edit_layout_objects: area \"" + areaName(region) + "\" applies only to the " +
+               "print layout -- \"" + layoutName + "\" is a device layout and has no header " +
+               "or footer.");
+         }
+      }
+
       // Bug 78755: convert/validate all geometry before any layout session is touched, so a
       // refused call has no side effect (no focus switch, no undo reset, no half-applied list).
       if(OP_MOVE_RESIZE.equals(op) || OP_ADD.equals(op)) {
@@ -548,6 +562,13 @@ public class LayoutMutationService {
 
          int type = parseAssetType(object.get("type"), name);
 
+         if(type == AbstractSheet.PAGEBREAK_ASSET && region != VSLayoutService.CONTENT) {
+            throw new IllegalArgumentException(
+               "edit_layout_objects add: a pagebreak cannot be placed in the " +
+               areaName(region) + " of \"" + layoutName + "\" -- it splits the printable body " +
+               "into pages, so it belongs in the content area.");
+         }
+
          if(object.containsKey("text") && type != AbstractSheet.TEXT_ASSET) {
             throw new IllegalArgumentException(
                "edit_layout_objects add: \"" + name + "\" is not a text object -- " +
@@ -575,6 +596,31 @@ public class LayoutMutationService {
    private static boolean hasPrintPageSize(AbstractLayout layout) {
       return layout instanceof PrintLayout print &&
          VSLayoutService.getPrintPageSize(print) != null;
+   }
+
+   /**
+    * Bug 81554: the region an {@code edit_layout_objects} {@code area} names. Omitted/blank and
+    * {@code "content"} (alias {@code "body"}) are the printable body; anything else is refused
+    * naming the field rather than falling back to the body.
+    */
+   public static int regionForArea(String area) {
+      if(area == null || area.isBlank()) {
+         return VSLayoutService.CONTENT;
+      }
+
+      return switch(area.trim().toLowerCase()) {
+         case "header" -> VSLayoutService.HEADER;
+         case "footer" -> VSLayoutService.FOOTER;
+         case "content", "body" -> VSLayoutService.CONTENT;
+         default -> throw new IllegalArgumentException(
+            "edit_layout_objects: 'area' must be \"header\", \"footer\" or \"content\" -- got \"" +
+            area + "\".");
+      };
+   }
+
+   private static String areaName(int region) {
+      return region == VSLayoutService.HEADER ? "header" :
+         region == VSLayoutService.FOOTER ? "footer" : "content";
    }
 
    private static String regionName(int region) {

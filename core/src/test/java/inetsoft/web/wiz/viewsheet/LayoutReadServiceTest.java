@@ -23,6 +23,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.model.vs.ScreensPaneModel;
@@ -209,6 +210,39 @@ class LayoutReadServiceTest {
          .filter(o -> "Text1".equals(o.name())).findFirst().orElseThrow();
       assertNull(text.pageIndex(),
                  "no PrintInfo means page size can't be computed -- null, not a sentinel int");
+   }
+
+   @Test
+   void getReportsHeaderAndFooterObjectsWithTheirTextAndNoPageIndex() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      PrintLayout print = fx.masterVs.getLayoutInfo().getPrintLayout();
+      TextVSAssemblyInfo info = new TextVSAssemblyInfo();
+      info.setTextValue("{P} / {N}");
+      print.setFooterLayouts(new ArrayList<>(List.of(new VSEditableAssemblyLayout(
+         info, "PageNo", new Point(5, 2), new Dimension(100, 20)))));
+
+      LayoutModel model = fx.service.get("tok1", AGENT, PRINT_LAYOUT);
+
+      assertTrue(model.headerObjects().isEmpty());
+      assertEquals(1, model.footerObjects().size());
+      LayoutObjectModel footer = model.footerObjects().get(0);
+      assertEquals("PageNo", footer.name());
+      assertEquals("{P} / {N}", footer.text());
+      assertNull(footer.pageIndex(), "a header/footer band has no pages");
+      assertEquals(2, model.objects().size(), "the body list is unchanged");
+      assertNull(model.objects().get(0).text(), "a master assembly carries no layout-only text");
+   }
+
+   @Test
+   void getReportsNoHeaderOrFooterListForADeviceLayout() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installDeviceLayoutWithObject("Phone", "Text1");
+
+      LayoutModel model = fx.service.get("tok1", AGENT, "Phone");
+
+      assertNull(model.headerObjects());
+      assertNull(model.footerObjects());
    }
 
    @Test
