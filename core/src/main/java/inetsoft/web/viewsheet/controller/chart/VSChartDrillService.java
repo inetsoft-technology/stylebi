@@ -66,14 +66,20 @@ public class VSChartDrillService extends VSChartControllerService<VSChartDrillEv
                             Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
-      processEvent(runtimeId, event, principal, linkUri, dispatcher, chartState -> {
-         try {
-            return doDrill(event, chartState, dispatcher, principal);
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
-      });
+      try {
+         processEvent(runtimeId, event, principal, linkUri, dispatcher, chartState -> {
+            try {
+               return doDrill(event, chartState, dispatcher, principal);
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+         });
+      }
+      finally {
+         // complete() has refreshed every chart the drill touched by now
+         VSChartDrillHandler.disarmLegendCountGuards(viewsheetService, runtimeId, principal);
+      }
 
       return null;
    }

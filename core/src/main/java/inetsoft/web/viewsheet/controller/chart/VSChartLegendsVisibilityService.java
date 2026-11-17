@@ -211,9 +211,7 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
 
       LegendsDescriptor legendsDescriptor = chartDescriptor.getLegendsDescriptor();
 
-      if(legendsDescriptor.getLayout() == LegendsDescriptor.NO_LEGEND) {
-         legendsDescriptor.setLayout(LegendsDescriptor.RIGHT);
-      }
+      restoreLegendLayout(info, legendsDescriptor);
 
       try {
          vsObjectPropertyService.editObjectProperty(
@@ -222,6 +220,23 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
       }
       catch(Exception ex) {
          throw new RuntimeException(ex);
+      }
+   }
+
+   // a marked chart takes its type's position and a fresh count; a classic one the right edge
+   static void restoreLegendLayout(ChartVSAssemblyInfo info, LegendsDescriptor legendsDescriptor) {
+      if(legendsDescriptor.getLayout() != LegendsDescriptor.NO_LEGEND) {
+         return;
+      }
+
+      if(info.getVizMark() != null) {
+         legendsDescriptor.setUserLayout(false);
+         info.reseedLegendPlacement();
+         info.reseedLegendTitles();
+         info.requestLegendCount();
+      }
+      else {
+         legendsDescriptor.setLayout(LegendsDescriptor.RIGHT);
       }
    }
 

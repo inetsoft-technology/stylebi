@@ -22,9 +22,12 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
@@ -145,6 +148,8 @@ public class ModernCopyService {
          assetRepository.clearVSBookmark(copy);
          VizModernizeUtil.resetToModern(vs);
          vs.getViewsheetInfo().setModernCopyOf(original.toIdentifier());
+         // the save comes before any composer draw, so the counts the reset asked for go first
+         countLegends(rvs, vs);
          composerViewsheetService.saveViewsheet(runtimeId, new SaveSheetEvent(), principal,
                                                 saveDispatcher, linkUri);
       }
@@ -202,6 +207,49 @@ public class ModernCopyService {
 
       if(check.isExists()) {
          throw refused(catalog.getString("composer.vs.modernize.nameExists"));
+      }
+   }
+
+   /**
+    * Draws each chart waiting for a legend count, as the composer would, so its verdict is saved.
+    */
+   private static void countLegends(RuntimeViewsheet rvs, Viewsheet vs) {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+      // only a composer draw of real rows takes a count
+      if(box == null || vs.getViewsheetInfo().isMetadata() ||
+         box.getMode() != Viewsheet.SHEET_DESIGN_MODE)
+      {
+         return;
+      }
+
+      for(Assembly assembly : vs.getAssemblies(true)) {
+         if(!(assembly instanceof ChartVSAssembly chart) ||
+            !(chart.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo info) ||
+            info.isEmbedded() || !info.needsLegendCount())
+         {
+            continue;
+         }
+
+         String name = chart.getAbsoluteName();
+
+         try {
+            // a pair drawn before the reset would skip the count
+            box.clearGraph(name);
+            box.getVGraphPair(name);
+         }
+         catch(Exception ex) {
+            if(ex instanceof InterruptedException) {
+               Thread.currentThread().interrupt();
+            }
+
+            // the count stays pending for the composer's draw
+            LOG.debug("Failed to count the legend of {}", name, ex);
+         }
+         finally {
+            // no pair outlives a failed copy
+            box.clearGraph(name);
+         }
       }
    }
 

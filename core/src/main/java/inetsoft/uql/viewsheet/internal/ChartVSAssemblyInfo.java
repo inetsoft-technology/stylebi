@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
@@ -114,6 +115,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // super seeded the title composite this method just replaced; re-run against the real one.
       // The hook is a set of unconditional writes, so running it twice changes nothing else
       seedChromeDefaults(VizContext.of(this));
+      requestLegendCount();
    }
 
    @Override
@@ -229,6 +231,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedLegendBorder(getChartDescriptor(), ctx);
       // a script-made runtime copy, which the render prefers; its user tier stays
       seedLegendBorder(getRTChartDescriptor(), ctx);
+      seedLegendAlignment(getChartDescriptor(), ctx);
+      seedLegendAlignment(getRTChartDescriptor(), ctx);
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here
       seedColorPalette(ctx);
@@ -238,6 +242,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       ResolvedChartType now = ResolvedChartType.of(getVSChartInfo());
       seedTypeDefaults(ctx, now);
       seededType = now;
+      seededLegendKey = VSChartTypeDefaults.legendBindingKey(getVSChartInfo());
    }
 
    @Override
@@ -427,6 +432,16 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       if(legends != null) {
          legends.setBorder(VSChartChromeDefaults.legendBorder(ctx, legends.getLayout()),
                            CompositeValue.Type.DEFAULT);
+      }
+   }
+
+   // a modern top or bottom legend starts at the plot's left edge; unset is today's layout
+   private static void seedLegendAlignment(ChartDescriptor desc, VizContext ctx) {
+      LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
+
+      if(legends != null) {
+         legends.setAlignment(ctx.modern ? GraphConstants.LEFT_ALIGNMENT : 0,
+                              CompositeValue.Type.DEFAULT);
       }
    }
 
@@ -1684,6 +1699,10 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             }
          }
 
+         // a clone never carries a guard armed mid-drill
+         info.drillCountGuard = false;
+         info.drillCountPending = false;
+
          return info;
       }
       catch(Exception ex) {
@@ -1720,6 +1739,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" userBarCornerRadius=\"" + isUserBarCornerRadius() + "\"");
       DerivedUserFlag.write(writer, "userSmoothLines", isUserSmoothLines(),
                             derivedUserSmoothLines());
+
+      // a reverted chart writes no verdict
+      if(legendCrowded && getVizMark() != null) {
+         writer.print(" legendCrowded=\"true\"");
+      }
 
       if(cubeType != null) {
          writer.print(" cubeType=\"" + cubeType + "\"");
@@ -2054,6 +2078,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // after the plot and the chart info, as the derivation reads both
       userSmoothLines = DerivedUserFlag.parse(Tool.getAttribute(elem, "userSmoothLines"),
                                               derivedUserSmoothLines());
+      legendCrowded = "true".equals(Tool.getAttribute(elem, "legendCrowded"));
    }
 
    /**
@@ -2070,8 +2095,17 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          desc = ninfo.desc;
          // the key travels with the values, so the next update re-seeds a mismatch
          seededType = ninfo.seededType;
+         seededLegendKey = ninfo.seededLegendKey;
          result = true;
       }
+
+      if(legendCrowded != ninfo.legendCrowded) {
+         legendCrowded = ninfo.legendCrowded;
+         result = true;
+      }
+
+      // a copy never loses a request
+      legendCountPending = legendCountPending || ninfo.legendCountPending;
 
       if(!Tool.equalsContent(rdesc, ninfo.rdesc)) {
          rdesc = ninfo.rdesc;
@@ -3161,6 +3195,63 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Whether the legend's entry count last measured as crowded.
+    */
+   public boolean isLegendCrowded() {
+      return legendCrowded;
+   }
+
+   public void setLegendCrowded(boolean legendCrowded) {
+      this.legendCrowded = legendCrowded;
+   }
+
+   /**
+    * Ask for the next draw to count the legend's entries.
+    */
+   public void requestLegendCount() {
+      legendCountPending = true;
+   }
+
+   public void clearLegendCountPending() {
+      legendCountPending = false;
+   }
+
+   public boolean isLegendCountPending() {
+      return legendCountPending;
+   }
+
+   /**
+    * Whether a count is pending on a marked chart whose legend position is not the author's.
+    */
+   public boolean needsLegendCount() {
+      LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
+      return legendCountPending && getVizMark() != null && legends != null &&
+         !legends.isUserLayout();
+   }
+
+   /**
+    * Save a legend count's verdict and re-seed the legend position and titles from it.
+    * @return true when the design legend layout changed.
+    */
+   public boolean applyLegendCount(boolean crowded) {
+      // only a marked chart keeps a verdict
+      if(getVizMark() == null) {
+         return false;
+      }
+
+      LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
+      int layout = legends == null ? 0 : legends.getLayout();
+      VizContext ctx = VizContext.of(this);
+
+      setLegendCrowded(crowded);
+      clearLegendCountPending();
+      seedLegendPlacement(ctx, ResolvedChartType.of(getVSChartInfo()));
+      seedLegendTitles(ctx);
+
+      return legends != null && legends.getLayout() != layout;
+   }
+
+   /**
     * The key the per-type seed last ran for, or null before the first observation.
     */
    public ResolvedChartType getSeededType() {
@@ -3168,6 +3259,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    protected void seedTypeDefaults(VizContext ctx, ResolvedChartType type) {
+      seedLegendPlacement(ctx, type);
+      seedLegendTitles(ctx);
       // values that depend on the resolved type; written on both branches
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
@@ -3352,6 +3445,79 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       plot.setSmoothLines(smooth);
    }
 
+   // writes the position while the author has not chosen one; legacy keeps the classic right
+   private void seedLegendPlacement(VizContext ctx, ResolvedChartType type) {
+      int layout = ctx.modern ?
+         VSChartTypeDefaults.legendLayout(type, VSChartTypeDefaults.colorRamp(getVSChartInfo()),
+                                          isLegendCrowded()) : LegendsDescriptor.RIGHT;
+
+      for(ChartDescriptor chartDesc : new ChartDescriptor[] { desc, rdesc }) {
+         LegendsDescriptor legends = chartDesc == null ? null : chartDesc.getLegendsDescriptor();
+
+         if(legends != null && !legends.isUserLayout()) {
+            legends.setLayout(layout);
+         }
+      }
+   }
+
+   /**
+    * Re-run the legend position seed for the current resolved type, on a marked chart only.
+    */
+   public void reseedLegendPlacement() {
+      if(getVizMark() != null) {
+         seedLegendPlacement(VizContext.of(this), ResolvedChartType.of(getVSChartInfo()));
+      }
+   }
+
+   // hides the title of a modern top or bottom legend unless the author chose its visibility
+   private void seedLegendTitles(VizContext ctx) {
+      LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
+
+      if(legends == null) {
+         return;
+      }
+
+      int layout = legends.getLayout();
+      boolean visible = !ctx.modern || layout != LegendsDescriptor.TOP &&
+         layout != LegendsDescriptor.BOTTOM;
+      Set<LegendDescriptor> all = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(ChartDescriptor chartDesc : new ChartDescriptor[] { desc, rdesc }) {
+         LegendsDescriptor ld = chartDesc == null ? null : chartDesc.getLegendsDescriptor();
+
+         if(ld != null) {
+            all.add(ld.getColorLegendDescriptor());
+            all.add(ld.getShapeLegendDescriptor());
+            all.add(ld.getSizeLegendDescriptor());
+         }
+      }
+
+      VSChartInfo vinfo = getVSChartInfo();
+
+      if(vinfo != null) {
+         for(boolean runtime : new boolean[] { false, true }) {
+            for(AestheticRef aref : vinfo.getAestheticRefs(runtime)) {
+               all.add(aref.getLegendDescriptor());
+            }
+         }
+      }
+
+      for(LegendDescriptor legend : all) {
+         if(legend != null && !legend.isUserTitleVisible()) {
+            legend.setTitleVisible(visible);
+         }
+      }
+   }
+
+   /**
+    * Re-run the legend title seed for the current position, on a marked chart only.
+    */
+   public void reseedLegendTitles() {
+      if(getVizMark() != null) {
+         seedLegendTitles(VizContext.of(this));
+      }
+   }
+
    private static PlotDescriptor plotOf(ChartDescriptor desc) {
       return desc == null ? null : desc.getPlotDescriptor();
    }
@@ -3362,11 +3528,49 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    public void reseedIfResolvedTypeChanged() {
       ResolvedChartType now = ResolvedChartType.of(cinfo);
 
+      List<String> key = VSChartTypeDefaults.legendBindingKey(cinfo);
+      boolean guard = drillCountGuard;
+      drillCountGuard = false;
+
       if(getVizMark() != null && seededType != null && !seededType.equals(now)) {
          seedTypeDefaults(VizContext.of(this), now);
+         requestLegendCount();
+      }
+      else if(getVizMark() != null && seededLegendKey != null && !seededLegendKey.equals(key)) {
+         seedLegendPlacement(VizContext.of(this), now);
+         seedLegendTitles(VizContext.of(this));
+         requestLegendCount();
+      }
+
+      if(guard) {
+         legendCountPending = drillCountPending;
       }
 
       seededType = now;
+      seededLegendKey = key;
+   }
+
+   /**
+    * Called before a drill: the re-seed it causes may run, but must not leave a count request
+    * behind. An edit not yet seen stays an edit.
+    */
+   public void guardLegendCountFromDrill() {
+      // sticky, so a second field of one action does not compare against the first's changes
+      if(drillCountGuard) {
+         return;
+      }
+
+      drillCountGuard = seededType != null && seededLegendKey != null &&
+         seededType.equals(ResolvedChartType.of(cinfo)) &&
+         seededLegendKey.equals(VSChartTypeDefaults.legendBindingKey(cinfo));
+      drillCountPending = legendCountPending;
+   }
+
+   /**
+    * Called when the drill's own update is done, so a guard never outlives the drill.
+    */
+   public void disarmLegendCountGuard() {
+      drillCountGuard = false;
    }
 
    /**
@@ -3383,6 +3587,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
 
       seededType = now;
+      seededLegendKey = VSChartTypeDefaults.legendBindingKey(cinfo);
    }
 
    @Override
@@ -3622,6 +3827,12 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private boolean userSmoothLines = false;
    // not saved, not serialized; a clone carries it
    private transient ResolvedChartType seededType;
+   private boolean legendCrowded = false;
+   // not saved, not serialized; a clone carries it
+   private transient boolean legendCountPending = false;
+   private transient boolean drillCountGuard = false;
+   private transient boolean drillCountPending = false;
+   private transient List<String> seededLegendKey;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);
 }

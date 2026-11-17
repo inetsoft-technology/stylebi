@@ -6391,6 +6391,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Drop the full-data (binding) result cached for an assembly, leaving its other results.
+    * @param name the specified assembly name.
+    */
+   public void removeBindingData(String name) {
+      if(dmap != null) {
+         dmap.remove(name, DataMap.BINDING);
+      }
+   }
+
+   /**
     * Reset the data map.
     * @param name the specified assembly name.
     */

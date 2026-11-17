@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.StyleConstants;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -154,6 +155,47 @@ class VSChartTypeDefaultsTest {
       for(int t : straight) {
          assertFalse(VSChartTypeDefaults.smoothLines(t), "type " + t);
       }
+   }
+
+   @Test
+   void legendGoesTopOnCartesianTypes() {
+      int[] types = {
+         GraphTypes.CHART_BAR, GraphTypes.CHART_BAR_STACK, GraphTypes.CHART_INTERVAL,
+         GraphTypes.CHART_LINE, GraphTypes.CHART_STEP, GraphTypes.CHART_JUMP,
+         GraphTypes.CHART_AREA, GraphTypes.CHART_STEP_AREA, GraphTypes.CHART_POINT,
+         GraphTypes.CHART_BOXPLOT, GraphTypes.CHART_CANDLE, GraphTypes.CHART_STOCK,
+         GraphTypes.CHART_GANTT, GraphTypes.CHART_WATERFALL, GraphTypes.CHART_PARETO,
+         GraphTypes.CHART_AUTO
+      };
+
+      for(int t : types) {
+         assertEquals(LegendsDescriptor.TOP,
+                      VSChartTypeDefaults.legendLayout(rt(t, false, true), false, false), "type " + t);
+      }
+   }
+
+   @Test
+   void legendGoesRightOnTheOthers() {
+      int[] types = {
+         GraphTypes.CHART_PIE, GraphTypes.CHART_DONUT, GraphTypes.CHART_TREEMAP,
+         GraphTypes.CHART_SUNBURST, GraphTypes.CHART_CIRCLE_PACKING, GraphTypes.CHART_ICICLE,
+         GraphTypes.CHART_FUNNEL, GraphTypes.CHART_MEKKO, GraphTypes.CHART_RADAR,
+         GraphTypes.CHART_FILL_RADAR, GraphTypes.CHART_TREE, GraphTypes.CHART_NETWORK,
+         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_MAP, GraphTypes.CHART_POLYGON,
+         GraphTypes.CHART_MAP_CONTOUR, GraphTypes.CHART_SCATTER_CONTOUR
+      };
+
+      for(int t : types) {
+         assertEquals(LegendsDescriptor.RIGHT,
+                      VSChartTypeDefaults.legendLayout(rt(t, false, true), false, false), "type " + t);
+      }
+   }
+
+   @Test
+   void aRampOrACrowdedLegendGoesRight() {
+      ResolvedChartType bar = rt(GraphTypes.CHART_BAR, false, true);
+      assertEquals(LegendsDescriptor.RIGHT, VSChartTypeDefaults.legendLayout(bar, true, false));
+      assertEquals(LegendsDescriptor.RIGHT, VSChartTypeDefaults.legendLayout(bar, false, true));
    }
 
    private static ResolvedChartType rt(int type, boolean x, boolean y) {

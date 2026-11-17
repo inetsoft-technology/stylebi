@@ -18,6 +18,7 @@
 package inetsoft.web.graph.model.dialog;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.graph.GraphConstants;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartArea;
 import inetsoft.uql.CompositeValue;
@@ -66,6 +67,29 @@ public class LegendFormatDialogModel implements Serializable {
       return new Insets(0, 4, 1, 4);
    }
 
+   // an unset alignment reads as Center
+   private static String alignmentName(int alignment) {
+      switch(alignment) {
+      case GraphConstants.LEFT_ALIGNMENT:
+         return "Start";
+      case GraphConstants.RIGHT_ALIGNMENT:
+         return "End";
+      default:
+         return "Center";
+      }
+   }
+
+   private static int alignmentValue(String name) {
+      switch(name) {
+      case "Start":
+         return GraphConstants.LEFT_ALIGNMENT;
+      case "End":
+         return GraphConstants.RIGHT_ALIGNMENT;
+      default:
+         return GraphConstants.CENTER_ALIGNMENT;
+      }
+   }
+
    public LegendFormatDialogModel(ChartInfo info, LegendsDescriptor legendsDesc,
       LegendDescriptor legendDesc, ChartArea area, List<String> targetFields,
       String aestheticType, String field, String titleName, boolean dimension, boolean time,
@@ -84,7 +108,7 @@ public class LegendFormatDialogModel implements Serializable {
       generalPaneModel.setNotShowNullVisible(dimension && field != null);
       generalPaneModel.setSymbolSize(legendDesc.getSymbolSize());
       generalPaneModel.setGap(VSChartChromeDefaults.resolveLegendGap(
-         legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx));
+         legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx, legendsDesc.getLayout()));
       generalPaneModel.setGapFollowsDefault(gapFollowsDefault(legendsDesc, ctx));
       generalPaneModel.setPadding(paddingPane(legendsDesc, ctx));
       generalPaneModel.setRoundCorners(legendsDesc.isRoundCorners());
@@ -106,6 +130,8 @@ public class LegendFormatDialogModel implements Serializable {
       if(legendsDesc.getLayout() >= 1) {
          generalPaneModel.setPosition(LEGEND_POSITIONS[legendsDesc.getLayout() - 1]);
       }
+
+      generalPaneModel.setAlignment(alignmentName(legendsDesc.getAlignment()));
 
       // Create LegendScalePaneModel.
       scalePaneModel = new LegendScalePaneModel();
@@ -149,22 +175,52 @@ public class LegendFormatDialogModel implements Serializable {
                                              VizContext ctx)
    {
       final String title = generalPaneModel.getTitleValue();
+      final boolean wasTitleVisible = legendDesc.isTitleVisible();
 
       if(title == null) {
          legendDesc.setTitleValue("");
       }
       else if(legendDesc.getTitleValue() != null || !Tool.equals(titleName, title)) {
-         legendDesc.setTitleValue(title);
+         // re-applying the same text is not an edit
+         if(Tool.equals(legendDesc.getTitleValue(), title)) {
+            legendDesc.setTitleValue(title);
+         }
+         else {
+            legendDesc.setAuthorTitleValue(title);
+         }
       }
 
-      legendDesc.setTitleVisible(generalPaneModel.isVisible());
+      if(generalPaneModel.isVisible() != wasTitleVisible) {
+         legendDesc.setAuthorTitleVisible(generalPaneModel.isVisible());
+      }
+
       legendsDesc.setBorder(generalPaneModel.getStyle(), false);
       Color color = Tool.getColorFromHexString(generalPaneModel.getFillColor());
 
       if(!Tool.equals(color, VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor(), ctx))) {
          legendsDesc.setBorderColor(color, false);
       }
-      legendsDesc.setLayout(getIndexByName(LEGEND_POSITIONS, generalPaneModel.getPosition()) + 1);
+      final String position = generalPaneModel.getPosition();
+
+      if(position != null) {
+         final int layout = getIndexByName(LEGEND_POSITIONS, position) + 1;
+
+         if(layout != legendsDesc.getLayout()) {
+            legendsDesc.setAuthorLayout(layout);
+         }
+      }
+
+      final String alignment = generalPaneModel.getAlignment();
+
+      if(alignment != null) {
+         final int shown = alignmentValue(alignmentName(legendsDesc.getAlignment()));
+         final int chosen = alignmentValue(alignment);
+
+         if(chosen != shown) {
+            legendsDesc.setAlignment(chosen);
+         }
+      }
+
       legendDesc.setNotShowNull(generalPaneModel.isNotShowNull());
       legendDesc.setSymbolSize(generalPaneModel.getSymbolSize());
 
@@ -175,7 +231,8 @@ public class LegendFormatDialogModel implements Serializable {
          // store only a real edit, exactly as this pane behaved before the option existed
          if(generalPaneModel.getGap() !=
             VSChartChromeDefaults.resolveLegendGap(
-               legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx))
+               legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx,
+               legendsDesc.getLayout()))
          {
             legendsDesc.setGap(generalPaneModel.getGap());
          }

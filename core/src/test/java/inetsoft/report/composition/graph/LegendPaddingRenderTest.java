@@ -17,7 +17,10 @@
  */
 package inetsoft.report.composition.graph;
 
+import inetsoft.graph.EGraph;
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.graph.LegendSpec;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.SreeEnv;
@@ -29,6 +32,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
+import inetsoft.uql.viewsheet.internal.VizModernizeUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -106,12 +110,89 @@ class LegendPaddingRenderTest {
                    legendPaddings(VizMark.MODERN_LIGHT, "comfortable", null, null));
    }
 
+   @Test
+   void aModernTopLegendSpecCarriesTheLargerGap() {
+      assertEquals(18, legendGap(VizMark.MODERN_LIGHT, "compact", LegendsDescriptor.TOP));
+      assertEquals(14, legendGap(VizMark.MODERN_LIGHT, "compact", LegendsDescriptor.RIGHT));
+      assertEquals(0, legendGap(null, "compact", LegendsDescriptor.TOP));
+   }
+
+   @Test
+   void aModernUnsizedLegendGetsTheCap() {
+      assertEquals(0.3, graph(VizMark.MODERN_LIGHT, null, null, null,
+                              GraphConstants.RIGHT, null).getLegendMaxRatio(), 1e-9);
+      assertEquals(0.25, graph(VizMark.MODERN_LIGHT, null, null, null,
+                               GraphConstants.TOP, null).getLegendMaxRatio(), 1e-9);
+   }
+
+   @Test
+   void anAuthorSizedLegendKeepsTodaysCap() {
+      assertEquals(0, graph(VizMark.MODERN_LIGHT, null, null, null, GraphConstants.RIGHT,
+                            new java.awt.Dimension(150, 100)).getLegendMaxRatio(), 1e-9);
+   }
+
+   @Test
+   void aClassicLegendKeepsTodaysCap() {
+      assertEquals(0, graph(null, null, null, null, GraphConstants.RIGHT, null)
+         .getLegendMaxRatio(), 1e-9);
+   }
+
+   @Test
+   void aModernTopLegendCarriesTheSeededAlignment() {
+      EGraph graph = graph(VizMark.MODERN_LIGHT, null, null, null, 0, null, true);
+      assertEquals(GraphConstants.TOP, graph.getLegendLayout(), "premise: the seeded position");
+      assertEquals(GraphConstants.LEFT_ALIGNMENT, graph.getLegendAlignment());
+   }
+
+   @Test
+   void anAuthorSideLegendCarriesNoAlignment() {
+      EGraph graph = graph(VizMark.MODERN_LIGHT, null, null, null, GraphConstants.RIGHT, null,
+                           true);
+      assertEquals(GraphConstants.RIGHT, graph.getLegendLayout(), "premise: the author's position");
+      assertEquals(0, graph.getLegendAlignment());
+   }
+
+   @Test
+   void aClassicLegendCarriesNoAlignment() {
+      EGraph graph = graph(null, null, null, null, GraphConstants.TOP, null, true);
+      assertEquals(GraphConstants.TOP, graph.getLegendLayout(), "premise: a row legend");
+      assertEquals(0, graph.getLegendAlignment());
+   }
+
    /**
     * The padding each legend site hands its frame, on a bar chart of one dimension by one
     * measure: the color legend, the shape legend (a bar's texture frame) and the size legend.
     */
    private static List<Insets> legendPaddings(VizMark mark, String density, Insets author,
                                               Insets stylesheet)
+   {
+      return legendSpecs(mark, density, author, stylesheet, 0).stream()
+         .map(LegendSpec::getPadding).collect(java.util.stream.Collectors.toList());
+   }
+
+   private static int legendGap(VizMark mark, String density, int layout) {
+      return legendSpecs(mark, density, null, null, layout).get(0).getGap();
+   }
+
+   private static List<LegendSpec> legendSpecs(VizMark mark, String density, Insets author,
+                                               Insets stylesheet, int layout)
+   {
+      GraphElement elem = graph(mark, density, author, stylesheet, layout, null).getElement(0);
+
+      return Arrays.asList(elem.getColorFrame().getLegendSpec(),
+                           elem.getTextureFrame().getLegendSpec(),
+                           elem.getSizeFrame().getLegendSpec());
+   }
+
+   private static EGraph graph(VizMark mark, String density, Insets author, Insets stylesheet,
+                               int layout, java.awt.geom.Dimension2D size)
+   {
+      return graph(mark, density, author, stylesheet, layout, size, false);
+   }
+
+   // seed runs the chart's creation seed for its mark before the graph is built
+   private static EGraph graph(VizMark mark, String density, Insets author, Insets stylesheet,
+                               int layout, java.awt.geom.Dimension2D size, boolean seed)
    {
       Object[][] rows = new Object[7][];
       rows[0] = new Object[]{ "State", "Total" };
@@ -134,6 +215,14 @@ class LegendPaddingRenderTest {
       ChartDescriptor chartDesc = new ChartDescriptor();
       LegendsDescriptor legends = chartDesc.getLegendsDescriptor();
 
+      if(layout != 0) {
+         legends.setAuthorLayout(layout);
+      }
+
+      if(size != null) {
+         legends.setPreferredSize(size);
+      }
+
       if(stylesheet != null) {
          legends.setPadding(stylesheet, CompositeValue.Type.CSS);
       }
@@ -150,12 +239,12 @@ class LegendPaddingRenderTest {
       vs.getViewsheetInfo().setVizDensity(density);
       assemblyInfo.setViewsheet(vs);
 
-      GraphElement elem = GraphGenerator.getGenerator(
-         assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
-         XSourceInfo.NONE, null).createEGraph().getElement(0);
+      if(seed) {
+         VizModernizeUtil.reseedAfterRestore(assemblyInfo);
+      }
 
-      return Arrays.asList(elem.getColorFrame().getLegendSpec().getPadding(),
-                           elem.getTextureFrame().getLegendSpec().getPadding(),
-                           elem.getSizeFrame().getLegendSpec().getPadding());
+      return GraphGenerator.getGenerator(
+         assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
+         XSourceInfo.NONE, null).createEGraph();
    }
 }

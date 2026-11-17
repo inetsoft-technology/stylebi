@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.aesthetic.SpectralColorFrame;
@@ -259,9 +260,44 @@ class ChartChromeSlotsTest {
                    "a plain slot does nothing without a fresh instance");
 
       resetAll(info, fresh(VizMark.MODERN_LIGHT));
-      assertEquals(LegendsDescriptor.RIGHT, legends.getLayout());
+      // the fresh modern chart is seeded with its top legend
+      assertEquals(LegendsDescriptor.TOP, legends.getLayout());
       assertTrue(legends.isRoundCorners());
       assertFalse(legends.chromeValue("borderColor").hasUserValue());
+   }
+
+   @Test
+   void theLayoutResetClearsTheFlagAndAsksForACount() {
+      ChartVSAssemblyInfo info = chart();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      legends.setLayout(LegendsDescriptor.BOTTOM);
+      legends.setUserLayout(true);
+      info.clearLegendCountPending();
+
+      resetAll(info, fresh(VizMark.MODERN_LIGHT));
+
+      assertEquals(LegendsDescriptor.TOP, legends.getLayout());
+      assertFalse(legends.isUserLayout());
+      assertTrue(info.isLegendCountPending());
+   }
+
+   @Test
+   void aLegendTitleFlagClearsOnResetUnlessTyped() {
+      ChartVSAssemblyInfo info = chart();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      LegendDescriptor color = legends.getColorLegendDescriptor();
+      LegendDescriptor shape = legends.getShapeLegendDescriptor();
+      color.setAuthorTitleVisible(false);
+      shape.setAuthorTitleValue("Shapes");
+      assertTrue(shape.isUserTitleVisible(), "premise");
+
+      resetAll(info, fresh(VizMark.MODERN_LIGHT));
+
+      assertFalse(color.isUserTitleVisible());
+      assertTrue(shape.isUserTitleVisible());
+      find(info, "chart:legends:color:titleVisible");
+      find(info, "chart:legends:shape:titleVisible");
+      find(info, "chart:legends:size:titleVisible");
    }
 
    // a size set for a bottom legend squeezes the plot once the legend moves right
@@ -286,7 +322,8 @@ class ChartChromeSlotsTest {
 
       resetAll(info, fresh);
 
-      assertEquals(LegendsDescriptor.RIGHT, legends.getLayout());
+      // the fresh modern chart is seeded with its top legend
+      assertEquals(LegendsDescriptor.TOP, legends.getLayout());
       assertNull(legends.getPreferredSize());
 
       for(LegendDescriptor legend : new LegendDescriptor[] { color, bound }) {
@@ -294,6 +331,24 @@ class ChartChromeSlotsTest {
          assertNull(legend.getPosition());
          assertNull(legend.getPlotPosition());
       }
+   }
+
+   @Test
+   void alignmentIsATieredLegendSlot() {
+      ChartVSAssemblyInfo info = chart();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      legends.setAlignment(GraphConstants.RIGHT_ALIGNMENT);
+
+      ChromeSlot slot = find(info, "chart:legends:alignment");
+      assertTrue(slot.isAuthorSet(info));
+      assertFalse(slot.objectLevel());
+      assertTrue(slot.residueEligible());
+      assertEquals(GraphConstants.RIGHT_ALIGNMENT, slot.authorValue(info));
+      assertEquals(GraphConstants.RIGHT_ALIGNMENT, slot.resolvedValue(info));
+
+      slot.reset(info, fresh(VizMark.MODERN_LIGHT));
+      assertFalse(legends.hasAlignmentUserValue());
+      assertFalse(slot.isAuthorSet(info));
    }
 
    @Test

@@ -142,6 +142,22 @@ class VizModernizeUtilTest {
    }
 
    @Test
+   void aLightDarkSwitchDoesNotRequestALegendCount() {
+      Viewsheet vs = legacyAreaChartSheet();
+      ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly("Chart1");
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      assertTrue(info.isLegendCountPending(), "Modernize takes a count");
+      info.clearLegendCountPending();
+
+      VizModernizeUtil.applyMark(vs, VizMark.MODERN_DARK);
+
+      assertEquals(VizMark.MODERN_DARK, info.getVizMark());
+      assertFalse(info.isLegendCountPending(), "the saved verdict is reused");
+   }
+
+   @Test
    void modernizeIsANoOpWhenTheGateIsOff() {
       Viewsheet vs = legacySheet();
       gateOff();

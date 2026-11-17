@@ -205,7 +205,8 @@ class ChartScriptSpacingPropertiesTest {
    }
 
    private int resolveLegend(LegendsDescriptor desc) {
-      return VSChartChromeDefaults.resolveLegendGap(desc.getGap(), desc.hasGapValue(), ctx);
+      return VSChartChromeDefaults.resolveLegendGap(desc.getGap(), desc.hasGapValue(), ctx,
+         desc.getLayout());
    }
 
    private ChartVSAScriptable scriptable;

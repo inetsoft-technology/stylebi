@@ -141,6 +141,8 @@ class VGraphPairLegendLayoutTest {
       chart.getVSAssemblyInfo().initDefaultFormat();
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       assertEquals(VizMark.MODERN_DARK, info.getVizMark(), "premise: a dark marked chart");
+      // the position is the author's, so the seed leaves it
+      info.getChartDescriptor().getLegendsDescriptor().setAuthorLayout(LegendsDescriptor.RIGHT);
       return info;
    }
 

@@ -88,7 +88,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       if(isDetail()) {
          return getTableLens();
       }
-      else if(!brush) {
+      else if(!brush && !bindingOnly) {
          // for all data without brush, if no brushing, return null
          if(brushsrc == null) {
             return null;
@@ -276,6 +276,134 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
    }
 
    /**
+    * Set whether to query the chart's own binding only: its fields, filter, ranking, date
+    * comparison and worksheet, without the selections, zoom, exclusions, brushing, data tip
+    * and drill filters of the view.
+    */
+   public void setBindingOnly(boolean bindingOnly) {
+      this.bindingOnly = bindingOnly;
+   }
+
+   /**
+    * Check if the view narrows a chart's data: selections on the tables it reads, a range
+    * slider bound to it, a data tip, drill filters, zoom or excluded marks. Brushing is left
+    * out, a brushed chart's visual frames are built from its data without the brush.
+    */
+   public static boolean isViewFiltered(ViewsheetSandbox box, ChartVSAssembly chart) {
+      ChartVSAssemblyInfo info = chart.getChartInfo();
+      Viewsheet vs = box.getViewsheet();
+
+      if(!isEmpty(info.getZoomSelection()) || !isEmpty(info.getExcludeSelection()) ||
+         !isEmpty(chart.getTipConditionList()))
+      {
+         return true;
+      }
+
+      if(!DateComparisonUtil.appliedDateComparison(info) && !ConditionUtil.isEmpty(
+         ConditionUtil.getMergedDrillFilterCondition(vs, ConditionUtil.getAssemblySource(chart))))
+      {
+         return true;
+      }
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof TimeSliderVSAssembly slider &&
+            slider.getSourceType() == SourceInfo.VS_ASSEMBLY &&
+            chart.getName().equals(slider.getTableName()) &&
+            !ConditionUtil.isEmpty(slider.getConditionList()))
+         {
+            return true;
+         }
+      }
+
+      Worksheet ws = box.getWorksheet();
+      SourceInfo source = chart.getSourceInfo();
+      String tname = source == null || source.isEmpty() ||
+         source.getType() == SourceInfo.VS_ASSEMBLY ? null : source.getSource();
+
+      if(ws == null || tname == null) {
+         return false;
+      }
+
+      // selections put their conditions on the shared worksheet tables, under its lock
+      synchronized(ws) {
+         Assembly table = ws.getAssembly(tname);
+
+         if(table == null) {
+            return false;
+         }
+
+         for(Assembly assembly : AssetUtil.getDependedAssemblies(ws, table, true)) {
+            if(assembly instanceof TableAssembly tassembly &&
+               (!isEmpty(tassembly.getPreRuntimeConditionList()) ||
+                !isEmpty(tassembly.getPostRuntimeConditionList())))
+            {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean isEmpty(VSSelection selection) {
+      return selection == null || selection.isEmpty();
+   }
+
+   private static boolean isEmpty(ConditionListWrapper conds) {
+      return conds == null || conds.isEmpty();
+   }
+
+   /**
+    * The worksheet of a binding-only query holds the tables the chart reads without the
+    * conditions selections put on them.
+    */
+   @Override
+   protected Worksheet getWorksheet() {
+      if(!bindingOnly) {
+         return super.getWorksheet();
+      }
+
+      if(bindingWorksheet == null) {
+         bindingWorksheet = createBindingWorksheet();
+      }
+
+      return bindingWorksheet;
+   }
+
+   private Worksheet createBindingWorksheet() {
+      Worksheet ws = box.getWorksheet();
+
+      if(ws == null) {
+         return null;
+      }
+
+      WorksheetWrapper wrapper = new WorksheetWrapper(ws);
+      SourceInfo source = ((ChartVSAssembly) getAssembly()).getSourceInfo();
+      Assembly table = source == null || source.isEmpty() ? null :
+         wrapper.getAssembly(source.getSource());
+
+      if(table != null) {
+         // the walk copies each table into the wrapper
+         for(Assembly assembly : AssetUtil.getDependedAssemblies(wrapper, table, true)) {
+            if(assembly instanceof TableAssembly tassembly) {
+               tassembly.setPreRuntimeConditionList(null);
+               tassembly.setPostRuntimeConditionList(null);
+            }
+         }
+      }
+
+      return wrapper;
+   }
+
+   /**
+    * A binding-only query takes no condition of a range slider bound to the chart.
+    */
+   @Override
+   protected ConditionList createPostConds() {
+      return bindingOnly ? null : super.createPostConds();
+   }
+
+   /**
     * Set whether to show empty dimension values in OLAP.
     */
    public void setNoEmpty(boolean no_empty) {
@@ -296,6 +424,11 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
     */
    @Override
    protected void setSharedCondition(ChartVSAssembly chart, TableAssembly table) {
+      // the binding takes no brush, data tip, drill or zoom condition
+      if(bindingOnly) {
+         return;
+      }
+
       ChartVSAssembly cassembly = (ChartVSAssembly) getAssembly();
       super.setSharedCondition(chart, table, brush);
 
@@ -2513,6 +2646,8 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAQuery.class);
    private boolean brush;
    private boolean no_filter;
+   private boolean bindingOnly;
+   private Worksheet bindingWorksheet;
    private boolean no_empty = true;
    private boolean for_bindable;
    // the columns (group and aggregate) in subs tables
