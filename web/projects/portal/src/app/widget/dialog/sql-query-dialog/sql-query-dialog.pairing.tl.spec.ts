@@ -42,7 +42,7 @@ const CONNECT = "Connect to Claude";
 function makeSocket() {
    const commands = new Subject<ViewsheetCommandMessage>();
    const conn = { send: vi.fn(), subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) };
-   return { commands, conn, whenConnected: () => of(conn) } as any;
+   return { commands, conn, whenConnected: () => of(conn), reconnected: () => new Subject() } as any;
 }
 
 function pairing(socket: any, overrides: Partial<SqlAgentPairing> = {}): SqlAgentPairing {

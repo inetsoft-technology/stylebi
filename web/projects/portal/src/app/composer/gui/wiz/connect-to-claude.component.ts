@@ -87,6 +87,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    private activeRequest: { settled: boolean } | null = null;
    private requestTimer: ReturnType<typeof setTimeout> | null = null;
    private joinedSubscription: Subscription | null = null;
+   private reconnectedSubscription: Subscription | null = null;
    /**
     * The outer `whenConnected()` subscription that `ngOnInit` uses to obtain the STOMP
     * connection. `take(1)` normally completes it on its own, but a component created before the
@@ -239,6 +240,27 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
             this.joinedSubscription = conn.subscribe(
                "/user/commands/wiz/pairing/joined", (msg: any) => this.onJoined(msg));
          });
+
+      this.reconnectedSubscription = this.socketConnection.reconnected().subscribe(
+         (conn: StompClientConnection) => this.rebindAfterReconnect(conn));
+   }
+
+   /**
+    * After a websocket reconnect this page has a new socket session id, but the server still
+    * addresses the sheet's agent pushes to the id the code was minted with, which no longer
+    * exists, so every later edit would be dropped. Tells the server to re-point the sheet at the
+    * new session. Only the whole-sheet (toolbar) instance that minted a code sends it: a pane
+    * session is meant to end with its socket, and re-pairing is how it comes back.
+    */
+   private rebindAfterReconnect(conn: StompClientConnection): void {
+      if(!this.hasMinted || this.mintedEditorContext !== null || !this.runtimeId ||
+         !this.sheetType)
+      {
+         return;
+      }
+
+      conn.send("/events/wiz/pairing/rebind", {},
+                JSON.stringify({ runtimeId: this.runtimeId, sheetType: this.sheetType }));
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -531,6 +553,11 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       if(this.joinedSubscription) {
          this.joinedSubscription.unsubscribe();
          this.joinedSubscription = null;
+      }
+
+      if(this.reconnectedSubscription) {
+         this.reconnectedSubscription.unsubscribe();
+         this.reconnectedSubscription = null;
       }
    }
 }

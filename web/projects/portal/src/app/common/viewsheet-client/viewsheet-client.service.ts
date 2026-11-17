@@ -41,6 +41,7 @@ export class ViewsheetClientService implements OnDestroy {
    private connecting: boolean = false;
    private connected = new ReplaySubject<StompClientConnection>(1);
    private connectionErrorSubject = new ReplaySubject<string>(1);
+   private reconnectedSubject = new Subject<StompClientConnection>();
    private commandSubject: AsyncQueuedSubject<ViewsheetCommandMessage>;
    private eventSubject: QueuedSubject<ViewsheetEventMessage>;
    private renameTransformFinishedSubject = new Subject<RenameEventModel>();
@@ -102,6 +103,11 @@ export class ViewsheetClientService implements OnDestroy {
          });
          this.client.reconnectError().subscribe((error) => {
             this.connectionErrorSubject.next(error);
+
+            // a null error is a successful reconnect: the page now holds a new socket session
+            if(error == null && this.connection) {
+               this.reconnectedSubject.next(this.connection);
+            }
          });
          this.client.connect("../vs-events", false, customElement).subscribe(
             (connection) => {
@@ -126,6 +132,15 @@ export class ViewsheetClientService implements OnDestroy {
 
    public connectionError(): Observable<string> {
       return this.connectionErrorSubject.asObservable();
+   }
+
+   /**
+    * Emits the connection each time the websocket reconnected after an unexpected close. The
+    * page then has a new socket session id, so anything the server stored against the old one
+    * has to be told (see ConnectToClaudeComponent). Never replays a past reconnect.
+    */
+   public reconnected(): Observable<StompClientConnection> {
+      return this.reconnectedSubject.asObservable();
    }
 
    /**

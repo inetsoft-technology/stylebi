@@ -365,4 +365,41 @@ class SheetPairingControllerTest {
       assertEquals(HttpStatus.NOT_FOUND,
                    c.handlePairingException(ex).getStatusCode());
    }
+
+   /** The new session id is the STOMP accessor's; the payload names only the sheet. */
+   @Test
+   void rebindTakesTheSocketSessionFromTheAccessorNotThePayload() {
+      SheetJoinService joinService = mock(SheetJoinService.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), new SheetSessionService(), mock(SheetAgentFeature.class),
+         mock(SheetAgentBroadcastService.class), joinService, true);
+      Principal browser = TestPrincipals.user("alice", "host-org");
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-new");
+
+      c.rebindViaSocket(new SheetPairingController.RebindRequest("Viewsheet/foo-7", SheetType.VIEWSHEET),
+                        browser, accessor);
+
+      verify(joinService).rebindSocket(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(browser),
+                                       eq("stomp-new"), any());
+   }
+
+   @Test
+   void rebindWithoutARuntimeOrTypeDoesNothing() {
+      SheetJoinService joinService = mock(SheetJoinService.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), new SheetSessionService(), mock(SheetAgentFeature.class),
+         mock(SheetAgentBroadcastService.class), joinService, true);
+      Principal browser = TestPrincipals.user("alice", "host-org");
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-new");
+
+      c.rebindViaSocket(null, browser, accessor);
+      c.rebindViaSocket(new SheetPairingController.RebindRequest(null, SheetType.VIEWSHEET),
+                        browser, accessor);
+      c.rebindViaSocket(new SheetPairingController.RebindRequest("Viewsheet/foo-7", null),
+                        browser, accessor);
+
+      verifyNoInteractions(joinService);
+   }
 }

@@ -386,6 +386,28 @@ describe("ViewsheetClientService deferred close", () => {
       expect(connection.sentTo(CLOSE).length).toBe(0);
    });
 
+   it("reports a successful reconnect (a null error) through reconnected(), with the connection", () => {
+      const reconnected = vi.fn();
+      service.reconnected().subscribe(reconnected);
+      const conn = new FakeConnection();
+      connectWith(conn);
+
+      reconnectError$.next(null);
+
+      expect(reconnected).toHaveBeenCalledTimes(1);
+      expect(reconnected).toHaveBeenCalledWith(conn);
+   });
+
+   it("does not report a failed reconnect attempt through reconnected()", () => {
+      const reconnected = vi.fn();
+      service.reconnected().subscribe(reconnected);
+      connectWith(new FakeConnection());
+
+      reconnectError$.next("failed");
+
+      expect(reconnected).not.toHaveBeenCalled();
+   });
+
    it("closes immediately, as before, when the runtime id is already known", () => {
       connectWith(new FakeConnection());
       service.sendOpenEvent(OPEN, {} as any);

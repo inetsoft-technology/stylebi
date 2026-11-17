@@ -406,6 +406,55 @@ public class SheetJoinService {
       return "user:anonymous";
    }
 
+   /**
+    * Re-points a paired sheet at the browser's current websocket session after that browser
+    * reconnected. A reconnect gives the page a new session id, but the runtime and the sessions an
+    * agent holds still carry the id they were stamped with at {@link #join}, so every later push
+    * is addressed to a session that no longer exists and is dropped.
+    *
+    * <p>The one place besides {@link #join} entitled to re-stamp, for the same reason: the new id
+    * comes from this live request ({@code socketSessionId}/{@code socketUserName} are the STOMP
+    * accessor's, never the payload's). {@code runtimeId} is client-submitted, so it is accepted
+    * only when {@code browser} is the runtime's own owner; the same logical-identity comparison
+    * {@link #join} applies, failing closed on an unowned or unknown runtime. It does nothing
+    * unless the browser's user holds a whole-sheet session on the runtime, i.e. an agent is
+    * actually attached to it.
+    *
+    * @return whether a sheet was re-pointed
+    */
+   public boolean rebindSocket(SheetType sheetType, String runtimeId, Principal browser,
+                               String socketSessionId, String socketUserName)
+   {
+      if(!feature.isEnabled() || sheetType == null || runtimeId == null || browser == null ||
+         socketSessionId == null)
+      {
+         return false;
+      }
+
+      RuntimeSheet runtimeSheet = runtimeAccess.getRuntimeSheetDirect(sheetType, runtimeId);
+      String browserKey = PairingUtil.identityKey(browser);
+
+      if(runtimeSheet == null || browserKey == null ||
+         !browserKey.equals(PairingUtil.identityKey(runtimeSheet.getUser())))
+      {
+         return false;
+      }
+
+      if(sessions.rebindSocket(runtimeId, browserKey, socketSessionId, socketUserName).isEmpty()) {
+         return false;
+      }
+
+      runtimeSheet.setSocketSessionId(socketSessionId);
+
+      if(socketUserName != null) {
+         runtimeSheet.setSocketUserName(socketUserName);
+      }
+
+      LOG.info("Pairing socket session re-stamped after reconnect (runtimeId={}, sessionId={})",
+               runtimeId, socketSessionId);
+      return true;
+   }
+
    private final SheetPairingService pairing;
    private final SheetSessionService sessions;
    private final SheetAgentFeature feature;

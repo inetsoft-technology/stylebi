@@ -218,6 +218,51 @@ public class SheetSessionService {
    }
 
    /**
+    * Points every whole-sheet session that {@code ownerIdentity} holds on {@code runtimeId} at the
+    * browser's new websocket session, after that browser reconnected and so lost the id the
+    * session was minted with (see {@link SheetJoinService#rebindSocket}).
+    *
+    * <p>Pane-scoped sessions (non-null {@link JoinSession#editorContext()}) are left alone on
+    * purpose: {@link #socketClosed} ends them when their socket goes away, matching on the socket
+    * id they were minted with, and the old socket's disconnect can be processed after the new
+    * connection's rebind. Rewriting their id here would let one survive the very drop that is
+    * meant to end it.
+    *
+    * @return the sessions that were re-pointed, empty when the owner holds none on the runtime
+    */
+   List<JoinSession> rebindSocket(String runtimeId, String ownerIdentity, String socketSessionId,
+                                  String socketUserName)
+   {
+      List<JoinSession> rebound = new ArrayList<>();
+
+      if(runtimeId == null || ownerIdentity == null || socketSessionId == null) {
+         return rebound;
+      }
+
+      long now = clock.getAsLong();
+
+      for(JoinSession s : sessions.values()) {
+         if(s.editorContext() != null || s.isExpired(now) ||
+            !runtimeId.equals(s.runtimeId()) || !ownerIdentity.equals(s.ownerIdentity()))
+         {
+            continue;
+         }
+
+         JoinSession updated = new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(),
+                                               s.sheetType(), s.lastAccess(), s.ttlMillis(),
+                                               s.connectionMode(), socketSessionId,
+                                               socketUserName, s.editorContext(),
+                                               s.followFocusEnabled());
+
+         if(sessions.replace(s.sessionToken(), s, updated)) {
+            rebound.add(updated);
+         }
+      }
+
+      return rebound;
+   }
+
+   /**
     * Ends the one pane-scoped session bound to both {@code socketSessionId} and
     * {@code editorContext}, if any -- called explicitly when the script pane or formula editor
     * that produced it is destroyed (its dialog closed or cancelled). Scoped to the exact

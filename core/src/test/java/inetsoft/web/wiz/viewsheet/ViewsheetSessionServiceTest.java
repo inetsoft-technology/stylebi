@@ -168,6 +168,36 @@ class ViewsheetSessionServiceTest {
    }
 
    /**
+    * A write whose browser session is gone is saved but not shown; the notice from the broadcast
+    * has to reach the agent next to the mutation's own warnings instead of an empty list.
+    */
+   @Test
+   void mutateAddsTheNotDeliveredNoticeToTheWarnings() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      when(broadcast.broadcastRefresh(any(), any(), any(), any(), any()))
+         .thenReturn(SheetAgentBroadcastService.SESSION_GONE_NOTICE);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
+
+      List<String> warnings = svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {});
+
+      assertEquals(List.of(SheetAgentBroadcastService.SESSION_GONE_NOTICE), warnings);
+   }
+
+   /**
     * Review finding on the join-time-stamp fix: {@link JoinSession#socketSessionId()} is frozen
     * at pairing-mint time forever ({@code SheetSessionService.resolve()} copies the same value
     * forward on every call, never re-derives it). If {@code mutate} reapplied this session's own

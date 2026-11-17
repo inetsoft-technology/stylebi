@@ -56,6 +56,15 @@ public class CommandDispatcherService
       }
    }
 
+   /**
+    * Whether {@code sessionId} names a websocket session some cluster node currently holds. A
+    * session that is gone (its browser reconnected under a new id, or left) cannot receive a push:
+    * {@link #convertAndSendToUser} would only log and drop it.
+    */
+   public boolean isSessionLive(String sessionId) {
+      return sessionId != null && sessions.get(sessionId) != null;
+   }
+
    public void convertAndSendToUser(String user, String destination, Object payload,
                                     Map<String, Object> headers) throws MessagingException
    {
