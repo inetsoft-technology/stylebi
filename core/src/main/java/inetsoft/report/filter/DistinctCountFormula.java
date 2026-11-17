@@ -49,7 +49,7 @@ public class DistinctCountFormula implements PercentageFormula {
          return;
       }
 
-      set.add(v);
+      set.add(normalize(v));
    }
 
    /**
@@ -61,7 +61,8 @@ public class DistinctCountFormula implements PercentageFormula {
          return;
       }
 
-      set.add(v);
+      // 0.0 == -0.0 is true, so this maps -0.0 onto 0.0 without a branch on the sign bit
+      set.add(v == 0 ? 0.0 : v);
    }
 
    /**
@@ -83,7 +84,7 @@ public class DistinctCountFormula implements PercentageFormula {
          return;
       }
 
-      set.add(v);
+      set.add(v == 0 ? 0.0F : v);
    }
 
    /**
@@ -269,6 +270,65 @@ public class DistinctCountFormula implements PercentageFormula {
       return Integer.class;
    }
 
+   /**
+    * Map a value to the key that represents it in the set, so values that are equal by
+    * value are one key regardless of Java equals() asymmetries or insertion order:
+    * -0.0 and 0.0 (Double.equals/Float.equals distinguish them), and a Timestamp and a
+    * Date of the same instant (Timestamp.equals(Date) is false, Date.equals(Timestamp) is
+    * true). Everything else, including strings and ordinary numbers, is returned as is.
+    */
+   private static Object normalize(Object v) {
+      Class<?> cls = v.getClass();
+
+      if(cls == String.class || cls == Integer.class || cls == Long.class) {
+         return v;
+      }
+
+      if(cls == Double.class) {
+         return ((Double) v).doubleValue() == 0 ? ZERO_DOUBLE : v;
+      }
+
+      if(cls == Float.class) {
+         return ((Float) v).floatValue() == 0 ? ZERO_FLOAT : v;
+      }
+
+      if(v instanceof java.sql.Timestamp) {
+         java.sql.Timestamp ts = (java.sql.Timestamp) v;
+         int subMillis = ts.getNanos() % 1_000_000;
+         // whole-millisecond timestamps equal the plain Date of that instant
+         return subMillis == 0 ? new Date(ts.getTime()) : new SubMillisKey(ts.getTime(), subMillis);
+      }
+
+      return v;
+   }
+
+   /**
+    * Key of a Timestamp with sub-millisecond precision. It is distinct from every Date
+    * and from Timestamps of other nanos, and symmetric in equals.
+    */
+   private static final class SubMillisKey {
+      SubMillisKey(long time, int nanos) {
+         this.time = time;
+         this.nanos = nanos;
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         return obj instanceof SubMillisKey && ((SubMillisKey) obj).time == time &&
+            ((SubMillisKey) obj).nanos == nanos;
+      }
+
+      @Override
+      public int hashCode() {
+         return Long.hashCode(time) * 31 + nanos;
+      }
+
+      private final long time;
+      private final int nanos;
+   }
+
+   private static final Double ZERO_DOUBLE = 0.0;
+   private static final Float ZERO_FLOAT = 0.0F;
    private short percentageType = (short) StyleConstants.PERCENTAGE_NONE;
    private Object total = null;
    private Set<Object> set = Collections.newSetFromMap(new Hashtable<>());
