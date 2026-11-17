@@ -48,7 +48,7 @@ public class ExpressionRef extends AbstractDataRef {
       int from = lowexp.indexOf(prefix);
       int to = lowexp.indexOf(suffix);
 
-      if(from < 0 || to < from) {
+      if(from < 0 || to < from + prefix.length()) {
          return exp;
       }
 
@@ -70,7 +70,7 @@ public class ExpressionRef extends AbstractDataRef {
       int from = lowexp.indexOf(prefix);
       int to = lowexp.indexOf(suffix);
 
-      if(from < 0 || to < from) {
+      if(from < 0 || to < from + prefix.length()) {
          return exp;
       }
 

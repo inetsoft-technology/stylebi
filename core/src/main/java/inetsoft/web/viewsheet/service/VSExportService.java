@@ -287,6 +287,21 @@ public class VSExportService {
       beginExport(rvs, principal);
 
       try {
+         // backstop for callers that already hold a runtime viewsheet, e.g. the public API
+         // (Bug #81183); doExport() and the controller refuse earlier with the same message
+         boolean exportEnabled = securityEngine.checkPermission(
+            principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ);
+
+         if(!isExportAllowed(exportEnabled, previewPrintLayout, format)) {
+            LOG.error(
+               "Failed to export viewsheet since {} have no permission for viewsheet export.",
+               principal.getName());
+            IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+            String user = identityID != null ? identityID.getName() : principal.getName();
+            throw new MessageException(Catalog.getCatalog().getString(
+               "viewer.viewsheet.exporting.failed", user), LogLevel.INFO, false);
+         }
+
          boolean expandEnabled = securityEngine.checkPermission(
             principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ExportExpandComponents",
             ResourceAction.READ);

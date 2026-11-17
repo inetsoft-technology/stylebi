@@ -19,6 +19,9 @@ package inetsoft.sree.portal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.web.admin.presentation.PresentationLoginBannerSettingsService;
+import inetsoft.web.admin.presentation.model.PresentationLoginBannerSettingsModel;
 import inetsoft.util.DataChangeEvent;
 import inetsoft.util.DataChangeListener;
 import inetsoft.util.DataSpace;
@@ -32,6 +35,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
@@ -56,6 +60,8 @@ class PortalThemesManagerTest {
    @Mock private DataSpace.Transaction transaction;
 
    private MockedStatic<SreeEnv> sreeEnv;
+   private MockedStatic<OrganizationManager> orgManager;
+   private HookLock lock;
    /** What the data space serves as the persisted themes file; swap per test. */
    private Supplier<InputStream> persisted;
    /** The bytes the manager last wrote, served back on the next read. */
@@ -65,7 +71,12 @@ class PortalThemesManagerTest {
    void setUp() throws Exception {
       sreeEnv = Mockito.mockStatic(SreeEnv.class);
       setThemesFile(DEFAULT_THEMES_FILE);
-      when(cluster.getLock(anyString())).thenReturn(new ReentrantLock());
+      orgManager = Mockito.mockStatic(OrganizationManager.class);
+      OrganizationManager org = mock(OrganizationManager.class);
+      orgManager.when(OrganizationManager::getInstance).thenReturn(org);
+      lenient().when(org.getCurrentOrgID()).thenReturn("host-org");
+      lock = new HookLock();
+      when(cluster.getLock(anyString())).thenReturn(lock);
       // serve the bundled configuration as the persisted file, so loadThemes() takes the
       // normal path rather than the classpath fallback (which needs a Spring context)
       persisted = this::bundledThemes;
@@ -81,6 +92,7 @@ class PortalThemesManagerTest {
 
    @AfterEach
    void tearDown() {
+      orgManager.close();
       sreeEnv.close();
    }
 
@@ -248,6 +260,158 @@ class PortalThemesManagerTest {
                    "another organization's entries must survive");
       assertTrue(manager.getFaviconEntries().isEmpty());
       assertTrue(manager.getCssEntries().isEmpty());
+   }
+
+   /*
+    * Bug #81434: node B is saving the login banner while node A's write (auto expand) has
+    * been committed. The change listener's reload runs between B's modify step and B's
+    * save: the reload replaces the objects B just mutated, and save() writes the reloaded
+    * state, so B's banner was lost although the request succeeded. Both changes must
+    * survive.
+    */
+   @Test
+   void bug81434_listenerReloadBetweenModifyAndSave_keepsBothChanges() throws Exception {
+      PortalThemesManager manager = new PortalThemesManager(cluster, dataSpace);
+      manager.loadThemes();
+      manager.save();
+      DataChangeListener listener = registeredListener();
+      PresentationLoginBannerSettingsService service = bannerService(manager);
+      writeAsRemoteNode(true);
+
+      // the notification for the remote write is delivered the moment B first reaches
+      // for the distributed lock
+      lock.beforeNextLock(() -> listener.dataChanged(notification()));
+      service.setModel(PresentationLoginBannerSettingsModel.builder()
+                          .bannerType("0").loginBanner("new-banner").build(), true);
+
+      PortalThemesManager persistedState = loadPersisted();
+      assertTrue(persistedState.isAutoExpand(), "the remote node's change was lost");
+      assertEquals("new-banner", persistedState.getWelcomePage().getBanner(),
+                   "the banner change was lost to the listener reload");
+   }
+
+   /*
+    * STALE-SAVE scenario, a different defect from the reported symptom (it loses the
+    * REMOTE change, the reported symptom loses the local one) with the same cause,
+    * whole-document write-back from a possibly stale in-memory copy: node A's write is
+    * committed but its notification has not reached B yet when B saves.
+    */
+   @Test
+   void staleInMemoryCopy_saveDoesNotOverwriteRemoteChange() throws Exception {
+      PortalThemesManager manager = new PortalThemesManager(cluster, dataSpace);
+      manager.loadThemes();
+      manager.save();
+      PresentationLoginBannerSettingsService service = bannerService(manager);
+      writeAsRemoteNode(true);
+
+      service.setModel(PresentationLoginBannerSettingsModel.builder()
+                          .bannerType("0").loginBanner("new-banner").build(), true);
+
+      PortalThemesManager persistedState = loadPersisted();
+      assertTrue(persistedState.isAutoExpand(),
+                 "B saved its stale copy over the remote node's change");
+      assertEquals("new-banner", persistedState.getWelcomePage().getBanner());
+   }
+
+   /*
+    * The mutation runs inside the distributed lock: a listener reload fired while it runs
+    * waits for it, and cannot swap the objects out from under it.
+    */
+   @Test
+   void update_listenerFiredDuringMutation_isSerializedAfterIt() throws Exception {
+      PortalThemesManager manager = new PortalThemesManager(cluster, dataSpace);
+      manager.loadThemes();
+      manager.save();
+      DataChangeListener listener = registeredListener();
+      writeAsRemoteNode(true);
+
+      manager.update(m -> {
+         Thread reload = new Thread(() -> listener.dataChanged(notification()));
+         reload.start();
+
+         try {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+
+            while(!lock.hasQueuedThreads() && System.nanoTime() < deadline) {
+               Thread.sleep(5);
+            }
+
+            assertTrue(lock.hasQueuedThreads(), "the listener did not wait for the lock");
+            m.getWelcomePage().setBanner("new-banner");
+         }
+         catch(InterruptedException ex) {
+            throw new IllegalStateException(ex);
+         }
+      });
+
+      PortalThemesManager persistedState = loadPersisted();
+      assertTrue(persistedState.isAutoExpand());
+      assertEquals("new-banner", persistedState.getWelcomePage().getBanner());
+      assertEquals("new-banner", manager.getWelcomePage().getBanner(),
+                   "the late reload discarded the saved change");
+   }
+
+   @Test
+   void updateChecked_mutationThrows_nothingIsSaved() throws Exception {
+      PortalThemesManager manager = new PortalThemesManager(cluster, dataSpace);
+      manager.loadThemes();
+      manager.save();
+      String before = written.toString(StandardCharsets.UTF_8);
+
+      assertThrows(java.io.IOException.class, () -> manager.updateChecked(m -> {
+         m.setAutoExpand(true);
+         throw new java.io.IOException("boom");
+      }));
+
+      assertEquals(before, written.toString(StandardCharsets.UTF_8));
+      assertFalse(lock.isLocked(), "the lock must be released when the mutation fails");
+   }
+
+   /** Node A: loads the shared file, sets auto expand and saves it. */
+   private void writeAsRemoteNode(boolean expand) {
+      PortalThemesManager remote = new PortalThemesManager(cluster, dataSpace);
+      remote.loadThemes();
+      remote.setAutoExpand(expand);
+      remote.save();
+   }
+
+   private PortalThemesManager loadPersisted() {
+      PortalThemesManager reader = new PortalThemesManager(cluster, dataSpace);
+      reader.loadThemes();
+      return reader;
+   }
+
+   private PresentationLoginBannerSettingsService bannerService(PortalThemesManager manager)
+      throws Exception
+   {
+      PresentationLoginBannerSettingsService service =
+         new PresentationLoginBannerSettingsService();
+      java.lang.reflect.Field field =
+         PresentationLoginBannerSettingsService.class.getDeclaredField("portalThemesManager");
+      field.setAccessible(true);
+      field.set(service, manager);
+      return service;
+   }
+
+   /** A lock that can run an action just before the next lock() call acquires it. */
+   private static final class HookLock extends ReentrantLock {
+      void beforeNextLock(Runnable action) {
+         hook = action;
+      }
+
+      @Override
+      public void lock() {
+         Runnable action = hook;
+         hook = null;
+
+         if(action != null) {
+            action.run();
+         }
+
+         super.lock();
+      }
+
+      private volatile Runnable hook;
    }
 
    private InputStream themesWithEntriesFor(String org, boolean withEntries) {

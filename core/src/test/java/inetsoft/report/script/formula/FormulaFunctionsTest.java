@@ -290,6 +290,20 @@ public class FormulaFunctionsTest {
       assertArrayEquals(expected, (Object[]) FormulaFunctions.toList(input.clone(), options));
    }
 
+   // #81461: a fractional Double is not a duplicate of the Integer with the same integer part
+   @Test
+   void toListDistinctKeepsIntegerAndFractionalValues() {
+      assertArrayEquals(new Object[] { 1, 1.5 },
+                        (Object[]) FormulaFunctions.toList(new Object[] { 1, 1.5 }, ""));
+      assertEquals(4, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.5, 2, 2.5 }, "")).length);
+      assertEquals(4, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 2.5, 2, 1.5, 1 }, "")).length);
+      // the same value as a Double and as an Integer is still one value
+      assertEquals(1, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.0 }, "")).length);
+   }
+
    // toList returns a new list; the array passed in is a script value and must stay as it was.
    // Control: with the default distinct=true the input is left alone.
    @Test
@@ -744,7 +758,6 @@ public class FormulaFunctionsTest {
    }
 
    @Test
-   @Disabled("Bug #81465: union() of Timestamp and Date depends on argument order")
    void timestampAndDateWithEqualMillisAreOneElementInBothOrders() {
       long ms = 1700000000123L;
       java.sql.Timestamp t = new java.sql.Timestamp(ms);
@@ -756,13 +769,6 @@ public class FormulaFunctionsTest {
                                                          new Object[] { t }, null)).length);
       assertTrue(FormulaFunctions.inArray(new Object[] { t }, d));
       assertTrue(FormulaFunctions.inArray(new Object[] { d }, t));
-   }
-
-   @Test
-   @Disabled("Bug #81461: toList() distinct treats Double 1.5 as a duplicate of Integer 1")
-   void toListDistinctKeepsIntegerAndFractionalValues() {
-      assertArrayEquals(new double[] { 1, 1.5 },
-                        numbers(FormulaFunctions.toList(new Object[] { 1, 1.5 }, null)));
    }
 
    private static void permute(Object[] items, int k, java.util.List<Object[]> out) {
@@ -783,7 +789,6 @@ public class FormulaFunctionsTest {
    }
 
    @Test
-   @Disabled("Bug #81461: toList() distinct treats Double 1.5 as a duplicate of Integer 1")
    void toListCountIsIndependentOfInputOrder() {
       java.util.List<Object[]> perms = new java.util.ArrayList<>();
       permute(new Object[] { 1, 1.5, 2, 2.5 }, 0, perms);

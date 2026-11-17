@@ -20,6 +20,7 @@ package inetsoft.uql.asset;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedLong;
+import inetsoft.sree.internal.cluster.DistributedReference;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.uql.*;
@@ -52,7 +53,9 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
                                          XRepository repository) {
       this.dataSourceRegistry = dataSourceRegistry;
       this.repository = repository;
+      this.cluster = cluster;
       state = cluster.getLong(STATE_NAME);
+      owner = cluster.getReference(OWNER_NAME);
       lock = cluster.getLock(LOCK_NAME);
    }
 
@@ -101,20 +104,77 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
          LOG.error(catalog.getString("maintain.dependencies.failed"), e);
          // Reset the distributed state so subsequent rebuild() calls are not blocked
          // indefinitely waiting for a STATE_UPDATING that will never clear.
-         lock.lock();
-         try {
-            if(state.get() == STATE_UPDATING) {
-               state.set(0L);
-            }
-         }
-         finally {
-            lock.unlock();
-         }
+         resetUpdating();
       }
       finally {
          rebuilding = false;
+         // an Error, or a close during the run, leaves UPDATING set by this node
+         resetOwnUpdating();
          completeThread();
       }
+   }
+
+   /**
+    * Marks the state as updating by this node. Must be called with the lock held.
+    */
+   private void setUpdating() {
+      // the owner is written first so a node that dies in between leaves no UPDATING behind
+      owner.set(cluster.getLocalNodeId());
+      state.set(STATE_UPDATING);
+   }
+
+   /**
+    * Resets the updating state. Must not be called with the lock held.
+    */
+   private void resetUpdating() {
+      lock.lock();
+
+      try {
+         if(state.get() == STATE_UPDATING) {
+            state.set(0L);
+            owner.set(null);
+         }
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   private void resetOwnUpdating() {
+      lock.lock();
+
+      try {
+         if(state.get() == STATE_UPDATING && cluster.getLocalNodeId().equals(owner.get())) {
+            state.set(0L);
+            owner.set(null);
+         }
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Checks if the state is updating, and the node that set it is no longer in the cluster, so
+    * nothing will ever finish the update (the node was killed, or ran out of memory). A node that
+    * restarts gets a new node id, so it never matches its previous run. When the owner was not
+    * recorded it cannot be told, and the state is treated as in progress. Must be called with the
+    * lock held.
+    */
+   private boolean isUpdatingAbandoned() {
+      if(state.get() != STATE_UPDATING) {
+         return false;
+      }
+
+      String ownerId = owner.get();
+
+      if(ownerId == null || cluster.getClusterNodeIds().contains(ownerId)) {
+         return false;
+      }
+
+      LOG.warn("The node {} that was rebuilding the dependencies has left the cluster, " +
+               "discarding its state", ownerId);
+      return true;
    }
 
    private void completeThread() {
@@ -156,6 +216,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
 
       try {
          state.set(STATE_UPDATED);
+         owner.set(null);
          SreeEnv.setProperty(getUpdateKey(), "true");
          SreeEnv.save();
       }
@@ -432,8 +493,8 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
          lock.lock();
 
          try {
-            if(state.get() != STATE_UPDATING) {
-               state.set(STATE_UPDATING);
+            if(state.get() != STATE_UPDATING || isUpdatingAbandoned()) {
+               setUpdating();
                timedOut = false;
                break;
             }
@@ -473,7 +534,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
    public void update(boolean background) {
       long currentState = state.get();
 
-      if(currentState == STATE_UPDATING || currentState == STATE_UPDATED) {
+      if(currentState == STATE_UPDATED) {
          return;
       }
 
@@ -481,6 +542,11 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
       lock.lock();
 
       try {
+         if(isUpdatingAbandoned()) {
+            state.set(0L);
+            owner.set(null);
+         }
+
          currentState = state.get();
 
          if(currentState == 0L) {
@@ -493,7 +559,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
             return;
          }
 
-         state.set(STATE_UPDATING);
+         setUpdating();
 
          if(background) {
             thread = new GroupedThread(this::updateAssetDependencies, ThreadContext.getPrincipal());
@@ -523,7 +589,10 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
    private Catalog catalog = Catalog.getCatalog();
    private GroupedThread thread;
    private volatile boolean closed = false;
+   private final Cluster cluster;
    private final DistributedLong state;
+   // id of the cluster node that set the state to updating
+   private final DistributedReference<String> owner;
    private final Lock lock;
    private boolean rebuilding = false;
 
@@ -536,5 +605,6 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
 
    private static final String PROPERTY = "source.dependencies.transformed";
    private static final String STATE_NAME = UpdateAssetDependenciesHandler.class.getName() + ".state";
+   private static final String OWNER_NAME = UpdateAssetDependenciesHandler.class.getName() + ".owner";
    private static final String LOCK_NAME = UpdateAssetDependenciesHandler.class.getName() + ".lock";
 }

@@ -482,6 +482,9 @@ public class FormatPainterService {
                          CommandDispatcher commandDispatcher, String linkUri)
       throws Exception
    {
+      // the controller does not reset the thread-local list, so an exception collected by an
+      // earlier request on this thread must not fail this unrelated format change
+      WorksheetEngine.ASSET_EXCEPTIONS.set(new ArrayList<>());
       Catalog catalog = Catalog.getCatalog(principal);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();

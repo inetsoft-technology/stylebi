@@ -79,6 +79,20 @@ class ExcelSelectionListFitTest {
       assertEquals(values(3), new Case(140, 111, 30, 1, 3).run().labels);
    }
 
+   /** Bug #81339: Expand Selections sized the box with cells rounded to 20px; no value may drop. */
+   @Test
+   void expandSelectionsKeepsEveryValue() throws Exception {
+      for(int cell : new int[] { 12, 21, 24, 25, 29, 20, 30, 31, 35 }) {
+         for(int cols : new int[] { 1, 2, 3 }) {
+            for(int n : new int[] { 10, 50 }) {
+               Case c = new Case(160, 0, cell, cols, n);
+               c.expand = true;
+               assertEquals(values(n), c.run().labels, "cell=" + cell + " cols=" + cols + " n=" + n);
+            }
+         }
+      }
+   }
+
    @Test
    void tallTitle() throws Exception {
       Case c = new Case(140, 130, 31, 1, 3);
@@ -229,6 +243,15 @@ class ExcelSelectionListFitTest {
          Workbook book = new XSSFWorkbook();
          Mockito.when(ctx.getWorkbook()).thenReturn(book);
          PoiExcelVSExporter ex = new PoiExcelVSExporter(ctx, new ByteArrayOutputStream());
+         ex.setMatchLayout(!expand);
+         ex.setExpandSelections(expand);
+
+         if(expand) {
+            // the box AbstractVSExporter.expandSelectionAssembly gives the list
+            double eh = ex.getSelectionHeight(info, info.getRowHeights(), inContainer);
+            info.setPixelSize(new Dimension(344, (int) Math.max(h, eh)));
+         }
+
          Sheet sheet = book.createSheet("s");
          ex.sheet = sheet;
          set(ex, "vs", vs);
@@ -244,7 +267,7 @@ class ExcelSelectionListFitTest {
          split.invoke(ex, vs, rowsSet, colsSet, cba);
          colsSet.add(0);
 
-         for(int i = 0; i <= 40; i++) {
+         for(int i = 0; i <= 100; i++) {
             rowsSet.add(i * 20);
          }
 
@@ -334,6 +357,7 @@ class ExcelSelectionListFitTest {
       int titleHeight = 18;
       boolean titleVisible = true;
       boolean inContainer;
+      boolean expand;
       int neighborY = -1;
       int neighborX = 0;
    }

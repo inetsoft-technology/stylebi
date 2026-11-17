@@ -62,7 +62,7 @@ class MVConditionListHandlerNotContainsScenarioTest {
       ExpressionRef exp = new ExpressionRef(null, "E");
       exp.setExpression("field['PRODUCT_NAME'] + ''");
       // global setting default: case insensitive, as without the MV
-      assertEquals(List.of("Kiwi", "Plum"), keptRows(new ColumnRef(exp)));
+      assertEquals(List.of("Kiwi", "Plum"), keptRows(scriptCol(exp)));
    }
 
    @Test
@@ -70,6 +70,12 @@ class MVConditionListHandlerNotContainsScenarioTest {
       // DB2 LIKE is case sensitive: only lower case 'a' counts
       assertEquals(List.of("Kiwi", "MeToo AppServer", "Plum", "True Action"),
                    keptRows(new ColumnRef(new AttributeRef("PRODUCT_NAME"))));
+   }
+
+   private static ColumnRef scriptCol(ExpressionRef exp) {
+      ColumnRef col = new ColumnRef(exp);
+      col.setSQL(false);
+      return col;
    }
 
    private static List<String> keptRows(DataRef ref) {
