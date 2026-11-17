@@ -4484,7 +4484,7 @@ public class ViewsheetAssemblyAgentController {
 
       if(restored.moved()) {
          broadcast.broadcastRemovedAssemblies(rvs, rvs.getID(), user, before);
-         tableData.addAll(broadcast.broadcastNewlyDrawnAssemblies(
+         tableData.addAll(broadcast.broadcastVisibilityChanges(
             rvs, rvs.getID(), user, drawnBefore, restored.tableData()));
       }
 

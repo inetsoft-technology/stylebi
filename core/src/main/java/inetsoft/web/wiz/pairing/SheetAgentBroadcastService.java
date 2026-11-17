@@ -252,7 +252,7 @@ public class SheetAgentBroadcastService {
    /**
     * The absolute names of the assemblies a viewer of {@code rvs} draws right now, by the same
     * rule the native viewer uses ({@link VSEventUtil#isVisible}). Take it before a mutation and
-    * hand it to {@link #broadcastNewlyDrawnAssemblies} afterwards.
+    * hand it to {@link #broadcastVisibilityChanges} afterwards.
     *
     * @return the names, or {@code null} when they cannot be determined (the caller then skips the
     *         diff; nothing is lost beyond the add of a re-shown assembly)
@@ -282,30 +282,34 @@ public class SheetAgentBroadcastService {
    }
 
    /**
-    * Adds to the browser every assembly that is drawn now but was not before the mutation (a
-    * re-shown assembly, an undone hide, the children of a re-shown group container).
+    * Tells the browser about every assembly whose visibility the mutation changed: the ones drawn
+    * now that were not before (a re-shown assembly, an undone hide, the children of a re-shown
+    * group container) are added, the ones drawn before that are not any more (a hide, an undone
+    * show, a redone hide) are removed.
     *
     * <p>The refresh broadcast only updates objects the viewer already holds: the Preview
-    * ({@code viewer-app}) ignores a refresh for an object it no longer has, and removes an
-    * assembly it was told is hidden, so a re-shown assembly stays missing until the page is
-    * reloaded (Bug #81569). The native service adds it with an {@code AddVSObjectCommand}; this
-    * runs that same {@link CoreLifecycleService#addDeleteVSObject} (and the table load of
-    * {@link CoreLifecycleService#initTable}) under a capturing dispatcher and forwards the
-    * commands with the address the native service gave them (selection-container and embedded
-    * viewsheet children). Call before {@link #broadcastRefresh}, which then updates the added
-    * objects like any other.
+    * ({@code viewer-app}) ignores a refresh for an object it no longer has, and keeps drawing
+    * one it was not told to remove, so a visibility change that reaches the server only through
+    * an undo/redo or a show shows in the browser only after a reload (Bug #81569). The native
+    * service sends an {@code AddVSObjectCommand} or {@code RemoveVSObjectCommand}; this runs that
+    * same {@link CoreLifecycleService#addDeleteVSObject} (and the table load of
+    * {@link CoreLifecycleService#initTable} for an added table) under a capturing dispatcher and
+    * forwards the commands with the address the native service gave them (selection-container
+    * and embedded viewsheet children). Call before {@link #broadcastRefresh}, which then updates
+    * the added objects like any other.
     *
     * <p>Best effort: a failure is logged and swallowed, the mutation already happened.
     *
-    * @param drawnBefore    {@link #drawnAssemblyNames} taken before the mutation; null skips
-    * @param alreadyLoaded  commands the mutation produced; a table whose data is among them is
-    *                       not loaded again
+    * @param drawnBefore     {@link #drawnAssemblyNames} taken before the mutation; null skips
+    * @param alreadyCaptured commands the mutation produced; a table whose data is among them is
+    *                        not loaded again, and an assembly whose removal is among them is not
+    *                        removed again
     * @return the {@code LoadTableDataCommand}s of the added tables, for the caller to pass to
     *         {@link #broadcastRefresh} so they follow the refresh that carries the table model
     */
-   public List<CommandDispatcher.Command> broadcastNewlyDrawnAssemblies(
+   public List<CommandDispatcher.Command> broadcastVisibilityChanges(
       RuntimeViewsheet rvs, String runtimeId, Principal owner, Set<String> drawnBefore,
-      List<CommandDispatcher.Command> alreadyLoaded)
+      List<CommandDispatcher.Command> alreadyCaptured)
    {
       String sessionId = rvs.getSocketSessionId();
       Viewsheet vs = rvs.getViewsheet();
@@ -321,22 +325,30 @@ public class SheetAgentBroadcastService {
          user = owner == null ? null : owner.getName();
       }
 
-      List<VSAssembly> added = newlyDrawn(rvs, vs, drawnBefore);
-
-      if(added.isEmpty()) {
-         return tableData;
-      }
-
       Set<String> loaded = new HashSet<>();
+      Set<String> removed = new HashSet<>();
 
-      if(alreadyLoaded != null) {
-         for(CommandDispatcher.Command c : alreadyLoaded) {
-            if(c != null && c.getCommand() instanceof LoadTableDataCommand &&
-               c.getAssembly() != null)
-            {
+      if(alreadyCaptured != null) {
+         for(CommandDispatcher.Command c : alreadyCaptured) {
+            if(c == null) {
+               continue;
+            }
+
+            if(c.getCommand() instanceof LoadTableDataCommand && c.getAssembly() != null) {
                loaded.add(c.getAssembly());
             }
+            else if(c.getCommand() instanceof RemoveVSObjectCommand remove) {
+               removed.add(remove.getName());
+            }
          }
+      }
+
+      List<VSAssembly> added = changedVisibility(rvs, vs, drawnBefore, true);
+      List<VSAssembly> hidden = changedVisibility(rvs, vs, drawnBefore, false);
+      hidden.removeIf(a -> removed.contains(a.getAbsoluteName()));
+
+      if(added.isEmpty() && hidden.isEmpty()) {
+         return tableData;
       }
 
       List<CommandDispatcher.Command> captured = new ArrayList<>();
@@ -344,6 +356,10 @@ public class SheetAgentBroadcastService {
       try {
          CapturingCommandDispatcher.withCapturingDispatcher(owner, dispatcher -> {
             try {
+               for(VSAssembly assembly : hidden) {
+                  coreLifecycleService.addDeleteVSObject(rvs, assembly, dispatcher, true);
+               }
+
                for(VSAssembly assembly : added) {
                   coreLifecycleService.addDeleteVSObject(rvs, assembly, dispatcher, true);
 
@@ -360,7 +376,7 @@ public class SheetAgentBroadcastService {
          });
       }
       catch(Exception e) {
-         LOG.warn("Failed to add the re-shown assemblies to the paired browser (runtimeId={})",
+         LOG.warn("Failed to send the visibility changes to the paired browser (runtimeId={})",
                   runtimeId, e);
       }
 
@@ -385,50 +401,53 @@ public class SheetAgentBroadcastService {
             }
          }
          catch(Exception e) {
-            LOG.warn("Failed to forward a re-shown assembly to the paired browser (runtimeId={})",
+            LOG.warn("Failed to forward a visibility change to the paired browser (runtimeId={})",
                      runtimeId, e);
          }
       }
 
-      LOG.info("Pairing broadcast added re-shown assemblies (runtimeId={}, sessionId={}, " +
-               "assemblies={})", runtimeId, sessionId, added.size());
+      LOG.info("Pairing broadcast sent visibility changes (runtimeId={}, sessionId={}, " +
+               "added={}, removed={})", runtimeId, sessionId, added.size(), hidden.size());
       return tableData;
    }
 
    /**
-    * The assemblies drawn now and not in {@code drawnBefore}, without those inside an embedded
-    * viewsheet that is itself among them: adding the embedded viewsheet adds its children.
+    * The assemblies still on the sheet that are drawn now and were not in {@code drawnBefore}
+    * ({@code drawnNow} true), or were and are not ({@code drawnNow} false), without those inside
+    * an embedded viewsheet that is itself among them: the embedded viewsheet's own add or remove
+    * covers its children. A deleted assembly is not on the sheet; that is the removal diff's job.
     */
-   private List<VSAssembly> newlyDrawn(RuntimeViewsheet rvs, Viewsheet vs,
-                                       Set<String> drawnBefore)
+   private List<VSAssembly> changedVisibility(RuntimeViewsheet rvs, Viewsheet vs,
+                                              Set<String> drawnBefore, boolean drawnNow)
    {
-      List<VSAssembly> added = new ArrayList<>();
-      Set<String> addedViewsheets = new HashSet<>();
+      List<VSAssembly> changed = new ArrayList<>();
+      Set<String> changedViewsheets = new HashSet<>();
 
       try {
          for(Assembly a : vs.getAssemblies(true, false)) {
             if(a instanceof VSAssembly vsAssembly &&
-               !drawnBefore.contains(vsAssembly.getAbsoluteName()) &&
-               VSEventUtil.isVisible(rvs, vsAssembly))
+               drawnBefore.contains(vsAssembly.getAbsoluteName()) != drawnNow &&
+               VSEventUtil.isVisible(rvs, vsAssembly) == drawnNow)
             {
-               added.add(vsAssembly);
+               changed.add(vsAssembly);
 
                if(vsAssembly instanceof Viewsheet) {
-                  addedViewsheets.add(vsAssembly.getAbsoluteName());
+                  changedViewsheets.add(vsAssembly.getAbsoluteName());
                }
             }
          }
       }
       catch(Exception e) {
-         LOG.warn("Failed to determine the re-shown assemblies (runtimeId={})", rvs.getID(), e);
-         return List.of();
+         LOG.warn("Failed to determine the assemblies whose visibility changed (runtimeId={})",
+                  rvs.getID(), e);
+         return new ArrayList<>();
       }
 
-      added.removeIf(a -> {
+      changed.removeIf(a -> {
          for(Viewsheet parent = a.getViewsheet(); parent != null && parent != vs;
              parent = parent.getViewsheet())
          {
-            if(addedViewsheets.contains(parent.getAbsoluteName())) {
+            if(changedViewsheets.contains(parent.getAbsoluteName())) {
                return true;
             }
          }
@@ -436,7 +455,7 @@ public class SheetAgentBroadcastService {
          return false;
       });
 
-      return added;
+      return changed;
    }
 
    /**

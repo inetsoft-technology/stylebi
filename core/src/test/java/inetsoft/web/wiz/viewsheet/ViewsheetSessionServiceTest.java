@@ -158,7 +158,7 @@ class ViewsheetSessionServiceTest {
       java.util.Set<String> drawnBefore = java.util.Set.of("Text2");
       when(broadcast.drawnAssemblyNames(rvs)).thenReturn(drawnBefore);
       CommandDispatcher.Command addedData = mock(CommandDispatcher.Command.class);
-      when(broadcast.broadcastNewlyDrawnAssemblies(eq(rvs), any(), any(), eq(drawnBefore), any()))
+      when(broadcast.broadcastVisibilityChanges(eq(rvs), any(), any(), eq(drawnBefore), any()))
          .thenReturn(List.of(addedData));
 
       Principal agent = TestPrincipals.user("alice", "host-org");
@@ -178,7 +178,7 @@ class ViewsheetSessionServiceTest {
 
       assertTrue(snapshotBeforeEdit[0], "the drawn assemblies must be read before the edit runs");
       org.mockito.InOrder order = inOrder(broadcast);
-      order.verify(broadcast).broadcastNewlyDrawnAssemblies(eq(rvs), eq("Viewsheet/foo-7"),
+      order.verify(broadcast).broadcastVisibilityChanges(eq(rvs), eq("Viewsheet/foo-7"),
                                                            eq(agent), eq(drawnBefore), any());
       order.verify(broadcast).broadcastRefresh(eq(rvs), eq(SheetType.VIEWSHEET),
                                                eq("Viewsheet/foo-7"), eq(agent),

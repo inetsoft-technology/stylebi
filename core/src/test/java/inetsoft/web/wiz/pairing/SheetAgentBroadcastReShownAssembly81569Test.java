@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.viewsheet.command.AddVSObjectCommand;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
+import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -123,7 +124,7 @@ class SheetAgentBroadcastReShownAssembly81569Test {
       }).when(lifecycle).addDeleteVSObject(eq(rvs), eq(shown), any(CommandDispatcher.class),
                                            eq(true));
 
-      List<CommandDispatcher.Command> tableData = svc.broadcastNewlyDrawnAssemblies(
+      List<CommandDispatcher.Command> tableData = svc.broadcastVisibilityChanges(
          rvs, "vs-1", AGENT, Set.of("Text2"), List.of());
 
       assertTrue(tableData.isEmpty());
@@ -152,10 +153,91 @@ class SheetAgentBroadcastReShownAssembly81569Test {
    void withoutASnapshotNothingIsAdded() throws Exception {
       assemblies(assembly(TextVSAssembly.class, vs, "Text1", true));
 
-      svc.broadcastNewlyDrawnAssemblies(rvs, "vs-1", AGENT, null, List.of());
+      svc.broadcastVisibilityChanges(rvs, "vs-1", AGENT, null, List.of());
 
       verifyNoInteractions(lifecycle);
       verify(dispatcher, never()).convertAndSendToUser(any(), any(), any(), any());
+   }
+
+   /** Undo of a show and redo of a hide restore a hidden state the viewer was never told about. */
+   @Test
+   void anAssemblyDrawnBeforeAndHiddenNowIsRemovedWithTheNativeAddress() throws Exception {
+      TextVSAssembly hidden = assembly(TextVSAssembly.class, vs, "Text1", false);
+      TextVSAssembly kept = assembly(TextVSAssembly.class, vs, "Text2", true);
+      assemblies(hidden, kept);
+
+      doAnswer(inv -> {
+         CommandDispatcher d = inv.getArgument(2);
+         RemoveVSObjectCommand remove = new RemoveVSObjectCommand();
+         remove.setName("Text1");
+         d.sendCommand("Container1", remove);
+         return null;
+      }).when(lifecycle).addDeleteVSObject(eq(rvs), eq(hidden), any(CommandDispatcher.class),
+                                           eq(true));
+
+      List<CommandDispatcher.Command> tableData = svc.broadcastVisibilityChanges(
+         rvs, "vs-1", AGENT, Set.of("Text1", "Text2"), List.of());
+
+      assertTrue(tableData.isEmpty());
+      verify(lifecycle).addDeleteVSObject(eq(rvs), eq(hidden), any(CommandDispatcher.class),
+                                          eq(true));
+      verify(lifecycle, never()).addDeleteVSObject(eq(rvs), eq(kept),
+                                                    any(CommandDispatcher.class), anyBoolean());
+      verify(lifecycle, never()).initTable(any(), any(), any(), any());
+
+      ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+      ArgumentCaptor<MessageHeaders> headers = ArgumentCaptor.forClass(MessageHeaders.class);
+      verify(dispatcher).convertAndSendToUser(
+         eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), payload.capture(),
+         headers.capture());
+      assertInstanceOf(RemoveVSObjectCommand.class, payload.getValue());
+      SimpMessageHeaderAccessor acc = SimpMessageHeaderAccessor.wrap(
+         new GenericMessage<>("", headers.getValue()));
+      assertEquals("Container1", acc.getNativeHeader(CommandDispatcher.ASSEMBLY_NAME_HEADER).get(0));
+   }
+
+   /** A hide through the tools already produced its Remove; the broadcast forwards that one. */
+   @Test
+   void anAssemblyTheMutationAlreadyRemovedIsNotRemovedAgain() throws Exception {
+      TextVSAssembly hidden = assembly(TextVSAssembly.class, vs, "Text1", false);
+      assemblies(hidden);
+
+      RemoveVSObjectCommand remove = new RemoveVSObjectCommand();
+      remove.setName("Text1");
+      CommandDispatcher.Command produced =
+         new CommandDispatcher.Command("", "RemoveVSObjectCommand", remove);
+
+      svc.broadcastVisibilityChanges(rvs, "vs-1", AGENT, Set.of("Text1"), List.of(produced));
+
+      verifyNoInteractions(lifecycle);
+      verify(dispatcher, never()).convertAndSendToUser(any(), any(), any(), any());
+   }
+
+   /** A deleted assembly is not on the sheet any more; the removal diff of undo/redo owns it. */
+   @Test
+   void aDeletedAssemblyIsLeftToTheRemovalDiff() throws Exception {
+      assemblies(assembly(TextVSAssembly.class, vs, "Text2", true));
+
+      svc.broadcastVisibilityChanges(rvs, "vs-1", AGENT, Set.of("Gone", "Text2"), List.of());
+
+      verifyNoInteractions(lifecycle);
+   }
+
+   @Test
+   void theChildrenOfAHiddenEmbeddedViewsheetAreRemovedByTheEmbeddedViewsheetOnly()
+      throws Exception
+   {
+      Viewsheet embedded = assembly(Viewsheet.class, vs, "Embed1", false);
+      TextVSAssembly child = assembly(TextVSAssembly.class, embedded, "Embed1.Text1", false);
+      assemblies(embedded, child);
+
+      svc.broadcastVisibilityChanges(rvs, "vs-1", AGENT, Set.of("Embed1", "Embed1.Text1"),
+                                     List.of());
+
+      verify(lifecycle).addDeleteVSObject(eq(rvs), eq(embedded), any(CommandDispatcher.class),
+                                          eq(true));
+      verify(lifecycle, never()).addDeleteVSObject(eq(rvs), eq(child),
+                                                    any(CommandDispatcher.class), anyBoolean());
    }
 
    @Test
@@ -166,7 +248,7 @@ class SheetAgentBroadcastReShownAssembly81569Test {
       TextVSAssembly child = assembly(TextVSAssembly.class, embedded, "Embed1.Text1", true);
       assemblies(embedded, child);
 
-      svc.broadcastNewlyDrawnAssemblies(rvs, "vs-1", AGENT, Set.of(), List.of());
+      svc.broadcastVisibilityChanges(rvs, "vs-1", AGENT, Set.of(), List.of());
 
       verify(lifecycle).addDeleteVSObject(eq(rvs), eq(embedded), any(CommandDispatcher.class),
                                           eq(true));
@@ -189,7 +271,7 @@ class SheetAgentBroadcastReShownAssembly81569Test {
          return null;
       }).when(lifecycle).initTable(eq(rvs), any(CommandDispatcher.class), eq(""), eq(fresh));
 
-      List<CommandDispatcher.Command> tableData = svc.broadcastNewlyDrawnAssemblies(
+      List<CommandDispatcher.Command> tableData = svc.broadcastVisibilityChanges(
          rvs, "vs-1", AGENT, Set.of(), List.of(produced));
 
       verify(lifecycle).initTable(eq(rvs), any(CommandDispatcher.class), eq(""), eq(fresh));
@@ -208,7 +290,7 @@ class SheetAgentBroadcastReShownAssembly81569Test {
       doThrow(new IllegalStateException("boom")).when(lifecycle)
          .addDeleteVSObject(any(), any(), any(CommandDispatcher.class), anyBoolean());
 
-      assertDoesNotThrow(() -> svc.broadcastNewlyDrawnAssemblies(
+      assertDoesNotThrow(() -> svc.broadcastVisibilityChanges(
          rvs, "vs-1", AGENT, Set.of(), List.of()));
    }
 

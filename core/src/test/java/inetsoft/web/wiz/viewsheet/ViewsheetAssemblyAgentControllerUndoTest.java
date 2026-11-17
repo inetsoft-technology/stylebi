@@ -104,7 +104,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
       List<CommandDispatcher.Command> addedTableData =
          List.of(mock(CommandDispatcher.Command.class));
       when(broadcast.drawnAssemblyNames(rvs)).thenReturn(drawnBefore);
-      when(broadcast.broadcastNewlyDrawnAssemblies(rvs, "vs-1", user, drawnBefore, tableData))
+      when(broadcast.broadcastVisibilityChanges(rvs, "vs-1", user, drawnBefore, tableData))
          .thenReturn(addedTableData);
       List<CommandDispatcher.Command> allTableData = new ArrayList<>(tableData);
       allTableData.addAll(addedTableData);
@@ -116,7 +116,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
       order.verify(broadcast).drawnAssemblyNames(rvs);
       order.verify(sessions).restoreCheckpoint(eq(rvs), eq(user), any(), eq(true));
       order.verify(broadcast).broadcastRemovedAssemblies(rvs, "vs-1", user, snapshot);
-      order.verify(broadcast).broadcastNewlyDrawnAssemblies(rvs, "vs-1", user, drawnBefore,
+      order.verify(broadcast).broadcastVisibilityChanges(rvs, "vs-1", user, drawnBefore,
                                                            tableData);
       order.verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user,
                                                allTableData);
@@ -125,7 +125,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
       arrange(true, true);
       controller.redo("tok", user, "");
 
-      verify(broadcast).broadcastNewlyDrawnAssemblies(rvs, "vs-1", user, drawnBefore, tableData);
+      verify(broadcast).broadcastVisibilityChanges(rvs, "vs-1", user, drawnBefore, tableData);
       verify(broadcast).broadcastRefresh(rvs, SheetType.VIEWSHEET, "vs-1", user, allTableData);
    }
 
@@ -135,7 +135,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
 
       controller.undo("tok", user, "");
 
-      verify(broadcast, never()).broadcastNewlyDrawnAssemblies(any(), any(), any(), any(), any());
+      verify(broadcast, never()).broadcastVisibilityChanges(any(), any(), any(), any(), any());
    }
 
    @Test

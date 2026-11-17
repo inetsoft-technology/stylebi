@@ -353,7 +353,7 @@ public class ViewsheetSessionService {
          rvs.bumpWriteRevision();
 
          producedCommands.addAll(
-            broadcast.broadcastNewlyDrawnAssemblies(rvs, session.runtimeId(), agent, drawnBefore,
+            broadcast.broadcastVisibilityChanges(rvs, session.runtimeId(), agent, drawnBefore,
                                                     producedCommands));
          notDelivered = broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(),
                                                    agent, producedCommands);
