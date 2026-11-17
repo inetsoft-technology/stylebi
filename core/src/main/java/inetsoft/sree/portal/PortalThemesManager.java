@@ -708,10 +708,12 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          writer.println("</userFontFaces>");
       }
 
-      if(portalTabs.size() > 0) {
+      List<PortalTab> tabs = portalTabs;
+
+      if(tabs.size() > 0) {
          writer.println("<portalTabs>");
 
-         for(PortalTab portalTab : portalTabs) {
+         for(PortalTab portalTab : tabs) {
             portalTab.writeXML(writer);
          }
 
