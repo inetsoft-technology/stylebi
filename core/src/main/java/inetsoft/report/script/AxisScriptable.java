@@ -234,7 +234,7 @@ public class AxisScriptable extends PropertyScriptable {
    protected Object getObject() {
       init();
 
-      return axis;
+      return getReadAxis();
    }
 
    /**
@@ -252,7 +252,7 @@ public class AxisScriptable extends PropertyScriptable {
 
             if(val instanceof PropertyDescriptor) {
                PropertyDescriptor desc = (PropertyDescriptor) val;
-               return desc.get(axis.getAxisLabelTextFormat());
+               return desc.get(getReadAxis().getAxisLabelTextFormat());
             }
          }
          catch(Exception e) {
@@ -317,8 +317,7 @@ public class AxisScriptable extends PropertyScriptable {
                      }
                   }
 
-                  put(name, value, desc,
-                     !dim && !info.isSeparatedGraph() ? axis : getAxisDescriptor(refs[i]));
+                  put(name, value, desc, getTargetAxis(refs[i]));
                }
             }
             else {
@@ -380,6 +379,36 @@ public class AxisScriptable extends PropertyScriptable {
 
    private static boolean isSecondaryMeasure(ChartRef ref) {
       return ref instanceof ChartAggregateRef && ((ChartAggregateRef) ref).isSecondaryY();
+   }
+
+   /**
+    * Get the descriptor a write for the specified field goes to.
+    */
+   private AxisDescriptor getTargetAxis(ChartRef ref) {
+      boolean dim = GraphUtil.isDimension(ref);
+      return !dim && !info.isSeparatedGraph() ? axis : getAxisDescriptor(ref);
+   }
+
+   /**
+    * Get the descriptor to read from. For the global xAxis/yAxis this is the
+    * descriptor writes go to for the first dimension on the axis, so reads see
+    * what writes stored.
+    */
+   private AxisDescriptor getReadAxis() {
+      if(!isGlobalAxisScriptable() || isY2Axis) {
+         return axis;
+      }
+
+      ChartRef[] refs = isXAxis ? info.getRTXFields() : info.getRTYFields();
+
+      for(int i = 0; refs != null && i < refs.length; i++) {
+         if(GraphUtil.isDimension(refs[i])) {
+            AxisDescriptor target = getTargetAxis(refs[i]);
+            return target != null ? target : axis;
+         }
+      }
+
+      return axis;
    }
 
    /**

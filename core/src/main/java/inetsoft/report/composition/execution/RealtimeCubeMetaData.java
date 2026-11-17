@@ -20,7 +20,9 @@ package inetsoft.report.composition.execution;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.SelectionVSAssembly;
 import inetsoft.uql.viewsheet.internal.SelectionSet;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.xmla.MemberObject;
 
 import java.util.*;
@@ -85,6 +87,21 @@ public class RealtimeCubeMetaData extends TableMetaData {
       Set<String> selected = new HashSet<>();
 
       for(String col : selections.keySet()) {
+         if(col.startsWith(SelectionVSAssembly.RANGE)) {
+            // a range slider key names its columns, not a single column
+            String key = col.substring(SelectionVSAssembly.RANGE.length());
+
+            for(String name : VSUtil.parseSelectionKey(key)) {
+               String rhier = getHierarchy(name);
+
+               if(rhier != null) {
+                  selected.add(rhier);
+               }
+            }
+
+            continue;
+         }
+
          String hier = getHierarchy(col);
          selected.add(hier);
       }

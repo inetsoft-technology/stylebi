@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import inetsoft.uql.asset.Assembly;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
@@ -128,5 +129,13 @@ public class CrosstabVSAScriptableTest {
       assertNotNull(crosstabVSAScriptable.getBindingInfo());
 
       crosstabVSAScriptable.clearCache();
+   }
+
+   @Test
+   void cubeQueryIsStoredWithCubeViewsheetPrefixAndUnsetQueryIsNull() {
+      assertNull(crosstabVSAScriptable.getQuery());
+
+      crosstabVSAScriptable.setQuery("cube::sales");
+      assertEquals(Assembly.CUBE_VS + "sales", crosstabVSAScriptable.getQuery());
    }
 }

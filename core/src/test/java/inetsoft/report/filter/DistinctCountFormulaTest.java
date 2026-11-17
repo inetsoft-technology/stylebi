@@ -19,7 +19,6 @@ package inetsoft.report.filter;
 
 import inetsoft.uql.XConstants;
 import inetsoft.util.Tool;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -268,7 +267,6 @@ class DistinctCountFormulaTest {
       assertEquals(1, objects.getResult());
    }
 
-   @Disabled("Bug #81213: DistinctCountFormula: -0.0 and Timestamp/Date equality")
    @Test
    @DisplayName("0.0 and -0.0 are the same value")
    void negativeZero_isTheSameValueAsZero() {
@@ -288,7 +286,6 @@ class DistinctCountFormulaTest {
       assertEquals(0.2, (Double) distinct.getResult(), 1e-9);
    }
 
-   @Disabled("Bug #81213: DistinctCountFormula: -0.0 and Timestamp/Date equality")
    @Test
    @DisplayName("A Timestamp and a Date of the same instant are one value in either order")
    void timestampAndDateOfTheSameInstant_countOnce() {
@@ -300,6 +297,77 @@ class DistinctCountFormulaTest {
       DistinctCountFormula dateFirst = new DistinctCountFormula();
       addAll(dateFirst, new Date(time), new java.sql.Timestamp(time));
       assertEquals(1, dateFirst.getResult());
+   }
+
+   @Test
+   @DisplayName("Boxed and primitive 0.0/-0.0 and float zeros are one value")
+   void negativeZero_boxedAndFloat() {
+      DistinctCountFormula boxed = new DistinctCountFormula();
+      addAll(boxed, 0.0, -0.0, Double.valueOf(-0.0));
+      assertEquals(1, boxed.getResult());
+
+      DistinctCountFormula floats = new DistinctCountFormula();
+      floats.addValue(0.0f);
+      floats.addValue(-0.0f);
+      assertEquals(1, floats.getResult());
+   }
+
+   @Test
+   @DisplayName("Timestamps with sub-millisecond precision are order independent and distinct")
+   void subMillisecondTimestamps() {
+      long time = 1_700_000_000_000L;
+      java.sql.Timestamp a = new java.sql.Timestamp(time);
+      a.setNanos(a.getNanos() + 1);
+      java.sql.Timestamp b = new java.sql.Timestamp(time);
+      b.setNanos(b.getNanos() + 2);
+
+      DistinctCountFormula f1 = new DistinctCountFormula();
+      addAll(f1, a, new Date(time), a, b);
+      DistinctCountFormula f2 = new DistinctCountFormula();
+      addAll(f2, new Date(time), b, a, a);
+      assertEquals(3, f1.getResult());
+      assertEquals(3, f2.getResult());
+
+      // the formula is Serializable, so the sub-millisecond keys must survive a round trip
+      DistinctCountFormula copy = roundTrip(f1);
+      assertEquals(3, copy.getResult());
+      copy.addValue((Object) a);
+      copy.addValue((Object) new Date(time));
+      assertEquals(3, copy.getResult());
+      copy.addValue((Object) new java.sql.Timestamp(time + 1));
+      assertEquals(4, copy.getResult());
+   }
+
+   @Test
+   @DisplayName("A clone keeps the normalized values")
+   void clone_keepsNormalizedValues() {
+      long time = 1_700_000_000_000L;
+      DistinctCountFormula original = new DistinctCountFormula();
+      addAll(original, 0.0, new java.sql.Timestamp(time));
+      DistinctCountFormula copy = (DistinctCountFormula) original.clone();
+      addAll(copy, -0.0, new Date(time));
+      assertEquals(2, copy.getResult());
+      assertEquals(2, original.getResult());
+   }
+
+   @SuppressWarnings("unchecked")
+   private static <T> T roundTrip(T obj) {
+      try {
+         java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+
+         try(java.io.ObjectOutputStream out = new java.io.ObjectOutputStream(bytes)) {
+            out.writeObject(obj);
+         }
+
+         try(java.io.ObjectInputStream in = new java.io.ObjectInputStream(
+            new java.io.ByteArrayInputStream(bytes.toByteArray())))
+         {
+            return (T) in.readObject();
+         }
+      }
+      catch(Exception ex) {
+         throw new AssertionError(ex);
+      }
    }
 
    private static void addAll(Formula formula, Object... values) {

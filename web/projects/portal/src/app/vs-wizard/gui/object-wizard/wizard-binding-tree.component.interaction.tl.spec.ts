@@ -35,7 +35,9 @@
  *                        assigns selectedNodes minus the last node
  *   Group 7  [Risk 2] — processRefreshWizardTreeCommand: calls resetTreeModel + reloadSelectedBinding;
  *                        forceRefresh+unchanged-paths → early return (no reset);
- *                        flatternTree merges Dimensions/Measures and sorts alphabetically
+ *                        flatternTree merges Dimensions/Measures and sorts alphabetically when
+ *                        there is no entity wrapper, but keeps the model's attribute order for a
+ *                        logical-model entity's own Dimensions/Measures (Bug #81269)
  *   Group 8  [baseline] — processSetWizardBindingTreeNodesCommand: selectedPaths + toRecommend
  *   Group 9  [baseline] — processSetGrayedOutFieldsCommand: sets treeInfo.grayedOutFields;
  *                          no-op when treeInfo is null
@@ -586,6 +588,76 @@ describe("WizardBindingTree — processRefreshWizardTreeCommand()", () => {
       // Dimensions + Measures merged and sorted: Amount < Category < Zebra
       const labels = treeModel.children.map((n: any) => n.label);
       expect(labels).toEqual(["Amount", "Category", "Zebra"]);
+   });
+
+   // Bug #81269: a logical-model entity's own attribute list must keep the order
+   // defined in the model (Zcol, Acol), not be alphabetized (Acol, Zcol) the way the
+   // no-entity-wrapper case above is. Entity order itself is untouched either way.
+   // The "sourceType": "LOGIC_MODEL" marker on each entity's own data mirrors what
+   // BaseTreeModelBuilder.applyTableNodeProperties() stamps on the real AssetEntry.
+   it("flatternTree should merge each entity's Dimensions+Measures and keep the " +
+      "model's attribute order instead of alphabetizing them", async () => {
+      const { comp } = await renderComponent();
+      const entity1 = {
+         label: "Entity1",
+         data: { properties: { sourceType: "LOGIC_MODEL" } },
+         children: [
+            { label: "Dimensions", children: [makeNode("Zcol"), makeNode("Acol")] },
+            { label: "Measures", children: [makeNode("Mcol")] },
+         ],
+      } as any;
+      const entity2 = {
+         label: "Entity2",
+         data: { properties: { sourceType: "LOGIC_MODEL" } },
+         children: [
+            { label: "Dimensions", children: [makeNode("Bcol")] },
+            { label: "Measures", children: [] as any[] },
+         ],
+      } as any;
+      const treeModel = { label: "root", children: [entity1, entity2] } as any;
+      BINDING_TREE_SERVICE_MOCK.bindingTreeModel = treeModel;
+
+      (comp as any)["processRefreshWizardTreeCommand"]({
+         forceRefresh: false,
+         reload: false,
+         treeModel,
+         treeInfo: null,
+      });
+
+      const entityLabels = treeModel.children.map((n: any) => n.label);
+      expect(entityLabels).toEqual(["Entity1", "Entity2"]);
+      expect(treeModel.children[0].children.map((n: any) => n.label))
+         .toEqual(["Zcol", "Acol", "Mcol"]);
+      expect(treeModel.children[1].children.map((n: any) => n.label))
+         .toEqual(["Bcol"]);
+   });
+
+   // Bug #81269 regression guard: a non-logical-model, entity/table-wrapped source
+   // (e.g. a worksheet with several tables, no "sourceType": "LOGIC_MODEL" marker on
+   // its data) must keep the pre-existing merged-alphabetical behavior per table.
+   it("flatternTree should still alphabetize merged Dimensions+Measures for a " +
+      "non-logical-model entity-wrapped table", async () => {
+      const { comp } = await renderComponent();
+      const table1 = {
+         label: "Table1",
+         data: { properties: {} },
+         children: [
+            { label: "Dimensions", children: [makeNode("B"), makeNode("D")] },
+            { label: "Measures", children: [makeNode("A")] },
+         ],
+      } as any;
+      const treeModel = { label: "root", children: [table1] } as any;
+      BINDING_TREE_SERVICE_MOCK.bindingTreeModel = treeModel;
+
+      (comp as any)["processRefreshWizardTreeCommand"]({
+         forceRefresh: false,
+         reload: false,
+         treeModel,
+         treeInfo: null,
+      });
+
+      expect(treeModel.children[0].children.map((n: any) => n.label))
+         .toEqual(["A", "B", "D"]);
    });
 
    // End-to-end: CommandProcessor dispatch routes to processRefreshWizardTreeCommand

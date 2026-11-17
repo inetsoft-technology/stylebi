@@ -41,6 +41,12 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    public boolean checkPermission(Principal principal, ResourceType type,
                                   String resource, ResourceAction action)
    {
+      // Bug #81497, a resource with no mapped type has no permission to grant, deny it (fail
+      // closed) instead of failing on the type further down
+      if(type == null) {
+         return false;
+      }
+
       if(isAllowedDefaultGlobalVSAction(principal, action, type, resource)) {
          return true;
       }
@@ -156,7 +162,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
 
       //return true if admin permissions over root role
-      if(type.equals(ResourceType.SECURITY_ROLE)) {
+      if(type == ResourceType.SECURITY_ROLE) {
          String rootRole = Organization.getRootRoleName(principal);
          String rootOrgRole = Organization.getRootOrgRoleName(principal);
          Role role = provider.getRole(IdentityID.getIdentityIDFromKey(resource));
@@ -187,7 +193,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             return true;
          }
       }
-      else if(type.equals(ResourceType.SECURITY_GROUP) && !targetOutOfOrg && !adminGrantingGroup &&
+      else if(type == ResourceType.SECURITY_GROUP && !targetOutOfOrg && !adminGrantingGroup &&
          !orgAdminGrantingTarget)
       {
          IdentityID rootGroup = new IdentityID("Groups", OrganizationManager.getInstance().getCurrentOrgID());
@@ -200,7 +206,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
       //return true if admin permissions over root role. Bug #77347, the Users/Groups roots are
       //checked before the system/site admin short-circuit, so exclude such a user here too
-      else if(type.equals(ResourceType.SECURITY_USER) && !targetOutOfOrg && !adminGrantingUser &&
+      else if(type == ResourceType.SECURITY_USER && !targetOutOfOrg && !adminGrantingUser &&
          !orgAdminGrantingTarget)
       {
          IdentityID rootUser = new IdentityID("Users", OrganizationManager.getInstance().getCurrentOrgID());
@@ -635,16 +641,17 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    }
 
    private boolean isNotGlobalRole(ResourceType type, IdentityID name) {
-      return !type.equals(ResourceType.SECURITY_ROLE) || provider.getRole(name) == null ||
+      return type != ResourceType.SECURITY_ROLE || provider.getRole(name) == null ||
              (provider.getRole(name).getOrganizationID() != null &&
              !provider.getRole(name).getOrganizationID().isEmpty());
    }
 
    private boolean isSecurityIdentity(ResourceType type) {
-      return type.equals(ResourceType.SECURITY_USER) ||
-         type.equals(ResourceType.SECURITY_GROUP) ||
-         type.equals(ResourceType.SECURITY_ROLE) ||
-         type.equals(ResourceType.SECURITY_ORGANIZATION);
+      // Bug #81497, type is null for a resource with no mapped type, which is no identity
+      return type == ResourceType.SECURITY_USER ||
+         type == ResourceType.SECURITY_GROUP ||
+         type == ResourceType.SECURITY_ROLE ||
+         type == ResourceType.SECURITY_ORGANIZATION;
    }
 
    /**

@@ -176,7 +176,10 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
 
    @Override
    public Stream<KeyValuePair<T>> stream() {
-      if(isClosed) {
+      // Bug #81573, a store closed by the manager's LRU eviction is only released, the shared map
+      // is still there and a holder of the instance must see all of its entries. Only the
+      // shutdown of the node, when the map cannot be read any more, yields an empty stream.
+      if(shutdown) {
          return Stream.empty();
       }
 
@@ -188,7 +191,8 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
 
    @Override
    public Stream<String> keys() {
-      if(isClosed) {
+      // see stream(), an eviction does not empty the store
+      if(shutdown) {
          return Stream.empty();
       }
 
@@ -267,6 +271,16 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
       return isClosed;
    }
 
+   /**
+    * Marks this store as closed because the node is shutting down, as opposed to closed by the
+    * eviction of the manager's cache. Called by the managers' {@code close()} before they close
+    * the stores. From then on {@link #stream()} and {@link #keys()} return empty results and do
+    * not read the map of a stopped cluster.
+    */
+   void markShutdown() {
+      shutdown = true;
+   }
+
    private final String id;
    private final Cluster cluster;
    private final String mapName;
@@ -276,6 +290,7 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
       new ConcurrentSkipListSet<>(Comparator.comparing(Listener::hashCode));
    private final ListenerDelegate listenerDelegate = new ListenerDelegate();
    private volatile boolean isClosed = false;
+   private volatile boolean shutdown = false;
    private volatile boolean loaded;
 
    private static final String CACHE_STOPPED_EXCEPTION =

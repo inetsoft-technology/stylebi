@@ -97,11 +97,28 @@ public class LocalDependencyHandler implements DependencyHandler {
     */
    @Override
    public boolean updateDependencies(AssetObject oentry, AssetObject nentry) {
+      return updateDependencies(Collections.singletonMap(oentry, nentry));
+   }
+
+   /**
+    * Replace the old entries with the new ones in a single pass over the dependency storage.
+    * Every list element is replaced at most once, by looking up its original identifier.
+    */
+   @Override
+   public boolean updateDependencies(Map<AssetObject, AssetObject> renames) {
+      Map<String, AssetObject> byId = new HashMap<>();
+
+      for(Map.Entry<AssetObject, AssetObject> rename : renames.entrySet()) {
+         if(rename.getKey() instanceof AssetEntry) {
+            byId.put(((AssetEntry) rename.getKey()).toIdentifier(), rename.getValue());
+         }
+      }
+
       DependencyStorageService service = DependencyStorageService.getInstance();
       Set<String> keys = service.getKeys(null);
 
       for(String key: keys) {
-         renameDependencyToFile(key, oentry, nentry);
+         renameDependencyToFile(key, byId);
       }
 
       return true;
@@ -631,9 +648,8 @@ public class LocalDependencyHandler implements DependencyHandler {
       }
    }
 
-   private void renameDependencyToFile(String id, AssetObject oentry, AssetObject nentry) {
+   private void renameDependencyToFile(String id, Map<String, AssetObject> byId) {
       DependencyStorageService service = DependencyStorageService.getInstance();
-      String oAssetId = oentry instanceof AssetEntry ? ((AssetEntry)oentry).toIdentifier() : null;
 
       try {
          RenameTransformObject obj = service.get(id);
@@ -650,8 +666,8 @@ public class LocalDependencyHandler implements DependencyHandler {
             return;
          }
 
-         boolean changed = updateDependenciesInfo(infos, false, oAssetId, nentry);
-         changed |= updateDependenciesInfo(embedDependencies, false, oAssetId, nentry);
+         boolean changed = updateDependenciesInfo(infos, byId);
+         changed |= updateDependenciesInfo(embedDependencies, byId);
 
          if(changed) {
             service.put(id, dinfo);
@@ -662,30 +678,25 @@ public class LocalDependencyHandler implements DependencyHandler {
       }
    }
 
-   private boolean updateDependenciesInfo(List<AssetObject> infos, boolean isReport,
-                                                 String oAssetId, AssetObject nentry)
-   {
+   private boolean updateDependenciesInfo(List<AssetObject> infos, Map<String, AssetObject> byId) {
       if(infos == null) {
          return false;
       }
 
       boolean changed = false;
 
-       for(int i = 0; i < infos.size(); i++) {
+      for(int i = 0; i < infos.size(); i++) {
          AssetObject asset = infos.get(i);
-         String assetId;
 
-         if(asset instanceof AssetEntry) {
-            assetId = ((AssetEntry) asset).toIdentifier();
-         }
-         else {
+         if(!(asset instanceof AssetEntry)) {
             continue;
          }
 
-         if(Tool.equals(oAssetId, assetId)) {
-            infos.set(i, nentry);
+         AssetObject replacement = byId.get(((AssetEntry) asset).toIdentifier());
+
+         if(replacement != null) {
+            infos.set(i, replacement);
             changed = true;
-            break;
          }
       }
 

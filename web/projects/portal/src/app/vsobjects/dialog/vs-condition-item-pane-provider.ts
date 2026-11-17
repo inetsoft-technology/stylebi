@@ -153,7 +153,8 @@ export class VSConditionItemPaneProvider extends AssetConditionItemPaneProvider 
    }
 
    getExpressionTypes(condition: Condition): ExpressionType[] {
-      return [ExpressionType.JS, ExpressionType.SQL];
+      // A highlight condition value is evaluated as JavaScript only.
+      return this.isHighlight ? [ExpressionType.JS] : [ExpressionType.JS, ExpressionType.SQL];
    }
 
    isNegationAllowed(condition: Condition): boolean {

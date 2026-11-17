@@ -149,4 +149,33 @@ public class ComboBoxVSAScriptableTest {
       comboBoxVSAScriptable.setSelectedObject(new Date(125, 1, 20));
       assertEquals(new Date(125, 1, 20), comboBoxVSAScriptable.getSelectedObject());
    }
+
+   private long selectedMillisForDateTypedSelection(Object selection) {
+      comboBoxVSAssemblyInfo.setListData(new ListData());
+      comboBoxVSAssemblyInfo.setRListData(new ListData());
+      comboBoxVSAScriptable.setDataType("Date");
+      comboBoxVSAScriptable.setSelectedObject(selection);
+      return ((Date) comboBoxVSAScriptable.getSelectedObject()).getTime();
+   }
+
+   private static long midnightOfFeb20() {
+      java.util.Calendar cal = java.util.Calendar.getInstance();
+      cal.clear();
+      cal.set(2025, java.util.Calendar.FEBRUARY, 20);
+      return cal.getTimeInMillis();
+   }
+
+   @Test
+   void dateTypedSelectedObjectFromDateStringIsMidnight() {
+      assertEquals(midnightOfFeb20(), selectedMillisForDateTypedSelection("2025-02-20"));
+   }
+
+   @Test
+   void dateTypedSelectedObjectFromDateWithTimeIsTruncatedToMidnight() {
+      java.util.Calendar cal = java.util.Calendar.getInstance();
+      cal.clear();
+      cal.set(2025, java.util.Calendar.FEBRUARY, 20, 15, 30, 45);
+      cal.set(java.util.Calendar.MILLISECOND, 678);
+      assertEquals(midnightOfFeb20(), selectedMillisForDateTypedSelection(cal.getTime()));
+   }
 }
