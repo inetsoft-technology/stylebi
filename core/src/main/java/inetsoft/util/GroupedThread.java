@@ -19,8 +19,7 @@ package inetsoft.util;
 
 import com.sun.jna.Platform;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.security.Organization;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.util.affinity.AffinitySupport;
 import inetsoft.util.audit.*;
 import inetsoft.util.log.LogContext;
@@ -254,12 +253,6 @@ public class GroupedThread extends Thread {
     * Set principal of the grouped thread.
     */
    public void setPrincipal(Principal user) {
-      if(LOG.isDebugEnabled() && user != null &&
-         Organization.getSelfOrganizationID().equals(OrganizationManager.getInstance().getCurrentOrgID(user)))
-      {
-         LOG.debug("Setting self-registered user: {}", user, new Exception("Stack trace"));
-      }
-
       this.user = user;
 
       try {
