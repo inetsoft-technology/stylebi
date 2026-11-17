@@ -1026,8 +1026,14 @@
         <configuration>
           <groups>${surefire.groups}</groups>
           <forkCount>${surefire.forkCount}</forkCount>
-          <!-- a hang that the test timeout cannot interrupt fails the build, not the CI job -->
-          <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
+          <!--
+            A hang that the test timeout cannot interrupt fails the build, not the CI job, so this must stay
+            below the pr-build.yml job cap minus the ~5 min before the tests start. It is the lifetime of the
+            whole fork, not of one test: the full suite takes 20-31 min on a hosted runner (Bug #81520: three PR
+            builds were killed at 1800 s with every test run so far green and about 2% of the tests left), so
+            keep ample headroom over the slowest runner.
+          -->
+          <forkedProcessTimeoutInSeconds>2280</forkedProcessTimeoutInSeconds>
           <workingDirectory>${project.build.directory}/test-workdir-${surefire.forkNumber}</workingDirectory>
           <argLine>-Xmx2g --add-opens=java.base/jdk.internal.access=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED --add-opens=java.desktop/java.awt=ALL-UNNAMED --add-opens=java.desktop/java.beans=ALL-UNNAMED -Djava.awt.headless=true -Duser.language=en -Duser.country=US -Duser.timezone=America/New_York</argLine>
           <environmentVariables>

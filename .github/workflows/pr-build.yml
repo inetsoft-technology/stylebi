@@ -15,7 +15,7 @@ jobs:
   build:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
 
     steps:
       - name: Checkout repository
@@ -52,7 +52,29 @@ jobs:
       # one job, so a PR uses one runner. -T 2 builds web, which does not depend on core,
       # while core runs its tests; tests tagged slow, and the lockcycle suite with the pool off,
       # are left to the daily slow-tests.yml
+      #
+      # A hosted runner that dies mid-build (Bug #81520: "The runner has received a shutdown
+      # signal", then the job sits until the cap) leaves nothing in the log to say why, so print
+      # the load, memory and biggest processes every minute. A fork that is about to hit the
+      # surefire fork timeout (core/pom.xml) also gets its threads dumped first, so a hang names
+      # its stack.
       - name: Build with Maven
-        run: ./mvnw --batch-mode -T 2 clean install
+        run: |
+          (
+            while sleep 60; do
+              echo "[ci-monitor] $(date -u +%T) load=$(cut -d' ' -f1-3 /proc/loadavg) $(free -m | awk '/^Mem:/{print "used_mb="$3" avail_mb="$7}') top: $(ps -eo rss,comm --sort=-rss | awk 'NR>1 && NR<=5{printf "%s=%dMB ",$2,$1/1024}')"
+            done
+          ) &
+          monitor=$!
+          (
+            sleep 2400
+            for pid in $(pgrep -f surefirebooter); do
+              echo "[ci-monitor] thread dump of surefire fork $pid"
+              jcmd "$pid" Thread.print || true
+            done
+          ) &
+          dumper=$!
+          trap 'kill $monitor $dumper 2>/dev/null || true' EXIT
+          ./mvnw --batch-mode -T 2 clean install
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

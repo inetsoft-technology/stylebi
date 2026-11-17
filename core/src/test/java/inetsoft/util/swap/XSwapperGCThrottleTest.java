@@ -225,7 +225,10 @@ class XSwapperGCThrottleTest {
       try {
          long end = System.currentTimeMillis() + 5000;
 
+         // the sweep thread's first wait is 5000ms, the same as this deadline, so wake it
+         // instead of racing it
          while(totalSwaps(candidates) == 0 && System.currentTimeMillis() < end) {
+            wakeSweepThread(swapper);
             Thread.sleep(50);
          }
 
@@ -241,6 +244,7 @@ class XSwapperGCThrottleTest {
          end = System.currentTimeMillis() + 5000;
 
          while(gcs.get() == 0 && System.currentTimeMillis() < end) {
+            wakeSweepThread(swapper);
             Thread.sleep(50);
          }
 
@@ -385,6 +389,16 @@ class XSwapperGCThrottleTest {
       Field ts = XSwapper.class.getDeclaredField("stateTS");
       ts.setAccessible(true);
       ts.setLong(swapper, Long.MAX_VALUE);
+   }
+
+   private static void wakeSweepThread(XSwapper swapper) throws Exception {
+      Field field = XSwapper.class.getDeclaredField("swapLock");
+      field.setAccessible(true);
+      Object swapLock = field.get(swapper);
+
+      synchronized(swapLock) {
+         swapLock.notifyAll();
+      }
    }
 
    private static int totalSwaps(AlwaysSwappable[] candidates) {
