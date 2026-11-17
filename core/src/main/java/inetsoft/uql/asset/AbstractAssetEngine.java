@@ -1964,9 +1964,15 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                               boolean callFireEvent) throws Exception
    {
 
-      List<RenameDependencyInfo> renameDependencyInfos = new ArrayList<>();
-      changeFolder0(oentry, ostorage, nentry, nstorage, root, changed, callFireEvent,
-         renameDependencyInfos);
+      PendingRenames renameDependencyInfos = new PendingRenames();
+
+      try {
+         changeFolder0(oentry, ostorage, nentry, nstorage, root, changed, callFireEvent,
+            renameDependencyInfos);
+      }
+      finally {
+         renameDependencyInfos.flush();
+      }
 
       // for relation viewsheets under the same folder and folder changed, in order to avoid
       // transform thread and rename thread information(asset path) is out of sync.
@@ -3415,6 +3421,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       DependencyHandler dependencyHandler = DependencyHandler.getInstance();
+      PendingRenames.Pending pendingTransform = null;
 
       if(oentry.isWorksheet()) {
          RenameInfo rinfo = new RenameInfo(oidentifier, nidentifier,
@@ -3429,16 +3436,26 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             rinfo.setNewPath(npath);
          }
 
-         if(renameDependencyInfos != null) {
-            if(dependencyHandler.updateDependencies(oentry, nentry)) {
-               renameDependencyInfos.add(dependencyHandler.getRenameDependencyInfo(oentry, nentry));
-            }
+         if(renameDependencyInfos instanceof PendingRenames) {
+            // batched: the dependency store is rewritten once for the whole folder, and the
+            // transform is queued after that so it sees the renamed dependents
+            pendingTransform = ((PendingRenames) renameDependencyInfos).record(
+               oentry, nentry, dependencyHandler, rinfo);
          }
-         else if(!Tool.equals(oentry, nentry)) {
-            dependencyHandler.updateDependencies(oentry, nentry);
+         else {
+            if(renameDependencyInfos != null) {
+               if(dependencyHandler.updateDependencies(oentry, nentry)) {
+                  renameDependencyInfos.add(
+                     dependencyHandler.getRenameDependencyInfo(oentry, nentry));
+               }
+            }
+            else if(!Tool.equals(oentry, nentry)) {
+               dependencyHandler.updateDependencies(oentry, nentry);
+            }
+
+            XRepository.getRepository().renameTransform(rinfo);
          }
 
-         XRepository.getRepository().renameTransform(rinfo);
          RenameSheetEvent renameSheetEvent = new RenameSheetEvent(oentry);
          renameSheetEvent.setRenameInfo(rinfo);
          cluster.sendMessage(renameSheetEvent);
@@ -3448,7 +3465,11 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             nentry.setProperty("__bookmark_id__", null);
          }
 
-         if(renameDependencyInfos != null) {
+         if(renameDependencyInfos instanceof PendingRenames) {
+            pendingTransform = ((PendingRenames) renameDependencyInfos).record(
+               oentry, nentry, dependencyHandler, null);
+         }
+         else if(renameDependencyInfos != null) {
             if(dependencyHandler.updateDependencies(oentry, nentry)) {
                renameDependencyInfos.add(dependencyHandler.getRenameDependencyInfo(oentry, nentry));
             }
@@ -3522,6 +3543,69 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          fireEvent(sheet.getType(), AssetChangeEvent.ASSET_RENAMED, nentry,
             oidentifier, root, sheet, "changeSheet: " + oentry + ", " + nentry);
       }
+
+      if(pendingTransform != null) {
+         pendingTransform.completed = true;
+      }
+   }
+
+   /**
+    * Collects the dependency renames of one folder rename so the dependency storage is
+    * rewritten in a single pass instead of once per renamed sheet.
+    */
+   private static final class PendingRenames extends ArrayList<RenameDependencyInfo> {
+      Pending record(AssetEntry oentry, AssetEntry nentry, DependencyHandler handler,
+                     RenameInfo wsTransform)
+      {
+         // snapshot: nentry is still modified by the caller after this point
+         AssetEntry snapshot = Tool.equals(oentry, nentry) ? nentry : (AssetEntry) nentry.clone();
+         Pending pending = new Pending(oentry, snapshot, wsTransform);
+         pendings.add(pending);
+         add(handler.getRenameDependencyInfo(oentry, nentry));
+         this.handler = handler;
+         return pending;
+      }
+
+      void flush() {
+         if(handler == null || pendings.isEmpty()) {
+            return;
+         }
+
+         try {
+            Map<AssetObject, AssetObject> renames = new LinkedHashMap<>();
+
+            for(Pending pending : pendings) {
+               renames.put(pending.oentry, pending.nentry);
+            }
+
+            handler.updateDependencies(renames);
+
+            for(Pending pending : pendings) {
+               if(pending.completed && pending.wsTransform != null) {
+                  XRepository.getRepository().renameTransform(pending.wsTransform);
+               }
+            }
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to update the dependencies of the renamed folder", ex);
+         }
+      }
+
+      static final class Pending {
+         Pending(AssetEntry oentry, AssetEntry nentry, RenameInfo wsTransform) {
+            this.oentry = oentry;
+            this.nentry = nentry;
+            this.wsTransform = wsTransform;
+         }
+
+         final AssetEntry oentry;
+         final AssetEntry nentry;
+         final RenameInfo wsTransform;
+         boolean completed;
+      }
+
+      private final List<Pending> pendings = new ArrayList<>();
+      private DependencyHandler handler;
    }
 
    private boolean isRenameUser(AssetEntry oentry, AssetEntry nentry) {
