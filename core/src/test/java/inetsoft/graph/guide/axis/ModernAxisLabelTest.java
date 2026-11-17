@@ -71,6 +71,12 @@ class ModernAxisLabelTest {
    private static final double BAR_MIN_WIDTH = 10;
    // 105 categories at 90 degrees reserve one line each, measured before the label limit
    private static final double CLASSIC_105_MIN_PLOT = 1470;
+   // a reversed axis without a modern property keeps today's walk from index 0
+   private static final List<Integer> CLASSIC_REVERSED_STORES_SHOWN =
+      java.util.stream.IntStream.range(0, 15).map(i -> i * 2).boxed().toList();
+   private static final List<String> CLASSIC_REVERSED_HOURS = List.of(
+      "2026-01-01 11", "01-01 09", "01-01 07", "01-01 05", "01-01 03", "01-01 01",
+      "2025-12-31 23", "12-31 21", "12-31 19", "12-31 17", "12-31 15", "12-31 13");
 
    @AfterEach
    void clearProperties() {
@@ -581,6 +587,146 @@ class ModernAxisLabelTest {
                    0.5);
    }
 
+   @Test
+   void aReversedMonthlyAxisPutsTheYearOnTheTopLabel() {
+      List<String> expected = new ArrayList<>();
+
+      for(int year = 2025; year <= 2026; year++) {
+         expected.add("Jan " + year);
+         expected.addAll(List.of("Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct",
+                                 "Nov", "Dec"));
+      }
+
+      for(double limit : new double[] { 0, 66 }) {
+         DefaultAxis axis = reversedDateAxis(months(2025, Calendar.JANUARY, 24),
+                                             new CompactDates(TimeScale.MONTH, Locale.US), limit,
+                                             800);
+         List<Integer> idx = topDownIndices(axis);
+
+         assertTrue(axis.isVertical(), "premise: the axis runs down the side");
+         assertEquals(23, idx.get(0), "premise: the last index is at the top");
+         assertEquals(expected, topDownTexts(axis), "limit " + limit);
+      }
+   }
+
+   @Test
+   void aReversedAxisMovesTheYearAfterThinning() {
+      Date[] dates = months(2025, Calendar.JANUARY, 24);
+
+      for(double limit : new double[] { 0, 66 }) {
+         boolean moved = false;
+
+         for(int height = 70; height <= 400; height += 5) {
+            DefaultAxis axis = reversedDateAxis(dates, new CompactDates(TimeScale.MONTH, Locale.US),
+                                                limit, height);
+            String where = "limit " + limit + " at " + height + " " + topDownTexts(axis);
+            Calendar cal = Calendar.getInstance();
+            int prevYear = -1;
+
+            for(int i : topDownIndices(axis)) {
+               VDimensionLabel label = (VDimensionLabel) axis.getLabels()[i];
+               // the label's own text: the column is sized before a year moves, and may cut it
+               String text = String.valueOf(label.getLabel());
+               cal.setTime((Date) label.getValue());
+               int year = cal.get(Calendar.YEAR);
+
+               if(year != prevYear) {
+                  assertTrue(text.contains(String.valueOf(year)),
+                             "no year on " + text + " " + where);
+                  moved = moved || cal.get(Calendar.MONTH) != Calendar.JANUARY;
+               }
+               else {
+                  assertFalse(text.contains("20"), "year repeated on " + text + " " + where);
+               }
+
+               prevYear = year;
+            }
+
+            if(limit > 0) {
+               assertOneStep(axis, where);
+            }
+         }
+
+         assertTrue(moved, "premise: a year moved past a hidden January at limit " + limit);
+      }
+   }
+
+   @Test
+   void aReversedLimitedAxisKeepsItsFirstCategory() {
+      boolean stepOfTwo = false;
+
+      for(int height = 60; height <= 600; height += 5) {
+         CategoricalScale xscale = new CategoricalScale("Name");
+         xscale.getAxisSpec().setLabelLimit(66);
+         DefaultAxis axis = reversedAxis(xscale, stores(30), height);
+         List<Integer> idx = topDownIndices(axis);
+         String where = "at " + height + " " + topDownTexts(axis);
+         int step = idx.size() > 1 ? idx.get(0) - idx.get(1) : 1;
+
+         // in slots much shorter than a line the top labels run past the axis and don't fit
+         if(step <= 2) {
+            assertEquals("Store 01", text(axis.getLabels()[idx.get(0)]), where);
+         }
+
+         assertOneStep(axis, where);
+         stepOfTwo = stepOfTwo || step == 2;
+      }
+
+      assertTrue(stepOfTwo, "premise: a step of 2");
+   }
+
+   @Test
+   void aReversedHourlyAxisCarriesTheDateFromTheTop() {
+      List<String> expected = new ArrayList<>();
+
+      for(int h = 12; h < 24; h++) {
+         expected.add(String.format(h == 12 ? "2025-12-31 %02d" : "12-31 %02d", h));
+      }
+
+      for(int h = 0; h < 12; h++) {
+         expected.add(String.format(h == 0 ? "2026-01-01 %02d" : "01-01 %02d", h));
+      }
+
+      assertEquals(expected, topDownTexts(reversedHourlyAxis(66, 800)));
+      boolean moved = false;
+
+      for(int height = 70; height <= 400; height += 5) {
+         DefaultAxis axis = reversedHourlyAxis(66, height);
+         List<String> texts = topDownTexts(axis);
+         String where = "at " + height + " " + texts;
+         String prevDay = null;
+
+         for(int i : topDownIndices(axis)) {
+            String text = text(axis.getLabels()[i]);
+            String day = String.format("%tF", (Date) ((VDimensionLabel) axis.getLabels()[i])
+               .getValue());
+
+            if(!day.equals(prevDay)) {
+               assertTrue(text.startsWith(day + " "), "no date on " + text + " " + where);
+               moved = moved || !text.endsWith(prevDay == null ? " 12" : " 00");
+            }
+            else {
+               assertFalse(text.startsWith("20"), "date repeated on " + text + " " + where);
+            }
+
+            prevDay = day;
+         }
+
+         assertOneStep(axis, where);
+      }
+
+      assertTrue(moved, "premise: a date moved past a hidden first hour");
+   }
+
+   @Test
+   void aReversedClassicAxisUnchanged() {
+      DefaultAxis stores = reversedAxis(new CategoricalScale("Name"), stores(30), 240);
+      assertEquals(CLASSIC_REVERSED_STORES_SHOWN, shownIndices(stores));
+
+      DefaultAxis hours = reversedHourlyAxis(0, 240);
+      assertEquals(CLASSIC_REVERSED_HOURS, shownTexts(hours));
+   }
+
    // adjacent shown labels keep the gap of a limited axis
    private static void assertThinningGap(int width, int height) {
       DefaultAxis axis = dateAxis(months(2025, Calendar.FEBRUARY, 24),
@@ -877,6 +1023,68 @@ class ModernAxisLabelTest {
       }
 
       return rows;
+   }
+
+   // a category axis down the side of a transposed chart, its scale reversed
+   private static DefaultAxis reversedAxis(CategoricalScale xscale, Object[][] rows, int height) {
+      xscale.setReversed(true);
+      RectCoord coord = new RectCoord(xscale, new LinearScale("Sales"));
+      coord.transpose();
+      EGraph graph = new EGraph();
+      graph.addElement(new IntervalElement(xscale.getFields()[0], "Sales"));
+      graph.setCoordinate(coord);
+      VGraph vgraph = Plotter.getPlotter(graph)
+         .plotAndLayout(new DefaultDataSet(rows), 0, 0, 400, height);
+      DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getXAxis1();
+      axis.prepareLabels();
+      return axis;
+   }
+
+   private static DefaultAxis reversedDateAxis(Date[] dates, CompactDates compact, double limit,
+                                               int height)
+   {
+      CategoricalScale xscale = new CategoricalScale("Date");
+      xscale.getAxisSpec().setCompactDates(compact);
+      xscale.getAxisSpec().setLabelLimit(limit);
+      return reversedAxis(xscale, dateRows(dates), height);
+   }
+
+   // Dec 31, 2025 12:00 to Jan 1, 2026 11:00, the repeated year dropped
+   private static DefaultAxis reversedHourlyAxis(double limit, int height) {
+      Object[][] rows = new Object[25][];
+      rows[0] = new Object[] { "Date", "Sales" };
+
+      for(int i = 0; i < 24; i++) {
+         Calendar cal = Calendar.getInstance();
+         cal.clear();
+         cal.set(2025, Calendar.DECEMBER, 31, 12 + i, 0, 0);
+         rows[i + 1] = new Object[] { new java.sql.Timestamp(cal.getTimeInMillis()), i * 10.0 };
+      }
+
+      CategoricalScale xscale = new CategoricalScale("Date");
+      xscale.getAxisSpec().getTextSpec().setFormat(new ExtendedDateFormat("yyyy-MM-dd HH"));
+      xscale.getAxisSpec().setAbbreviate(true);
+      xscale.getAxisSpec().setLabelLimit(limit);
+      return reversedAxis(xscale, rows, height);
+   }
+
+   // the shown labels from the top of the axis down
+   private static List<Integer> topDownIndices(DefaultAxis axis) {
+      VLabel[] labels = axis.getLabels();
+      List<Integer> idx = shownIndices(axis);
+      idx.sort((a, b) -> Double.compare(labels[b].getBounds().getCenterY(),
+                                        labels[a].getBounds().getCenterY()));
+      return idx;
+   }
+
+   private static List<String> topDownTexts(DefaultAxis axis) {
+      List<String> texts = new ArrayList<>();
+
+      for(int i : topDownIndices(axis)) {
+         texts.add(text(axis.getLabels()[i]));
+      }
+
+      return texts;
    }
 
    private static List<String> shownTexts(DefaultAxis axis) {

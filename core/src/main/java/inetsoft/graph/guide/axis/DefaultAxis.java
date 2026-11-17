@@ -98,10 +98,14 @@ public class DefaultAxis extends Axis {
          CompactDates compact = spec.getCompactDates();
          Format full = compact == null ? null : compact.full(scale);
          Format brief = compact == null ? null : compact.brief(scale);
+         boolean fromLast = isReadFromLast();
 
          for(int i = 0; i < vlabels.length; i++) {
             boolean isalias = aliased.size() > 0 && aliased.contains(GTool.toString(values[i]));
-            Object prevLabel = (i > 0) ? labels[i - 1] : null;
+            // the label read before this one
+            int prev = fromLast ? i + 1 : i - 1;
+            boolean hasPrev = prev >= 0 && prev < labels.length;
+            Object prevLabel = hasPrev ? labels[prev] : null;
             Object label = labels[i];
             String[] texts = null;
 
@@ -110,8 +114,8 @@ public class DefaultAxis extends Axis {
                values[i].equals(label))
             {
                texts = new String[] { full.format(values[i]), brief.format(values[i]) };
-               boolean sameYear = i > 0 && values[i - 1] instanceof Date &&
-                  year((Date) values[i - 1]) == year((Date) values[i]);
+               boolean sameYear = hasPrev && values[prev] instanceof Date &&
+                  year((Date) values[prev]) == year((Date) values[i]);
                label = sameYear ? texts[1] : texts[0];
             }
 
@@ -1537,13 +1541,16 @@ public class DefaultAxis extends Axis {
       }
 
       Set<VDimensionLabel> grown = Collections.newSetFromMap(new IdentityHashMap<>());
+      boolean fromLast = isReadFromLast();
 
       while(true) {
          List<VDimensionLabel> shown = new ArrayList<>();
          boolean moved = false;
          Integer prevYear = null;
 
-         for(VDimensionLabel vl : vlabels) {
+         for(int r = 0; r < vlabels.length; r++) {
+            VDimensionLabel vl = vlabels[fromLast ? vlabels.length - 1 - r : r];
+
             if(vl.getZIndex() < 0) {
                continue;
             }
@@ -1641,12 +1648,23 @@ public class DefaultAxis extends Axis {
    }
 
    /**
+    * Check if the labels read from the last index, the top of a transposed axis: a reversed
+    * category scale with a modern label property.
+    */
+   private boolean isReadFromLast() {
+      Scale scale = getScale();
+      AxisSpec spec = scale.getAxisSpec();
+      return scale instanceof CategoricalScale && ((CategoricalScale) scale).isReversed() &&
+         (spec.getLabelLimit() > 0 || spec.getCompactDates() != null);
+   }
+
+   /**
     * Show every k-th label from the first, with the smallest k that keeps every shown label
     * apart from the next. A shown label that starts a year (or a date anchor) after a hidden
     * one carries its full text, so the step is chosen with that text. The step comes from the
     * labels on their ticks; then the first and last shown labels slide inside the axis, and an
     * end label that would come too close to its neighbour is hidden, so end labels never change
-    * the step.
+    * the step. The labels are taken in reading order (see isReadFromLast()).
     */
    private void thinInOneStep(Shape bounds, Shape outer) {
       boolean hor = isHorizontal();
@@ -1656,6 +1674,10 @@ public class DefaultAxis extends Axis {
          if(vlabels[i].getZIndex() >= 0) {
             cands.add(i);
          }
+      }
+
+      if(isReadFromLast()) {
+         Collections.reverse(cands);
       }
 
       int n = cands.size();
@@ -1920,6 +1942,7 @@ public class DefaultAxis extends Axis {
                                      boolean[] anchored)
    {
       boolean[] fulls = new boolean[shown.size()];
+      boolean fromLast = isReadFromLast();
       int prev = -1;
 
       for(int s = 0; s < fulls.length; s++) {
@@ -1935,8 +1958,11 @@ public class DefaultAxis extends Axis {
          // a hidden anchor moves to the next shown label
          else if(vl.getAnchor() != null) {
             fulls[s] = s == 0;
+            // the labels after the previous shown one, up to this one
+            int from = fromLast ? idx : prev + 1;
+            int to = fromLast ? prev - 1 : idx;
 
-            for(int j = prev + 1; j <= idx && !fulls[s]; j++) {
+            for(int j = from; j <= to && !fulls[s]; j++) {
                fulls[s] = anchored[j];
             }
          }
@@ -2574,7 +2600,10 @@ public class DefaultAxis extends Axis {
       // if an anchor (e.g. 2021) is removed, should make the next label to show the anchor
       // (e.g. Feb -> 2021) so year will not be lost. (53040)
       if(Abbreviation.isAnchor(vlabel.getLabel(), vlabel.getAnchor())) {
-         for(int i = idx + 1; i < labels.length; i++) {
+         // the next label in reading order
+         int step = isReadFromLast() ? -1 : 1;
+
+         for(int i = idx + step; i >= 0 && i < labels.length; i += step) {
             if(labels[i].getZIndex() >= 0) {
                Abbreviation.setAnchor(labels[i], labels[i].getAnchor());
                anchorChanged = true;
