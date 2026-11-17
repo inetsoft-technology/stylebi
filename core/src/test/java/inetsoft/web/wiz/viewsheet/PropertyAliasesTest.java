@@ -729,7 +729,27 @@ class PropertyAliasesTest {
                                           "yGridLineColor"))
       {
          assertEquals("chartLinePaneModel." + name, PropertyAliases.resolveForWrite("chart", name));
-         assertTrue(PropertyAliases.labelFor(name).contains("inverted chart"), name);
+      }
+   }
+
+   /**
+    * Bug #81536: the X/Y grid line captions say which lines are drawn in screen terms, not in the
+    * internal rotated-plot wording, which read as the opposite on a horizontal chart.
+    */
+   @Test
+   void captionsGridLinePropertiesInScreenTerms() {
+      for(String name : java.util.List.of("xGridLineStyle", "xGridLineColor")) {
+         String label = PropertyAliases.labelFor(name);
+         assertTrue(label.contains("vertical grid lines"), label);
+         assertFalse(label.contains("plot's"), label);
+         assertFalse(label.contains("horizontal"), label);
+      }
+
+      for(String name : java.util.List.of("yGridLineStyle", "yGridLineColor")) {
+         String label = PropertyAliases.labelFor(name);
+         assertTrue(label.contains("horizontal grid lines"), label);
+         assertFalse(label.contains("plot's"), label);
+         assertFalse(label.contains("vertical"), label);
       }
    }
 
