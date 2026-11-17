@@ -33,7 +33,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.PrintWriter;
-import java.sql.Timestamp;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1436,19 +1435,6 @@ public class Condition extends AbstractCondition {
          (ZONE.inDaylightTime(date) ? ZONE.getDSTSavings() : 0);
 
       return (int) (ts / ONE_DAY);
-   }
-
-   /**
-    * Get the date(only includes year, month and day) from a calendar.
-    */
-   private long getDate(Calendar cal) {
-      int year = cal.get(Calendar.YEAR);
-      int month = cal.get(Calendar.MONTH);
-      int day = cal.get(Calendar.DAY_OF_MONTH);
-      cal.clear();
-      cal.set(year, month, day);
-
-      return cal.getTimeInMillis();
    }
 
    /**

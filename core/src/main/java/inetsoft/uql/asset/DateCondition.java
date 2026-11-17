@@ -404,13 +404,16 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
    }
 
    /**
-    * Check if a time falls in the "last N months" window, which is whole days: from the start of
-    * the first day to the end of the last day. This is the same window as the one used by
-    * the sql condition, for every date type.
+    * Check if a time falls in the window of a "last N months" condition. The window is whole
+    * days, for every date type: from the start of the first day up to, excluding, the start of
+    * the day after the last day. The sql condition covers the same days, but ends at 23:59:59.
     * @param time the time of the value, in milliseconds.
     * @param now the current time, in milliseconds.
-    * @param from the number of months after now.
-    * @param to the number of months before now, plus one.
+    * @param from the number of months after now the last day is in, as in
+    *             <tt>MonthsCondition(from, to)</tt>.
+    * @param to the number of months before now the first day is in, plus one, as in
+    *           <tt>MonthsCondition(from, to)</tt>.
+    * @return <tt>true</tt> if the time is in the window, <tt>false</tt> otherwise.
     */
    public static boolean isInMonthsWindow(long time, long now, int from, int to) {
       Calendar cal = new GregorianCalendar();
@@ -2241,7 +2244,8 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
             return false;
          }
 
-         boolean rc = isInMonthsWindow(((Date) value).getTime(), System.currentTimeMillis(), from, to);
+         boolean rc = isInMonthsWindow(
+            ((Date) value).getTime(), System.currentTimeMillis(), from, to);
          return isNegated() ? !rc : rc;
       }
 

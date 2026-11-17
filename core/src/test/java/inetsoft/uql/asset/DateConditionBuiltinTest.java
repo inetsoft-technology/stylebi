@@ -262,7 +262,8 @@ class DateConditionBuiltinTest {
    // the window is whole days, from the start of the first day to the end of today, for every
    // date type, so the in-memory evaluation keeps the same rows as the pushed down sql
    // (Bug #81178: a timestamp was compared with the current time of day, a java.util.Date with the
-   // start of today). Only the 1 second 23:59:59.001-23:59:59.999 that the sql truncates is kept.
+   // start of today). The one difference is the last second of the last day, see
+   // monthsUpperBoundIsTheEndOfTheLastDay.
    @Test
    void timestampEarlierOnTheStartDayIsInSqlAndInMemory() {
       LocalDateTime before = LocalDateTime.now();
@@ -327,6 +328,35 @@ class DateConditionBuiltinTest {
       // 23:59:59.500 is in memory (the sql truncates it to 23:59:59), the next day is out
       assertTrue(cond.evaluate(ts(today.atTime(23, 59, 59, 500_000_000))));
       assertFalse(cond.evaluate(ts(today.plusDays(1).atStartOfDay())));
+   }
+
+   // the window of a fixed now, so it does not depend on the clock: a month end clamps to the
+   // last day of a shorter month (31 Mar - 1 month is 28 Feb, or 29 Feb in a leap year), and
+   // from > 0 reaches into the future
+   @ParameterizedTest
+   @ValueSource(strings = { "2026-01-31", "2026-03-31", "2026-05-31", "2026-12-31", "2028-03-31" })
+   void monthsWindowFollowsTheCalendarFromAFixedNow(String day) {
+      LocalDate today = LocalDate.parse(day);
+      long now = ts(today.atTime(12, 0)).getTime();
+      // (from, to): the last 2 and 4 months, and windows reaching 1 and 2 months ahead
+      int[][] ranges = { { 0, 2 }, { 0, 4 }, { 1, 2 }, { 2, 5 } };
+
+      for(int[] range : ranges) {
+         LocalDate first = today.minusMonths(range[1] - 1);
+         LocalDate last = today.plusMonths(range[0]);
+         String msg = day + " from " + range[0] + " to " + range[1];
+
+         assertTrue(DateCondition.isInMonthsWindow(
+            ts(first.atStartOfDay()).getTime(), now, range[0], range[1]), msg + ", first day start");
+         assertTrue(DateCondition.isInMonthsWindow(
+            ts(last.atTime(23, 59, 59)).getTime(), now, range[0], range[1]), msg + ", last day end");
+         assertFalse(DateCondition.isInMonthsWindow(
+            ts(first.minusDays(1).atTime(23, 59, 59)).getTime(), now, range[0], range[1]),
+                     msg + ", day before the first day");
+         assertFalse(DateCondition.isInMonthsWindow(
+            ts(last.plusDays(1).atStartOfDay()).getTime(), now, range[0], range[1]),
+                     msg + ", day after the last day");
+      }
    }
 
    // ---- the last N days ----
