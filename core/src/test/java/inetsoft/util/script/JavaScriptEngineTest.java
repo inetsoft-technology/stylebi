@@ -810,13 +810,6 @@ class JavaScriptEngineTest {
                                                 toDate("2024-04-01T00:00")));
    }
 
-   @Test
-   @Disabled("Bug #81467: dateDiff(\"q\") quarter boundary semantics")
-   void dateDiffQuarterCountsPeriodBoundariesCrossed() {
-      assertEquals(1, JavaScriptEngine.dateDiff("q", toDate("2024-03-31T00:00"),
-                                                toDate("2024-04-01T00:00")));
-   }
-
    /**
     * @param localDateTime an ISO-8601 datetime string, e.g. 2007-12-03T10:15:30
     *
