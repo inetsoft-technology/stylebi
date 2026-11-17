@@ -24,4 +24,9 @@ public class AirtableService extends EndpointJsonService {
       super(
          AirtableDataSource.TYPE, AirtableDataSource.class, AirtableQuery.class);
    }
+
+   @Override
+   public String getRuntimeClass() {
+      return AirtableRuntime.class.getName();
+   }
 }
