@@ -47,6 +47,10 @@
 
   /* Accent — follows the app's primary button colour chain */
   --ln-accent: var(--inet-button-primary-bg-color, #ed711c);
+  /* Label colour on the accent: the theme's token when present, else #202020, or (where relative
+     color syntax is supported) black-ish/white picked from the accent so a dark theme primary gets a
+     light label even when the portal stylesheet that defines the token is not loaded. */
+  --ln-on-accent: var(--inet-button-primary-text-color, #202020);
   --ln-danger: var(--inet-danger-color,            #fe688b);
   --ln-font:   var(--inet-font-family,             "Roboto", "Helvetica Neue", Arial, sans-serif);
 
@@ -63,6 +67,13 @@
   /* Layout */
   --ln-nav-h:   54px;
   --ln-left-w:  30%;
+}
+
+@supports (color: color(from red srgb-linear r g b)) {
+  :root {
+    --ln-on-accent: var(--inet-button-primary-text-color,
+      color(from var(--ln-accent) srgb-linear clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1)));
+  }
 }
 
 /* ============================================================
@@ -421,7 +432,7 @@ body {
   background: var(--ln-accent);
   border: none;
   border-radius: var(--m3-shape-full);
-  color: var(--inet-button-primary-text-color, #202020);
+  color: var(--ln-on-accent);
   isolation: isolate;         /* contain the state layer (z-index:-1) so it paints behind the label */
   font-family: var(--ln-font);
   font-size: 0.9rem;
@@ -816,7 +827,7 @@ div.loading-indicator.loading {
   text-align: center;
   text-decoration: none;
   background: var(--ln-accent);
-  color: var(--inet-button-primary-text-color, #202020);
+  color: var(--ln-on-accent);
   border-radius: var(--m3-shape-full);
   padding: 13px 24px;
   font-family: var(--ln-font);
@@ -828,7 +839,7 @@ div.loading-indicator.loading {
 }
 
 .restricted-action-btn--primary:hover {
-  color: var(--inet-button-primary-text-color, #202020);
+  color: var(--ln-on-accent);
   text-decoration: none;
   box-shadow: 0px 1px 2px rgba(0,0,0,0.3), 0px 2px 6px 2px rgba(0,0,0,0.15);
 }
