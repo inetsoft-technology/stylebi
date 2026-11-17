@@ -18,6 +18,12 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.graph.VGraph;
+import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.coord.RectCoord;
+import inetsoft.graph.guide.axis.DefaultAxis;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -39,9 +45,12 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.Optional;
+
 import static inetsoft.web.wiz.viewsheet.ViewsheetFormatServiceTest.principal;
 import static inetsoft.web.wiz.viewsheet.ViewsheetFormatServiceTest.sessionsFor;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 /**
@@ -163,6 +172,45 @@ class ViewsheetFormatServiceChartRegionTest {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class, () -> write(request("axis_labels", "y2", null, null), 0));
       assertTrue(e.getMessage().contains("y2"), e.getMessage());
+   }
+
+
+   /**
+    * Gives the chart a laid-out graph whose right axis has its own scale and no bound field -- the
+    * percent axis the engine draws on a Pareto chart (bug #81511).
+    */
+   private static RuntimeViewsheet withEngineDrawnRightAxis(RuntimeViewsheet rvs)
+      throws Exception
+   {
+      DefaultAxis right = mock(DefaultAxis.class);
+      VGraph graph = mock(VGraph.class);
+      when(graph.getCoordinate()).thenReturn(mock(RectCoord.class));
+      when(graph.getAxesAt(anyInt())).thenReturn(new DefaultAxis[0]);
+      when(graph.getAxesAt(Coordinate.RIGHT_AXIS)).thenReturn(new DefaultAxis[]{ right });
+      VGraphPair pair = mock(VGraphPair.class);
+      when(pair.getExpandedVGraph()).thenReturn(graph);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getVGraphPair(any())).thenReturn(pair);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      return rvs;
+   }
+
+   /**
+    * Bug #81511: {@code list_chart_elements} reports the engine-drawn percent y2 axis of a Pareto
+    * chart, so refusing it as "renders no y2 axis" contradicted it; it must say the axis exists
+    * but has no bound field to format.
+    */
+   @Test
+   void refusesY2OnAnEngineDrawnPercentAxisSayingItExists() throws Exception {
+      for(String region : new String[]{ "axis_labels", "axis_title" }) {
+         RuntimeViewsheet rvs = withEngineDrawnRightAxis(rvs(0));
+         IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class, () -> write(request(region, "y2", null, null), rvs));
+         assertTrue(e.getMessage().contains("has a y2 axis") &&
+                    e.getMessage().contains("drawn by the engine") &&
+                    e.getMessage().contains("no field is bound") &&
+                    !e.getMessage().contains("renders no"), e.getMessage());
+      }
    }
 
    @Test
