@@ -1510,6 +1510,16 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       }
    }
 
+   /**
+    * The SQL/Script switch as the paired agent must see it: only a calculated field formula has
+    * the switch (the other locations this dialog serves are always script), so every other
+    * location reports nothing. The user can flip it after pairing, hence an input of its own
+    * rather than part of {@link #editorContext}, which the server matches for equality.
+    */
+   get paneSqlMode(): boolean | undefined {
+      return this.editorContext?.kind === "calcField" ? this.isSqlType() : undefined;
+   }
+
    isSqlType(): boolean {
       const formulaType = this.form.contains("formulaType") ?
          this.form.get("formulaType").value : this.formulaType;

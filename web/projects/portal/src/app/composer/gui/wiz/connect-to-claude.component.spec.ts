@@ -1217,4 +1217,98 @@ describe("ConnectToClaudeComponent", () => {
          expect(component.isConnected).toBe(true);
       });
    });
+
+   /*
+    * Bug #81541: the formula dialog's SQL/Script switch can be flipped after the code was minted,
+    * so the component reports it, for the context the code was minted with, on every change and
+    * on every fresh mint.
+    */
+   describe("pane state (bug #81541)", () => {
+      const calcField = { kind: "calcField", assembly: "Orders", name: "Margin", pending: true };
+
+      function mint(context: any, sqlMode?: boolean): void {
+         let handler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (_dest: string, h: (msg: any) => void) => {
+               handler = h;
+               return { unsubscribe: vi.fn() };
+            });
+
+         component.runtimeId = "vs-1";
+         component.sheetType = "VIEWSHEET";
+         component.editorContext = context;
+         component.sqlMode = sqlMode;
+         component.requestCode();
+         handler!({ frame: { body: JSON.stringify({ code: "ABC123" }) } });
+      }
+
+      function paneStates(): any[] {
+         return mockStompConnection.send.mock.calls
+            .filter((c: any[]) => c[0] === "/events/wiz/pairing/pane-state")
+            .map((c: any[]) => JSON.parse(c[2]));
+      }
+
+      function flip(sqlMode: boolean): void {
+         component.sqlMode = sqlMode;
+         component.ngOnChanges(
+            { sqlMode: { currentValue: sqlMode, previousValue: !sqlMode,
+                         firstChange: false, isFirstChange: () => false } } as any);
+      }
+
+      it("reports the current switch right after the code is minted", () => {
+         mint(calcField, true);
+
+         expect(paneStates()).toEqual([{ runtimeId: "vs-1", editorContext: calcField, sql: true }]);
+      });
+
+      it("reports every flip after the mint, in order, and can flip back", () => {
+         mint(calcField, false);
+         flip(true);
+         flip(false);
+
+         expect(paneStates().map((s) => s.sql)).toEqual([false, true, false]);
+      });
+
+      it("names the minted context, not the one the host derives now", () => {
+         mint(calcField, false);
+
+         component.editorContext = { ...calcField, name: "Renamed" };
+         flip(true);
+
+         expect(paneStates().pop().editorContext).toEqual(calcField);
+      });
+
+      it("reports nothing before a code exists, so a flip alone sends no message", () => {
+         component.editorContext = calcField as any;
+         flip(true);
+
+         expect(paneStates()).toEqual([]);
+      });
+
+      it("reports nothing for a host with no SQL/Script switch", () => {
+         mint({ kind: "assemblyMain", assembly: "Chart1" }, undefined);
+         component.ngOnChanges(
+            { sqlMode: { currentValue: undefined, previousValue: true,
+                         firstChange: false, isFirstChange: () => false } } as any);
+
+         expect(paneStates()).toEqual([]);
+      });
+
+      it("ignores the first binding of the input", () => {
+         mint(calcField, false);
+         mockStompConnection.send.mockClear();
+
+         component.ngOnChanges(
+            { sqlMode: { currentValue: true, previousValue: undefined,
+                         firstChange: true, isFirstChange: () => true } } as any);
+
+         expect(paneStates()).toEqual([]);
+      });
+
+      it("reports nothing for a whole-sheet toolbar mint", () => {
+         mint(undefined, true);
+
+         expect(paneStates()).toEqual([]);
+      });
+   });
 });

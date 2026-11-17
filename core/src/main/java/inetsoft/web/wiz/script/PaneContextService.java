@@ -31,6 +31,7 @@ import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.pairing.PaneState;
 import inetsoft.web.wiz.script.model.PaneContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,20 +92,45 @@ public class PaneContextService {
     * @param rvs     the session's runtime, already authorized through the pairing grant
     * @param session the live session; its editor context decides the columns and the syntax
     * @param user    the agent principal, as every other binding read passes it
+    * @param state   what the pane last reported about itself (its SQL/Script switch); only the
+    *                location kinds that have such a switch read it
     */
-   public PaneContext paneContext(RuntimeViewsheet rvs, JoinSession session, Principal user)
+   public PaneContext paneContext(RuntimeViewsheet rvs, JoinSession session, Principal user,
+                                  PaneState state)
       throws PairingException
    {
       EditorContext grant = session.editorContext();
+      boolean sql = isSqlMode(grant, state);
       List<String> notes = new ArrayList<>();
 
       List<PaneContext.Component> components = contextService.context(rvs, null).assemblies()
          .stream().map(a -> new PaneContext.Component(a.name(), a.type())).toList();
 
+      List<String> functions;
+
+      if(sql) {
+         // The dialog's SQL function and operator lists are the data source's own and live in the
+         // browser; the script function names must not be offered under a SQL syntax.
+         functions = List.of();
+         notes.add("The function list is empty in SQL mode: the dialog offers the SQL functions " +
+                   "and operators of the data source, which this context does not list.");
+      }
+      else {
+         functions = apiService.functionNames();
+      }
+
       return new PaneContext(
-         grant == null ? SHEET_KIND : grant.kind(), grant, syntaxOf(grant), components,
-         parameters(rvs, notes), columns(session, grant, user, notes), apiService.functionNames(),
-         notes);
+         grant == null ? SHEET_KIND : grant.kind(), grant, syntaxOf(grant, sql), components,
+         parameters(rvs, notes), columns(session, grant, user, notes), functions, notes);
+   }
+
+   /**
+    * Whether the pane is on SQL: only a calculated field formula has the SQL/Script switch, so a
+    * state reported for any other location is ignored.
+    */
+   static boolean isSqlMode(EditorContext grant, PaneState state) {
+      return grant != null && ScriptTarget.Kind.CALC_FIELD.wireName().equals(grant.kind()) &&
+         state != null && state.sql();
    }
 
    /**
@@ -285,8 +311,18 @@ public class PaneContextService {
       return owner == null || owner.isBlank() ? null : owner;
    }
 
-   /** How to write the expression at this location. */
-   static PaneContext.Syntax syntaxOf(EditorContext grant) {
+   /** The syntax of a calculated field formula whose SQL/Script switch is on SQL. */
+   static final String CALC_FIELD_SQL_NOTE =
+      "A calc field formula in SQL mode is a SQL value expression the data source evaluates per " +
+      "row, not JavaScript: read a column as field['<column>'] and a parameter as $(<name>), " +
+      "never parameter.<name>. No component, thisViewsheet or script function is in scope.";
+
+   /**
+    * How to write the expression at this location.
+    *
+    * @param sql whether the pane's SQL/Script switch is on SQL; read for a calculated field only
+    */
+   static PaneContext.Syntax syntaxOf(EditorContext grant, boolean sql) {
       if(grant == null) {
          return new PaneContext.Syntax("javascript",
             "Whole-sheet session: no single location. Each script location is JavaScript; ask " +
@@ -318,10 +354,11 @@ public class PaneContextService {
          case VS_CONDITION_VALUE -> new PaneContext.Syntax("javascript",
             "An Expression condition value is a JavaScript expression, parsed but not run when " +
             "pushed.");
-         case CALC_FIELD -> new PaneContext.Syntax("javascript",
-            "A calc field formula is JavaScript evaluated per row: read a column as " +
-            "field['<column>'] and a parameter as parameter.<name>. No component or " +
-            "thisViewsheet is in scope.");
+         case CALC_FIELD -> sql ? new PaneContext.Syntax("sql", CALC_FIELD_SQL_NOTE) :
+            new PaneContext.Syntax("javascript",
+               "A calc field formula is JavaScript evaluated per row: read a column as " +
+               "field['<column>'] and a parameter as parameter.<name>. No component or " +
+               "thisViewsheet is in scope.");
          case VIEWSHEET_ON_INIT, VIEWSHEET_ON_LOAD, ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK ->
             new PaneContext.Syntax("javascript",
                "A script: reach a component by its name and a parameter as parameter.<name>.");
