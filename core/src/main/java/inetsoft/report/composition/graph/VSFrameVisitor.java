@@ -195,7 +195,8 @@ public class VSFrameVisitor {
 
                // fix measure colors if static colors of measures are used.
                if(strategy instanceof VSColorFrameStrategy && !info.isMultiAesthetic()) {
-                  GraphUtil.fixDuplicateColor(arr[i], arr, null, true);
+                  GraphUtil.fixDuplicateColor(arr[i], arr, null, true,
+                                          ((VSColorFrameStrategy) strategy).getVizContext());
                }
 
                if(nlist.contains(name)) {

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Output, EventEmitter } from "@angular/core";
-import { ChartPaletteService } from "../../../../widget/color-picker/chart-palette.service";
 import { AbstractCombinedPane } from "./abstract-combined-pane";
 import { StaticColorEditor } from "./static-color-editor.component";
 
@@ -30,10 +29,6 @@ import { StaticColorEditor } from "./static-color-editor.component";
 export class CombinedColorPane extends AbstractCombinedPane {
    @Output() colorChanged: EventEmitter<string> = new EventEmitter<string>();
 
-   constructor(private chartPaletteService: ChartPaletteService) {
-      super();
-   }
-
    changeColor(ncolor: string, idx: number) {
       if(this.frameInfos) {
          this.frameInfos[idx].frame.color = ncolor;
@@ -42,17 +37,9 @@ export class CombinedColorPane extends AbstractCombinedPane {
    }
 
    reset() {
-      const allColors: string[] = this.chartPaletteService.flatColors();
-
-      for(var i = 0; i < this.frameInfos.length; i++) {
-         this.frameInfos[i].frame.changed = false;
-
-         if(this.frameInfos[i].summary && this.frameInfos[i].frame.defaultColor) {
-            this.frameInfos[i].frame.color = this.frameInfos[i].frame.defaultColor;
-         }
-         else {
-            this.frameInfos[i].frame.color = allColors[i % allColors.length];
-         }
+      for(const info of this.frameInfos) {
+         info.frame.changed = false;
+         info.frame.color = info.frame.cssColor || info.frame.defaultColor;
       }
    }
 }

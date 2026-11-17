@@ -64,6 +64,79 @@ public final class VSChartPaletteDefaults {
    }
 
    /**
+    * The list a static colour pick draws from: the mark's palette for a modern chart, the raw
+    * legacy list otherwise.
+    */
+   public static Color[] staticPalette(VizContext ctx) {
+      return ctx != null && ctx.modern ? activePalette(ctx) :
+         CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
+   }
+
+   /**
+    * The colour at the same palette position in the context's static palette. A colour in no
+    * known palette, or null, is returned unchanged.
+    */
+   public static Color reseatStaticColor(Color color, VizContext ctx) {
+      if(color == null) {
+         return null;
+      }
+
+      Color[] target = staticPalette(ctx);
+      List<Color[]> lists = List.of(
+         target, CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]), modernPalette(),
+         darkPalette(), MODERN_FALLBACK, DARK_FALLBACK);
+
+      for(Color[] list : lists) {
+         int index = Arrays.asList(list).indexOf(color);
+
+         if(index >= 0) {
+            return list == target ? color : target[index % target.length];
+         }
+      }
+
+      return color;
+   }
+
+   /**
+    * The map region tint: the first palette colour at 30% over the card.
+    */
+   public static Color mapRegionColor(VizContext ctx) {
+      Color slot = activePalette(ctx)[0];
+      return VSObjectChromeDefaults.flattenOver(
+         new Color(slot.getRed(), slot.getGreen(), slot.getBlue(), 77),
+         VSObjectChromeDefaults.cardComposite(ctx));
+   }
+
+   /**
+    * True for a colour a modern seed writes: a palette member, the axis line, or the map tint.
+    */
+   public static boolean isModernChartColor(Color color) {
+      if(color == null) {
+         return false;
+      }
+
+      for(Color[] list : new Color[][] {
+         modernPalette(), darkPalette(), MODERN_FALLBACK, DARK_FALLBACK })
+      {
+         if(Arrays.asList(list).contains(color)) {
+            return true;
+         }
+      }
+
+      for(VizContext ctx : new VizContext[] {
+         VizContext.of(VizMark.MODERN_LIGHT), VizContext.of(VizMark.MODERN_DARK) })
+      {
+         if(color.equals(VSChartChromeDefaults.axisLineColor(ctx)) ||
+            color.equals(mapRegionColor(ctx)))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * The 40 colors a chart color picker should offer for the current gate state.
     */
    public static Color[] pickerPalette(VizContext ctx) {
@@ -146,6 +219,26 @@ public final class VSChartPaletteDefaults {
     */
    public static LinearColorFrame defaultLinearFrame(VizContext ctx) {
       return ctx != null && ctx.modern ? new TealColorFrame() : new BluesColorFrame();
+   }
+
+   /** The colour of a rising candle, stock bar or waterfall step on the mark's card. */
+   public static Color directionUp(VizContext ctx) {
+      return ctx != null && ctx.dark ? DIRECTION_UP_DARK : DIRECTION_UP;
+   }
+
+   /** The colour of a falling candle, stock bar or waterfall step on the mark's card. */
+   public static Color directionDown(VizContext ctx) {
+      return ctx != null && ctx.dark ? DIRECTION_DOWN_DARK : DIRECTION_DOWN;
+   }
+
+   /** The neutral colour, such as a waterfall Total, on the mark's card. */
+   public static Color directionNeutral(VizContext ctx) {
+      return ctx != null && ctx.dark ? DIRECTION_NEUTRAL_DARK : DIRECTION_NEUTRAL;
+   }
+
+   /** True for either neutral token. */
+   public static boolean isNeutralToken(Color c) {
+      return DIRECTION_NEUTRAL.equals(c) || DIRECTION_NEUTRAL_DARK.equals(c);
    }
 
    /**
@@ -361,6 +454,12 @@ public final class VSChartPaletteDefaults {
    private static final Set<String> MODERN_HIDDEN =
       Set.of("Pastel", "Heat 8", "Heat 16", "Heat 24", "Blue", "Green", "Red", "Orange", "Gray");
    private static final Map<String, Memo> MEMO = new ConcurrentHashMap<>();
+   private static final Color DIRECTION_UP = new Color(0x1C857B);
+   private static final Color DIRECTION_UP_DARK = new Color(0x3FBFB2);
+   private static final Color DIRECTION_DOWN = new Color(0xAD6119);
+   private static final Color DIRECTION_DOWN_DARK = new Color(0xE8954A);
+   private static final Color DIRECTION_NEUTRAL = new Color(0x767676);
+   private static final Color DIRECTION_NEUTRAL_DARK = new Color(0xA8A5AD);
    private static final Color[] NO_COMPANIONS = new Color[0];
    private static final Color[] LEGACY_FALLBACK =
       CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);

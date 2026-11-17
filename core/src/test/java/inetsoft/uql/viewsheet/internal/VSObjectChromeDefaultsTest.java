@@ -303,4 +303,10 @@ class VSObjectChromeDefaultsTest {
             marked(new CurrentSelectionVSAssemblyInfo(), mark)), "selection container " + mark);
       }
    }
+
+   @Test
+   void theCardCompositeIsTheTintOverThePage() {
+      assertEquals(0xECEBE9, rgb(VSObjectChromeDefaults.cardComposite(VizContext.of(VizMark.MODERN_LIGHT))));
+      assertEquals(0x313034, rgb(VSObjectChromeDefaults.cardComposite(VizContext.of(VizMark.MODERN_DARK))));
+   }
 }

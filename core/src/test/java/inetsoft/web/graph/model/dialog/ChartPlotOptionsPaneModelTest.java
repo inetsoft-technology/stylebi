@@ -21,6 +21,8 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +44,20 @@ class ChartPlotOptionsPaneModelTest {
       info.setChartType(chartType);
       PlotDescriptor plotDesc = new PlotDescriptor();
       return new ChartPlotOptionsPaneModel(info, plotDesc);
+   }
+
+   @Test
+   void aModernParetoShowsTheLinePicker() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_PARETO);
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(
+         info, new PlotDescriptor(), VizContext.of(VizMark.MODERN_LIGHT));
+      assertTrue(model.isParetoLineColorVisible());
+   }
+
+   @Test
+   void aClassicParetoWithoutAColourFieldHidesIt() {
+      assertFalse(modelFor(GraphTypes.CHART_PARETO).isParetoLineColorVisible());
    }
 
    // --- barCornerRadiusVisible ---

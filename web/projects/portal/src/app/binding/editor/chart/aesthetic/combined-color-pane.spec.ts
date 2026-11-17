@@ -20,8 +20,6 @@ import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { StaticColorModel } from "../../../../common/data/visual-frame-model";
-import { ChartPaletteService } from "../../../../widget/color-picker/chart-palette.service";
-import { MODERN_HEAD, palette40 } from "../../../../widget/color-picker/palette-test-fixtures";
 import { CombinedColorPane } from "./combined-color-pane.component";
 import { StaticColorEditor } from "./static-color-editor.component";
 
@@ -51,9 +49,6 @@ describe("Combined Color Pane Unit Test", () => {
             CombinedColorPane,
             StaticColorEditor,
          ],
-         providers: [
-            { provide: ChartPaletteService, useValue: { flatColors: () => palette40(MODERN_HEAD) } }
-         ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));
@@ -82,7 +77,20 @@ describe("Combined Color Pane Unit Test", () => {
 
       //Bug #20376
       combinedColorPane.reset();
-      expect(combinedColorPane.frameInfos[0].frame.color).toEqual(MODERN_HEAD[0]);
+      expect(combinedColorPane.frameInfos[0].frame.color).toEqual("#518db9");
       expect(combinedColorPane.frameInfos[1].frame.color).toEqual("#7030a0");
+   });
+
+   it("reset prefers the stylesheet colour", () => {
+      let frame = createMockStaticColorModel("#d84d3f");
+      frame.cssColor = "#123456";
+      fixture = TestBed.createComponent(CombinedColorPane);
+      combinedColorPane = <CombinedColorPane>fixture.componentInstance;
+      combinedColorPane.frameInfos = [{ frame: frame, name: "Sum(id)" }];
+      fixture.detectChanges();
+
+      combinedColorPane.reset();
+      expect(frame.color).toEqual("#123456");
+      expect(frame.changed).toBe(false);
    });
 });

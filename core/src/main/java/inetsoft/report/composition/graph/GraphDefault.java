@@ -94,6 +94,12 @@ public class GraphDefault {
             percentScale.getAxisSpec().setTickVisible(yaxis.isTickVisible());
             percentScale.getAxisSpec().setLineVisible(yaxis.isLineVisible());
             percentScale.getAxisSpec().setLabelVisible(yaxis.isLabelVisible());
+
+            // an author's y-axis label colour keeps reaching the percent axis
+            if(!gen.isAuthorAxisLabelColor(yscale)) {
+               percentScale.getAxisSpec().getTextSpec().setColor(
+                  gen.desc.getPlotDescriptor().getParetoLineColor());
+            }
          }
 
          if(yscale instanceof LinearScale) {

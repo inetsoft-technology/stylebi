@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
+import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.graph.data.BoxDataSet;
@@ -40,6 +41,8 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.ColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.util.*;
 import inetsoft.util.css.*;
 import org.slf4j.Logger;
@@ -169,6 +172,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          plotDesc.setFacetGridColor(gridline, CompositeValue.Type.DEFAULT);
          plotDesc.setDiagonalColor(gridline, CompositeValue.Type.DEFAULT);
          plotDesc.setQuadrantColor(gridline, CompositeValue.Type.DEFAULT);
+         // a map's regions without data
+         plotDesc.setEmptyColor(gridline, CompositeValue.Type.DEFAULT);
+         // the pareto line, in the second palette colour
+         plotDesc.setParetoLineColor(VSChartPaletteDefaults.activePalette(ctx)[1],
+                                     CompositeValue.Type.DEFAULT);
 
          // the data-label ink. Seeded, so PlotDescriptor.initDefaultFormat no longer writes a
          // colour at all - it ran on every render and overwrote this
@@ -206,6 +214,10 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          plotDesc.setQuadrantColor(
             ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "quadrant"),
             CompositeValue.Type.DEFAULT);
+         // null, so the server property is read again at render
+         plotDesc.setEmptyColor(null, CompositeValue.Type.DEFAULT);
+         plotDesc.setParetoLineColor(CategoricalColorFrame.COLOR_PALETTE.get(0),
+                                     CompositeValue.Type.DEFAULT);
 
          plotDesc.getTextFormat().getDefaultFormat().setColor(GDefaults.DEFAULT_TEXT_COLOR);
 
@@ -261,13 +273,21 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    /**
     * Writes the mark-appropriate palette onto every bound colour aesthetic, so Modernize and Revert
     * keep the chart's colours in step with the rest of its chrome: the categorical palette on every
-    * call, and the measure-to-colour ramp on a mark transition only.
+    * call, and the measure-to-colour ramp on a mark transition only. It also moves each measure's
+    * default colour by palette position.
     */
    private void seedColorPalette(VizContext ctx) {
       VSChartInfo info = getVSChartInfo();
 
       if(info == null) {
          return;
+      }
+
+      seedMeasureColors(info, ctx);
+
+      // the chart-level ramp, as the aesthetic-ref ramps below: a mark transition only
+      if(ctx.transition && isOtherMarkSeededLinearFrame(info.getColorFrame(), ctx)) {
+         info.setColorFrame(VSChartPaletteDefaults.defaultLinearFrame(ctx));
       }
 
       for(boolean runtime : new boolean[]{ false, true }) {
@@ -284,6 +304,33 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // measure-backed node color the loop already reached simply takes the same write twice.
       if(info instanceof RelationChartInfo) {
          seedColorFrame(((RelationChartInfo) info).getNodeColorField(), ctx);
+      }
+   }
+
+   // moves each static default colour to the same position in the mark's palette
+   private void seedMeasureColors(VSChartInfo info, VizContext ctx) {
+      for(boolean runtime : new boolean[]{ false, true }) {
+         for(ChartRef ref : info.getBindingRefs(runtime)) {
+            if(ref instanceof ChartAggregateRef) {
+               reseatStaticDefault(((ChartAggregateRef) ref).getColorFrameWrapper(), ctx);
+            }
+         }
+      }
+
+      seedNodeColor(info, ctx);
+   }
+
+   // the relation node frame; a fresh relation info starts it at the classic slot one
+   private void seedNodeColor(VSChartInfo info, VizContext ctx) {
+      if(info instanceof RelationChartInfo) {
+         reseatStaticDefault(((RelationChartInfo) info).getNodeColorFrameWrapper(), ctx);
+      }
+   }
+
+   private void reseatStaticDefault(ColorFrameWrapper wrapper, VizContext ctx) {
+      if(wrapper instanceof StaticColorFrameWrapper) {
+         StaticColorFrameWrapper sw = (StaticColorFrameWrapper) wrapper;
+         sw.setDefaultColor(VSChartPaletteDefaults.reseatStaticColor(sw.getDefaultColor(), ctx));
       }
    }
 
@@ -3125,8 +3172,151 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
       seedXGrid(ctx, type);
+      // the legacy branch replaces only a modern value
+      seedChartColor(ctx, type);
+      // a position mapping, so a classic value stays on the legacy branch
+      seedNodeColor(getVSChartInfo(), ctx);
       // modern only; the classic value stays in legacySmoothLines()
       seedSmoothLines(ctx, type);
+      seedDirectionColors(ctx, type);
+      seedSummaryColors(ctx);
+   }
+
+   // up and down frames follow the resolved type; whether they draw is decided at render
+   private void seedDirectionColors(VizContext ctx, ResolvedChartType type) {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      if(ctx.modern && VSChartDirectionColors.isDirectionType(type.type())) {
+         StaticColorFrameWrapper up = info.getUpColorFrameWrapper();
+         StaticColorFrameWrapper down = info.getDownColorFrameWrapper();
+
+         if(up == null) {
+            up = new StaticColorFrameWrapper();
+            info.setUpColorFrameWrapper(up);
+         }
+
+         if(down == null) {
+            down = new StaticColorFrameWrapper();
+            info.setDownColorFrameWrapper(down);
+         }
+
+         up.setDefaultColor(VSChartPaletteDefaults.directionUp(ctx));
+         down.setDefaultColor(VSChartPaletteDefaults.directionDown(ctx));
+      }
+      else {
+         if(isSeedOnly(info.getUpColorFrameWrapper())) {
+            info.setUpColorFrameWrapper(null);
+         }
+
+         if(isSeedOnly(info.getDownColorFrameWrapper())) {
+            info.setDownColorFrameWrapper(null);
+         }
+      }
+   }
+
+   // a frame holding no author or stylesheet colour
+   private static boolean isSeedOnly(StaticColorFrameWrapper wrapper) {
+      return wrapper != null && wrapper.getUserColor() == null &&
+         !(wrapper.getVisualFrame() instanceof StaticColorFrame &&
+           ((StaticColorFrame) wrapper.getVisualFrame()).getCssColor() != null);
+   }
+
+   // the waterfall Total, on every aggregate so a measure that becomes a waterfall holds it
+   private void seedSummaryColors(VizContext ctx) {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      for(boolean runtime : new boolean[]{ false, true }) {
+         for(ChartRef ref : info.getBindingRefs(runtime)) {
+            if(!(ref instanceof ChartAggregateRef)) {
+               continue;
+            }
+
+            ColorFrameWrapper summary = ((ChartAggregateRef) ref).getSummaryColorFrameWrapper();
+
+            if(!(summary instanceof StaticColorFrameWrapper)) {
+               continue;
+            }
+
+            StaticColorFrameWrapper sw = (StaticColorFrameWrapper) summary;
+            Color current = sw.getDefaultColor();
+            boolean neutral = VSChartPaletteDefaults.isNeutralToken(current);
+
+            if(ctx.modern) {
+               if(neutral || VSChartAggregateRef.DEFAULT_SUMMARY_COLOR.equals(current)) {
+                  sw.setDefaultColor(VSChartPaletteDefaults.directionNeutral(ctx));
+               }
+            }
+            else if(neutral) {
+               sw.setDefaultColor(VSChartAggregateRef.DEFAULT_SUMMARY_COLOR);
+            }
+         }
+      }
+   }
+
+   // the chart-level colour, which relation edges, maps and radar draw; default tier only
+   private void seedChartColor(VizContext ctx, ResolvedChartType type) {
+      VSChartInfo info = getVSChartInfo();
+      ColorFrameWrapper wrapper = info == null ? null : info.getColorFrameWrapper();
+
+      if(wrapper instanceof StaticColorFrameWrapper) {
+         StaticColorFrameWrapper sw = (StaticColorFrameWrapper) wrapper;
+         Color current = sw.getDefaultColor();
+         sw.setDefaultColor(ctx.modern ? modernChartColor(current, ctx, type) :
+                               legacyChartColor(current, type));
+      }
+   }
+
+   private static Color modernChartColor(Color current, VizContext ctx, ResolvedChartType type) {
+      if(GraphTypes.isRelation(type.type())) {
+         return VSChartChromeDefaults.axisLineColor(ctx);
+      }
+
+      if(type.mapPolygonOnly()) {
+         return GraphUtil.getMapDefaultColor(ctx);
+      }
+
+      if(isPaletteColor(current, ctx)) {
+         return VSChartPaletteDefaults.reseatStaticColor(current, ctx);
+      }
+
+      // the grey, a map tint or the classic region colour left by another type
+      if(VSChartPaletteDefaults.isModernChartColor(current) ||
+         GraphUtil.MAP_DEFAULT_COLOR.equals(current))
+      {
+         return VSChartPaletteDefaults.activePalette(ctx)[0];
+      }
+
+      return current;
+   }
+
+   private static Color legacyChartColor(Color current, ResolvedChartType type) {
+      // a classic value stays, so a classic chart's XML is unchanged
+      if(!VSChartPaletteDefaults.isModernChartColor(current)) {
+         return current;
+      }
+
+      if(type.mapPolygonOnly()) {
+         return GraphUtil.getMapDefaultColor();
+      }
+
+      return isPaletteColor(current, VizContext.LEGACY) ?
+         VSChartPaletteDefaults.reseatStaticColor(current, VizContext.LEGACY) :
+         CategoricalColorFrame.COLOR_PALETTE.get(0);
+   }
+
+   // a colour the position mapping knows, in the context's palette or another
+   private static boolean isPaletteColor(Color color, VizContext ctx) {
+      return color != null &&
+         (!color.equals(VSChartPaletteDefaults.reseatStaticColor(color, ctx)) ||
+          Arrays.asList(VSChartPaletteDefaults.staticPalette(ctx)).contains(color));
    }
 
    private void seedXGrid(VizContext ctx, ResolvedChartType type) {

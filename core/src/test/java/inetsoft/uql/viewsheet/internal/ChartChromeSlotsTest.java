@@ -24,6 +24,7 @@ import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.StyleFont;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -148,6 +149,30 @@ class ChartChromeSlotsTest {
       slot.clearAuthor(info);
       assertFalse(plot.chromeValue("xGridColor").hasUserValue());
       assertThrows(IllegalArgumentException.class, () -> plot.chromeValue("trendline"));
+   }
+
+   @Test
+   void aNoDataColourIsATieredSlotAndAnAuthorValueClears() {
+      ChartVSAssemblyInfo info = chart();
+      PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
+      plot.setEmptyColor(Color.RED, CompositeValue.Type.USER);
+
+      ChromeSlot slot = find(info, "chart:plot:emptyColor");
+      assertTrue(slot.isAuthorSet(info));
+      assertTrue(slot.residueEligible());
+      assertEquals(Color.RED, slot.authorValue(info));
+
+      slot.clearAuthor(info);
+      assertFalse(plot.chromeValue("emptyColor").hasUserValue());
+   }
+
+   @Test
+   void aNoDataColourEqualToTheClassicRenderIsResidue() {
+      ChartVSAssemblyInfo info = chart();
+      PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
+      plot.setEmptyColor(GraphUtil.MAP_EMPTY_DATA_COLOR, CompositeValue.Type.USER);
+      assertEquals(1, VizModernizeUtil.clearResidue(info));
+      assertFalse(plot.chromeValue("emptyColor").hasUserValue());
    }
 
    @Test
@@ -377,6 +402,53 @@ class ChartChromeSlotsTest {
       assertTrue(measureColor.isChanged());
       assertTrue(palette.isChanged());
       return new AuthoredColors(info, chartColor, measureColor, palette, slots);
+   }
+
+   @Test
+   void theResetCopyClearsAuthorDirectionAndTotalColours() {
+      ChartVSAssemblyInfo candle = chart();
+      CandleVSChartInfo cinfo = new CandleVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_CANDLE);
+      StaticColorFrameWrapper up = new StaticColorFrameWrapper();
+      StaticColorFrameWrapper down = new StaticColorFrameWrapper();
+      up.setUserColor(Color.RED);
+      down.setUserColor(Color.BLUE);
+      cinfo.setUpColorFrameWrapper(up);
+      cinfo.setDownColorFrameWrapper(down);
+      candle.setVSChartInfo(cinfo);
+
+      ChartVSAssemblyInfo waterfall = chart();
+      DefaultVSChartInfo winfo = new DefaultVSChartInfo();
+      winfo.setChartType(GraphTypes.CHART_WATERFALL);
+      VSChartAggregateRef total = aggregate("Sales");
+      StaticColorFrameWrapper summary =
+         (StaticColorFrameWrapper) total.getSummaryColorFrameWrapper();
+      summary.setUserColor(Color.GREEN);
+      winfo.addYField(total);
+      waterfall.setVSChartInfo(winfo);
+
+      resetAll(candle, fresh(VizMark.MODERN_LIGHT));
+      resetAll(waterfall, fresh(VizMark.MODERN_LIGHT));
+
+      assertNull(up.getUserColor());
+      assertNull(down.getUserColor());
+      assertNull(summary.getUserColor());
+      assertFalse(up.isChanged());
+      assertFalse(summary.isChanged());
+   }
+
+   @Test
+   void theResetCopyClearsAnAuthorSingleColour() {
+      ChartVSAssemblyInfo candle = chart();
+      CandleVSChartInfo cinfo = new CandleVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_CANDLE);
+      StaticColorFrameWrapper single = (StaticColorFrameWrapper) cinfo.getColorFrameWrapper();
+      single.setUserColor(Color.RED);
+      candle.setVSChartInfo(cinfo);
+
+      resetAll(candle, fresh(VizMark.MODERN_LIGHT));
+
+      assertNull(single.getUserColor());
    }
 
    @Test

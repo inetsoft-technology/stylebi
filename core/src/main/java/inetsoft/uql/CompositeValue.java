@@ -83,6 +83,10 @@ public class CompositeValue<T> implements Cloneable, Serializable {
       return userDefined;
    }
 
+   public boolean hasCssValue() {
+      return cssDefined;
+   }
+
    /**
     * Set whether toString writes the default tier.
     */
