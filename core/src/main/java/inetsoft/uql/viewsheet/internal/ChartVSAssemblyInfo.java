@@ -166,6 +166,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             plotDesc.setBarCornerRadius(VSChartChromeDefaults.BAR_CORNER_RADIUS);
          }
 
+         // on every chart, so a later change into a tree takes it
+         if(!plotDesc.isUserNodeCornerRadius()) {
+            plotDesc.setNodeCornerRadius(VSChartChromeDefaults.NODE_CORNER_RADIUS);
+         }
+
          // the plot's structural lines. Seeded rather than resolved at render so they travel in
          // an exported asset, and so the composer pane and the canvas read one stored value
          Color gridline = VSChartChromeDefaults.gridlineColor(ctx);
@@ -190,9 +195,14 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
       else {
          // Revert calls this with an unmarked context and needs the legacy values written, not
-         // left alone. Value-identical at gate-off creation, where both fields already hold these.
+         // left alone. Value-identical at gate-off creation, where each field already holds these.
          if(!isUserBarCornerRadius()) {
             plotDesc.setBarCornerRadius(0);
+         }
+
+         // what every new chart holds; a released file's square corner is flagged
+         if(!plotDesc.isUserNodeCornerRadius()) {
+            plotDesc.setNodeCornerRadius(PlotDescriptor.DEFAULT_NODE_CORNER_RADIUS);
          }
 
          // smoothLines also has a chart-type default, so the legacy value is type-dependent: a
@@ -3268,6 +3278,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
       seedXGrid(ctx, type);
+      seedPlotAlpha(ctx, type);
       // the legacy branch replaces only a modern value
       seedChartColor(ctx, type);
       // a position mapping, so a classic value stays on the legacy branch
@@ -3427,6 +3438,22 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(plot != null) {
          plot.setXGridStyle(style, CompositeValue.Type.DEFAULT);
+      }
+   }
+
+   // the fill transparency; -1 is auto, so a legacy chart keeps the element's own
+   private void seedPlotAlpha(VizContext ctx, ResolvedChartType type) {
+      double alpha = ctx.modern ? VSChartTypeDefaults.plotAlpha(type) : -1;
+      seedPlotAlpha(getChartDescriptor(), alpha);
+      // a script-made runtime copy, which the render prefers; its user tier stays
+      seedPlotAlpha(getRTChartDescriptor(), alpha);
+   }
+
+   private static void seedPlotAlpha(ChartDescriptor desc, double alpha) {
+      PlotDescriptor plot = plotOf(desc);
+
+      if(plot != null) {
+         plot.setAlpha(alpha, CompositeValue.Type.DEFAULT);
       }
    }
 

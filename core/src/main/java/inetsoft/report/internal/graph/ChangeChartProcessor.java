@@ -291,8 +291,9 @@ public class ChangeChartProcessor {
 
    /**
     * Fix size frame if the sizeframe is not changed.
+    * @param ctx the chart's context; a marked chart takes the modern sizes it draws.
     */
-   public void fixSizeFrame(ChartInfo info) {
+   public void fixSizeFrame(ChartInfo info, VizContext ctx) {
       AestheticRef sref = info.getSizeField();
       SizeFrame frame = info.getSizeFrame();
       boolean isDefault = true;
@@ -307,7 +308,7 @@ public class ChangeChartProcessor {
       if(!info.isSizeChanged()) {
          int chartType = getRTChartType(info);
          ShapeFrame shape = info.getShapeFrame();
-         fixSizeFrameValues(info, chartType, shape, frame, info);
+         fixSizeFrameValues(info, chartType, shape, frame, info, ctx);
       }
 
       if(isDefault) {
@@ -333,28 +334,28 @@ public class ChangeChartProcessor {
 
          int chartType = getChartType(info, mref);
          ShapeFrame shape = info.getShapeFrame();
-         fixSizeFrameValues(info, chartType, shape, frame0, mref);
+         fixSizeFrameValues(info, chartType, shape, frame0, mref, ctx);
       }
 
-      fixAggregatesSizeFrame(info);
+      fixAggregatesSizeFrame(info, ctx);
    }
 
    /**
     * Fix size frame of the aggregates of chart.
     */
-   private void fixAggregatesSizeFrame(ChartInfo info) {
+   private void fixAggregatesSizeFrame(ChartInfo info, VizContext ctx) {
       ChartRef[] xrefs = info.getXFields();
       ChartRef[] yrefs = info.getYFields();
 
       for(int i = 0; i < xrefs.length; i++) {
          if(xrefs[i] instanceof ChartAggregateRef) {
-            fixAggregateSizeFrame((ChartAggregateRef) xrefs[i], info);
+            fixAggregateSizeFrame((ChartAggregateRef) xrefs[i], info, ctx);
          }
       }
 
       for(int i = 0; i < yrefs.length; i++) {
          if(yrefs[i] instanceof ChartAggregateRef) {
-            fixAggregateSizeFrame((ChartAggregateRef) yrefs[i], info);
+            fixAggregateSizeFrame((ChartAggregateRef) yrefs[i], info, ctx);
          }
       }
 
@@ -363,13 +364,13 @@ public class ChangeChartProcessor {
          ChartRef start = ginfo.getStartField();
 
          if(start instanceof ChartAggregateRef) {
-            fixAggregateSizeFrame((ChartAggregateRef) start, info);
+            fixAggregateSizeFrame((ChartAggregateRef) start, info, ctx);
          }
 
          ChartRef milestone = ginfo.getMilestoneField();
 
          if(milestone instanceof ChartAggregateRef) {
-            fixAggregateSizeFrame((ChartAggregateRef) milestone, info);
+            fixAggregateSizeFrame((ChartAggregateRef) milestone, info, ctx);
          }
       }
    }
@@ -377,7 +378,7 @@ public class ChangeChartProcessor {
    /**
     * Fix size frame of a aggregate of the chart.
     */
-   private void fixAggregateSizeFrame(ChartAggregateRef agg, ChartInfo info) {
+   private void fixAggregateSizeFrame(ChartAggregateRef agg, ChartInfo info, VizContext ctx) {
       if(agg == null) {
          return;
       }
@@ -397,7 +398,7 @@ public class ChangeChartProcessor {
       if(!agg.isSizeChanged()) {
          int chartType = getChartType(info, agg);
          ShapeFrame shape = agg.getShapeFrame();
-         fixSizeFrameValues(info, chartType, shape, frame, agg);
+         fixSizeFrameValues(info, chartType, shape, frame, agg, ctx);
       }
    }
 
@@ -405,11 +406,12 @@ public class ChangeChartProcessor {
     * Fix the size frame's values such as size, largest, smallest.
     */
    private void fixSizeFrameValues(ChartInfo info, int chartType,
-      ShapeFrame shape, SizeFrame frame, ChartBindable bindable)
+      ShapeFrame shape, SizeFrame frame, ChartBindable bindable, VizContext ctx)
    {
       double nsize = 1;
       double min = 1;
       double max = 30;
+      boolean milestone = false;
 
       switch(chartType) {
       case GraphTypes.CHART_BAR:
@@ -432,6 +434,7 @@ public class ChangeChartProcessor {
       case GraphTypes.CHART_GANTT:
          if(bindable != null && GraphTypes.isPoint(bindable.getChartType())) {
             nsize = 9;
+            milestone = true;
          }
          else {
             nsize = 20;
@@ -490,6 +493,12 @@ public class ChangeChartProcessor {
          break;
       }
 
+      // the sizes a marked chart draws, as in GraphGenerator.fixSizeFrameValues
+      if(ctx.modern) {
+         max = modernLargest(info, chartType, max);
+         nsize = ModernMarkSizes.staticSize(chartType, !milestone, nsize);
+      }
+
       boolean fake = isFake(info);
 
       // force to point type
@@ -497,6 +506,10 @@ public class ChangeChartProcessor {
          nsize = 1;
          min = 1;
          max = 15;
+
+         if(ctx.modern && (chartType == GraphTypes.CHART_AUTO || GraphTypes.isPoint(chartType))) {
+            max = modernLargest(info, GraphTypes.CHART_POINT, max);
+         }
       }
 
       if(frame instanceof StaticSizeFrame) {
@@ -506,6 +519,11 @@ public class ChangeChartProcessor {
          frame.setSmallest(min);
          frame.setLargest(max);
       }
+   }
+
+   private static double modernLargest(ChartInfo info, int chartType, double classic) {
+      return ModernMarkSizes.largest(chartType, GraphTypeUtil.isWordCloud(info),
+                                     GraphTypes.isContour(info.getChartType()), classic);
    }
 
    /**

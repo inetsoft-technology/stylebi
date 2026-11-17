@@ -929,7 +929,7 @@ public class VSWizardBindingHandler {
       }
 
       if(info.getVSChartInfo() != null) {
-         (new ChangeChartProcessor()).fixSizeFrame(info.getVSChartInfo());
+         (new ChangeChartProcessor()).fixSizeFrame(info.getVSChartInfo(), VizContext.of(info));
       }
 
       VSDndEvent event = VSDndEvent.builder()

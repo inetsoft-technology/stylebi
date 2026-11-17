@@ -18,9 +18,12 @@
 package inetsoft.graph.schema;
 
 import inetsoft.graph.aesthetic.VisualModel;
+import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.element.SchemaElement;
 import inetsoft.graph.geometry.SchemaGeometry;
+import inetsoft.graph.visual.ElementVO;
+import inetsoft.graph.visual.SchemaVO;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -33,14 +36,17 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.awt.geom.*;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * A box plot under the width rule draws its box 30% of the slot, 6 to 28 screen pixels wide and
- * at least 2px tall, and a marked box takes the chart's bar corner.
+ * A box plot under the width rule draws its box 30% of the slot, 6 (or its share of a narrower
+ * slot) to 28 screen pixels wide and at least 2px tall, and a marked box takes the chart's bar
+ * corner.
  */
 // GTool, reached by the painter, initializes the report renderer on first use
 @ExtendWith(SpringExtension.class)
@@ -72,6 +78,15 @@ class BoxPainterModernTest {
       Rectangle2D box = fitted(box(true), screen).getShape(3).getBounds2D();
 
       assertEquals(6, box.getWidth(), 0.5, "width");
+      assertEquals(slotCenter(screen), box.getCenterX(), 0.5, "centred on the slot");
+   }
+
+   @Test
+   void aSlotUnder6pxFloorsTheBoxAtTheSlot() {
+      AffineTransform screen = screen(4);
+      Rectangle2D box = fitted(box(true), screen).getShape(3).getBounds2D();
+
+      assertEquals(4, box.getWidth(), 0.5, "width");
       assertEquals(slotCenter(screen), box.getCenterX(), 0.5, "centred on the slot");
    }
 
@@ -117,6 +132,34 @@ class BoxPainterModernTest {
       assertTrue(b.getX() >= a.getMaxX(), "no overlap: " + a + " " + b);
       assertTrue(b.getX() - a.getMaxX() <= 1.5, "gap " + (b.getX() - a.getMaxX()));
       assertEquals(slotCenter(screen), (a.getX() + b.getMaxX()) / 2, 0.5, "pair centred");
+   }
+
+   @Test
+   void twoDodgedBoxesShareASlotUnder12px() {
+      BoxPainter left = box(true);
+      BoxPainter right = box(true);
+      AffineTransform screen = screen(8);
+      dodge(left, right);
+
+      // the pair's natural extent on screen and the dodge gap between the boxes
+      Rectangle2D a0 = unfitted(left, screen).getShape(3).getBounds2D();
+      Rectangle2D b0 = unfitted(right, screen).getShape(3).getBounds2D();
+      double extentPx = b0.getMaxX() - a0.getX();
+      double gapPx = b0.getX() - a0.getMaxX();
+      double boxPx = BoxPainter.BOX_WIDTH_RATIO * 8;
+      Rectangle2D a = fitted(left, screen).getShape(3).getBounds2D();
+      Rectangle2D b = fitted(right, screen).getShape(3).getBounds2D();
+      double inSlot = b.getX() - a.getMaxX();
+
+      assertTrue(boxPx < BoxPainter.MIN_BOX_PX, "premise: the floor applies");
+      assertEquals(Math.min(BoxPainter.MIN_BOX_PX, boxPx * 8 / (extentPx + gapPx)), a.getWidth(),
+                   1e-6, "the box's share of the slot");
+      assertEquals(a.getWidth(), b.getWidth(), 1e-9, "equal boxes");
+      assertTrue(inSlot >= 0, "no overlap: " + a + " " + b);
+      assertTrue(b.getMaxX() - a.getX() <= 8 + 1e-6, "the pair fits its slot: " + a + " " + b);
+      assertTrue(a.getX() - (slotCenter(screen) - 4) >= inSlot / 2 - 1e-6, "left slot edge");
+      assertTrue(slotCenter(screen) + 4 - b.getMaxX() >= inSlot / 2 - 1e-6, "right slot edge");
+      assertEquals(slotCenter(screen), (a.getX() + b.getMaxX()) / 2, 1e-6, "pair centred");
    }
 
    @Test
@@ -254,6 +297,22 @@ class BoxPainterModernTest {
       copy.transformScreen(screen);
       copy.fitScreen(screen);
       return copy;
+   }
+
+   // the painter on screen before any pixel rule
+   private static BoxPainter unfitted(BoxPainter painter, AffineTransform screen) {
+      BoxPainter copy = (BoxPainter) painter.clone();
+      copy.transformScreen(screen);
+      return copy;
+   }
+
+   // SchemaVO.dodge on two boxes in one slot, in chart units before layout
+   private static void dodge(BoxPainter left, BoxPainter right) {
+      Coordinate coord = mock(Coordinate.class);
+      SchemaVO first = new SchemaVO(left.geometry, coord, left);
+      SchemaVO second = new SchemaVO(right.geometry, coord, right);
+
+      first.dodge(Map.<ElementVO, List<ElementVO>>of(first, List.of(second)), coord);
    }
 
    // SchemaVO's painter bounds, which dodge reads before layout

@@ -20,16 +20,18 @@ package inetsoft.report.composition.graph;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.Plotter;
 import inetsoft.graph.VGraph;
+import inetsoft.graph.aesthetic.LinearSizeFrame;
 import inetsoft.graph.aesthetic.SizeFrame;
 import inetsoft.graph.aesthetic.StaticSizeFrame;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.data.SumDataSet;
-import inetsoft.graph.element.IntervalElement;
-import inetsoft.graph.element.MekkoElement;
-import inetsoft.graph.element.SchemaElement;
+import inetsoft.graph.element.*;
 import inetsoft.graph.internal.GTool;
+import inetsoft.graph.schema.CandlePainter;
+import inetsoft.graph.schema.StockPainter;
 import inetsoft.graph.visual.BarVO;
 import inetsoft.graph.visual.ElementVO;
+import inetsoft.graph.visual.PointVO;
 import inetsoft.graph.visual.SchemaVO;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.SreeEnv;
@@ -41,6 +43,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.DefaultTextFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.LinearSizeFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.SizeFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticSizeFrameWrapper;
@@ -53,6 +56,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -356,6 +361,56 @@ class ModernMarkRulesTest {
    }
 
    @Test
+   void aCrowdedSlotGrowsItsBoxesButKeepsTheSlotsApart() {
+      VGraph vgraph = plot(crowdedColorBoxChart(50), VizMark.MODERN_LIGHT, 1000, 240);
+      List<Rectangle2D> boxes = sortedBoxes(vgraph);
+      double naturalPx = naturalBoxPx(vgraph);
+
+      assertEquals(100, boxes.size(), "premise: two boxes per state");
+      assertTrue(naturalPx < 6, "premise: the floor applies " + naturalPx);
+
+      for(int i = 0; i < boxes.size(); i += 2) {
+         Rectangle2D a = boxes.get(i);
+         Rectangle2D b = boxes.get(i + 1);
+         double inSlot = b.getX() - a.getMaxX();
+
+         assertTrue(a.getWidth() > naturalPx + 0.1, "box " + i + " is " + a.getWidth());
+         assertTrue(b.getWidth() > naturalPx + 0.1, "box " + (i + 1) + " is " + b.getWidth());
+         assertTrue(inSlot >= -1e-6, "slot " + i / 2 + " overlaps itself, gap " + inSlot);
+
+         if(i + 2 < boxes.size()) {
+            double toNext = boxes.get(i + 2).getX() - b.getMaxX();
+
+            assertTrue(toNext >= -1e-6, "slot " + i / 2 + " overlaps the next, gap " + toNext);
+            assertTrue(toNext >= inSlot - 1e-6,
+                       "slot " + i / 2 + " is " + toNext + " from the next, " + inSlot +
+                       " between its boxes");
+         }
+      }
+   }
+
+   @Test
+   void aVeryCrowdedSlotKeepsItsNaturalBoxes() {
+      VGraph vgraph = plot(crowdedColorBoxChart(100), VizMark.MODERN_LIGHT, 1000, 240);
+      List<Rectangle2D> boxes = sortedBoxes(vgraph);
+      double naturalPx = naturalBoxPx(vgraph);
+
+      assertEquals(200, boxes.size(), "premise: two boxes per state");
+      assertTrue(naturalPx < 6, "premise: under the 6px floor " + naturalPx);
+
+      for(int i = 0; i < boxes.size(); i++) {
+         Rectangle2D box = boxes.get(i);
+
+         assertEquals(naturalPx, box.getWidth(), 1e-6, "box " + i + " width");
+
+         if(i > 0) {
+            double gap = box.getX() - boxes.get(i - 1).getMaxX();
+            assertTrue(gap >= -1e-6, "box " + i + " overlaps the one before, gap " + gap);
+         }
+      }
+   }
+
+   @Test
    void aHorizontalBoxPlotIsClampedAlongItsWidth() {
       VGraph vgraph = plot(horizontalBoxChart(), VizMark.MODERN_LIGHT, 400, 600);
       List<SchemaVO> modern = boxes(vgraph);
@@ -372,6 +427,56 @@ class ModernMarkRulesTest {
          assertEquals(28, box.getHeight(), 0.5, "width down the screen");
          assertEquals(whisker.getCenterY(), box.getCenterY(), 0.5, "on its whisker");
       }
+   }
+
+   @Test
+   void aMarkedCandleSetsTheWidthFloor() {
+      SchemaElement candle = schemaElement(candleChart(new CandleVSChartInfo(), false),
+                                           VizMark.MODERN_LIGHT);
+
+      assertInstanceOf(CandlePainter.class, candle.getPainter(), "premise: a candle");
+      assertTrue(candle.isWidthFloor());
+   }
+
+   @Test
+   void anAuthorSizedCandleDoesNot() {
+      Chart chart = candleChart(new CandleVSChartInfo(), false);
+      setAuthorSize(chart.info().getSizeFrameWrapper());
+      SchemaElement candle = schemaElement(chart, VizMark.MODERN_LIGHT);
+
+      assertTrue(chart.info().isSizeChanged(candle.getVars()), "premise: the author's size");
+      assertFalse(candle.isWidthFloor());
+   }
+
+   @Test
+   void aSizeBoundCandleDoesNot() {
+      SchemaElement candle = schemaElement(candleChart(new CandleVSChartInfo(), true),
+                                           VizMark.MODERN_LIGHT);
+
+      assertNotNull(candle.getSizeFrame().getField(), "premise: the size is bound");
+      assertFalse(candle.isWidthFloor());
+   }
+
+   @Test
+   void aMarkedStockAlwaysSetsIt() {
+      Chart authorSized = candleChart(new StockVSChartInfo(), false);
+      setAuthorSize(authorSized.info().getSizeFrameWrapper());
+      SchemaElement stock = schemaElement(candleChart(new StockVSChartInfo(), false),
+                                          VizMark.MODERN_LIGHT);
+      SchemaElement sized = schemaElement(authorSized, VizMark.MODERN_LIGHT);
+
+      assertInstanceOf(StockPainter.class, stock.getPainter(), "premise: a stock");
+      assertTrue(authorSized.info().isSizeChanged(sized.getVars()), "premise: the author's size");
+      assertTrue(stock.isWidthFloor(), "stock");
+      assertTrue(sized.isWidthFloor(), "author-sized stock");
+   }
+
+   @Test
+   void aClassicCandleDoesNot() {
+      assertFalse(schemaElement(candleChart(new CandleVSChartInfo(), false), null).isWidthFloor(),
+                  "candle");
+      assertFalse(schemaElement(candleChart(new StockVSChartInfo(), false), null).isWidthFloor(),
+                  "stock");
    }
 
    @Test
@@ -396,6 +501,249 @@ class ModernMarkRulesTest {
       assertNotNull(size.getField(), "premise: the size is bound");
       assertEquals(size.getLargest() - 1, size.getSmallest());
       assertFalse(bars.get(0).isWidthClamp());
+   }
+
+   @Test
+   void aModernBubbleIsAtMost20pxAcross() {
+      PointElement point = points(sizedChart(GraphTypes.CHART_POINT), VizMark.MODERN_LIGHT).get(0);
+
+      assertEquals(8, ((LinearSizeFrame) point.getSizeFrame()).getLargest());
+
+      double widest = 0;
+
+      for(PointVO vo : pointVOs(plot(sizedChart(GraphTypes.CHART_POINT), VizMark.MODERN_LIGHT))) {
+         widest = Math.max(widest, vo.getShapes()[0].getBounds2D().getWidth());
+      }
+
+      assertEquals(20, widest, 1);
+   }
+
+   @Test
+   void aClassicBubbleKeeps15() {
+      PointElement point = points(sizedChart(GraphTypes.CHART_POINT), null).get(0);
+
+      assertEquals(15, ((LinearSizeFrame) point.getSizeFrame()).getLargest());
+   }
+
+   @Test
+   void anAuthorsBubbleSizeIsKept() {
+      Chart chart = sizedChart(GraphTypes.CHART_POINT);
+      ((SizeFrameWrapper) chart.info().getSizeField().getVisualFrameWrapper()).setLargest(20);
+      PointElement point = points(chart, VizMark.MODERN_LIGHT).get(0);
+
+      assertEquals(20, ((LinearSizeFrame) point.getSizeFrame()).getLargest());
+   }
+
+   @Test
+   void aWordCloudKeepsItsSizes() {
+      VSChartDimensionRef state = dim("State");
+      VSChartAggregateRef qty = agg("Qty", "Sum");
+      VSAestheticRef text = new VSAestheticRef();
+      text.setDataRef(state);
+      text.setRTDataRef(state);
+      text.setVisualFrameWrapper(new DefaultTextFrameWrapper());
+      VSAestheticRef size = new VSAestheticRef();
+      size.setDataRef(qty);
+      size.setRTDataRef(qty);
+      size.setVisualFrameWrapper(new LinearSizeFrameWrapper());
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_POINT);
+      cinfo.setRTChartType(GraphTypes.CHART_POINT);
+      cinfo.setTextField(text);
+      cinfo.setSizeField(size);
+      cinfo.updateChartType(false);
+      Object[][] rows = {
+         { "State", GraphUtil.getName(qty) }, { "CA", 3.0 }, { "NY", 7.0 }, { "TX", 11.0 } };
+      Chart chart = new Chart(cinfo, rows);
+      PointElement point = points(chart, VizMark.MODERN_LIGHT).get(0);
+
+      assertTrue(GraphTypeUtil.isWordCloud(cinfo), "premise: a word cloud");
+      assertEquals(15, ((LinearSizeFrame) point.getSizeFrame()).getLargest());
+   }
+
+   @Test
+   void aModernTreeEdgeIsAtMost6() {
+      assertEquals(6, edgeLargest(VizMark.MODERN_LIGHT));
+      assertEquals(15, edgeLargest(null));
+   }
+
+   @Test
+   void aModernMilestoneIs3() {
+      assertEquals(3, milestoneSize(VizMark.MODERN_LIGHT));
+      assertEquals(9, milestoneSize(null));
+   }
+
+   @Test
+   void aModernRadarLineIs3() {
+      assertEquals(3, radarSize(GraphTypes.CHART_RADAR, VizMark.MODERN_LIGHT));
+      assertEquals(1, radarSize(GraphTypes.CHART_RADAR, null));
+      assertEquals(3, radarSize(GraphTypes.CHART_FILL_RADAR, VizMark.MODERN_LIGHT));
+      assertEquals(1, radarSize(GraphTypes.CHART_FILL_RADAR, null));
+   }
+
+   @Test
+   void aMarkedFilledRadarHasASolidOutline() {
+      assertTrue(filledRadarArea(VizMark.MODERN_LIGHT, new ChartDescriptor()).isSolidOutline());
+      assertFalse(filledRadarArea(null, new ChartDescriptor()).isSolidOutline());
+
+      // an area chart keeps its translucent outline
+      EGraph graph = generator(measureChart(GraphTypes.CHART_AREA), VizMark.MODERN_LIGHT, null)
+         .createEGraph();
+      AreaElement area = null;
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof AreaElement elem) {
+            area = elem;
+         }
+      }
+
+      assertNotNull(area, "premise: an area element");
+      assertFalse(area.isSolidOutline());
+   }
+
+   @Test
+   void aMarkedFilledRadarDrawsAt30Percent() {
+      // what the type seed leaves on a marked filled radar
+      ChartDescriptor seeded = new ChartDescriptor();
+      seeded.getPlotDescriptor().setAlpha(0.3, CompositeValue.Type.DEFAULT);
+
+      assertEquals(0.3, alphaHint(filledRadarArea(VizMark.MODERN_LIGHT, seeded)), 1e-9);
+      assertEquals(0.8, alphaHint(filledRadarArea(null, new ChartDescriptor())), 1e-9);
+   }
+
+   private static double alphaHint(GraphElement elem) {
+      return ((Number) elem.getHint(GraphElement.HINT_ALPHA)).doubleValue();
+   }
+
+   private static double edgeLargest(VizMark mark) {
+      VSChartDimensionRef source = dim("Parent");
+      VSChartDimensionRef target = dim("Child");
+      VSChartAggregateRef qty = agg("Qty", "Sum");
+      Object[][] rows = {
+         { "Parent", "Child", GraphUtil.getName(qty) },
+         { "A", "B", 3.0 }, { "A", "C", 7.0 }, { "B", "D", 11.0 } };
+      VSAestheticRef size = new VSAestheticRef();
+      size.setDataRef(qty);
+      size.setRTDataRef(qty);
+      size.setVisualFrameWrapper(new LinearSizeFrameWrapper());
+      RelationVSChartInfo cinfo = new RelationVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_TREE);
+      cinfo.setRTChartType(GraphTypes.CHART_TREE);
+      cinfo.setSourceField(source);
+      cinfo.setTargetField(target);
+      cinfo.setRTSourceField(source);
+      cinfo.setRTTargetField(target);
+      cinfo.setSizeField(size);
+      cinfo.updateChartType(false);
+      EGraph graph = generator(new Chart(cinfo, rows), mark, null).createEGraph();
+      RelationElement edge = null;
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof RelationElement elem) {
+            edge = elem;
+         }
+      }
+
+      assertNotNull(edge, "premise: a relation element");
+      assertInstanceOf(LinearSizeFrame.class, edge.getSizeFrame(), "premise: a bound size");
+      return ((LinearSizeFrame) edge.getSizeFrame()).getLargest();
+   }
+
+   private static double milestoneSize(VizMark mark) {
+      Chart chart = ganttChart();
+      VSChartAggregateRef milestone = agg("Due", "Max");
+      GanttVSChartInfo gantt = (GanttVSChartInfo) chart.info();
+      gantt.setMilestoneField(milestone);
+      gantt.setRTMilestoneField(milestone);
+      Object[][] rows = {
+         { "Task", chart.rows()[0][1], chart.rows()[0][2], GraphUtil.getName(milestone) },
+         { "Plan", new Date(1_700_000_000_000L), new Date(1_700_600_000_000L),
+           new Date(1_700_300_000_000L) },
+         { "Build", new Date(1_700_600_000_000L), new Date(1_701_800_000_000L),
+           new Date(1_701_000_000_000L) },
+      };
+      EGraph graph = generator(new Chart(gantt, rows), mark, null).createEGraph();
+      PointElement point = null;
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof PointElement elem) {
+            point = elem;
+         }
+      }
+
+      assertNotNull(point, "premise: a milestone point element");
+      assertInstanceOf(StaticSizeFrame.class, point.getSizeFrame(), "premise: a static size");
+      return point.getSizeFrame().getSize(null);
+   }
+
+   private static double radarSize(int chartType, VizMark mark) {
+      GraphElement found = radarElement(chartType, mark, new ChartDescriptor());
+      assertInstanceOf(StaticSizeFrame.class, found.getSizeFrame(), "premise: a static size");
+      return found.getSizeFrame().getSize(null);
+   }
+
+   private static AreaElement filledRadarArea(VizMark mark, ChartDescriptor desc) {
+      return (AreaElement) radarElement(GraphTypes.CHART_FILL_RADAR, mark, desc);
+   }
+
+   // a radar's line, or a filled radar's area
+   private static GraphElement radarElement(int chartType, VizMark mark, ChartDescriptor desc) {
+      RadarVSChartInfo radar = new RadarVSChartInfo();
+      VSChartAggregateRef a = agg("A", "Sum");
+      VSChartAggregateRef b = agg("B", "Sum");
+      VSChartAggregateRef c = agg("C", "Sum");
+      radar.addYField(a);
+      radar.addYField(b);
+      radar.addYField(c);
+      radar.setChartType(chartType);
+      radar.setRTChartType(chartType);
+      radar.updateChartType(false);
+      Object[][] rows = {
+         { GraphUtil.getName(a), GraphUtil.getName(b), GraphUtil.getName(c) },
+         { 1.0, 2.0, 3.0 },
+         { 3.0, 2.0, 1.0 },
+      };
+      EGraph graph = generator(new Chart(radar, rows), mark, null, desc).createEGraph();
+      GraphElement found = null;
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         GraphElement elem = graph.getElement(i);
+
+         if(chartType == GraphTypes.CHART_RADAR ? elem instanceof LineElement :
+            elem instanceof AreaElement)
+         {
+            found = elem;
+         }
+      }
+
+      assertNotNull(found, "premise: the radar's line or area element");
+      return found;
+   }
+
+   private static List<PointElement> points(Chart chart, VizMark mark) {
+      EGraph graph = generator(chart, mark, null).createEGraph();
+      List<PointElement> points = new ArrayList<>();
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof PointElement point) {
+            points.add(point);
+         }
+      }
+
+      assertEquals(1, points.size(), "premise: one point element");
+      return points;
+   }
+
+   private static List<PointVO> pointVOs(VGraph vgraph) {
+      List<PointVO> vos = new ArrayList<>();
+
+      for(int i = 0; i < vgraph.getVisualCount(); i++) {
+         if(vgraph.getVisual(i) instanceof PointVO vo) {
+            vos.add(vo);
+         }
+      }
+
+      return vos;
    }
 
    // the author's 25 on the bar's measure, as the binding pane writes it
@@ -583,6 +931,61 @@ class ModernMarkRulesTest {
       }
    }
 
+   // a candle or stock by day, with or without a measure on Size
+   private static Chart candleChart(CandleVSChartInfo cinfo, boolean sized) {
+      VSChartAggregateRef high = agg("High", "Sum");
+      VSChartAggregateRef close = agg("Close", "Sum");
+      VSChartAggregateRef open = agg("Open", "Sum");
+      VSChartAggregateRef low = agg("Low", "Sum");
+      VSChartAggregateRef qty = agg("Qty", "Sum");
+      cinfo.addXField(dim("Day"));
+      cinfo.setHighField(high);
+      cinfo.setRTHighField(high);
+      cinfo.setCloseField(close);
+      cinfo.setRTCloseField(close);
+      cinfo.setOpenField(open);
+      cinfo.setRTOpenField(open);
+      cinfo.setLowField(low);
+      cinfo.setRTLowField(low);
+
+      if(sized) {
+         VSAestheticRef size = new VSAestheticRef();
+         size.setDataRef(qty);
+         size.setRTDataRef(qty);
+         size.setVisualFrameWrapper(new LinearSizeFrameWrapper());
+         cinfo.setSizeField(size);
+      }
+
+      int type = cinfo instanceof StockVSChartInfo ? GraphTypes.CHART_STOCK :
+         GraphTypes.CHART_CANDLE;
+      cinfo.setChartType(type);
+      cinfo.setRTChartType(type);
+      cinfo.updateChartType(false);
+      Object[][] rows = {
+         { "Day", GraphUtil.getName(high), GraphUtil.getName(close), GraphUtil.getName(open),
+           GraphUtil.getName(low), GraphUtil.getName(qty) },
+         { "D1", 12.0, 11.0, 10.0, 9.0, 3.0 },
+         { "D2", 12.0, 9.5, 11.0, 9.0, 7.0 },
+         { "D3", 14.0, 13.0, 12.0, 11.0, 11.0 },
+      };
+
+      return new Chart(cinfo, rows);
+   }
+
+   private static SchemaElement schemaElement(Chart chart, VizMark mark) {
+      EGraph graph = generator(chart, mark, null).createEGraph();
+      List<SchemaElement> elems = new ArrayList<>();
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof SchemaElement elem) {
+            elems.add(elem);
+         }
+      }
+
+      assertEquals(1, elems.size(), "premise: one schema element");
+      return elems.get(0);
+   }
+
    private static SchemaElement boxElement(Chart chart, VizMark mark) {
       EGraph graph = generator(chart, mark, null, barCorner(0.08)).createEGraph();
       List<SchemaElement> boxes = new ArrayList<>();
@@ -660,6 +1063,22 @@ class ModernMarkRulesTest {
       return new Chart(chart.info(), rows);
    }
 
+   // a box plot of this many states with two boxes per state, one per type on Color
+   private static Chart crowdedColorBoxChart(int states) {
+      Chart chart = colorBoxChart();
+      Object[][] rows = new Object[states * 6 + 1][];
+      rows[0] = chart.rows()[0];
+
+      for(int i = 0; i < states; i++) {
+         for(int j = 0; j < 6; j++) {
+            rows[i * 6 + j + 1] = new Object[] {
+               String.format("S%03d", i), j % 2 == 0 ? "A" : "B", 100.0 + 40.0 * j + i };
+         }
+      }
+
+      return new Chart(chart.info(), rows);
+   }
+
    // a box plot with the states down the Y axis
    private static Chart horizontalBoxChart() {
       Chart chart = boxChart(true);
@@ -690,6 +1109,19 @@ class ModernMarkRulesTest {
 
    private static Rectangle2D boxBounds(SchemaVO vo) {
       return vo.getShapes()[3].getBounds2D();
+   }
+
+   // the boxes left to right
+   private static List<Rectangle2D> sortedBoxes(VGraph vgraph) {
+      return boxes(vgraph).stream().map(ModernMarkRulesTest::boxBounds)
+         .sorted(Comparator.comparingDouble(Rectangle2D::getX)).toList();
+   }
+
+   // a box's width before any floor, 30% of its slot
+   private static double naturalBoxPx(VGraph vgraph) {
+      AffineTransform screen = boxes(vgraph).get(0).getScreenTransform();
+      double unitPx = screen.deltaTransform(new Point2D.Double(1, 0), null).distance(0, 0);
+      return 0.3 * vgraph.getCoordinate().getMaxWidth() * unitPx;
    }
 
    private static GraphGenerator generator(Chart chart, VizMark mark, Object[][] brushed) {

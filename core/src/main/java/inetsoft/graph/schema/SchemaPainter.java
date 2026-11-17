@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
 import java.io.Serializable;
 import java.util.Map;
 
@@ -57,6 +58,67 @@ public abstract class SchemaPainter implements Cloneable, Serializable {
     * @param screen the screen transform the shapes were transformed with.
     */
    public void fitScreen(AffineTransform screen) {
+   }
+
+   /**
+    * Move the slot the mark is fitted about along with the painter, for a move of the whole
+    * slot before any dodge. A dodge moves the mark within its slot and leaves the slot alone.
+    * @param trans the translation the painter was transformed with.
+    */
+   public void moveSlot(AffineTransform trans) {
+      slotCenter = trans.transform(new Point2D.Double(slotCenter, 0), null).getX();
+   }
+
+   /**
+    * Set the natural width of the marks dodged into this mark's slot, from the first mark's
+    * left edge to the last mark's right edge, plus one gap between marks.
+    * @param w the cluster width in chart units, 0 if the mark is alone in its slot.
+    */
+   public void setClusterWidth(double w) {
+      this.clusterWidth = w;
+   }
+
+   /**
+    * Scale every shape, already transformed with the screen transform, along the mark's width
+    * about the slot centre so a mark currentPx wide draws floorPx to capPx wide.
+    * @param screen the screen transform the shapes were transformed with.
+    * @param currentPx the mark's width in screen pixels.
+    * @param floorPx the narrowest the mark draws.
+    * @param capPx the widest the mark draws.
+    */
+   protected void slotScale(AffineTransform screen, double currentPx, double floorPx,
+                            double capPx)
+   {
+      if(currentPx <= 0) {
+         return;
+      }
+
+      boolean horizontal = GTool.isHorizontal(screen);
+      double ratio = Math.min(capPx, Math.max(floorPx, currentPx)) / currentPx;
+      Point2D center = screen.transform(new Point2D.Double(slotCenter, 0), null);
+      AffineTransform trans = AffineTransform.getTranslateInstance(center.getX(), center.getY());
+
+      trans.scale(horizontal ? ratio : 1, horizontal ? 1 : ratio);
+      trans.translate(-center.getX(), -center.getY());
+      transformScreen(trans);
+   }
+
+   /**
+    * Get the narrowest a mark draws: the floor, or its share of a slot too narrow for it. The
+    * share scales the cluster width, or the mark's own width when alone, to the slot.
+    * @param floorPx the floor in screen pixels.
+    * @param markPx the natural width of the part the floor applies to, in screen pixels.
+    * @param ownPx the mark's natural drawn width in screen pixels, used when it is alone.
+    * @param unitPx the screen pixels in one chart unit along the mark's width.
+    */
+   protected double shareFloorPx(double floorPx, double markPx, double ownPx, double unitPx) {
+      double extentPx = clusterWidth > 0 ? clusterWidth * unitPx : ownPx;
+
+      if(extentPx <= 0) {
+         return floorPx;
+      }
+
+      return Math.min(floorPx, markPx * slotWidth * unitPx / extentPx);
    }
 
    /**
@@ -196,6 +258,12 @@ public abstract class SchemaPainter implements Cloneable, Serializable {
    }
 
    protected SchemaGeometry geometry;
+   // the slot width in chart units under a width rule, 0 if no rule is on
+   protected double slotWidth;
+   // the slot centre along the mark width in chart units, before any dodge
+   protected double slotCenter;
+   // the dodged cluster's natural width plus one gap in chart units, 0 if the mark is alone
+   private double clusterWidth;
    private static final int MIN_WIDTH = 5;
    private static final int PREFERRED_WIDTH = 30;
 

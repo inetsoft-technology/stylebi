@@ -22,6 +22,7 @@ import com.inetsoft.build.tern.TernMethod;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.RectCoord;
+import inetsoft.graph.element.SchemaElement;
 import inetsoft.graph.geometry.SchemaGeometry;
 import inetsoft.graph.internal.GTool;
 
@@ -55,6 +56,14 @@ public class StockPainter extends SchemaPainter {
 	 : coord.getPosition(getSubTuple(idx++, tuple, vars, hasX));
       Point2D low = coord.getPosition(getSubTuple(idx++, tuple, vars, hasX));
 
+      // fitScreen floors the ticks in pixels about the slot centre
+      if(geometry.getElement() instanceof SchemaElement elem && elem.isWidthFloor() &&
+         coord instanceof RectCoord)
+      {
+         slotWidth = coord.getMaxWidth();
+         slotCenter = high.getX();
+      }
+
       shapes = new Shape[open == null ? 2 : 3];
       shapes[0] = new Line2D.Double(high.getX(), high.getY(), low.getX(), low.getY());
       shapes[1] = new Line2D.Double(close.getX(), close.getY(),
@@ -75,6 +84,25 @@ public class StockPainter extends SchemaPainter {
       for(int i = 0; i < getShapeCount(); i++) {
          shapes[i] = trans.createTransformedShape(shapes[i]);
       }
+   }
+
+   /**
+    * Under the width floor, scale every shape along the tick length about the slot centre so
+    * each tick is at least MIN_TICK_PX long, or half its share of a slot too narrow for that.
+    * @param screen the screen transform the shapes were transformed with.
+    */
+   @Override
+   public void fitScreen(AffineTransform screen) {
+      if(slotWidth <= 0) {
+         return;
+      }
+
+      double unitPx = screen.deltaTransform(new Point2D.Double(1, 0), null).distance(0, 0);
+      double tickPx = LENGTH * unitPx;
+      // the ticks reach out on both sides of the line
+      double floorPx = shareFloorPx(MIN_TICK_PX, tickPx, 2 * tickPx, unitPx);
+
+      slotScale(screen, tickPx, floorPx, Double.MAX_VALUE);
    }
 
    /**
@@ -156,6 +184,10 @@ public class StockPainter extends SchemaPainter {
       return painter;
    }
 
+   /**
+    * The shortest a stock tick draws on each side under the width floor, in screen pixels.
+    */
+   static final double MIN_TICK_PX = 3;
    private static final int LENGTH = 10;
    private static final long serialVersionUID = 1L;
    private Shape[] shapes;

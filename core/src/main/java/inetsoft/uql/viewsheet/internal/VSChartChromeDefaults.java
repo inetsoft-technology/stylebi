@@ -37,6 +37,8 @@ import java.awt.Insets;
 public final class VSChartChromeDefaults {
    /** Bar corner radius of a modern chart, as a fraction of the bar thickness. */
    public static final double BAR_CORNER_RADIUS = 0.08;
+   /** Tree node corner radius of a modern chart, as a fraction of the node's short side. */
+   public static final double NODE_CORNER_RADIUS = 0.08;
 
    private VSChartChromeDefaults() {
    }

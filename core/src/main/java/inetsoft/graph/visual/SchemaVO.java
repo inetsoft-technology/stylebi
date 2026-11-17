@@ -62,10 +62,8 @@ public class SchemaVO extends ElementVO {
          AffineTransform trans = AffineTransform.getTranslateInstance(coord.getMaxWidth() / 2, 0);
          painter.transformScreen(trans);
 
-         // the box's slot moves with it, unlike in a dodge
-         if(painter instanceof BoxPainter) {
-            ((BoxPainter) painter).moveSlot(trans);
-         }
+         // the mark's slot moves with it, unlike in a dodge
+         painter.moveSlot(trans);
       }
 
       if(label != null) {
@@ -236,6 +234,28 @@ public class SchemaVO extends ElementVO {
    }
 
    /**
+    * Get the bounds of the shapes dodge places, with no padding for lines.
+    */
+   private Rectangle2D getDodgeShapeBounds() {
+      SchemaPainter painter = (SchemaPainter) this.painter.clone();
+      Rectangle2D box = null;
+
+      painter.transformScreen(getScreenTransform());
+
+      for(int i = 0; i < painter.getShapeCount(); i++) {
+         Rectangle2D b1 = painter.getShape(i).getBounds2D();
+
+         if(b1.getWidth() == 0 && b1.getHeight() == 0 || !isValidBounds(b1)) {
+            continue;
+         }
+
+         box = box == null ? b1 : box.createUnion(b1);
+      }
+
+      return box == null ? new Rectangle2D.Double() : box;
+   }
+
+   /**
     * Get the bounds of a painter transformed to the screen.
     */
    private Rectangle2D getPainterBounds(SchemaPainter painter) {
@@ -394,6 +414,28 @@ public class SchemaVO extends ElementVO {
 
             point.painter.transformScreen(trans);
             move += pw + 1;
+         }
+
+         // the cluster's drawn width plus one gap between its marks, for the pixel floors
+         Rectangle2D cluster = getDodgeShapeBounds();
+         double gap = 0;
+
+         for(int i = 0; i < vos.size(); i++) {
+            Rectangle2D bounds = ((SchemaVO) vos.get(i)).getDodgeShapeBounds();
+
+            if(i == 0) {
+               gap = Math.max(0, bounds.getX() - cluster.getMaxX());
+            }
+
+            cluster = cluster.createUnion(bounds);
+         }
+
+         double clusterWidth = cluster.getWidth() + gap;
+
+         painter.setClusterWidth(clusterWidth);
+
+         for(ElementVO vo : vos) {
+            ((SchemaVO) vo).painter.setClusterWidth(clusterWidth);
          }
       }
 

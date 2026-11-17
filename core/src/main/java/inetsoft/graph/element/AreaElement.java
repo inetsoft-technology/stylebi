@@ -168,6 +168,20 @@ public class AreaElement extends LineElement {
    }
 
    /**
+    * Check whether the outline is stroked opaque instead of at 1.2 times the fill alpha.
+    */
+   public boolean isSolidOutline() {
+      return solidOutline;
+   }
+
+   /**
+    * Set whether the outline is stroked opaque instead of at 1.2 times the fill alpha.
+    */
+   public void setSolidOutline(boolean solidOutline) {
+      this.solidOutline = solidOutline;
+   }
+
+   /**
     * Create the geometry object.
     */
    @Override
@@ -255,12 +269,13 @@ public class AreaElement extends LineElement {
 
       if(obj instanceof AreaElement) {
          AreaElement elem = (AreaElement) obj;
-         return bases.equals(elem.bases);
+         return bases.equals(elem.bases) && solidOutline == elem.solidOutline;
       }
 
       return false;
    }
 
    private List<String> bases; // interval base columns
+   private boolean solidOutline;
    private static final long serialVersionUID = 1L;
 }

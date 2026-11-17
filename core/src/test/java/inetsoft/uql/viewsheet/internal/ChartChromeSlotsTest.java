@@ -652,6 +652,23 @@ class ChartChromeSlotsTest {
    }
 
    @Test
+   void onlyAFilledRadarHasAnAlphaSlot() {
+      ChartVSAssemblyInfo filled = chart();
+      RadarVSChartInfo fill = new RadarVSChartInfo();
+      fill.setChartType(GraphTypes.CHART_FILL_RADAR);
+      filled.setVSChartInfo(fill);
+      ChartVSAssemblyInfo line = chart();
+      RadarVSChartInfo plain = new RadarVSChartInfo();
+      plain.setChartType(GraphTypes.CHART_RADAR);
+      line.setVSChartInfo(plain);
+      ChartVSAssemblyInfo bar = chart();
+
+      assertTrue(filled.chromeSlots().stream().anyMatch(s -> s.key().equals("chart:plot:alpha")));
+      assertFalse(line.chromeSlots().stream().anyMatch(s -> s.key().equals("chart:plot:alpha")));
+      assertFalse(bar.chromeSlots().stream().anyMatch(s -> s.key().equals("chart:plot:alpha")));
+   }
+
+   @Test
    void anAuthorRampIsReplacedByTheMarksRamp() {
       ChartVSAssemblyInfo info = chart();
       colorBinding(info, aggregate("Sales"), new SpectralColorFrame());

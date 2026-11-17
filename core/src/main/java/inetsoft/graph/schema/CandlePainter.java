@@ -22,6 +22,7 @@ import com.inetsoft.build.tern.TernMethod;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.RectCoord;
+import inetsoft.graph.element.SchemaElement;
 import inetsoft.graph.geometry.SchemaGeometry;
 import inetsoft.graph.internal.GTool;
 
@@ -56,6 +57,15 @@ public class CandlePainter extends SchemaPainter {
       SizeFrame sizes = geometry.getVisualModel().getSizeFrame();
       double width = getSize(coord, size, sizes);
 
+      // fitScreen floors the body in pixels about the slot centre
+      if(geometry.getElement() instanceof SchemaElement elem && elem.isWidthFloor() &&
+         coord instanceof RectCoord)
+      {
+         slotWidth = coord.getMaxWidth();
+         slotCenter = high.getX();
+      }
+
+      bodyWidth = width;
       shapes = new Shape[getShapeCount()];
       shapes[0] = new Line2D.Double(high.getX(), high.getY(),
                                      low.getX(), low.getY());
@@ -105,6 +115,26 @@ public class CandlePainter extends SchemaPainter {
             shapes[i] = trans.createTransformedShape(shapes[i]);
          }
       }
+   }
+
+   /**
+    * Under the width floor, scale every shape along the body width about the slot centre so
+    * the body is at least MIN_BODY_PX wide, or its share of a slot too narrow for that. The
+    * wick stays a line on the body's centre.
+    * @param screen the screen transform the shapes were transformed with.
+    */
+   @Override
+   public void fitScreen(AffineTransform screen) {
+      if(slotWidth <= 0) {
+         return;
+      }
+
+      double unitPx = screen.deltaTransform(new Point2D.Double(1, 0), null).distance(0, 0);
+      double bodyPx = bodyWidth * unitPx;
+      // the wick has no width, so the candle draws as wide as its body
+      double floorPx = shareFloorPx(MIN_BODY_PX, bodyPx, bodyPx, unitPx);
+
+      slotScale(screen, bodyPx, floorPx, Double.MAX_VALUE);
    }
 
    /**
@@ -196,7 +226,13 @@ public class CandlePainter extends SchemaPainter {
       return painter;
    }
 
+   /**
+    * The narrowest a candle body draws under the width floor, in screen pixels.
+    */
+   static final double MIN_BODY_PX = 3;
    private Shape[] shapes;
    private boolean negative = false;
+   // the body's natural width in chart units
+   private double bodyWidth;
    private static final long serialVersionUID = 1L;
 }

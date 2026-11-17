@@ -27,6 +27,7 @@ import inetsoft.report.internal.graph.ChangeSeparateStatusProcessor;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
 import inetsoft.web.binding.handler.VSChartHandler;
@@ -96,7 +97,7 @@ public class ChangeSeparateStatusService {
          cinfo.setSeparatedGraph(oinfo.getVSChartInfo().isSeparatedGraph());
          cinfo.setMultiStyles(oinfo.getVSChartInfo().isMultiStyles());
          new ChangeSeparateStatusProcessor(cinfo, cdesc).process(separated, multi);
-         new ChangeChartProcessor().fixSizeFrame(cinfo);
+         new ChangeChartProcessor().fixSizeFrame(cinfo, VizContext.of(ninfo));
 
          box.get().updateAssembly(chart.getAbsoluteName());
          int hint = chartHandler.createCommands(oinfo, ninfo);

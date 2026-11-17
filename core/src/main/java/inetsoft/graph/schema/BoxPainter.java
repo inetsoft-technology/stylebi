@@ -126,8 +126,9 @@ public class BoxPainter extends SchemaPainter {
 
    /**
     * Under the width rule, scale every shape along the box width about the slot centre so the
-    * box is MIN_BOX_PX to MAX_BOX_PX wide and dodged boxes stay side by side. Under the height
-    * floor, grow the box about its centre to at least MIN_BOX_HEIGHT_PX along the value axis.
+    * box is MIN_BOX_PX (or its share of a slot too narrow for that) to MAX_BOX_PX wide and
+    * dodged boxes stay side by side. Under the height floor, grow the box about its centre to
+    * at least MIN_BOX_HEIGHT_PX along the value axis.
     * @param screen the screen transform the shapes were transformed with.
     */
    @Override
@@ -137,18 +138,11 @@ public class BoxPainter extends SchemaPainter {
       }
 
       boolean horizontal = GTool.isHorizontal(screen);
-      Point2D unit = screen.deltaTransform(new Point2D.Double(1, 0), null);
-      double boxPx = BOX_WIDTH_RATIO * slotWidth * unit.distance(0, 0);
+      double unitPx = screen.deltaTransform(new Point2D.Double(1, 0), null).distance(0, 0);
+      double boxPx = BOX_WIDTH_RATIO * slotWidth * unitPx;
+      double floorPx = shareFloorPx(MIN_BOX_PX, boxPx, boxPx, unitPx);
 
-      if(boxPx > 0) {
-         double ratio = Math.min(MAX_BOX_PX, Math.max(MIN_BOX_PX, boxPx)) / boxPx;
-         Point2D center = screen.transform(new Point2D.Double(slotCenter, 0), null);
-         AffineTransform trans = AffineTransform.getTranslateInstance(center.getX(), center.getY());
-
-         trans.scale(horizontal ? ratio : 1, horizontal ? 1 : ratio);
-         trans.translate(-center.getX(), -center.getY());
-         transformScreen(trans);
-      }
+      slotScale(screen, boxPx, floorPx, MAX_BOX_PX);
 
       if(!heightFloor) {
          return;
@@ -164,15 +158,6 @@ public class BoxPainter extends SchemaPainter {
          shapes[3] = new Rectangle2D.Double(box.getCenterX() - MIN_BOX_HEIGHT_PX / 2, box.getY(),
                                             MIN_BOX_HEIGHT_PX, box.getHeight());
       }
-   }
-
-   /**
-    * Move the slot the box is fitted about along with the painter, for a move of the whole
-    * slot before any dodge. A dodge moves the box within its slot and leaves the slot alone.
-    * @param trans the translation the painter was transformed with.
-    */
-   public void moveSlot(AffineTransform trans) {
-      slotCenter = trans.transform(new Point2D.Double(slotCenter, 0), null).getX();
    }
 
    /**
@@ -344,10 +329,6 @@ public class BoxPainter extends SchemaPainter {
     */
    static final double MIN_BOX_HEIGHT_PX = 2;
    private Shape[] shapes;
-   // the slot width in chart units under the width rule, 0 if the rule is off
-   private double slotWidth;
-   // the slot centre along the box width in chart units, before any dodge
-   private double slotCenter;
    // whether the box is kept at least MIN_BOX_HEIGHT_PX tall
    private boolean heightFloor;
    private static final long serialVersionUID = 1L;

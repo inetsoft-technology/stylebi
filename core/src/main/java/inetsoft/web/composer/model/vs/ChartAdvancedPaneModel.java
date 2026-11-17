@@ -169,6 +169,7 @@ public class ChartAdvancedPaneModel implements Serializable {
       // exactly what the padding pane's own history warned against
       boolean smoothLinesBefore = plotDesc.isSmoothLines();
       double barCornerRadiusBefore = plotDesc.getBarCornerRadius();
+      double nodeCornerRadiusBefore = plotDesc.getNodeCornerRadius();
 
       chartPlotOptionsPaneModel.updateChartPlotOptionsPaneModel(info, plotDesc);
 
@@ -178,6 +179,10 @@ public class ChartAdvancedPaneModel implements Serializable {
 
       if(plotDesc.getBarCornerRadius() != barCornerRadiusBefore) {
          chartAssemblyInfo.setUserBarCornerRadius(true);
+      }
+
+      if(plotDesc.getNodeCornerRadius() != nodeCornerRadiusBefore) {
+         plotDesc.setUserNodeCornerRadius(true);
       }
 
       // updateChartPlotOptionsPaneModel uses design-time checkType which doesn't see DC's
