@@ -489,6 +489,37 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
    }
 
    /**
+    * Get the point a fitted tree is scrolled to when first drawn, the centre of its root
+    * nodes in the plot's region coordinates, or null if the plot is not a fitted tree.
+    */
+   public Point2D getScrollAnchor() {
+      if(egraph == null || egraph.getElementCount() == 0 ||
+         !(egraph.getElement(0) instanceof RelationElement relation) ||
+         !relation.isPlotFit() || relation.getAlgorithm() != RelationElement.Algorithm.COMPACT_TREE)
+      {
+         return null;
+      }
+
+      Rectangle2D union = null;
+
+      for(DefaultArea child : getOriginalAreas()) {
+         if(!(child.getVisualizable() instanceof RelationVO vo) ||
+            !(vo.getGeometry() instanceof RelationGeometry geo) || !geo.isRoot() ||
+            geo.getElement().getHint("overlay") != null)
+         {
+            continue;
+         }
+
+         for(Region region : child.getRegions()) {
+            Rectangle2D bounds = region.getBounds();
+            union = union == null ? bounds : union.createUnion(bounds);
+         }
+      }
+
+      return union == null ? null : new Point2D.Double(union.getCenterX(), union.getCenterY());
+   }
+
+   /**
     * Get regions.
     */
    @Override

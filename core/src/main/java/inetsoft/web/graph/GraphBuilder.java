@@ -571,6 +571,7 @@ public class GraphBuilder {
          BackgroundPainter bg = coord.getPlotSpec().getBackgroundPainter();
          final Double geoPadding = coord instanceof GeoCoord && bg != null
             ? bg.getPadding((GeoCoord) coord) : null;
+         final Point2D scrollAnchor = ((PlotArea) area).getScrollAnchor();
          chartObject = Plot.builder()
             .areaName(areaName)
             .bounds(rectangle)
@@ -583,6 +584,8 @@ public class GraphBuilder {
             .drillFilter(hasDrillFilter(area))
             .showReferenceLine(referenceLineVisible)
             .geoPadding(geoPadding)
+            .scrollAnchorX(scrollAnchor == null ? null : scrollAnchor.getX())
+            .scrollAnchorY(scrollAnchor == null ? null : scrollAnchor.getY())
             .build();
       }
       else if(area instanceof AxisArea) {

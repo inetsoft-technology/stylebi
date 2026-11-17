@@ -25,4 +25,6 @@ export interface Plot extends ChartObject {
    drillLevels?: DrillLevel[];
    drillFilter?: boolean;
    geoPadding?: number;
+   scrollAnchorX?: number;
+   scrollAnchorY?: number;
 }

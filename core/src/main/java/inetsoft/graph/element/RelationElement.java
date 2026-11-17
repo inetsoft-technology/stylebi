@@ -249,6 +249,7 @@ public class RelationElement extends GraphElement {
                int nodeSidx = rootRepresentativeRows.getOrDefault(fromId, sidx);
                fromNode = createGeometry(fromId, mxgraph, graph, vmodel, from, i, nodeSidx,
                                          data, fromDim);
+               fromNode.setRoot(true);
                roots.add(fromNode);
                nodes.put(fromId, fromNode);
 
