@@ -857,6 +857,8 @@ schema-column, edit-join-table-column {
 .tree-div:focus-visible,
 .tree-node:focus-visible {
   outline: 2px solid var(--inet-text-color);
+  // softer than full text colour, still about 5.8:1 on white and above 4.5:1 on the selected-node fill
+  outline-color: color-mix(in srgb, var(--inet-text-color) 70%, white);
   outline-offset: -2px;
 }
 
