@@ -75,7 +75,7 @@ public class PaneContextController {
             PairingException.Kind.SESSION_EXPIRED, "Invalid or expired session: " + sessionToken);
       }
 
-      return contextService.paneContext(rvs, session, user);
+      return contextService.paneContext(rvs, session, user, sessionService.paneStateOf(session));
    }
 
    @ExceptionHandler(PairingException.class)

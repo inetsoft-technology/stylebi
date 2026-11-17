@@ -859,7 +859,7 @@ class SelectionBindingServiceTest {
 
    // ── additionalTables must have every bound column (Bug #78473) ────────────
 
-   private static SelectionListPropertyDialogService listService(
+   static SelectionListPropertyDialogService listService(
       SelectionListPropertyDialogModel model)
       throws Exception
    {
@@ -1167,6 +1167,37 @@ class SelectionBindingServiceTest {
                    measure, null, null, null, false, "");
 
       return model.getSelectionListPaneModel().getSelectionMeasurePaneModel().getMeasure();
+   }
+
+   // -- title rides the same write as the binding (#81535); formula tests live in SelectionBindingServiceFormulaTest --
+
+   @Test
+   void writesTheTitleIntoTheSameTreeApplyAsTheLevels() throws Exception {
+      SelectionTreePropertyDialogModel model = treeBoundTo("ORDERS", List.of());
+      SelectionTreePropertyDialogService treeService = treeService(model);
+
+      harness(mock(SelectionTreeVSAssembly.class), null, treeService, null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE", "CITY", "AMOUNT"), null,
+                    null, null, null, null, false, "", null, "State / City / Amount");
+
+      assertEquals("State / City / Amount",
+                   model.getSelectionGeneralPaneModel().getTitlePropPaneModel().getTitle());
+      verify(treeService, times(1)).setSelectionTreePropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void leavesTheStoredFormulaAndTitleWhenNoneIsSent() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setFormula("Max");
+      model.getSelectionGeneralPaneModel().getTitlePropPaneModel().setTitle("Kept");
+
+      harness(mock(SelectionListVSAssembly.class), listService(model), null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null, null, null,
+                    null, null, false, "", null, null);
+
+      assertEquals("Max", model.getSelectionListPaneModel().getSelectionMeasurePaneModel().getFormula());
+      assertEquals("Kept", model.getSelectionGeneralPaneModel().getTitlePropPaneModel().getTitle());
    }
 
    @Test
@@ -2181,7 +2212,7 @@ class SelectionBindingServiceTest {
       return harness(assembly, listService, treeService, sliderService, calendarService, null);
    }
 
-   private static SelectionBindingService harness(VSAssembly assembly,
+   static SelectionBindingService harness(VSAssembly assembly,
                                                    SelectionListPropertyDialogService listService,
                                                    SelectionTreePropertyDialogService treeService,
                                                    RangeSliderPropertyDialogService sliderService,

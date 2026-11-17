@@ -520,7 +520,20 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
          if(this.followFocusPushed) {
             this.pushedEditorContext = pushedContext;
+            // A session retargeted here never minted a code from this dialog, so the connect
+            // component reports nothing for it; the switch is reported for the pushed context.
+            this.reportPushedPaneState();
          }
+      }
+   }
+
+   /** Reports the SQL/Script switch for the context Follow Focus pushed, when there is one. */
+   private reportPushedPaneState(): void {
+      const sql = this.paneSqlMode;
+
+      if(this.pushedEditorContext && sql !== undefined) {
+         this.followFocusService.reportPaneState(
+            this.runtimeId, this.socketConnection, this.pushedEditorContext, sql);
       }
    }
 
@@ -572,6 +585,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
          this.form.get("formulaType").valueChanges.forEach((value) => {
             this.populateTrees();
             this.checkValid();
+            this.reportPushedPaneState();
             // Need to do this because message dialog causes blur and modifies formControl.touched
             this.form.get("formulaType").markAsTouched();
          });
@@ -1508,6 +1522,16 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                });
          }
       }
+   }
+
+   /**
+    * The SQL/Script switch as the paired agent must see it: only a calculated field formula has
+    * the switch (the other locations this dialog serves are always script), so every other
+    * location reports nothing. The user can flip it after pairing, hence an input of its own
+    * rather than part of {@link #editorContext}, which the server matches for equality.
+    */
+   get paneSqlMode(): boolean | undefined {
+      return this.editorContext?.kind === "calcField" ? this.isSqlType() : undefined;
    }
 
    isSqlType(): boolean {

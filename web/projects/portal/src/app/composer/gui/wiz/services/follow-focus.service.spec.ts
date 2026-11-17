@@ -98,6 +98,26 @@ describe("FollowFocusService", () => {
       });
    });
 
+   describe("reportPaneState (bug #81541)", () => {
+      const context: any = { kind: "calcField", assembly: "Orders", name: "Margin" };
+
+      it("sends the pane's switch for the given context, whether or not Follow Focus is on", () => {
+         service.reportPaneState("rt-1", mockSocketConnection, context, true);
+
+         expect(mockStompConnection.send).toHaveBeenCalledWith(
+            "/events/wiz/pairing/pane-state", {},
+            JSON.stringify({ runtimeId: "rt-1", editorContext: context, sql: true }));
+      });
+
+      it("is a no-op with no runtimeId, socket connection or editorContext", () => {
+         service.reportPaneState("", mockSocketConnection, context, true);
+         service.reportPaneState("rt-1", undefined as any, context, true);
+         service.reportPaneState("rt-1", mockSocketConnection, undefined as any, true);
+
+         expect(mockStompConnection.send).not.toHaveBeenCalled();
+      });
+   });
+
    describe("popFocus", () => {
       it("sends a pop request naming just the runtimeId", () => {
          service.setEnabled("rt-1", mockSocketConnection, true);

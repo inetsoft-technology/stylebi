@@ -729,7 +729,27 @@ class PropertyAliasesTest {
                                           "yGridLineColor"))
       {
          assertEquals("chartLinePaneModel." + name, PropertyAliases.resolveForWrite("chart", name));
-         assertTrue(PropertyAliases.labelFor(name).contains("inverted chart"), name);
+      }
+   }
+
+   /**
+    * Bug #81536: the X/Y grid line captions say which lines are drawn in screen terms, not in the
+    * internal rotated-plot wording, which read as the opposite on a horizontal chart.
+    */
+   @Test
+   void captionsGridLinePropertiesInScreenTerms() {
+      for(String name : java.util.List.of("xGridLineStyle", "xGridLineColor")) {
+         String label = PropertyAliases.labelFor(name);
+         assertTrue(label.contains("vertical grid lines"), label);
+         assertFalse(label.contains("plot's"), label);
+         assertFalse(label.contains("horizontal"), label);
+      }
+
+      for(String name : java.util.List.of("yGridLineStyle", "yGridLineColor")) {
+         String label = PropertyAliases.labelFor(name);
+         assertTrue(label.contains("horizontal grid lines"), label);
+         assertFalse(label.contains("plot's"), label);
+         assertFalse(label.contains("vertical"), label);
       }
    }
 
@@ -2956,5 +2976,17 @@ class PropertyAliasesTest {
          .endsWith(".imagePreviewPaneModel.selectedImage"));
       assertTrue(PropertyAliases.resolveForWrite("image", "staticImage")
          .endsWith(".imagePreviewPaneModel.selectedImage"));
+   }
+
+   /**
+    * Bug #81553: the range slider's Advanced > Options size fields are captioned "Slider Size",
+    * "Minimum Increment" and "Maximum Increment" in the Composer, but their aliases (length,
+    * rangeSize, maxRangeSize) read like a pixel length / a size. labelFor must carry the captions.
+    */
+   @Test
+   void rangeSliderSizeFieldsHaveTheComposerUiLabels() {
+      assertEquals("Slider Size", PropertyAliases.labelFor("length"));
+      assertEquals("Minimum Increment", PropertyAliases.labelFor("rangeSize"));
+      assertEquals("Maximum Increment", PropertyAliases.labelFor("maxRangeSize"));
    }
 }

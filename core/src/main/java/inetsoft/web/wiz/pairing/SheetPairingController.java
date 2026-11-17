@@ -303,6 +303,34 @@ public class SheetPairingController {
    }
 
    /**
+    * Payload for the STOMP pane-state report.
+    *
+    * @param runtimeId     the runtime the pane belongs to
+    * @param editorContext the pane's location exactly as it was minted (what the session is bound
+    *                      to), not as the pane would derive it now
+    * @param sql           whether the pane's SQL/Script switch is on SQL
+    */
+   public record PaneStateRequest(String runtimeId, EditorContext editorContext, boolean sql) {}
+
+   /**
+    * STOMP pane-state -- sent by a pane whose value type the user can switch after pairing (the
+    * calculated field formula dialog's SQL/Script switch), so {@code get_pane_context} describes
+    * the syntax the pane is in now rather than the one it opened in. Fire-and-forget like
+    * {@link #detachViaSocket}; the session id comes from the accessor, never the payload.
+    *
+    * <p>Send to: {@code /app/wiz/pairing/pane-state}
+    */
+   @MessageMapping("/wiz/pairing/pane-state")
+   public void paneStateViaSocket(@Payload PaneStateRequest req, SimpMessageHeaderAccessor accessor) {
+      if(req == null || req.runtimeId() == null || req.editorContext() == null) {
+         return;
+      }
+
+      sessions.setPaneState(accessor.getSessionId(), req.runtimeId(), req.editorContext(),
+                            new PaneState(req.sql()));
+   }
+
+   /**
     * Payload for the STOMP rebind.
     *
     * @param runtimeId the runtime the sending page shows

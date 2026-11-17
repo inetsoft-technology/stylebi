@@ -55,6 +55,7 @@ export function createDialog() {
       isEnabled: vi.fn(() => false),
       setEnabled: vi.fn(),
       pushFocus: vi.fn(() => false),
+      reportPaneState: vi.fn(),
       popFocus: vi.fn(),
       errors: of(undefined as unknown as string),
    } as unknown as FollowFocusService;

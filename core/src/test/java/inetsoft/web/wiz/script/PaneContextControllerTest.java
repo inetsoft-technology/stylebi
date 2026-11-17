@@ -23,6 +23,7 @@ import inetsoft.web.wiz.binding.BindableFieldsService;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.pairing.PaneState;
 import inetsoft.web.wiz.pairing.SheetAgentFeature;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
@@ -69,6 +70,7 @@ class PaneContextControllerTest {
       sessions = mock(SheetSessionService.class);
       edit = mock(ScriptEditService.class);
       when(edit.resolve(any(), any())).thenReturn(rvs);
+      when(sessions.paneStateOf(any())).thenReturn(PaneState.DEFAULT);
 
       ScriptContextService contextService = mock(ScriptContextService.class);
       when(contextService.context(rvs, null)).thenReturn(new ScriptContext(List.of(), List.of()));
@@ -104,6 +106,25 @@ class PaneContextControllerTest {
 
       when(sessions.resolve(eq("WHOLE"), eq("admin"))).thenReturn(session("WHOLE", null));
       assertEquals("sheet", controller.paneContext("WHOLE", agent).kind());
+   }
+
+   @Test
+   void theSqlSwitchTheBrowserReportedReachesTheSyntaxTheAgentIsTold() throws Exception {
+      JoinSession calcField =
+         session("CF", new EditorContext("calcField", "Orders", "Margin", null, true));
+      when(sessions.resolve(eq("CF"), eq("admin"))).thenReturn(calcField);
+
+      assertEquals("javascript", controller.paneContext("CF", agent).syntax().language());
+
+      when(sessions.paneStateOf(calcField)).thenReturn(new PaneState(true));
+      PaneContext sql = controller.paneContext("CF", agent);
+
+      assertEquals("sql", sql.syntax().language());
+      assertTrue(sql.functions().isEmpty());
+
+      when(sessions.paneStateOf(calcField)).thenReturn(PaneState.DEFAULT);
+      assertEquals("javascript", controller.paneContext("CF", agent).syntax().language(),
+                   "switching back needs no re-pairing");
    }
 
    @Test

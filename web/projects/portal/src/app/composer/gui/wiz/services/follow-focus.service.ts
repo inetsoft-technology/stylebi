@@ -134,6 +134,27 @@ export class FollowFocusService {
    }
 
    /**
+    * Tells the server what a pane shows that its editorContext does not say and the user can
+    * change after pairing (the calculated field dialog's SQL/Script switch), for the exact
+    * context a session is bound to: the one a code was minted with, or the one `pushFocus` moved
+    * a toolbar session to. The server keeps it per (socket, runtime, context), so the order
+    * against the mint or retarget does not matter. Lives here because both paths that bind a
+    * session to a pane send it through the same connection.
+    */
+   reportPaneState(runtimeId: string, socketConnection: ViewsheetClientService,
+                   editorContext: EditorContext, sql: boolean): void
+   {
+      if(!runtimeId || !socketConnection || !editorContext) {
+         return;
+      }
+
+      socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
+         conn.send("/events/wiz/pairing/pane-state", {},
+                   JSON.stringify({ runtimeId, editorContext, sql }));
+      });
+   }
+
+   /**
     * Pops the session's target back to whatever it was before the matching `pushFocus`. Callers
     * pass the `editorContext` they *expect* to be the current top of the stack -- i.e. the exact
     * location their own `pushFocus` call pushed -- purely as a client-side integrity check

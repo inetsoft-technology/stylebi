@@ -706,4 +706,123 @@ class SheetSessionServiceTest {
       assertNull(svc.resolve(pane.sessionToken(), "owner~;~org"),
                 "the session must still be removed even though notifying the tab bar failed");
    }
+
+   // ---- pane state: the browser-reported SQL/Script switch, kept out of EditorContext -----------
+
+   @Test
+   void aPaneStateReportedBeforeTheAgentJoinsIsReadBySessionsOfThatPane() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("calcField", "Orders", "Margin", null, true);
+
+      svc.setPaneState("sock-1", "vs-1", ctx, new PaneState(true));
+      JoinSession pane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+
+      assertEquals(new PaneState(true), svc.paneStateOf(pane));
+   }
+
+   @Test
+   void theLatestReportReplacesTheEarlierOneAndNoReportMeansTheDefault() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("calcField", "Orders", "Margin", null, true);
+      JoinSession pane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+
+      assertEquals(PaneState.DEFAULT, svc.paneStateOf(pane));
+
+      svc.setPaneState("sock-1", "vs-1", ctx, new PaneState(true));
+      svc.setPaneState("sock-1", "vs-1", ctx, new PaneState(false));
+
+      assertEquals(PaneState.DEFAULT, svc.paneStateOf(pane));
+   }
+
+   @Test
+   void aPaneStateIsNotSeenByAnotherPaneSocketOrRuntimeOrByAWholeSheetSession() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("calcField", "Orders", "Margin", null, true);
+      EditorContext other = new EditorContext("calcField", "Orders", "Other", null, true);
+      svc.setPaneState("sock-1", "vs-1", ctx, new PaneState(true));
+
+      JoinSession otherPane =
+         svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", other);
+      JoinSession otherSocket =
+         svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-2", "owner", ctx);
+      JoinSession otherRuntime =
+         svc.open("vs-2", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+      JoinSession sheet =
+         svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", null);
+
+      for(JoinSession s : new JoinSession[] {otherPane, otherSocket, otherRuntime, sheet}) {
+         assertEquals(PaneState.DEFAULT, svc.paneStateOf(s));
+      }
+
+      assertEquals(PaneState.DEFAULT, svc.paneStateOf(null));
+   }
+
+   /**
+    * The state must not break detach: the flag lives beside the editor context, so a pane that
+    * flipped its switch after pairing still ends its session when its dialog closes.
+    */
+   @Test
+   void aFlippedPaneStillDetachesItsSessionAndDropsItsState() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("calcField", "Orders", "Margin", null, true);
+      JoinSession pane = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+      svc.setPaneState("sock-1", "vs-1", ctx, new PaneState(true));
+
+      svc.detach("sock-1", ctx);
+
+      assertNull(svc.resolve(pane.sessionToken(), "owner~;~org"));
+      JoinSession reopened =
+         svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+      assertEquals(PaneState.DEFAULT, svc.paneStateOf(reopened));
+   }
+
+   /**
+    * A toolbar session retargeted to the dialog by Follow Focus never minted a code there, so the
+    * state the dialog reports for the pushed context is what the retargeted session reads, and
+    * popping the focus drops it with the pane.
+    */
+   @Test
+   void aFollowFocusRetargetedSessionReadsThePushedPanesStateAndPopDropsIt()
+      throws PairingException
+   {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession toolbar = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1",
+                                     "owner", null);
+      svc.setFollowFocus("sock-1", "vs-1", true);
+      // a location the back-compat pairing service accepts with no runtime; the keying under test
+      // does not depend on the kind
+      EditorContext pane = new EditorContext("viewsheetOnInit", null, null, null);
+
+      svc.setPaneState("sock-1", "vs-1", pane, new PaneState(true));
+      JoinSession retargeted = svc.retarget("sock-1", "vs-1", pane);
+
+      assertEquals(toolbar.sessionToken(), retargeted.sessionToken());
+      assertEquals(new PaneState(true), svc.paneStateOf(retargeted));
+
+      svc.popFocus("sock-1", "vs-1");
+      svc.retarget("sock-1", "vs-1", pane);
+
+      assertEquals(PaneState.DEFAULT,
+                   svc.paneStateOf(svc.resolve(toolbar.sessionToken(), "owner~;~org")),
+                   "the pane was closed, so its reported state must not outlive it");
+   }
+
+   @Test
+   void aSocketGoingAwayDropsItsPaneStatesButNotAnotherSocketsAndIgnoresIncompleteReports() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      EditorContext ctx = new EditorContext("calcField", "Orders", "Margin", null, true);
+      svc.setPaneState("sock-1", "vs-1", ctx, new PaneState(true));
+      svc.setPaneState("sock-2", "vs-1", ctx, new PaneState(true));
+      svc.setPaneState(null, "vs-1", ctx, new PaneState(true));
+      svc.setPaneState("sock-1", null, ctx, new PaneState(true));
+      svc.setPaneState("sock-1", "vs-1", null, new PaneState(true));
+      svc.setPaneState("sock-1", "vs-1", ctx, null);
+
+      svc.socketClosed("sock-1");
+
+      JoinSession gone = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-1", "owner", ctx);
+      JoinSession kept = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-2", "owner", ctx);
+      assertEquals(PaneState.DEFAULT, svc.paneStateOf(gone));
+      assertEquals(new PaneState(true), svc.paneStateOf(kept));
+   }
 }

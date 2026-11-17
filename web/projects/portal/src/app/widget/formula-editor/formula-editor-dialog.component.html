@@ -25,7 +25,8 @@
       <div class="col-auto">
         <wiz-connect-to-claude
           [runtimeId]="runtimeId" [sheetType]="isVSContext ? 'VIEWSHEET' : 'WORKSHEET'"
-          [socketConnection]="socketConnection" [editorContext]="editorContext">
+          [socketConnection]="socketConnection" [editorContext]="editorContext"
+          [sqlMode]="paneSqlMode">
         </wiz-connect-to-claude>
       </div>
     </div>
