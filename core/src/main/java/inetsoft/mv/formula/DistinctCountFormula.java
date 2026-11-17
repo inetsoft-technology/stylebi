@@ -57,7 +57,8 @@ public class DistinctCountFormula
          return;
       }
 
-      set.add(v);
+      // fastutil compares doubles by bits, so map -0.0 onto 0.0
+      set.add(v == 0 ? 0.0 : v);
    }
 
    /**
@@ -79,7 +80,7 @@ public class DistinctCountFormula
          return;
       }
 
-      set.add(v);
+      set.add(v == 0 ? 0.0F : v);
    }
 
    /**
