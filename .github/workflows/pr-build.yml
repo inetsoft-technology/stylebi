@@ -73,8 +73,7 @@ jobs:
             last_dump=0
             while sleep 60; do
               now=$(date +%s)
-              newest=$(find core/target/surefire-reports -name '*.txt' -printf '%T@
-' 2>/dev/null | sort -n | tail -1)
+              newest=$(find core/target/surefire-reports -name '*.txt' -printf '%T@\n' 2>/dev/null | sort -n | tail -1)
               age=-1
               if [ -n "$newest" ]; then age=$((now - ${newest%.*})); fi
               echo "[ci-monitor] $(date -u +%T) load=$(cut -d' ' -f1-3 /proc/loadavg) $(free -m | awk '/^Mem:/{print "used_mb="$3" avail_mb="$7}') last_report_age=${age}s top: $(ps -eo rss,comm --sort=-rss | awk 'NR>1 && NR<=5{printf "%s=%dMB ",$2,$1/1024}')"
