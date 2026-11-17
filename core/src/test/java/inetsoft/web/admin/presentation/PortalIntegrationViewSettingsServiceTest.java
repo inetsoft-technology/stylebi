@@ -239,4 +239,22 @@ class PortalIntegrationViewSettingsServiceTest {
          .dashboardAvailable(true)
          .home(true);
    }
+
+   @Test
+   void getModel_reloadShrinksTabsBetweenCountAndGet_doesNotThrow() {
+      // a themes reload swapped the tab list: a count/get reader sees count=3 but a null tab at 2
+      PortalTab a = new PortalTab("Dashboard", "/dashboard", true, false);
+      PortalTab b = new PortalTab("Schedule", "/schedule", true, false);
+      when(manager.getPortalTabsCount()).thenReturn(3);
+      when(manager.getPortalTab(0)).thenReturn(a);
+      when(manager.getPortalTab(1)).thenReturn(b);
+      when(manager.getPortalTab(2)).thenReturn(null);
+      when(manager.getPortalTabsSnapshot()).thenReturn(List.of(a, b));
+
+      PortalIntegrationSettingsModel result =
+         assertDoesNotThrow(() -> service.getModel(mock(Principal.class), true));
+
+      assertEquals(2, result.tabs().size());
+   }
+
 }

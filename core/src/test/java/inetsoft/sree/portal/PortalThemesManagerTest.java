@@ -206,6 +206,66 @@ class PortalThemesManagerTest {
                       "with an earlier timestamp than our own last write");
    }
 
+   @Test
+   void portalTabsSnapshot_duringConcurrentReload_isNeverPartial() throws Exception {
+      PortalThemesManager manager = new PortalThemesManager(cluster, dataSpace);
+      persisted = () -> themesWithTabs(3);
+      manager.loadThemes();
+      manager.save();
+      written = null;
+      java.util.concurrent.atomic.AtomicReference<Throwable> failure =
+         new java.util.concurrent.atomic.AtomicReference<>();
+      java.util.concurrent.atomic.AtomicBoolean done =
+         new java.util.concurrent.atomic.AtomicBoolean();
+
+      Thread reader = new Thread(() -> {
+         while(!done.get()) {
+            List<inetsoft.sree.portal.PortalTab> tabs = manager.getPortalTabsSnapshot();
+            int size = tabs.size();
+
+            if(size != 3 && size != 5) {
+               failure.compareAndSet(null, new AssertionError("partial tab list: " + size));
+            }
+
+            for(inetsoft.sree.portal.PortalTab tab : tabs) {
+               if(tab == null) {
+                  failure.compareAndSet(null, new AssertionError("null tab"));
+               }
+            }
+         }
+      });
+      reader.start();
+      long end = System.currentTimeMillis() + 1500;
+      int n = 5;
+
+      try {
+         while(System.currentTimeMillis() < end) {
+            int count = n;
+            persisted = () -> themesWithTabs(count);
+            manager.loadThemes();
+            n = n == 5 ? 3 : 5;
+         }
+      }
+      finally {
+         done.set(true);
+         reader.join();
+      }
+
+      assertNull(failure.get());
+   }
+
+   private InputStream themesWithTabs(int count) {
+      StringBuilder xml = new StringBuilder("<?xml version=\"1.0\"?><PortalThemes><Version>9.5</Version><portalTabs>");
+
+      for(int i = 0; i < count; i++) {
+         xml.append("<portalTab visible=\"true\" editable=\"false\"><name><![CDATA[T" + i
+                    + "]]></name><uri><![CDATA[/t" + i + "]]></uri></portalTab>");
+      }
+
+      xml.append("</portalTabs></PortalThemes>");
+      return new ByteArrayInputStream(xml.toString().getBytes(StandardCharsets.UTF_8));
+   }
+
    private DataChangeEvent notification() {
       return new DataChangeEvent(null, DEFAULT_THEMES_FILE, System.currentTimeMillis());
    }

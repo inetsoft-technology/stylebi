@@ -70,11 +70,12 @@ public class PortalIntegrationViewSettingsService {
          search = true;
       }
 
-      int tabsCount = manager.getPortalTabsCount();
       Catalog catalog = Catalog.getCatalog(principal);
 
-      for(int i = 0; i < tabsCount; i++) {
-         PortalTab tab = manager.getPortalTab(i);
+      List<PortalTab> portalTabs = manager.getPortalTabsSnapshot();
+
+      for(int i = 0; i < portalTabs.size(); i++) {
+         PortalTab tab = portalTabs.get(i);
          String label;
          boolean editable;
 

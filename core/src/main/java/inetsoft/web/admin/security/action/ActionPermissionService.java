@@ -364,8 +364,7 @@ public class ActionPermissionService {
          .actions(EnumSet.noneOf(ResourceAction.class));
       PortalThemesManager manager = portalThemesManager;
 
-      for(int i = 0; i < manager.getPortalTabsCount(); i++) {
-         PortalTab tab = manager.getPortalTab(i);
+      for(PortalTab tab : manager.getPortalTabsSnapshot()) {
          String name = catalog.getString(tab.getName());
 
          if(catalog.getString("Dashboard").equals(name)) {

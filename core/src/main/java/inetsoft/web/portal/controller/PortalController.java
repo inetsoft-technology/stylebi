@@ -230,8 +230,8 @@ public class PortalController {
       PortalThemesManager manager = portalThemesManager;
       List<PortalTabModel> portalTabModels = new ArrayList<>();
 
-      for(int i = 0; i < manager.getPortalTabsCount(); i++) {
-         PortalTab tab = (PortalTab) manager.getPortalTab(i).clone();
+      for(PortalTab portalTab : manager.getPortalTabsSnapshot()) {
+         PortalTab tab = (PortalTab) portalTab.clone();
          String name = tab.getName();
 
          if("Dashboard".equals(name)) {
