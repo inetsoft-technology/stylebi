@@ -89,6 +89,7 @@
                           <expression-editor [vsId]="runtimeId"
                             [columns]="model.fields" [isHyperLink]="true"
                             [expressionTypes]="expressionTypes" [isVSContext]="isVSContext"
+                            [pairing]="hyperlinkPairing"
                             [(value)]="expressionValue" (valueChange)="expressionChange($event)"
                             class="d-flex align-items-start">
                           </expression-editor>

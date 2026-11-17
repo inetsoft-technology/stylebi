@@ -332,4 +332,100 @@ class PaneContextServiceTest {
 
       assertFalse(PaneContextService.syntaxOf(null).note().isBlank());
    }
+
+   /**
+    * Every {@link ScriptTarget.Kind} gets its own statement: only the three worksheet-side
+    * expression kinds may carry the "not served by this viewsheet context" text, so a FUTURE kind
+    * added without a case in {@code syntaxOf} (which is an exhaustive switch) cannot be
+    * mislabelled silently. The worksheet SQL kind is reported as {@code sql}, never JavaScript.
+    */
+   @Test
+   void noKindIsMislabelledAsNotServedExceptTheWorksheetExpressionKinds() {
+      List<ScriptTarget.Kind> notServed = List.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION,
+         ScriptTarget.Kind.WORKSHEET_CONDITION, ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE);
+
+      for(ScriptTarget.Kind kind : ScriptTarget.Kind.values()) {
+         PaneContext.Syntax syntax = PaneContextService.syntaxOf(
+            new EditorContext(kind.wireName(), "A", "n", null));
+         boolean fallback = PaneContextService.WORKSHEET_NOT_SERVED.equals(syntax.note());
+
+         assertEquals(notServed.contains(kind), fallback, kind.wireName() + ": " + syntax.note());
+         assertFalse(syntax.note().isBlank(), kind.wireName());
+         assertEquals(kind == ScriptTarget.Kind.WORKSHEET_SQL_QUERY ? "sql" : "javascript",
+                      syntax.language(), kind.wireName());
+      }
+   }
+
+   @Test
+   void theHyperlinkExpressionSyntaxIsJavaScriptWithTheLeadingEqualsAndTheMessageForm() {
+      PaneContext.Syntax syntax = PaneContextService.syntaxOf(
+         new EditorContext("vsHyperlinkExpression", "Table1", "cell[2,1]", null));
+
+      assertEquals("javascript", syntax.language());
+      assertTrue(syntax.note().contains("Web Link Expression of one hyperlink"), syntax.note());
+      assertTrue(syntax.note().contains("leading '='"), syntax.note());
+      assertTrue(syntax.note().contains("=\"message:...\""), syntax.note());
+      assertTrue(syntax.note().contains("parameter.<name>"), syntax.note());
+      assertFalse(syntax.note().contains("not served by this viewsheet context"), syntax.note());
+   }
+
+   @Test
+   void theWorksheetKindsAreLabelledForWhatTheyAre() {
+      PaneContext.Syntax variable = PaneContextService.syntaxOf(
+         new EditorContext("worksheetVariableDefault", "Var1", null, null));
+      PaneContext.Syntax sql = PaneContextService.syntaxOf(
+         new EditorContext("worksheetSqlQuery", "SQL Query1", null, null));
+
+      assertEquals("javascript", variable.language());
+      assertTrue(variable.note().contains("worksheet variable"), variable.note());
+      assertTrue(variable.note().contains("worksheet editor tools"), variable.note());
+
+      assertEquals("sql", sql.language());
+      assertTrue(sql.note().contains("run verbatim with the user's own permissions"), sql.note());
+      assertTrue(sql.note().contains("$(var) placeholders are not checked"), sql.note());
+      assertTrue(sql.note().contains("worksheet editor tools"), sql.note());
+      assertFalse(sql.note().contains("not served by this viewsheet context"), sql.note());
+   }
+
+   @Test
+   void aHyperlinkLocationListsTheBoundTableOfTheOwningComponent() throws Exception {
+      when(fields.list(RUNTIME_ID, "Table1", user)).thenReturn(List.of(
+         table("Orders", Boolean.TRUE, "id", "total"), table("Customers", Boolean.FALSE, "name")));
+
+      PaneContext ctx = service.paneContext(rvs,
+         session(new EditorContext("vsHyperlinkExpression", "Table1", "cell[2,1]", null)), user);
+
+      assertEquals("vsHyperlinkExpression", ctx.kind());
+      assertEquals("javascript", ctx.syntax().language());
+      assertEquals(List.of("Orders"), ctx.columns().stream().map(PaneContext.Table::name).toList());
+      assertEquals(List.of("id", "total"),
+                   ctx.columns().get(0).fields().stream().map(PaneContext.Field::column).toList());
+      assertEquals("Table1", PaneContextService.ownerOf(
+         new EditorContext("vsHyperlinkExpression", "Table1", "cell[2,1]", null)));
+   }
+
+   @Test
+   void anEmbeddedChildThatCannotBeLookedUpBecomesANoteAndTheRestComesBack() throws Exception {
+      when(fields.list(RUNTIME_ID, "Viewsheet1.Table1", user))
+         .thenThrow(new IllegalArgumentException("no such assembly"));
+
+      PaneContext ctx = service.paneContext(rvs,
+         session(new EditorContext("vsHyperlinkExpression", "Viewsheet1.Table1", "cell[0,0]",
+                                   null)), user);
+
+      assertTrue(ctx.columns().isEmpty());
+      assertTrue(ctx.notes().stream().anyMatch(n -> n.contains("no such assembly")),
+                 ctx.notes().toString());
+      assertEquals("javascript", ctx.syntax().language());
+      assertEquals(2, ctx.components().size());
+   }
+
+   @Test
+   void aWorksheetSqlSessionIsReportedAsSqlEvenThoughThisEndpointDoesNotServeIt() throws Exception {
+      PaneContext ctx = service.paneContext(rvs,
+         session(new EditorContext("worksheetSqlQuery", "SQL Query1", null, null)), user);
+
+      assertEquals("worksheetSqlQuery", ctx.kind());
+      assertEquals("sql", ctx.syntax().language());
+   }
 }

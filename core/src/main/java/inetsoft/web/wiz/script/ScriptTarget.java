@@ -20,6 +20,7 @@ package inetsoft.web.wiz.script;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.pairing.DynamicValueName;
 import inetsoft.web.wiz.pairing.EditorContext;
+import inetsoft.web.wiz.pairing.HyperlinkRegionName;
 import inetsoft.web.wiz.pairing.PairingException;
 
 import java.nio.charset.StandardCharsets;
@@ -40,7 +41,7 @@ public final class ScriptTarget {
    public enum Location {
       VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK, CALC_FIELD,
       WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE, VS_CONDITION_VALUE,
-      DYNAMIC_VALUE
+      DYNAMIC_VALUE, WORKSHEET_VARIABLE_DEFAULT, VS_HYPERLINK_EXPRESSION, WORKSHEET_SQL_QUERY
    }
 
    /**
@@ -126,7 +127,33 @@ public final class ScriptTarget {
        * value lives in the user's open dialog, so it is served only by the draft-push path and
        * never reads or writes the runtime viewsheet.
        */
-      DYNAMIC_VALUE("dynamicValue", Location.DYNAMIC_VALUE, true);
+      DYNAMIC_VALUE("dynamicValue", Location.DYNAMIC_VALUE, true),
+
+      /**
+       * The Expression default value of a worksheet variable, in the user's open Variable
+       * Properties dialog. Draft-only and worksheet-only: {@code assemblyName()} is the variable's
+       * name (the name typed so far for a variable that does not exist yet) and there is no
+       * {@code name()}, because a variable has exactly one default value.
+       */
+      WORKSHEET_VARIABLE_DEFAULT("worksheetVariableDefault", Location.WORKSHEET_VARIABLE_DEFAULT,
+                                 true),
+
+      /**
+       * The Web Link Expression of ONE hyperlink in the user's open Hyperlink dialog.
+       * Draft-only and viewsheet-only: {@code assemblyName()} is the viewsheet assembly that owns
+       * the link and {@code name()} is the region key (see
+       * {@link inetsoft.web.wiz.pairing.HyperlinkRegionName}).
+       */
+      VS_HYPERLINK_EXPRESSION("vsHyperlinkExpression", Location.VS_HYPERLINK_EXPRESSION, true),
+
+      /**
+       * The SQL text of a worksheet query table, in the user's open Database Query dialog.
+       * Draft-only and worksheet-only: {@code assemblyName()} is the query table's name (the name
+       * the dialog was opened with for a query that does not exist yet) and there is no
+       * {@code name()}. Gated by the Free Form SQL permission on every path, which is checked
+       * one layer above {@link PaneScopeService} because it needs a principal.
+       */
+      WORKSHEET_SQL_QUERY("worksheetSqlQuery", Location.WORKSHEET_SQL_QUERY, true);
 
       Kind(String wireName, Location location) {
          this(wireName, location, false);
@@ -200,7 +227,8 @@ public final class ScriptTarget {
       private static boolean isExpressionLevel(Location location) {
          return switch(location) {
             case CALC_FIELD, WORKSHEET_EXPRESSION, WORKSHEET_CONDITION,
-               WORKSHEET_CONDITION_VALUE, VS_CONDITION_VALUE, DYNAMIC_VALUE -> true;
+               WORKSHEET_CONDITION_VALUE, VS_CONDITION_VALUE, DYNAMIC_VALUE,
+               WORKSHEET_VARIABLE_DEFAULT, VS_HYPERLINK_EXPRESSION, WORKSHEET_SQL_QUERY -> true;
             case VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK -> false;
          };
       }
@@ -333,6 +361,42 @@ public final class ScriptTarget {
          }
 
          return new ScriptTarget(kind, assemblyName, name);
+      }
+
+      if(kind == Kind.VS_HYPERLINK_EXPRESSION) {
+         if(assemblyName == null || assemblyName.isBlank()) {
+            throw new PairingException(
+               "kind 'vsHyperlinkExpression' requires 'assembly' - the viewsheet assembly that " +
+               "owns the hyperlink.");
+         }
+
+         String problem = HyperlinkRegionName.problem(name);
+
+         if(problem != null) {
+            throw new PairingException(
+               "kind 'vsHyperlinkExpression' requires a valid 'name': " + problem);
+         }
+
+         return new ScriptTarget(kind, assemblyName, name);
+      }
+
+      if(kind == Kind.WORKSHEET_VARIABLE_DEFAULT || kind == Kind.WORKSHEET_SQL_QUERY) {
+         String owner = kind == Kind.WORKSHEET_SQL_QUERY ? "query table" : "variable";
+
+         if(assemblyName == null || assemblyName.isBlank()) {
+            throw new PairingException(
+               "kind '" + kind.wireName() + "' requires 'assembly' - the name of the " + owner +
+               ".");
+         }
+
+         if(name != null && !name.isBlank()) {
+            throw new PairingException(
+               "kind '" + kind.wireName() + "' takes no 'name'; only " +
+               String.join(", ", NAMED_KINDS.stream().map(Kind::wireName).sorted().toList()) +
+               " are addressed by one.");
+         }
+
+         return new ScriptTarget(kind, assemblyName, null);
       }
 
       if(COLUMN_ADDRESSED_KINDS.contains(kind)) {
@@ -616,6 +680,9 @@ public final class ScriptTarget {
          case WORKSHEET_CONDITION_VALUE -> "worksheetConditionValue:" + assemblyName + ":" + name;
          case VS_CONDITION_VALUE -> "vsConditionValue:" + assemblyName + ":" + name;
          case DYNAMIC_VALUE -> "dynamicValue:" + assemblyName + ":" + name;
+         case WORKSHEET_VARIABLE_DEFAULT -> "worksheetVariableDefault:" + assemblyName;
+         case VS_HYPERLINK_EXPRESSION -> "vsHyperlinkExpression:" + assemblyName + ":" + name;
+         case WORKSHEET_SQL_QUERY -> "worksheetSqlQuery:" + assemblyName;
       };
    }
 
@@ -629,12 +696,12 @@ public final class ScriptTarget {
          Kind.WORKSHEET_CONDITION_VALUE);
 
    /**
-    * Every kind that takes a {@code name}: the column-addressed ones plus the two draft-only
-    * dialog-value kinds.
+    * Every kind that takes a {@code name}: the column-addressed ones plus the three draft-only
+    * dialog-value kinds that are addressed by one.
     */
    private static final Set<Kind> NAMED_KINDS = EnumSet.of(Kind.CALC_FIELD,
       Kind.WORKSHEET_EXPRESSION, Kind.WORKSHEET_CONDITION, Kind.WORKSHEET_CONDITION_VALUE,
-      Kind.VS_CONDITION_VALUE, Kind.DYNAMIC_VALUE);
+      Kind.VS_CONDITION_VALUE, Kind.DYNAMIC_VALUE, Kind.VS_HYPERLINK_EXPRESSION);
 
    private final Kind kind;
    private final Location location;

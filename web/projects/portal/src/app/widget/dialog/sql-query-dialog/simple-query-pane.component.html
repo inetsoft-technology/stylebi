@@ -116,6 +116,22 @@
               }
               <div class="col-8">
                 @if (model.sqlEdited && freeFormSqlEnabled) {
+                  @if (agentPairing && agentPush; as push) {
+                    <div class="d-flex justify-content-end pb-2">
+                      <wiz-connect-to-claude
+                        [runtimeId]="agentPairing.runtimeId" sheetType="WORKSHEET"
+                        [socketConnection]="agentPairing.socketConnection"
+                        [editorContext]="sqlContext">
+                      </wiz-connect-to-claude>
+                    </div>
+                    @if (push.staleText != null) {
+                      <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                        <span>_#(An agent changed this SQL; your unsaved edits were kept.)</span>
+                        <button type="button" class="btn btn-sm btn-outline-warning"
+                          (click)="push.reload()">_#(Reload)</button>
+                      </div>
+                    }
+                  }
                   <div class="form-floating">
                     <textarea #sqlTextArea class="form-control h-100" rows="30" [(ngModel)]="model.sqlString" (ngModelChange)="textChanged()"
                       (drop)="$event.preventDefault()" placeholder="_#(SQL)">

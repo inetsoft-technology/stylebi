@@ -52,6 +52,7 @@ import { InputTrimDirective } from "../../../widget/directive/input-trim.directi
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { NgClass } from "@angular/common";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+import { ExpressionPairing } from "../../gui/wiz/editor-context";
 
 enum UserVariable {
    NONE = 0,
@@ -121,6 +122,25 @@ export class VariableAssemblyDialog implements OnInit {
       return this.getVariableTree(value);
    };
    defaultValueType: ConditionValueType = ConditionValueType.VALUE;
+
+   /**
+    * The pairing target of the default-value Expression's formula dialog, read once when that
+    * dialog opens. An existing variable is addressed by the name it has on the worksheet
+    * (`model.oldName`); a new one by the name typed so far, as a pending target. The formula
+    * dialog is modal over this one, so the name cannot change while a pairing session lives.
+    * Null (no Connect button) when the worksheet has no socket or a new variable has no name yet.
+    */
+   defaultValuePairing = (): ExpressionPairing | null => {
+      const ws = this.worksheet;
+      const existing = !!this.model?.oldName;
+      const assembly = existing ? this.model.oldName
+         : (this.form?.get("newName")?.value ?? "").trim();
+
+      return ws?.runtimeId && ws?.socketConnection && assembly
+         ? { runtimeId: ws.runtimeId, socketConnection: ws.socketConnection,
+             editorContext: { kind: "worksheetVariableDefault", assembly, pending: !existing } }
+         : null;
+   };
 
    constructor(private modelService: ModelService,
                private modalService: NgbModal)

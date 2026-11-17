@@ -467,7 +467,7 @@ _#(fl.action.newGroupDes)</div>
 </ng-template>
 <ng-template #sqlQueryDialog let-close="close" let-dismiss="dismiss">
   <sql-query-dialog [controller]="wsSqlQueryController"
-    [initTableName]="newTableName" [tables]="tables"
+    [initTableName]="newTableName" [tables]="tables" [agentPairing]="sqlAgentPairing"
     [crossJoinEnabled]="crossJoinEnabled" [mashUpData]="showMashUpData"
     (onCommit)="close($event)" [applyVisible]="false"
   (onCancel)="dismiss($event)"></sql-query-dialog>

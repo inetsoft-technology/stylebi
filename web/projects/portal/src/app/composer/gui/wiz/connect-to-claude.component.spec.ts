@@ -1084,6 +1084,28 @@ describe("ConnectToClaudeComponent", () => {
          expect(component.currentTargetLabel).toBe("Chart1 → dateComparison periodsBack");
       });
 
+      it("labels the draft-only targets by what they edit, never as kind: name", () => {
+         connectAsToolbar();
+         const labelOf = (editorContext: any) => {
+            handlerFor("/user/commands/wiz/pairing/joined")(
+               notice({ runtimeId: "rt-1", sheetType: "VIEWSHEET", focusChanged: true,
+                        editorContext }));
+            return component.currentTargetLabel;
+         };
+
+         expect(labelOf({ kind: "worksheetVariableDefault", assembly: "Var1", pending: false }))
+            .toBe("Var1 → default value");
+         expect(labelOf({ kind: "worksheetVariableDefault", assembly: "Var1", pending: true }))
+            .toBe("Var1 → default value (new variable)");
+         expect(labelOf({ kind: "vsHyperlinkExpression", assembly: "Table1", name: "cell[2,1]" }))
+            .toBe("Table1 → hyperlink: cell row 2, col 1");
+         expect(labelOf({ kind: "vsHyperlinkExpression", assembly: "Chart1",
+                          name: "field[Total Sales]" }))
+            .toBe("Chart1 → hyperlink: field 'Total Sales'");
+         expect(labelOf({ kind: "worksheetSqlQuery", assembly: "SQL Query1", pending: true }))
+            .toBe("SQL Query1 → SQL (new query)");
+      });
+
       it("returns the live target to Whole sheet from a focusChanged pop notice", () => {
          connectAsToolbar();
          handlerFor("/user/commands/wiz/pairing/joined")(

@@ -80,6 +80,7 @@
           <simple-query-pane [queryModel]="model" [controller]="controller" [runtimeId]="model.runtimeId"
             [dataSources]="model.dataSources" [dataSource]="model.dataSource"
             [freeFormSqlEnabled]="model.freeFormSqlEnabled"
+            [agentPairing]="agentPairing"
             [model]="model.simpleModel" [loading]="loading"
             [dataSourceTreeRoot]="dataSourceTreeRoot"
             [supportsFullOuterJoinArr]="model.supportsFullOuterJoin"
@@ -94,6 +95,7 @@
           <div class="h-100 overflow-auto">
             <database-query #advancedQueryPane [runtimeId]="model.runtimeId"
               [freeFormSqlEnabled]="model.freeFormSqlEnabled"
+              [agentPairing]="agentPairing"
               [queryModel]="model.advancedModel"
               [dataSourceTreeRoot]="dataSourceTreeRoot"
               [databaseName]="model.dataSource"

@@ -133,6 +133,17 @@ public class ScriptReadService {
          return draft == null ? List.of() : List.of(draft);
       }
 
+      if(EditorContext.VS_HYPERLINK_EXPRESSION.equals(grant.kind())) {
+         // Same reasoning as dynamicValue above: the draft is the user's open dialog, the type only
+         // words the label.
+         Viewsheet vs = rvs.getViewsheet();
+         Object assembly = vs == null || grant.assembly() == null ? null
+            : vs.getAssembly(grant.assembly());
+         ScriptTargetInfo draft =
+            VsHyperlinkTargets.targetInfo(grant, PropertyAliases.typeKeyOf(assembly));
+         return draft == null ? List.of() : List.of(draft);
+      }
+
       return all.stream().filter(info -> matchesGrant(grant, info)).toList();
    }
 
@@ -285,6 +296,16 @@ public class ScriptReadService {
             requireAssemblyInfo(rvs, target.assemblyName());
             return DynamicValueTargets.read(target);
          }
+         // Draft-only too (see VsHyperlinkTargets).
+         case VS_HYPERLINK_EXPRESSION -> {
+            requireAssemblyInfo(rvs, target.assemblyName());
+            return VsHyperlinkTargets.read(target);
+         }
+         // The two worksheet drafts live on a RuntimeWorksheet and are served by
+         // WorksheetScriptService; named so the message says where to go.
+         case WORKSHEET_VARIABLE_DEFAULT, WORKSHEET_SQL_QUERY -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is a worksheet draft target; it is read through " +
+            "a session joined to the worksheet, not through the viewsheet script API.");
          // A worksheet expression/condition column lives on a RuntimeWorksheet, never a
          // RuntimeViewsheet -- this method structurally cannot serve it. Named explicitly
          // (rather than left to the generic default below) so the message says where to go

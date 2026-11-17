@@ -144,6 +144,10 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     *  editing: the `name` of a "dynamicValue" pairing target, on `contextTable ?? assemblyName`.
     *  Without it a dynamic value has no pairing target and the button stays hidden. */
    @Input() dynamicProperty?: string;
+   /** The exact pairing target of a host that knows its own location (a hyperlink region, a
+    *  worksheet variable default). It wins over every flag above: `deriveEditorContext` returns
+    *  it as is, so a host never depends on the flag combination that happens to select its kind. */
+   @Input() pairingContext?: EditorContext | null;
 
    @Input() availableFields: DataRef[];
    @Input() availableCells: string[];
@@ -323,6 +327,20 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       // doc comment for why they're not the same field.
       const assembly = this.contextTable ?? this.assemblyName;
 
+      // A host that names its own location (see pairingContext) is the most specific statement
+      // there is, so it is returned before any flag is read. That also keeps a host that must
+      // keep a flag for another reason (the hyperlink editor's isCondition only selects the
+      // condition script palette) from being mistaken for the kind that flag normally means.
+      if(this.pairingContext) {
+         return this.pairingContext;
+      }
+
+      // The cube Create/Edit Measure dialog edits an MDX text the worksheet script path cannot
+      // serve, so it has no pairing target and must not fall through to calcField.
+      if(this.isCube) {
+         return null;
+      }
+
       // A dynamic value names the property it edits. An explicit property is the most specific
       // statement this dialog can make, so it wins over isCondition (a dynamic combo may still be
       // in condition mode for the script palette) and every other flag. A blank property or
@@ -396,7 +414,11 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     */
    private static readonly COLUMN_ADDRESSED_KINDS =
       ["calcField", "worksheetExpression", "worksheetCondition", "worksheetConditionValue",
-       "calcTableCell", "vsConditionValue", "dynamicValue"];
+       "calcTableCell", "vsConditionValue", "dynamicValue", "vsHyperlinkExpression"];
+
+   /** Kinds addressed by the assembly alone (a worksheet variable has exactly one default). A
+    *  blank assembly must hide the button; a kind in neither list is always addressable. */
+   private static readonly ASSEMBLY_ADDRESSED_KINDS = ["worksheetVariableDefault"];
 
    /**
     * The operations with exactly one value slot -- the only shape `worksheetConditionValue` may
@@ -421,6 +443,10 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    }
 
    private static isAddressable(context: EditorContext): boolean {
+      if(FormulaEditorDialog.ASSEMBLY_ADDRESSED_KINDS.indexOf(context.kind) >= 0) {
+         return !!context.assembly && !context.name;
+      }
+
       if(FormulaEditorDialog.COLUMN_ADDRESSED_KINDS.indexOf(context.kind) < 0) {
          return true;
       }

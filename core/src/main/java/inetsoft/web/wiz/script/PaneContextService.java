@@ -65,6 +65,14 @@ public class PaneContextService {
 
    static final String SHEET_KIND = "sheet";
 
+   /**
+    * The note of the worksheet-side expression kinds. {@link #syntaxOf} is an exhaustive switch
+    * with no {@code default}, so a new {@link ScriptTarget.Kind} cannot be added without deciding
+    * its syntax here.
+    */
+   static final String WORKSHEET_NOT_SERVED =
+      "A worksheet-side expression: not served by this viewsheet context.";
+
    /** Always in scope as {@code parameter.<name>}: filled from the signed-in user. */
    static final List<String> STANDARD_PARAMETERS = List.of("_USER_", "_ROLES_", "_GROUPS_");
 
@@ -317,8 +325,22 @@ public class PaneContextService {
          case VIEWSHEET_ON_INIT, VIEWSHEET_ON_LOAD, ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK ->
             new PaneContext.Syntax("javascript",
                "A script: reach a component by its name and a parameter as parameter.<name>.");
-         default -> new PaneContext.Syntax("javascript",
-            "A worksheet-side expression: not served by this viewsheet context.");
+         case VS_HYPERLINK_EXPRESSION -> new PaneContext.Syntax("javascript",
+            "The Web Link Expression of one hyperlink is a JavaScript expression. The dialog's " +
+            "text keeps its leading '=' (update_script adds it when missing), and " +
+            "=\"message:...\" is the form that makes the link a message link. Reach a component " +
+            "by its name and a parameter as parameter.<name>; a row, column or field value is " +
+            "reached as the dialog's own tree offers it. Parsed but not run when pushed.");
+         case WORKSHEET_VARIABLE_DEFAULT -> new PaneContext.Syntax("javascript",
+            "The Expression default value of a worksheet variable is JavaScript. This session " +
+            "is served by the worksheet editor tools, not by this viewsheet context.");
+         case WORKSHEET_SQL_QUERY -> new PaneContext.Syntax("sql",
+            "The SQL of a worksheet query table, in the data source's SQL dialect, run verbatim " +
+            "with the user's own permissions; $(var) placeholders are not checked by the " +
+            "server. This session is served by the worksheet editor tools, not by this " +
+            "viewsheet context.");
+         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE ->
+            new PaneContext.Syntax("javascript", WORKSHEET_NOT_SERVED);
       };
    }
 

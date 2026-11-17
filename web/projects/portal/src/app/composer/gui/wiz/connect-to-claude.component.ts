@@ -23,7 +23,7 @@ import { Subscription } from "rxjs";
 import { filter, take } from "rxjs/operators";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
-import { dynamicValueLabel, EditorContext } from "./editor-context";
+import { draftTargetLabel, dynamicValueLabel, EditorContext } from "./editor-context";
 import { FollowFocusService } from "./services/follow-focus.service";
 import { FormsModule } from "@angular/forms";
 
@@ -213,7 +213,13 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          return `${target.assembly} → ${dynamicValueLabel(target.name)}`;
       }
 
-      const base = target.assembly ? `${target.assembly} → ${target.kind}` : target.kind;
+      const draftLabel = draftTargetLabel(target);
+
+      if(draftLabel != null) {
+         return draftLabel;
+      }
+
+      const base = target.assembly ?`${target.assembly} → ${target.kind}` : target.kind;
       return target.name ? `${base}: ${target.name}` : base;
    }
 

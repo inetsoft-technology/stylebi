@@ -285,12 +285,19 @@ public class ScriptExecuteService {
     */
    static void requireRunnable(ScriptTarget target) throws PairingException {
       if(target.kind().isDraftOnly()) {
-         String what = target.kind() == ScriptTarget.Kind.DYNAMIC_VALUE
-            ? "a dynamic value expression" : "a condition expression";
+         String what = switch(target.kind()) {
+            case DYNAMIC_VALUE -> "a dynamic value expression";
+            case WORKSHEET_VARIABLE_DEFAULT -> "a worksheet variable default expression";
+            case VS_HYPERLINK_EXPRESSION -> "a hyperlink expression";
+            case WORKSHEET_SQL_QUERY -> "a worksheet SQL query text";
+            default -> "a condition expression";
+         };
 
          throw new PairingException(
             "'" + target + "': " + what + " is not a runnable script. It is a draft " +
-            "in the user's open formula dialog; use update_script to push text into it.");
+            "in the user's open " + (target.kind() == ScriptTarget.Kind.WORKSHEET_SQL_QUERY
+               ? "Database Query dialog" : "formula dialog") +
+            "; use update_script to push text into it.");
       }
    }
 
@@ -330,6 +337,12 @@ public class ScriptExecuteService {
             "a condition expression is not a runnable script.");
          case DYNAMIC_VALUE -> throw new PairingException(
             "a dynamic value expression is not a runnable script.");
+         case WORKSHEET_VARIABLE_DEFAULT -> throw new PairingException(
+            "a worksheet variable default expression is not a runnable viewsheet script.");
+         case VS_HYPERLINK_EXPRESSION -> throw new PairingException(
+            "a hyperlink expression is not a runnable script.");
+         case WORKSHEET_SQL_QUERY -> throw new PairingException(
+            "a worksheet SQL query text is not a runnable viewsheet script.");
       };
 
       // Every script location can write to any assembly in the sheet by name (an assembly script

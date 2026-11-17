@@ -91,6 +91,7 @@
                   <expression-editor id="valueEditor"
                     class="d-flex align-items-start" [expressionTypes]="expressionTypes"
                     [isVSContext]="false"
+                    [pairing]="defaultValuePairing"
                     [value]="model.defaultValue"
                     [columnTreeFunction]="expressionColumnFunc"
                     (valueChange)="defaultExpressionValueChange($event)">

@@ -77,4 +77,37 @@ describe("grouping condition dialog component unit case", () => {
       expect(operators.length).toBe(1);
    });
 
+   // Bug #80459 pin: the grouping / named-group condition dialog offers no Expression value, so
+   // its value slots have no Connect to Claude pairing target. If EXPRESSION is ever added to the
+   // value types (for any operator, field type or value type), a pairing kind for it has to be
+   // designed first (see the worksheet variable default / hyperlink kinds), and this must fail.
+   it("never offers the Expression value type", () => {
+      const operations = Object.values(ConditionOperation)
+         .filter((v) => typeof v === "number") as ConditionOperation[];
+      const dataTypes = [null, "string", "integer", "double", "boolean", "date", "time",
+                         "timeInstant", "char"];
+      const valueTypes = Object.values(ConditionValueType);
+      let checked = 0;
+
+      for(let dataType of dataTypes) {
+         for(let operation of operations) {
+            for(let valueType of valueTypes) {
+               let condition = TestUtils.createMockCondition();
+               condition.field = dataType == null ? null : {
+                  attribute: "this", dataType: dataType
+               } as any;
+               condition.operation = operation;
+               condition.values[0].type = valueType as ConditionValueType;
+               const offered = groupConItemProvider.getConditionValueTypes(condition);
+
+               expect(offered).not.toContain(ConditionValueType.EXPRESSION);
+               expect(offered.length).toBeGreaterThan(0);
+               checked++;
+            }
+         }
+      }
+
+      expect(checked).toBe(dataTypes.length * operations.length * valueTypes.length);
+   });
+
 });
