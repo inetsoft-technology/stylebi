@@ -268,6 +268,13 @@ public class AssemblyPropertyService {
                property.put("options", options);
             }
          }
+         else {
+            List<Map<String, Object>> options = namedOptions(alias.getValue());
+
+            if(options != null) {
+               property.put("options", options);
+            }
+         }
 
          properties.add(property);
       }
@@ -2815,6 +2822,59 @@ public class AssemblyPropertyService {
       }
 
       return options;
+   }
+
+   /**
+    * The named values a closed-vocabulary property accepts, as {@code {value, label, stored}}
+    * where {@code value} is what to write and {@code stored} is what get/list report for it --
+    * the int of an {@link #INT_ENUM_DOMAINS} property (distinct ints only, the first-listed token
+    * being the canonical one; the other tokens are write-side aliases), or the token a
+    * Line/Oval/Rectangle {@code lineStyle} reads back as. Null for a property with neither.
+    *
+    * <p>Keyed by the resolved path like the write side, so {@code showType}'s dropdown is
+    * {@code 1} on a selection list and {@code 2} on a calendar.
+    */
+   private static List<Map<String, Object>> namedOptions(String path) {
+      List<Map<String, Object>> options = new ArrayList<>();
+      IntEnumDomain domain = INT_ENUM_DOMAINS.get(path);
+
+      if(domain != null) {
+         Set<Integer> seen = new HashSet<>();
+
+         for(Map.Entry<String, Integer> token : domain.tokens().entrySet()) {
+            if(seen.add(token.getValue())) {
+               options.add(namedOption(token.getKey(), token.getValue()));
+            }
+         }
+
+         return options;
+      }
+
+      Map<String, String> names = PropertyPath.namedValues(path);
+
+      if(names == null) {
+         return null;
+      }
+
+      for(Map.Entry<String, String> name : names.entrySet()) {
+         options.add(namedOption(name.getKey(), LineStyleNames.readBackToken(name.getValue())));
+      }
+
+      return options;
+   }
+
+   private static Map<String, Object> namedOption(String value, Object stored) {
+      Map<String, Object> option = new LinkedHashMap<>();
+      option.put("value", value);
+      option.put("label", optionLabel(value));
+      option.put("stored", stored);
+      return option;
+   }
+
+   /** "medium_dash" -> "Medium dash". */
+   private static String optionLabel(String value) {
+      String words = value.replace('_', ' ');
+      return Character.toUpperCase(words.charAt(0)) + words.substring(1);
    }
 
    private static void collectStyleLeaves(TreeNodeModel node, List<TreeNodeModel> out) {

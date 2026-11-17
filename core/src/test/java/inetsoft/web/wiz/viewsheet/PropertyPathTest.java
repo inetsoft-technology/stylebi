@@ -1361,6 +1361,75 @@ class PropertyPathTest {
       }
    }
 
+   // ── shape line style names (bug #81539) ───────────────────────────────────
+
+   /** The chart's own natural names (dashed, dotted, thin, ...) are accepted on every shape. */
+   @Test
+   void shapeLineStyleAcceptsTheChartsNaturalNames() {
+      String[][] cases = { { "dashed", "DASH_LINE" }, { "dotted", "DOT_LINE" },
+                           { "thin", "THIN_LINE" }, { "medium", "MEDIUM_LINE" },
+                           { "thick", "THICK_LINE" }, { "ultra_thin", "ULTRA_THIN_LINE" },
+                           { "thin_thin", "THIN_THIN_LINE" }, { "medium_dash", "MEDIUM_DASH" },
+                           { "large_dash", "LARGE_DASH" }, { "double", "DOUBLE_LINE" },
+                           { "none", "NONE" }, { "Dashed", "DASH_LINE" },
+                           { "medium dash", "MEDIUM_DASH" } };
+
+      for(String root : new String[] { "linePropertyPaneModel", "ovalPropertyPaneModel",
+                                       "rectanglePropertyPaneModel" })
+      {
+         String path = root + ".linePropPaneModel.style";
+
+         for(String[] c : cases) {
+            ShapeRoot target = new ShapeRoot();
+            PropertyPath.set(target, path, c[0]);
+            assertEquals(c[1], target.getLinePropertyPaneModel().getLinePropPaneModel().getStyle(),
+                         path + " " + c[0]);
+         }
+      }
+   }
+
+   /** The refusal still names the exact tokens and now also the natural names. */
+   @Test
+   void shapeLineStyleRefusalNamesTheTokensAndTheNaturalNames() {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> PropertyPath.set(new ShapeRoot(), "linePropertyPaneModel.linePropPaneModel.style",
+                                "wavy"));
+
+      assertTrue(thrown.getMessage().contains("DASH_LINE") &&
+                 thrown.getMessage().contains("dashed"), thrown.getMessage());
+   }
+
+   /** Only the shape style paths carry the natural names; no other path is given them. */
+   @Test
+   void onlyTheShapeLineStylePathsHaveNaturalNames() {
+      for(String root : new String[] { "linePropertyPaneModel", "ovalPropertyPaneModel",
+                                       "rectanglePropertyPaneModel" })
+      {
+         assertNotNull(PropertyPath.namedValues(root + ".linePropPaneModel.style"));
+      }
+
+      assertNull(PropertyPath.namedValues("textInputColumnOptionPaneModel.type"));
+      assertNull(PropertyPath.namedValues("chartLinePaneModel.xGridLineStyle"));
+   }
+
+   /**
+    * One vocabulary: a name means the same style on a chart and on a shape. The chart's int and
+    * the shape token's int are the same StyleConstants value.
+    */
+   @Test
+   void chartAndShapeLineStyleNamesMeanTheSameStyle() {
+      for(Map.Entry<String, Integer> chart : LineStyleNames.CHART.entrySet()) {
+         String token = LineStyleNames.SHAPE_TOKENS.get(chart.getKey());
+         assertNotNull(token, chart.getKey() + " has no shape token");
+         assertEquals(chart.getValue().intValue(), Util.getStyleConstantsFromString(token),
+                      chart.getKey());
+         assertEquals(token, Util.getLineStyleName(chart.getValue()), chart.getKey());
+      }
+
+      assertEquals("NO_BORDER", LineStyleNames.readBackToken("NONE"));
+      assertEquals("DASH_LINE", LineStyleNames.readBackToken("DASH_LINE"));
+   }
+
    // ── empty segments (bug #78440) ───────────────────────────────────────────
 
    @Test

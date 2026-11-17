@@ -865,6 +865,19 @@ public final class PropertyPath {
          return text;
       }
 
+      // A path with a natural-name vocabulary ("dashed") is written as that name or as its stored
+      // token ("DASH_LINE"); the name is mapped onto the token before the exact-token check below,
+      // so the check and its canonical spelling stay the single gate.
+      final Map<String, String> names = namedValues(path);
+
+      if(names != null) {
+         String token = names.get(text.trim().toLowerCase(Locale.ROOT).replace(' ', '_'));
+
+         if(token != null) {
+            return token;
+         }
+      }
+
       // visible is backed by a DynamicValue (VSAssemblyInfo.getVisibleValue()) and StyleBI's own
       // Composer UI offers both a "Variable" and an "Expression" button on it, so a
       // "$(ComponentName)" reference and an "=script" expression are equally real, supported
@@ -884,8 +897,9 @@ public final class PropertyPath {
          .filter(v -> v.equalsIgnoreCase(text))
          .findFirst()
          .orElseThrow(() -> new IllegalArgumentException(
-            "'" + path + "' accepts only " + new TreeSet<>(allowed) + "; '" + value + "' is not " +
-            "one of them. StyleBI ignores or misreads an unrecognised value, so this " +
+            "'" + path + "' accepts only " + new TreeSet<>(allowed) +
+            (names == null ? "" : " (or the names " + names.keySet() + ")") + "; '" + value +
+            "' is not one of them. StyleBI ignores or misreads an unrecognised value, so this " +
             "would have reported success without applying what was asked."));
 
       // Util.getLineStyleName reads a "no line" shape back as NO_BORDER, which the write side
@@ -958,6 +972,21 @@ public final class PropertyPath {
    private static final Set<String> SHAPE_LINE_STYLES = Set.of(
       "NONE", "NO_BORDER", "THIN_LINE", "MEDIUM_LINE", "THICK_LINE", "DOUBLE_LINE", "DOT_LINE",
       "DASH_LINE", "MEDIUM_DASH", "LARGE_DASH", "THIN_THIN_LINE", "ULTRA_THIN_LINE");
+
+   /**
+    * The natural names ({@code dashed}, {@code dotted}, ...) a path with a name vocabulary
+    * accepts besides its stored tokens, mapped to those tokens: the shape line styles, in the
+    * chart's own vocabulary ({@link LineStyleNames}). Null for every other path.
+    */
+   static Map<String, String> namedValues(String path) {
+      return SHAPE_LINE_STYLE_PATHS.contains(path) ? LineStyleNames.SHAPE_TOKENS : null;
+   }
+
+   /** The Line, Oval and Rectangle {@code style} paths, which share {@link #SHAPE_LINE_STYLES}. */
+   private static final Set<String> SHAPE_LINE_STYLE_PATHS = Set.of(
+      "linePropertyPaneModel.linePropPaneModel.style",
+      "ovalPropertyPaneModel.linePropPaneModel.style",
+      "rectanglePropertyPaneModel.linePropPaneModel.style");
 
    /**
     * The same closed-domain check as {@link #CONSTRAINED_STRINGS}, keyed by the full dotted path
