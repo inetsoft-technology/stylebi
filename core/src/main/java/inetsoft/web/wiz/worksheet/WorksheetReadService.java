@@ -1197,7 +1197,14 @@ public class WorksheetReadService {
 
       Integer n = formula != null && formula.hasN() ? ar.getN() : null;
 
-      return new WorksheetModel.AggregateModel.AggregateRefModel(column, formulaName, alias, n);
+      String percentageOf = switch(ar.getPercentageOption()) {
+         case XConstants.PERCENTAGE_OF_GROUP -> "group";
+         case XConstants.PERCENTAGE_OF_GRANDTOTAL -> "grand_total";
+         default -> null;
+      };
+
+      return new WorksheetModel.AggregateModel.AggregateRefModel(column, formulaName, alias, n,
+                                                                 percentageOf);
    }
 
    // -------------------------------------------------------------------------

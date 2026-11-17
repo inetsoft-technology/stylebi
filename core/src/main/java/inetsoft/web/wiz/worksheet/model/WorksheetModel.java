@@ -426,9 +426,13 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
        * @param alias   output alias; may be {@code null}
        * @param n       the N/P operand for a parametrized formula (e.g. {@code "NthLargest"},
        *                {@code "PthPercentile"}); {@code null} when the formula doesn't take one
+       * @param percentageOf the Percentage setting, in set_group_aggregate's own vocabulary:
+       *                {@code "group"} (Sub Total) or {@code "grand_total"}; {@code null} when
+       *                the aggregate is not shown as a percentage
        */
       @JsonInclude(JsonInclude.Include.NON_NULL)
-      public record AggregateRefModel(String column, String formula, String alias, Integer n) {}
+      public record AggregateRefModel(String column, String formula, String alias, Integer n,
+                                      String percentageOf) {}
    }
 
    /**
