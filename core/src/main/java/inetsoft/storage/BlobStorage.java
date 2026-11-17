@@ -677,6 +677,16 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    }
 
    /**
+    * Marks the key-value store of this storage as closed by the shutdown of the node, not by an
+    * eviction. Bug #81573, see {@link LocalKeyValueStorage#markShutdown()}.
+    */
+   void markShutdown() {
+      if(storage instanceof LocalKeyValueStorage<?> local) {
+         local.markShutdown();
+      }
+   }
+
+   /**
     * Waits until the event executors of the closed blob storages have run the events that were
     * queued when they were closed. Tests call it through {@code BlobStorageTestSupport} at a
     * Spring context boundary, so that a closed context's listeners cannot look up beans in the

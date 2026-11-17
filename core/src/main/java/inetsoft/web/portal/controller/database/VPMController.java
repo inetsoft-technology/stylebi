@@ -927,6 +927,8 @@ public class VPMController {
    public FullDataBaseTreeModel getAvailableTree(@RemainingPath String database, Principal principal)
       throws Exception
    {
+      // the tree includes the alias subtree, so it needs the same WRITE as the other VPM reads
+      checkVpmPermission(database, principal);
       final FullDataBaseTreeModel model = new FullDataBaseTreeModel();
       final Function<Boolean, Boolean> timeOutFunc = timeout -> {
          model.setTimeOut(timeout);

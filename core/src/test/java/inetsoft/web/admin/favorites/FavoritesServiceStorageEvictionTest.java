@@ -79,8 +79,11 @@ class FavoritesServiceStorageEvictionTest {
       }
 
       waitFor(before::isClosed);
-      assertTrue(before.keys().findAny().isEmpty(),
-                 "premise: a closed store enumerates as empty");
+      // Bug #81573, an evicted store is released, not emptied: it still lists all four entries
+      assertEquals(Set.of(alice.convertToKey(), bob.convertToKey(), carol.convertToKey(),
+                          admin.convertToKey()),
+                   before.keys().collect(Collectors.toSet()),
+                   "a closed (evicted) store must still enumerate its entries");
 
       service.removeFavorites(ORG);
 

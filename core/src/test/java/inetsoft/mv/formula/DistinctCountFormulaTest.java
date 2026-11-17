@@ -46,6 +46,14 @@ class DistinctCountFormulaTest {
    }
 
    @Test
+   void testNegativeZeroIsSameAsZero() {
+      formula.addValue(0.0);
+      formula.addValue(-0.0);
+      formula.addValue(-0.0f);
+      assertEquals(1, formula.getResult());
+   }
+
+   @Test
    void testReset() {
       formula.addValue(10.0);
       formula.addValue(20.0);

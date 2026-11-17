@@ -438,6 +438,23 @@ class JavaScriptEngineTest {
    }
 
    @Test
+   void dateDiffQuarterCountsPeriodBoundariesCrossed() {
+      assertEquals(1, JavaScriptEngine.dateDiff("q", toDate("2024-03-31T00:00"),
+                                                toDate("2024-04-01T00:00")));
+      assertEquals(-1, JavaScriptEngine.dateDiff("q", toDate("2024-04-01T00:00"),
+                                                 toDate("2024-03-31T00:00")));
+      assertEquals(0, JavaScriptEngine.dateDiff("q", toDate("2024-01-01T00:00"),
+                                                toDate("2024-03-31T23:59")));
+      assertEquals(1, JavaScriptEngine.dateDiff("q", toDate("2023-12-31T00:00"),
+                                                toDate("2024-01-01T00:00")));
+      assertEquals(9, JavaScriptEngine.dateDiff("q", toDate("2022-02-15T00:00"),
+                                                toDate("2024-05-01T00:00")));
+      // month is unchanged
+      assertEquals(1, JavaScriptEngine.dateDiff("m", toDate("2024-03-31T00:00"),
+                                                toDate("2024-04-01T00:00")));
+   }
+
+   @Test
    void testDateAdd() throws ParseException {
       java.util.Date date = toDate("2023-04-01T10:23:34");
       SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -790,13 +807,6 @@ class JavaScriptEngineTest {
    @Test
    void dateDiffMonthCountsPeriodBoundariesCrossed() {
       assertEquals(1, JavaScriptEngine.dateDiff("m", toDate("2024-03-31T00:00"),
-                                                toDate("2024-04-01T00:00")));
-   }
-
-   @Test
-   @Disabled("Bug #81467: dateDiff(\"q\") quarter boundary semantics")
-   void dateDiffQuarterCountsPeriodBoundariesCrossed() {
-      assertEquals(1, JavaScriptEngine.dateDiff("q", toDate("2024-03-31T00:00"),
                                                 toDate("2024-04-01T00:00")));
    }
 

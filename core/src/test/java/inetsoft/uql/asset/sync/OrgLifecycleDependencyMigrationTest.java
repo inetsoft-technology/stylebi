@@ -239,10 +239,10 @@ class OrgLifecycleDependencyMigrationTest {
                   "regardless of which of the two racing calls performed the actual delete");
    }
 
-   // ── scenario 1g: a storage reference silently empties once closed, instead of throwing ──
+   // ── scenario 1g: a storage reference that the manager's eviction closed still lists everything ──
 
    @Test
-   void closedStorageReference_streamSilentlyEmpty_insteadOfThrowing() throws Exception {
+   void closedStorageReference_stillListsAllEntriesAfterEviction() throws Exception {
       String orgId = "dep_closed_storage_org";
       seedDependency(orgId, "/reportD", "/lookupD");
 
@@ -257,11 +257,15 @@ class OrgLifecycleDependencyMigrationTest {
       // migrateStorageData() would still be holding mid-method.
       storage.close();
 
-      assertEquals(0, storage.stream().count(),
-                  "LocalKeyValueStorage.stream()/keys() return Stream.empty() once closed " +
-                  "instead of throwing -- so migrateStorageData() would silently observe zero " +
-                  "dependency records (skip putAll) and then still delete the real, populated " +
-                  "source-org store via removeOld, with no exception or log surfaced anywhere");
+      // Bug #81573, an evicted store is only released, so a holder of the reference still sees
+      // every entry. Before, stream()/keys() returned Stream.empty() once closed, and
+      // migrateStorageData() would silently observe zero dependency records (skip putAll) and
+      // then still delete the real, populated source-org store via removeOld. Only a store
+      // closed by the shutdown of the manager lists nothing, see StorageEvictionEnumerationTest.
+      assertTrue(storage.isClosed());
+      assertEquals(1, storage.stream().count(),
+                  "an evicted (closed) store must still list its entries");
+      assertEquals(1, storage.keys().count());
    }
 
    // ── fixture helpers ──
