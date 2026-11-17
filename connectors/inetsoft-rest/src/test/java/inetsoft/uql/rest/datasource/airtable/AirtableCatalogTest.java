@@ -547,6 +547,55 @@ class AirtableCatalogTest {
       assertEquals("appAAA111/Customers",
                    runtime.describeDataset(dataSource, "appAAA111/Customers").datasetId());
    }
+
+   @Test
+   void aSameNamedDataSourceWithAnotherTokenIsNotAnsweredFromTheCache() throws Exception {
+      stubTables("appAAA111", table("Customers", "singleLineText"));
+      String url = dataSource.getURL();
+      AirtableDataSource other = new AirtableDataSource() {
+         @Override
+         public String getURL() {
+            return url;
+         }
+
+         @Override
+         public String getApiToken() {
+            return "tok-other";
+         }
+      };
+      other.setName(dataSource.getName());
+
+      runtime.describeDataset(dataSource, "appAAA111/Customers");
+      runtime.describeDataset(other, "appAAA111/Customers");
+
+      verify(2, getRequestedFor(urlPathEqualTo("/v0/meta/bases/appAAA111/tables")));
+      verify(1, getRequestedFor(urlPathEqualTo("/v0/meta/bases/appAAA111/tables"))
+         .withHeader("Authorization", equalTo("Bearer tok-other")));
+   }
+
+   @Test
+   void aTableCreatedAfterTheSchemaWasCachedIsFoundByARefetch() throws Exception {
+      stubTables("appAAA111", table("Customers", "singleLineText"));
+      runtime.describeDataset(dataSource, "appAAA111/Customers");
+
+      stubTables("appAAA111", table("Customers", "singleLineText"), table("Orders", "number"));
+
+      assertEquals("appAAA111/Orders",
+                   runtime.describeDataset(dataSource, "appAAA111/Orders").datasetId());
+      verify(2, getRequestedFor(urlPathEqualTo("/v0/meta/bases/appAAA111/tables")));
+   }
+
+   @Test
+   void aTableThatTrulyDoesNotExistRefetchesOnceThenErrors() throws Exception {
+      stubTables("appAAA111", table("Customers", "singleLineText"));
+      runtime.describeDataset(dataSource, "appAAA111/Customers");
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> runtime.describeDataset(dataSource, "appAAA111/Nope"));
+
+      verify(2, getRequestedFor(urlPathEqualTo("/v0/meta/bases/appAAA111/tables")));
+   }
+
    // ===================================================================================
    // The declared columns are the columns a Records query really returns
    // ===================================================================================

@@ -107,16 +107,13 @@ final class AirtableCatalog {
 
       String baseId = requireBaseId(datasetId.substring(0, slash));
       String tableName = datasetId.substring(slash + 1);
-      JsonNode table = null;
       List<String> names = new ArrayList<>();
+      JsonNode table = findTable(client.listTables(baseId, true), baseId, tableName, names);
 
-      for(JsonNode candidate : client.listTables(baseId, true)) {
-         String name = requireTableName(candidate, baseId);
-         names.add(name);
-
-         if(name.equals(tableName)) {
-            table = candidate;
-         }
+      if(table == null) {
+         // the cached schema may predate a table created in the last few seconds
+         names.clear();
+         table = findTable(client.listTables(baseId, false), baseId, tableName, names);
       }
 
       if(table == null) {
@@ -155,6 +152,23 @@ final class AirtableCatalog {
 
       return new TabularDatasetSchema(datasetId, List.copyOf(columns), List.of(), Map.of(), false,
                                       own == null ? note : own + "\n\n" + note);
+   }
+
+   private static JsonNode findTable(List<JsonNode> tables, String baseId, String tableName,
+                                     List<String> names)
+   {
+      JsonNode found = null;
+
+      for(JsonNode candidate : tables) {
+         String name = requireTableName(candidate, baseId);
+         names.add(name);
+
+         if(name.equals(tableName)) {
+            found = candidate;
+         }
+      }
+
+      return found;
    }
 
    static String datasetId(String baseId, String tableName) {
