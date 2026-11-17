@@ -35,9 +35,12 @@ $inet-green: #dbf4ad;
 // inet extended palette - shades for base colors. Not all in actual use yet
 $inet-orange-light: #ffb17c;
 $inet-orange-dark: #d25f11;
-// Lighter orange used as the primary-button hover/focus fill. Dark label text (see $inet-on-orange)
-// keeps >= 4.5:1 on it; the darker $inet-orange-dark would not (4.18:1). Do not wire it into -dark.
-$inet-orange-hover: #f08a3f;
+// Primary-button hover/focus fill: the theme's primary mixed 16% toward white (about #f08840 for the
+// default orange). Dark label text (see $inet-on-orange) keeps >= 4.5:1 on it; the darker
+// $inet-orange-dark would not (4.18:1). Derived from --inet-primary-color so a theme that sets only
+// the primary (e.g. via the EM Look and Feel editor) gets a lighter shade of its own color, not orange.
+// Do not wire it into -dark.
+$inet-primary-hover-mix: color-mix(in srgb, var(--inet-primary-color) 84%, white);
 // Text/glyph colour on the primary orange fill (white on #ed711c is only 3.01:1). Single source for
 // --inet-button-primary-text-color and the baked-in checkbox/radio SVG below.
 $inet-on-orange: #202020;
@@ -311,7 +314,7 @@ $sqrt2: 1.41421356;
 
   --inet-primary-color-light: #{$primary-light};
   --inet-primary-color-dark: #{$primary-dark};
-  --inet-primary-color-hover: #{$inet-orange-hover};
+  --inet-primary-color-hover: #{$inet-primary-hover-mix};
 
   --inet-secondary-color-light: #{$secondary-light};
   --inet-secondary-color-dark: #{$secondary-dark};
