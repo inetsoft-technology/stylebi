@@ -18,6 +18,12 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.graph.VGraph;
+import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.coord.RectCoord;
+import inetsoft.graph.guide.axis.DefaultAxis;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -50,9 +56,12 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.util.List;
 import java.util.stream.Stream;
 
+import java.util.Optional;
+
 import static inetsoft.web.wiz.viewsheet.ViewsheetFormatServiceTest.principal;
 import static inetsoft.web.wiz.viewsheet.ViewsheetFormatServiceTest.sessionsFor;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 /**
@@ -191,6 +200,52 @@ class ViewsheetFormatServiceChartRegionTargetTest {
                  e.getMessage().contains("'Chart1'") &&
                  e.getMessage().contains("TableVSAssembly") &&
                  e.getMessage().contains("not applied"), e.getMessage());
+      verify(sessions, never()).mutate(anyString(), any(java.security.Principal.class), any());
+      verifyNoInteractions(painter);
+   }
+
+
+   /**
+    * Gives the chart a laid-out graph whose right axis has its own scale and no bound field -- the
+    * percent axis the engine draws on a Pareto chart (bug #81511).
+    */
+   private static RuntimeViewsheet withEngineDrawnRightAxis(RuntimeViewsheet rvs)
+      throws Exception
+   {
+      DefaultAxis right = mock(DefaultAxis.class);
+      VGraph graph = mock(VGraph.class);
+      when(graph.getCoordinate()).thenReturn(mock(RectCoord.class));
+      when(graph.getAxesAt(anyInt())).thenReturn(new DefaultAxis[0]);
+      when(graph.getAxesAt(Coordinate.RIGHT_AXIS)).thenReturn(new DefaultAxis[]{ right });
+      VGraphPair pair = mock(VGraphPair.class);
+      when(pair.getExpandedVGraph()).thenReturn(graph);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getVGraphPair(any())).thenReturn(pair);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      return rvs;
+   }
+
+   /**
+    * Bug #81511: a Pareto chart's engine-drawn percent y2 axis has no bound field and no axis
+    * line area, so {@code axisLabel2} used to reach the painter and fail with an index error (500).
+    */
+   @Test
+   void refusesAxisLabel2OnAnEngineDrawnPercentAxisByName() throws Exception {
+      RuntimeViewsheet rvs = withEngineDrawnRightAxis(
+         rvsWith("Chart1", chartWithoutSecondaryAxis()));
+      ViewsheetSessionService sessions = sessionsFor(rvs);
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter), mock(CalcTableService.class), null)
+            .setFormat("tok", principal(), request("axisLabel2"), ""));
+
+      assertTrue(e.getMessage().contains("'axisLabel2'") &&
+                 e.getMessage().contains("'Chart1'") &&
+                 e.getMessage().contains("y2 axis") &&
+                 e.getMessage().contains("drawn by the engine") &&
+                 e.getMessage().contains("no field is bound"), e.getMessage());
       verify(sessions, never()).mutate(anyString(), any(java.security.Principal.class), any());
       verifyNoInteractions(painter);
    }

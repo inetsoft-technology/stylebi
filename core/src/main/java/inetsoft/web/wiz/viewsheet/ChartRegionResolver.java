@@ -564,7 +564,7 @@ final class ChartRegionResolver {
       return false;
    }
 
-   private static Set<String> fromBinding(VSChartInfo info) {
+   static Set<String> fromBinding(VSChartInfo info) {
       Set<String> present = new LinkedHashSet<>();
 
       if(info == null) {

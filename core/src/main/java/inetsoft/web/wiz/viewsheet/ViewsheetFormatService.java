@@ -987,6 +987,13 @@ public class ViewsheetFormatService {
                ? "no axes at all"
                : "only: " + String.join(", ", axes.ordered())));
          }
+         else if(!ChartRegionResolver.fromBinding(chart.getVSChartInfo()).contains("y2")) {
+            // The engine drew a y2 (percent scale, date comparison) with no field bound to it.
+            // It has no axis area to read a column from, so there is nothing to format.
+            throw new IllegalArgumentException(
+               "set_format: target 'axisLabel2' cannot be applied: chart '" + name + "' " +
+               engineDrawnAxisReason("y2") + " Use 'axisLabel' for the primary axis.");
+         }
       }
 
       if(!offenders.isEmpty()) {
@@ -1294,6 +1301,16 @@ public class ViewsheetFormatService {
 
       int index = r.index() == null ? 0 : r.index();
 
+      if(axis != null && axis.endsWith("2") &&
+         ("axis_title".equals(region) || "axis_labels".equals(region)) &&
+         Arrays.stream(Objects.requireNonNullElse(axisRefs(chart, axis), new ChartRef[0]))
+            .noneMatch(ViewsheetFormatService::isSecondaryY) &&
+         ChartRegionResolver.resolve(rvs, chart).has(axis))
+      {
+         throw new IllegalArgumentException(
+            tool + ": chart '" + r.assembly() + "' " + engineDrawnAxisReason(axis));
+      }
+
       if("axis_title".equals(region)) {
          if(axis.endsWith("2")) {
             ChartRef[] refs = axisRefs(chart, axis);
@@ -1379,6 +1396,16 @@ public class ViewsheetFormatService {
       requireRenderedLegend(rvs, chart, r.assembly(), "set_chart_region_format",
                             "region '" + (title ? "legend_title" : "legend_content") + "'",
                             title ? null : region.index());
+   }
+
+   /**
+    * Why an axis that {@code list_chart_elements} reports cannot be formatted: the engine drew it
+    * (a percent scale such as a Pareto chart's, or a date comparison) and no field is bound to it.
+    */
+   private static String engineDrawnAxisReason(String axis) {
+      return "has a " + axis + " axis, but it is drawn by the engine (for example a percent " +
+         "scale or a date comparison) and no field is bound to it, so it has no " + axis +
+         " axis labels or title to format.";
    }
 
    private static boolean isSecondaryY(ChartRef ref) {
