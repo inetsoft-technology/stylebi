@@ -278,6 +278,11 @@ fieldset.float-title {
     border-color: var(--inet-primary-color);
     box-shadow: none;
   }
+
+  // checked border == fill, so :focus alone is invisible; add a two-colour ring (checkbox, radio, switch)
+  &:checked:focus-visible {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--inet-text-color);
+  }
 }
 
 .form-check {
