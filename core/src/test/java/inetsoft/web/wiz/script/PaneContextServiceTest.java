@@ -308,6 +308,16 @@ class PaneContextServiceTest {
    }
 
    @Test
+   void theVsConditionValueSyntaxSaysDollarIsNotDefined() {
+      PaneContext.Syntax syntax = PaneContextService.syntaxOf(
+         new EditorContext("vsConditionValue", "Table1", "filter", null));
+
+      assertTrue(syntax.note().contains("$ is not defined"), syntax.note());
+      assertTrue(syntax.note().contains("parameter.<name>"), syntax.note());
+      assertTrue(syntax.note().contains("SQL"), syntax.note());
+   }
+
+   @Test
    void theDynamicValueSyntaxExplainsTheReportedFailure() {
       PaneContext.Syntax syntax = PaneContextService.syntaxOf(
          new EditorContext("dynamicValue", "Text1", "visible", null));

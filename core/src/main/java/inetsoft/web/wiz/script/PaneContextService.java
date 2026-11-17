@@ -317,7 +317,10 @@ public class PaneContextService {
             "parameter as parameter.<name>. $(Name) works only when the field's type is Variable.");
          case VS_CONDITION_VALUE -> new PaneContext.Syntax("javascript",
             "An Expression condition value is a JavaScript expression, parsed but not run when " +
-            "pushed.");
+            "pushed. $ is not defined here: $(Name) or String($(Name)) fails with " +
+            "'ReferenceError: $ is not defined'. Use parameter.<name> or a component's own " +
+            "property (RadioButton1.selectedObject). In a highlight whose value type is SQL, " +
+            "$(var) is SQL text, not JavaScript.");
          case CALC_FIELD -> new PaneContext.Syntax("javascript",
             "A calc field formula is JavaScript evaluated per row: read a column as " +
             "field['<column>'] and a parameter as parameter.<name>. No component or " +
