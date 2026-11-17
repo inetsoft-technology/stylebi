@@ -74,6 +74,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       affinityExecutor = Executors.newFixedThreadPool(
          Runtime.getRuntime().availableProcessors(),
          r -> new GroupedThread(r, "WorksheetEngine"));
+      lockLookup = new SheetLockLookup(cluster, CACHE_NAME);
 
       // register the recycle sweep and the max sheet count (Bug #81350, removed by #3763)
       setServer(true);
@@ -184,6 +185,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       }
 
       affinityExecutor.shutdownNow();
+      lockLookup.close();
       engine.dispose();
 
       try {
@@ -694,11 +696,36 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
    }
 
    /**
-    * Get the lock owner.
+    * Get the lock owner: the user of the editable runtime sheet of the entry that was opened
+    * first, on any node of the cluster.
     * @param entry the specified asset entry.
     */
    @Override
    public String getLockOwner(AssetEntry entry) {
+      // when the save viewsheet action is caused by save home bookmark
+      // should check lock also
+      boolean includeReadOnly = "true".equals(entry.getProperty("homeBookmarkSaved"));
+      entry.setProperty("homeBookmarkSaved", null);
+
+      // the runtime sheet of the other user is owned by a node that has nothing to do with the
+      // node of this user, so the sheets of the other nodes have to be checked too (Bug #81431)
+      SheetLockHolder holder = SheetLockHolder.earlier(
+         findLocalLockHolder(entry, includeReadOnly),
+         lockLookup.findRemote(entry, includeReadOnly));
+
+      return holder == null ? null : holder.getUser();
+   }
+
+   /**
+    * Find the lock holder of an entry among the runtime sheets of this node, the editable sheet
+    * of the entry that was opened first.
+    * @param entry           the specified asset entry.
+    * @param includeReadOnly <tt>true</tt> to count the sheets that are not editable too.
+    * @return the lock holder, or <tt>null</tt> if no sheet of this node holds the lock.
+    */
+   SheetLockHolder findLocalLockHolder(AssetEntry entry, boolean includeReadOnly) {
+      SheetLockHolder holder = null;
+
       for(String key : amap.keySet()) {
          RuntimeSheet rs = amap.get(key);
 
@@ -706,22 +733,14 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
             continue;
          }
 
-         AssetEntry entry2 = rs.getEntry();
-
-         // when the save viewsheet action is caused by save home bookmark
-         // should check lock also
-         if(Tool.equals(entry2, entry) && (rs.isEditable() ||
-            "true".equals(entry.getProperty("homeBookmarkSaved"))))
-         {
-            entry.setProperty("homeBookmarkSaved", null);
+         if(Tool.equals(rs.getEntry(), entry) && (rs.isEditable() || includeReadOnly)) {
             Principal user = rs.getUser();
-            return user == null ? null : user.getName();
+            holder = SheetLockHolder.earlier(
+               holder, new SheetLockHolder(user == null ? null : user.getName(), key));
          }
       }
 
-      entry.setProperty("homeBookmarkSaved", null);
-
-      return null;
+      return holder;
    }
 
    @Override
@@ -1508,6 +1527,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
    private final DistributedLong nextId;
    private final Debouncer<String> debouncer;
    private final ExecutorService affinityExecutor;
+   private final SheetLockLookup lockLookup;
 
    private final boolean singlePreviewEnabled;
    private boolean server = false; // server flag
