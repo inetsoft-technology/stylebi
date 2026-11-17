@@ -942,8 +942,8 @@ public class ChartRegionPropertyService {
 
       // A candle or stock chart keeps its prices in open/high/low/close, not on the y shelf, but
       // draws one price axis for them (bug #80505), the way a Gantt's start/end do.
-      if(refs.length == 0 && "y".equals(canonical)) {
-         return Arrays.stream(ChartRegionResolver.candlePriceRefs(info))
+      if(refs.length == 0 && ("y".equals(canonical) || "x".equals(canonical))) {
+         return Arrays.stream(ChartRegionResolver.engineAxisRefs(info, canonical))
             .filter(r -> !(r instanceof ChartAggregateRef a) || !a.isSecondaryY())
             .toArray(ChartRef[]::new);
       }

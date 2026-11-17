@@ -272,17 +272,6 @@ class ChartRegionPropertyServiceTimeAxisTest {
       assertNotNull(listed.get("note"));
    }
 
-   @Test
-   void theMissingXAxisRefusalPointsToYAndTheStartField() {
-      Gantt g = gantt(true);
-
-      Exception thrown = assertThrows(IllegalArgumentException.class,
-         () -> g.service.list("tok", principal(), "Chart1", "axis", "x", null));
-
-      assertTrue(thrown.getMessage().contains("target 'y' with field '" + g.startName + "'"),
-                 thrown.getMessage());
-   }
-
    /** The first tick of the Gantt's rendered time axis. With a set minimum, TimeScale starts its
     * ticks exactly there, so a Float-rounded value would show up as an offset here. */
    private static long firstTick(Gantt g) {

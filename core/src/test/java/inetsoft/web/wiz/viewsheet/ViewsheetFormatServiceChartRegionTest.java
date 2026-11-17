@@ -310,4 +310,71 @@ class ViewsheetFormatServiceChartRegionTest {
          IllegalArgumentException.class, () -> write(request("target_label", null, null, 3), 1));
       assertTrue(e.getMessage().contains("'index'"), e.getMessage());
    }
+
+   private static RuntimeViewsheet rvsFor(VSChartInfo info) {
+      ChartDescriptor descriptor = mock(ChartDescriptor.class);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getChartDescriptor()).thenReturn(descriptor);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      when(viewsheet.getAssembly("Chart1")).thenReturn(chart);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(rvs.getID()).thenReturn("rt1");
+      return rvs;
+   }
+
+   private static inetsoft.uql.viewsheet.graph.VSChartAggregateRef aggregate(
+      String column, inetsoft.uql.asset.AggregateFormula formula)
+   {
+      inetsoft.uql.viewsheet.graph.VSChartAggregateRef ref =
+         new inetsoft.uql.viewsheet.graph.VSChartAggregateRef();
+      inetsoft.uql.asset.ColumnRef col =
+         new inetsoft.uql.asset.ColumnRef(new inetsoft.uql.erm.AttributeRef(column));
+      col.setDataType(inetsoft.uql.schema.XSchema.DOUBLE);
+      ref.setDataRef(col);
+      ref.setFormula(formula);
+      return ref;
+   }
+
+   /** Bug #81591: a candle draws a price axis from open/high/low/close with an empty y shelf. */
+   @Test
+   void candleAxisLabelsDefaultToThePriceFieldsAndItsTitleIsAccepted() throws Exception {
+      inetsoft.uql.viewsheet.graph.CandleVSChartInfo info =
+         new inetsoft.uql.viewsheet.graph.CandleVSChartInfo();
+      info.setHighField(aggregate("High", inetsoft.uql.asset.AggregateFormula.MAX));
+      info.setLowField(aggregate("Low", inetsoft.uql.asset.AggregateFormula.MIN));
+
+      FormatVSObjectEvent labels = write(request("axis_labels", "y", null, null), rvsFor(info));
+      assertArrayEquals(new String[]{ ChartFormatConstants.LEFT_Y_AXIS }, labels.getRegions());
+      assertArrayEquals(new String[]{ "Max(High)" }, labels.getColumnNames()[0]);
+      assertArrayEquals(new String[]{ "y_title" },
+                        write(request("axis_title", "y", null, null), rvsFor(info)).getRegions());
+   }
+
+   /** Bug #81591: a Gantt draws a time axis from start/end with an empty x shelf. */
+   @Test
+   void ganttAxisLabelsDefaultToTheStartFieldAndItsTitleIsAccepted() throws Exception {
+      inetsoft.uql.viewsheet.graph.GanttVSChartInfo info =
+         new inetsoft.uql.viewsheet.graph.GanttVSChartInfo();
+      info.setStartField(aggregate("Start", inetsoft.uql.asset.AggregateFormula.NONE));
+      info.setEndField(aggregate("End", inetsoft.uql.asset.AggregateFormula.NONE));
+
+      FormatVSObjectEvent labels = write(request("axis_labels", "x", null, null), rvsFor(info));
+      assertArrayEquals(new String[]{ ChartFormatConstants.BOTTOM_X_AXIS }, labels.getRegions());
+      assertEquals(1, labels.getColumnNames()[0].length);
+      assertTrue(labels.getColumnNames()[0][0].contains("Start"), labels.getColumnNames()[0][0]);
+      assertArrayEquals(new String[]{ "x_title" },
+                        write(request("axis_title", "x", null, null), rvsFor(info)).getRegions());
+   }
+
+   /** Control: a candle with no bound price fields still has no y axis to format. */
+   @Test
+   void unboundCandleStillRefusesAxisLabels() {
+      inetsoft.uql.viewsheet.graph.CandleVSChartInfo info =
+         new inetsoft.uql.viewsheet.graph.CandleVSChartInfo();
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> write(request("axis_labels", "y", null, null), rvsFor(info)));
+      assertTrue(e.getMessage().contains("has no field on the y axis"), e.getMessage());
+   }
 }
