@@ -2044,10 +2044,23 @@ class PropertyAliasesTest {
                       PropertyAliases.resolveForWrite("selectionlist", field));
       }
 
+      assertEquals(treeMeasure + "measure",
+                   PropertyAliases.resolveForWrite("selectiontree", "measure"));
+      assertEquals(listMeasure + "measure",
+                   PropertyAliases.resolveForWrite("selectionlist", "measure"));
       assertEquals("calendarGeneralPaneModel.sizePositionPaneModel.titleHeight",
                    PropertyAliases.resolveForWrite("calendar", "titleHeight"));
       assertEquals("selectionContainerGeneralPaneModel.sizePositionPaneModel.titleHeight",
                    PropertyAliases.resolveForWrite("selectioncontainer", "titleHeight"));
+   }
+
+   /** Bug #81544: the Composer captions of the two Selection General pane checkboxes. */
+   @Test
+   void selectionGeneralCheckboxesCarryTheirComposerCaptions() {
+      assertEquals("Allow toggle between single and multi-selection",
+                   PropertyAliases.labelFor("quickSwitchAllowed"));
+      assertEquals("Select First Item on Dashboard Load",
+                   PropertyAliases.labelFor("selectFirstItem"));
    }
 
    /** titleHeight is only offered where it is applied, not on every sizePosition type. */
