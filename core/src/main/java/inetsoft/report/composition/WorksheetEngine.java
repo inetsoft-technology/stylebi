@@ -1402,7 +1402,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       }
    }
 
-   private static final class OpenWorksheetTask implements AffinityCallable<String> {
+   private static final class OpenWorksheetTask implements AffinityCallable<OpenSheetResult> {
       public OpenWorksheetTask(AssetEntry entry, Principal user, String id) {
          this.entry = entry;
          this.user = user;
@@ -1410,12 +1410,15 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       }
 
       @Override
-      public String call() throws Exception {
+      public OpenSheetResult call() throws Exception {
          WorksheetEngine engine = (WorksheetEngine) WorksheetEngine.getWorksheetService();
          proxyContext.preprocess();
 
          try {
-            return engine.openSheet(entry, user, id);
+            // postprocess() clears the user messages (e.g. the asset locked warning) of this
+            // thread, and an affinity call returns only the value of the task, so return the
+            // messages with the id for the request node to show
+            return OpenSheetResult.collect(engine.openSheet(entry, user, id));
          }
          finally {
             proxyContext.postprocess();
@@ -1430,7 +1433,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
          }
          else {
             OpenWorksheetTask task = new OpenWorksheetTask(entry, user, id);
-            return engine.affinityCall(id, task);
+            return engine.affinityCall(id, task).applyMessages();
          }
       }
 
