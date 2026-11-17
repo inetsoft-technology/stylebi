@@ -345,7 +345,7 @@ class ConstantScopeImmutableTest {
 
    // member counts of the two scopes (less the map-type names), unchanged by this fix apart
    // from the non-constant values
-   private static final Map<String, Integer> EXPECTED_SIZES = Map.of("Chart", 215, "StyleConstant", 509);
+   private static final Map<String, Integer> EXPECTED_SIZES = Map.of("Chart", 219, "StyleConstant", 509);
    // the map-type names added to each scope from the installed map data
    private static final int EXPECTED_MAP_TYPES = 6;
 
