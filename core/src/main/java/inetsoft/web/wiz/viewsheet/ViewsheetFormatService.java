@@ -3291,7 +3291,7 @@ public class ViewsheetFormatService {
       // (DefaultTableDataDescriptor) never emits those reused types -- only HEADER, DETAIL and
       // TRAILER -- so the original type-only check is kept for it unchanged.
       String measureKey = hasField && isCrosstab ?
-         resolveCrosstabMeasureKey(lens, field, name) : null;
+         resolveCrosstabMeasureKey(lens, field, name, assembly.getFormatInfo()) : null;
       Integer resolvedCol = hasField && !isCrosstab ? resolveColumnIndex(lens, field, name) : null;
 
       for(int row = 0; row < MAX_DATA_REGION_ROWS && lens.moreRows(row); row++) {
@@ -3402,7 +3402,7 @@ public class ViewsheetFormatService {
       }
 
       TableDataDescriptor desc = lens.getDescriptor();
-      String measureKey = resolveCrosstabMeasureKey(lens, field, name);
+      String measureKey = resolveCrosstabMeasureKey(lens, field, name, assembly.getFormatInfo());
       int colCount = lens.getColCount();
 
       for(int row = 0; row < MAX_DATA_REGION_ROWS && lens.moreRows(row); row++) {
@@ -3624,7 +3624,7 @@ public class ViewsheetFormatService {
       // header, never both, never neither.
       boolean isCrosstab = assembly instanceof CrosstabVSAssembly;
       String measureKey = hasField && isCrosstab ?
-         resolveCrosstabMeasureKey(lens, field, name) : null;
+         resolveCrosstabMeasureKey(lens, field, name, assembly.getFormatInfo()) : null;
       Integer resolvedCol = hasField && !isCrosstab ? resolveColumnIndex(lens, field, name) : null;
 
       // Same defensive row cap as computeDataRegionPaths -- see its own comment.
@@ -3686,7 +3686,7 @@ public class ViewsheetFormatService {
     * @throws IllegalArgumentException if {@code field} matches no aggregate, or more than one
     */
    private static String resolveCrosstabMeasureKey(VSTableLens lens, String field,
-                                                   String assemblyName)
+                                                   String assemblyName, FormatInfo formatInfo)
    {
       TableDataDescriptor desc = lens.getDescriptor();
       int colCount = lens.getColCount();
@@ -3705,17 +3705,36 @@ public class ViewsheetFormatService {
             if(isMeasureBodyType(path.getType()) && isBodyCell(lens, row, col)) {
                labels.computeIfAbsent(key, k -> new LinkedHashSet<>()).add(key);
             }
-            else if(path.getType() == TableDataPath.HEADER) {
+            else if(path.getType() == TableDataPath.HEADER ||
+               path.getType() == TableDataPath.GROUP_HEADER)
+            {
                headerCells.add(new int[]{ row, col });
             }
          }
       }
 
       for(int[] cell : headerCells) {
-         Set<String> keyLabels = labels.get(lastPathElement(desc.getCellDataPath(cell[0], cell[1])));
-         Object val = lens.getObject(cell[0], cell[1]);
+         TableDataPath path = desc.getCellDataPath(cell[0], cell[1]);
+         Set<String> keyLabels = labels.get(lastPathElement(path));
 
-         if(keyLabels != null && val != null) {
+         if(keyLabels == null) {
+            continue;
+         }
+
+         // Bug #81582: a header rename (set_column_labels / the Composer's own rename) is a
+         // MESSAGE_FORMAT override applied only when the cell is formatted for display;
+         // lens.getObject still returns the raw header, so the label shown on screen has to be
+         // read from the assembly's FormatInfo.
+         String alias = readHeaderAlias(formatInfo, path);
+
+         if(alias != null && !alias.isEmpty()) {
+            keyLabels.add(alias);
+         }
+
+         Object val = path.getType() == TableDataPath.HEADER ?
+            lens.getObject(cell[0], cell[1]) : null;
+
+         if(val != null) {
             keyLabels.add(val.toString());
          }
       }
@@ -3747,7 +3766,7 @@ public class ViewsheetFormatService {
             "'" + field + "' is not an aggregate on Crosstab '" + assemblyName + "' right now; " +
             "on a Crosstab 'field' names one measure. " + (labels.isEmpty() ?
             "No aggregates are currently rendered." :
-            "Available: " + String.join(", ", labels.keySet()) + "."));
+            "Available: " + availableMeasures(labels) + "."));
       }
 
       if(matches.size() > 1) {
@@ -3758,6 +3777,31 @@ public class ViewsheetFormatService {
       }
 
       return matches.get(0);
+   }
+
+   /** The measure keys, each followed by its renamed labels, e.g. {@code Revenue (Sum(Amt))}. */
+   private static String availableMeasures(Map<String, Set<String>> labels) {
+      List<String> out = new ArrayList<>();
+
+      for(Map.Entry<String, Set<String>> entry : labels.entrySet()) {
+         List<String> renamed = new ArrayList<>(entry.getValue());
+         renamed.remove(entry.getKey());
+         out.add(renamed.isEmpty() ? entry.getKey() :
+                 String.join(" / ", renamed) + " (" + entry.getKey() + ")");
+      }
+
+      return String.join(", ", out);
+   }
+
+   private static String readHeaderAlias(FormatInfo formatInfo, TableDataPath path) {
+      VSCompositeFormat format = formatInfo == null ? null : formatInfo.getFormat(path);
+      VSFormat ufmt = format == null ? null : format.getUserDefinedFormat();
+
+      if(ufmt == null || !VSFormat.MESSAGE_FORMAT.equals(ufmt.getFormatValue())) {
+         return null;
+      }
+
+      return ufmt.getFormatExtentValue();
    }
 
    /**
