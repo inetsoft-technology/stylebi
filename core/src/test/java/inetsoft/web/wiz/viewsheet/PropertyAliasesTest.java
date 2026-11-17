@@ -2944,4 +2944,16 @@ class PropertyAliasesTest {
       assertTrue(PropertyAliases.resolveForWrite("image", "staticImage")
          .endsWith(".imagePreviewPaneModel.selectedImage"));
    }
+
+   /**
+    * Bug #81553: the range slider's Advanced > Options size fields are captioned "Slider Size",
+    * "Minimum Increment" and "Maximum Increment" in the Composer, but their aliases (length,
+    * rangeSize, maxRangeSize) read like a pixel length / a size. labelFor must carry the captions.
+    */
+   @Test
+   void rangeSliderSizeFieldsHaveTheComposerUiLabels() {
+      assertEquals("Slider Size", PropertyAliases.labelFor("length"));
+      assertEquals("Minimum Increment", PropertyAliases.labelFor("rangeSize"));
+      assertEquals("Maximum Increment", PropertyAliases.labelFor("maxRangeSize"));
+   }
 }
