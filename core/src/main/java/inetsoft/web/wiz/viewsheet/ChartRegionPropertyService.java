@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.GanttChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.RadarChartInfo;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -800,17 +801,23 @@ public class ChartRegionPropertyService {
          if(blank) {
             ChartRef[] refs = axisCandidates(info, ChartRegionResolver.canonical(axisTarget));
 
-            // The labels were moved to the opposite side (labelOnSecondaryAxis in a facet or a
-            // date comparison), so the axis is not hidden, only no longer laid out here (bug
-            // #80354). Name the one measure so the handler never indexes the empty area. Only a
-            // single measure: with several, which one a blank field means is the area order.
-            if(refs.length == 1 && refs[0] instanceof ChartAggregateRef) {
+            // An empty area is not necessarily a hidden axis: a polar chart (radar) draws its
+            // axes without a left-Y area, and labelOnSecondaryAxis (facet, date comparison) moves
+            // the labels to the opposite side (bugs #80354, #81504). Judge it by the first
+            // measure's own descriptor and name that measure so the handler never indexes the
+            // empty area. With several measures a blank field is ambiguous on a radar (rejected
+            // by requireUnambiguousAxis) and otherwise the area order decides, so only a single
+            // measure, or a radar, is resolved here.
+            if(refs.length > 0 && refs[0] instanceof ChartAggregateRef &&
+               (refs.length == 1 || info instanceof RadarChartInfo))
+            {
                AxisDescriptor desc = regionHandler.getAxisDescriptor(
                   info, refs[0].getFullName(), axisType(axisTarget), new AtomicBoolean());
-               boolean shown = max ? desc.isMaxModeLabelVisible() || desc.isMaxModeLineVisible()
-                  : desc.isLabelVisible() || desc.isLineVisible();
+               boolean shown = desc != null && (max
+                  ? desc.isMaxModeLabelVisible() || desc.isMaxModeLineVisible()
+                  : desc.isLabelVisible() || desc.isLineVisible());
 
-               if(desc.isLabelOnSecondaryAxis() && shown) {
+               if(shown && (info instanceof RadarChartInfo || desc.isLabelOnSecondaryAxis())) {
                   return new String[] { null, refs[0].getFullName() };
                }
             }
@@ -863,7 +870,9 @@ public class ChartRegionPropertyService {
 
          // A discrete measure has its own per-ref descriptor, so it does not share one with the
          // other measures and cannot take part in the all-measure exemption.
-         if(refs.length < 2 || Arrays.stream(refs).allMatch(
+         // A radar gives every measure its own descriptor (ChartRegionHandler.getAxisDescriptor),
+         // so several measures are ambiguous there too.
+         if(refs.length < 2 || !(info instanceof RadarChartInfo) && Arrays.stream(refs).allMatch(
                r -> r instanceof ChartAggregateRef a && !a.isDiscrete()))
          {
             return List.<String>of();

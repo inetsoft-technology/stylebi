@@ -355,7 +355,48 @@ class ChartRegionPropertyServiceHiddenAxisTest {
    }
 
 
-   private enum Mode { PLAIN, Y2, X2, FACET }
+   // ── bug #81504: a polar chart's y axis has no laid-out area, which is not "hidden" ──
+
+   @Test
+   void singleMeasureRadarYWithoutFieldReadsAndWrites() throws Exception {
+      Chart c = chart(Mode.RADAR);
+      assertNotNull(c.service.list("tok", principal(), CHART, "axis", "y", null));
+
+      c.service.set("tok", principal(), CHART, "axis", "y", null,
+                    Map.of("showAxisLine", false), "");
+      assertFalse(c.agg.getAxisDescriptor().isLineVisible());
+   }
+
+   @Test
+   void multiMeasureRadarYWithoutFieldAsksForFieldNotHidden() throws Exception {
+      Chart c = chart(Mode.RADAR2);
+
+      for(Exception e : new Exception[] {
+         assertThrows(IllegalArgumentException.class,
+            () -> c.service.list("tok", principal(), CHART, "axis", "y", null)),
+         assertThrows(IllegalArgumentException.class,
+            () -> c.service.set("tok", principal(), CHART, "axis", "y", null,
+                                Map.of("showAxisLine", false), ""))})
+      {
+         String m = String.valueOf(e.getMessage());
+         assertFalse(m.contains("hidden"), m);
+         assertTrue(m.contains("field"), m);
+         assertTrue(m.contains(c.agg.getFullName()) && m.contains(c.agg2.getFullName()), m);
+      }
+
+      assertNotNull(c.service.list("tok", principal(), CHART, "axis", "y", c.agg.getFullName()));
+   }
+
+   @Test
+   void hiddenRadarYWithoutFieldIsStillRefusedAsHidden() throws Exception {
+      Chart c = chart(Mode.RADAR);
+      hide(c.agg.getAxisDescriptor(), c);
+
+      assertRefusal(assertThrows(IllegalArgumentException.class,
+         () -> c.service.list("tok", principal(), CHART, "axis", "y", null)), "y");
+   }
+
+   private enum Mode { PLAIN, Y2, X2, FACET, RADAR, RADAR2 }
 
    // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -414,14 +455,31 @@ class ChartRegionPropertyServiceHiddenAxisTest {
       agg.setFormulaValue("Sum");
       VSChartAggregateRef agg2 = null;
 
-      if(mode != Mode.PLAIN) {
+      if(mode == Mode.RADAR || mode == Mode.RADAR2) {
+         RadarVSChartInfo radar = new RadarVSChartInfo();
+         radar.setChartType(GraphTypes.CHART_RADAR);
+         chart.setVSChartInfo(radar);
+         info = radar;
+      }
+
+      if(mode != Mode.PLAIN && mode != Mode.RADAR) {
          agg2 = new VSChartAggregateRef();
          agg2.setColumnValue("temp");
          agg2.setFormulaValue("Sum");
          agg2.setSecondaryY(true);
       }
 
-      if(mode == Mode.X2) {
+      if(mode == Mode.RADAR || mode == Mode.RADAR2) {
+         info.addGroupField(dim);
+
+         info.addYField(agg);
+
+         if(agg2 != null) {
+            agg2.setSecondaryY(false);
+            info.addYField(agg2);
+         }
+      }
+      else if(mode == Mode.X2) {
          // measures on x, the dimension on y: the secondary axis lands on top
          info.addYField(dim);
          info.addXField(agg);
