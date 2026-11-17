@@ -305,15 +305,15 @@ public class SheetPairingController {
    /**
     * Payload for the STOMP rebind.
     *
-    * @param runtimeId the sheet this page has paired
-    * @param sheetType the runtime's type
+    * @param runtimeId the runtime the sending page shows
     */
-   public record RebindRequest(String runtimeId, SheetType sheetType) {}
+   public record RebindRequest(String runtimeId) {}
 
    /**
-    * STOMP rebind -- sent by a page that has paired a sheet, right after its websocket
-    * reconnected under a new session id, so the sheet's agent pushes reach the new session
-    * instead of the one that no longer exists. Fire-and-forget like {@link #detachViaSocket}:
+    * STOMP rebind -- sent by a page right after its websocket reconnected under a new session id,
+    * so the agent pushes of a sheet paired to it reach the new session instead of the one that no
+    * longer exists. Sent for every runtime the page shows, paired or not; nothing happens unless
+    * the user has an agent attached to it. Fire-and-forget like {@link #detachViaSocket}:
     * nothing to report back. The session id and user name come from the accessor, never from the
     * payload; see {@link SheetJoinService#rebindSocket} for what is checked.
     *
@@ -323,11 +323,11 @@ public class SheetPairingController {
    public void rebindViaSocket(@Payload RebindRequest req, Principal user,
                                SimpMessageHeaderAccessor accessor)
    {
-      if(req == null || req.runtimeId() == null || req.sheetType() == null) {
+      if(req == null || req.runtimeId() == null) {
          return;
       }
 
-      joinService.rebindSocket(req.sheetType(), req.runtimeId(), user, accessor.getSessionId(),
+      joinService.rebindSocket(req.runtimeId(), user, accessor.getSessionId(),
                                destinationUserName(user));
    }
 

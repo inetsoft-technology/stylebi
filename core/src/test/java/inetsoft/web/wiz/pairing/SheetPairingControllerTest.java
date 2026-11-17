@@ -366,7 +366,7 @@ class SheetPairingControllerTest {
                    c.handlePairingException(ex).getStatusCode());
    }
 
-   /** The new session id is the STOMP accessor's; the payload names only the sheet. */
+   /** The new session id is the STOMP accessor's; the payload names only the runtime. */
    @Test
    void rebindTakesTheSocketSessionFromTheAccessorNotThePayload() {
       SheetJoinService joinService = mock(SheetJoinService.class);
@@ -377,15 +377,14 @@ class SheetPairingControllerTest {
       SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
       accessor.setSessionId("stomp-new");
 
-      c.rebindViaSocket(new SheetPairingController.RebindRequest("Viewsheet/foo-7", SheetType.VIEWSHEET),
-                        browser, accessor);
+      c.rebindViaSocket(new SheetPairingController.RebindRequest("Viewsheet/foo-7"), browser,
+                        accessor);
 
-      verify(joinService).rebindSocket(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(browser),
-                                       eq("stomp-new"), any());
+      verify(joinService).rebindSocket(eq("Viewsheet/foo-7"), eq(browser), eq("stomp-new"), any());
    }
 
    @Test
-   void rebindWithoutARuntimeOrTypeDoesNothing() {
+   void rebindWithoutARuntimeDoesNothing() {
       SheetJoinService joinService = mock(SheetJoinService.class);
       SheetPairingController c = new SheetPairingController(
          new SheetPairingService(), new SheetSessionService(), mock(SheetAgentFeature.class),
@@ -395,10 +394,7 @@ class SheetPairingControllerTest {
       accessor.setSessionId("stomp-new");
 
       c.rebindViaSocket(null, browser, accessor);
-      c.rebindViaSocket(new SheetPairingController.RebindRequest(null, SheetType.VIEWSHEET),
-                        browser, accessor);
-      c.rebindViaSocket(new SheetPairingController.RebindRequest("Viewsheet/foo-7", null),
-                        browser, accessor);
+      c.rebindViaSocket(new SheetPairingController.RebindRequest(null), browser, accessor);
 
       verifyNoInteractions(joinService);
    }

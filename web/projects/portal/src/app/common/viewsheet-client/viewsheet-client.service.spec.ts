@@ -386,26 +386,82 @@ describe("ViewsheetClientService deferred close", () => {
       expect(connection.sentTo(CLOSE).length).toBe(0);
    });
 
-   it("reports a successful reconnect (a null error) through reconnected(), with the connection", () => {
-      const reconnected = vi.fn();
-      service.reconnected().subscribe(reconnected);
-      const conn = new FakeConnection();
-      connectWith(conn);
+   describe("pairing rebind after a reconnect", () => {
+      const REBIND = "/events/wiz/pairing/rebind";
 
-      reconnectError$.next(null);
+      function newClient(): { client: ViewsheetClientService, conn: FakeConnection,
+                              reconnectError$: Subject<string> } {
+         const connect = new Subject<any>();
+         const reconnectError = new Subject<string>();
+         const client = new ViewsheetClientService(
+            {connect: vi.fn().mockReturnValue(connect),
+             whenDisconnected: vi.fn().mockReturnValue(new Subject<void>()),
+             reconnectError: vi.fn().mockReturnValue(reconnectError)} as any, makeZone());
+         const conn = new FakeConnection();
+         client.connect(true);
+         connect.next(conn);
+         return {client, conn, reconnectError$: reconnectError};
+      }
 
-      expect(reconnected).toHaveBeenCalledTimes(1);
-      expect(reconnected).toHaveBeenCalledWith(conn);
-   });
+      it("tells the server which runtime this client shows once the socket reconnects", () => {
+         const conn = new FakeConnection();
+         connectWith(conn);
+         service.runtimeId = RID;
 
-   it("does not report a failed reconnect attempt through reconnected()", () => {
-      const reconnected = vi.fn();
-      service.reconnected().subscribe(reconnected);
-      connectWith(new FakeConnection());
+         reconnectError$.next(null);
 
-      reconnectError$.next("failed");
+         expect(conn.sentTo(REBIND).map((m) => JSON.parse(m.body))).toEqual([{runtimeId: RID}]);
+      });
 
-      expect(reconnected).not.toHaveBeenCalled();
+      it("sends one rebind per reconnect", () => {
+         const conn = new FakeConnection();
+         connectWith(conn);
+         service.runtimeId = RID;
+
+         reconnectError$.next(null);
+         reconnectError$.next(null);
+
+         expect(conn.sentTo(REBIND).length).toBe(2);
+      });
+
+      it("sends nothing for a failed reconnect attempt", () => {
+         const conn = new FakeConnection();
+         connectWith(conn);
+         service.runtimeId = RID;
+
+         reconnectError$.next("failed");
+
+         expect(conn.sentTo(REBIND).length).toBe(0);
+      });
+
+      it("sends nothing before the runtime id is known", () => {
+         const conn = new FakeConnection();
+         connectWith(conn);
+
+         reconnectError$.next(null);
+
+         expect(conn.sentTo(REBIND).length).toBe(0);
+      });
+
+      // the Design tab and the Preview (viewer-app) each own a client with its own websocket; the
+      // Preview's reconnect must rebind the Preview runtime and nothing else
+      it("each client rebinds only its own runtime, whatever the toolbar shows", () => {
+         const design = newClient();
+         const preview = newClient();
+         design.client.runtimeId = "Viewsheet/design-1";
+         preview.client.runtimeId = "__PREVIEW_VIEWSHEET__design-1";
+
+         preview.reconnectError$.next(null);
+
+         expect(design.conn.sentTo(REBIND).length).toBe(0);
+         expect(preview.conn.sentTo(REBIND).map((m) => JSON.parse(m.body)))
+            .toEqual([{runtimeId: "__PREVIEW_VIEWSHEET__design-1"}]);
+
+         design.reconnectError$.next(null);
+
+         expect(design.conn.sentTo(REBIND).map((m) => JSON.parse(m.body)))
+            .toEqual([{runtimeId: "Viewsheet/design-1"}]);
+      });
    });
 
    it("closes immediately, as before, when the runtime id is already known", () => {

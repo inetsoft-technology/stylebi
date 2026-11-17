@@ -27,7 +27,6 @@ describe("ConnectToClaudeComponent", () => {
    let mockSocketConnection: any;
    let mockStompConnection: { subscribe: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn> };
    let mockConnectionErrorSubject: Subject<string>;
-   let mockReconnectedSubject: Subject<any>;
 
    beforeEach(waitForAsync(() => {
       mockStompConnection = {
@@ -36,12 +35,10 @@ describe("ConnectToClaudeComponent", () => {
       };
 
       mockConnectionErrorSubject = new Subject<string>();
-      mockReconnectedSubject = new Subject<any>();
 
       mockSocketConnection = {
          whenConnected: vi.fn(() => of(mockStompConnection)),
-         connectionError: vi.fn(() => mockConnectionErrorSubject.asObservable()),
-         reconnected: vi.fn(() => mockReconnectedSubject.asObservable())
+         connectionError: vi.fn(() => mockConnectionErrorSubject.asObservable())
       };
 
       // Default: subscribe returns a Subscription-like object
@@ -1218,66 +1215,6 @@ describe("ConnectToClaudeComponent", () => {
       it("falls back to the one-shot connected when no sheet state is passed", () => {
          component.connected = true;
          expect(component.isConnected).toBe(true);
-      });
-   });
-
-   describe("rebind after a websocket reconnect", () => {
-      const REBIND = "/events/wiz/pairing/rebind";
-      const rebindCalls = () =>
-         mockStompConnection.send.mock.calls.filter((c: any[]) => c[0] === REBIND);
-
-      function mintCode(): void {
-         let handler: ((msg: any) => void) | null = null;
-         mockStompConnection.subscribe.mockImplementation(
-            (dest: string, h: (msg: any) => void) => {
-               if(dest === "/user/commands/wiz/pairing/mint") {
-                  handler = h;
-               }
-
-               return { unsubscribe: vi.fn() };
-            });
-         component.requestCode();
-         handler!({ frame: { body: JSON.stringify({ code: "ABC123" }) } });
-      }
-
-      it("sends the rebind for the sheet this page paired once the socket reconnects", () => {
-         mintCode();
-         mockReconnectedSubject.next(mockStompConnection);
-
-         expect(rebindCalls()).toEqual([
-            [REBIND, {}, JSON.stringify({ runtimeId: "rt-1", sheetType: "WORKSHEET" })]
-         ]);
-      });
-
-      it("sends one rebind per reconnect", () => {
-         mintCode();
-         mockReconnectedSubject.next(mockStompConnection);
-         mockReconnectedSubject.next(mockStompConnection);
-
-         expect(rebindCalls().length).toBe(2);
-      });
-
-      it("sends nothing when this page never minted a code", () => {
-         mockReconnectedSubject.next(mockStompConnection);
-
-         expect(rebindCalls()).toEqual([]);
-      });
-
-      it("sends nothing from a pane-scoped instance", () => {
-         component.editorContext =
-            { kind: "onClick", assembly: "Chart1", name: null, table: null } as any;
-         mintCode();
-         mockReconnectedSubject.next(mockStompConnection);
-
-         expect(rebindCalls()).toEqual([]);
-      });
-
-      it("stops listening once destroyed", () => {
-         mintCode();
-         component.ngOnDestroy();
-         mockReconnectedSubject.next(mockStompConnection);
-
-         expect(rebindCalls()).toEqual([]);
       });
    });
 });

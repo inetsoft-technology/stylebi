@@ -418,20 +418,28 @@ public class SheetJoinService {
     * only when {@code browser} is the runtime's own owner; the same logical-identity comparison
     * {@link #join} applies, failing closed on an unowned or unknown runtime. It does nothing
     * unless the browser's user holds a whole-sheet session on the runtime, i.e. an agent is
-    * actually attached to it.
+    * actually attached to it. The runtime's type is not sent: the page only knows its runtime id,
+    * and a runtime id names a worksheet or a viewsheet, never both.
     *
     * @return whether a sheet was re-pointed
     */
-   public boolean rebindSocket(SheetType sheetType, String runtimeId, Principal browser,
-                               String socketSessionId, String socketUserName)
+   public boolean rebindSocket(String runtimeId, Principal browser, String socketSessionId,
+                               String socketUserName)
    {
-      if(!feature.isEnabled() || sheetType == null || runtimeId == null || browser == null ||
-         socketSessionId == null)
-      {
+      if(!feature.isEnabled() || runtimeId == null || browser == null || socketSessionId == null) {
          return false;
       }
 
-      RuntimeSheet runtimeSheet = runtimeAccess.getRuntimeSheetDirect(sheetType, runtimeId);
+      RuntimeSheet runtimeSheet = null;
+
+      for(SheetType sheetType : SheetType.values()) {
+         runtimeSheet = runtimeAccess.getRuntimeSheetDirect(sheetType, runtimeId);
+
+         if(runtimeSheet != null) {
+            break;
+         }
+      }
+
       String browserKey = PairingUtil.identityKey(browser);
 
       if(runtimeSheet == null || browserKey == null ||

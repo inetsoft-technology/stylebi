@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.pairing;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.security.IdentityID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -82,7 +83,7 @@ class SheetRebindSocketTest {
    void rebindsRuntimeAndWholeSheetSession() {
       JoinSession whole = open(ALICE_KEY, null);
 
-      assertTrue(svc.rebindSocket(SheetType.VIEWSHEET, RUNTIME, alice, "sock-new", "dest-new"));
+      assertTrue(svc.rebindSocket(RUNTIME, alice, "sock-new", "dest-new"));
 
       assertEquals("sock-new", socketOf(whole));
       assertEquals("dest-new", sessions.peek(whole.sessionToken(), ALICE_KEY).socketUserName());
@@ -91,11 +92,27 @@ class SheetRebindSocketTest {
    }
 
    @Test
+   void findsAWorksheetRuntimeByItsId() {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getUser()).thenReturn(alice);
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.VIEWSHEET, "Worksheet/foo-8")).thenReturn(null);
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.WORKSHEET, "Worksheet/foo-8")).thenReturn(rws);
+      JoinSession whole = sessions.open("Worksheet/foo-8", ALICE_KEY, SheetType.WORKSHEET,
+                                        "sock-old", "alice-dest", null);
+
+      assertTrue(svc.rebindSocket("Worksheet/foo-8", alice, "sock-new", "dest-new"));
+
+      assertEquals("sock-new", socketOf(whole));
+      verify(rws).setSocketSessionId("sock-new");
+      verify(rvs, never()).setSocketSessionId(anyString());
+   }
+
+   @Test
    void rebindKeepsTheRestOfTheSession() {
       JoinSession whole = open(ALICE_KEY, null);
       sessions.setFollowFocus("sock-old", RUNTIME, true);
 
-      svc.rebindSocket(SheetType.VIEWSHEET, RUNTIME, alice, "sock-new", "dest-new");
+      svc.rebindSocket(RUNTIME, alice, "sock-new", "dest-new");
 
       JoinSession after = sessions.peek(whole.sessionToken(), ALICE_KEY);
       assertTrue(after.followFocusEnabled());
@@ -108,7 +125,7 @@ class SheetRebindSocketTest {
       JoinSession whole = open(ALICE_KEY, null);
       JoinSession pane = open(ALICE_KEY, new EditorContext("viewsheetOnInit", null, null, null));
 
-      svc.rebindSocket(SheetType.VIEWSHEET, RUNTIME, alice, "sock-new", "dest-new");
+      svc.rebindSocket(RUNTIME, alice, "sock-new", "dest-new");
 
       assertEquals("sock-new", socketOf(whole));
       assertEquals("sock-old", socketOf(pane));
@@ -123,7 +140,7 @@ class SheetRebindSocketTest {
    void onlyPaneScopedSession() {
       open(ALICE_KEY, new EditorContext("viewsheetOnInit", null, null, null));
 
-      assertFalse(svc.rebindSocket(SheetType.VIEWSHEET, RUNTIME, alice, "sock-new", "dest-new"));
+      assertFalse(svc.rebindSocket(RUNTIME, alice, "sock-new", "dest-new"));
 
       verify(rvs, never()).setSocketSessionId(anyString());
    }
@@ -132,7 +149,7 @@ class SheetRebindSocketTest {
    void nonOwnerIsRefused() {
       JoinSession whole = open(ALICE_KEY, null);
 
-      assertFalse(svc.rebindSocket(SheetType.VIEWSHEET, RUNTIME, bob, "sock-bob", "dest-bob"));
+      assertFalse(svc.rebindSocket(RUNTIME, bob, "sock-bob", "dest-bob"));
 
       assertEquals("sock-old", socketOf(whole));
       verify(rvs, never()).setSocketSessionId(anyString());
@@ -144,7 +161,7 @@ class SheetRebindSocketTest {
       JoinSession alices = open(ALICE_KEY, null);
       JoinSession bobs = open(BOB_KEY, null);
 
-      assertTrue(svc.rebindSocket(SheetType.VIEWSHEET, RUNTIME, alice, "sock-new", "dest-new"));
+      assertTrue(svc.rebindSocket(RUNTIME, alice, "sock-new", "dest-new"));
 
       assertEquals("sock-new", socketOf(alices));
       assertEquals("sock-old", socketOf(bobs));
@@ -155,7 +172,7 @@ class SheetRebindSocketTest {
       when(runtimeAccess.getRuntimeSheetDirect(any(), anyString())).thenReturn(null);
       JoinSession whole = open(ALICE_KEY, null);
 
-      assertFalse(svc.rebindSocket(SheetType.VIEWSHEET, RUNTIME, alice, "sock-new", "dest-new"));
+      assertFalse(svc.rebindSocket(RUNTIME, alice, "sock-new", "dest-new"));
 
       assertEquals("sock-old", socketOf(whole));
    }
@@ -165,7 +182,7 @@ class SheetRebindSocketTest {
       when(rvs.getUser()).thenReturn(null);
       JoinSession whole = open(ALICE_KEY, null);
 
-      assertFalse(svc.rebindSocket(SheetType.VIEWSHEET, RUNTIME, alice, "sock-new", "dest-new"));
+      assertFalse(svc.rebindSocket(RUNTIME, alice, "sock-new", "dest-new"));
 
       assertEquals("sock-old", socketOf(whole));
    }
@@ -175,7 +192,7 @@ class SheetRebindSocketTest {
       when(feature.isEnabled()).thenReturn(false);
       JoinSession whole = open(ALICE_KEY, null);
 
-      assertFalse(svc.rebindSocket(SheetType.VIEWSHEET, RUNTIME, alice, "sock-new", "dest-new"));
+      assertFalse(svc.rebindSocket(RUNTIME, alice, "sock-new", "dest-new"));
 
       assertEquals("sock-old", socketOf(whole));
       verify(rvs, never()).setSocketSessionId(anyString());

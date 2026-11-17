@@ -161,9 +161,7 @@ async function renderComponentWithSocket(
    // whenConnected() is required by the embedded <script-pane>'s own ConnectToClaudeComponent
    // (rendered once [runtimeId]/[socketConnection] are both set) -- a never-emitting Subject is
    // enough since this file isn't testing pairing/join behavior.
-   const socketConnection: any = {
-      commands, whenConnected: () => new Subject(), reconnected: () => new Subject()
-   };
+   const socketConnection: any = { commands, whenConnected: () => new Subject() };
    const { fixture } = await render(ViewsheetScriptPane, {
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
