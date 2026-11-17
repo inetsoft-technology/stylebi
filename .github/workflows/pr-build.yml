@@ -53,6 +53,12 @@ jobs:
       # while core runs its tests; tests tagged slow, and the lockcycle suite with the pool off,
       # are left to the daily slow-tests.yml
       #
+      # The web tests (vitest) run after the reactor, not beside the core tests (Bug #81520): the
+      # runner has 16 GB, the two core test JVMs and Maven take about 7 GB, and the TL suites take
+      # about 8 GB more (ng 3.9 GB, esbuild 1.8 GB, two workers), so together they reached 14.9 GB
+      # and runners died of memory exhaustion. The reactor still builds web and lints it; only
+      # its tests move. They run even when the reactor failed, as long as web's npm install ran.
+      #
       # A hosted runner that dies mid-build (Bug #81520: the job log and the Build step just stop,
       # and the job sits until the cap) leaves nothing in the log to say why. Every minute print
       # the load, memory, biggest processes and the age of the newest core surefire report (one
@@ -82,7 +88,7 @@ jobs:
               newest=$(find core/target/surefire-reports -name '*.txt' -printf '%T@\n' 2>/dev/null | sort -n | tail -1)
               age=-1
               if [ -n "$newest" ]; then age=$((now - ${newest%.*})); fi
-              echo "[ci-monitor] $(date -u +%T) load=$(cut -d' ' -f1-3 /proc/loadavg) $(free -m | awk '/^Mem:/{print "used_mb="$3" avail_mb="$7}') last_report_age=${age}s top: $(ps -eo rss,comm --sort=-rss | awk 'NR>1 && NR<=5{printf "%s=%dMB ",$2,$1/1024}')"
+              echo "[ci-monitor] $(date -u +%T) load=$(cut -d' ' -f1-3 /proc/loadavg) $(free -m | awk '/^Mem:/{print "used_mb="$3" avail_mb="$7}') last_report_age=${age}s top: $(ps -eo rss,comm --sort=-rss | awk 'NR>1 && NR<=7{printf "%s=%dMB ",$2,$1/1024}')"
               if [ "$age" -gt 300 ] && [ $((now - last_dump)) -gt 600 ]; then
                 last_dump=$now
                 dump_forks "no test class finished for ${age}s"
@@ -98,10 +104,14 @@ jobs:
           ) &
           monitor=$!
           trap 'kill $monitor 2>/dev/null || true' EXIT
-          ./mvnw --batch-mode -T 2 clean install
+          status=0
+          ./mvnw --batch-mode -T 2 clean install -Dng.verify.script=lint || status=$?
+          if [ -d web/node_modules ]; then
+            ./mvnw --batch-mode -o -pl web com.inetsoft.stylebi.build:node-maven-plugin:2.1.0-SNAPSHOT:npm -Dfrontend.npm.arguments="run test" || status=$?
+          fi
+          exit $status
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Bug #81520: the runner has 16 GB and the Maven JVM alone reached 3.9 GB (its default
-          # heap cap is a quarter of RAM) while the two 2 GB test forks and the web test run
-          # (ng, 3.6 GB and growing) ran beside it; the runner died at 14.9 GB used
+          # Bug #81520: the Maven JVM grows to its default heap cap (a quarter of RAM), 3.9 GB, beside
+          # the two 2 GB core test JVMs; with this cap it stays at about 2.6 GB
           MAVEN_OPTS: -Xmx2g
