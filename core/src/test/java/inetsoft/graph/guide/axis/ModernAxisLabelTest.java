@@ -652,8 +652,9 @@ class ModernAxisLabelTest {
    }
 
    @Test
-   void aReversedLimitedAxisKeepsItsFirstCategory() {
+   void aReversedLimitedAxisStepsFromItsFirstCategory() {
       boolean stepOfTwo = false;
+      int top = -1;
 
       for(int height = 60; height <= 600; height += 5) {
          CategoricalScale xscale = new CategoricalScale("Name");
@@ -662,16 +663,16 @@ class ModernAxisLabelTest {
          List<Integer> idx = topDownIndices(axis);
          String where = "at " + height + " " + topDownTexts(axis);
          int step = idx.size() > 1 ? idx.get(0) - idx.get(1) : 1;
+         // the top shown store, counted from the first store
+         top = Integer.parseInt(text(axis.getLabels()[idx.get(0)]).substring(6)) - 1;
 
-         // in slots much shorter than a line the top labels run past the axis and don't fit
-         if(step <= 2) {
-            assertEquals("Store 01", text(axis.getLabels()[idx.get(0)]), where);
-         }
-
+         // slid inside, the first store is hidden only when it crowds the next one in step
+         assertTrue(top == 0 || top == step, "top " + top + " step " + step + " " + where);
          assertOneStep(axis, where);
          stepOfTwo = stepOfTwo || step == 2;
       }
 
+      assertEquals(0, top, "the first store shows when its slot holds a line");
       assertTrue(stepOfTwo, "premise: a step of 2");
    }
 

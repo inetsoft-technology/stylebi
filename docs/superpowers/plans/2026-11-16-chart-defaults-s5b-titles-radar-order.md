@@ -377,7 +377,7 @@ Run: `./mvnw -q test -pl core "-Dtest=ModernAxisTitleTest" -Dsurefire.failIfNoSp
 - [ ] **Step 1: Write the failing tests** (`ModernAxisLabelTest`, transposed coord, `CategoricalScale` reversed)
   - `aReversedMonthlyAxisPutsTheYearOnTheTopLabel`: Jan 2025 … Dec 2026 with `CompactDates(MONTH, US)`, tall enough not to thin → the top label is "Jan 2025", then "Feb" … "Dec", "Jan 2026".
   - `aReversedAxisMovesTheYearAfterThinning`: the same, short enough to thin → the topmost shown label of each year carries its year.
-  - `aReversedLimitedAxisKeepsItsFirstCategory`: 30 stores, limit 66, thinning to a step of 2 → the top label (the first store) is shown.
+  - `aReversedLimitedAxisStepsFromItsFirstCategory`: 30 stores, limit 66, thinning to a step of 2 → the step runs from the first store at the top; the first store is shown, or (D93) hidden when, slid inside the axis, it crowds the next label in step.
   - `aReversedHourlyAxisCarriesTheDateFromTheTop`: hourly values over two days, abbreviation on, limit 66, reversed → the top label carries its date and the first label of the second day carries its date; the others drop it.
   - `aReversedClassicAxisUnchanged`: no limit, no compact dates → the same shown labels as before the change.
 
