@@ -1234,6 +1234,9 @@ binding-editor {
     // Keyboard focus: Bootstrap's .btn:focus-visible recolours with its hover vars (pale fill, white
     // label) and _layout.scss removes the ring. Use the same teal fill/label as :hover, plus an inset
     // outline in the navbar text colour so the indicator does not depend on the fill/navbar contrast.
+    // The outline is !important because the @inetsoft-technology/ai-assistant bundle (loaded globally
+    // via angular.json scripts) injects an unscoped `button:focus, button:focus-visible
+    // { outline: none !important }` into <head>; only an !important rule beats it.
     &:focus-visible:not(:disabled):not(.disabled) {
       &, span, i {
         color: var(--inet-composer-navbar-hover-text-color);
@@ -1241,7 +1244,7 @@ binding-editor {
 
       color: var(--inet-composer-navbar-hover-text-color);
       background-color: var(--inet-composer-navbar-hover-bg-color);
-      outline: 2px solid var(--inet-composer-navbar-text-color);
+      outline: 2px solid var(--inet-composer-navbar-text-color) !important;
       outline-offset: -2px;
     }
   }
