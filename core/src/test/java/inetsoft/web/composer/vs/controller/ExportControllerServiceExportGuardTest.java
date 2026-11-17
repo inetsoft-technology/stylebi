@@ -21,6 +21,8 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -181,6 +183,66 @@ class ExportControllerServiceExportGuardTest {
       assertNull(rvs.getProperty("__EXPORTING__"));
       assertTrue(rvs.beginExport(), "the claim was not released");
       rvs.endExport();
+   }
+
+   /**
+    * Bug #81183: the runtime overload is the entry of the public API export, which had no
+    * Export toolbar action check. It refuses a denied principal after claiming the export
+    * and releases the claim.
+    */
+   @Test
+   void runtimeExportWithoutExportActionIsRefusedAndReleasesTheClaim() throws Exception {
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      VSExportService exportService = new VSExportService(
+         viewsheetService, coreLifecycleService, mock(ParameterService.class), securityEngine,
+         mock(XSessionService.class), mock(FileSystemService.class));
+      Principal principal = mock(Principal.class);
+      when(principal.getName()).thenReturn("user~;~host-org");
+      when(securityEngine.checkPermission(any(), eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION),
+                                          eq("Export"), eq(ResourceAction.READ)))
+         .thenReturn(false);
+
+      for(int format : new int[] { FileFormatInfo.EXPORT_TYPE_EXCEL, FileFormatInfo.EXPORT_TYPE_CSV,
+                                   FileFormatInfo.EXPORT_TYPE_PNG, FileFormatInfo.EXPORT_TYPE_PDF })
+      {
+         assertThrows(MessageException.class, () -> exportService.exportViewsheet(
+            rvs, format, false, false, true, false, false, new String[0], false,
+            new ExportResponse((OutputStream) null), principal), "format=" + format);
+      }
+
+      verify(coreLifecycleService, never()).refreshViewsheet(
+         any(RuntimeViewsheet.class), nullable(String.class), nullable(String.class),
+         any(CommandDispatcher.class), anyBoolean(), anyBoolean(), anyBoolean(),
+         nullable(ChangedAssemblyList.class));
+      assertNull(rvs.getProperty("__EXPORTING__"));
+      assertTrue(rvs.beginExport(), "the claim was not released");
+      rvs.endExport();
+   }
+
+   @Test
+   void runtimeExportWithExportActionPassesTheGate() throws Exception {
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      VSExportService exportService = new VSExportService(
+         viewsheetService, coreLifecycleService, mock(ParameterService.class), securityEngine,
+         mock(XSessionService.class), mock(FileSystemService.class));
+      when(securityEngine.checkPermission(any(), eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION),
+                                          eq("Export"), eq(ResourceAction.READ)))
+         .thenReturn(true);
+
+      try {
+         exportService.exportViewsheet(
+            rvs, FileFormatInfo.EXPORT_TYPE_EXCEL, false, false, true, false, false,
+            new String[0], false, new ExportResponse((OutputStream) null), null);
+      }
+      catch(Exception ignore) {
+         // the export itself is not set up here; only that the gate was passed matters
+      }
+
+      // the check after the Export gate was reached
+      verify(securityEngine).checkPermission(
+         any(), eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("ExportExpandComponents"),
+         eq(ResourceAction.READ));
+      assertNull(rvs.getProperty("__EXPORTING__"));
    }
 
    private void export() throws Exception {
