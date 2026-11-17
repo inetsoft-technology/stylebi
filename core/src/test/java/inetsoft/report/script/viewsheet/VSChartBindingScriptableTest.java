@@ -532,7 +532,7 @@ public class VSChartBindingScriptableTest {
       //test setTopNReverse on other fields
       vsChartBindingScriptable.setPathField(new Object[] { "city", ChartConstants.STRING });
       vsChartBindingScriptable.setTopNReverse("city", true, 0);
-      assertFalse(vsChartBindingScriptable.isTopNReverse("city", 0));
+      assertTrue(vsChartBindingScriptable.isTopNReverse("city", 0));
 
       //test setTopNReverse on BINDING_FIELD
       Object[] xField = { "state", ChartConstants.STRING } ;
@@ -605,7 +605,7 @@ public class VSChartBindingScriptableTest {
       //test setGroupOrder on other fields
       vsChartBindingScriptable.setPathField(new Object[] { "date", ChartConstants.DATE });
       vsChartBindingScriptable.setGroupOrder("date", ChartConstants.QUARTER_INTERVAL, 0);
-      assertEquals(ChartConstants.YEAR_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", 0));
+      assertEquals(ChartConstants.QUARTER_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", 0));
 
       //test setGroupOrder on BINDING_FIELD
       Object[] xField = { "date", ChartConstants.DATE } ;
@@ -767,5 +767,34 @@ public class VSChartBindingScriptableTest {
       dim.setDateLevel(4);
 
       assertEquals(3, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+   }
+
+   @Test
+   void topNReverseAnyTypeResolvesLikeBindingField() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+      vsChartBindingScriptable.setXFields(new Object[][] {
+         { "State", ChartConstants.STRING }, { "date", ChartConstants.DATE } });
+      vsChartBindingScriptable.setTopN("State", 3, ChartConstants.BINDING_FIELD);
+      vsChartBindingScriptable.setTopNReverse("State", true, ChartConstants.BINDING_FIELD);
+
+      assertTrue(vsChartBindingScriptable.isTopNReverse("State", ChartConstants.BINDING_FIELD));
+      assertTrue(vsChartBindingScriptable.isTopNReverse("State", 0));
+      assertEquals(3, vsChartBindingScriptable.getTopN("State", 0));
+      assertFalse(vsChartBindingScriptable.isTopNReverse("date", 0));
+      assertFalse(vsChartBindingScriptable.isTopNReverse("MISSING", 0));
+   }
+
+   @Test
+   void groupOrderAnyTypeResolvesLikeBindingField() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+      vsChartBindingScriptable.setXFields(new Object[][] { { "date", ChartConstants.DATE } });
+      vsChartBindingScriptable.setGroupOrder("date", ChartConstants.MONTH_INTERVAL,
+                                             ChartConstants.BINDING_FIELD);
+
+      assertEquals(ChartConstants.MONTH_INTERVAL,
+                   vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+      assertEquals(ChartConstants.MONTH_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", 0));
+      assertEquals(ChartConstants.YEAR_INTERVAL,
+                   vsChartBindingScriptable.getGroupOrder("MISSING", 0));
    }
 }
