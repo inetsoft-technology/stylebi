@@ -101,3 +101,7 @@ jobs:
           ./mvnw --batch-mode -T 2 clean install
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Bug #81520: the runner has 16 GB and the Maven JVM alone reached 3.9 GB (its default
+          # heap cap is a quarter of RAM) while the two 2 GB test forks and the web test run
+          # (ng, 3.6 GB and growing) ran beside it; the runner died at 14.9 GB used
+          MAVEN_OPTS: -Xmx2g
