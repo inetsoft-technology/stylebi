@@ -435,7 +435,8 @@ public class WorksheetAgentController {
 
    /** Condition-dialog parity for the warn-only trap check (Bug #80958). */
    private static final Set<String> CONDITION_TRAP_OPS =
-      Set.of("add_filter", "edit_condition", "set_conditions");
+      Set.of("add_filter", "edit_condition", "edit_condition_expression",
+              "set_conditions");
 
    /**
     * Same as {@link #editOp(String, EditRequest, Principal)}, plus an optional out-param that
@@ -4604,6 +4605,8 @@ public class WorksheetAgentController {
                                  req.values() != null
                                     ? req.values().toArray(new String[0])
                                     : new String[0]);
+         case "edit_condition_expression" ->
+            editor.editConditionExpression(req.table(), req.field(), req.expression());
          case "edit_expression" -> {
             if(req.name() == null || req.name().isBlank()) {
                throw new PairingException("name is required for edit_expression.");

@@ -193,8 +193,9 @@ class WorksheetTrapHook80958Test {
       assertTrue(aggregate.find());
       assertEquals("set_group_aggregate", aggregate.group(1));
       assertTrue(conditions.find());
-      assertEquals("\"add_filter\", \"edit_condition\", \"set_conditions\"",
-                   conditions.group(1).trim());
+      assertEquals("\"add_filter\", \"edit_condition\", \"edit_condition_expression\", " +
+                   "\"set_conditions\"",
+                   conditions.group(1).trim().replaceAll("\\s+", " "));
       assertEquals(1, text.split("WorksheetTrapCheck\\.newTrap\\(", -1).length - 1,
                    "exactly one call site");
    }

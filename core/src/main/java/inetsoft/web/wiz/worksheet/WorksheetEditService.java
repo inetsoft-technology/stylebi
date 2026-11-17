@@ -3089,6 +3089,21 @@ public class WorksheetEditService {
       }
 
       /**
+       * Bug #81556: rewrites the expression text of the Expression value of the existing
+       * condition on {@code field}, keeping its type and operator. See
+       * {@link WorksheetMutationSupport#replaceFilterExpressionValue}.
+       */
+      public void editConditionExpression(String table, String field, String text)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         requireFilterable(t);
+         withSourceFields(t, List.of(field), () -> {
+            WorksheetMutationSupport.replaceFilterExpressionValue(t, field, text);
+         });
+      }
+
+      /**
        * Updates the expression body and type of an existing expression column,
        * or adds it if it does not exist yet.
        *

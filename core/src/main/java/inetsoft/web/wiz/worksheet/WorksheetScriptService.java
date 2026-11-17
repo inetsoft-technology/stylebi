@@ -27,6 +27,7 @@ import inetsoft.uql.HierarchyItem;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.SQLBoundTableAssembly;
 import inetsoft.uql.asset.TableAssembly;
@@ -690,7 +691,10 @@ public class WorksheetScriptService {
 
       requireSingleValueOperator(c, target);
       Object v = c.getValueCount() > 0 ? c.getValue(0) : null;
-      String value = v == null ? "" : String.valueOf(v);
+      // Bug #81556: an Expression value reads back as its own text, what the dialog shows, not the
+      // display string "Expression[Javascript:...]".
+      String value = v == null ? ""
+         : v instanceof ExpressionValue ev ? String.valueOf(ev.getExpression()) : String.valueOf(v);
       return new ScriptInfo(target.toString(), value, true);
    }
 
@@ -1001,8 +1005,23 @@ public class WorksheetScriptService {
 
       requireSingleValueOperator(current, target);
 
+      // Bug #81556: the pane edits an Expression value. Keep it an Expression of the same type
+      // (JavaScript/SQL) instead of storing the text as a literal.
+      boolean expressionValue =
+         current.getValueCount() > 0 && current.getValue(0) instanceof ExpressionValue;
+
+      if(expressionValue &&
+         ExpressionValue.JAVASCRIPT.equals(((ExpressionValue) current.getValue(0)).getType()))
+      {
+         String problem = syntaxProblem(text);
+
+         if(problem != null) {
+            throw new PairingException(problem);
+         }
+      }
+
       return new EditRequest(
-         "edit_condition",         // op
+         expressionValue ? "edit_condition_expression" : "edit_condition",   // op
          table,                     // table
          null,                      // column
          null,                      // name
@@ -1010,9 +1029,9 @@ public class WorksheetScriptService {
          null,                      // newName
          field,                     // field -- the paired column; never caller-supplied
          operatorSymbol(current),   // operation -- preserved from the EXISTING condition
-         List.of(text),             // values -- the only field this pane may change
+         expressionValue ? null : List.of(text), // values -- the only field this pane may change
          null, null, null,          // direction, groups, aggregates
-         null, false,               // expression, sql
+         expressionValue ? text : null, false,   // expression (Expression value text), sql
          null, null, null, null, null,   // leftTable, leftKey, rightTable, rightKey, joinType
          null, null, null, null,         // visible, tables, source, concatType
          null, null, null, null, null,   // conditions, ranking, headerColumns, dateOption, boundaries
