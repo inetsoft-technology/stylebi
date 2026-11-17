@@ -409,15 +409,15 @@ public final class PropertyAliases {
    /**
     * Chart Line tab X/Y grid lines (bug #80397). ChartLinePaneModel.updatePlotXYGird writes the
     * x* values to the plot's Y axis (and vice versa) when the chart is inverted, so the caption
-    * tells the caller which axis each really styles. Added here because {@code Map.of} in
-    * {@link #LABELS} would pass the 10-pair limit.
+    * names the screen lines each draws (x: vertical, y: horizontal), not the rotated plot axis.
+    * Added here because {@code Map.of} in {@link #LABELS} would pass the 10-pair limit.
     */
    private static Map<String, String> withChartGridLabels(Map<String, String> base) {
       Map<String, String> labels = new LinkedHashMap<>(base);
-      labels.put("xGridLineStyle", "X Grid Line Style (the plot's Y axis grid on an inverted chart)");
-      labels.put("xGridLineColor", "X Grid Line Color (the plot's Y axis grid on an inverted chart)");
-      labels.put("yGridLineStyle", "Y Grid Line Style (the plot's X axis grid on an inverted chart)");
-      labels.put("yGridLineColor", "Y Grid Line Color (the plot's X axis grid on an inverted chart)");
+      labels.put("xGridLineStyle", "X Grid Line Style (the vertical grid lines, on any chart orientation)");
+      labels.put("xGridLineColor", "X Grid Line Color (the vertical grid lines, on any chart orientation)");
+      labels.put("yGridLineStyle", "Y Grid Line Style (the horizontal grid lines, on any chart orientation)");
+      labels.put("yGridLineColor", "Y Grid Line Color (the horizontal grid lines, on any chart orientation)");
       // Bug #81419: names that are not the dialog captions.
       labels.put("drillEnabled", "Enable Drilling");
       labels.put("dateComparisonEnabled", "Enable Date Comparison");
