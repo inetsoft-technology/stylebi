@@ -424,6 +424,10 @@ public final class PropertyAliases {
       labels.put("combinedTip", "Combine tooltip (line chart, default tooltip mode)");
       labels.put("staticImage", "Static image (the selected image)");
       labels.put("staticImageAlpha", "Static image alpha (not the popup's alpha)");
+      // Bug #81537: List Values > Query > Edit dialog of the three list inputs.
+      labels.put("valueColumn", "Value column (the column submitted; column is the Label column)");
+      labels.put("applySelectionDisabled",
+                 "Apply Selection is UNCHECKED when true (inverse of the Apply Selection checkbox)");
       return Collections.unmodifiableMap(labels);
    }
 
@@ -1797,6 +1801,15 @@ public final class PropertyAliases {
       String editor = comboBoxEditor + ".selectionListDialogModel.selectionListEditorModel";
       aliases.put("table", editor + ".table");
       aliases.put("column", editor + ".column");
+      // The query's Value column and its Apply Selection checkbox (Redmine #81537), both shown by
+      // the Composer's List Values > Query > Edit dialog and applied by VSInputService for all
+      // three list types. "valueColumn" is the column whose values are submitted ("column", the
+      // Label column, is the one shown); the write path validates it like "column". The model
+      // field is `form`, the inverse of the Apply Selection checkbox
+      // (selection-list-editor.component.ts: localForm = !model.form), so the alias is named for
+      // the field's own sense (true = Apply Selection UNCHECKED), never "applySelection".
+      aliases.put("valueColumn", editor + ".value");
+      aliases.put("applySelectionDisabled", editor + ".form");
 
       return aliases;
    }
