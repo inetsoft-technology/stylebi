@@ -19,16 +19,9 @@
 // Visualization token contract. Legacy-default values; inert until a selector consumes them.
 // Do not wire the chart-color group to marks or in-graph chrome: those are server-rendered
 // (graph engine + format.css + GDefaults) and appear in export, so browser CSS cannot drive them.
-:root {
-  // density — browser-DOM data surfaces only; viewsheet-assembly density is server-side.
-  --inet-viz-row-height: var(--inet-row-height-md);
-  --inet-viz-chrome-row-height: var(--inet-row-height-md);
-  --inet-viz-cell-padding-x: var(--inet-space-4);
-  --inet-viz-cell-padding-y: var(--inet-space-3);
-  --inet-viz-toolbar-height: var(--inet-control-height-md);
-  --inet-viz-control-height: var(--inet-control-height-sm);
-  --inet-viz-font-size: var(--inet-font-size-base);
-
+// Legacy viz state tokens. They derive from shell tokens, so they resolve where they are declared;
+// a mixin so the dark shell can re-declare them on dashboard content (_shell-dark.scss).
+@mixin inet-viz-legacy-state-tokens {
   // state — live-view DOM overlays only; export-visible state is server-rendered via VSFormat.
   --inet-viz-hover-bg: var(--inet-ws-row-hover-bg); // legacy = data-table row-hover hook (gate-off parity)
   --inet-viz-hover-text: inherit; // paired foreground; inherit keeps gate-off/light-modern unchanged
@@ -45,6 +38,19 @@
   --inet-viz-warning-bg: var(--inet-warning-color-light);
   --inet-viz-anomaly-bg: var(--inet-danger-color-light);
   --inet-viz-dimmed-opacity: 0.5;
+}
+
+:root {
+  // density — browser-DOM data surfaces only; viewsheet-assembly density is server-side.
+  --inet-viz-row-height: var(--inet-row-height-md);
+  --inet-viz-chrome-row-height: var(--inet-row-height-md);
+  --inet-viz-cell-padding-x: var(--inet-space-4);
+  --inet-viz-cell-padding-y: var(--inet-space-3);
+  --inet-viz-toolbar-height: var(--inet-control-height-md);
+  --inet-viz-control-height: var(--inet-control-height-sm);
+  --inet-viz-font-size: var(--inet-font-size-base);
+
+  @include inet-viz-legacy-state-tokens;
 
   // customer-overridable modern state colors. Defined on :root so a theme-variables.css :root
   // override wins; consumed only inside the .viz-modern block below, so gate-off is inert.
