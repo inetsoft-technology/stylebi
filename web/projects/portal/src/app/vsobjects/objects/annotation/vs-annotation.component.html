@@ -69,7 +69,8 @@
         <div class="vs-annotation__rectangle-content-padding-box"
           [style.padding.px]="contentPadding"
           [class.vs-annotation__rectangle-content--selected]="selected"
-          [wTooltip]="isOverflowing ? content : ''">
+          [wTooltip]="isOverflowing ? content : ''"
+          [tooltipCSS]="['widget__default-tooltip', 'vs-annotation__tooltip']">
           <div class="vs-annotation__rectangle-content">
             <p class="vs-annotation__rectangle-content-text" #annotationContent
               [innerHtml]="content">
@@ -96,7 +97,8 @@
         [style.left.px]="model.annotationRectangleModel.objectFormat.left">
         <button type="button" class="btn-sm annotition-button" aria-label="Toggle Annotations"
           (click)="toggleAnnotationStatus()"
-          [wTooltip]="content">
+          [wTooltip]="content"
+          [tooltipCSS]="['widget__default-tooltip', 'vs-annotation__tooltip']">
           <span class="annotation-icon" aria-hidden="true"></span>
         </button>
       </div>
