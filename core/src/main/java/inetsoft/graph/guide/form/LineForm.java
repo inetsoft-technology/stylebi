@@ -437,7 +437,7 @@ public class LineForm extends GeomForm {
     * @param points the specified points.
     * @return the new visual object.
     */
-   private Visualizable createVisual(Point2D[] points) {
+   protected Visualizable createVisual(Point2D[] points) {
       LineFormVO line = new LineFormVO(this, points);
 
       line.setZIndex(getZIndex());

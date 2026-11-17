@@ -35,6 +35,9 @@ import java.awt.Insets;
  * saved charts. The label/title text colors seed descriptor default formats.
  */
 public final class VSChartChromeDefaults {
+   /** Bar corner radius of a modern chart, as a fraction of the bar thickness. */
+   public static final double BAR_CORNER_RADIUS = 0.08;
+
    private VSChartChromeDefaults() {
    }
 

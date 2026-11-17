@@ -4890,6 +4890,8 @@ public abstract class GraphGenerator {
          elem.setSizeFrame(sizes);
       }
 
+      applyModernMarkRules(elem, chartType);
+
       // for interval, set a shape with border if the size is max so the bars
       // can still be looked apart
       if(elem instanceof IntervalElement) {
@@ -5154,6 +5156,86 @@ public abstract class GraphGenerator {
       graph.addElement(elem);
    }
 
+   /**
+    * Set the drawing rules the modern mark adds to an element. The graph package has no mark
+    * context, so each rule is a flag on the element that is off for a classic chart.
+    */
+   private void applyModernMarkRules(GraphElement elem, int chartType) {
+      if(!vizContext.modern) {
+         return;
+      }
+
+      if(elem instanceof IntervalElement interval) {
+         interval.setCornerFloor(true);
+         interval.setWidthClamp(isWidthClamped(interval, chartType));
+
+         // a waterfall step and its Total stay at least 2px
+         if(interval.isWaterfall()) {
+            interval.setMinStepPx(2);
+         }
+      }
+      else if(elem instanceof MekkoElement mekko) {
+         mekko.setThinSegmentLine(true);
+      }
+      else if(elem instanceof SchemaElement box && box.getPainter() instanceof BoxPainter) {
+         box.setBoxCornerRadius(desc.getPlotDescriptor().getBarCornerRadius());
+         box.setBoxWidthRule(isBoxWidthRule(box));
+         box.setBoxHeightFloor(true);
+      }
+   }
+
+   /**
+    * Check if a modern box plot box is 30% of its slot, 6-28px wide. A size the author set or
+    * a size binding keeps today's width.
+    */
+   private boolean isBoxWidthRule(SchemaElement elem) {
+      SizeFrame size = elem.getSizeFrame();
+      // box vars carry a quartile prefix, and brushing's all-data prefix inside it
+      String[] vars = Arrays.stream(elem.getVars())
+         .map(var -> GraphUtil.getOriginalCol(BoxDataSet.getBaseName(var)))
+         .toArray(String[]::new);
+
+      return !info.isSizeChanged(vars) && (size == null || size.getField() == null);
+   }
+
+   /**
+    * Check if a modern bar keeps its thickness to 3-32px. A size the author set or a size
+    * binding decides the width instead, except that an interval is clamped with a size binding.
+    */
+   private boolean isWidthClamped(IntervalElement elem, int chartType) {
+      SizeFrame size = elem.getSizeFrame();
+
+      return !GraphTypes.isFunnel(chartType) && !GraphTypes.is3DBar(chartType) &&
+         !isAuthorSized(elem) &&
+         (GraphTypes.isInterval(chartType) || size == null || size.getField() == null);
+   }
+
+   /**
+    * Check if the author changed the size of an element's measures.
+    */
+   private boolean isAuthorSized(GraphElement elem) {
+      // brushing, waterfall-total and interval vars carry a prefix on the measure name
+      String[] vars = (elem == null) ? new String[0] :
+         Arrays.stream(elem.getVars()).map(GraphGenerator::getMeasureName).toArray(String[]::new);
+      return info.isSizeChanged(vars);
+   }
+
+   /**
+    * Get the measure name of a var, with its prefixes stripped in any nesting order (a brushed
+    * waterfall Total is __sum____all__).
+    */
+   private static String getMeasureName(String var) {
+      String prev;
+
+      do {
+         prev = var;
+         var = GraphUtil.getOriginalCol(var);
+      }
+      while(var != null && !var.equals(prev));
+
+      return var;
+   }
+
    private void setColorFrameBrightness(GraphElement elem, ColorFrame frame, ColorFrame color0) {
       boolean hasColorValueColorFrame = frame instanceof ColorValueColorFrame ||
          frame instanceof CompositeVisualFrame &&
@@ -5228,7 +5310,10 @@ public abstract class GraphGenerator {
       }
 
       if(GraphTypes.isInterval(chartType) && frame instanceof LinearSizeFrame) {
-         ((LinearSizeFrame) frame).setSmallest(((LinearSizeFrame) frame).getLargest() - 1);
+         LinearSizeFrame linear = (LinearSizeFrame) frame;
+         // a modern interval draws half its slot
+         linear.setSmallest(vizContext.modern && !isAuthorSized(elem) ?
+                               linear.getLargest() : linear.getLargest() - 1);
          return frame;
       }
 
@@ -5374,7 +5459,7 @@ public abstract class GraphGenerator {
          nsize = 5;
          break;
       case CHART_GANTT:
-         nsize = elem instanceof IntervalElement ? 20 : 9;
+         nsize = elem instanceof IntervalElement ? (vizContext.modern ? 15 : 20) : 9;
          break;
       case GraphTypes.CHART_FUNNEL:
          nsize = 30;

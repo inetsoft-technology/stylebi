@@ -61,6 +61,11 @@ public class SchemaVO extends ElementVO {
       if(isRect1(coord) && (elem.getCollisionModifier() & GraphElement.MOVE_CENTER) != 0) {
          AffineTransform trans = AffineTransform.getTranslateInstance(coord.getMaxWidth() / 2, 0);
          painter.transformScreen(trans);
+
+         // the box's slot moves with it, unlike in a dodge
+         if(painter instanceof BoxPainter) {
+            ((BoxPainter) painter).moveSlot(trans);
+         }
       }
 
       if(label != null) {
@@ -95,9 +100,8 @@ public class SchemaVO extends ElementVO {
       final Graphics2D g0 = g;
       SVGSupport svg = SVGSupport.isSVGContext(g0) ? SVGSupport.getInstance() : null;
 
-      // Clone painter once; use it for both the screen-X measurement and the actual paint call.
-      SchemaPainter painter = (SchemaPainter) this.painter.clone();
-      painter.transformScreen(getScreenTransform());
+      // One screen painter for both the screen-X measurement and the actual paint call.
+      SchemaPainter painter = screenPainter();
 
       if(svg != null) {
          double screenCx = painter.getShape(0).getBounds2D().getCenterX();
@@ -217,10 +221,25 @@ public class SchemaVO extends ElementVO {
     * @return the painter's bounds.
     */
    private Rectangle2D getPainterBounds() {
-      Rectangle2D box = null;
+      return getPainterBounds(screenPainter());
+   }
+
+   /**
+    * Get the painter bounds dodge reads. Dodge runs before layout, in chart units, so the
+    * painter is not fitted to the screen.
+    */
+   private Rectangle2D getDodgeBounds() {
       SchemaPainter painter = (SchemaPainter) this.painter.clone();
 
       painter.transformScreen(getScreenTransform());
+      return getPainterBounds(painter);
+   }
+
+   /**
+    * Get the bounds of a painter transformed to the screen.
+    */
+   private Rectangle2D getPainterBounds(SchemaPainter painter) {
+      Rectangle2D box = null;
 
       for(int i = 0; i < painter.getShapeCount(); i++) {
          Rectangle2D b1 = painter.getShape(i).getBounds2D();
@@ -290,9 +309,7 @@ public class SchemaVO extends ElementVO {
     */
    @Override
    public Shape[] getShapes() {
-      SchemaPainter painter = (SchemaPainter) this.painter.clone();
-      painter.transformScreen(getScreenTransform());
-
+      SchemaPainter painter = screenPainter();
       Shape[] shapes = new Shape[painter.getShapeCount()];
 
       for(int i = 0; i < shapes.length; i++) {
@@ -337,8 +354,8 @@ public class SchemaVO extends ElementVO {
          return false;
       }
 
-      Rectangle2D b = getBounds();
-      Rectangle2D b2 = (Rectangle2D) vo.getBounds();
+      Rectangle2D b = getDodgeBounds();
+      Rectangle2D b2 = ((SchemaVO) vo).getDodgeBounds();
 
       if(b.getY() > b2.getMaxY() || b2.getY() > b.getMaxY()) {
          return false;
@@ -367,12 +384,12 @@ public class SchemaVO extends ElementVO {
       GraphElement elem = ((ElementGeometry) getGeometry()).getElement();
 
       if((elem.getCollisionModifier() & GraphElement.MOVE_DODGE) != 0) {
-         Rectangle2D box = getBounds();
+         Rectangle2D box = getDodgeBounds();
          double move = box.getWidth() + 1;
 
          for(int i = 0; i < vos.size(); i++) {
             SchemaVO point = (SchemaVO) vos.get(i);
-            double pw = point.getBounds().getWidth();
+            double pw = point.getDodgeBounds().getWidth();
             AffineTransform trans = AffineTransform.getTranslateInstance(move,0);
 
             point.painter.transformScreen(trans);
@@ -382,8 +399,8 @@ public class SchemaVO extends ElementVO {
 
       // center points
       if((elem.getCollisionModifier() & GraphElement.MOVE_CENTER) != 0) {
-         Rectangle2D box1 = getBounds();
-         Rectangle2D box2 = ((SchemaVO) vos.get(vos.size() - 1)).getBounds();
+         Rectangle2D box1 = getDodgeBounds();
+         Rectangle2D box2 = ((SchemaVO) vos.get(vos.size() - 1)).getDodgeBounds();
          double x1 = box1.getX() + box1.getWidth() / 2;
          double x2 = box2.getX() + box2.getWidth() / 2;
          double shift = -Math.abs((x2 - x1) / 2);
@@ -404,6 +421,17 @@ public class SchemaVO extends ElementVO {
       SchemaVO obj = (SchemaVO) super.clone();
       obj.vtext = cloneVOText(vtext);
       return obj;
+   }
+
+   /**
+    * Get a copy of the painter transformed to the screen and fitted to it.
+    */
+   private SchemaPainter screenPainter() {
+      SchemaPainter painter = (SchemaPainter) this.painter.clone();
+
+      painter.transformScreen(getScreenTransform());
+      painter.fitScreen(getScreenTransform());
+      return painter;
    }
 
    /** Returns {@code true} if this VO is rendering a box-plot (vs. a candlestick/stock chart). */

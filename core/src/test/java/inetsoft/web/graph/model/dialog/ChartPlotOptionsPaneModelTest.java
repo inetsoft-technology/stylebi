@@ -97,6 +97,20 @@ class ChartPlotOptionsPaneModelTest {
       assertTrue(modelFor(GraphTypes.CHART_GANTT).isBarCornerRadiusVisible());
    }
 
+   @Test
+   void theCornerFieldShowsOnAMarkedBoxPlot() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_BOXPLOT);
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(
+         info, new PlotDescriptor(), VizContext.of(VizMark.MODERN_LIGHT));
+      assertTrue(model.isBarCornerRadiusVisible());
+   }
+
+   @Test
+   void andNotOnAClassicOne() {
+      assertFalse(modelFor(GraphTypes.CHART_BOXPLOT).isBarCornerRadiusVisible());
+   }
+
    // --- barRoundAllCornersVisible ---
 
    @Test
