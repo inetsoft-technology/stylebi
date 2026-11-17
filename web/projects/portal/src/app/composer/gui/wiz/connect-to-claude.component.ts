@@ -50,6 +50,12 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     *  than the whole sheet. Omitted from the mint payload entirely (not sent
     *  as null) when absent, e.g. a whole-sheet toolbar mint. */
    @Input() editorContext?: EditorContext;
+   /** Whether the pane's SQL/Script switch is on SQL. Left undefined by a host with no such
+    *  switch, so nothing is reported for it. The user can flip it after the code was minted, so
+    *  every change, and every fresh mint, is reported to the server, where it decides the syntax
+    *  `get_pane_context` describes. It is a separate input, not part of `editorContext`, because
+    *  that value is matched for equality when the pane is detached. */
+   @Input() sqlMode?: boolean;
 
    code: string | null = null;
    loading = false;
@@ -242,6 +248,10 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    ngOnChanges(changes: SimpleChanges): void {
+      if(changes["sqlMode"] && !changes["sqlMode"].firstChange) {
+         this.reportPaneState();
+      }
+
       if(changes["runtimeId"] && !changes["runtimeId"].firstChange) {
          this.code = null;
          this.error = null;
@@ -370,6 +380,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
                         this.code = body.code;
                         this.mintedEditorContext = requestedContext ?? null;
                         this.hasMinted = true;
+                        this.reportPaneState();
                      }
                      else {
                         this.error = body.error ?? "Failed to generate pairing code";
@@ -513,6 +524,22 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          conn.send("/events/wiz/pairing/detach", {},
                    JSON.stringify({ editorContext: context }));
       });
+   }
+
+   /**
+    * Tells the server what the pane shows now, for the location the code was minted with (the one
+    * the agent's session is bound to). Nothing to report until a code exists for a pane-scoped
+    * mint, or when the host has no SQL/Script switch.
+    */
+   private reportPaneState(): void {
+      const context = this.mintedEditorContext;
+
+      if(this.sqlMode === undefined || !this.hasMinted || !context || !this.socketConnection) {
+         return;
+      }
+
+      this.followFocusService.reportPaneState(
+         this.runtimeId, this.socketConnection, context, this.sqlMode);
    }
 
    ngOnDestroy(): void {

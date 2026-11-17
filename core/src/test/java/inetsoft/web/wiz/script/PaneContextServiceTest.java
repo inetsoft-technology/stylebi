@@ -32,6 +32,7 @@ import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
+import inetsoft.web.wiz.pairing.PaneState;
 import inetsoft.web.wiz.pairing.SheetType;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.script.model.AssemblyContext;
@@ -139,7 +140,7 @@ class PaneContextServiceTest {
       when(contextService.context(runtime, null)).thenReturn(new ScriptContext(List.of(), List.of()));
 
       PaneContext ctx = service.paneContext(
-         runtime, session(new EditorContext("dynamicValue", "Text1", "visible", null)), user);
+         runtime, session(new EditorContext("dynamicValue", "Text1", "visible", null)), user, PaneState.DEFAULT);
 
       assertTrue(ctx.parameters().containsAll(List.of("cutoff", "region")), ctx.parameters().toString());
       assertTrue(ctx.parameters().containsAll(List.of("_USER_", "_ROLES_", "_GROUPS_")));
@@ -154,7 +155,7 @@ class PaneContextServiceTest {
       RuntimeViewsheet runtime = runtimeWith(vs);
       when(contextService.context(runtime, null)).thenReturn(new ScriptContext(List.of(), List.of()));
 
-      PaneContext ctx = service.paneContext(runtime, session(null), user);
+      PaneContext ctx = service.paneContext(runtime, session(null), user, PaneState.DEFAULT);
 
       assertTrue(ctx.parameters().contains("RadioButton1"), ctx.parameters().toString());
    }
@@ -171,7 +172,7 @@ class PaneContextServiceTest {
 
    @Test
    void aWholeSheetSessionListsEveryTable() throws Exception {
-      PaneContext ctx = service.paneContext(rvs, session(null), user);
+      PaneContext ctx = service.paneContext(rvs, session(null), user, PaneState.DEFAULT);
 
       assertEquals("sheet", ctx.kind());
       assertNull(ctx.editorContext());
@@ -183,7 +184,7 @@ class PaneContextServiceTest {
    @Test
    void componentsParametersAndFunctionsAreNamesOnly() throws Exception {
       PaneContext ctx = service.paneContext(
-         rvs, session(new EditorContext("dynamicValue", "Text1", "visible", null)), user);
+         rvs, session(new EditorContext("dynamicValue", "Text1", "visible", null)), user, PaneState.DEFAULT);
 
       assertEquals("dynamicValue", ctx.kind());
       assertEquals(List.of("RadioButton1", "Text1"),
@@ -201,7 +202,7 @@ class PaneContextServiceTest {
          table("Orders", Boolean.TRUE, "id", "total"), table("Customers", Boolean.FALSE, "name")));
 
       PaneContext ctx = service.paneContext(
-         rvs, session(new EditorContext("dynamicValue", "Text1", "visible", null)), user);
+         rvs, session(new EditorContext("dynamicValue", "Text1", "visible", null)), user, PaneState.DEFAULT);
 
       assertEquals(1, ctx.columns().size());
       assertEquals("Orders", ctx.columns().get(0).name());
@@ -216,7 +217,7 @@ class PaneContextServiceTest {
          table("Orders", Boolean.FALSE, "id"), table("Customers", Boolean.FALSE, "name")));
 
       PaneContext ctx = service.paneContext(
-         rvs, session(new EditorContext("assemblyMain", "Text1", null, null)), user);
+         rvs, session(new EditorContext("assemblyMain", "Text1", null, null)), user, PaneState.DEFAULT);
 
       assertEquals(2, ctx.columns().size());
    }
@@ -224,7 +225,7 @@ class PaneContextServiceTest {
    @Test
    void aCalcFieldListsTheColumnsOfItsOwnTable() throws Exception {
       PaneContext ctx = service.paneContext(
-         rvs, session(new EditorContext("calcField", "Orders", "Margin", null)), user);
+         rvs, session(new EditorContext("calcField", "Orders", "Margin", null)), user, PaneState.DEFAULT);
 
       assertEquals(List.of("Orders"), ctx.columns().stream().map(PaneContext.Table::name).toList());
       assertTrue(ctx.syntax().note().contains("field['<column>']"), ctx.syntax().note());
@@ -234,7 +235,7 @@ class PaneContextServiceTest {
    @Test
    void aCalcFieldOnAnUnknownTableSaysSoAndListsEverything() throws Exception {
       PaneContext ctx = service.paneContext(
-         rvs, session(new EditorContext("calcField", "Gone", "Margin", null)), user);
+         rvs, session(new EditorContext("calcField", "Gone", "Margin", null)), user, PaneState.DEFAULT);
 
       assertEquals(2, ctx.columns().size());
       assertTrue(ctx.notes().get(0).contains("'Gone'"), ctx.notes().toString());
@@ -243,7 +244,7 @@ class PaneContextServiceTest {
    @Test
    void aCalcFieldAddressedByTableKeyIsAlsoUnderstood() throws Exception {
       PaneContext ctx = service.paneContext(
-         rvs, session(new EditorContext("calcField", null, "Margin", "Customers")), user);
+         rvs, session(new EditorContext("calcField", null, "Margin", "Customers")), user, PaneState.DEFAULT);
 
       assertEquals(List.of("Customers"),
                    ctx.columns().stream().map(PaneContext.Table::name).toList());
@@ -252,7 +253,7 @@ class PaneContextServiceTest {
    @Test
    void aViewsheetLevelScriptListsEveryTable() throws Exception {
       PaneContext ctx = service.paneContext(
-         rvs, session(new EditorContext("viewsheetOnLoad", null, null, null)), user);
+         rvs, session(new EditorContext("viewsheetOnLoad", null, null, null)), user, PaneState.DEFAULT);
 
       assertEquals(2, ctx.columns().size());
       verify(fields).list(RUNTIME_ID, null, user);
@@ -264,7 +265,7 @@ class PaneContextServiceTest {
          .thenReturn(List.of(table("Orders", Boolean.TRUE, "id")));
 
       PaneContext ctx = service.paneContext(
-         rvs, session(new EditorContext("calcTableCell", "Calc1", "2,1", null)), user);
+         rvs, session(new EditorContext("calcTableCell", "Calc1", "2,1", null)), user, PaneState.DEFAULT);
 
       assertEquals("calcTableCell", ctx.kind());
       assertEquals(1, ctx.columns().size());
@@ -278,7 +279,7 @@ class PaneContextServiceTest {
          .thenThrow(new IllegalArgumentException("nope"));
 
       PaneContext ctx = service.paneContext(
-         rvs, session(new EditorContext("dynamicValue", "Text1", "visible", null)), user);
+         rvs, session(new EditorContext("dynamicValue", "Text1", "visible", null)), user, PaneState.DEFAULT);
 
       // the standard user variables survive a failed read
       assertEquals(List.of("_GROUPS_", "_ROLES_", "_USER_"), ctx.parameters());
@@ -299,7 +300,7 @@ class PaneContextServiceTest {
          new EditorContext("calcField", "Orders", "Margin", null)})
       {
          String json = new ObjectMapper().writeValueAsString(
-            service.paneContext(rvs, session(grant), user));
+            service.paneContext(rvs, session(grant), user, PaneState.DEFAULT));
 
          assertFalse(json.contains(RUNTIME_ID), json);
          assertFalse(json.contains(TOKEN), json);
@@ -310,7 +311,7 @@ class PaneContextServiceTest {
    @Test
    void theVsConditionValueSyntaxSaysDollarIsNotDefined() {
       PaneContext.Syntax syntax = PaneContextService.syntaxOf(
-         new EditorContext("vsConditionValue", "Table1", "filter", null));
+         new EditorContext("vsConditionValue", "Table1", "filter", null), false);
 
       assertTrue(syntax.note().contains("$ is not defined"), syntax.note());
       assertTrue(syntax.note().contains("parameter.<name>"), syntax.note());
@@ -320,7 +321,7 @@ class PaneContextServiceTest {
    @Test
    void theDynamicValueSyntaxExplainsTheReportedFailure() {
       PaneContext.Syntax syntax = PaneContextService.syntaxOf(
-         new EditorContext("dynamicValue", "Text1", "visible", null));
+         new EditorContext("dynamicValue", "Text1", "visible", null), false);
 
       assertEquals("javascript", syntax.language());
       assertTrue(syntax.note().contains("ReferenceError: $ is not defined"), syntax.note());
@@ -334,13 +335,13 @@ class PaneContextServiceTest {
          "vsConditionValue", "dynamicValue", "calcTableCell"})
       {
          PaneContext.Syntax syntax =
-            PaneContextService.syntaxOf(new EditorContext(kind, "A", "n", null));
+            PaneContextService.syntaxOf(new EditorContext(kind, "A", "n", null), false);
 
          assertEquals("javascript", syntax.language(), kind);
          assertFalse(syntax.note().isBlank(), kind);
       }
 
-      assertFalse(PaneContextService.syntaxOf(null).note().isBlank());
+      assertFalse(PaneContextService.syntaxOf(null, false).note().isBlank());
    }
 
    /**
@@ -356,7 +357,7 @@ class PaneContextServiceTest {
 
       for(ScriptTarget.Kind kind : ScriptTarget.Kind.values()) {
          PaneContext.Syntax syntax = PaneContextService.syntaxOf(
-            new EditorContext(kind.wireName(), "A", "n", null));
+            new EditorContext(kind.wireName(), "A", "n", null), false);
          boolean fallback = PaneContextService.WORKSHEET_NOT_SERVED.equals(syntax.note());
 
          assertEquals(notServed.contains(kind), fallback, kind.wireName() + ": " + syntax.note());
@@ -369,7 +370,7 @@ class PaneContextServiceTest {
    @Test
    void theHyperlinkExpressionSyntaxIsJavaScriptWithTheLeadingEqualsAndTheMessageForm() {
       PaneContext.Syntax syntax = PaneContextService.syntaxOf(
-         new EditorContext("vsHyperlinkExpression", "Table1", "cell[2,1]", null));
+         new EditorContext("vsHyperlinkExpression", "Table1", "cell[2,1]", null), false);
 
       assertEquals("javascript", syntax.language());
       assertTrue(syntax.note().contains("Web Link Expression of one hyperlink"), syntax.note());
@@ -382,9 +383,9 @@ class PaneContextServiceTest {
    @Test
    void theWorksheetKindsAreLabelledForWhatTheyAre() {
       PaneContext.Syntax variable = PaneContextService.syntaxOf(
-         new EditorContext("worksheetVariableDefault", "Var1", null, null));
+         new EditorContext("worksheetVariableDefault", "Var1", null, null), false);
       PaneContext.Syntax sql = PaneContextService.syntaxOf(
-         new EditorContext("worksheetSqlQuery", "SQL Query1", null, null));
+         new EditorContext("worksheetSqlQuery", "SQL Query1", null, null), false);
 
       assertEquals("javascript", variable.language());
       assertTrue(variable.note().contains("worksheet variable"), variable.note());
@@ -403,7 +404,7 @@ class PaneContextServiceTest {
          table("Orders", Boolean.TRUE, "id", "total"), table("Customers", Boolean.FALSE, "name")));
 
       PaneContext ctx = service.paneContext(rvs,
-         session(new EditorContext("vsHyperlinkExpression", "Table1", "cell[2,1]", null)), user);
+         session(new EditorContext("vsHyperlinkExpression", "Table1", "cell[2,1]", null)), user, PaneState.DEFAULT);
 
       assertEquals("vsHyperlinkExpression", ctx.kind());
       assertEquals("javascript", ctx.syntax().language());
@@ -421,7 +422,7 @@ class PaneContextServiceTest {
 
       PaneContext ctx = service.paneContext(rvs,
          session(new EditorContext("vsHyperlinkExpression", "Viewsheet1.Table1", "cell[0,0]",
-                                   null)), user);
+                                   null)), user, PaneState.DEFAULT);
 
       assertTrue(ctx.columns().isEmpty());
       assertTrue(ctx.notes().stream().anyMatch(n -> n.contains("no such assembly")),
@@ -433,9 +434,54 @@ class PaneContextServiceTest {
    @Test
    void aWorksheetSqlSessionIsReportedAsSqlEvenThoughThisEndpointDoesNotServeIt() throws Exception {
       PaneContext ctx = service.paneContext(rvs,
-         session(new EditorContext("worksheetSqlQuery", "SQL Query1", null, null)), user);
+         session(new EditorContext("worksheetSqlQuery", "SQL Query1", null, null)), user, PaneState.DEFAULT);
 
       assertEquals("worksheetSqlQuery", ctx.kind());
       assertEquals("sql", ctx.syntax().language());
+   }
+
+   @Test
+   void aCalcFieldOnTheSqlSwitchIsDescribedAsSqlNotJavaScript() throws Exception {
+      EditorContext calcField = new EditorContext("calcField", "Orders", "Margin", null);
+
+      PaneContext js = service.paneContext(rvs, session(calcField), user, PaneState.DEFAULT);
+      PaneContext sql = service.paneContext(rvs, session(calcField), user, new PaneState(true));
+
+      assertEquals("javascript", js.syntax().language());
+      assertTrue(js.syntax().note().contains("parameter.<name>"), js.syntax().note());
+      assertEquals(List.of("dateAdd", "runQuery"), js.functions());
+
+      assertEquals("sql", sql.syntax().language());
+      assertEquals(PaneContextService.CALC_FIELD_SQL_NOTE, sql.syntax().note());
+      assertTrue(sql.syntax().note().contains("field['<column>']"), sql.syntax().note());
+      assertTrue(sql.syntax().note().contains("$(<name>)"), sql.syntax().note());
+      assertFalse(sql.syntax().note().contains("evaluated per row: read"), sql.syntax().note());
+      // the script function names are not offered under a SQL syntax, and the answer says why
+      assertTrue(sql.functions().isEmpty(), sql.functions().toString());
+      assertTrue(sql.notes().stream().anyMatch(n -> n.contains("SQL mode")), sql.notes().toString());
+      // the location and the column scope are the same in both modes
+      assertEquals(js.editorContext(), sql.editorContext());
+      assertEquals(js.columns(), sql.columns());
+   }
+
+   @Test
+   void theSqlStateIsIgnoredForEveryKindWithoutTheSwitch() throws Exception {
+      for(ScriptTarget.Kind kind : ScriptTarget.Kind.values()) {
+         if(kind == ScriptTarget.Kind.CALC_FIELD) {
+            continue;
+         }
+
+         EditorContext ctx = new EditorContext(kind.wireName(), "A", "n", null);
+
+         assertEquals(PaneContextService.syntaxOf(ctx, false),
+                      PaneContextService.syntaxOf(ctx, true), kind.wireName());
+         assertFalse(PaneContextService.isSqlMode(ctx, new PaneState(true)), kind.wireName());
+      }
+
+      assertFalse(PaneContextService.isSqlMode(null, new PaneState(true)));
+      assertFalse(PaneContextService.isSqlMode(
+         new EditorContext("calcField", "A", "n", null), null));
+      assertTrue(PaneContextService.isSqlMode(
+         new EditorContext("calcField", "A", "n", null), new PaneState(true)));
    }
 }

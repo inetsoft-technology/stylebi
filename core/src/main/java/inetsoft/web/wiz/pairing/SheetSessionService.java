@@ -59,6 +59,18 @@ public class SheetSessionService {
     */
    private final ConcurrentHashMap<String, Deque<FocusFrame>> focusStacks;
 
+   /**
+    * What each open pane last reported about itself ({@link PaneState}), keyed by the browser
+    * socket, the runtime and the pane's {@link EditorContext} as minted. Not keyed by session: the
+    * browser reports a change the moment the user makes it, which can be before an agent has
+    * joined, and it never holds the agent's session token. A session reads its own pane's entry
+    * through {@link #paneStateOf}; an entry for a location the session has since been retargeted
+    * away from is simply not the one that lookup finds.
+    */
+   private final ConcurrentHashMap<PaneKey, PaneState> paneStates;
+
+   private record PaneKey(String socketSessionId, String runtimeId, EditorContext editorContext) {}
+
    /** Non-null wrapper around a possibly-null {@code editorContext} -- see {@link #focusStacks}. */
    private record FocusFrame(EditorContext editorContext) {}
 
@@ -89,6 +101,7 @@ public class SheetSessionService {
       this.broadcast = broadcast;
       this.sessions = new ConcurrentHashMap<>();
       this.focusStacks = new ConcurrentHashMap<>();
+      this.paneStates = new ConcurrentHashMap<>();
    }
 
    /**
@@ -109,6 +122,7 @@ public class SheetSessionService {
       this.broadcast = null;
       this.sessions = new ConcurrentHashMap<>();
       this.focusStacks = new ConcurrentHashMap<>();
+      this.paneStates = new ConcurrentHashMap<>();
    }
 
    /** Test-only constructor: exercises the {@link #broadcast} call sites without needing the
@@ -119,6 +133,7 @@ public class SheetSessionService {
       this.broadcast = broadcast;
       this.sessions = new ConcurrentHashMap<>();
       this.focusStacks = new ConcurrentHashMap<>();
+      this.paneStates = new ConcurrentHashMap<>();
    }
 
    /** Test constructor: shares the sessions map (and focus stacks) of an existing service with a
@@ -129,6 +144,7 @@ public class SheetSessionService {
       this.broadcast = source.broadcast;
       this.sessions = source.sessions;
       this.focusStacks = source.focusStacks;
+      this.paneStates = source.paneStates;
    }
 
    public JoinSession open(String runtimeId, String ownerIdentity, SheetType sheetType,
@@ -212,6 +228,7 @@ public class SheetSessionService {
     */
    public void socketClosed(String socketSessionId) {
       if(socketSessionId == null) return;
+      paneStates.keySet().removeIf(k -> socketSessionId.equals(k.socketSessionId()));
       List<JoinSession> ended = removeSessionsIf(
          s -> s.editorContext() != null && socketSessionId.equals(s.socketSessionId()));
       notifyAgentInactive(ended);
@@ -274,9 +291,46 @@ public class SheetSessionService {
     */
    public void detach(String socketSessionId, EditorContext editorContext) {
       if(socketSessionId == null || editorContext == null) return;
+      paneStates.keySet().removeIf(k -> editorContext.equals(k.editorContext()) &&
+                                        socketSessionId.equals(k.socketSessionId()));
       List<JoinSession> ended = removeSessionsIf(
          s -> editorContext.equals(s.editorContext()) && socketSessionId.equals(s.socketSessionId()));
       notifyAgentInactive(ended);
+   }
+
+   /**
+    * Records what the pane at {@code editorContext}, open on this browser socket and runtime,
+    * currently shows -- sent when the user changes it (the calculated field formula dialog's
+    * SQL/Script switch) and again when a code is minted, so a session that joins later reads the
+    * current value. The latest report replaces the previous one. Ignored when any key part is
+    * missing.
+    *
+    * <p>The state only changes what {@link #paneStateOf} answers for sessions of this same socket,
+    * runtime and location, which in turn only changes the guidance {@code get_pane_context}
+    * returns; it grants nothing and writes nothing.
+    */
+   public void setPaneState(String socketSessionId, String runtimeId, EditorContext editorContext,
+                            PaneState state)
+   {
+      if(socketSessionId == null || runtimeId == null || editorContext == null || state == null) {
+         return;
+      }
+
+      paneStates.put(new PaneKey(socketSessionId, runtimeId, editorContext), state);
+   }
+
+   /**
+    * What the pane {@code session} is bound to last reported about itself, or
+    * {@link PaneState#DEFAULT} when it never reported one (or the session is whole-sheet).
+    */
+   public PaneState paneStateOf(JoinSession session) {
+      if(session == null || session.editorContext() == null) {
+         return PaneState.DEFAULT;
+      }
+
+      return paneStates.getOrDefault(
+         new PaneKey(session.socketSessionId(), session.runtimeId(), session.editorContext()),
+         PaneState.DEFAULT);
    }
 
    /**
@@ -475,6 +529,9 @@ public class SheetSessionService {
          return null;
       }
 
+      // the pane being left no longer has a session bound to it through this focus
+      paneStates.remove(new PaneKey(session.socketSessionId(), session.runtimeId(),
+                                    session.editorContext()));
       JoinSession restored = withEditorContext(session, frame.editorContext());
       sessions.put(session.sessionToken(), restored);
       return restored;
