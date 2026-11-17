@@ -57,7 +57,7 @@ public class AIAssistantController {
                      "the assistant server uses a CA-signed certificate.");
 
          try {
-            // trust-all only when chat.app.server.ssl.verify=false; default to be changed (Bug #81264).
+            // trust-all only when chat.app.server.ssl.verify is explicitly set to false (Bug #81264).
             // nosemgrep: java.lang.security.audit.weak-ssl-context.weak-ssl-context
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, new TrustManager[] {
@@ -160,12 +160,14 @@ public class AIAssistantController {
    /**
     * Returns {@code true} if SSL certificate verification is enabled for server-to-server
     * connections to the assistant (both HTTP and WebSocket proxies).
-    * Reads {@code chat.app.server.ssl.verify}; defaults to {@code false} so that private-network
-    * deployments with self-signed certificates work out of the box.
+    * Reads {@code chat.app.server.ssl.verify}; defaults to {@code true}. A private-network
+    * deployment with a self-signed or private-CA certificate can keep verification on by
+    * importing that certificate into the JVM's own trust store (e.g. {@code keytool
+    * -importcert}); set this property to {@code false} to trust any certificate instead.
     * Changing this property requires a server restart.
     */
    public static boolean isSslVerifyEnabled() {
-      return "true".equalsIgnoreCase(SreeEnv.getProperty("chat.app.server.ssl.verify", "false"));
+      return "true".equalsIgnoreCase(SreeEnv.getProperty("chat.app.server.ssl.verify", "true"));
    }
 
    /**

@@ -23,6 +23,7 @@ import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
+import inetsoft.web.admin.InvalidResourceException;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -63,6 +64,7 @@ public class ResourcePermissionController {
       }
 
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+      checkSupportedType(resource, type);
       checkPermission(resource, path, principal, ResourceAction.READ);
       boolean tableStyleFolder = type == (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE);
       return this.resourcePermissionService.getTableModel(
@@ -85,11 +87,23 @@ public class ResourcePermissionController {
       throws Exception
    {
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+      checkSupportedType(resource, type);
       checkPermission(resource, path, principal, ResourceAction.WRITE);
       String fullPath = Util.getObjectFullPath(type, path, principal);
       boolean tableStyleFolder = (type & (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE)) != 0;
       this.resourcePermissionService.setResourcePermissions(
          resource.getPath(), resource.getType(), fullPath, permissionModel, principal, tableStyleFolder);
+   }
+
+   /**
+    * Bug #81497, an entry type with no permission resource (an unknown type, or a per-user
+    * home node) is an invalid target, answered with a 4xx instead of a failure further on.
+    */
+   private void checkSupportedType(Resource resource, int type) throws InvalidResourceException {
+      if(resource == null || resource.getType() == null) {
+         throw new InvalidResourceException(
+            "Permissions cannot be configured for repository entry type " + type);
+      }
    }
 
    private void checkPermission(Resource resource, String path, Principal principal,

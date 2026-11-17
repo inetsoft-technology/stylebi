@@ -104,7 +104,12 @@ class AggregateFormulaStatSqlTest {
    // function names of the manuals: Oracle STDDEV and VARIANCE are the sample ones, STDDEV_POP
    // and VAR_POP the population ones, CORR the correlation, COVAR_POP the population covariance;
    // MySQL STDDEV_SAMP / STDDEV_POP / VAR_SAMP / VAR_POP; SQL Server STDEV (sample), STDEVP,
-   // VAR (sample), VARP; DB2 CORRELATION and COVARIANCE (population)
+   // VAR (sample), VARP
+   //
+   // Bug #81429: DB2 CORRELATION/COVARIANCE are not used, even though the manuals have them,
+   // because they bypass the null-pair exclusion (Bug #81095) and zero-variance guard
+   // (Bug #81096) the hand-written expression has; see
+   // withoutNativeFunctionTheExpressionIsMadeOfSumAndCount below
    @ParameterizedTest(name = "{0} {1}")
    @CsvSource(delimiter = '|', value = {
       "oracle|STANDARD_DEVIATION|stddev(x)",
@@ -116,9 +121,7 @@ class AggregateFormulaStatSqlTest {
       "mysql|POPULATION_STANDARD_DEVIATION|stddev_pop(x)",
       "mysql|POPULATION_VARIANCE|var_pop(x)",
       "sql server|POPULATION_STANDARD_DEVIATION|stdevp(x)",
-      "sql server|POPULATION_VARIANCE|varp(x)",
-      "db2|CORRELATION|correlation(x, y)",
-      "db2|COVARIANCE|covariance(x, y)"
+      "sql server|POPULATION_VARIANCE|varp(x)"
    })
    void nativeFunction(String database, String field, String expected) throws Exception {
       AggregateFormula formula = formula(field);
@@ -153,6 +156,7 @@ class AggregateFormulaStatSqlTest {
       "mysql|CORRELATION", "mysql|COVARIANCE",
       "sql server|CORRELATION", "sql server|COVARIANCE",
       "db2|STANDARD_DEVIATION", "db2|VARIANCE", "db2|POPULATION_VARIANCE",
+      "db2|CORRELATION", "db2|COVARIANCE",
       "postgresql|STANDARD_DEVIATION", "postgresql|VARIANCE", "postgresql|CORRELATION",
       "informix|STANDARD_DEVIATION", "informix|COVARIANCE",
       "derby|STANDARD_DEVIATION", "derby|POPULATION_VARIANCE",
@@ -166,6 +170,22 @@ class AggregateFormulaStatSqlTest {
 
       assertTrue(expression.contains("SUM("), database + " " + field + ": " + expression);
       assertTrue(expression.contains("COUNT("), database + " " + field + ": " + expression);
+   }
+
+   // Bug #81429: DB2's native CORRELATION/COVARIANCE bypassed the null-pair exclusion
+   // (Bug #81095) and zero-variance guard (Bug #81096) the hand-written expression has, so
+   // they must fall through to that expression like DB2's other statistical functions do
+   @Test
+   void db2CorrelationAndCovarianceAreGuardedNotNative() throws Exception {
+      String correlation =
+         AggregateFormula.CORRELATION.getExpression("ORDER_ID", "DISCOUNT", new DbHelper("db2"));
+      assertNotEquals("correlation(ORDER_ID, DISCOUNT)", correlation);
+      assertTrue(correlation.contains("NULLIF(SQRT(CASE WHEN ("), correlation);
+
+      String covariance =
+         AggregateFormula.COVARIANCE.getExpression("ORDER_ID", "DISCOUNT", new DbHelper("db2"));
+      assertNotEquals("covariance(ORDER_ID, DISCOUNT)", covariance);
+      assertTrue(covariance.contains("SUM("), covariance);
    }
 
    // ----------------------------------------------------------------------------------------

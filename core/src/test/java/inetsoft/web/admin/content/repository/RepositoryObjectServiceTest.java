@@ -171,6 +171,34 @@ class RepositoryObjectServiceTest {
     * 2. deleteDependenciesKey() is called for physical views and logical models but NOT for VPMs,
     *    mirroring the portal (PhysicalModelManagerService/LogicalModelService vs. VPMController).
     */
+   /*
+    * Bug #81497: the per-user home node (type USER | FOLDER, e.g. "My Dashboards/<user>") has no
+    * permission resource. The null type reached SecurityEngine.checkPermission, which threw an NPE
+    * that RepletEngine.checkPermission swallowed and reported as "Permission denied". The node is
+    * refused with an explicit reason instead.
+    */
+   @Test
+   void deleteUserHomeNodeIsRefusedWithExplicitReason() {
+      when(resourcePermissionService.getRepositoryResourceType(
+         RepositoryEntry.USER | RepositoryEntry.FOLDER, "My Dashboards"))
+         .thenReturn(new Resource(null, "My Dashboards"));
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label("someUser")
+         .path("My Dashboards")
+         .type(RepositoryEntry.USER | RepositoryEntry.FOLDER)
+         .build();
+
+      MessageException ex = assertThrows(
+         MessageException.class,
+         () -> service.deleteNodes(new TreeNodeInfo[]{ node }, principal, true, true));
+
+      assertNotNull(ex.getMessage());
+      org.junit.jupiter.api.Assertions.assertFalse(
+         ex.getMessage().toLowerCase().contains("permission denied"));
+      verify(registryService, never()).checkPermission(
+         anyString(), anyString(), any(), any(EnumSet.class), anyBoolean(), any());
+   }
+
    @Test
    void deleteVpmRemovesDependencyEdgeButNotKey() throws Exception {
       TreeNodeInfo node = TreeNodeInfo.builder()
