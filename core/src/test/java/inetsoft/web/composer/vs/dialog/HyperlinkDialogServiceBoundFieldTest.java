@@ -84,6 +84,8 @@ class HyperlinkDialogServiceBoundFieldTest {
       HyperlinkDialogService service;
       VSObjectPropertyService props;
       VSChartAggregateRef measure;
+      VSChartInfo chartInfo;
+      ChartVSAssembly assembly;
    }
 
    /** A chart with x = {@code xs} and y = Sum(v); runtime refs mirror the design refs. */
@@ -103,6 +105,7 @@ class HyperlinkDialogServiceBoundFieldTest {
 
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly assembly = new ChartVSAssembly(vs, "Chart1");
+      f.assembly = assembly;
       assembly.setVSChartInfo(chartInfo);
       vs.addAssembly(assembly);
 
@@ -148,12 +151,14 @@ class HyperlinkDialogServiceBoundFieldTest {
       chartInfo.setChartType(GraphTypes.CHART_TREEMAP);
       chartInfo.setRTChartType(GraphTypes.CHART_TREEMAP);
       chartInfo.addGroupField(dim("region"));
+      f.chartInfo = chartInfo;
       VSAestheticRef size = new VSAestheticRef();
       size.setDataRef(f.measure);
       chartInfo.setSizeField(size);
 
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly assembly = new ChartVSAssembly(vs, "Chart1");
+      f.assembly = assembly;
       assembly.setVSChartInfo(chartInfo);
       vs.addAssembly(assembly);
 
@@ -200,6 +205,67 @@ class HyperlinkDialogServiceBoundFieldTest {
       ChartFixture f = treemap();
       f.service.setHyperlinkDialogModel("rt", "Chart1", model("region", true), "", USER, null);
       assertNotNull(written(f));
+   }
+
+   /** A treemap grouped by region and also colored by region (bug #81503). */
+   private static ChartFixture treemapColoredByRegion() throws Exception {
+      ChartFixture f = treemap();
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(dim("region"));
+      f.chartInfo.setColorField(color);
+      return f;
+   }
+
+   private static HyperlinkDialogModel axisModel(String colName, int linkType) {
+      HyperlinkDialogModel model = model(colName, true);
+      model.setAxis(true);
+      model.setLinkType(linkType);
+      return model;
+   }
+
+   @Test
+   void treemapAxisLinkIsRefusedNamingTheFieldAndWritesNothing() throws Exception {
+      ChartFixture f = treemapColoredByRegion();
+
+      Exception e = assertThrows(IllegalArgumentException.class, () ->
+         f.service.setHyperlinkDialogModel("rt", "Chart1", axisModel("region", Hyperlink.WEB_LINK),
+                                           "", USER, null));
+      assertTrue(e.getMessage().contains("'region'") && e.getMessage().contains("no axis"),
+                 e.getMessage());
+      assertNothingWritten(f);
+   }
+
+   @Test
+   void treemapAxisClearIsLetThrough() throws Exception {
+      ChartFixture f = treemapColoredByRegion();
+      f.service.setHyperlinkDialogModel("rt", "Chart1",
+                                        axisModel("region", HyperlinkDialogService.NONE), "", USER,
+                                        null);
+      assertNotNull(written(f));
+   }
+
+   @Test
+   void treemapAxisLinkIsStillAcceptedOnTheGuiPath() throws Exception {
+      ChartFixture f = treemapColoredByRegion();
+      HyperlinkDialogModel model = axisModel("region", Hyperlink.WEB_LINK);
+      model.setRejectDerivedMeasure(false);
+      f.service.setHyperlinkDialogModel("rt", "Chart1", model, "", USER, null);
+      assertNotNull(written(f));
+   }
+
+   @Test
+   void treemapGroupFieldAndColorFieldDoNotShareALinkSlot() throws Exception {
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo)
+         treemapColoredByRegion().assembly.getVSAssemblyInfo();
+      assertEquals(Boolean.FALSE, HyperlinkDialogService.sharesLinkSlot(info, "region", false));
+   }
+
+   @Test
+   void axisChartFieldSharesOneLinkSlotAndAnUnboundNameAnswersNull() throws Exception {
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo)
+         chart(dim("region")).assembly.getVSAssemblyInfo();
+      assertEquals(Boolean.TRUE, HyperlinkDialogService.sharesLinkSlot(info, "region", false));
+      assertNull(HyperlinkDialogService.sharesLinkSlot(info, "nonsense", false));
    }
 
    @Test

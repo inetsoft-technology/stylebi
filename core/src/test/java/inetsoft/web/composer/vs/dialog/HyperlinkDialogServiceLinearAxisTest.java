@@ -302,10 +302,36 @@ class HyperlinkDialogServiceLinearAxisTest {
    void mergedAndPolarChartTypesAreSkippedOnEitherTypeField() throws Exception {
       for(int type : new int[] { GraphTypes.CHART_MEKKO, GraphTypes.CHART_FUNNEL,
                                  GraphTypes.CHART_BOXPLOT, GraphTypes.CHART_PIE,
-                                 GraphTypes.CHART_TREEMAP, GraphTypes.CHART_RADAR })
+                                 GraphTypes.CHART_RADAR })
       {
          assertTypeSkipped(type, false);
          assertTypeSkipped(type, true);
+      }
+   }
+
+   /**
+    * A treemap has no linear-axis rule (it is skipped by isLinearMeasureAxisLink), but an axis
+    * link on it is refused for a different reason: the chart has no axis at all (bug #81503).
+    */
+   @Test
+   void treemapIsNotALinearAxisCaseButItsAxisLinkIsRefusedAsAxisless() throws Exception {
+      for(boolean rtOnly : new boolean[] { false, true }) {
+         Fixture f = bar();
+
+         if(rtOnly) {
+            f.chartInfo.setRTChartType(GraphTypes.CHART_TREEMAP);
+         }
+         else {
+            f.chartInfo.setChartType(GraphTypes.CHART_TREEMAP);
+         }
+
+         assertFalse(HyperlinkDialogService.isLinearMeasureAxisLink(
+            f.chartInfo, f.chartInfo.getFields("REVENUE", false)));
+         Exception e = assertThrows(IllegalArgumentException.class,
+                                    () -> set(f, model("REVENUE", true, true)));
+         assertTrue(e.getMessage().contains("'REVENUE'") && e.getMessage().contains("no axis"),
+                    e.getMessage());
+         assertNothingWritten(f);
       }
    }
 
