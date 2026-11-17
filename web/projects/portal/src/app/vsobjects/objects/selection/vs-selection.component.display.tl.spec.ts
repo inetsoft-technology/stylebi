@@ -637,6 +637,27 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
+   // Bug #81590: the selected-values half carried a hard-coded grey bottom border in the stylesheet,
+   // so a dropdown whose title border was set to none still drew a grey line under "(none)".
+   describe("selected-values bottom border follows the title border", () => {
+      it("should draw no line when the title has no bottom border", async () => {
+         const { comp } = await renderComponent();
+         comp.model = makeMockListModel({ dropdown: true, container: null } as any);
+         comp.model.titleFormat.border = { top: "", left: "", right: "", bottom: "" } as any;
+
+         expect(comp.selectedTextBorderBottom).toBe("none");
+      });
+
+      it("should use the title's bottom border when it has one", async () => {
+         const { comp } = await renderComponent();
+         comp.model = makeMockListModel({ dropdown: true, container: null } as any);
+         comp.model.titleFormat.border = { top: "", left: "", right: "",
+            bottom: "2px solid #ff0000" } as any;
+
+         expect(comp.selectedTextBorderBottom).toBe("2px solid #ff0000");
+      });
+   });
+
    describe("Group 10 �?getIdentifier", () => {
       it("should return value for leaf node", async () => {
          const { comp } = await renderComponent();
