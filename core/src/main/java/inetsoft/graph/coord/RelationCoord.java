@@ -301,7 +301,8 @@ public class RelationCoord extends Coordinate {
       EGraph eg = vg != null ? vg.getEGraph() : null;
       return getParentCoordinate() == null && eg != null && eg.getElementCount() > 0
          && eg.getElement(0) instanceof RelationElement re
-         && re.isPlotFit() && re.getAlgorithm() == RelationElement.Algorithm.CIRCLE;
+         && re.isPlotFit() && (re.getAlgorithm() == RelationElement.Algorithm.CIRCLE ||
+            re.getAlgorithm() == RelationElement.Algorithm.ORGANIC);
    }
 
    private Rectangle2D getNaturalLayoutBounds() {

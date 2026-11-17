@@ -22,6 +22,7 @@ import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.RelationElement;
 import inetsoft.graph.geometry.RelationGeometry;
+import inetsoft.graph.internal.GTool;
 import inetsoft.graph.mxgraph.model.mxGeometry;
 import inetsoft.graph.visual.RelationVO;
 import inetsoft.graph.visual.VOText;
@@ -122,6 +123,8 @@ class RelationPlotFitTest {
 
       assertFalse(c.coord().requiresReplot());
 
+      assertNotNull(c.elem().getLaidOutBox());
+
       List<RelationVO> base = nodes(c.vgraph(), c.elem());
       List<RelationVO> overlay = nodes(c.vgraph(), c.overlay());
       assertFalse(overlay.isEmpty(), "premise: overlay nodes");
@@ -138,14 +141,16 @@ class RelationPlotFitTest {
 
    @Test
    void aTinyBoxGivesNoNegativeLayout() {
-      Circle c = circle(30, true, false, 60, 40);
+      Circle c = circle(30, true, false, 60, 40, false, 40, 30);
 
       assertTrue(c.elem().getLayoutRadius() >= 0);
+      assertEquals(0, c.elem().getLayoutRadius(), 1e-6, "premise: the radius clamps to zero");
 
       for(RelationVO vo : nodes(c.vgraph(), c.elem())) {
          Rectangle2D b = vo.getShapes()[0].getBounds2D();
          assertTrue(Double.isFinite(b.getX()) && Double.isFinite(b.getY()) &&
                     Double.isFinite(b.getWidth()) && Double.isFinite(b.getHeight()), "" + b);
+         assertTrue(b.getWidth() >= 0 && b.getHeight() >= 0, "" + b);
       }
    }
 
@@ -178,12 +183,144 @@ class RelationPlotFitTest {
       egraph.addElement(elem);
       RelationCoord coord = new RelationCoord();
       coord.setParentCoordinate(new FacetCoord());
+      coord.setCoordBounds(new Rectangle2D.Double(0, 0, 376, 190));
       egraph.setCoordinate(coord);
 
       elem.createGeometry(data, new GGraph(egraph, coord, data));
 
       assertNull(elem.getLaidOutBox());
       assertNull(coord.getPlotBox());
+   }
+
+   @Test
+   void aFittedNetworkFillsThePlot() {
+      for(int n : new int[] { 8, 30, 120 }) {
+         for(boolean legend : new boolean[] { false, true }) {
+            Circle c = network(n, true, legend, 376, 190, 0);
+            String msg = n + " nodes, legend " + legend;
+            assertInside(c, msg);
+            assertFills(c, 0.95, msg);
+         }
+      }
+   }
+
+   @Test
+   void aSmallNetworkSpreadsOnALargeCard() {
+      Circle c = network(8, true, false, 800, 600, 0);
+      assertFills(c, 0.95, "fitted");
+
+      Circle classic = network(8, false, false, 800, 600, 0);
+      assertTrue(union(classic).getWidth() < 0.5 * classic.vgraph().getPlotBounds().getWidth(),
+                 "classic " + union(classic));
+   }
+
+   @Test
+   void nodesKeepTheirSize() {
+      Circle fitted = network(30, true, false, 376, 190, 0);
+      Circle classic = network(30, false, false, 376, 190, 0);
+      List<RelationVO> a = nodes(fitted.vgraph(), fitted.elem());
+      List<RelationVO> b = nodes(classic.vgraph(), classic.elem());
+      assertEquals(b.size(), a.size());
+
+      for(int i = 0; i < a.size(); i++) {
+         Rectangle2D ra = a.get(i).getShapes()[0].getBounds2D();
+         Rectangle2D rb = b.get(i).getShapes()[0].getBounds2D();
+         assertEquals(rb.getWidth(), ra.getWidth(), 0.01);
+         assertEquals(rb.getHeight(), ra.getHeight(), 0.01);
+      }
+   }
+
+   @Test
+   void aFittedNetworkDoesNotScroll() {
+      Circle c = network(30, true, false, 376, 190, 30);
+      Rectangle2D plot = c.vgraph().getPlotBounds();
+
+      assertTrue(c.vgraph().getMinPlotWidth() < plot.getWidth());
+      assertTrue(c.vgraph().getMinPlotHeight() < plot.getHeight());
+   }
+
+   @Test
+   void aOneOrTwoNodeNetworkStaysFinite() {
+      for(Object[][] rows : new Object[][][] {
+         { { "From", "To" }, { "A", "B" } }, { { "From", "To" }, { "A", "A" } } })
+      {
+         RelationElement elem = networkElement(false, 10, 10);
+         EGraph egraph = new EGraph();
+         egraph.addElement(elem);
+         RelationCoord coord = new RelationCoord();
+         egraph.setCoordinate(coord);
+         VGraph vgraph = Plotter.getPlotter(egraph)
+            .plotAndLayout(new DefaultDataSet(rows), 0, 0, 376, 190);
+         Rectangle2D plot = vgraph.getPlotBounds();
+         List<RelationVO> list = nodes(vgraph, elem);
+         assertFalse(list.isEmpty());
+
+         for(RelationVO vo : list) {
+            Rectangle2D b = vo.getShapes()[0].getBounds2D();
+            assertTrue(Double.isFinite(b.getX()) && Double.isFinite(b.getY()) &&
+                       Double.isFinite(b.getWidth()) && Double.isFinite(b.getHeight()), "" + b);
+            assertTrue(b.getMinX() >= plot.getMinX() - 1 && b.getMaxX() <= plot.getMaxX() + 1 &&
+                       b.getMinY() >= plot.getMinY() - 1 && b.getMaxY() <= plot.getMaxY() + 1,
+                       b + " outside " + plot + " rows " + rows[1][1] + " n=" + list.size());
+         }
+      }
+   }
+
+   private static void assertFills(Circle c, double fraction, String message) {
+      Dimension2D box = c.coord().getPlotBox();
+      int textH = GTool.getFontMetrics(c.elem().getTextSpec().getFont()).getHeight();
+      double availW = box.getWidth() - 20;
+      double availH = box.getHeight() - 2 * textH;
+      Rectangle2D union = union(c);
+
+      assertTrue(union.getWidth() >= fraction * availW,
+                 message + ": width " + union.getWidth() + " of " + availW);
+      assertTrue(union.getHeight() >= fraction * availH,
+                 message + ": height " + union.getHeight() + " of " + availH);
+   }
+
+   private static RelationElement networkElement(boolean legend, int nodeW, int nodeH) {
+      RelationElement elem = element(legend);
+      elem.setAlgorithm(RelationElement.Algorithm.ORGANIC);
+      elem.setNodeWidth(nodeW);
+      elem.setNodeHeight(nodeH);
+      elem.setTextFrame(new DefaultTextFrame("To"));
+      elem.setPlotFit(true);
+      return elem;
+   }
+
+   // clusters of five (a hub with four leaves), hubs chained
+   private static DefaultDataSet networkData(int n, int labelPad) {
+      String pad = "x".repeat(labelPad);
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { "From", "To" });
+
+      for(int i = 1; i < n; i++) {
+         int from = i % 5 != 0 ? i / 5 * 5 : i - 5;
+         rows.add(new Object[] { "N" + from + pad, "N" + i + pad });
+      }
+
+      return new DefaultDataSet(rows.toArray(new Object[0][]));
+   }
+
+   private static Circle network(int n, boolean plotFit, boolean legend, int w, int h,
+                                 int labelPad)
+   {
+      RelationElement elem = networkElement(legend, 10, 10);
+      elem.setPlotFit(plotFit);
+      EGraph egraph = new EGraph();
+      egraph.addElement(elem);
+      RelationCoord coord = new RelationCoord();
+      egraph.setCoordinate(coord);
+
+      if(legend) {
+         egraph.setLegendLayout(GraphConstants.RIGHT);
+      }
+
+      VGraph vgraph = Plotter.getPlotter(egraph)
+         .plotAndLayout(networkData(n, labelPad), 0, 0, w, h);
+      assertNotNull(vgraph);
+      return new Circle(coord, elem, null, vgraph);
    }
 
    private static void assertInside(Circle c, String message) {
@@ -259,7 +396,15 @@ class RelationPlotFitTest {
    private static Circle circle(int n, boolean plotFit, boolean legend, int w, int h,
                                 boolean brushed)
    {
+      return circle(n, plotFit, legend, w, h, brushed, 5, 5);
+   }
+
+   private static Circle circle(int n, boolean plotFit, boolean legend, int w, int h,
+                                boolean brushed, int nodeW, int nodeH)
+   {
       RelationElement elem = element(legend);
+      elem.setNodeWidth(nodeW);
+      elem.setNodeHeight(nodeH);
       elem.setTextFrame(new DefaultTextFrame("To"));
       elem.setPlotFit(plotFit);
       EGraph egraph = new EGraph();

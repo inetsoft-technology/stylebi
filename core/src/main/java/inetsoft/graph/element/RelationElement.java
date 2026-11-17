@@ -331,7 +331,7 @@ public class RelationElement extends GraphElement {
 
    // algorithms that lay out inside the plot box under plotFit
    private boolean isFittedAlgorithm() {
-      return algorithm == Algorithm.CIRCLE;
+      return algorithm == Algorithm.CIRCLE || algorithm == Algorithm.ORGANIC;
    }
 
    private void mxLayout(Map<Object, RelationGeometry> nodes, List<RelationEdgeGeometry> edges,
@@ -339,7 +339,8 @@ public class RelationElement extends GraphElement {
    {
       mxGraphLayout layout0;
       boolean scalePositions = true;
-      int layoutW = layoutSize.width, layoutH = layoutSize.height;
+      double layoutW = laidOutBox != null ? laidOutBox.getWidth() : layoutSize.width;
+      double layoutH = laidOutBox != null ? laidOutBox.getHeight() : layoutSize.height;
 
       // leave space for label since mxLayout is not aware of labels and the labels are
       // laid out later.
@@ -456,6 +457,10 @@ public class RelationElement extends GraphElement {
       edges.stream()
          .forEach(v -> v.getEdge().getGeometry().translate(-minX, -minY));
 
+      if(laidOutBox != null && algorithm == Algorithm.ORGANIC) {
+         fitPositions(nodes, edges, layoutW, layoutH);
+      }
+
       // Cache centroid of node centres for smooth-edge rendering. Only CIRCLE consumes it;
       // skip the O(n) pass for other algorithms. Computed in the same post-flip /
       // post-translate space the edge geometry produces.
@@ -511,6 +516,38 @@ public class RelationElement extends GraphElement {
       if(flipped && algorithm == Algorithm.COMPACT_TREE) {
          flipMajorAxis(nodes, edges, horizontal);
       }
+   }
+
+   // spread node positions so the node boxes fill the available width and height
+   private void fitPositions(Map<Object, RelationGeometry> nodes, List<RelationEdgeGeometry> edges,
+                             double availW, double availH)
+   {
+      double sx = Double.MAX_VALUE, sy = Double.MAX_VALUE;
+
+      for(RelationGeometry node : nodes.values()) {
+         mxGeometry g = node.getMxCell().getGeometry();
+
+         if(g.getX() > 0) {
+            sx = Math.min(sx, (availW - g.getWidth()) / g.getX());
+         }
+
+         if(g.getY() > 0) {
+            sy = Math.min(sy, (availH - g.getHeight()) / g.getY());
+         }
+      }
+
+      sx = sx == Double.MAX_VALUE ? 1 : Math.max(0, sx);
+      sy = sy == Double.MAX_VALUE ? 1 : Math.max(0, sy);
+      AffineTransform trans = AffineTransform.getScaleInstance(sx, sy);
+
+      // scale the top-left corner (not the centre) so the nodes stay anchored at the origin
+      for(RelationGeometry node : nodes.values()) {
+         mxGeometry g = node.getMxCell().getGeometry();
+         g.setX(g.getX() * sx);
+         g.setY(g.getY() * sy);
+      }
+
+      edges.forEach(v -> v.getEdge().getGeometry().transformPosition(trans));
    }
 
    // 180° flip on the major axis (X if horizontal, otherwise Y).
