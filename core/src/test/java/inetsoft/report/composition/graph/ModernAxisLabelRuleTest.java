@@ -493,7 +493,8 @@ class ModernAxisLabelRuleTest {
       assertEquals(105 * 5, vgraph.getMinPlotWidth(), 0.5);
       assertEquals(45, (int) axis.getScale().getAxisSpec().getTextSpec().getRotation());
       assertTrue(idx.size() > 2 && idx.size() < 105, "thinned " + idx);
-      assertEquals(0, idx.get(0), "shown " + idx);
+      // a crowded first label is hidden, the others stay on the step
+      assertEquals(0, idx.get(0) % (idx.get(1) - idx.get(0)), "on the step " + idx);
 
       for(int i = 1; i < idx.size(); i++) {
          assertEquals(idx.get(1) - idx.get(0), idx.get(i) - idx.get(i - 1), "one step " + idx);
@@ -642,6 +643,77 @@ class ModernAxisLabelRuleTest {
          assertTrue(boxes.get(i + 1).getX() - boxes.get(i).getMaxX() >= 4 - 1e-3,
                     "gap after " + texts.get(i) + " " + texts);
       }
+   }
+
+   @Test
+   void aGanttTimeAxisSlidesItsFirstTickInside() {
+      // the first tick's full date runs past the axis start: it slides inside the axis and
+      // stays where it clears the next label in step; the step is the one on the ticks
+      GraphGenerator gen = generator(ganttChart(30, false), VizMark.MODERN_LIGHT,
+                                     new Dimension(400, 480));
+      VGraph vgraph = Plotter.getPlotter(gen.createEGraph())
+         .plotAndLayout(gen.getData(), 0, 0, 400, 480);
+      DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getYAxis1();
+      axis.prepareLabels();
+      List<Integer> idx = shownIndices(axis);
+      List<String> texts = shownTexts(axis);
+      Rectangle2D first = shownBounds(axis).get(0);
+
+      assertEquals(3, idx.get(0), texts.toString());
+      assertEquals(3, idx.get(1) - idx.get(0), texts.toString());
+      assertTrue(texts.get(0).contains("2026"), texts.toString());
+      assertTrue(first.getX() >= vgraph.getPlotBounds().getX() - 0.01,
+                 "first label at " + first.getX() + ", plot at " + vgraph.getPlotBounds().getX());
+      assertOneStep(idx, texts);
+   }
+
+   @Test
+   void aDateFacetSlidesEachPanelsFirstPeriodInside() {
+      VSChartDimensionRef year = dateDim("Year", XConstants.YEAR_DATE_GROUP, XConstants.SORT_ASC);
+      VSChartDimensionRef month = dateDim("Month", XConstants.MONTH_DATE_GROUP,
+                                          XConstants.SORT_ASC);
+      VSChartAggregateRef total = agg("Total");
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_BAR);
+      cinfo.setRTChartType(GraphTypes.CHART_BAR);
+      cinfo.addXField(year);
+      cinfo.addXField(month);
+      cinfo.addYField(total);
+      cinfo.updateChartType(false);
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { GraphUtil.getName(year), GraphUtil.getName(month),
+                              GraphUtil.getName(total) });
+
+      for(int y = 0; y < 2; y++) {
+         for(int m = 0; m < 12; m++) {
+            rows.add(new Object[] { new java.sql.Date(124 + y, 0, 1),
+                                    new java.sql.Date(124 + y, m, 1), 10.0 * (m + 1) });
+         }
+      }
+
+      VGraph vgraph = plot(new Chart(cinfo, rows.toArray(new Object[0][])),
+                           VizMark.MODERN_LIGHT, 400, 240);
+      int panels = 0;
+
+      for(DefaultAxis axis : vgraph.getCoordinate().getAxesAt(
+         inetsoft.graph.coord.Coordinate.BOTTOM_AXIS))
+      {
+         if(!axis.getScale().getFields()[0].contains("Month")) {
+            continue;
+         }
+
+         axis.prepareLabels();
+         List<Integer> idx = shownIndices(axis);
+         List<String> texts = shownTexts(axis);
+         panels++;
+
+         assertEquals(3, idx.get(0), "panel " + panels + " " + texts);
+         assertEquals(3, idx.get(1) - idx.get(0), "panel " + panels + " " + texts);
+         assertTrue(texts.get(0).contains(" 202"), "the year on the first " + texts);
+         assertOneStep(idx, texts);
+      }
+
+      assertEquals(2, panels, "premise: two panels");
    }
 
    @Test

@@ -476,6 +476,67 @@ class ModernAxisLabelTest {
    }
 
    @Test
+   void hiddenYMonthsKeepTheirStep() {
+      // Jan 2024 slides inside but crowds the next label in step, so it is hidden; the step
+      // stays the one the labels on their ticks need
+      Date[] dates = months(2024, Calendar.JANUARY, 24);
+      DefaultAxis axis = layout(monthScale(), hiddenY(), dateRows(dates), 300, 180);
+
+      assertStep(axis, 3, "300x180");
+      assertInsideTheGraph(axis, "300x180");
+      assertYearsWhereTheyChange(axis, dates, "300x180");
+      assertApart(axis, "300x180");
+   }
+
+   @Test
+   void theLastLabelInStepSlidesInside() {
+      // 30 days from Jan 5, 2026: the label in step at the far end slides in
+      Date[] dates = days(2026, Calendar.JANUARY, 5, 30);
+      DefaultAxis axis = dateAxis(dates, new CompactDates(TimeScale.DAY, Locale.US), null,
+                                  400, 240, 66);
+      List<Integer> idx = shownIndices(axis);
+
+      assertStep(axis, 4, "400x240");
+      assertEquals((dates.length - 1) / 4 * 4, idx.get(idx.size() - 1),
+                   idx + " " + shownTexts(axis));
+      assertInsideTheGraph(axis, "400x240");
+   }
+
+   @Test
+   void a45DegreeEndLabelStaysInsideTheChart() {
+      // the first label slides inside; slid it crowds the next one in step, so it is hidden
+      DefaultAxis axis = xAxis(campaigns(105), 66, 45, 0, 400, 240);
+
+      assertStep(axis, 7, "105 campaigns at 45");
+      assertEquals(7, shownIndices(axis).get(0), shownTexts(axis).toString());
+      assertInsideTheGraph(axis, "105 campaigns at 45");
+      assertApart(axis, "105 campaigns at 45");
+   }
+
+   @Test
+   void a45DegreeEndLabelWithoutYLabelsKeepsTheStep() {
+      CategoricalScale xscale = new CategoricalScale("Name");
+      xscale.getAxisSpec().setLabelLimit(66);
+      xscale.getAxisSpec().getTextSpec().setRotation(45);
+      DefaultAxis axis = layout(xscale, hiddenY(), campaigns(105), 400, 240);
+
+      assertStep(axis, 6, "105 campaigns at 45 without Y labels");
+      assertInsideTheGraph(axis, "105 campaigns at 45 without Y labels");
+      assertApart(axis, "105 campaigns at 45 without Y labels");
+   }
+
+   @Test
+   void drawnGapsKeep4pxOnASmallCard() {
+      // the text draws wider than its whole-pixel width
+      DefaultAxis axis = dateAxis(months(2024, Calendar.JANUARY, 24),
+                                  new CompactDates(TimeScale.MONTH, Locale.US), null, 300, 180,
+                                  66);
+
+      assertOneStep(axis, "300x180");
+      assertApart(axis, "300x180");
+   }
+
+   @Test
    void largerLabelsThinInOneStepFromTheFirst() {
       // at 14px and 45 degrees the first labels reach left past the axis start
       DefaultAxis axis = xAxis(stores(30), 92.4, 45, 0, 400, 240, 14);
@@ -531,6 +592,19 @@ class ModernAxisLabelTest {
       assertApart(axis, where);
    }
 
+   // the shown labels are every k-th label, the step the labels on their ticks need
+   private static void assertStep(DefaultAxis axis, int step, String where) {
+      List<Integer> idx = shownIndices(axis);
+
+      assertTrue(idx.size() > 1, "shown " + idx + " at " + where);
+      assertEquals(0, idx.get(0) % step, "on the grid " + idx + " at " + where);
+
+      for(int i = 1; i < idx.size(); i++) {
+         assertEquals(step, idx.get(i) - idx.get(i - 1),
+                      "step at " + where + " " + idx + " " + shownTexts(axis));
+      }
+   }
+
    // the shown labels are every k-th from the first candidate
    private static void assertOneStep(DefaultAxis axis, String where) {
       List<Integer> idx = shownIndices(axis);
@@ -547,16 +621,16 @@ class ModernAxisLabelTest {
       }
    }
 
-   // every shown flat label's text stays in the graph
+   // every shown label's drawn text, rotated with it, stays in the graph
    private static void assertInsideTheGraph(DefaultAxis axis, String where) {
       Rectangle2D graph = axis.vgraph.getBounds();
-      List<Rectangle2D> shown = shownBounds(axis);
+      List<Integer> idx = shownIndices(axis);
       List<String> texts = shownTexts(axis);
 
-      for(int i = 0; i < shown.size(); i++) {
-         Rectangle2D box = shown.get(i);
+      for(int i = 0; i < idx.size(); i++) {
+         Rectangle2D box = textArea(axis.getLabels()[idx.get(i)], 0).getBounds2D();
 
-         assertTrue(box.getX() >= graph.getX() - 0.5 && box.getMaxX() <= graph.getMaxX() + 0.5,
+         assertTrue(box.getX() >= graph.getX() - 0.01 && box.getMaxX() <= graph.getMaxX() + 0.01,
                     texts.get(i) + " at " + box.getX() + ".." + box.getMaxX() + " runs out of " +
                     graph.getX() + ".." + graph.getMaxX() + " at " + where + " " + texts);
       }
@@ -613,7 +687,7 @@ class ModernAxisLabelTest {
       double x = label.getTextPosition().getX();
       double y = label.getTextPosition().getY();
       Rectangle2D box = new Rectangle2D.Double(
-         x, y - across, GTool.stringWidth(label.getDisplayLabel(), font),
+         x, y - across, drawnWidth(label),
          GTool.getFontMetrics(font).getHeight() * label.getDisplayLabel().length + across * 2);
       double angle = Math.toRadians(label.getTextSpec().getRotation());
       return new java.awt.geom.Area(java.awt.geom.AffineTransform.getRotateInstance(angle, x, y)
@@ -645,6 +719,21 @@ class ModernAxisLabelTest {
       }
 
       return Math.abs(sum) / 2;
+   }
+
+   private static CategoricalScale monthScale() {
+      CategoricalScale xscale = new CategoricalScale("Date");
+      xscale.getAxisSpec().setCompactDates(new CompactDates(TimeScale.MONTH, Locale.US));
+      xscale.getAxisSpec().setLabelLimit(66);
+      return xscale;
+   }
+
+   // a Y scale with no labels and no axis line
+   private static LinearScale hiddenY() {
+      LinearScale yscale = new LinearScale("Sales");
+      yscale.getAxisSpec().setLabelVisible(false);
+      yscale.getAxisSpec().setAxisStyle(AxisSpec.AXIS_NONE);
+      return yscale;
    }
 
    private static Date[] days(int year, int month, int day, int count) {
@@ -859,6 +948,18 @@ class ModernAxisLabelTest {
       return GTool.stringWidth(label.getDisplayLabel(), label.getFont());
    }
 
+   // the width the text draws at: its fractional advance, wider than the whole-pixel width
+   private static double drawnWidth(VLabel label) {
+      java.awt.font.FontRenderContext frc = new java.awt.font.FontRenderContext(null, true, true);
+      double w = width(label);
+
+      for(String line : label.getDisplayLabel()) {
+         w = Math.max(w, label.getFont().getStringBounds(line, frc).getWidth());
+      }
+
+      return w;
+   }
+
    private static List<Integer> shownIndices(DefaultAxis axis) {
       List<Integer> idx = new ArrayList<>();
       VLabel[] labels = axis.getLabels();
@@ -879,8 +980,7 @@ class ModernAxisLabelTest {
          VLabel label = axis.getLabels()[i];
          Font font = label.getFont();
          list.add(new Rectangle2D.Double(label.getTextPosition().getX(),
-                                         label.getTextPosition().getY(),
-                                         GTool.stringWidth(label.getDisplayLabel(), font),
+                                         label.getTextPosition().getY(), drawnWidth(label),
                                          GTool.getFontMetrics(font).getHeight()));
       }
 
