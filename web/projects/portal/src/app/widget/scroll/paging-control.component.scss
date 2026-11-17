@@ -26,8 +26,8 @@
   width: 80px;
   height: 80px;
   z-index: 9999;
-  background: white;
-  border: 1px solid lightgray;
+  background: var(--inet-dark-surface-color, white);
+  border: 1px solid var(--inet-dark-border-color, lightgray);
   border-radius: 60px;
   pointer-events: none;
   transition: opacity 1s linear;

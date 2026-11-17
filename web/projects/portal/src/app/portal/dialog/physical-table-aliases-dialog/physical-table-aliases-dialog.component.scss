@@ -24,7 +24,7 @@
 .auto-alias-invalid-feedback {
    margin: 0;
    padding: 0 5px;
-   background: white;
+   background: var(--inet-dark-surface-color, white);
 }
 
 .auto-alias-toggle {

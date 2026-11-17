@@ -29,7 +29,9 @@ import inetsoft.util.MessageException;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.assistant.AIAssistantController;
+import inetsoft.web.portal.ShellDarkMode;
 import inetsoft.web.viewsheet.service.LinkUri;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -104,10 +106,22 @@ public class HomePageController {
       }
 
       String customLoadingText = SreeEnv.getProperty("portal.customLoadingText").replaceAll("\\s", " ");
+      boolean customTheme = customThemesManager.isCustomThemeApplied() || hasOrgTheme;
+      Principal principal = request.getUserPrincipal() != null ?
+         request.getUserPrincipal() : ThreadContext.getContextPrincipal();
+      boolean shellDark = ShellDarkMode.isDark(principal, customTheme);
+      Cookie shellDarkCookie = ShellDarkMode.getCookieUpdate(request, shellDark);
+
+      if(shellDarkCookie != null) {
+         response.addCookie(shellDarkCookie);
+      }
+
       ModelAndView model = new ModelAndView("app/index");
       model.addObject("linkUri", linkUri);
-      model.addObject("customTheme", customThemesManager.isCustomThemeApplied() || hasOrgTheme);
-      model.addObject("scriptThemeCssPath", customThemesManager.getScriptThemeCssPath(true));
+      model.addObject("customTheme", customTheme);
+      model.addObject("shellDark", shellDark);
+      model.addObject("scriptThemeCssPath", shellDark ?
+         ShellDarkMode.SCRIPT_THEME_CSS_PATH : customThemesManager.getScriptThemeCssPath(true));
       model.addObject("customLoadingText", customLoadingText);
       model.addObject("customLoadingLogo", SreeEnv.getProperty("portal.customLoadingLogo"));
       model.addObject("customCss", SreeEnv.getProperty("portal.customCss"));
@@ -115,8 +129,6 @@ public class HomePageController {
       addAdditionalStyles(model, linkUri);
       addAdditionalScripts(model, linkUri);
       addDataSpaceTags(model, linkUri);
-      Principal principal = request.getUserPrincipal() != null ?
-         request.getUserPrincipal() : ThreadContext.getContextPrincipal();
       addOpenGraphTags(model, linkUri, request.getRequestURI(), request.getHeader("User-Agent"),
                        principal);
 

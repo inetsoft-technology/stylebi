@@ -1368,7 +1368,8 @@ custom-select.date-value-editor__nav-select--year {
  * Treat this as the runtime bridge between Bootstrap internals and the Portal shell theme.
  ***********************************************************************************************/
 
-:root {
+// As a mixin so a dark shell can restore the light bridge inside dashboard content.
+@mixin inet-bootstrap-bridge {
   // bootstrap
   // from bootstrap 4 for backwards compatibility, navbar nav-link items had horizontal padding
   // Keep the navbar-link literal until bootstrap-compat variables are consolidated under nav tokens.
@@ -1403,6 +1404,10 @@ custom-select.date-value-editor__nav-select--year {
   --bs-list-group-active-bg: var(--inet-shell-selected-bg-color);
   --bs-list-group-active-color: var(--inet-text-color);
   --bs-list-group-active-border-color: var(--inet-default-border-color);
+}
+
+:root {
+  @include inet-bootstrap-bridge;
 }
 
 // Suppress programmatic-focus highlight on portal dropdowns (defaultFocus directive calls

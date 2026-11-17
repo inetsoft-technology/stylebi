@@ -92,7 +92,7 @@ button {
 }
 
 .field-container:hover .wizard-convert {
-  background: white;
+  background: var(--inet-dark-surface-color, white);
 }
 
 .button-tooltip {

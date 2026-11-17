@@ -213,7 +213,7 @@ main {
 .mobile-dropdown {
   display: flex;
   flex-direction: column;
-  background: white;
+  background: var(--inet-dark-surface-color, white);
 
   i {
     font-size: 24px;
