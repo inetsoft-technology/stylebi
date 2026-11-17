@@ -37,6 +37,7 @@ import inetsoft.uql.viewsheet.graph.CandleChartInfo;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.GanttChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -582,6 +583,10 @@ final class ChartRegionResolver {
          present.add("y");
       }
 
+      if(!present.contains("x") && ganttTimeRefs(info).length > 0) {
+         present.add("x");
+      }
+
       // The secondary axis belongs to a measure, and it lands opposite whichever shelf holds the
       // measures: the right axis normally, the top one on an inverted graph, where x and y swap
       // roles. Reading isSecondaryY off the wrong shelf reports x2 as y2 and vice versa.
@@ -612,6 +617,40 @@ final class ChartRegionResolver {
          .collect(Collectors.toMap(ChartRef::getFullName, r -> r, (a, b) -> a,
                                    LinkedHashMap::new))
          .values().toArray(new ChartRef[0]);
+   }
+
+   /**
+    * The start/end fields of a Gantt chart, in that order, skipping unbound ones and
+    * de-duplicating by full name; empty for every other chart. Like a candle's prices they sit on
+    * no x-shelf field, yet the Gantt draws one time axis for them (bug #81591), so they stand in
+    * for the x shelf when it is empty.
+    */
+   static ChartRef[] ganttTimeRefs(VSChartInfo info) {
+      if(!(info instanceof GanttChartInfo gantt)) {
+         return new ChartRef[0];
+      }
+
+      return Stream.of(gantt.getStartField(), gantt.getEndField())
+         .filter(Objects::nonNull)
+         .collect(Collectors.toMap(ChartRef::getFullName, r -> r, (a, b) -> a,
+                                   LinkedHashMap::new))
+         .values().toArray(new ChartRef[0]);
+   }
+
+   /**
+    * The fields an engine-drawn axis stands on when its own shelf is empty: a candle's prices for
+    * y, a Gantt's start/end for x; empty for any other axis.
+    */
+   static ChartRef[] engineAxisRefs(VSChartInfo info, String axis) {
+      if("y".equals(axis)) {
+         return candlePriceRefs(info);
+      }
+
+      if("x".equals(axis)) {
+         return ganttTimeRefs(info);
+      }
+
+      return new ChartRef[0];
    }
 
    private static boolean hasSecondaryMeasure(ChartRef[] refs) {
