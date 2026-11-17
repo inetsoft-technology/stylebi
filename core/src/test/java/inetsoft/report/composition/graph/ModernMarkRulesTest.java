@@ -631,6 +631,13 @@ class ModernMarkRulesTest {
    }
 
    @Test
+   void aMarkedRelationChartFloorsItsCorners() {
+      assertTrue(relation(relationChart(GraphTypes.CHART_TREE), VizMark.MODERN_LIGHT)
+                    .isCornerFloor());
+      assertFalse(relation(relationChart(GraphTypes.CHART_TREE), null).isCornerFloor());
+   }
+
+   @Test
    void anAuthorsPlotResizeKeepsTodaysLayout() {
       for(int type : RELATION_TYPES) {
          Chart wide = relationChart(type);

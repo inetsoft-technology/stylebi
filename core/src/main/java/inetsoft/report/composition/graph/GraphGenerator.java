@@ -5230,6 +5230,7 @@ public abstract class GraphGenerator {
          area.setSolidOutline(true);
       }
       else if(elem instanceof RelationElement relation) {
+         relation.setCornerFloor(true);
          // an author's plot resize keeps today's layout
          relation.setPlotFit(!info.isWidthResized() && !info.isHeightResized());
       }

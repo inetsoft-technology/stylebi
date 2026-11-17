@@ -331,7 +331,8 @@ public class RelationElement extends GraphElement {
 
    // algorithms that lay out inside the plot box under plotFit
    private boolean isFittedAlgorithm() {
-      return algorithm == Algorithm.CIRCLE || algorithm == Algorithm.ORGANIC;
+      return algorithm == Algorithm.CIRCLE || algorithm == Algorithm.ORGANIC ||
+         algorithm == Algorithm.COMPACT_TREE;
    }
 
    private void mxLayout(Map<Object, RelationGeometry> nodes, List<RelationEdgeGeometry> edges,
@@ -441,6 +442,12 @@ public class RelationElement extends GraphElement {
 
       layout0.setUseBoundingBox(false);
       layout0.execute(mxroot);
+      double treeScale = 1;
+
+      if(laidOutBox != null && layout0 instanceof mxCompactTreeLayout tree) {
+         treeScale = fitTreeBreadth(tree, nodes.values(), mxroot, horizontal ? layoutH : layoutW);
+      }
+
       flipY(ggraph);
 
       if(scalePositions) {
@@ -459,6 +466,10 @@ public class RelationElement extends GraphElement {
 
       if(laidOutBox != null && algorithm == Algorithm.ORGANIC) {
          fitPositions(nodes, edges, layoutW, layoutH);
+      }
+
+      if(treeScale != 1) {
+         scaleTree(nodes.values(), edges, treeScale);
       }
 
       // Cache centroid of node centres for smooth-edge rendering. Only CIRCLE consumes it;
@@ -516,6 +527,50 @@ public class RelationElement extends GraphElement {
       if(flipped && algorithm == Algorithm.COMPACT_TREE) {
          flipMajorAxis(nodes, edges, horizontal);
       }
+   }
+
+   // close the sibling gaps of a tree wider than available, then fit its breadth down to 75%
+   private double fitTreeBreadth(mxCompactTreeLayout layout, Collection<RelationGeometry> nodes,
+                                 Object mxroot, double available)
+   {
+      if(getTreeBreadth(nodes) <= available) {
+         return 1;
+      }
+
+      layout.setNodeDistance(4);
+      layout.setLevelDistance(18);
+      layout.execute(mxroot);
+      double breadth = getTreeBreadth(nodes);
+
+      return breadth > available ? Math.max(0.75, available / breadth) : 1;
+   }
+
+   // the extent of the nodes across the levels (the hidden forest root is not a node)
+   private double getTreeBreadth(Collection<RelationGeometry> nodes) {
+      double min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
+
+      for(RelationGeometry node : nodes) {
+         mxGeometry g = node.getMxCell().getGeometry();
+         min = Math.min(min, horizontal ? g.getY() : g.getX());
+         max = Math.max(max, horizontal ? g.getY() + g.getHeight() : g.getX() + g.getWidth());
+      }
+
+      return nodes.isEmpty() ? 0 : max - min;
+   }
+
+   // scale positions and sizes about the origin (mxRectangle.transform scales about the centre)
+   private static void scaleTree(Collection<RelationGeometry> nodes,
+                                 List<RelationEdgeGeometry> edges, double scale)
+   {
+      for(RelationGeometry node : nodes) {
+         mxGeometry g = node.getMxCell().getGeometry();
+         g.setRect(g.getX() * scale, g.getY() * scale, g.getWidth() * scale,
+                   g.getHeight() * scale);
+      }
+
+      // an edge geometry has no size, so this scales its position and points about the origin
+      AffineTransform trans = AffineTransform.getScaleInstance(scale, scale);
+      edges.forEach(v -> v.getEdge().getGeometry().transformPosition(trans));
    }
 
    // spread node positions so the node boxes fill the available width and height
@@ -1159,6 +1214,22 @@ public class RelationElement extends GraphElement {
    }
 
    /**
+    * Check whether a rounded node's corner is kept at least 2px (or a quarter of a smaller
+    * node).
+    */
+   public boolean isCornerFloor() {
+      return cornerFloor;
+   }
+
+   /**
+    * Set whether a rounded node's corner is kept at least 2px (or a quarter of a smaller
+    * node).
+    */
+   public void setCornerFloor(boolean cornerFloor) {
+      this.cornerFloor = cornerFloor;
+   }
+
+   /**
     * Check if the tree layout is horizontal (root on left, children to the right).
     */
    public boolean isHorizontal() {
@@ -1223,6 +1294,7 @@ public class RelationElement extends GraphElement {
             heightRatio == elem.heightRatio &&
             applyAestheticsToSource == elem.applyAestheticsToSource &&
             nodeCornerRadius == elem.nodeCornerRadius &&
+            cornerFloor == elem.cornerFloor &&
             smoothEdges == elem.smoothEdges &&
             plotFit == elem.plotFit &&
             horizontal == elem.horizontal &&
@@ -1262,6 +1334,7 @@ public class RelationElement extends GraphElement {
    private Color fillColor;
    private boolean applyAestheticsToSource = false;
    private double nodeCornerRadius = 0;
+   private boolean cornerFloor = false;
    private boolean smoothEdges = false;
    private boolean plotFit = false;
    private GShape shapeBorderShape;

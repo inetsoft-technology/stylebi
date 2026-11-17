@@ -27,7 +27,6 @@ import inetsoft.graph.coord.GeoCoord;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.element.IntervalElement;
-import inetsoft.graph.element.RelationElement;
 import inetsoft.graph.geometry.ElementGeometry;
 import inetsoft.graph.geometry.Geometry;
 import inetsoft.graph.geometry.IntervalGeometry;
@@ -1368,9 +1367,8 @@ public class GraphBuilder {
          }
 
          if(vobj instanceof RelationVO) {
-            RelationElement elem = (RelationElement)
-               ((ElementGeometry) ((RelationVO) vobj).getGeometry()).getElement();
-            double r = elem.getNodeCornerRadius();
+            // the fraction the node draws with, so the outline matches its corner
+            double r = ((RelationVO) vobj).getEffectiveCornerRadius();
 
             if(r > 0) {
                cornerRadius = r;
