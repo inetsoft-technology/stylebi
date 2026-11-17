@@ -2864,6 +2864,25 @@ public final class WorksheetMutationSupport {
    // =========================================================================
 
    /**
+    * Refuses adding one more column to a table that already holds the organization's column
+    * maximum, naming the limit.
+    *
+    * @param count the table's current column count
+    * @param table the assembly name, for the message
+    */
+   public static void requireColumnCapacity(int count, String table)
+      throws inetsoft.web.wiz.pairing.PairingException
+   {
+      int max = inetsoft.report.internal.Util.getOrganizationMaxColumn();
+
+      if(count >= max) {
+         throw new inetsoft.web.wiz.pairing.PairingException(
+            "\"" + table + "\" already has " + count + " columns, the maximum " +
+            "this organization allows (" + max + "). Remove a column before adding another.");
+      }
+   }
+
+   /**
     * Refuses adding a data column to a snapshot embedded table.
     *
     * <p>Shared by {@code add_column} and {@code insert_column}, which live in different classes

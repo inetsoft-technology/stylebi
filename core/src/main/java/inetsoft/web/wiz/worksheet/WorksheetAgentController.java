@@ -6204,6 +6204,8 @@ public class WorksheetAgentController {
          int count = columns.getAttributeCount();
          int index = req.index() != null ? req.index() : (insertBefore ? 0 : count - 1);
          requireInsertColumnIndexInRange(index, count, insertBefore);
+         WorksheetMutationSupport.requireColumnCapacity(
+            Math.max(count, data.getColCount()), req.table());
 
          // Generate a unique column name (col1, col2, ...).
          String colname;

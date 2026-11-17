@@ -710,6 +710,19 @@ class WorksheetAgentControllerTest {
       );
    }
 
+   /** Builds an {@code insert_column} EditRequest with an explicit {@code insert} flag. */
+   private static EditRequest insertColumnRequest(String table, boolean insert) {
+      return new EditRequest(
+         "insert_column", table, null, null, null, null, null, null, null, null,
+         null, null, null, false, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         insert, null,
+         null, null,
+         null, null, null, null, null, null, null
+      );
+   }
+
    /** Builds a {@code reorder_concat_subtables} EditRequest that routes to reorderConcatSubtables(). */
    private static EditRequest reorderConcatSubtablesRequest(String table, List<String> subtables) {
       return new EditRequest(
@@ -5019,6 +5032,53 @@ class WorksheetAgentControllerTest {
          () -> ctrl.edit("TOK-ICS", insertColumnRequest("T"), agent));
       assertEquals(RenderNotReadyException.Subject.TABLE, ex.getSubject());
       assertEquals(2, ex.getRetryAfter());
+   }
+
+   /** Bug #81498: insert_column refuses a table already at the organization column limit. */
+   @Test
+   void insertColumnRefusedAtOrganizationColumnLimit81498() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      int max = inetsoft.report.internal.Util.getOrganizationMaxColumn();
+      String[] types = new String[max];
+      Object[] header = new Object[max];
+      Object[] row = new Object[max];
+      ColumnSelection cs = new ColumnSelection();
+
+      for(int i = 0; i < max; i++) {
+         types[i] = XSchema.STRING;
+         header[i] = "c" + i;
+         row[i] = "v";
+         cs.addAttribute(new ColumnRef(new AttributeRef(null, "c" + i)));
+      }
+
+      for(boolean insert : new boolean[] { true, false }) {
+         Worksheet ws = new Worksheet();
+         EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+         t.setEmbeddedData(new XEmbeddedTable(types, new Object[][] { header, row }));
+         t.setColumnSelection(cs.clone(), false);
+         ws.addAssembly(t);
+
+         RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+         when(rws.getWorksheet()).thenReturn(ws);
+         SheetSessionService sessions = mock(SheetSessionService.class);
+         SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+         when(sessions.resolve(eq("TOK-LIM"), any())).thenReturn(session("TOK-LIM"));
+         when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+         WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+            mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+            mock(InnerJoinService.class));
+         WorksheetAgentController ctrl = controller(featureOn(),
+            mock(SheetJoinService.class), mock(SheetSessionService.class),
+            mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.edit("TOK-LIM", insertColumnRequest("T", insert), agent));
+
+         assertTrue(ex.getMessage().contains(String.valueOf(max)), ex.getMessage());
+         assertEquals(max, t.getColumnSelection(false).getAttributeCount());
+         assertEquals(max, t.getEmbeddedData().getColCount());
+      }
    }
 
    /**

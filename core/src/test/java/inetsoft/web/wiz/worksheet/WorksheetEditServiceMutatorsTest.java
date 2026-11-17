@@ -2876,6 +2876,62 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(max, t.getColumnSelection(false).getAttributeCount());
    }
 
+   /** A real embedded table holding {@code count} string columns, in data and column selection. */
+   private EmbeddedTableAssembly wideEmbedded(Worksheet ws, int count) {
+      String[] types = new String[count];
+      Object[] header = new Object[count];
+      Object[] row = new Object[count];
+
+      for(int i = 0; i < count; i++) {
+         types[i] = XSchema.STRING;
+         header[i] = "c" + i;
+         row[i] = "v";
+      }
+
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+      t.setEmbeddedData(new XEmbeddedTable(types, new Object[][] { header, row }));
+      ColumnSelection cs = new ColumnSelection();
+
+      for(int i = 0; i < count; i++) {
+         cs.addAttribute(new ColumnRef(new AttributeRef(null, "c" + i)));
+      }
+
+      t.setColumnSelection(cs, false);
+      return t;
+   }
+
+   @Test
+   void addColumnRefusedAtOrganizationColumnLimit81498() throws Exception {
+      int max = inetsoft.report.internal.Util.getOrganizationMaxColumn();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = wideEmbedded(ws, max);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addColumn("T", null, null)));
+
+      assertTrue(ex.getMessage().contains(String.valueOf(max)), ex.getMessage());
+      assertEquals(max, t.getColumnSelection(false).getAttributeCount());
+      assertEquals(max, t.getEmbeddedData().getColCount());
+   }
+
+   @Test
+   void addColumnAllowedOneBelowOrganizationColumnLimit81498() throws Exception {
+      int max = inetsoft.report.internal.Util.getOrganizationMaxColumn();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = wideEmbedded(ws, max - 1);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addColumn("T", null, null));
+
+      assertEquals(max, t.getColumnSelection(false).getAttributeCount());
+      assertEquals(max, t.getEmbeddedData().getColCount());
+   }
+
    @Test
    void addExpressionColumnAddsRef() throws Exception {
       Worksheet ws = new Worksheet();
