@@ -43,7 +43,6 @@ import org.springframework.session.web.socket.config.annotation.AbstractSessionW
 import org.springframework.session.web.socket.server.SessionRepositoryMessageInterceptor;
 import org.springframework.web.socket.config.annotation.*;
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
-import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -74,7 +73,7 @@ public class WebSocketConfig<S extends Session> extends
    public void configureStompEndpoints(StompEndpointRegistry registry) {
       registry.addEndpoint("/vs-events")
          .addInterceptors(
-            new HttpSessionHandshakeInterceptor(),
+            new NullSafeHttpSessionHandshakeInterceptor(),
             new RequestAttributeHandshakeInterceptor())
          .setAllowedOriginPatterns("*")
          .withSockJS()
