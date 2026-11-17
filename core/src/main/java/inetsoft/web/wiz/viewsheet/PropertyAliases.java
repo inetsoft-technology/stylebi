@@ -414,6 +414,9 @@ public final class PropertyAliases {
     */
    private static Map<String, String> withChartGridLabels(Map<String, String> base) {
       Map<String, String> labels = new LinkedHashMap<>(base);
+      // Bug #81544: Selection List/Tree General pane captions (selection-general-pane).
+      labels.put("quickSwitchAllowed", "Allow toggle between single and multi-selection");
+      labels.put("selectFirstItem", "Select First Item on Dashboard Load");
       labels.put("xGridLineStyle", "X Grid Line Style (the plot's Y axis grid on an inverted chart)");
       labels.put("xGridLineColor", "X Grid Line Color (the plot's Y axis grid on an inverted chart)");
       labels.put("yGridLineStyle", "Y Grid Line Style (the plot's X axis grid on an inverted chart)");
@@ -1694,7 +1697,11 @@ public final class PropertyAliases {
       selectionGeneral(aliases);
       aliases.put("cellHeight", "selectionGeneralPaneModel.sizePositionPaneModel.cellHeight");
       titleHeight(aliases, "selectionGeneralPaneModel");
-      selectionMeasure(aliases, "selectionTreePaneModel.selectionMeasurePaneModel");
+      String treeMeasure = "selectionTreePaneModel.selectionMeasurePaneModel";
+      // Bug #81544: a Selection List already lists its measure column; the tree's was reachable
+      // only by the raw path.
+      aliases.put("measure", treeMeasure + ".measure");
+      selectionMeasure(aliases, treeMeasure);
       aliases.put("selectChildren", "selectionTreePaneModel.selectChildren");
       aliases.put("mode", "selectionTreePaneModel.mode");
       // Not in selectionGeneral(): SelectionListPropertyDialogService never reads or writes
