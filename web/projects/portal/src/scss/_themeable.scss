@@ -852,6 +852,17 @@ schema-column, edit-join-table-column {
   }
 }
 
+// Trees take arrow-key focus (tabindex=-1), which [tabindex]{outline:none} hides unless body.accessible.
+// Text colour reaches 3:1 on both the white background and the selected-node fill. Placed after the
+// .accessible block so it wins the equal-specificity `.accessible :focus{outline:none}`.
+.tree-div:focus-visible,
+.tree-node:focus-visible {
+  outline: 2px solid var(--inet-text-color);
+  // softer than full text colour, still about 5.8:1 on white and above 4.5:1 on the selected-node fill
+  outline-color: color-mix(in srgb, var(--inet-text-color) 70%, white);
+  outline-offset: -2px;
+}
+
 /********************************** Others *********************************************/
 .th-cell-border {
   border-top: 1px solid var(--inet-default-border-color);
@@ -1221,6 +1232,23 @@ binding-editor {
 
       color: var(--inet-composer-navbar-hover-text-color);
       background-color: var(--inet-composer-navbar-hover-bg-color);
+    }
+
+    // Keyboard focus: Bootstrap's .btn:focus-visible recolours with its hover vars (pale fill, white
+    // label) and _layout.scss removes the ring. Use the same teal fill/label as :hover, plus an inset
+    // outline in the navbar text colour so the indicator does not depend on the fill/navbar contrast.
+    // The outline is !important because the @inetsoft-technology/ai-assistant bundle (loaded globally
+    // via angular.json scripts) injects an unscoped `button:focus, button:focus-visible
+    // { outline: none !important }` into <head>; only an !important rule beats it.
+    &:focus-visible:not(:disabled):not(.disabled) {
+      &, span, i {
+        color: var(--inet-composer-navbar-hover-text-color);
+      }
+
+      color: var(--inet-composer-navbar-hover-text-color);
+      background-color: var(--inet-composer-navbar-hover-bg-color);
+      outline: 2px solid var(--inet-composer-navbar-text-color) !important;
+      outline-offset: -2px;
     }
   }
 
