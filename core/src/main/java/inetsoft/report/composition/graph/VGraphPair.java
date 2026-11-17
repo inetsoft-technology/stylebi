@@ -272,6 +272,23 @@ public class VGraphPair {
    /**
     * Intialize visual graphs.
     */
+   /**
+    * The space kept between a visible title lane and the plot of a marked chart.
+    */
+   static int titleGap(ChartVSAssemblyInfo ainfo) {
+      if(!VizContext.of(ainfo).modern || !ainfo.isTitleVisible()) {
+         return 0;
+      }
+
+      VSChartInfo cinfo = ainfo.getVSChartInfo();
+
+      if(cinfo != null && GraphTypes.isMapContour(cinfo.getRTChartType())) {
+         return 0;
+      }
+
+      return ainfo.getPadding().top;
+   }
+
    private void initGraph0(ViewsheetSandbox box, String cname, Dimension maxsize,
                            boolean export, double scaleFont, boolean forceExpand)
       throws Exception
@@ -675,6 +692,13 @@ public class VGraphPair {
             legendRecount = true;
             return;
          }
+      }
+
+      int gap = titleGap(ainfo);
+      egraph.setTopInset(gap);
+
+      if(egraph2 != null) {
+         egraph2.setTopInset(gap);
       }
 
       // get size
