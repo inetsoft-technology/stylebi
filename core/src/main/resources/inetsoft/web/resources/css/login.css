@@ -655,3 +655,13 @@ div.loading-indicator.loading {
 :where(.shell-dark) .login-left .form-control:focus {
   box-shadow: 0 0 0 3px rgba(229, 138, 42, 0.45);
 }
+
+/* Primary buttons in a dark shell hover to the dark shell's lighter orange, as the portal's do.
+   global.css supplies the color. */
+:where(.shell-dark) #loginButton.btn-primary:hover,
+:where(.shell-dark) .login-left .btn-primary:hover,
+:where(.shell-dark) .restricted-action-btn--primary:hover,
+:where(.shell-dark) #activeSession .modal-footer .btn-primary:hover {
+  background: var(--inet-button-primary-hover-bg-color, var(--ln-primary-hover));
+  border-color: var(--inet-button-primary-hover-border-color, var(--ln-primary-hover));
+}

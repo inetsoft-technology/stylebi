@@ -18,13 +18,26 @@
 
 package inetsoft.web.portal.controller;
 
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.security.Organization;
+import inetsoft.web.portal.ShellDarkMode;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
 @Controller
 public class IndexController {
    @GetMapping({"/", "/index.html"})
-   public String home() {
+   public String home(HttpServletRequest request, Model model) {
+      // The workspace chooser is reached from the portal's Home link and before signing in, so it
+      // resolves the shell mode the way the login page does: the mode the portal last resolved
+      // for this browser, otherwise the organization default.
+      boolean customTheme = LoginController.isCustomTheme(request, CustomThemesManager.getManager());
+      String orgID = SUtil.isMultiTenant() ? SUtil.getLoginOrganization(request) :
+         Organization.getDefaultOrganizationID();
+      model.addAttribute("shellDark", ShellDarkMode.isLoginDark(request, orgID, customTheme));
       return "index";
    }
 }

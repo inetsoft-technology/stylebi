@@ -89,6 +89,15 @@ class ShellDarkModeTest {
       assertTrue(ShellDarkMode.isDark(user, false));
    }
 
+   @Test
+   void portalAndLoginReadTheValueTheSameWay() {
+      // a value saved with surrounding spaces must not give a dark login page and a light portal
+      SreeEnv.setProperty(ShellDarkMode.PROPERTY, " true ");
+
+      assertTrue(ShellDarkMode.isDark(null, false));
+      assertTrue(ShellDarkMode.isLoginDark(new MockHttpServletRequest(), null, false));
+   }
+
    // ---- custom theme wins ----
 
    @Test

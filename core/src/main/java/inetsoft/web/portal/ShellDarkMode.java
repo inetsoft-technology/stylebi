@@ -106,7 +106,9 @@ public final class ShellDarkMode {
          return false;
       }
 
-      return SreeEnv.getBooleanProperty(PROPERTY, false, true);
+      // read and trimmed the same way as isDefaultDark, so the portal and the login page agree
+      String value = SreeEnv.getProperty(PROPERTY, false, true);
+      return value != null && "true".equals(value.trim());
    }
 
    /**

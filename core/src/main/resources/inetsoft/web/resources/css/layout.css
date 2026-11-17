@@ -43,6 +43,33 @@
   --inet-focus-ring-color: rgba(229, 138, 42, 0.28);
 }
 
+/* Shell dark: the server writes the class when the shell is dark (inetsoft.web.portal.ShellDarkMode).
+   This page does not load the portal's global.css, so it declares its own subset of the dark shell
+   colors (web/projects/portal/src/scss/_shell-dark.scss), picked to match the dark login page: the
+   header and the icon tiles take the subtle surface the login page's header uses, one step above
+   the cards, rather than the portal's darker navbar. */
+:root.shell-dark {
+  color-scheme: dark;
+  --inet-text-color: #CAC4D0;
+  --inet-text-strong-color: #E6E0E9;
+  --inet-text-muted-color: #ADA8B4;
+  --inet-text-subtle-color: #938F99;
+  --inet-primary-soft-color: #3D2A15;
+  --inet-main-panel-bg-color: #1C1B1F;
+  --inet-portal-side-panel-bg-color: #1C1B1F;
+  --inet-toolbar-bg-color: #2D2B30;
+  --inet-default-border-color: #49454F;
+  --inet-card-bg-color: #252428;
+  --inet-hover-primary-bg-color: #37353B;
+  --inet-ui-neutral-hover-bg-color: #37353B;
+  --inet-shell-selected-bg-color: #45424B;
+  --inet-shadow-low: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --inet-shadow-medium: 0 2px 4px rgba(0, 0, 0, 0.45), 0 1px 6px rgba(0, 0, 0, 0.35);
+  /* a focused tile also turns its border orange, which passes 3:1 by itself, so its ring keeps the
+     softer strength instead of drawing a second heavy edge */
+  --inet-focus-ring-color: rgba(229, 138, 42, 0.45);
+}
+
 html,
 body {
   min-height: 100%;
@@ -123,6 +150,11 @@ a:hover {
   font-weight: 600;
 }
 
+/* the accent on its dark soft fill reads 4.5:1; the light accent text reads clearly */
+:root.shell-dark .eyebrow {
+  color: #F6C590;
+}
+
 .entry-title {
   margin: 0;
   color: var(--inet-text-strong-color);
@@ -183,6 +215,12 @@ a:hover {
   box-shadow: 0 0 0 3px var(--inet-focus-ring-color), var(--inet-shadow-medium);
 }
 
+/* on the dark page a 3px ring outside the orange border reads as a second edge; a thinner one still
+   tells focus apart from hover, which shows the border only */
+:root.shell-dark .module-link:focus-visible .module-tile {
+  box-shadow: 0 0 0 2px var(--inet-focus-ring-color), var(--inet-shadow-medium);
+}
+
 .tile-header {
   display: flex;
   flex-direction: column;
@@ -202,6 +240,12 @@ a:hover {
 .tile-icon img {
   width: 22px;
   height: 22px;
+}
+
+/* the workspace icons are drawn in black; on the dark tile they become a light gray close to the
+   title text, as crisp as the black glyphs on the light tile */
+:root.shell-dark .tile-icon img {
+  filter: invert(88%);
 }
 
 .tile-kicker {

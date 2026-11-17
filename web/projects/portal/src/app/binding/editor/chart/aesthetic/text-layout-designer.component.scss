@@ -59,7 +59,11 @@
    cursor: grab;
 
    &.text-chip   { background: var(--inet-dark-warning-soft-color, #fff3cd); }
-   &.spacer-chip { background: var(--inet-dark-neutral-chip-color, #e2e3e5); }
+   // the neutral chip is lighter in a dark shell, so its dashed outline takes a lighter gray
+   &.spacer-chip {
+      background: var(--inet-dark-neutral-chip-color, #e2e3e5);
+      border-color: var(--inet-dark-neutral-chip-border-color, #aaa);
+   }
 }
 
 // ─── Properties panel ───────────────────────────────────────────────────────

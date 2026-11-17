@@ -109,6 +109,7 @@ public class PortalProfileController {
       @RequestParam("showValue") boolean showValue,
       @RequestParam("isViewsheet") boolean isViewsheet,
       @RequestParam(name = "groupBy", required = false, defaultValue = "cycle") String groupBy,
+      @RequestParam(name = "shellDark", required = false) boolean shellDark,
       HttpServletRequest request, HttpServletResponse response, Principal principal)
       throws Exception
    {
@@ -118,7 +119,7 @@ public class PortalProfileController {
       String xTitle = "cycle".equals(groupBy) ? catalog.getString(CHART_X_TITLE) :
          getContextLabel(LogContext.valueOf(groupBy), catalog);
       String yTitle = catalog.getString("Time") + " (ms)";
-      Graphics2D image = createProfileImage(data, xTitle, yTitle, showValue);
+      Graphics2D image = createProfileImage(data, xTitle, yTitle, showValue, shellDark);
 
       if(image != null) {
          response.setContentType("image/svg+xml");
@@ -402,9 +403,10 @@ public class PortalProfileController {
     * Create profile chart image.
     * @param data     the breakdown records data.
     * @param showValue true if show plot data value, else not.
+    * @param shellDark true when the portal shell asking for the image is dark.
     */
    private Graphics2D createProfileImage(Object[][] data, String xTitle, String yTitle,
-                                            boolean showValue)
+                                            boolean showValue, boolean shellDark)
    {
       if(data == null || data.length == 0) {
          return null;
@@ -414,6 +416,20 @@ public class PortalProfileController {
       Color fgColor = dark ? Color.lightGray : GDefaults.DEFAULT_TEXT_COLOR;
       Color bgColor = dark ? new Color(0x424242) : Color.WHITE;
       Color titleColor = dark ? Color.lightGray : GDefaults.DEFAULT_TITLE_COLOR;
+      Color gridColor = dark ? bgColor.darker() : GDefaults.DEFAULT_GRIDLINE_COLOR;
+      Color lineColor = dark ? bgColor.darker() : GDefaults.DEFAULT_LINE_COLOR;
+
+      // the portal's Profile dialog in a dark shell: the dialog surface and its text colors
+      // (web/projects/portal/src/scss/_shell-dark.scss). The light gridlines would be near-white
+      // stripes on that surface, so the gridlines take the raised surface and the axis and border
+      // lines the strong border, which read as quiet structure behind the bars.
+      if(shellDark) {
+         fgColor = new Color(0xCAC4D0);
+         bgColor = new Color(0x252428);
+         titleColor = new Color(0xE6E0E9);
+         gridColor = new Color(0x3A383D);
+         lineColor = new Color(0x5E5A66);
+      }
       DataSet dataset = new DefaultDataSet(data);
 
       ChartDescriptor desc = new ChartDescriptor();
@@ -444,14 +460,14 @@ public class PortalProfileController {
       info.setSeparatedGraph(false);
       info.setChartType(GraphTypes.CHART_BAR);
 
-      desc.getPlotDescriptor().setYGridColor(dark ? bgColor.darker() : GDefaults.DEFAULT_GRIDLINE_COLOR);
-      desc.getPlotDescriptor().setXGridColor(dark ? bgColor.darker() : GDefaults.DEFAULT_GRIDLINE_COLOR);
+      desc.getPlotDescriptor().setYGridColor(gridColor);
+      desc.getPlotDescriptor().setXGridColor(gridColor);
       desc.getLegendsDescriptor().getTitleTextFormat().setColor(fgColor);
       desc.getLegendsDescriptor().getTitleTextFormat().setBackground(bgColor);
       desc.getLegendsDescriptor().getColorLegendDescriptor().setColor(fgColor);
       desc.getLegendsDescriptor().getColorLegendDescriptor().getContentTextFormat().setColor(fgColor);
       desc.getLegendsDescriptor().getColorLegendDescriptor().getContentTextFormat().setBackground(bgColor);
-      desc.getLegendsDescriptor().setBorderColor(dark ? bgColor.darker() : GDefaults.DEFAULT_LINE_COLOR);
+      desc.getLegendsDescriptor().setBorderColor(lineColor);
 
       // To-Do, should set proper number format for y.
 //      XFormatInfo xfinfo = new XFormatInfo();
@@ -483,7 +499,7 @@ public class PortalProfileController {
          spec.getTextSpec().setBackground(bgColor);
          spec.getTextSpec().setFont(GDefaults.DEFAULT_TEXT_FONT);
          spec.getTextSpec().setRotation(0);
-         spec.setLineColor(dark ? bgColor.darker() : GDefaults.DEFAULT_LINE_COLOR);
+         spec.setLineColor(lineColor);
       }
 
       dataset = gen.getData();

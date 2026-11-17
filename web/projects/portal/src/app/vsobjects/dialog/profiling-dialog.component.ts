@@ -136,8 +136,11 @@ export class ProfilingDialog implements OnInit {
    }
 
    get chartUri(): string {
+      // the chart is a server image, so a dark shell asks for one drawn on the dark dialog surface
+      const shellDark = document.documentElement.classList.contains("shell-dark");
       return GET_PROFILE_CHART + "?name=" + encodeURIComponent(this.objName) + "&showValue=" + this.showValue +
-          "&isViewsheet=" + this.isViewsheet + "&groupBy=" + this.groupBy;
+          "&isViewsheet=" + this.isViewsheet + "&groupBy=" + this.groupBy +
+          (shellDark ? "&shellDark=true" : "");
    }
 
    get tableUri(): string {
