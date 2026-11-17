@@ -18,6 +18,7 @@
 package inetsoft.graph.guide.legend;
 
 import inetsoft.graph.aesthetic.ColorFrame;
+import inetsoft.graph.aesthetic.GShape;
 import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.graph.internal.GTool;
 
@@ -38,7 +39,20 @@ public class ColorLegendItem extends LegendItem {
     * @param frame the frame to get aesthetic attribute.
     */
    public ColorLegendItem(Object label, Object value, VisualFrame frame) {
+      this(label, value, frame, null);
+   }
+
+   /**
+    * Create a legend item.
+    * @param label the text label.
+    * @param value the value of this label.
+    * @param frame the frame to get aesthetic attribute.
+    * @param marker the shape of the mark this color is applied to (e.g. a Gantt milestone
+    *               diamond), or null to draw the default square swatch.
+    */
+   public ColorLegendItem(Object label, Object value, VisualFrame frame, GShape marker) {
       super(label, value, frame);
+      this.marker = marker;
    }
 
    /**
@@ -50,11 +64,19 @@ public class ColorLegendItem extends LegendItem {
    protected void paintSymbol(Graphics2D g, double x, double y) {
       Graphics2D g2 = (Graphics2D) g.create();
       int size = getSymbolSize();
-      RectangularShape rect = createSymbolRect(x, y, size, size);
       ColorFrame frame = (ColorFrame) getVisualFrame();
       Color color = frame.getColor(getValue());
       color = GTool.getColor(color, getAlpha());
       g2.setColor(color);
+
+      if(marker != null) {
+         // same box as the shape legend item so the glyph matches the mark on the chart
+         marker.paint(g2, x + 2, y + 1, size - 2, size - 2);
+         g2.dispose();
+         return;
+      }
+
+      RectangularShape rect = createSymbolRect(x, y, size, size);
 
       if(frame.getLegendSpec().isSymbolRoundCorners()) {
          g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -72,4 +94,6 @@ public class ColorLegendItem extends LegendItem {
 
       g2.dispose();
    }
+
+   private final GShape marker;
 }

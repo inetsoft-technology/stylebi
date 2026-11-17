@@ -1210,6 +1210,13 @@ public abstract class Legend extends BoundedContainer {
       return elem;
    }
 
+   /**
+    * Get the graph this legend is created for.
+    */
+   protected EGraph getGraph() {
+      return graph;
+   }
+
    private static final int GAP = 4;
    private static final int BAND_GAP = 10; // horizontal margin on each side of gradient band
    private static final int TITLE_LEFT_PADDING = 4;
