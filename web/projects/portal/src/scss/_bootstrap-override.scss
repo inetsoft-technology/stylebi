@@ -304,6 +304,8 @@ fieldset.float-title {
 
 // forced colors (Windows High Contrast) overrides background-color, which would hide the mask fill
 @media (forced-colors: active) {
+  // same selectors as the main rule above, so this wins on specificity
+  .form-check .form-check-input:checked::after,
   .form-check-input:checked::after {
     forced-colors-adjust: none;
     background-color: CanvasText;
@@ -940,6 +942,13 @@ a, .btn-link {
   div.btn-light {
     border-color: transparent;
   }
+}
+
+// ngb-datepicker selected day: bootstrap paints it .bg-primary.text-white (white on #ed711c is 3.01:1).
+// Fill follows the theme primary like the portal calendar's selected day; label uses the primary label token.
+ngb-datepicker .btn-light.bg-primary.text-white {
+  background-color: var(--inet-primary-color) !important;
+  color: var(--inet-button-primary-text-color, #{$inet-on-orange}) !important;
 }
 
 .custom-select {
