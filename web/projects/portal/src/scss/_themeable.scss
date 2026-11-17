@@ -576,7 +576,7 @@ div.disable-link, a.disable-link {
 }
 
 .ws-assembly-graph-element--primary .ws-assembly-thumbnail-image {
-  @extend .txt-light;
+  color: var(--inet-button-primary-text-color);
   background-color: var(--inet-primary-color);
 }
 
@@ -779,6 +779,7 @@ schema-column, edit-join-table-column {
 
 .table-data__row.highlighted {
   background-color: var(--inet-primary-color);
+  color: var(--inet-button-primary-text-color);
 }
 
 /********************************** Buttons and Icons *********************************************/

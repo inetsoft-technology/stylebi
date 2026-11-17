@@ -76,7 +76,7 @@
   }
 
   .link-text {
-    color: white;
+    color: var(--inet-button-primary-text-color, #202020);
   }
 }
 

@@ -266,17 +266,49 @@ fieldset.float-title {
   margin-top: 0;
   margin-left: 0;
   margin-right: 0.5rem;
-  --bs-form-check-bg: white; // needs to match $form-check-input-checked-color
+  --bs-form-check-bg: white;
   --bs-border-color: var(--inet-input-text-color);
 
   &:checked {
     background-color: var(--inet-primary-color);
     border-color: var(--inet-primary-color);
+
+    // check mark / radio dot: a mask filled with the primary label color, so it follows the theme
+    &::after {
+      content: "";
+      display: block;
+      width: 100%;
+      height: 100%;
+      background-color: var(--inet-button-primary-text-color, #{$inet-on-orange});
+      -webkit-mask: $inet-check-mask center / contain no-repeat;
+      mask: $inet-check-mask center / contain no-repeat;
+    }
+
+    &[type=radio]::after {
+      -webkit-mask-image: $inet-radio-mask;
+      mask-image: $inet-radio-mask;
+    }
   }
 
   &:focus {
     border-color: var(--inet-primary-color);
     box-shadow: none;
+  }
+}
+
+// switches have their own knob; no check mark
+.form-switch .form-check-input:checked::after,
+.form-check-input[role=switch]:checked::after {
+  content: none;
+}
+
+// forced colors (Windows High Contrast) overrides background-color, which would hide the mask fill
+@media (forced-colors: active) {
+  // same selectors as the main rule above, so this wins on specificity
+  .form-check .form-check-input:checked::after,
+  .form-check-input:checked::after {
+    forced-colors-adjust: none;
+    background-color: CanvasText;
   }
 }
 
@@ -910,6 +942,13 @@ a, .btn-link {
   div.btn-light {
     border-color: transparent;
   }
+}
+
+// ngb-datepicker selected day: bootstrap paints it .bg-primary.text-white (white on #ed711c is 3.01:1).
+// Fill follows the theme primary like the portal calendar's selected day; label uses the primary label token.
+ngb-datepicker .btn-light.bg-primary.text-white {
+  background-color: var(--inet-primary-color) !important;
+  color: var(--inet-button-primary-text-color, #{$inet-on-orange}) !important;
 }
 
 .custom-select {
