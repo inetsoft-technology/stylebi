@@ -164,7 +164,7 @@ public class DynamicValue implements Serializable, Cloneable, FullHashObject {
 
       DynamicValue dval2 = (DynamicValue) obj;
 
-      return Tool.equals(rvalue, dval2.rvalue);
+      return Tool.equals(effectiveRValue(), dval2.effectiveRValue());
    }
 
    /**
@@ -181,11 +181,11 @@ public class DynamicValue implements Serializable, Cloneable, FullHashObject {
    }
 
    /**
-    * Calculate the hashcode of the dynamic value, it contains dvalue and rvalue.
+    * Calculate the hashcode of the dynamic value, it contains dvalue and the effective rvalue.
     */
    @Override
    public int fullHashCode() {
-      return Objects.hash(dvalue, rvalueHashCode(rvalue));
+      return Objects.hash(dvalue, rvalueHashCode(effectiveRValue()));
    }
 
    /**
@@ -391,13 +391,28 @@ public class DynamicValue implements Serializable, Cloneable, FullHashObject {
     * Get the runtime value object.
     */
    public Object getRValue() {
-      if(!VSUtil.isVariableValue(dvalue) && !VSUtil.isScriptValue(dvalue) &&
-         rvalue == null && dvalue != null)
-      {
-         rvalue = dvalue;
+      Object val = effectiveRValue();
+
+      if(rvalue == null && val != null) {
+         rvalue = val;
       }
 
       return rvalue;
+   }
+
+   /**
+    * Get the runtime value without caching it: rvalue, else a literal dvalue.
+    */
+   private Object effectiveRValue() {
+      if(rvalue != null) {
+         return rvalue;
+      }
+
+      if(dvalue != null && !VSUtil.isVariableValue(dvalue) && !VSUtil.isScriptValue(dvalue)) {
+         return dvalue;
+      }
+
+      return null;
    }
 
    /**
