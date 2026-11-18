@@ -36,6 +36,7 @@ import org.quartz.impl.DirectSchedulerFactory;
 import org.quartz.simpl.SimpleThreadPool;
 import org.springframework.context.ApplicationContext;
 
+import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -54,8 +55,8 @@ import static org.mockito.Mockito.*;
  * <p>The axis is the fire instance of the run (the stored trigger's fire instance id) for the
  * trigger, and whether the task was removed (not edited) while the run was in progress for the
  * status. Runs a real Quartz scheduler with a real ClusterJobStore and JobCompletionListener,
- * and replays the store-facing sequence of Scheduler.addTask (edit) and Scheduler.removeTask.
- * Takes about 30 s.
+ * and the real Scheduler.removeTask (the singleton's Quartz scheduler is replaced for the test); the
+ * save of a task again is the store-facing sequence of Scheduler.addTask. Takes about 40 s.
  */
 @Tag("slow")
 class ClusterJobStoreRecreateDuringRunTest {
@@ -70,6 +71,9 @@ class ClusterJobStoreRecreateDuringRunTest {
    void tearDown() throws Exception {
       if(scheduler != null) {
          scheduler.shutdown(true);
+         Field field = Scheduler.class.getDeclaredField("scheduler");
+         field.setAccessible(true);
+         field.set(Scheduler.getScheduler(), null);
       }
 
       ConfigurationContext.getContext().setApplicationContext(savedAppContext);
@@ -133,6 +137,26 @@ class ClusterJobStoreRecreateDuringRunTest {
    }
 
    /**
+    * ScheduleManager.replaceScheduleTask and the import overwrite remove the task through
+    * Scheduler.removeTask(name, true) and save it again under the same id: the run in progress is
+    * not the run of a deleted task, so it still writes its final status.
+    */
+   @Test
+   void replaceInPlaceDuringRunKeepsTriggerAndFinalStatus() throws Exception {
+      Scenario s = start("replace");
+      s.sleepIntoRun();
+      s.remove(true);
+      s.store(Set.of(1, 2));
+      clearInvocations(dao);
+      s.waitForRunToComplete();
+
+      assertTrue(s.exists(1), "the new -1 trigger is kept");
+      assertTrue(s.exists(2), "the new -2 trigger is kept");
+      assertEquals(List.of(Scheduler.Status.FINISHED), s.statusesAfterStart(),
+                   "the run still writes its final status");
+   }
+
+   /**
     * A trigger stored with no fire instance id (an upgrade, or never fired) is never the one a
     * run fired, so the conditional removal leaves it, whatever fire instance id is given.
     */
@@ -173,6 +197,10 @@ class ClusterJobStoreRecreateDuringRunTest {
                               new SimpleThreadPool(3, Thread.NORM_PRIORITY), jobStore, null, 0,
                               2000, -1);
       scheduler = factory.getScheduler(schedulerName);
+      // the singleton's removeTask acts on its Quartz scheduler
+      Field field = Scheduler.class.getDeclaredField("scheduler");
+      field.setAccessible(true);
+      field.set(Scheduler.getScheduler(), scheduler);
       return jobStore;
    }
 
@@ -195,10 +223,12 @@ class ClusterJobStoreRecreateDuringRunTest {
 
       /** Scheduler.removeTask: mark the run, delete the job, clear the status. */
       void remove() throws Exception {
-         ClusterJobStore store = ClusterJobStore.forScheduler(scheduler);
-         store.markRunOrphaned(jobKey);
-         scheduler.deleteJob(jobKey);
-         dao.clearStatus(taskId);
+         remove(false);
+      }
+
+      /** The real Scheduler.removeTask, on the scheduler of the test. */
+      void remove(boolean replacing) throws Exception {
+         Scheduler.getScheduler().removeTask(taskId, replacing);
       }
 
       /** Scheduler.addTask(!first). */

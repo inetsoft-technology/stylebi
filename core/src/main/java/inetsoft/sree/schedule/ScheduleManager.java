@@ -914,7 +914,7 @@ public class ScheduleManager implements MessageListener {
       // Bug #77549, #77863, every refusal of the save is made before the stored task is
       // removed, so it isn't lost
       checkReplaceScheduleTask(oldTaskId, taskId, task, principal);
-      removeScheduleTask(oldTaskId, principal);
+      removeScheduleTaskForReplace(oldTaskId, principal);
       setScheduleTask(taskId, task, parent, isInternalTask(taskId), principal, ownerChecked,
                       stored);
    }
@@ -1915,6 +1915,24 @@ public class ScheduleManager implements MessageListener {
                                                Principal principal)
       throws Exception
    {
+      doRemoveScheduleTask(taskName, principal, false);
+   }
+
+   /**
+    * Removes a schedule task that the caller saves again right away to change it (Bug #81647), as
+    * {@link #replaceScheduleTask} and the import of a task that exists do. A run in progress is
+    * then not the run of a deleted task, so it still writes its status and triggers its
+    * dependants when it completes.
+    */
+   public synchronized void removeScheduleTaskForReplace(String taskName, Principal principal)
+      throws Exception
+   {
+      doRemoveScheduleTask(taskName, principal, true);
+   }
+
+   private void doRemoveScheduleTask(String taskName, Principal principal, boolean replacing)
+      throws Exception
+   {
       String orgID = getTaskOrgID(taskName);
       RepletRepository engine = SUtil.getRepletRepository();
 
@@ -1999,7 +2017,13 @@ public class ScheduleManager implements MessageListener {
             getOrgTaskMap(orgID).remove(getTaskIdentifier(taskName, orgID));
          }
 
-         scheduleClient.taskRemoved(taskId);
+         if(replacing) {
+            scheduleClient.taskRemoved(taskId, true);
+         }
+         else {
+            scheduleClient.taskRemoved(taskId);
+         }
+
          ScheduleTaskMessage message = new ScheduleTaskMessage();
          message.setTaskName(taskId);
          // Bug #74338: include the task in the REMOVED message so that

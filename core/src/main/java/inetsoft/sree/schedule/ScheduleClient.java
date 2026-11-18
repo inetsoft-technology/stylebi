@@ -424,6 +424,26 @@ public class ScheduleClient {
    /**
     * Notifies the schedule cluster that a task has been removed.
     *
+    * @param task      the name of the task.
+    * @param replacing true if the task is saved again under the same name right away (an edit),
+    *                  which is not a deletion of the task (Bug #81647).
+    */
+   public void taskRemoved(String task, boolean replacing) throws RemoteException {
+      String server = getSchedulerServer();
+
+      if(!replacing) {
+         taskRemoved(server, task);
+      }
+      else if(server != null && isReady(server)) {
+         LOG.debug("Send replace task request [" + task + "] from " + Tool.getIP() +
+            " to " + server);
+         getSchedule(server).removeTask(task, true);
+      }
+   }
+
+   /**
+    * Notifies the schedule cluster that a task has been removed.
+    *
     * @param server the schedule server name.
     * @param task   the name of the task.
     */

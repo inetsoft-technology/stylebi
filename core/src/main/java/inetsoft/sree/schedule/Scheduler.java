@@ -994,13 +994,29 @@ public class Scheduler {
     * @throws SchedulerException if the task could not be removed.
     */
    public void removeTask(String taskName) throws SchedulerException {
+      removeTask(taskName, false);
+   }
+
+   /**
+    * Removes a schedule task.
+    *
+    * @param taskName  the name of the task to remove.
+    * @param replacing true if the task is saved again under the same name right away (an edit
+    *                  through ScheduleManager.replaceScheduleTask or an import overwrite). The
+    *                  run in progress is then not marked as the run of a removed task, so it
+    *                  still writes its status and triggers its dependants (Bug #81647).
+    *
+    * @throws SchedulerException if the task could not be removed.
+    */
+   public void removeTask(String taskName, boolean replacing) throws SchedulerException {
       if(scheduler != null) {
          JobKey key = new JobKey(taskName, GROUP_NAME);
 
          // Bug #81647, a run in progress must not write the status of, or trigger the
          // dependants of, a task of the same name created after this removal. Unlike an edit
-         // (addTask), a removal ends the task, so only it marks the run.
-         ClusterJobStore store = ClusterJobStore.forScheduler(scheduler);
+         // (addTask, or a replace that removes and saves the task again), a deletion ends the
+         // task, so only it marks the run.
+         ClusterJobStore store = replacing ? null : ClusterJobStore.forScheduler(scheduler);
 
          if(store != null) {
             store.markRunOrphaned(key);
