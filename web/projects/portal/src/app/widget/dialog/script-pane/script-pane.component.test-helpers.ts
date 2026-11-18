@@ -186,6 +186,7 @@ export function createScriptPane(options: {
       setEnabled: vi.fn(),
       pushFocus: vi.fn(() => false),
       popFocus: vi.fn(),
+      switchPane: vi.fn(),
       errors: new Subject<string>().asObservable()
    } as unknown as FollowFocusService;
    const comp = new ScriptPane(

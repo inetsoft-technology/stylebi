@@ -380,16 +380,11 @@ public final class PropertyAliases {
     * 15+ alias tables -- see the class comment for the scope this covers.
     */
    private static final Map<String, String> LABELS = withChartGridLabels(Map.of(
-      // BasicGeneralPaneModel.primary / VSAssemblyInfo.isPrimary()/setPrimary(). StyleBI's own,
-      // unlocalized Composer caption for this checkbox --
-      // web/projects/portal/src/app/vsobjects/dialog/basic-general-pane.component.html's
-      // `_#(Visible in External Viewsheets)` label. This registry is a static field initializer
-      // with no catalog/Principal in scope to localize through, so this is the plain English
-      // source string, not a resolved-at-read-time translation; a deployment's own
-      // srinter.properties may still rebrand what its own Composer UI renders (this deployment's
-      // rebrands it to "Visible in External Dashboards"), but the underlying English key is the
-      // best static source of truth this class can offer.
-      "primary", "Visible in External Viewsheets",
+      // BasicGeneralPaneModel.primary / VSAssemblyInfo.isPrimary()/setPrimary(). The Composer
+      // checkbox is captioned "Visible in External Dashboards" (the portal's srinter.properties
+      // rebrands the source key "Visible in External Viewsheets"; bug #81681 reporter's UI shows
+      // the rebranded caption, which is what a caller searching by UI words will use).
+      "primary", "Visible in External Dashboards",
       // TextPaneModel.url / TextVSAssemblyInfo.isUrl()/setUrl() (bug #76929). Its own name has no
       // lexical connection to the Composer's own caption for the checkbox --
       // text-pane.component.html's `_#(Embed content from URL)` -- the same category of gap
@@ -417,6 +412,25 @@ public final class PropertyAliases {
       // Bug #81544: Selection List/Tree General pane captions (selection-general-pane).
       labels.put("quickSwitchAllowed", "Allow toggle between single and multi-selection");
       labels.put("selectFirstItem", "Select First Item on Dashboard Load");
+      // Bug #81681: Table/Crosstab/CalcTable Advanced tab captions (table-, crosstab- and
+      // calc-table-advanced-pane.component.html). Names that are not the caption.
+      labels.put("calculateTotal", "Compute Trend and Comparison for Totals");
+      labels.put("enableAdhoc", "Enable Ad Hoc Editing");
+      labels.put("fillBlankWithZero", "Fill Blank Cell With Zero");
+      labels.put("summarySideBySide", "Summary Cells Side By Side");
+      labels.put("shrink", "Shrink To Fit");
+      labels.put("mergeSpan", "Merge Expanded Cells");
+      labels.put("sortOthersLast", "Sort Others Last");
+      labels.put("form", "Enable Table Editing");
+      labels.put("writeBack", "Write Back to Storage");
+      labels.put("insert", "Add Rows");
+      labels.put("del", "Delete Rows");
+      labels.put("edit", "Edit Rows");
+      labels.put("headerRowCount", "Header Rows");
+      labels.put("headerColCount", "Header Columns");
+      labels.put("trailerRowCount", "Trailer Rows");
+      labels.put("trailerColCount", "Trailer Columns");
+      labels.put("tipOnClick", "On Click Only");
       labels.put("xGridLineStyle", "X Grid Line Style (the vertical grid lines, on any chart orientation)");
       labels.put("xGridLineColor", "X Grid Line Color (the vertical grid lines, on any chart orientation)");
       labels.put("yGridLineStyle", "Y Grid Line Style (the horizontal grid lines, on any chart orientation)");

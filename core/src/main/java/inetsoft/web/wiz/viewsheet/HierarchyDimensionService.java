@@ -226,7 +226,7 @@ public class HierarchyDimensionService {
 
          result.put("assembly", assemblyName);
          result.put("index", index);
-         result.put("dimension", describeDimension(index, replacement));
+         result.put("dimension", describeDimension(index, replacement, catalog));
       });
 
       ViewsheetSessionService.relayWarnings(result, warnings);
@@ -349,7 +349,7 @@ public class HierarchyDimensionService {
       List<Map<String, Object>> dimensionsOut = new ArrayList<>();
 
       for(int i = 0; i < dims.length; i++) {
-         dimensionsOut.add(describeDimension(i, dims[i]));
+         dimensionsOut.add(describeDimension(i, dims[i], catalog));
       }
 
       Map<String, Object> out = new LinkedHashMap<>();
@@ -367,14 +367,16 @@ public class HierarchyDimensionService {
       return out;
    }
 
-   private static Map<String, Object> describeDimension(int index, VSDimensionModel dimension) {
+   private static Map<String, Object> describeDimension(int index, VSDimensionModel dimension,
+                                                        OutputColumnRefModel[] catalog)
+   {
       List<Map<String, Object>> membersOut = new ArrayList<>();
 
       for(VSDimensionMemberModel member : members(dimension)) {
          OutputColumnRefModel ref = member.getDataRef();
          Map<String, Object> out = new LinkedHashMap<>();
          out.put("column", ref == null ? null : displayName(ref));
-         out.put("dateLevel", dateLevelName(member.getOption()));
+         out.put("dateLevel", reportedDateLevel(member, catalog));
          membersOut.add(out);
       }
 
@@ -572,6 +574,42 @@ public class HierarchyDimensionService {
       }
 
       return level;
+   }
+
+   /**
+    * The level to report for {@code member}. The Composer's Hierarchy dialog stores a year (hour
+    * for time) option on every dropped column, string and number columns included; on a column
+    * that is not date-typed that option groups nothing, and update_hierarchy_dimension refuses
+    * it, so it is reported as "none". The type is read from the pane's column catalog first (what
+    * the write side judges against), then from the member's own stored type; with neither, the
+    * stored option is reported as is.
+    */
+   private static String reportedDateLevel(VSDimensionMemberModel member,
+                                           OutputColumnRefModel[] catalog)
+   {
+      String dataType = columnDataType(member.getDataRef(), catalog);
+
+      if(dataType != null && !dataType.isEmpty() && !XSchema.isDateType(dataType)) {
+         return dateLevelName(DateRangeRef.NONE_INTERVAL);
+      }
+
+      return dateLevelName(member.getOption());
+   }
+
+   private static String columnDataType(OutputColumnRefModel ref, OutputColumnRefModel[] catalog) {
+      if(ref == null) {
+         return null;
+      }
+
+      for(OutputColumnRefModel column : catalog) {
+         if(columnKey(column).equals(columnKey(ref)) && column.getDataType() != null &&
+            !column.getDataType().isEmpty())
+         {
+            return column.getDataType();
+         }
+      }
+
+      return ref.getDataType();
    }
 
    private static String dateLevelName(int option) {

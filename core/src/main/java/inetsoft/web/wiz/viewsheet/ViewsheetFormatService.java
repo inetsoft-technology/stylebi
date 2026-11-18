@@ -1330,10 +1330,10 @@ public class ViewsheetFormatService {
             // success. Same evidence axis_labels uses: a field on that axis's shelf (a candle's
             // price fields stand in for an empty y shelf).
             ChartRef[] refs = axisRefs(chart, axis);
-            boolean candlePrice = axis.equals("y") &&
-               ChartRegionResolver.candlePriceRefs(chart.getVSChartInfo()).length > 0;
+            boolean engineFields =
+               ChartRegionResolver.engineAxisRefs(chart.getVSChartInfo(), axis).length > 0;
 
-            if((refs == null || refs.length == 0) && !candlePrice) {
+            if((refs == null || refs.length == 0) && !engineFields) {
                throw new IllegalArgumentException(
                   tool + ": chart '" + r.assembly() + "' has no field on the " + axis +
                   " axis, so it renders no " + axis + " axis and there is no " + axis +
@@ -1368,6 +1368,11 @@ public class ViewsheetFormatService {
          ChartRef[] refs = axisRefs(chart, axis);
 
          if(refs == null || refs.length == 0) {
+            // Bug #81591: a candle's prices and a Gantt's start/end stand in for an empty shelf.
+            refs = ChartRegionResolver.engineAxisRefs(chart.getVSChartInfo(), axis);
+         }
+
+         if(refs.length == 0) {
             throw new IllegalArgumentException(
                tool + ": chart '" + r.assembly() + "' has no field on the " + axis +
                " axis, so there are no axis labels to format.");

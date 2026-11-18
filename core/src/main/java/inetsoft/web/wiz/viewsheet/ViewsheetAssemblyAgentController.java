@@ -371,6 +371,16 @@ public class ViewsheetAssemblyAgentController {
                                   Boolean force) {}
 
    /**
+    * The {@link JoinResponse} fields plus {@code warnings}: what loading a worksheet reported
+    * (an outer mirror that could not be refreshed from its source, a worksheet locked by another
+    * user). Empty for a clean open and always empty for a viewsheet.
+    */
+   public record OpenSheetResponse(String sessionToken, String runtimeId, String ownerIdentity,
+                                   String sheetType, EditorContext editorContext,
+                                   String sheetLabel, Integer concurrentSessionCount,
+                                   List<String> warnings) {}
+
+   /**
     * {@code open_viewsheet} / {@code open_worksheet}. Opens a SAVED viewsheet or worksheet by path
     * into a new runtime and pairs the caller to it through the ALREADY-PAIRED session named by
     * {@code fromSessionToken}, with the same permission checks as the Composer's own Open (see
@@ -378,7 +388,7 @@ public class ViewsheetAssemblyAgentController {
     * and {@code scope}; no identifier string or entry property is accepted from the caller.
     */
    @PostMapping("/api/wiz/v1/agent/sheet/open")
-   public JoinResponse openSheet(@RequestBody OpenSheetRequest body, Principal user)
+   public OpenSheetResponse openSheet(@RequestBody OpenSheetRequest body, Principal user)
       throws Exception
    {
       requireEnabled();
@@ -401,19 +411,22 @@ public class ViewsheetAssemblyAgentController {
             "'type' must be \"viewsheet\" or \"worksheet\" (got \"" + body.type() + "\").");
       }
 
-      JoinSession session;
+      SheetOpenService.OpenedSheet opened;
 
       try {
-         session = openService.openSavedSheet(body.fromSessionToken(), user, sheetType, body.path(),
-                                              body.scope(), Boolean.TRUE.equals(body.force()));
+         opened = openService.openSavedSheet(body.fromSessionToken(), user, sheetType, body.path(),
+                                             body.scope(), Boolean.TRUE.equals(body.force()));
       }
       catch(IllegalArgumentException e) {
          throw new PairingException(e.getMessage(), e);
       }
 
-      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
-                              session.sheetType().name().toLowerCase(), session.editorContext(),
-                              body.path().trim(), null);
+      JoinSession session = opened.session();
+      return new OpenSheetResponse(session.sessionToken(), session.runtimeId(),
+                                   session.ownerIdentity(),
+                                   session.sheetType().name().toLowerCase(),
+                                   session.editorContext(), body.path().trim(), null,
+                                   opened.warnings());
    }
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/model")

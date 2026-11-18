@@ -365,6 +365,49 @@ describe("ScriptPane - pane-scoped pairing runtime/socket inputs [Group 5, Risk 
             "vs-1", comp.socketConnection, { kind: "viewsheetOnInit" });
       });
 
+      /*
+       * Bug #81676: the radio of the dialog that hosts both scripts moves the pane's location. A
+       * session Follow Focus pushed here follows it, and the pop at close names the new location.
+       */
+      it("moves a pushed session along when the dialog's radio flips, and pops the new location",
+         () => {
+            const { comp, codeMirror, ternServer, followFocusService } = createScriptPane();
+            (comp as any).codemirrorInstance = codeMirror;
+            (comp as any).ternServer = ternServer;
+            (comp as any).cancelAutocomplete = vi.fn();
+            comp.runtimeId = "vs-1";
+            comp.socketConnection = {} as any;
+            comp.editorContext = { kind: "viewsheetOnInit" };
+            (followFocusService.pushFocus as any).mockReturnValue(true);
+            comp.ngOnInit();
+
+            comp.editorContext = { kind: "viewsheetOnLoad" };
+            comp.ngOnChanges({ editorContext: {} } as any);
+
+            expect(followFocusService.switchPane).toHaveBeenCalledWith(
+               "vs-1", comp.socketConnection, { kind: "viewsheetOnInit" },
+               { kind: "viewsheetOnLoad" });
+
+            comp.ngOnDestroy();
+
+            expect(followFocusService.popFocus).toHaveBeenCalledWith(
+               "vs-1", comp.socketConnection, { kind: "viewsheetOnLoad" });
+         });
+
+      it("does not switch when nothing was pushed (Follow Focus off at open)", () => {
+         const { comp, followFocusService } = createScriptPane();
+         comp.runtimeId = "vs-1";
+         comp.socketConnection = {} as any;
+         comp.editorContext = { kind: "viewsheetOnInit" };
+         (followFocusService.pushFocus as any).mockReturnValue(false);
+         comp.ngOnInit();
+
+         comp.editorContext = { kind: "viewsheetOnLoad" };
+         comp.ngOnChanges({ editorContext: {} } as any);
+
+         expect(followFocusService.switchPane).not.toHaveBeenCalled();
+      });
+
       it("does not pop on ngOnDestroy when Follow Focus was off at open (no push happened)", () => {
          const { comp, codeMirror, ternServer, followFocusService } = createScriptPane();
          (comp as any).codemirrorInstance = codeMirror;

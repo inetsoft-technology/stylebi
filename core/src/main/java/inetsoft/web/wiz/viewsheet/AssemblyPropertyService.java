@@ -2843,7 +2843,14 @@ public class AssemblyPropertyService {
 
          for(Map.Entry<String, Integer> token : domain.tokens().entrySet()) {
             if(seen.add(token.getValue())) {
-               options.add(namedOption(token.getKey(), token.getValue()));
+               Map<String, Object> option = namedOption(token.getKey(), token.getValue());
+               String caption = OPTION_CAPTIONS.get(path + "|" + token.getKey());
+
+               if(caption != null) {
+                  option.put("label", caption);
+               }
+
+               options.add(option);
             }
          }
 
@@ -2862,6 +2869,15 @@ public class AssemblyPropertyService {
 
       return options;
    }
+
+   /**
+    * The Composer's own captions for option values whose token is not the dialog's wording
+    * (bug #81681), keyed "path|token". Without an entry the label is the capitalized token.
+    */
+   private static final Map<String, String> OPTION_CAPTIONS = Map.of(
+      "selectionGeneralPaneModel.sortType|specific", "Hide Others",
+      "calendarAdvancedPaneModel.viewMode|single", "Simple View",
+      "calendarAdvancedPaneModel.viewMode|double", "Range");
 
    private static Map<String, Object> namedOption(String value, Object stored) {
       Map<String, Object> option = new LinkedHashMap<>();

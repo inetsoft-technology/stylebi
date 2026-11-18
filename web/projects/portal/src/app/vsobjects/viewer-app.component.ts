@@ -2471,6 +2471,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             this.vsObjects[i] = VSUtil.replaceObject(Tool.clone(this.vsObjects[i]), command.info);
             this.vsObjectActions[i] = this.actionFactory.createActions(this.vsObjects[i]);
 
+            // Bug #81672, a pop component set on an open viewer arrives as a refresh, so the
+            // pop relation must be registered here or the target stays drawn until clicked.
+            this.registerPopRelation(command.info);
+
             //ensure contextMenu contains updated actions
             if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[i]?.getModel()?.absoluteName) {
                this.contextMenu.actions = this.vsObjectActions[i].menuActions;
@@ -2483,6 +2487,24 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             break;
          }
       }
+   }
+
+   private registerPopRelation(info: VSObjectModel): void {
+      if(!info || !info.popComponent) {
+         return;
+      }
+
+      this.popComponentService.registerPopComponent(
+         info.popComponent, info.absoluteName,
+         info.objectFormat.top, info.objectFormat.left,
+         info.objectFormat.width, info.objectFormat.height,
+         info.absoluteName, info, info.container);
+
+      if(info.popLocation) {
+         this.popComponentService.setPopLocation(info.popLocation);
+      }
+
+      this.registerPopCompVisible(info.popComponent);
    }
 
    /**

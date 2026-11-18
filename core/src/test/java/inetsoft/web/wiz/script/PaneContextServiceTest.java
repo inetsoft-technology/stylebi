@@ -345,26 +345,45 @@ class PaneContextServiceTest {
    }
 
    /**
-    * Every {@link ScriptTarget.Kind} gets its own statement: only the three worksheet-side
-    * expression kinds may carry the "not served by this viewsheet context" text, so a FUTURE kind
-    * added without a case in {@code syntaxOf} (which is an exhaustive switch) cannot be
-    * mislabelled silently. The worksheet SQL kind is reported as {@code sql}, never JavaScript.
+    * Every {@link ScriptTarget.Kind} gets its own statement, and none carries the retired "not
+    * served by this viewsheet context" text (Bug #81557 serves the worksheet kinds). The worksheet
+    * SQL kind is reported as {@code sql}, never JavaScript.
     */
    @Test
-   void noKindIsMislabelledAsNotServedExceptTheWorksheetExpressionKinds() {
-      List<ScriptTarget.Kind> notServed = List.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION,
-         ScriptTarget.Kind.WORKSHEET_CONDITION, ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE);
-
+   void noKindIsMislabelledAsNotServed() {
       for(ScriptTarget.Kind kind : ScriptTarget.Kind.values()) {
          PaneContext.Syntax syntax = PaneContextService.syntaxOf(
             new EditorContext(kind.wireName(), "A", "n", null), false);
-         boolean fallback = PaneContextService.WORKSHEET_NOT_SERVED.equals(syntax.note());
 
-         assertEquals(notServed.contains(kind), fallback, kind.wireName() + ": " + syntax.note());
+         assertFalse(syntax.note().contains("not served by this viewsheet context"),
+                     kind.wireName() + ": " + syntax.note());
          assertFalse(syntax.note().isBlank(), kind.wireName());
          assertEquals(kind == ScriptTarget.Kind.WORKSHEET_SQL_QUERY ? "sql" : "javascript",
                       syntax.language(), kind.wireName());
       }
+   }
+
+   /** Bug #81557: a worksheet expression and a condition value follow the dialog's SQL switch. */
+   @Test
+   void aWorksheetExpressionAndConditionValueFollowTheSqlSwitch() {
+      for(String kind : new String[] {"worksheetExpression", "worksheetConditionValue"}) {
+         EditorContext grant = new EditorContext(kind, "Orders", "Margin", null);
+         PaneContext.Syntax script = PaneContextService.syntaxOf(grant, false);
+         PaneContext.Syntax sql = PaneContextService.syntaxOf(grant, true);
+
+         assertEquals("javascript", script.language(), kind);
+         assertTrue(script.note().contains("field['<column>']"), script.note());
+         assertTrue(script.note().contains("SQL mode"), script.note());
+         assertEquals("sql", sql.language(), kind);
+         assertTrue(sql.note().contains("SQL value expression"), sql.note());
+         assertTrue(PaneContextService.isSqlMode(grant, new PaneState(true)), kind);
+         assertFalse(PaneContextService.isSqlMode(grant, new PaneState(false)), kind);
+      }
+
+      // A whole worksheet condition has no switch: its reported state is ignored.
+      EditorContext condition = new EditorContext("worksheetCondition", "Orders", "Margin", null);
+      assertFalse(PaneContextService.isSqlMode(condition, new PaneState(true)));
+      assertEquals("javascript", PaneContextService.syntaxOf(condition, true).language());
    }
 
    @Test
@@ -465,9 +484,52 @@ class PaneContextServiceTest {
    }
 
    @Test
-   void theSqlStateIsIgnoredForEveryKindWithoutTheSwitch() throws Exception {
+   void aCalcFieldOnAggregateIsDescribedAsAggregateNotPerRow() throws Exception {
+      EditorContext calcField = new EditorContext("calcField", "Orders", "Margin", null);
+
+      PaneContext detail = service.paneContext(rvs, session(calcField), user, PaneState.DEFAULT);
+      PaneContext aggregate =
+         service.paneContext(rvs, session(calcField), user, new PaneState(false, true));
+
+      assertEquals(PaneContextService.CALC_FIELD_AGGREGATE_NOTE, aggregate.syntax().note());
+      assertEquals("javascript", aggregate.syntax().language());
+      assertTrue(aggregate.syntax().note().contains("field['Sum(Product:Total)']"),
+                 aggregate.syntax().note());
+      assertTrue(aggregate.syntax().note().contains("not per row"), aggregate.syntax().note());
+      assertTrue(detail.syntax().note().contains("evaluated per row"), detail.syntax().note());
+      assertNotEquals(detail.syntax().note(), aggregate.syntax().note());
+      assertEquals(detail.editorContext(), aggregate.editorContext());
+   }
+
+   @Test
+   void theAggregateStateIsIgnoredForEveryKindWithoutTheChoice() throws Exception {
       for(ScriptTarget.Kind kind : ScriptTarget.Kind.values()) {
          if(kind == ScriptTarget.Kind.CALC_FIELD) {
+            continue;
+         }
+
+         EditorContext ctx = new EditorContext(kind.wireName(), "A", "n", null);
+
+         assertEquals(PaneContextService.syntaxOf(ctx, false),
+                      PaneContextService.syntaxOf(ctx, false, true), kind.wireName());
+         assertFalse(PaneContextService.isAggregateMode(ctx, new PaneState(false, true)),
+                     kind.wireName());
+      }
+
+      assertFalse(PaneContextService.isAggregateMode(null, new PaneState(false, true)));
+      assertFalse(PaneContextService.isAggregateMode(
+         new EditorContext("calcField", "A", "n", null), null));
+      assertTrue(PaneContextService.isAggregateMode(
+         new EditorContext("calcField", "A", "n", null), new PaneState(false, true)));
+   }
+
+   @Test
+   void theSqlStateIsIgnoredForEveryKindWithoutTheSwitch() throws Exception {
+      for(ScriptTarget.Kind kind : ScriptTarget.Kind.values()) {
+         // Bug #81557: the worksheet expression and condition value have the switch too.
+         if(kind == ScriptTarget.Kind.CALC_FIELD || kind == ScriptTarget.Kind.WORKSHEET_EXPRESSION ||
+            kind == ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE)
+         {
             continue;
          }
 

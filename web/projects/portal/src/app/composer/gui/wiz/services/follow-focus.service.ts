@@ -134,6 +134,37 @@ export class FollowFocusService {
    }
 
    /**
+    * Tells the server the user flipped the radio of the dialog a session is paired from
+    * (Script/onClick, onInit/onRefresh), so the session moves from `from` to `to` with it: the
+    * paired location, `status` and the script tools' default target then name the script the user
+    * is looking at. Fire-and-forget like the other pane events; the server refuses anything that
+    * is not a switch between the two scripts of one dialog, and a call that finds no session at
+    * `from` (another instance already moved it, or nothing is paired) changes nothing.
+    *
+    * A Follow Focus frame that holds `from` is rewritten to `to`, so the close-time integrity
+    * check of `popFocus` still matches the location the pane is on now.
+    */
+   switchPane(runtimeId: string, socketConnection: ViewsheetClientService,
+              from: EditorContext, to: EditorContext): void
+   {
+      if(!runtimeId || !socketConnection || !from || !to) {
+         return;
+      }
+
+      const stack = this.state.get(runtimeId)?.stack;
+      const index = stack ? stack.findIndex(frame => this.sameEditorContext(frame, from)) : -1;
+
+      if(stack && index >= 0) {
+         stack[index] = to;
+      }
+
+      socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
+         conn.send("/events/wiz/pairing/pane-switch", {},
+                   JSON.stringify({ runtimeId, from, to }));
+      });
+   }
+
+   /**
     * Tells the server what a pane shows that its editorContext does not say and the user can
     * change after pairing (the calculated field dialog's SQL/Script switch), for the exact
     * context a session is bound to: the one a code was minted with, or the one `pushFocus` moved
@@ -142,7 +173,7 @@ export class FollowFocusService {
     * session to a pane send it through the same connection.
     */
    reportPaneState(runtimeId: string, socketConnection: ViewsheetClientService,
-                   editorContext: EditorContext, sql: boolean): void
+                   editorContext: EditorContext, sql: boolean, aggregate: boolean = false): void
    {
       if(!runtimeId || !socketConnection || !editorContext) {
          return;
@@ -150,7 +181,7 @@ export class FollowFocusService {
 
       socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
          conn.send("/events/wiz/pairing/pane-state", {},
-                   JSON.stringify({ runtimeId, editorContext, sql }));
+                   JSON.stringify({ runtimeId, editorContext, sql, aggregate }));
       });
    }
 

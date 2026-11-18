@@ -22,15 +22,24 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 /**
  * The result of {@code read_script}.
  *
- * @param pending {@code true} only for a pending (Create Expression) session: the column does not
- *                exist yet, so {@code text} is not an expression. Omitted from the JSON otherwise
+ * @param pending {@code true} only for a pending location: the column (Create Expression) or the
+ *                condition does not exist yet, so {@code text} is not an expression. Omitted from
+ *                the JSON otherwise
  * @param note    explains a pending read; omitted from the JSON otherwise
+ * @param type    for a worksheet condition value, the value's own type: {@code "script"}
+ *                (JavaScript), {@code "sql"}, or {@code "literal"} for a plain value. Omitted from
+ *                the JSON for every other location
  */
 public record ScriptInfo(String target, String text, boolean enabled,
                          @JsonInclude(JsonInclude.Include.NON_NULL) Boolean pending,
-                         @JsonInclude(JsonInclude.Include.NON_NULL) String note)
+                         @JsonInclude(JsonInclude.Include.NON_NULL) String note,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) String type)
 {
+   public ScriptInfo(String target, String text, boolean enabled, Boolean pending, String note) {
+      this(target, text, enabled, pending, note, null);
+   }
+
    public ScriptInfo(String target, String text, boolean enabled) {
-      this(target, text, enabled, null, null);
+      this(target, text, enabled, null, null, null);
    }
 }

@@ -23,9 +23,17 @@ package inetsoft.web.wiz.pairing;
  * purpose: that record is compared for equality when a pane is detached and when a session is
  * retargeted, so a value the user can flip must not be part of it.
  *
- * @param sql whether the pane's SQL/Script switch is on SQL (the calculated field formula dialog)
+ * @param sql       whether the pane's SQL/Script switch is on SQL (the calculated field formula
+ *                  dialog)
+ * @param aggregate whether the pane's "Calculate Field From" choice is Aggregate rather than
+ *                  Detail (the calculated field formula dialog)
  */
-public record PaneState(boolean sql) {
+public record PaneState(boolean sql, boolean aggregate) {
+   /** A state that only carries the SQL/Script switch (Detail calculation). */
+   public PaneState(boolean sql) {
+      this(sql, false);
+   }
+
    /** The state of a pane that never reported one: its default value type. */
-   public static final PaneState DEFAULT = new PaneState(false);
+   public static final PaneState DEFAULT = new PaneState(false, false);
 }

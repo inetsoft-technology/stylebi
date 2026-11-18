@@ -200,15 +200,17 @@ public class PaneScopeService {
     * {@code assemblyOnClick} on that SAME assembly, and vice versa, but never a different
     * assembly and never a different kind family. Reason: {@code ClickableScriptPane} — the one
     * dialog Composer opens for a clickable assembly — hosts BOTH scripts side by side behind a
-    * single radio toggle ("Script" / "onClick"), sharing one {@code editorContext}. Its own
-    * {@code editorContext} getter is hardcoded to {@code assemblyOnClick} regardless of which
-    * radio is selected (clickable-script-pane.component.ts:56-58), so a mint from that dialog
-    * does not reliably name which of the two scripts the user is actually looking at. Refusing
-    * the sibling would make the "wrong" radio position (relative to whatever the dialog happened
-    * to mint) unreachable from the very session the user just opened for that exact assembly —
-    * a false refusal in the one case pane scoping exists to serve, for no security benefit: both
-    * scripts are already inside the boundary ("this location", the assembly's own script surface)
-    * the spec draws around a single dialog, as distinct from "this sheet". A calc field's formula
+    * single radio toggle ("Script" / "onClick"), sharing one {@code editorContext}. Its
+    * {@code editorContext} getter follows the radio, but a code is minted for the radio position
+    * at that moment and the user can move the radio afterwards. Refusing the sibling would make
+    * the other radio position unreachable from the very session the user just opened for that
+    * exact assembly — a false refusal in the one case pane scoping exists to serve, for no
+    * security benefit: both scripts are already inside the boundary ("this location", the
+    * assembly's own script surface) the spec draws around a single dialog, as distinct from
+    * "this sheet". The viewsheet's own Script dialog ({@code ViewsheetScriptPane}) hosts
+    * {@code viewsheetOnInit} and {@code viewsheetOnLoad} behind the same kind of radio, so those
+    * two are one family too (Bug #81676; this reverses the exclusion #4654, ec46b37d95, tested).
+    * A calc field's formula
     * editor has no such sibling — it is single-purpose — so {@code calcField} matches only its
     * own (table, name), never another field on the same table.
     *
@@ -261,7 +263,7 @@ public class PaneScopeService {
       }
 
       // viewsheetOnInit/viewsheetOnLoad carry no assembly/name -- sameDialogFamily already
-      // required an exact kind match, which is the whole identity for these. Every other kind
+      // required the kind to be in the grant's own family, which is the whole identity here. Every other kind
       // must be classified above; one that is not matches nothing rather than everything.
       return grantedKind == ScriptTarget.Kind.VIEWSHEET_ON_INIT ||
          grantedKind == ScriptTarget.Kind.VIEWSHEET_ON_LOAD;
@@ -282,7 +284,39 @@ public class PaneScopeService {
          return true;
       }
 
-      return ASSEMBLY_SCRIPT_FAMILY.contains(granted) && ASSEMBLY_SCRIPT_FAMILY.contains(target);
+      return ASSEMBLY_SCRIPT_FAMILY.contains(granted) && ASSEMBLY_SCRIPT_FAMILY.contains(target) ||
+         VIEWSHEET_SCRIPT_FAMILY.contains(granted) && VIEWSHEET_SCRIPT_FAMILY.contains(target);
+   }
+
+   /**
+    * Whether {@code a} and {@code b} name two scripts that ONE dialog hosts behind a radio
+    * (Script/onClick, or onInit/onRefresh) of the SAME assembly -- the only move a live pane
+    * session may make on its own when the user flips that radio. Never true for two different
+    * assemblies, a kind outside those two families, or an unrecognized kind. A location is a
+    * sibling of itself.
+    */
+   public static boolean areDialogSiblings(EditorContext a, EditorContext b) {
+      if(a == null || b == null) {
+         return false;
+      }
+
+      ScriptTarget.Kind kindA;
+      ScriptTarget.Kind kindB;
+
+      try {
+         kindA = ScriptTarget.Kind.fromWire(a.kind());
+         kindB = ScriptTarget.Kind.fromWire(b.kind());
+      }
+      catch(PairingException ex) {
+         return false;
+      }
+
+      boolean sameFamily =
+         ASSEMBLY_SCRIPT_FAMILY.contains(kindA) && ASSEMBLY_SCRIPT_FAMILY.contains(kindB) ||
+         VIEWSHEET_SCRIPT_FAMILY.contains(kindA) && VIEWSHEET_SCRIPT_FAMILY.contains(kindB);
+
+      return sameFamily &&
+         Objects.equals(blankToNull(a.assembly()), blankToNull(b.assembly()));
    }
 
    /**
@@ -455,6 +489,10 @@ public class PaneScopeService {
    /** The dialog-sibling family {@link #matchesGrant} treats as one grant; see its javadoc. */
    private static final Set<ScriptTarget.Kind> ASSEMBLY_SCRIPT_FAMILY =
       EnumSet.of(ScriptTarget.Kind.ASSEMBLY_MAIN, ScriptTarget.Kind.ASSEMBLY_ON_CLICK);
+
+   /** The viewsheet Script dialog's onInit/onRefresh pair; see {@link #matchesGrant}. */
+   private static final Set<ScriptTarget.Kind> VIEWSHEET_SCRIPT_FAMILY =
+      EnumSet.of(ScriptTarget.Kind.VIEWSHEET_ON_INIT, ScriptTarget.Kind.VIEWSHEET_ON_LOAD);
 
    /**
     * Kinds addressed by (table, field) rather than by assembly alone -- see

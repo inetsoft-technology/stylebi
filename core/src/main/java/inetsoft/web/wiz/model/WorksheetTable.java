@@ -518,6 +518,13 @@ public class WorksheetTable {
       private String aggregateFormula;
       private String secondaryField;
       private Integer nOrP;
+      /**
+       * rankingCondition only: the aggregate (alias or view name such as "Sum(X)") to rank
+       * {@code field}, a group column, by. Required on every ranking leaf when more than one
+       * ranking leaf is sent: the leaves then form a nested per-parent top-N, one group column
+       * per leaf. Absent = rank {@code field} by itself (single-leaf behavior).
+       */
+      private String of;
       private List<WorksheetConditionValue> values;
 
       public int getConditionLevel() { return conditionLevel; }
@@ -546,6 +553,8 @@ public class WorksheetTable {
       public void setSecondaryField(String secondaryField) { this.secondaryField = secondaryField; }
       public Integer getNOrP() { return nOrP; }
       public void setNOrP(Integer nOrP) { this.nOrP = nOrP; }
+      public String getOf() { return of; }
+      public void setOf(String of) { this.of = of; }
       public List<WorksheetConditionValue> getValues() { return values; }
       public void setValues(List<WorksheetConditionValue> values) { this.values = values; }
    }

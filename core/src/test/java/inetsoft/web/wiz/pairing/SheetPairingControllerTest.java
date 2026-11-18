@@ -415,11 +415,35 @@ class SheetPairingControllerTest {
       accessor.setSessionId("stomp-9");
 
       c.paneStateViaSocket(
-         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, true), accessor);
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, true, false), accessor);
 
       assertEquals(new PaneState(true), sessions.paneStateOf(mine));
       assertEquals(PaneState.DEFAULT, sessions.paneStateOf(theirs),
                    "the socket id comes from the STOMP session, so another user's pane is untouched");
+   }
+
+   @Test
+   void paneStateViaSocketRecordsTheAggregateChoice() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetPairingController c = new SheetPairingController(new SheetPairingService(), sessions,
+         mock(SheetAgentFeature.class), mock(SheetAgentBroadcastService.class),
+         mock(SheetJoinService.class), true);
+      EditorContext ctx = new EditorContext("calcField", "Orders", "Margin", null, true);
+      JoinSession mine = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                       "stomp-9", "alice", ctx);
+
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      c.paneStateViaSocket(
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, false, true), accessor);
+
+      assertEquals(new PaneState(false, true), sessions.paneStateOf(mine));
+
+      c.paneStateViaSocket(
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, false, false), accessor);
+
+      assertEquals(PaneState.DEFAULT, sessions.paneStateOf(mine), "flipping back to Detail");
    }
 
    @Test
@@ -435,10 +459,77 @@ class SheetPairingControllerTest {
       accessor.setSessionId("stomp-9");
 
       c.paneStateViaSocket(null, accessor);
-      c.paneStateViaSocket(new SheetPairingController.PaneStateRequest(null, ctx, true), accessor);
+      c.paneStateViaSocket(new SheetPairingController.PaneStateRequest(null, ctx, true, false), accessor);
       c.paneStateViaSocket(
-         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", null, true), accessor);
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", null, true, false), accessor);
 
       assertEquals(PaneState.DEFAULT, sessions.paneStateOf(pane));
+   }
+
+   // ---- Bug #81676: pane-switch ---------------------------------------------------------------
+
+   @Test
+   void paneSwitchViaSocketMovesThePaneSessionToItsSiblingAndBroadcasts() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetPairingController c = new SheetPairingController(new SheetPairingService(), sessions,
+         mock(SheetAgentFeature.class), broadcast, mock(SheetJoinService.class), true);
+      EditorContext init = new EditorContext("viewsheetOnInit", null, null, null);
+      EditorContext load = new EditorContext("viewsheetOnLoad", null, null, null);
+      JoinSession pane = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                       "stomp-9", "alice", init);
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      SheetPairingController.RetargetResponse resp = c.paneSwitchViaSocket(
+         new SheetPairingController.PaneSwitchRequest("Viewsheet/vs-1", init, load), accessor);
+
+      assertTrue(resp.ok());
+      assertEquals(load, sessions.resolve(pane.sessionToken(), "alice~;~host-org").editorContext());
+      ArgumentCaptor<JoinSession> sent = ArgumentCaptor.forClass(JoinSession.class);
+      verify(broadcast).sendFocusChanged(sent.capture());
+      assertEquals(load, sent.getValue().editorContext());
+   }
+
+   @Test
+   void paneSwitchViaSocketRefusesAnotherDialogFamilyAndNeverBroadcasts() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetPairingController c = new SheetPairingController(new SheetPairingService(), sessions,
+         mock(SheetAgentFeature.class), broadcast, mock(SheetJoinService.class), true);
+      EditorContext init = new EditorContext("viewsheetOnInit", null, null, null);
+      JoinSession pane = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                       "stomp-9", "alice", init);
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      SheetPairingController.RetargetResponse resp = c.paneSwitchViaSocket(
+         new SheetPairingController.PaneSwitchRequest("Viewsheet/vs-1", init,
+            new EditorContext("assemblyMain", "Chart1", null, null)), accessor);
+
+      assertFalse(resp.ok());
+      assertNotNull(resp.error());
+      assertEquals(init, sessions.resolve(pane.sessionToken(), "alice~;~host-org").editorContext());
+      verifyNoInteractions(broadcast);
+   }
+
+   @Test
+   void paneSwitchViaSocketTakesTheSocketFromTheAccessorNotThePayload() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetPairingController c = new SheetPairingController(new SheetPairingService(), sessions,
+         mock(SheetAgentFeature.class), mock(SheetAgentBroadcastService.class),
+         mock(SheetJoinService.class), true);
+      EditorContext init = new EditorContext("viewsheetOnInit", null, null, null);
+      JoinSession pane = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                       "stomp-9", "alice", init);
+      SimpMessageHeaderAccessor otherSocket = SimpMessageHeaderAccessor.create();
+      otherSocket.setSessionId("stomp-evil");
+
+      SheetPairingController.RetargetResponse resp = c.paneSwitchViaSocket(
+         new SheetPairingController.PaneSwitchRequest("Viewsheet/vs-1", init,
+            new EditorContext("viewsheetOnLoad", null, null, null)), otherSocket);
+
+      assertFalse(resp.ok());
+      assertEquals(init, sessions.resolve(pane.sessionToken(), "alice~;~host-org").editorContext());
    }
 }

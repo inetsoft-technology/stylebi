@@ -309,7 +309,12 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
       ListBindingInfo info = getListBindingInfo();
       String dtype = null;
 
-      if(info != null && !info.isEmpty()) {
+      // The property dialog keeps the query binding after the user turns the query off, so a
+      // stored binding only counts while the list actually reads from it.
+      boolean bindingUsed = stype == ListInputVSAssembly.BOUND_SOURCE ||
+         stype == ListInputVSAssembly.MERGE_SOURCE;
+
+      if(bindingUsed && info != null && !info.isEmpty()) {
          dtype = info.getDataType();
       }
 

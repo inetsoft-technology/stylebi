@@ -1236,3 +1236,55 @@ describe("ViewerAppComponent — updateScrollLeft() / processEmbedErrorCommand()
       expect(errors[0]).toBe("embed-failed");
    });
 });
+
+// ---------------------------------------------------------------------------
+// Bug #81672 — processRefreshVSObjectCommand registers a newly set pop component
+// ---------------------------------------------------------------------------
+
+describe("ViewerAppComponent — processRefreshVSObjectCommand() pop relation", () => {
+   function makeImage(popComponent?: string): VSObjectModel {
+      return {
+         absoluteName: "Image1",
+         objectType: "VSImage",
+         visible: true,
+         popComponent,
+         popLocation: popComponent ? "CENTER" : undefined,
+         objectFormat: { top: 1, left: 2, width: 30, height: 40 } as any,
+      } as unknown as VSObjectModel;
+   }
+
+   async function setup() {
+      const { comp } = await renderComponent();
+      (comp as any).popComponentService.registerPopComponent = vi.fn();
+      (comp as any).popComponentService.setPopLocation = vi.fn();
+      (comp as any).registerPopCompVisible = vi.fn();
+      (comp as any).calculateAllAssemblyBounds = vi.fn();
+      ASSEMBLY_ACTION_FACTORY_MOCK.createActions.mockImplementation((model: any) => ({
+         getModel: () => model,
+         menuActions: [],
+         toolbarActions: [],
+      }));
+      comp.vsObjects = [makeImage()];
+      comp.vsObjectActions = [{ getModel: () => makeImage() } as any];
+      return comp;
+   }
+
+   it("should register the pop relation when a refresh carries a popComponent", async () => {
+      const comp = await setup();
+
+      comp.processRefreshVSObjectCommand({ info: makeImage("Gauge1") } as any);
+
+      expect((comp as any).popComponentService.registerPopComponent).toHaveBeenCalledWith(
+         "Gauge1", "Image1", 1, 2, 30, 40, "Image1", expect.anything(), undefined);
+      expect((comp as any).popComponentService.setPopLocation).toHaveBeenCalledWith("CENTER");
+      expect((comp as any).registerPopCompVisible).toHaveBeenCalledWith("Gauge1");
+   });
+
+   it("should not register anything when the refreshed object has no popComponent", async () => {
+      const comp = await setup();
+
+      comp.processRefreshVSObjectCommand({ info: makeImage() } as any);
+
+      expect((comp as any).popComponentService.registerPopComponent).not.toHaveBeenCalled();
+   });
+});

@@ -2053,11 +2053,11 @@ public final class TableBindingMutator {
             reason = where + " is bound at " + DateLevels.name(String.valueOf(level)) +
                ", a date part";
          }
-         else if(shiftSmallerThanBucket(level, calc.getFrom())) {
+         else if(CalculatorShift.smallerThanBucket(level, calc.getFrom())) {
             reason = where + " is bound at " + DateLevels.name(String.valueOf(level)) +
-               ", a bucket the " + previousName(calc.getFrom()) + " shift does not land on, so " +
+               ", a bucket the " + CalculatorShift.previousName(calc.getFrom()) + " shift does not land on, so " +
                "every cell would be blank";
-            advice = shiftAdvice(calc.getFrom());
+            advice = CalculatorShift.advice(calc.getFrom());
          }
          else if(onRows && level == XConstants.YEAR_DATE_GROUP &&
             calc.getFrom() == ValueOfCalc.PREVIOUS_YEAR && followedByMonth(axis, index))
@@ -2068,7 +2068,7 @@ public final class TableBindingMutator {
 
          if(reason != null) {
             throw new IllegalArgumentException(
-               "calculateInfo.from " + calc.getFrom() + " (" + previousName(calc.getFrom()) +
+               "calculateInfo.from " + calc.getFrom() + " (" + CalculatorShift.previousName(calc.getFrom()) +
                ") on " + name + " cannot be computed: its calculator dimension " + reason +
                (advice != null ? ". " + advice :
                   ". Use a flat full-date level that matches the calculator (for Previous " +
@@ -2078,36 +2078,6 @@ public final class TableBindingMutator {
 
          warnNestedFullDateTarget(name, calc.getFrom(), axis, index, level, where);
       }
-   }
-
-   /**
-    * Bug #80016: the (target level, from) pairs whose shift is not a whole number of the level's
-    * buckets, so the previous-date lookup never finds a key. year: 5/6/7, quarter: 6/7, month: 6.
-    */
-   private static boolean shiftSmallerThanBucket(int level, int from) {
-      return switch(level) {
-         case XConstants.YEAR_DATE_GROUP -> from == ValueOfCalc.PREVIOUS_QUARTER ||
-            from == ValueOfCalc.PREVIOUS_WEEK || from == ValueOfCalc.PREVIOUS_MONTH;
-         case XConstants.QUARTER_DATE_GROUP -> from == ValueOfCalc.PREVIOUS_WEEK ||
-            from == ValueOfCalc.PREVIOUS_MONTH;
-         case XConstants.MONTH_DATE_GROUP -> from == ValueOfCalc.PREVIOUS_WEEK;
-         default -> false;
-      };
-   }
-
-   private static String shiftAdvice(int from) {
-      return switch(from) {
-         case ValueOfCalc.PREVIOUS_QUARTER ->
-            "Bind the date at quarter level or finer so the Previous Quarter value exists, use " +
-            "from 4 (Previous Year) on a year dimension, or remove the calculateInfo.";
-         case ValueOfCalc.PREVIOUS_WEEK ->
-            "Bind the date at day level so the Previous Week value exists, or remove the " +
-            "calculateInfo.";
-         default ->
-            "Bind the date at month level or finer (rows = [the date field at month level] " +
-            "compares January with the previous December), use from 4 (Previous Year) on a " +
-            "year dimension, or remove the calculateInfo.";
-      };
    }
 
    /**
@@ -2132,7 +2102,7 @@ public final class TableBindingMutator {
          if(outer != LEVEL_UNKNOWN && outer != LEVEL_NON_DATE &&
             (outer & XConstants.PART_DATE_GROUP) == 0 && outer != XConstants.NONE_DATE_GROUP)
          {
-            notes().add(WARNING_PREFIX + "calculateInfo.from " + from + " (" + previousName(from) +
+            notes().add(WARNING_PREFIX + "calculateInfo.from " + from + " (" + CalculatorShift.previousName(from) +
                ") on " + name + " may render blank: " + where + " is a full-date dimension " +
                "nested under another full-date dimension, and the previous-period lookup keeps " +
                "the outer value. Check the result; a flat date dimension computes.");
@@ -2182,15 +2152,6 @@ public final class TableBindingMutator {
       }
 
       return false;
-   }
-
-   private static String previousName(int from) {
-      return switch(from) {
-         case ValueOfCalc.PREVIOUS_YEAR -> "Previous Year";
-         case ValueOfCalc.PREVIOUS_QUARTER -> "Previous Quarter";
-         case ValueOfCalc.PREVIOUS_WEEK -> "Previous Week";
-         default -> "Previous Month";
-      };
    }
 
    private static boolean isPercent(BAggregateRefModel agg) {

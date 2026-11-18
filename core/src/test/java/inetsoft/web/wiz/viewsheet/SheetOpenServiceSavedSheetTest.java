@@ -26,6 +26,8 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.ConfirmException;
+import inetsoft.util.Tool;
 import inetsoft.web.composer.command.OpenComposerAssetCommand;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
@@ -34,12 +36,14 @@ import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetRuntimeAccess;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -142,7 +146,7 @@ class SheetOpenServiceSavedSheetTest {
    @Test
    void opensASavedViewsheetAsTheBrowserPrincipalAndPairsIt() throws Exception {
       JoinSession opened = service.openSavedSheet(
-         "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null, false);
+         "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null, false).session();
 
       assertEquals("tok-vs-new", opened.sessionToken());
       assertEquals(SheetType.VIEWSHEET, opened.sheetType());
@@ -172,7 +176,7 @@ class SheetOpenServiceSavedSheetTest {
    @Test
    void opensASavedWorksheetAsTheBrowserPrincipalAndPairsIt() throws Exception {
       JoinSession opened = service.openSavedSheet(
-         "tok-acting", agent(), SheetType.WORKSHEET, "Sales/Orders", "global", false);
+         "tok-acting", agent(), SheetType.WORKSHEET, "Sales/Orders", "global", false).session();
 
       assertEquals("tok-ws-new", opened.sessionToken());
       assertEquals(SheetType.WORKSHEET, opened.sheetType());
@@ -388,5 +392,86 @@ class SheetOpenServiceSavedSheetTest {
       service.openSavedSheet("tok-acting", agent, SheetType.VIEWSHEET, "Sales/VS", null, false);
 
       verify(viewsheetService).openViewsheet(any(AssetEntry.class), same(agent), eq(false));
+   }
+
+   @AfterEach
+   void clearUserMessages() {
+      Tool.clearUserMessage();
+   }
+
+   /** Loading a worksheet records what it could not do as user messages on the request thread. */
+   private void loadingTheWorksheetRaises(Runnable raise) throws Exception {
+      when(worksheetService.openWorksheet(any(AssetEntry.class), any(Principal.class)))
+         .thenAnswer(invocation -> {
+            raise.run();
+            return "ws-new";
+         });
+   }
+
+   @Test
+   void aWorksheetLoadWarningIsReturnedWithTheOpenAndDoesNotFailIt() throws Exception {
+      loadingTheWorksheetRaises(() -> Tool.addUserMessage(
+         "Failed to update dependencies for sheet B:Primary assembly not found in Data Worksheet: A",
+         ConfirmException.WARNING));
+
+      SheetOpenService.OpenedSheet opened = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.WORKSHEET, "Sales/WS", null, false);
+
+      assertEquals("tok-ws-new", opened.session().sessionToken());
+      assertEquals(1, opened.warnings().size());
+      assertTrue(opened.warnings().get(0).contains("Failed to update dependencies"),
+                 opened.warnings().toString());
+      assertTrue(opened.warnings().get(0).contains("Primary assembly not found"),
+                 opened.warnings().toString());
+   }
+
+   @Test
+   void aWorksheetLoadErrorIsReturnedToo() throws Exception {
+      loadingTheWorksheetRaises(() -> Tool.addUserMessage("load went wrong",
+                                                          ConfirmException.ERROR));
+
+      SheetOpenService.OpenedSheet opened = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.WORKSHEET, "Sales/WS", null, false);
+
+      assertEquals(List.of("load went wrong"), opened.warnings());
+   }
+
+   @Test
+   void aCleanWorksheetOpenReturnsNoWarningsAndInformationalMessagesAreDropped() throws Exception {
+      loadingTheWorksheetRaises(() -> Tool.addUserMessage("some information"));
+
+      SheetOpenService.OpenedSheet opened = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.WORKSHEET, "Sales/WS", null, false);
+
+      assertTrue(opened.warnings().isEmpty(), opened.warnings().toString());
+   }
+
+   @Test
+   void aMessageLeftOnTheThreadBeforeTheOpenIsNotReportedAsAWarningOfThisOpen() throws Exception {
+      Tool.addUserWarning("left over from an earlier step in this request");
+
+      SheetOpenService.OpenedSheet opened = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.WORKSHEET, "Sales/WS", null, false);
+
+      assertTrue(opened.warnings().isEmpty(), opened.warnings().toString());
+   }
+
+   @Test
+   void theThreadMessagesAreClearedAfterTheOpenSoTheyDoNotLeakIntoLaterWork() throws Exception {
+      loadingTheWorksheetRaises(() -> Tool.addUserWarning("worksheet warning"));
+
+      service.openSavedSheet("tok-acting", agent(), SheetType.WORKSHEET, "Sales/WS", null, false);
+
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
+   void aViewsheetOpenReportsNoWarningsEvenWithAMessageOnTheThread() throws Exception {
+      Tool.addUserWarning("not a worksheet load message");
+
+      SheetOpenService.OpenedSheet opened = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/VS", null, false);
+
+      assertTrue(opened.warnings().isEmpty(), opened.warnings().toString());
    }
 }

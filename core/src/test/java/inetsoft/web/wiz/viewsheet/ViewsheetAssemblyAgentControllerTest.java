@@ -551,6 +551,48 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals(ctx, response.editorContext());
    }
 
+   @Test
+   void openSheetRelaysTheOpenWarningsAndTheSessionShape() throws Exception {
+      SheetOpenService openService = mock(SheetOpenService.class);
+      JoinSession session = new JoinSession("tok-ws", "ws-runtime-1", "alice", SheetType.WORKSHEET,
+                                            0L, 1000L, JoinSession.ConnectionMode.PAIRED, "sock-1",
+                                            "alice", null);
+      when(openService.openSavedSheet(eq("tok-acting"), any(), eq(SheetType.WORKSHEET),
+                                      eq("Sales/Orders"), isNull(), eq(false)))
+         .thenReturn(new SheetOpenService.OpenedSheet(session, List.of("Failed to update A")));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(openService);
+
+      var response = controller.openSheet(
+         new ViewsheetAssemblyAgentController.OpenSheetRequest(
+            "tok-acting", "worksheet", "Sales/Orders", null, null),
+         principal());
+
+      assertEquals("tok-ws", response.sessionToken());
+      assertEquals("ws-runtime-1", response.runtimeId());
+      assertEquals("worksheet", response.sheetType());
+      assertEquals(List.of("Failed to update A"), response.warnings());
+   }
+
+   @Test
+   void openSheetReturnsEmptyWarningsForACleanOpen() throws Exception {
+      SheetOpenService openService = mock(SheetOpenService.class);
+      JoinSession session = new JoinSession("tok-vs", "vs-runtime-1", "alice", SheetType.VIEWSHEET,
+                                            0L, 1000L, JoinSession.ConnectionMode.PAIRED, "sock-1",
+                                            "alice", null);
+      when(openService.openSavedSheet(eq("tok-acting"), any(), eq(SheetType.VIEWSHEET),
+                                      eq("Sales/Dash"), isNull(), eq(false)))
+         .thenReturn(new SheetOpenService.OpenedSheet(session, List.of()));
+
+      var response = controllerWith(openService).openSheet(
+         new ViewsheetAssemblyAgentController.OpenSheetRequest(
+            "tok-acting", "viewsheet", "Sales/Dash", null, null),
+         principal());
+
+      assertEquals("viewsheet", response.sheetType());
+      assertTrue(response.warnings().isEmpty());
+   }
+
    /** Feature enabled, only {@code openService} wired -- for the open_base_worksheet test. */
    private static ViewsheetAssemblyAgentController controllerWith(SheetOpenService openService) {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);

@@ -258,6 +258,29 @@ class CalcCellVocabularyTest {
       assertEquals(3, ((Map<?, ?>) described.get("topn")).get("n"));
    }
 
+   /** Bug #81643: a group cell's topn reports its Others option. */
+   @Test
+   void aColumnGroupCellReportsItsTopnOthersOption() {
+      CellBindingInfo cell = groupCell(null, false);
+      cell.getTopn().setType(XCondition.TOP_N);
+      cell.getTopn().setTopn(3);
+      cell.getTopn().setOthers(true);
+
+      Map<String, Object> described = CalcCellVocabulary.describe(cell);
+
+      assertEquals(true, ((Map<?, ?>) described.get("topn")).get("others"));
+   }
+
+   @Test
+   void refusesANonBooleanTopnOthers() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalcCellVocabulary.validate(spec(
+            "content", "text", "value", "x", "topn", spec("mode", "top", "others", "yes"))));
+
+      assertTrue(thrown.getMessage().contains("topn.others"));
+   }
+
    // -- bug #76814: the named group a group cell carries is read back in the write vocabulary --
 
    private static CellBindingInfo groupCell(NamedGroupInfoModel info, boolean others) {

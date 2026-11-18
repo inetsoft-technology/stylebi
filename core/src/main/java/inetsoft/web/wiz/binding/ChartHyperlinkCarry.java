@@ -123,6 +123,7 @@ final class ChartHyperlinkCarry {
 
       List<Saved> pool = new ArrayList<>(saved);
       List<ChartRef> now = refs(info, shelf);
+      Set<ChartRef> matched = new HashSet<>();
 
       for(ChartRef ref : now) {
          for(Saved candidate : pool) {
@@ -154,14 +155,17 @@ final class ChartHyperlinkCarry {
                }
             }
 
+            matched.add(ref);
             pool.remove(candidate);
             break;
          }
       }
 
+      carryAcrossFormula(pool, now, matched, shelf, notes);
+
       for(Saved dropped : pool) {
          if(dropped.hasHighlight() && sameColumn(dropped.ref(), now)) {
-            reported.add(fullName(dropped.ref()));
+            reported.add(identity(dropped.ref()));
             notes.add("The highlight on " + fullName(dropped.ref()) + " was removed: its field " +
                "stays on the " + shelf + " shelf under a different " +
                (dropped.ref() instanceof VSDimensionRef ? "date level" : "aggregate formula") +
@@ -171,6 +175,58 @@ final class ChartHyperlinkCarry {
       }
 
       return notes;
+   }
+
+   /**
+    * A measure whose aggregate formula changed (Sum to Average) is a different field to
+    * {@link #sameField}, but it is still the same column the link was put on. Its link moves to the
+    * new aggregate only when the pairing is 1:1: exactly one unmatched linked ref and exactly one
+    * unmatched new aggregate on that column. Otherwise the target is a guess, so the link is
+    * dropped and reported. Highlights are not carried here.
+    */
+   private static void carryAcrossFormula(List<Saved> pool, List<ChartRef> now,
+                                          Set<ChartRef> matched, String shelf, List<String> notes)
+   {
+      for(Saved saved : pool) {
+         if(saved.link() == null || !(saved.ref() instanceof VSAggregateRef)) {
+            continue;
+         }
+
+         String column = saved.ref().getName();
+         List<Saved> oldOnes = new ArrayList<>();
+         List<ChartRef> newOnes = new ArrayList<>();
+
+         for(Saved other : pool) {
+            if(other.link() != null && other.ref() instanceof VSAggregateRef &&
+               column != null && column.equalsIgnoreCase(other.ref().getName()))
+            {
+               oldOnes.add(other);
+            }
+         }
+
+         for(ChartRef ref : now) {
+            if(ref instanceof VSAggregateRef && !matched.contains(ref) && column != null &&
+               column.equalsIgnoreCase(ref.getName()) &&
+               ref instanceof HyperlinkRef h && h.getHyperlink() == null)
+            {
+               newOnes.add(ref);
+            }
+         }
+
+         if(newOnes.isEmpty()) {
+            continue;
+         }
+
+         if(oldOnes.size() == 1 && newOnes.size() == 1) {
+            ((HyperlinkRef) newOnes.get(0)).setHyperlink((Hyperlink) saved.link().clone());
+            matched.add(newOnes.get(0));
+         }
+         else {
+            notes.add("The hyperlink on " + fullName(saved.ref()) + " was removed: its field stays " +
+               "on the " + shelf + " shelf under a different aggregate formula and the new " +
+               "target is ambiguous. Re-create it with set_hyperlink on the new field.");
+         }
+      }
    }
 
    private static boolean sameColumn(ChartRef old, List<ChartRef> now) {
@@ -186,12 +242,25 @@ final class ChartHyperlinkCarry {
       return false;
    }
 
+   /**
+    * What a field is, as opposed to what it is called: its kind, its column and its formula or date
+    * level, but not its calculator. A calculator renames a measure ({@code Sum(Total)} becomes
+    * {@code % of total: Sum(Total)}) while {@link #sameField} still carries its highlights over,
+    * so a highlight is tracked across a write by this and shown to the caller by
+    * {@link #fullName}. The kind tag keeps an aggregate-disabled measure, whose name is its bare
+    * column, from being taken for a dimension on the same column.
+    */
+   static String identity(ChartRef ref) {
+      return ref instanceof VSAggregateRef a ? "m:" + a.getFullName(false) :
+         ref instanceof VSDimensionRef d ? "d:" + d.getFullName() : "o:" + ref.getName();
+   }
+
    static String fullName(ChartRef ref) {
       return ref instanceof VSAggregateRef a ? a.getFullName() :
          ref instanceof VSDimensionRef d ? d.getFullName() : ref.getName();
    }
 
-   private static boolean sameField(ChartRef a, ChartRef b) {
+   static boolean sameField(ChartRef a, ChartRef b) {
       if(a instanceof VSAggregateRef x && b instanceof VSAggregateRef y) {
          return x.getName() != null && x.getName().equalsIgnoreCase(y.getName()) &&
             Objects.equals(x.getFormula(), y.getFormula());

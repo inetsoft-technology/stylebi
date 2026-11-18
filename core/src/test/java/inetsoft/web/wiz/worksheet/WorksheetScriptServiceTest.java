@@ -496,6 +496,54 @@ class WorksheetScriptServiceTest {
       assertEquals("1+0", service.read(session, agent, target).text());
    }
 
+   /** Bug #81557: the read says which kind the Expression value is, the dialog's Script/SQL switch. */
+   @Test
+   void anExpressionValueReadsBackWithItsType() throws Exception {
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+
+      seedExpressionCondition(inetsoft.uql.asset.ExpressionValue.SQL, "1+0");
+      ScriptInfo sql = service.read(session, agent, target);
+      assertEquals("sql", sql.type());
+      assertEquals("1+0", sql.text());
+      assertNull(sql.pending());
+
+      seedExpressionCondition(inetsoft.uql.asset.ExpressionValue.JAVASCRIPT, "1+1");
+      ScriptInfo script = service.read(session, agent, target);
+      assertEquals("script", script.type());
+      assertEquals("1+1", script.text());
+   }
+
+   @Test
+   void aLiteralConditionValueReadsBackAsLiteral() throws Exception {
+      seedCondition("Query1", "Price", ">", "0");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      assertEquals("literal", service.read(session, agent, target).type());
+   }
+
+   /** Bug #81557: a condition that does not exist yet reads as pending, with a note. */
+   @Test
+   void aConditionValueWithNoConditionYetReadsAsPending() throws Exception {
+      seedExpressionColumn("Query1", "Margin", "field['price']", false);
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "price");
+
+      ScriptInfo info = service.read(session, agent, target);
+
+      assertEquals(Boolean.TRUE, info.pending());
+      assertEquals("", info.text());
+      assertTrue(info.note().contains("NO condition exists yet"), info.note());
+      assertNull(info.type());
+   }
+
    /**
     * The load-bearing case: {@code isEqual()} folded into the operator symbol, exactly as
     * {@code editCondition} itself interprets {@code LESS_THAN}/{@code GREATER_THAN} plus that
