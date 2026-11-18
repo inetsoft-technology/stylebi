@@ -2906,6 +2906,11 @@ public class CoreTool {
       // It really makes no sense to have useful class=class comparisons locked
       // inside the class!=class comparison above.
       if(v1 instanceof Number && v2 instanceof Number) {
+         // integral values above 2^53 are not exactly representable as double
+         if(isIntegral(v1) && isIntegral(v2)) {
+            return Long.compare(((Number) v1).longValue(), ((Number) v2).longValue());
+         }
+
          double d1 = ((Number) v1).doubleValue();
          double d2 = ((Number) v2).doubleValue();
          return Double.compare(d1, d2);
@@ -2941,6 +2946,11 @@ public class CoreTool {
       else {
          return v1.toString().compareTo(v2.toString());
       }
+   }
+
+   private static boolean isIntegral(Object value) {
+      return value instanceof Long || value instanceof Integer || value instanceof Short ||
+         value instanceof Byte;
    }
 
    private static int getClassRank(Object value) {
