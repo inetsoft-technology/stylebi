@@ -3324,6 +3324,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
       seedXGrid(ctx, type);
+      seedYGrid(ctx, type);
       seedPlotAlpha(ctx, type);
       // the legacy branch replaces only a modern value
       seedChartColor(ctx, type);
@@ -3331,6 +3332,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedNodeColor(getVSChartInfo(), ctx);
       // modern only; the classic value stays in legacySmoothLines()
       seedSmoothLines(ctx, type);
+      seedValuesVisible(ctx, type);
       seedDirectionColors(ctx, type);
       seedSummaryColors(ctx);
    }
@@ -3487,6 +3489,42 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
    }
 
+   private void seedYGrid(VizContext ctx, ResolvedChartType type) {
+      int style = ctx.modern ? VSChartTypeDefaults.yGridStyle(type) : StyleConstants.THIN_LINE;
+      seedYGrid(getChartDescriptor(), style);
+      // a script-made runtime copy, which the render prefers; its user tier stays
+      seedYGrid(getRTChartDescriptor(), style);
+   }
+
+   private static void seedYGrid(ChartDescriptor desc, int style) {
+      PlotDescriptor plot = plotOf(desc);
+
+      if(plot != null) {
+         plot.setYGridStyle(style, CompositeValue.Type.DEFAULT);
+      }
+   }
+
+   // an author's choice stands; the legacy branch turns a seeded value back off
+   private void seedValuesVisible(VizContext ctx, ResolvedChartType type) {
+      PlotDescriptor plot = plotOf(getChartDescriptor());
+
+      if(plot == null || plot.isUserValuesVisible()) {
+         return;
+      }
+
+      VSChartInfo info = getVSChartInfo();
+      boolean textBound = info != null && info.getTextField() != null;
+      boolean show = ctx.modern && VSChartTypeDefaults.valuesVisible(type, textBound);
+      PlotDescriptor rplot = plotOf(getRTChartDescriptor());
+
+      // a script-made runtime copy follows unless the script changed its value
+      if(rplot != null && rplot.isValuesVisible() == plot.isValuesVisible()) {
+         rplot.setValuesVisible(show);
+      }
+
+      plot.setValuesVisible(show);
+   }
+
    // the fill transparency; -1 is auto, so a legacy chart keeps the element's own
    private void seedPlotAlpha(VizContext ctx, ResolvedChartType type) {
       double alpha = ctx.modern ? VSChartTypeDefaults.plotAlpha(type) : -1;
@@ -3615,6 +3653,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       else if(getVizMark() != null && seededLegendKey != null && !seededLegendKey.equals(key)) {
          seedLegendPlacement(VizContext.of(this), now);
          seedLegendTitles(VizContext.of(this));
+         seedValuesVisible(VizContext.of(this), now);
          requestLegendCount();
       }
 

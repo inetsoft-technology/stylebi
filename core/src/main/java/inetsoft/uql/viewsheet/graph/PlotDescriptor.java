@@ -755,6 +755,25 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Whether the author chose whether the values show.
+    */
+   public boolean isUserValuesVisible() {
+      return userValuesVisible;
+   }
+
+   public void setUserValuesVisible(boolean userValuesVisible) {
+      this.userValuesVisible = userValuesVisible;
+   }
+
+   /**
+    * Set the visibility of the values as the author's choice.
+    */
+   public void setAuthorValuesVisible(boolean visible) {
+      this.valuesVisible = visible;
+      this.userValuesVisible = true;
+   }
+
+   /**
     * Check whether to show one value per stack or per data point.
     */
    public boolean isStackValue() {
@@ -1475,6 +1494,10 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          valuesVisible = "true".equals(val);
       }
 
+      // a stored true predates any seed, so it is the author's
+      userValuesVisible = DerivedUserFlag.parse(Tool.getAttribute(node, "userValuesVisible"),
+                                                valuesVisible);
+
       if((val = Tool.getAttribute(node, "stackValue")) != null) {
          stackValue = "true".equals(val);
       }
@@ -1719,6 +1742,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       writer.print(" alpha=\"" + alpha + "\" ");
       writer.print(" rLineVisible=\"" + rLineVisible + "\" ");
       writer.print(" valuesVisible=\"" + valuesVisible + "\" ");
+      DerivedUserFlag.write(writer, "userValuesVisible", userValuesVisible, valuesVisible);
       writer.print(" stackValue=\"" + stackValue + "\" ");
       writer.print(" stackMeasures=\"" + stackMeasures + "\" ");
       writer.print(" webMap=\"" + webMap + "\" ");
@@ -1886,6 +1910,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          Tool.equals(alpha, desc.alpha) &&
          rLineVisible == desc.rLineVisible &&
          valuesVisible == desc.valuesVisible &&
+         userValuesVisible == desc.userValuesVisible &&
          stackValue == desc.stackValue &&
          stackMeasures == desc.stackMeasures &&
          webMap == desc.webMap &&
@@ -1973,7 +1998,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    // values whose default tier can be saved
    List<CompositeValue<?>> savedDefaults() {
       return List.of(xGridColor, yGridColor, facetColor, diagonalColor, quadrantColor,
-                     xGridStyle, emptyColor, paretoLineColor, alpha);
+                     xGridStyle, yGridStyle, emptyColor, paretoLineColor, alpha);
    }
 
    private CompositeTextFormat fmt;
@@ -2008,6 +2033,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    private CompositeValue<Boolean> exploded = new CompositeValue<>(Boolean.class, false);
    private boolean rLineVisible = false;
    private boolean valuesVisible = false;
+   private boolean userValuesVisible = false;
    private boolean pointsVisible = false;
    private boolean stackValue = false;
    private boolean inPlot = true;
