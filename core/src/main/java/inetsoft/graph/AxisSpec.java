@@ -402,6 +402,38 @@ public class AxisSpec implements Cloneable, Serializable {
    }
 
    /**
+    * Get the color of the zero line, or null for no zero line.
+    * @hidden
+    */
+   public Color getZeroLineColor() {
+      return zeroLineColor;
+   }
+
+   /**
+    * Set the color of the zero line drawn where a value axis crosses zero.
+    * @hidden
+    */
+   public void setZeroLineColor(Color zeroLineColor) {
+      this.zeroLineColor = zeroLineColor;
+   }
+
+   /**
+    * Check whether the zero line also needs the cross axis to span zero.
+    * @hidden
+    */
+   public boolean isZeroLineCrossing() {
+      return zeroLineCrossing;
+   }
+
+   /**
+    * Set whether the zero line also needs the cross axis to span zero.
+    * @hidden
+    */
+   public void setZeroLineCrossing(boolean zeroLineCrossing) {
+      this.zeroLineCrossing = zeroLineCrossing;
+   }
+
+   /**
     * Set the grid line color.
     */
    @TernMethod(url = "#cshid=AxisSpecSetGridColor")
@@ -671,7 +703,9 @@ public class AxisSpec implements Cloneable, Serializable {
          Objects.equals(colorFrame, axisSpec.colorFrame) &&
          Objects.equals(fontFrame, axisSpec.fontFrame) &&
          Objects.equals(textSpec, axisSpec.textSpec) &&
-         Objects.equals(gridColor, axisSpec.gridColor);
+         Objects.equals(gridColor, axisSpec.gridColor) &&
+         zeroLineCrossing == axisSpec.zeroLineCrossing &&
+         Objects.equals(zeroLineColor, axisSpec.zeroLineColor);
    }
 
    @Override
@@ -681,7 +715,7 @@ public class AxisSpec implements Cloneable, Serializable {
                           allTick, truncate, inPlot, lastOrAll, gridColor, gridStyle, gridAsShape,
                           gridOnTop, gridBetween, labelBetween, facetGrid, labelOnSecondaryAxis, asize,
                           minPadding, maxPadding, maxLabelSpacing, labelLimit, compactDates,
-                          displayTexts);
+                          displayTexts, zeroLineColor, zeroLineCrossing);
    }
 
    /**
@@ -744,6 +778,8 @@ public class AxisSpec implements Cloneable, Serializable {
    private boolean lastOrAll = false;
 
    private Color gridColor = GDefaults.DEFAULT_GRIDLINE_COLOR;
+   private Color zeroLineColor = null;
+   private boolean zeroLineCrossing = false;
    private int gridStyle = GraphConstants.NONE;
    private boolean gridAsShape = true;
    private boolean gridOnTop = false;
