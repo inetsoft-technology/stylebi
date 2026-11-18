@@ -95,6 +95,25 @@ public class ScheduleStatusDaoTest {
       assertStatus(dao.getStatus("nightly-task"), Scheduler.Status.FINISHED, 100L, 200L, "ok", 100L);
    }
 
+   // a started record is what Scheduler.runTask reads to decide that a task is still running, so
+   // its start time and the open end must come back exactly as written, run now or scheduled
+   @org.junit.jupiter.params.ParameterizedTest(name = "started status written with runNow={0} " +
+      "reads back with its start time, no end time and no error")
+   @org.junit.jupiter.params.provider.ValueSource(booleans = { false, true })
+   void setStatus_startedRecordReadsBackWithStartTimeAndOpenEnd(boolean runNow) {
+      InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
+      ScheduleStatusDao dao = newDao(storage);
+      long start = 1700000000123L;
+
+      dao.setStatus("running-task", Scheduler.Status.STARTED, start, 0L, null, runNow);
+
+      ScheduleStatusDao.Status status = dao.getStatus("running-task");
+      assertEquals(Scheduler.Status.STARTED, status.getStatus());
+      assertEquals(start, status.getStartTime());
+      assertEquals(0L, status.getEndTime());
+      assertNull(status.getError());
+   }
+
    // [Op: remove] clearStatus removes the stored entry for the task
    // Pre: status exists; Op: clearStatus(task); Post: getStatus(task) == null
    @Test
