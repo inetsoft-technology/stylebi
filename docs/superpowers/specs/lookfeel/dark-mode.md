@@ -146,7 +146,8 @@ How it works (Feature #80673):
   in the light shell's "Clickable cards" rule (shell-design-spec.md): primary border plus the dark
   medium shadow, no lift and **no hover ring** in either shell. Hover, focus and selected are three
   distinct states, and a light hover with the ring was pixel-identical to focus. Focus keeps the
-  `2px` ring at the dark strength (`.75`).
+  `2px` ring at the dark strength (`.75`); the New Data Source cards are not keyboard-focusable yet
+  (Bug #81489).
 - **Authored and third-party surfaces stay as designed for white:** CKEditor editing areas (email
   messages and annotations) and data source brand logos, which sit on a white circle in both shells.
   CodeMirror uses the Darcula theme in a dark shell.

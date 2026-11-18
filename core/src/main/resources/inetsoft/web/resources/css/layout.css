@@ -196,7 +196,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 /* a clickable card hovers like the portal home card (shell-design-spec.md "Clickable cards"):

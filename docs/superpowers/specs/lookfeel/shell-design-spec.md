@@ -432,7 +432,7 @@ the New Data Source picker cards).
 |---|---|
 | Rest | the card spec above: surface, neutral border, `4px`+ radius, low shadow |
 | Hover | border `primary` (`#E58A2A`) plus medium shadow, no ring; no lift or movement |
-| Focus | the same border and medium shadow plus the `2px` focus ring (keyboard focus only: focus left by a mouse click draws no ring) |
+| Focus | the same border and medium shadow plus the `2px` focus ring (keyboard focus only: focus left by a mouse click draws no ring). The New Data Source picker cards cannot take keyboard focus yet (Bug #81489), so they have no focus state |
 | Selected (picker cards) | primary border plus a solid `1px` primary ring outside it (reads as a `2px` primary edge), so selected is stronger than hover; hover adds the medium shadow and keeps the selection |
 
 - Hover, focus and selected are three distinct states. Hover draws no ring, so the ring always
@@ -445,6 +445,10 @@ the New Data Source picker cards).
   neutral fill, border drops) and the card's hover does not restyle it. Do not put more than one
   action inside a whole-card link; Carbon's rule is that "clickable tiles cannot contain separate
   internal CTAs".
+- **Known exception.** The portal home Schedule and Pinboard cards predate this rule: each is a
+  whole-card target (`role="button"`) that also holds an "Open …" button doing the same thing. The
+  button keeps its own default-button hover, as above. Don't copy this markup into new cards; give a
+  new card either one whole-card link or a plain card with a separate button.
 - The action inside a card is a default or secondary role, so its hover is neutral; soft primary is
   for active or selected states only, never for hover.
 
