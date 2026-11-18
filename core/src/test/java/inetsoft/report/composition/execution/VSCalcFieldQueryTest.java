@@ -551,7 +551,7 @@ class VSCalcFieldQueryTest {
       assertEquals(Arrays.asList(null, 1.0, null), numbers(column(rows, 3)));
    }
 
-   @Disabled("Not filed (fixture only): a chain of detail calcs in a freehand table adds the numbers instead of concatenating strings")
+   @Disabled("Bug #81626: a detail calc field is a String in a freehand cell, so a chain of them concatenates instead of adding")
    @Test
    @DisplayName("A detail calc field that refers to a hidden one")
    void chainOfDetailCalcs() throws Exception {
@@ -591,7 +591,7 @@ class VSCalcFieldQueryTest {
       assertEquals(Arrays.asList(18.0, 20.0, 8.0), numbers(column(body(lens, 1), 0)));
    }
 
-   @Disabled("Not filed (fixture only): an unused failing detail calc in a freehand table must not replace the result with the sample row")
+   @Disabled("Bug #81627: an unused failing detail calc in a freehand table replaces the result with the sample row")
    @Test
    @DisplayName("An unused failing calc field is not executed in a freehand table")
    void unusedFailingCalcInFreehand() throws Exception {
@@ -604,7 +604,7 @@ class VSCalcFieldQueryTest {
       assertNull(Tool.getUserMessage());
    }
 
-   @Disabled("Not filed (fixture only): a detail calc declared Integer returns a number in a freehand cell")
+   @Disabled("Bug #81626: a detail calc declared Integer is a String in a freehand cell, not a number")
    @Test
    @DisplayName("A detail calc field declared Integer is an Integer in a freehand cell")
    void declaredTypeOfDetailCalc() throws Exception {
