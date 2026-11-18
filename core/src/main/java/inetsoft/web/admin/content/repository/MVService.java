@@ -510,7 +510,7 @@ public class MVService {
                   .incremental(def.isIncremental())
                   .size(getSize(def))
                   .valid(def.getMetaData().isValid() &&
-                         !isExpressionChanged(def, worksheets, principal))
+                         !isStale(def, worksheets, principal))
                   .build()
             );
          }
@@ -528,14 +528,12 @@ public class MVService {
    }
 
    /**
-    * Check if an expression column of the table the MV was built from has been edited in its
-    * worksheet since the MV was built.
+    * Check if the table the MV was built from has been edited in its worksheet since the MV was
+    * built: an expression column, or the source, conditions, joins, aggregates, ... (Bug #81366).
     *
     * @param worksheets the worksheets loaded so far, by worksheet id.
     */
-   private boolean isExpressionChanged(MVDef def, Map<String, Worksheet> worksheets,
-                                       Principal principal)
-   {
+   private boolean isStale(MVDef def, Map<String, Worksheet> worksheets, Principal principal) {
       String wsId = def.getMetaData().getWsId();
 
       if(wsId == null) {
@@ -551,11 +549,11 @@ public class MVService {
             worksheets.put(wsId, sheet instanceof Worksheet ? (Worksheet) sheet : null);
          }
 
-         return def.isExpressionChanged(worksheets.get(wsId));
+         return def.isStale(worksheets.get(wsId));
       }
       catch(Exception ex) {
          // can't tell, report the status of the mv as is
-         LOG.debug("Failed to check the expressions of worksheet {} for MV {}", wsId,
+         LOG.debug("Failed to check the definition of worksheet {} for MV {}", wsId,
                    def.getName(), ex);
          return false;
       }
