@@ -193,6 +193,22 @@ class DefaultAxisZeroLineTest {
    }
 
    @Test
+   void crossingAgainstACategoricalAxisNeedsNoMore() {
+      LinearScale x = new LinearScale("Quantity");
+      x.getAxisSpec().setZeroLineColor(ZERO);
+      x.getAxisSpec().setZeroLineCrossing(true);
+      EGraph graph = new EGraph();
+      graph.addElement(new PointElement("Quantity", "State"));
+      graph.setCoordinate(new RectCoord(x, new CategoricalScale("State")));
+      Setup s = layout(graph, rows(-50, 100));
+      GridLine line = s.bottom().getZeroLine();
+
+      assertNotNull(line);
+      assertEquals(0, line.getShape().getBounds2D().getWidth(), 0.01);
+      assertTrue(line.getShape().getBounds2D().getHeight() > 0);
+   }
+
+   @Test
    void aHorizontalChartDrawsItVertically() {
       EGraph graph = new EGraph();
       graph.addElement(new IntervalElement("State", "Quantity"));

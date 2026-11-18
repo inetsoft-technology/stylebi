@@ -418,7 +418,8 @@ public class AxisSpec implements Cloneable, Serializable {
    }
 
    /**
-    * Check whether the zero line also needs the cross axis to span zero.
+    * Check whether the zero line also needs the cross axis to span zero. The requirement
+    * applies only when the cross axis is another value axis.
     * @hidden
     */
    public boolean isZeroLineCrossing() {
@@ -426,7 +427,8 @@ public class AxisSpec implements Cloneable, Serializable {
    }
 
    /**
-    * Set whether the zero line also needs the cross axis to span zero.
+    * Set whether the zero line also needs the cross axis to span zero. The requirement
+    * applies only when the cross axis is another value axis.
     * @hidden
     */
    public void setZeroLineCrossing(boolean zeroLineCrossing) {
