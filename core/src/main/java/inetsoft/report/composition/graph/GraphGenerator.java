@@ -2589,6 +2589,14 @@ public abstract class GraphGenerator {
             AxisDescriptor axisD = getAxisDescriptor(scale, null);
             setupAxisSpec(axis, axisD, scale.getFields(), false, scale instanceof LinearScale);
 
+            if(vizContext.modern) {
+               // the rings take the plot's Y grid, the spokes the gridline neutral
+               axis.setGridStyle(plotdesc.getYGridStyle());
+               axis.setGridColor(plotdesc.getYGridColor());
+               axis.setLineColor(
+                  VSChartChromeDefaults.resolveSpokeColor(axisD.getLineColor(), vizContext));
+            }
+
             if(scale instanceof TimeScale) {
                ((TimeScale) scale).setIncrement(axisD.getIncrement());
                Number min = axisD.getMinimum();

@@ -21,6 +21,7 @@ export interface ChartLinePaneModel {
    yGridLineStyle: number;
    yGridLineColor: string;
    gridLineVisible: boolean;
+   xGridLineVisible?: boolean;
    quadrantGridLineStyle: number;
    quadrantGridLineColor: string;
    diagonalLineStyle: number;

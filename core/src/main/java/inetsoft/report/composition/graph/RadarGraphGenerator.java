@@ -162,6 +162,13 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
 
       PolarCoord polarCoord = new PolarCoord(coord);
       polarCoord.setSpokeLabelRule(vizContext.modern);
+
+      if(vizContext.modern) {
+         // webbed rings in the grid colour, shaped by the spoke count
+         polarCoord.setWebGrid(true);
+         polarCoord.setSidesFromSpokes(true);
+         coord.setEvenRings(true);
+      }
       Coordinate graphCoord = createCoord(polarCoord, ctype);
 
       graph.setCoordinate(graphCoord);
