@@ -678,9 +678,13 @@ public class VSModelContext extends AbstractModelContext {
                      continue;
                   }
 
-                  attr = allFields.get(attr.getName());
+                  // Bug #80476: a condition field the table's column lookup does not list is still
+                  // a field the highlight reads, so the condition's own ref is used rather than
+                  // dropping it (and with it any trap the highlight introduces).
+                  DataRef resolved = allFields.get(attr.getName());
+                  attr = resolved != null ? resolved : attr;
 
-                  if(attr != null && !selection.containsAttribute(attr)) {
+                  if(!selection.containsAttribute(attr)) {
                      selection.addAttribute(attr);
                   }
                }
@@ -719,6 +723,12 @@ public class VSModelContext extends AbstractModelContext {
          for(String pname : link.getParameterNames()) {
             String field = link.getParameterField(pname);
             DataRef attribute = allFields.get(field);
+
+            // Bug #80476: same as the highlight case above; an unlisted parameter field is kept as
+            // a name-only ref, which the model resolves ("Entity:Attribute") or ignores.
+            if(attribute == null && field != null && !field.isEmpty()) {
+               attribute = new AttributeRef(null, field);
+            }
 
             if(attribute != null && !selection.containsAttribute(attribute)) {
                selection.addAttribute(attribute);
