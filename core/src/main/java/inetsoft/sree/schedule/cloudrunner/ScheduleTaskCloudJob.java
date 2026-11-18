@@ -123,6 +123,10 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
                   "' was interrupted unexpectedly", e);
          }
       }
+      catch(JobExecutionException e) {
+         // already carries the timeout or the runner's failure message; do not wrap it again
+         throw e;
+      }
       catch(Throwable e) {
          throw new JobExecutionException(
             "Scheduled task '" + SUtil.getTaskNameWithoutOrg(taskName) + "' failed to complete", e);
