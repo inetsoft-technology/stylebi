@@ -18,7 +18,6 @@
 package inetsoft.uql;
 
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
@@ -355,7 +354,6 @@ class ConditionVariableOperatorTest {
                      "Jan 1 next year 00:00:00");
       }
 
-      @Disabled("mismatch C17 #81112")
       @DisplayName("C17 case-insensitive CONTAINS/STARTING_WITH under tr-TR")
       @ParameterizedTest(name = "[{index}] op {0}")
       @CsvSource({ "CONTAINS, title", "STARTING_WITH, ti" })

@@ -19,7 +19,6 @@
 package inetsoft.report.filter;
 
 import inetsoft.util.Tool;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -291,7 +290,6 @@ class NthMostFrequentFormulaTest {
       assertNull(frequent.getResult());
    }
 
-   @Disabled("Bug #81215: ModeFormula text getDoubleResult() throws")
    @Test
    @DisplayName("GetDoubleResult of a text mode is 0.0, like other non-numeric objects")
    void doubleResultOfText_isZeroWithoutException() {

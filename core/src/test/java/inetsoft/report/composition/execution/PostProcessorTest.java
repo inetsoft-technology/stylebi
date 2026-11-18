@@ -27,7 +27,6 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -376,7 +375,6 @@ public class PostProcessorTest {
       }
    }
 
-   @Disabled("Bug #81204: CALC.quarter(null) returns 1 instead of -1")
    @Test
    @DisplayName("The quarter of a null date is -1, like year, month, day and hour")
    void nullDate_quarterIsMinusOne() {
@@ -393,7 +391,6 @@ public class PostProcessorTest {
       }
    }
 
-   @Disabled("Bug #81200: Declared Integer clamps a larger result")
    @Test
    @DisplayName("A declared Integer never turns a value beyond int into a clamped number")
    void integerBeyondInt_isNotClamped() {

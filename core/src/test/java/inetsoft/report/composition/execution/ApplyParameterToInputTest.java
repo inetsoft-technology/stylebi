@@ -18,7 +18,6 @@
 package inetsoft.report.composition.execution;
 
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
@@ -343,7 +342,6 @@ class ApplyParameterToInputTest {
          return dv.getRValue();
       }
 
-      @Disabled("mismatch D13 #81110")
       @DisplayName("D13 a formula text keeps the runtime value of a multi-selection across refreshes")
       @Test
       void d13_formulaKeepsRuntimeValue() throws Exception {
@@ -363,7 +361,6 @@ class ApplyParameterToInputTest {
          assertEquals("pre a post", formula("pre $(CB) post", "pre b post"));
       }
 
-      @Disabled("mismatch D13b #81110")
       @DisplayName("D13b #79688 repro: a formula with prefix and suffix keeps the previous selection")
       @Test
       void d13b_issueRepro() throws Exception {

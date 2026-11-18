@@ -305,14 +305,12 @@ class ConditionListHandlerSentinelTest {
       assertEquals(memory, sql, label + ": memory vs SQL");
    }
 
-   @Disabled("mismatch C01 #81114")
    @DisplayName("C01 LIKE a_c memory == SQL")
    @Test
    void c01_likeUnderscore() throws Exception {
       assertSame("LIKE a_c", U_ROWS, "u", () -> cond(XCondition.LIKE, false, "a_c"));
    }
 
-   @Disabled("mismatch C02 #81114")
    @DisplayName("C02 LIKE a?c memory == SQL")
    @Test
    void c02_likeQuestionMark() throws Exception {

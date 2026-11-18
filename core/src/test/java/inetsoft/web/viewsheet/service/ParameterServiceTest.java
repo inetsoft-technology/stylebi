@@ -20,7 +20,6 @@ package inetsoft.web.viewsheet.service;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
@@ -352,7 +351,6 @@ class ParameterServiceTest {
          assertEquals(9223372036854775807L, typed("long", "9223372036854775807"));
       }
 
-      @Disabled("mismatch S03b #81111")
       @DisplayName("S03b a null map value is neither thrown on nor required")
       @Test
       void s03b_nullMapValue() {
@@ -392,7 +390,6 @@ class ParameterServiceTest {
          }
       }
 
-      @Disabled("mismatch S11 #81107")
       @DisplayName("S11 a text out of the range of the type never becomes another number")
       @ParameterizedTest(name = "[{index}] {0} {1}")
       @CsvSource({ "byte, 200", "short, 40000", "integer, 3000000000", "integer, 2147483648",
@@ -422,7 +419,6 @@ class ParameterServiceTest {
          assertEquals(inetsoft.util.Tool.getData(type, text, true), typed(type, text));
       }
 
-      @Disabled("mismatch S03 #81111")
       @DisplayName("S03 a null map value does not throw")
       @Test
       void s03_nullMapValue() {
