@@ -61,6 +61,7 @@ import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.web.wiz.worksheet.WorksheetEditService;
+import inetsoft.web.wiz.worksheet.WorksheetMutationSupport;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -625,10 +626,15 @@ public class WorksheetTableService {
 
       // 6. Ranking / top-N.
       if(request.getRankingCondition() != null && !request.getRankingCondition().isEmpty()) {
-         ConditionList rankList = buildRankingConditionList(
-            table.getColumnSelection(true), request.getRankingCondition(),
-            table.getColumnSelection(false));
-         table.setRankingConditionList(rankList);
+         if(hasRankingOf(request.getRankingCondition())) {
+            applyNestedRankings(table, request.getRankingCondition());
+         }
+         else {
+            ConditionList rankList = buildRankingConditionList(
+               table.getColumnSelection(true), request.getRankingCondition(),
+               table.getColumnSelection(false));
+            table.setRankingConditionList(rankList);
+         }
       }
 
       // 7. Persist any synthetic date-part column(s) that a condition/ranking dateGroupLevel
@@ -2872,6 +2878,87 @@ public class WorksheetTableService {
       }
 
       return list;
+   }
+
+   private static boolean hasRankingOf(List<WorksheetTable.ConditionItem> items) {
+      return items.stream().anyMatch(i -> i.getOf() != null && !i.getOf().isBlank());
+   }
+
+   /**
+    * Ranking leaves that carry {@code of}: each ranks a group column by an aggregate, the shape
+    * {@code set_rankings} builds (GroupRef + AggregateRef). Routed through
+    * {@link WorksheetMutationSupport#setRankings} so the evaluability guard and the item
+    * construction are shared. Anything the engine would not apply is refused here, naming
+    * {@code rankingCondition}, rather than stored and silently ignored.
+    */
+   void applyNestedRankings(TableAssembly table,
+                                    List<WorksheetTable.ConditionItem> items)
+   {
+      List<WorksheetMutationSupport.RankingSpec> specs = new ArrayList<>();
+
+      for(int i = 0; i < items.size(); i++) {
+         WorksheetTable.ConditionItem item = items.get(i);
+         String at = "rankingCondition[" + i + "]";
+
+         if(item.getField() == null || item.getField().isBlank()) {
+            throw new IllegalArgumentException(at + ": 'field' (the group column) is required");
+         }
+
+         if(!"TOP_N".equals(item.getOperation()) && !"BOTTOM_N".equals(item.getOperation())) {
+            throw new IllegalArgumentException(
+               at + ": operation must be TOP_N or BOTTOM_N, got: " + item.getOperation());
+         }
+
+         if(item.getDateGroupLevel() != null) {
+            throw new IllegalArgumentException(
+               at + ": dateGroupLevel is not supported on a ranking with 'of'");
+         }
+
+         if(item.getConditionLevel() > 0) {
+            throw new IllegalArgumentException(
+               at + ": rankings with 'of' cannot be nested inside a condition group");
+         }
+
+         if("or".equalsIgnoreCase(item.getJunction())) {
+            throw new IllegalArgumentException(
+               at + ": rankings are always combined with 'and'; 'or' is not supported");
+         }
+
+         Object n = null;
+
+         if(item.getValues() != null && !item.getValues().isEmpty()) {
+            WorksheetTable.WorksheetConditionValue v = item.getValues().get(0);
+
+            if("VALUE".equals(v.getType()) && v.getValue() != null) {
+               n = v.getValue() instanceof Number num ? (Object) num.intValue() : v.getValue().toString();
+            }
+         }
+
+         if(n == null) {
+            throw new IllegalArgumentException(
+               at + ": N is required as values[0] {type:\"VALUE\", value:<integer>}");
+         }
+
+         specs.add(new WorksheetMutationSupport.RankingSpec(
+            item.getField(), n, item.getOperation(), false, item.getOf()));
+      }
+
+      String why = WorksheetMutationSupport.unevaluableRankingsReason(table, specs);
+
+      if(why != null) {
+         throw new IllegalArgumentException(
+            "rankingCondition: a ranking with 'of' is only supported on a grouped table with each " +
+            "ranking on a different group column and an 'of' aggregate (" + why + "). Use " +
+            "aggregateInfo to group the table, give every ranking a distinct group column and an " +
+            "'of' aggregate, or drop 'of' to rank a single column by itself.");
+      }
+
+      try {
+         WorksheetMutationSupport.setRankings(table, specs);
+      }
+      catch(IllegalArgumentException ex) {
+         throw new IllegalArgumentException("rankingCondition: " + ex.getMessage(), ex);
+      }
    }
 
    /** True if any item in {@code items} carries a {@code dateGroupLevel}. Null-safe. */
