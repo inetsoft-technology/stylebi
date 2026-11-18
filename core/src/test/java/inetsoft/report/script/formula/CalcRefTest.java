@@ -245,10 +245,9 @@ public class CalcRefTest {
          calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
 
          assertEquals(42.0, inetsoft.util.script.ScriptUtil.unwrap(calcRef));
-         // split() string-splits a scalar (Tool.split), so a numeric ref reads
-         // back as its string form; splitN then parses it to the real number so
-         // numeric aggregates (sum/average/...) compute correctly.
-         assertArrayEquals(new Object[] { "42.0" },
+         // split() keeps a single non-text value as the one element with its type
+         // (#81695); splitN reads the number from it directly.
+         assertArrayEquals(new Object[] { 42.0 },
                            inetsoft.util.script.JSObject.split(calcRef));
          assertArrayEquals(new double[] { 42.0 },
                            inetsoft.util.script.JSObject.splitN(calcRef));

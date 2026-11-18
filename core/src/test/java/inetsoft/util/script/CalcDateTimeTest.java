@@ -1464,11 +1464,6 @@ public class CalcDateTimeTest {
       assertEquals(weekday, onFreshThread(Locale.US, () -> CalcDateTime.weekdayname(date)));
    }
 
-   /**
-    * Round every day from 2015-01-01 through 2030 to its week bucket via
-    * CalcDateTime.date(..., WEEK_DATE_GROUP, 1), under the given JVM default locale. Must be
-    * called on a fresh thread per locale (see dateWeekGroupMatchesEnUsUnderAnyLocale).
-    */
    /** A single Date, not in an array, is a list of one. (#81695) */
    @Test
    public void testSingleDateAsList() {
@@ -1486,6 +1481,11 @@ public class CalcDateTimeTest {
                    CalcFinancial.xnpv(0.1, 100.0, start));
    }
 
+   /**
+    * Round every day from 2015-01-01 through 2030 to its week bucket via
+    * CalcDateTime.date(..., WEEK_DATE_GROUP, 1), under the given JVM default locale. Must be
+    * called on a fresh thread per locale (see dateWeekGroupMatchesEnUsUnderAnyLocale).
+    */
    private long[] weekGroupDates(String tag) {
       Locale.setDefault(Locale.forLanguageTag(tag));
       java.util.List<Long> millis = new java.util.ArrayList<>();
