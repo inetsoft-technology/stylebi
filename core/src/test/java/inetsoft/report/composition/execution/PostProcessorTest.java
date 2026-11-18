@@ -416,13 +416,13 @@ public class PostProcessorTest {
       assertEquals(true, first(data, "'1'", XSchema.BOOLEAN));
       assertEquals(false, first(data, "0", XSchema.BOOLEAN));
       assertEquals(false, first(data, "'false'", XSchema.BOOLEAN));
-      assertEquals(false, first(data, "'no'", XSchema.BOOLEAN));
+      assertEquals("no", first(data, "'no'", XSchema.BOOLEAN));
    }
 
    @Test
-   @DisplayName("PIN(current behavior, open decision, Bug #81632): 'yes' declared Boolean is false")
-   void pin_yesIsFalse() {
-      assertEquals(false, first(onePrice(1.0), "'yes'", XSchema.BOOLEAN));
+   @DisplayName("Unparseable text declared Boolean is kept, 'yes' is not inverted (Bug #81669)")
+   void yesDeclaredBooleanIsKept() {
+      assertEquals("yes", first(onePrice(1.0), "'yes'", XSchema.BOOLEAN));
    }
 
    @Test
@@ -616,10 +616,9 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, open decision, Bug #81632): 'abc' declared Boolean is " +
-      "false")
-   void pin_booleanFromText() {
-      assertEquals(false, first(onePrice(1.0), "'abc'", XSchema.BOOLEAN));
+   @DisplayName("Unparseable text declared Boolean is kept (Bug #81669)")
+   void booleanFromText_keptWhenUnparseable() {
+      assertEquals("abc", first(onePrice(1.0), "'abc'", XSchema.BOOLEAN));
    }
 
    @Test
