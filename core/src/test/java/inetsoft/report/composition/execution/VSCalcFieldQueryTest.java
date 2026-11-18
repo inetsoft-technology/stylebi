@@ -551,7 +551,6 @@ class VSCalcFieldQueryTest {
       assertEquals(Arrays.asList(null, 1.0, null), numbers(column(rows, 3)));
    }
 
-   @Disabled("Not filed (fixture only): a chain of detail calcs in a freehand table adds the numbers instead of concatenating strings")
    @Test
    @DisplayName("A detail calc field that refers to a hidden one")
    void chainOfDetailCalcs() throws Exception {
@@ -603,7 +602,6 @@ class VSCalcFieldQueryTest {
       assertNull(Tool.getUserMessage());
    }
 
-   @Disabled("Not filed (fixture only): a detail calc declared Integer returns a number in a freehand cell")
    @Test
    @DisplayName("A detail calc field declared Integer is an Integer in a freehand cell")
    void declaredTypeOfDetailCalc() throws Exception {
