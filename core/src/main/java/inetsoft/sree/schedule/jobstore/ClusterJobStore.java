@@ -95,6 +95,11 @@ public class ClusterJobStore implements JobStore, Serializable {
    @Override
    public void shutdown() {
       LIVE_STORES.remove(fireInstanceIdPrefix);
+
+      if(instanceName != null) {
+         STORES_BY_SCHEDULER.remove(instanceName, this);
+      }
+
       releaseOwnAcquiredTriggers();
 
       if(shutdownClusterOnShutdown) {
@@ -1161,7 +1166,12 @@ public class ClusterJobStore implements JobStore, Serializable {
       }
 
       // check for trigger deleted during execution...
-      if(tw != null) {
+      // Bug #81647, the trigger stored under the key may have been stored after this run fired
+      // (the task was deleted or edited during the run). Only the trigger that fired is changed,
+      // and one with no fire instance id (not fired since it was stored) is never it.
+      if(tw != null && trigger.getFireInstanceId() != null &&
+         trigger.getFireInstanceId().equals(tw.trigger.getFireInstanceId()))
+      {
          if(triggerInstCode == Trigger.CompletedExecutionInstruction.DELETE_TRIGGER) {
             try {
                if(trigger.getNextFireTime() == null) {
@@ -1177,10 +1187,10 @@ public class ClusterJobStore implements JobStore, Serializable {
                      removeTrigger(trigger.getKey());
                   }
                   */
-                  removeTrigger(trigger.getKey());
+                  removeTrigger(trigger.getKey(), true, trigger.getFireInstanceId());
                }
                else {
-                  removeTrigger(trigger.getKey());
+                  removeTrigger(trigger.getKey(), true, trigger.getFireInstanceId());
                   schedSignaler.signalSchedulingChange(0L);
                }
             }
@@ -1213,6 +1223,64 @@ public class ClusterJobStore implements JobStore, Serializable {
    @Override
    public void setInstanceName(final String instanceName) {
       this.instanceName = instanceName;
+      STORES_BY_SCHEDULER.put(instanceName, this);
+   }
+
+   /**
+    * Gets the store of a scheduler, for the job listener, which is only given the scheduler.
+    *
+    * @return the store, or null if the scheduler does not use a cluster job store.
+    */
+   public static ClusterJobStore forScheduler(org.quartz.Scheduler scheduler)
+      throws SchedulerException
+   {
+      return STORES_BY_SCHEDULER.get(scheduler.getSchedulerName());
+   }
+
+   /**
+    * Removes a trigger only if it is still the one that fired with the given fire instance id.
+    * The completion of a run must only remove the trigger it fired (Bug #81647): the task may have
+    * been deleted or edited during the run, which stores a new trigger under the same key. That
+    * trigger has no fire instance id until it fires, so it never matches.
+    *
+    * @return true if the trigger was removed.
+    */
+   public boolean removeTriggerFiredBy(TriggerKey key, String fireInstanceId)
+      throws JobPersistenceException
+   {
+      return fireInstanceId != null && removeTrigger(key, true, fireInstanceId);
+   }
+
+   /**
+    * Marks the run of the job that is in progress as the run of a removed task (Bug #81647), so its
+    * completion leaves the status and dependants of a task of the same name alone. Called when a
+    * task is removed, not when it is edited. Does nothing if the job is not running.
+    */
+   public void markRunOrphaned(JobKey jobKey) {
+      try {
+         inTransaction(TX_TIMEOUT, () -> {
+            RunningJob run = runningJobs.getForUpdate(jobKey);
+
+            if(run != null && !run.isOrphaned()) {
+               runningJobs.set(jobKey, run.asOrphaned());
+            }
+
+            return null;
+         });
+      }
+      catch(DistributedTransactionException ex) {
+         LOG.warn("Failed to mark the run of removed job {}", jobKey, ex);
+      }
+   }
+
+   /**
+    * Checks if the run with the given fire instance id is the run of a task that was removed while
+    * the run was in progress (Bug #81647).
+    */
+   public boolean isRunOrphaned(JobKey jobKey, String fireInstanceId) {
+      RunningJob run = runningJobs.get(jobKey);
+      return run != null && fireInstanceId != null && run.isOrphaned() &&
+         fireInstanceId.equals(run.getFireInstanceId());
    }
 
    @Override
@@ -1572,9 +1640,26 @@ public class ClusterJobStore implements JobStore, Serializable {
    private boolean removeTrigger(TriggerKey key, boolean removeOrphanedJob)
       throws JobPersistenceException
    {
+      return removeTrigger(key, removeOrphanedJob, null);
+   }
+
+   /**
+    * @param onlyIfFiredBy if not null, the trigger is only removed if it was fired with this fire
+    *                      instance id (Bug #81647).
+    */
+   private boolean removeTrigger(TriggerKey key, boolean removeOrphanedJob, String onlyIfFiredBy)
+      throws JobPersistenceException
+   {
       // remove from triggers by FQN map
       final TriggerWrapper tw = inTransaction(TX_TIMEOUT, () -> {
-         triggersByKey.getForUpdate(key);
+         TriggerWrapper stored = triggersByKey.getForUpdate(key);
+
+         if(onlyIfFiredBy != null &&
+            (stored == null || !onlyIfFiredBy.equals(stored.trigger.getFireInstanceId())))
+         {
+            return null;
+         }
+
          TriggerWrapper removedTrigger = triggersByKey.remove(key);
 
          if(removedTrigger != null) {
@@ -1734,6 +1819,9 @@ public class ClusterJobStore implements JobStore, Serializable {
    // trigger acquired by this node but by another of these stores may still be held by that
    // store's scheduler, so only its own scheduler can tell that it is lost
    private static final Set<String> LIVE_STORES = ConcurrentHashMap.newKeySet();
+   // Bug #81647, the stores of this JVM by scheduler name
+   private static final Map<String, ClusterJobStore> STORES_BY_SCHEDULER =
+      new ConcurrentHashMap<>();
    private static final long CLOUD_RUN_LAUNCH_MARGIN = TimeUnit.MINUTES.toMillis(5);
    // the timeout of a section's transaction, which also bounds waiting for its locks
    private static final long TX_TIMEOUT = TimeUnit.MINUTES.toMillis(5);

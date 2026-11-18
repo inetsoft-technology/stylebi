@@ -21,6 +21,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.Scheduler;
 import inetsoft.sree.schedule.*;
+import inetsoft.sree.schedule.jobstore.ClusterJobStore;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
@@ -181,6 +182,15 @@ public class JobCompletionListener extends JobListenerSupport {
             LOG.debug("Failed to run task " + taskName + ": " + error, jobException);
          }
 
+         // Bug #81647, the task was removed while this run was in progress. The status, the
+         // dependants and the deleteIfNoMoreRun cleanup are by task name, so they would act on a
+         // task of the same name created since (or leave a status for a task that is gone).
+         // Editing a task during a run does not mark the run, so it completes as usual.
+         if(isRunOrphaned(context)) {
+            LOG.debug("Task {} was removed during its run, not updating its status", taskName);
+            return;
+         }
+
          ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
          ScheduleStatusDao.Status newStatus =
             dao.setStatus(taskName, status, lastRunTime, lastRunEndTime, error, runNow);
@@ -307,7 +317,7 @@ public class JobCompletionListener extends JobListenerSupport {
 
          if(condition.getType() == TimeCondition.AT) {
             try {
-               context.getScheduler().unscheduleJob(context.getTrigger().getKey());
+               unscheduleFiredTrigger(context);
             }
             catch(SchedulerException e) {
                LOG.warn("Failed to remove run once trigger", e);
@@ -316,7 +326,7 @@ public class JobCompletionListener extends JobListenerSupport {
       }
       else if(context.getTrigger() instanceof SimpleTrigger) {
          try {
-            context.getScheduler().unscheduleJob(context.getTrigger().getKey());
+            unscheduleFiredTrigger(context);
          }
          catch(SchedulerException ex) {
             LOG.warn("Failed to remove run now trigger", ex);
@@ -337,6 +347,38 @@ public class JobCompletionListener extends JobListenerSupport {
          catch(Exception e) {
             LOG.warn("Failed to remove schedule job", e);
          }
+      }
+   }
+
+   /**
+    * Removes the trigger that fired, but not a trigger stored under the same key since it fired
+    * (Bug #81647). Deleting or editing a task during its run stores new triggers under the same
+    * keys, which the completion of the old run must not remove.
+    */
+   private void unscheduleFiredTrigger(JobExecutionContext context) throws SchedulerException {
+      TriggerKey triggerKey = context.getTrigger().getKey();
+      ClusterJobStore store = ClusterJobStore.forScheduler(context.getScheduler());
+
+      if(store == null) {
+         context.getScheduler().unscheduleJob(triggerKey);
+         return;
+      }
+
+      store.removeTriggerFiredBy(triggerKey, context.getFireInstanceId());
+   }
+
+   /**
+    * Checks if the task was removed while the run of this execution was in progress.
+    */
+   private boolean isRunOrphaned(JobExecutionContext context) {
+      try {
+         ClusterJobStore store = ClusterJobStore.forScheduler(context.getScheduler());
+         return store != null &&
+            store.isRunOrphaned(context.getJobDetail().getKey(), context.getFireInstanceId());
+      }
+      catch(SchedulerException | RuntimeException ex) {
+         LOG.warn("Failed to check if the task was removed during its run", ex);
+         return false;
       }
    }
 
