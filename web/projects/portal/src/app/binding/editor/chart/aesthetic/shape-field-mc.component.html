@@ -88,7 +88,8 @@
             }
             @case ('CategoricalShape') {
               <div>
-                <categorical-shape-pane [(frameModel)]="frames[0]" (apply)="openChanged($event)">
+                <categorical-shape-pane [(frameModel)]="frames[0]" [bindingModel]="bindingModel"
+                  (apply)="openChanged($event)">
                 </categorical-shape-pane>
               </div>
             }

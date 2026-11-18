@@ -24,6 +24,7 @@ import { CategoricalTextureModel, CategoricalShapeModel, VisualFrameModel } from
 import { TextureComboBox } from "./texture-combo-box.component";
 import { TextureItem } from "./texture-item.component";
 import { ChartConfig } from "../../../../common/util/chart-config";
+import { StyleConstants } from "../../../../common/util/style-constants";
 import { TestUtils } from "../../../../common/test/test-utils";
 
 describe("Categorical Shape Pane Unit Test", () => {
@@ -74,6 +75,37 @@ describe("Categorical Shape Pane Unit Test", () => {
       shapePane.frameModel = model2;
       shapePane.reset();
       expect(model2.shapes).toEqual(ChartConfig.SHAPE_STYLES.concat(ChartConfig.IMAGE_SHAPES));
+   });
+
+   it("reset gives the filled list on a marked chart", () => {
+      shapePane = new CategoricalShapePane();
+      shapePane.bindingModel = <any> {vizModern: true};
+      let model: CategoricalShapeModel = mockCategoricalShapeModel();
+      shapePane.frameModel = model;
+      shapePane.reset();
+      expect(model.shapes)
+         .toEqual(ChartConfig.MODERN_SHAPE_STYLES.concat(ChartConfig.IMAGE_SHAPES));
+      expect(model.shapes[0]).toEqual(StyleConstants.FILLED_CIRCLE + "");
+      expect(model.shapes.length).toEqual(32);
+   });
+
+   it("reset keeps the classic list when the mark is false or unknown", () => {
+      for(let binding of [<any> {vizModern: false}, <any> {}, null, undefined]) {
+         shapePane = new CategoricalShapePane();
+         shapePane.bindingModel = binding;
+         let model: CategoricalShapeModel = mockCategoricalShapeModel();
+         shapePane.frameModel = model;
+         shapePane.reset();
+         expect(model.shapes).toEqual(ChartConfig.SHAPE_STYLES.concat(ChartConfig.IMAGE_SHAPES));
+      }
+   });
+
+   it("the filled list reorders the first eleven shapes and keeps the rest", () => {
+      let classic = ChartConfig.SHAPE_STYLES;
+      let modern = ChartConfig.MODERN_SHAPE_STYLES;
+      expect(modern.length).toEqual(classic.length);
+      expect(modern.slice(0, 11).slice().sort()).toEqual(classic.slice(0, 11).slice().sort());
+      expect(modern.slice(11)).toEqual(classic.slice(11));
    });
 
    //for Bug #19842

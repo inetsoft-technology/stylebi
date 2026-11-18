@@ -27,6 +27,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.report.StyleConstants;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
@@ -150,6 +151,58 @@ class ShapeListSeedTest {
       for(GShape shape : reset) {
          assertNotNull(shape);
       }
+   }
+
+   @Test
+   void theModernResetListIsWhatThePaneWritesThroughTheWrapper() {
+      assertArrayEquals(ModernShapes.modernReset(),
+                        throughWrapper(paneIds(new String[] {
+                           StyleConstants.FILLED_CIRCLE + "", StyleConstants.FILLED_TRIANGLE + "",
+                           StyleConstants.FILLED_SQUARE + "", StyleConstants.FILLED_DIAMOND + "",
+                           StyleConstants.CIRCLE + "", StyleConstants.TRIANGLE + "",
+                           StyleConstants.SQUARE + "", StyleConstants.CROSS + "",
+                           StyleConstants.STAR + "", StyleConstants.DIAMOND + "",
+                           StyleConstants.X + ""
+                        })));
+   }
+
+   @Test
+   void theClassicResetListIsWhatThePaneWritesThroughTheWrapper() {
+      assertArrayEquals(ModernShapes.classicReset(),
+                        throughWrapper(paneIds(new String[] {
+                           StyleConstants.CIRCLE + "", StyleConstants.TRIANGLE + "",
+                           StyleConstants.SQUARE + "", StyleConstants.CROSS + "",
+                           StyleConstants.STAR + "", StyleConstants.DIAMOND + "",
+                           StyleConstants.X + "", StyleConstants.FILLED_CIRCLE + "",
+                           StyleConstants.FILLED_TRIANGLE + "", StyleConstants.FILLED_SQUARE + "",
+                           StyleConstants.FILLED_DIAMOND + ""
+                        })));
+   }
+
+   // the pane's ids: the given leading shapes, the other classic shapes, then the images
+   private static String[] paneIds(String[] leading) {
+      String[] rest = {
+         StyleConstants.V_ANGLE + "", StyleConstants.RIGHT_ANGLE + "",
+         StyleConstants.LT_ANGLE + "", StyleConstants.V_LINE + "", StyleConstants.H_LINE + "",
+         "100ArrowDown.svg", "101ArrowUp.svg", "102Check.svg", "103Cancel.svg",
+         "104Exclamation.svg", "105Flag.svg", "106Light.svg", "107Star.svg", "108No.svg",
+         "109Man.svg", "110Woman.svg", "111FaceHappy.svg", "112FaceSad.svg", "113Face.svg",
+         "114ArrowUperRight.svg", "115ArrowLowerRight.svg"
+      };
+      String[] ids = new String[leading.length + rest.length];
+      System.arraycopy(leading, 0, ids, 0, leading.length);
+      System.arraycopy(rest, 0, ids, leading.length, rest.length);
+      return ids;
+   }
+
+   private static GShape[] throughWrapper(String[] ids) {
+      CategoricalShapeFrameWrapper wrapper = new CategoricalShapeFrameWrapper();
+
+      for(int i = 0; i < ids.length; i++) {
+         wrapper.setShape(i, ids[i]);
+      }
+
+      return list((CategoricalShapeFrame) wrapper.getVisualFrame());
    }
 
    @Test

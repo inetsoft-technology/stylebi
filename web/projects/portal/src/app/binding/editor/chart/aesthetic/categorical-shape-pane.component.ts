@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, ViewChild, Output, EventEmitter } from "@angular/core";
+import { ChartBindingModel } from "../../../data/chart/chart-binding-model";
 import { CategoricalFramePane } from "./categorical-frame-pane";
 import { CategoricalLineModel, CategoricalShapeModel, CategoricalTextureModel, ShapeFrameModel,
          VisualFrameModel } from "../../../../common/data/visual-frame-model";
@@ -35,6 +36,7 @@ import { ShapeComboBox } from "./shape-combo-box.component";
 })
 export class CategoricalShapePane extends CategoricalFramePane {
    @Input() frameModel: ShapeFrameModel;
+   @Input() bindingModel: ChartBindingModel;
    @Output() apply: EventEmitter<any> = new EventEmitter<any>();
 
    get shapeModel(): CategoricalShapeModel {
@@ -51,8 +53,9 @@ export class CategoricalShapePane extends CategoricalFramePane {
 
    reset() {
       if(this.type == GraphUtil.CHART_SHAPE) {
-         (<CategoricalShapeModel> this.frameModel).shapes =
-            ChartConfig.SHAPE_STYLES.concat(ChartConfig.IMAGE_SHAPES);
+         let styles = this.bindingModel?.vizModern ? ChartConfig.MODERN_SHAPE_STYLES :
+            ChartConfig.SHAPE_STYLES;
+         (<CategoricalShapeModel> this.frameModel).shapes = styles.concat(ChartConfig.IMAGE_SHAPES);
       }
       else if(this.type == GraphUtil.CHART_LINE) {
          (<CategoricalLineModel> this.frameModel).lines =
