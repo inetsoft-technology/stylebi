@@ -74,6 +74,9 @@ package inetsoft.sree.security;
  *             (secondary: removeOrganizationMember:932 NPE if org absent; line 933 removes orgID not identity name)
  */
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import inetsoft.sree.SreeEnv;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
@@ -82,6 +85,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mindrot.BCrypt;
 import org.mockito.*;
+import org.slf4j.LoggerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -947,6 +951,38 @@ public class FileAuthenticationProviderTest {
       Field f = FileAuthenticationProvider.class.getDeclaredField(fieldName);
       f.setAccessible(true);
       return (KeyValueStorage<?>) f.get(provider);
+   }
+
+   @Test
+   void testRemoveOrganizationWithNullMembersLogsNoError() {
+      String orgId = "orgNullMembers";
+      FSOrganization organization = new FSOrganization(orgId);
+      organization.setName("Null Members Org");
+      organization.setMembers(null);
+      provider.addOrganization(organization);
+
+      FSUser user = new FSUser(new IdentityID("u1", orgId));
+      user.setPassword("hashedPassword");
+      user.setPasswordAlgorithm("bcrypt");
+      provider.addUser(user);
+
+      ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+         LoggerFactory.getLogger(FileAuthenticationProvider.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         provider.removeOrganization(orgId);
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+
+      assertTrue(appender.list.stream().noneMatch(e -> e.getLevel() == Level.ERROR),
+                 "Removing an organization must not log errors: " + appender.list);
+      assertNull(provider.getOrganization(orgId));
+      assertNull(provider.getUser(new IdentityID("u1", orgId)));
    }
 
    private FileAuthenticationProvider provider;

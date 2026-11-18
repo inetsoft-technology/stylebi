@@ -568,17 +568,15 @@ public class JavaScriptEngine {
             if(interval.equals("yyyy")) {
                return cal2.get(field) - cal1.get(field);
             }
-            else if(interval.equals("q") || interval.equals("m")) {
-               int diff = cal2.get(field) - cal1.get(field);
-
-               diff = diff + (cal2.get(Calendar.YEAR) - cal1.get(Calendar.YEAR))
-                  * 12;
-
-               if(interval.equals("q")) {
-                  diff /= 3;
-               }
-
-               return diff;
+            else if(interval.equals("q")) {
+               // count quarter boundaries crossed, like "m" and "yyyy" (bug #81467)
+               int q1 = cal1.get(Calendar.YEAR) * 4 + cal1.get(Calendar.MONTH) / 3;
+               int q2 = cal2.get(Calendar.YEAR) * 4 + cal2.get(Calendar.MONTH) / 3;
+               return q2 - q1;
+            }
+            else if(interval.equals("m")) {
+               return cal2.get(field) - cal1.get(field) +
+                  (cal2.get(Calendar.YEAR) - cal1.get(Calendar.YEAR)) * 12;
             }
          }
       }

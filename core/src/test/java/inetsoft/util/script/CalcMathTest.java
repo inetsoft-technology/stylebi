@@ -701,6 +701,18 @@ class CalcMathTest {
    }
 
    @Test
+   void testMroundHalfWithBinaryNoise() {
+      assertEquals(1.4, CalcMath.mround(1.3, 0.2), 0.0);
+      assertEquals(-1.4, CalcMath.mround(-1.3, -0.2), 0.0);
+   }
+
+   @Test
+   void testMdetermFractionalResult() {
+      Object[][] matrix = {{0.5, 0.0}, {0.0, 0.5}};
+      assertEquals(0.25, CalcMath.mdeterm(matrix), 1e-12);
+   }
+
+   @Test
    void testMultinomial() {
       // Test with valid inputs
       assertEquals(10.0, CalcMath.multinomial(new Object[]{2.0, 3.0}), 0.0001);

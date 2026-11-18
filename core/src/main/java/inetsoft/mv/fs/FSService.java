@@ -74,6 +74,26 @@ public final class FSService {
     */
    public static void clearServerNodeCache(String orgID) {
       getService().clearCache(orgID);
+      // Bug #81573, disposing the file system destroys its lastLoad marker for the whole
+      // cluster, but the nodes are cached on every cluster node. A node that keeps the cached
+      // node of the cleared organization would later fail on the destroyed marker, e.g. when
+      // the organization id is used again by a clone.
+      clearOtherNodeCaches(orgID);
+   }
+
+   private static void clearOtherNodeCaches(String orgID) {
+      try {
+         Cluster.getInstance().submitAll(new ClearNodeCache(orgID)).get(30L, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException e) {
+         Thread.currentThread().interrupt();
+         LOG.warn("Interrupted clearing the server node cache of organization {} on the " +
+                  "cluster", orgID, e);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to clear the server node cache of organization {} on the cluster",
+                  orgID, e);
+      }
    }
 
    /**
@@ -299,6 +319,26 @@ public final class FSService {
 
          return null;
       }
+   }
+
+   /**
+    * Drops the cached node of an organization on a cluster node, without disposing the file
+    * system, which has been disposed once, for the whole cluster, by the node that cleared it.
+    */
+   static final class ClearNodeCache implements Callable<Void>, Serializable {
+      ClearNodeCache(String orgID) {
+         this.orgID = orgID;
+      }
+
+      @Override
+      public Void call() {
+         FSService fsService = getService();
+         fsService.servers.remove(orgID);
+         fsService.datas.remove(orgID);
+         return null;
+      }
+
+      private final String orgID;
    }
 
    private static FSService service;

@@ -1775,14 +1775,12 @@ public class IdentityService {
          addNewOrgTaskToScheduleServer(nOrg.getOrganizationID());
       }
       catch(Exception e) {
-         if(rename) {
-            // Bug #79875, the old storages are removed when the id change ends, so a failed
-            // copy must stop it. The change stays recorded and a retry completes it.
-            throw new IllegalStateException("Could not copy Storages from " + oOrg.getId() +
-                                            " to " + nOrg.getId(), e);
-         }
-
-         LOG.warn("Could not copy Storages from "+ oOrg.getId() +" to "+ nOrg.getId() +", " + e);
+         // Bug #79875, the old storages are removed when the id change ends, so a failed copy
+         // must stop it. The change stays recorded and a retry completes it.
+         // Bug #81573, a clone fails the same way. Before, it only logged a warning and went on
+         // with an organization that was missing part of the content of its source.
+         throw new IllegalStateException("Could not copy Storages from " + oOrg.getId() +
+                                         " to " + nOrg.getId(), e);
       }
    }
 
@@ -1967,14 +1965,18 @@ public class IdentityService {
    private <T extends Serializable> void updateBlobStorageName(String suffix, String oId, String id,
                                                                Class<T> type, boolean copy) throws Exception
    {
-      BlobStorage<T> oStorage =
-         blobStorageManager.getStorage(oId.toLowerCase() + suffix, false);
-      BlobStorage<T> nStorage =
-         blobStorageManager.getStorage(id.toLowerCase() + suffix, false);
-
-      List<String> paths = oStorage.paths().collect(Collectors.toList());
+      // Bug #81573, the cache of the storage manager holds a limited number of stores and closes
+      // the least recently used one. A store is therefore fetched where it is used, and not held
+      // across the copy, so that a store evicted meanwhile is replaced by a new instance
+      String oName = oId.toLowerCase() + suffix;
+      String nName = id.toLowerCase() + suffix;
+      List<String> paths = blobStorageManager.<T>getStorage(oName, false).paths()
+         .collect(Collectors.toList());
 
       for(String path : paths) {
+         BlobStorage<T> oStorage = blobStorageManager.getStorage(oName, false);
+         BlobStorage<T> nStorage = blobStorageManager.getStorage(nName, false);
+
          try(InputStream input = oStorage.getInputStream(path);
              BlobTransaction<T> tx = nStorage.beginTransaction();
              OutputStream output = tx.newStream(path, type.getConstructor().newInstance()))
@@ -1984,39 +1986,62 @@ public class IdentityService {
          }
       }
 
+      verifyStorageCopied(oName, nName, paths);
+
       if(!copy) {
-         oStorage.deleteBlobStorage();
+         blobStorageManager.<T>getStorage(oName, false).deleteBlobStorage();
       }
    }
 
    private void updateLibraryStorage(String oId, String id, boolean copy) throws Exception {
-      try(BlobStorage<LibManager.Metadata> oStorage =
-             blobStorageManager.getStorage(oId.toLowerCase() + "__library", false);
-          BlobStorage<LibManager.Metadata> nStorage =
-             blobStorageManager.getStorage(id.toLowerCase() + "__library", false))
-      {
-         List<String> paths = oStorage.paths().collect(Collectors.toList());
+      // the stores are shared through the cache of the storage manager, they are not closed here,
+      // and, see updateBlobStorageName(), they are fetched where they are used
+      String oName = oId.toLowerCase() + "__library";
+      String nName = id.toLowerCase() + "__library";
+      List<String> paths = blobStorageManager.<LibManager.Metadata>getStorage(oName, false)
+         .paths().collect(Collectors.toList());
 
-         for(String path : paths) {
-            LibManager.Metadata metadata = oStorage.getMetadata(path);
+      for(String path : paths) {
+         BlobStorage<LibManager.Metadata> oStorage = blobStorageManager.getStorage(oName, false);
+         BlobStorage<LibManager.Metadata> nStorage = blobStorageManager.getStorage(nName, false);
+         LibManager.Metadata metadata = oStorage.getMetadata(path);
 
-            if(metadata.isDirectory()) {
-               nStorage.createDirectory(path, metadata);
-            }
-            else {
-               try(InputStream input = oStorage.getInputStream(path);
-                   BlobTransaction<LibManager.Metadata> tx = nStorage.beginTransaction();
-                   OutputStream output = tx.newStream(path, copyLibraryMetadata(metadata)))
-               {
-                  IOUtils.copy(input, output);
-                  tx.commit();
-               }
+         if(metadata.isDirectory()) {
+            nStorage.createDirectory(path, metadata);
+         }
+         else {
+            try(InputStream input = oStorage.getInputStream(path);
+                BlobTransaction<LibManager.Metadata> tx = nStorage.beginTransaction();
+                OutputStream output = tx.newStream(path, copyLibraryMetadata(metadata)))
+            {
+               IOUtils.copy(input, output);
+               tx.commit();
             }
          }
+      }
 
-         if(!copy) {
-            oStorage.deleteBlobStorage();
-         }
+      verifyStorageCopied(oName, nName, paths);
+
+      if(!copy) {
+         blobStorageManager.<LibManager.Metadata>getStorage(oName, false).deleteBlobStorage();
+      }
+   }
+
+   /**
+    * Checks that every blob that was listed in the source storage is in the target storage after
+    * the copy. The target may hold more, so the sizes are not compared.
+    *
+    * @throws IllegalStateException if a blob is missing from the target storage.
+    */
+   private void verifyStorageCopied(String sourceName, String targetName, List<String> paths) {
+      Set<String> copied =
+         blobStorageManager.getStorage(targetName, false).paths().collect(Collectors.toSet());
+      List<String> missing = paths.stream().filter(p -> !copied.contains(p)).toList();
+
+      if(!missing.isEmpty()) {
+         throw new IllegalStateException(
+            "Copy of storage " + sourceName + " to " + targetName + " is incomplete, " +
+            missing.size() + " of " + paths.size() + " entries are missing: " + missing);
       }
    }
 
@@ -2050,6 +2075,9 @@ public class IdentityService {
 
       String oldPrefix = PropertiesEngine.getOrgPropertyPrefix(oId);
       String newPrefix = PropertiesEngine.getOrgPropertyPrefix(id);
+      // another node may have just saved a property that this node has not reloaded yet
+      // (Bug #81618)
+      PropertiesEngine.getInstance().syncOrgScopedProperties(oId);
       Properties properties = SreeEnv.getProperties();
 
       // a change of only the org ID's case keeps the scoped property names, so there is
