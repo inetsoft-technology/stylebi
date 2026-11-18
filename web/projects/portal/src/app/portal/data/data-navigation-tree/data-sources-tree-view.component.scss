@@ -38,10 +38,25 @@
   line-height: 1.4;
   padding: 8px 10px;
   border-bottom: 2px solid transparent;
+  border-radius: var(--inet-radius-lg) var(--inet-radius-lg) 0 0;
+  transition: background-color 120ms ease, color 120ms ease;
 
   &--active {
     color: var(--inet-text-color);
     border-bottom-color: var(--inet-primary-color);
+  }
+
+  // a tab on a light surface hovers with the neutral fill (shell-design-spec.md "Tabs"), like
+  // .nav-pills; the active tab keeps its look
+  &:not(&--active):hover {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+    color: var(--inet-text-color);
+  }
+
+  // drawn as a box-shadow: an outline on a button is removed globally
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--inet-focus-ring);
   }
 }
 
