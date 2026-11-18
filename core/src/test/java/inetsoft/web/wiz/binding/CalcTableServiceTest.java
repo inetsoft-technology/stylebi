@@ -1228,6 +1228,24 @@ class CalcTableServiceTest {
       assertEquals(1, captor.getValue().getBinding().getTopn().getTopn());
    }
 
+   /** Bug #81643: topn.others turns on the Others row. */
+   @Test
+   void aColumnGroupCellPersistsTopnOthers() throws Exception {
+      Harness h = harness(3, 3);
+      AggregateRef sum = aggregate("PAID", "Sum");
+      when(h.layoutHandler().getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[]{ sum });
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension"),
+              "topn", spec("mode", "top", "n", 1, "others", true)));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertEquals(true, captor.getValue().getBinding().getTopn().getOthers());
+   }
+
    /**
     * Unlike a chart/table dimension's dlevelValue, a calc-table cell's OrderModel.option is a
     * plain int with no DynamicValue counterpart -- DateLevels.normalize() now returns a
