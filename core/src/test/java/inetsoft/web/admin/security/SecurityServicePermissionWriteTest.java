@@ -15,6 +15,7 @@
  */
 package inetsoft.web.admin.security;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.util.Tuple4;
@@ -64,6 +65,12 @@ class SecurityServicePermissionWriteTest {
       organizationManagerStatic = mockStatic(OrganizationManager.class,
                                              withSettings().strictness(Strictness.LENIENT));
       organizationManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+      // Bug #80948, SSO is off (the property is unset) and every grantee exists unless a test says
+      // otherwise
+      sreeEnvStatic = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT));
+      when(securityProvider.getUser(any())).thenReturn(mock(User.class));
+      when(securityProvider.getGroup(any())).thenReturn(mock(Group.class));
+      when(securityProvider.getOrganization(anyString())).thenReturn(mock(Organization.class));
 
       ActionPermissionService actionService =
          mock(ActionPermissionService.class, withSettings().lenient());
@@ -84,11 +91,16 @@ class SecurityServicePermissionWriteTest {
          mock(LocalizationSettingsService.class), mock(IdentityThemeService.class),
          mock(SystemAdminService.class), mock(UserTreeService.class),
          mock(CustomThemesManager.class));
+      // Bug #80954, no Spring context here, a JVM-local lock per name stands in for the cluster's
+      Map<String, java.util.concurrent.locks.Lock> locks = new java.util.concurrent.ConcurrentHashMap<>();
+      service.setPermissionLockFactory(
+         name -> locks.computeIfAbsent(name, k -> new java.util.concurrent.locks.ReentrantLock()));
    }
 
    @AfterEach
    void tearDown() {
       organizationManagerStatic.close();
+      sreeEnvStatic.close();
    }
 
    // ── action subset (C1) ──────────────────────────────────────────────────
@@ -142,6 +154,196 @@ class SecurityServicePermissionWriteTest {
       {
          assertEquals(Set.of("me@orga"), names(saved.getAllUserGrants(action)), action.name());
       }
+   }
+
+   // ── Bug #80947, grant type, action and resource validation ──────────────
+
+   private void reportAdmin(String resource) {
+      notSiteAdmin();
+      when(securityProvider.checkPermission(principal, ResourceType.REPORT, resource,
+                                            ResourceAction.ADMIN)).thenReturn(true);
+   }
+
+   private void assertRejectedWithoutWrite(String resource, String resourceType,
+                                           ResourcePermission model)
+   {
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> service.setPermission(resource, resourceType, model, principal));
+      verify(securityProvider, never()).setPermission(any(), anyString(), any());
+   }
+
+   @Test
+   void setPermission_unknownGrantType_rejectedWithoutWrite() {
+      reportAdmin("X");
+      assertRejectedWithoutWrite("X", "REPORT", model(grant("FOO", "me", ORG, "READ")));
+   }
+
+   @Test
+   void setPermission_nullGrantType_rejectedWithoutWrite() {
+      reportAdmin("X");
+      assertRejectedWithoutWrite("X", "REPORT", model(grant(null, "me", ORG, "READ")));
+   }
+
+   @Test
+   void setPermission_lowercaseGrantType_rejectedWithoutWrite() {
+      reportAdmin("X");
+      assertRejectedWithoutWrite("X", "REPORT", model(grant("user", "me", ORG, "READ")));
+   }
+
+   @Test
+   void setPermission_unknownAction_rejectedWithoutWrite() {
+      reportAdmin("X");
+      assertRejectedWithoutWrite("X", "REPORT", model(user("me", ORG, "FLY")));
+   }
+
+   @Test
+   void setPermission_lowercaseAction_rejectedWithoutWrite() {
+      reportAdmin("X");
+      assertRejectedWithoutWrite("X", "REPORT", model(user("me", ORG, "read")));
+   }
+
+   @Test
+   void setPermission_unknownTypeOnActionTreeLeaf_rejectedWithoutWrite() {
+      siteAdmin();
+      assertRejectedWithoutWrite(USERS, "EM_COMPONENT", model(grant("FOO", "me", ORG, "ACCESS")));
+   }
+
+   @Test
+   void setPermission_nullResource_rejectedWithoutWrite() {
+      reportAdmin("X");
+      assertRejectedWithoutWrite(null, "REPORT", model(user("me", ORG, "READ")));
+   }
+
+   @Test
+   void setPermission_emptyResource_rejectedWithoutWrite() {
+      reportAdmin("");
+      assertRejectedWithoutWrite("", "REPORT", model(user("me", ORG, "READ")));
+   }
+
+   @Test
+   void setPermission_validGrantWithInvalidGrant_wholeRequestRejectedWithoutWrite() {
+      reportAdmin("X");
+      assertRejectedWithoutWrite(
+         "X", "REPORT", model(user("me", ORG, "READ"), grant("FOO", "you", ORG, "READ")));
+      assertRejectedWithoutWrite(
+         "X", "REPORT", model(user("me", ORG, "READ"), user("you", ORG, "FLY")));
+   }
+
+   @Test
+   void setPermission_emptyGrantList_stillWrites() throws Exception {
+      reportAdmin("X");
+      service.setPermission("X", "REPORT", model(), principal);
+      verify(securityProvider).setPermission(eq(ResourceType.REPORT), eq("X"), any());
+   }
+
+   @Test
+   void setPermission_emptyActions_stillWrites() throws Exception {
+      reportAdmin("X");
+      service.setPermission("X", "REPORT", model(user("me", ORG)), principal);
+      verify(securityProvider).setPermission(eq(ResourceType.REPORT), eq("X"), any());
+   }
+
+   @Test
+   void setPermission_rootResource_stillWrites() throws Exception {
+      reportAdmin("/");
+      service.setPermission("/", "REPORT", model(user("me", ORG, "READ")), principal);
+      assertEquals(Set.of("me@orga"),
+                   names(captureSaved(ResourceType.REPORT, "/").getAllUserGrants(ResourceAction.READ)));
+   }
+
+   @Test
+   void setPermission_everyResourceActionAndGrantType_stillWrites() throws Exception {
+      reportAdmin("X");
+      when(securityProvider.getRole(new IdentityID("r", ORG))).thenReturn(mock(Role.class));
+      String[] actions = Arrays.stream(ResourceAction.values()).map(Enum::name)
+         .toArray(String[]::new);
+
+      service.setPermission("X", "REPORT", model(
+         grant("USER", "u", ORG, actions), grant("GROUP", "g", ORG, actions),
+         grant("ROLE", "r", ORG, actions), grant("ORGANIZATION", ORG, ORG, actions)), principal);
+      verify(securityProvider).setPermission(eq(ResourceType.REPORT), eq("X"), any());
+   }
+
+   // ── Bug #80949, malformed grants are rejected, not a NullPointerException ──
+
+   private static ResourcePermission rawModel(PermissionGrant... grants) {
+      ResourcePermission model = new ResourcePermission();
+      model.setPermissionGrants(new ArrayList<>(Arrays.asList(grants)));
+      return model;
+   }
+
+   @Test
+   void setPermission_nullGrantList_rejectedWithoutWrite() {
+      reportAdmin("X");
+      ResourcePermission model = new ResourcePermission();
+      model.setPermissionGrants(null);
+      assertRejectedWithoutWrite("X", "REPORT", model);
+   }
+
+   @Test
+   void setPermission_grantListNeverSet_rejectedWithoutWrite() {
+      reportAdmin("X");
+      assertRejectedWithoutWrite("X", "REPORT", new ResourcePermission());
+   }
+
+   @Test
+   void setPermission_nullGrantElement_rejectedWithoutWrite() {
+      reportAdmin("X");
+      assertRejectedWithoutWrite("X", "REPORT", rawModel((PermissionGrant) null));
+      assertRejectedWithoutWrite(
+         "X", "REPORT", rawModel(user("me", ORG, "READ"), null));
+   }
+
+   @Test
+   void setPermission_grantWithoutIdentity_rejectedWithoutWrite() {
+      reportAdmin("X");
+      PermissionGrant grant = user("me", ORG, "READ");
+      grant.setIdentityID(null);
+      assertRejectedWithoutWrite("X", "REPORT", rawModel(grant));
+   }
+
+   @Test
+   void setPermission_grantWithoutActions_rejectedWithoutWrite() {
+      reportAdmin("X");
+      PermissionGrant grant = user("me", ORG);
+      grant.setActions(null);
+      assertRejectedWithoutWrite("X", "REPORT", rawModel(grant));
+   }
+
+   @Test
+   void setPermission_grantWithoutActions_actionTreeLeaf_rejectedWithoutWrite() {
+      siteAdmin();
+      PermissionGrant grant = user("me", ORG);
+      grant.setActions(null);
+      assertRejectedWithoutWrite(USERS, "EM_COMPONENT", rawModel(grant));
+   }
+
+   @Test
+   void createPermissionGrant_withoutIdentityOrActions_rejectedWithoutWrite() {
+      reportAdmin("X");
+      PermissionGrant noIdentity = user("me", ORG, "READ");
+      noIdentity.setIdentityID(null);
+      PermissionGrant noActions = user("me", ORG);
+      noActions.setActions(null);
+
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> service.createPermissionGrant("X", "REPORT", noIdentity, principal));
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> service.createPermissionGrant("X", "REPORT", noActions, principal));
+      verify(securityProvider, never()).setPermission(any(), anyString(), any());
+   }
+
+   @Test
+   void updatePermissionGrant_bodyWithoutIdentity_rejectedWithoutWrite() {
+      delegate();
+      stored(ResourceType.EM_COMPONENT, USERS);
+      PermissionGrant noIdentity = user("new", ORG, "ACCESS");
+      noIdentity.setIdentityID(null);
+
+      assertThrows(UnauthorizedAccessException.class, () -> service.updatePermissionGrant(
+         USERS, "EM_COMPONENT", new IdentityID("old", ORG).convertToKey(), "USER", noIdentity,
+         principal));
+      verify(securityProvider, never()).setPermission(any(), anyString(), any());
    }
 
    // ── grant org (C2a) ─────────────────────────────────────────────────────
@@ -1029,6 +1231,9 @@ class SecurityServicePermissionWriteTest {
       assertNotNull(service.getPermissionGrant(USERS, "EM_COMPONENT", "alice", "USER", principal));
       assertNull(service.getPermissionGrant(USERS, "EM_COMPONENT", "old", "USER", principal));
       assertNull(service.getPermissionGrant(USERS, "EM_COMPONENT", "hr", "GROUP", principal));
+      // the setup lets every user exist (Bug #80948), so the grant endpoint's type check needs the
+      // role itself to exist, or it reads Designer as a user
+      when(securityProvider.getRole(new IdentityID("Designer", ORG))).thenReturn(mock(Role.class));
       assertNull(service.getPermissionGrant(USERS, "EM_COMPONENT", "Designer", "ROLE", principal));
    }
 
@@ -1346,10 +1551,66 @@ class SecurityServicePermissionWriteTest {
          .collect(Collectors.toSet());
    }
 
+   // ── concurrent grant writes (Bug #80954) ────────────────────────────────
+
+   // two grant creations on one resource at the same instant must both be stored, the read of the
+   // whole permission and its write back are one step
+   @Test
+   void createPermissionGrant_concurrent_bothStored() throws Exception {
+      siteAdmin();
+      java.util.concurrent.atomic.AtomicReference<Permission> store =
+         new java.util.concurrent.atomic.AtomicReference<>(new Permission());
+      store.get().setOrgEditedGrantAll(new HashMap<>(Map.of(ORG, true)));
+      store.get().setUserGrantsForOrg(ResourceAction.ACCESS, Set.of("old"), ORG);
+      when(securityProvider.getPermission(ResourceType.EM_COMPONENT, USERS)).thenAnswer(inv -> {
+         Permission read = (Permission) store.get().clone();
+         // widen the window between the read and the write
+         Thread.sleep(150);
+         return read;
+      });
+      doAnswer(inv -> {
+         store.set(inv.getArgument(2));
+         return null;
+      }).when(securityProvider).setPermission(eq(ResourceType.EM_COMPONENT), eq(USERS), any());
+
+      java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+      java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+      List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
+
+      for(String name : List.of("alice", "bob")) {
+         futures.add(pool.submit(() -> {
+            // a static mock is bound to the thread that made it
+            try(MockedStatic<OrganizationManager> mocked = mockStatic(
+               OrganizationManager.class, withSettings().strictness(Strictness.LENIENT));
+                MockedStatic<SreeEnv> env = mockStatic(
+                   SreeEnv.class, withSettings().strictness(Strictness.LENIENT)))
+            {
+               mocked.when(OrganizationManager::getInstance).thenReturn(orgManager);
+               start.await();
+               service.createPermissionGrant(USERS, "EM_COMPONENT", user(name, ORG, "ACCESS"),
+                                             principal);
+            }
+
+            return null;
+         }));
+      }
+
+      start.countDown();
+
+      for(java.util.concurrent.Future<?> future : futures) {
+         future.get(30, java.util.concurrent.TimeUnit.SECONDS);
+      }
+
+      pool.shutdownNow();
+      assertEquals(Set.of("old@orga", "alice@orga", "bob@orga"),
+                   names(store.get().getAllUserGrants(ResourceAction.ACCESS)));
+   }
+
    private SecurityProvider securityProvider;
    private SecurityEngine securityEngine;
    private OrganizationManager orgManager;
    private Principal principal;
    private SecurityService service;
    private MockedStatic<OrganizationManager> organizationManagerStatic;
+   private MockedStatic<SreeEnv> sreeEnvStatic;
 }

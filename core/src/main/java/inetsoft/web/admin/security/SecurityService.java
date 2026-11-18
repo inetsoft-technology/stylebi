@@ -19,6 +19,7 @@ package inetsoft.web.admin.security;
 
 import inetsoft.mv.MVManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
@@ -36,12 +37,15 @@ import inetsoft.web.admin.InvalidResourceException;
 import inetsoft.web.admin.security.action.ActionPermissionService;
 import inetsoft.web.admin.security.action.ActionTreeNode;
 import inetsoft.web.admin.security.user.*;
+import inetsoft.web.security.auth.ForbiddenAccessException;
 import inetsoft.web.security.auth.MissingResourceException;
 
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -293,6 +297,12 @@ public class SecurityService {
     * removes the user from only the groups the caller may administer.
     */
    public void updateUser(IdentityID id, SecurityUser request, Principal principal) throws Exception {
+      withIdentityLock(Identity.USER, id, () -> doUpdateUser(id, request, principal));
+   }
+
+   private void doUpdateUser(IdentityID id, SecurityUser request, Principal principal)
+      throws Exception
+   {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
       final User oldUser = securityProvider.getUser(id);
@@ -643,6 +653,13 @@ public class SecurityService {
     * administer is kept, and an empty list removes only the members the caller may administer.
     */
    public void updateGroup(IdentityID identityID, SecurityGroup request, Principal principal) throws Exception {
+      withIdentityLock(Identity.GROUP, identityID,
+                       () -> doUpdateGroup(identityID, request, principal));
+   }
+
+   private void doUpdateGroup(IdentityID identityID, SecurityGroup request, Principal principal)
+      throws Exception
+   {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
       final Group oldGroup = securityProvider.getGroup(identityID);
@@ -928,8 +945,11 @@ public class SecurityService {
    public SecurityOrganization getOrganization(String organizationid, Principal principal) throws Exception {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
 
-      if(!isOwnOrganization(organizationid, principal) ||
-         !securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+      // Bug #81195, naming another organization is a 403, lacking the permission in the own one
+      // stays a 401
+      checkOwnOrganization(organizationid, principal);
+
+      if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
                                            organizationid, ResourceAction.ADMIN))
       {
          throw new UnauthorizedAccessException("Permission denied to get Organization");
@@ -966,6 +986,10 @@ public class SecurityService {
          if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
             throw new UnauthorizedAccessException("Permission denied to create Organization");
          }
+
+         // Bug #79875, before the id is looked up, an interrupted clone or id change is finished
+         // or undone, its half done state would make the id unusable
+         identityService.recoverInterruptedOrganizationOperations(principal);
 
          if(provider.getOrganization(request.getId()) != null ||
             provider.getOrgIdFromName(request.getName()) != null)
@@ -1233,6 +1257,17 @@ public class SecurityService {
    public void updateOrganization(String id, SecurityOrganization request, Principal principal) throws Exception {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
+
+      // Bug #79875, before the organization is looked up, an interrupted clone or id change is
+      // finished or undone. Only for a caller that may update it, the checks below refuse the
+      // others.
+      if(isOwnOrganization(id, principal) &&
+         securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                          id, ResourceAction.ADMIN))
+      {
+         identityService.recoverInterruptedOrganizationOperations(principal);
+      }
+
       final Organization oldOrganization = securityProvider.getOrganization(id);
       // an update body without an id keeps the org's id, it is not an id rename to null
       final String newOrgId = request.getId() == null ? id : request.getId();
@@ -1240,8 +1275,10 @@ public class SecurityService {
       EditOrganizationPaneModel organizationModel;
 
       try {
-         if(!isOwnOrganization(id, principal) ||
-            !securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+         // Bug #81195, naming another organization is a 403
+         checkOwnOrganization(id, principal);
+
+         if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
                                               id, ResourceAction.ADMIN))
          {
             throw new UnauthorizedAccessException("Permission denied to update organization");
@@ -1790,6 +1827,43 @@ public class SecurityService {
     * Gets an organization id with the global organization key, the key form of the null
     * organization of a global identity, decoded to that null organization.
     */
+   /**
+    * Runs an update of one identity while holding the cluster lock of that identity. An update
+    * reads the stored identity, fills the properties the request omits from that read and writes
+    * the whole identity back, so two overlapping updates of the same identity would otherwise
+    * overwrite each other's change (Bug #80955). The lock is taken on the identity addressed by
+    * the path, before the first read, so a rename is serialized under its old name.
+    * <p>
+    * The lock name is striped over a fixed number of locks, so the number of named cluster locks
+    * does not grow with the number of identities. Two different identities may share a stripe and
+    * then wait for each other, which is harmless. The lock is reentrant.
+    */
+   private void withIdentityLock(int type, IdentityID id, IdentityUpdate update) throws Exception {
+      // a global role has a null org, the global org key or the string "null"; one key for all
+      String org = type == Identity.USER ? id.orgID : decodeGlobalOrgKey(id.orgID);
+      String key = type + "|" + org + "|" + id.name;
+      Lock lock = permissionLockFactory.apply(IDENTITY_LOCK_PREFIX + (key.hashCode() & 63));
+
+      if(!lock.tryLock(IDENTITY_LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+         throw new IllegalStateException(
+            "Timed out waiting for a concurrent update of " + id.name + " to finish");
+      }
+
+      try {
+         update.run();
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   private interface IdentityUpdate {
+      void run() throws Exception;
+   }
+
+   private static final String IDENTITY_LOCK_PREFIX = "securityApi.identity.";
+   private static final long IDENTITY_LOCK_TIMEOUT_SECONDS = 30;
+
    private static String decodeGlobalOrgKey(String orgID) {
       return orgID == null ? null :
          IdentityID.getIdentityIDFromKey(IdentityID.KEY_DELIMITER + orgID).orgID;
@@ -1846,6 +1920,19 @@ public class SecurityService {
    }
 
    /**
+    * Bug #81195, refuses a caller that names an organization other than its own with a 403
+    * ({@link ForbiddenAccessException}). Evaluated before the permission check, so a foreign
+    * organization never reaches it.
+    */
+   private static void checkOwnOrganization(String orgID, Principal principal)
+      throws Exception
+   {
+      if(!isOwnOrganization(orgID, principal)) {
+         throw new ForbiddenAccessException("Permission denied to access organization");
+      }
+   }
+
+   /**
     * Gets the organization's own default theme, {@code Organization.theme}, which is what the
     * PUT compares against and writes back. Like the EM organization pane
     * (UserTreeService.getOrganizationModel()), it is only reported when it is the ID of an
@@ -1866,8 +1953,9 @@ public class SecurityService {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       AuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
 
-      if(!isOwnOrganization(organizationid, principal) ||
-         !securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+      checkOwnOrganization(organizationid, principal);
+
+      if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
                                            organizationid, ResourceAction.ADMIN))
       {
          throw new UnauthorizedAccessException("Permission denied to get organization");
@@ -2212,6 +2300,12 @@ public class SecurityService {
     * current organization.
     */
    public void updateRole(IdentityID roleId, SecurityRole request, Principal principal) throws Exception {
+      withIdentityLock(Identity.ROLE, roleId, () -> doUpdateRole(roleId, request, principal));
+   }
+
+   private void doUpdateRole(IdentityID roleId, SecurityRole request, Principal principal)
+      throws Exception
+   {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
       final Role oldRole = securityProvider.getRole(roleId);
@@ -3196,6 +3290,7 @@ public class SecurityService {
    {
       SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       ResourceType type = convertResourceType(resourceType);
+      resourcePath = canonicalResource(type, resourcePath);
 
       if(!checkPermissionAccess(resourcePath, type, principal)) {
          throw new UnauthorizedAccessException("Permission denied to access permission");
@@ -3331,13 +3426,152 @@ public class SecurityService {
    public void setPermission(String resourcePath, String resourceType, ResourcePermission permissionModel,
                              Principal principal) throws Exception
    {
+      // Bug #81195, the lock and the write use the canonical key, whatever the spelling
+      String path = canonicalResource(resourceType, resourcePath);
+      // Bug #80954, the write reads the stored permission and writes it back whole
+      withPermissionLock(path, resourceType,
+                         () -> doSetPermission(path, resourceType, permissionModel,
+                                               principal));
+   }
+
+   /**
+    * Bug #81195, the permission of an identity root node is stored and enforced only under
+    * {@code name~;~org} ({@link IdentityID#convertToKey()}). The roots are Groups (group),
+    * Users (user), and Roles and Organization Roles (role). This accepts the spellings
+    * {@code name}, {@code name^org} and {@code name~;~org} and returns the canonical key of the
+    * effective (current) organization, as enforcement computes its id. The organization comes only
+    * from the effective organization, a carried one that differs (ignoring case, an empty one too)
+    * is refused with a 403. Other types, other resources (individual identities, including names
+    * that start with a root name such as {@code Groups^eu~;~org}, "*") and invalid types are
+    * returned unchanged. Idempotent.
+    */
+   private String canonicalResource(String resourceType, String resource)
+      throws Exception
+   {
+      try {
+         return canonicalResource(ResourceType.valueOf(resourceType), resource);
+      }
+      catch(IllegalArgumentException | NullPointerException e) {
+         // the caller reports the invalid type
+         return resource;
+      }
+   }
+
+   private String canonicalResource(ResourceType type, String resource)
+      throws Exception
+   {
+      if(resource == null) {
+         return null;
+      }
+
+      String[] roots;
+
+      if(type == ResourceType.SECURITY_GROUP) {
+         roots = new String[] { "Groups" };
+      }
+      else if(type == ResourceType.SECURITY_USER) {
+         roots = new String[] { "Users" };
+      }
+      else if(type == ResourceType.SECURITY_ROLE) {
+         roots = new String[] { "Roles", "Organization Roles" };
+      }
+      else {
+         return resource;
+      }
+
+      for(String root : roots) {
+         String carriedOrg;
+
+         if(resource.equals(root)) {
+            carriedOrg = null;
+         }
+         else if(resource.startsWith(root + "~;~")) {
+            carriedOrg = resource.substring(root.length() + 3);
+         }
+         else if(resource.startsWith(root + "^")) {
+            carriedOrg = resource.substring(root.length() + 1);
+         }
+         else {
+            continue;
+         }
+
+         // an identity key (a group named "Groups^eu" is "Groups^eu~;~org") is not a root spelling
+         if(carriedOrg != null && carriedOrg.contains("~;~")) {
+            continue;
+         }
+
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+         if(carriedOrg != null && !carriedOrg.equalsIgnoreCase(orgId)) {
+            throw new ForbiddenAccessException("Invalid organization for resource " + root);
+         }
+
+         return new IdentityID(root, orgId).convertToKey();
+      }
+
+      return resource;
+   }
+
+   /**
+    * Bug #80954, runs a read-modify-write of one stored permission under a cluster-wide lock.
+    * The permission of a resource is one stored object shared by every org, so the key is the
+    * resource type and path only. The lock is reentrant, so the grant endpoints hold it across
+    * their read and the nested {@link #setPermission} write.
+    */
+   private void withPermissionLock(String resourcePath, String resourceType,
+                                   PermissionAction action) throws Exception
+   {
+      Lock lock = permissionLockFactory.apply(
+         "inetsoft.enterprise.security.permission." + resourceType + ":" + resourcePath);
+      lock.lock();
+
+      try {
+         action.run();
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Bug #80954, replaces the cluster lock in tests that have no Spring context, including the
+    * tests of the enterprise public API that delegates to this service.
+    *
+    * @hidden
+    */
+   public void setPermissionLockFactory(Function<String, Lock> factory) {
+      this.permissionLockFactory = factory;
+   }
+
+   private Function<String, Lock> permissionLockFactory =
+      name -> Cluster.getInstance().getLock(name);
+
+   @FunctionalInterface
+   private interface PermissionAction {
+      void run() throws Exception;
+   }
+
+   private void doSetPermission(String resourcePath, String resourceType,
+                                ResourcePermission permissionModel, Principal principal)
+      throws Exception
+   {
       SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       ResourceType type = convertResourceType(resourceType);
+
+      // Bug #80947, the resource key of a write is never null or empty ("/" and "*" are valid)
+      if(resourcePath == null || resourcePath.isEmpty()) {
+         throw new UnauthorizedAccessException("Invalid resource");
+      }
+
       ActionTreeNode node = getActionTreeNode(resourcePath, type, principal);
 
       if(!checkPermissionAccess(resourcePath, type, node, principal)) {
          throw new UnauthorizedAccessException("Permission denied to access permission");
       }
+
+      // Bug #80947, reject a grant the write would drop silently (and so clear the grants) before
+      // anything is written, whatever the resource
+      validateGrantTypesAndActions(permissionModel);
 
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
@@ -3360,7 +3594,7 @@ public class SecurityService {
          String grantOrg = grant.getIdentityID().orgID;
 
          if(grantOrg != null && !grantOrg.equalsIgnoreCase(orgId)) {
-            throw new UnauthorizedAccessException(
+            throw new ForbiddenAccessException(
                "Invalid organization " + grantOrg + " for " + grant.getType() + " " +
                grant.getIdentityID().name);
          }
@@ -3410,6 +3644,18 @@ public class SecurityService {
          {
             requestGrants = true;
          }
+      }
+
+      // Bug #80948, reject grantees that do not exist, before anything is written
+      List<String> unknownGrantees =
+         findUnknownGrantees(permissionModel, permission, orgId, siteAdmin, securityProvider,
+                             principal);
+
+      if(!unknownGrantees.isEmpty()) {
+         throw new MissingResourceException(
+            "Grantee(s) not found in organization " + orgId + ": " +
+            String.join(", ", unknownGrantees) +
+            ". Create the identity first, or remove it from the permission grants.");
       }
 
       // the grants of each action after the write, built before the stored permission is changed
@@ -3604,6 +3850,191 @@ public class SecurityService {
    }
 
    /**
+    * Bug #80948, finds the grantees of the requested grants that do not exist in the current org,
+    * as "TYPE name", so that a grant to a misspelled or not yet created identity is refused
+    * instead of being stored for nobody (and flipping the node to "edited").
+    * <ul>
+    *   <li>Only grantees that are new relative to the stored permission are checked, so a stored
+    *   grant of an identity deleted since (GET returns it) can be sent back unchanged.</li>
+    *   <li>Bug #80948, users, groups and roles are looked up in the current org for every caller,
+    *   including one that cannot administer the grantee: an unknown one is refused with 404 and
+    *   an existing one is accepted, so the response differs only for a name that does not exist
+    *   (residual: a caller can learn that a name exists as an identity it cannot administer).
+    *   A non site admin's organization grantee is looked up only if it administers it, so
+    *   organizations of other orgs cannot be probed.</li>
+    *   <li>When SSO is active or the authentication provider is virtual, users, groups and roles
+    *   are authorized by name without a provider record, so only organizations are checked.</li>
+    *   <li>A user or group is not checked when no provider can answer the lookup (providers that
+    *   do not override getUser/getGroup return null for every name). A role is checked with
+    *   getRole, which such providers answer with a default role, so it fails open there.</li>
+    * </ul>
+    */
+   private static List<String> findUnknownGrantees(ResourcePermission permissionModel,
+                                                   Permission permission, String orgId,
+                                                   boolean siteAdmin,
+                                                   SecurityProvider securityProvider,
+                                                   Principal principal)
+   {
+      List<String> unknown = new ArrayList<>();
+      boolean external = isExternalIdentities(securityProvider);
+      boolean userLookup = !external && canLookUp(securityProvider, "getUser");
+      boolean groupLookup = !external && canLookUp(securityProvider, "getGroup");
+
+      for(PermissionGrant grant : permissionModel.grants) {
+         String type = String.valueOf(grant.getType());
+         String name = grant.getIdentityID().name;
+
+         if(grant.getActions() == null || grant.getActions().isEmpty()) {
+            continue;
+         }
+
+         boolean globalRole = grant.getIdentityID().orgID == null && "ROLE".equals(type) &&
+            isGlobalRole(name, orgId, securityProvider);
+
+         // a global role exists, and a non site admin's global role rows are ignored by the write
+         if(globalRole) {
+            continue;
+         }
+
+         // Bug #80948, a user, group or role is looked up whatever the caller administers: the
+         // lookup is scoped to the current org, and "cannot administer" is not a reason to skip
+         // an identity that does not exist (checkOrgAdminPermission answers false for a missing
+         // group, so an org admin's ghost group was never looked up). An existing identity
+         // is accepted either way, so no skip is needed for it. An organization is looked up
+         // by name across orgs, so a non site admin only probes the organizations it administers.
+         if(!siteAdmin && "ORGANIZATION".equals(type) &&
+            !callerAdministersGrantee(grant, orgId, securityProvider, principal))
+         {
+            continue;
+         }
+
+         boolean stored = grant.getActions().stream()
+            .anyMatch(a -> isStoredGrantAction(permission, grant, a, orgId));
+
+         if(stored) {
+            continue;
+         }
+
+         IdentityID id = new IdentityID(name, orgId);
+         boolean exists = switch(type) {
+            case "USER" -> !userLookup || securityProvider.getUser(id) != null;
+            case "GROUP" -> !groupLookup || securityProvider.getGroup(id) != null;
+            case "ROLE" -> external || securityProvider.getRole(id) != null;
+            case "ORGANIZATION" -> {
+               if(securityProvider.getOrganization(name) != null) {
+                  yield true;
+               }
+
+               String orgIdOfName = securityProvider.getOrgIdFromName(name);
+               yield orgIdOfName != null && securityProvider.getOrganization(orgIdOfName) != null;
+            }
+            default -> true;
+         };
+
+         if(!exists) {
+            unknown.add(type + " " + name);
+         }
+      }
+
+      return unknown;
+   }
+
+   /**
+    * Checks if users, groups and roles are authorized by name without a provider record, which is
+    * the case when SSO is active or all authentication providers are virtual.
+    */
+   private static boolean isExternalIdentities(SecurityProvider securityProvider) {
+      if(SSOType.forName(SreeEnv.getProperty("sso.protocol.type")) != SSOType.NONE) {
+         return true;
+      }
+
+      AuthenticationProvider authentication = securityProvider.getAuthenticationProvider();
+      return authentication != null && authentication.isVirtual();
+   }
+
+   /**
+    * Checks if at least one authentication provider overrides the named lookup
+    * ({@code getUser} or {@code getGroup}) of AbstractAuthenticationProvider, which returns null
+    * for every name. Fails open (true) when the providers are not known.
+    */
+   private static boolean canLookUp(SecurityProvider securityProvider, String method) {
+      AuthenticationProvider authentication = securityProvider.getAuthenticationProvider();
+
+      if(authentication == null) {
+         return true;
+      }
+
+      List<?> providers = authentication instanceof SecurityChain<?> chain ?
+         chain.getProviders() : List.of(authentication);
+
+      for(Object provider : providers) {
+         try {
+            if(provider.getClass().getMethod(method, IdentityID.class).getDeclaringClass() !=
+               AbstractAuthenticationProvider.class)
+            {
+               return true;
+            }
+         }
+         catch(NoSuchMethodException e) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Bug #80947, rejects a grant whose type is not exactly USER, GROUP, ORGANIZATION or ROLE, or
+    * that has an action that is not exactly a {@link ResourceAction} name. The write matches both
+    * by exact name and drops everything else. An empty grant list or action list is valid.
+    * Bug #80949, a missing grant list, a null grant, or a grant without an identity or without an
+    * action list is rejected too. None of them can be stored, and reading a missing list as an
+    * empty one would clear the stored grants.
+    */
+   private static void validateGrantTypesAndActions(ResourcePermission permissionModel)
+      throws Exception
+   {
+      if(permissionModel.grants == null) {
+         throw new UnauthorizedAccessException("Invalid permission grants");
+      }
+
+      for(PermissionGrant grant : permissionModel.grants) {
+         if(grant == null) {
+            throw new UnauthorizedAccessException("Invalid permission grant");
+         }
+
+         String grantType = grant.getType();
+
+         if(!"USER".equals(grantType) && !"GROUP".equals(grantType) &&
+            !"ORGANIZATION".equals(grantType) && !"ROLE".equals(grantType))
+         {
+            throw new UnauthorizedAccessException("Invalid identity type " + grantType);
+         }
+
+         requireGrantIdentity(grant);
+
+         if(grant.getActions() == null) {
+            throw new UnauthorizedAccessException("Invalid actions");
+         }
+
+         for(String action : grant.getActions()) {
+            if(Arrays.stream(ResourceAction.values()).noneMatch(a -> a.name().equals(action))) {
+               throw new UnauthorizedAccessException("Invalid action " + action);
+            }
+         }
+      }
+   }
+
+   /**
+    * Bug #80949, rejects a grant that names no identity before the grant is dereferenced.
+    */
+   private static void requireGrantIdentity(PermissionGrant grant) throws Exception {
+      if(grant.getIdentityID() == null) {
+         throw new UnauthorizedAccessException("Invalid identity ID");
+      }
+   }
+
+   /**
     * Checks if the stored permission already grants the action to the grantee of a requested
     * grant, that is to a stored grantee of the same type and name in the bucket (org id, or null
     * for a global role) the write stores the requested grant in.
@@ -3663,10 +4094,20 @@ public class SecurityService {
    public void deletePermission(String resourcePath, String resourceType, Principal principal) throws Exception {
       SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       ResourceType type = convertResourceType(resourceType);
+      String rawPath = resourcePath;
+      resourcePath = canonicalResource(type, resourcePath);
       ActionTreeNode node = getActionTreeNode(resourcePath, type, principal);
 
       if(!checkPermissionAccess(resourcePath, type, node, principal)) {
          throw new UnauthorizedAccessException("Permission denied to access permission");
+      }
+
+      // Bug #81195, an entry an earlier call stored under the raw spelling has no effect and is
+      // no longer reachable by key, so it goes with the canonical one
+      if(rawPath != null && !rawPath.equals(resourcePath) &&
+         securityProvider.getPermission(type, rawPath) != null)
+      {
+         securityProvider.removePermission(type, rawPath);
       }
 
       Permission permission = securityProvider.getPermission(type, resourcePath);
@@ -3772,6 +4213,17 @@ public class SecurityService {
    public void createPermissionGrant(String resourcePath, String resourceType,
                              PermissionGrant grant, Principal principal) throws Exception
    {
+      // Bug #80954, the read-modify-write of the whole permission must not interleave
+      String path = canonicalResource(resourceType, resourcePath);
+      withPermissionLock(path, resourceType,
+         () -> doCreatePermissionGrant(path, resourceType, grant, principal));
+   }
+
+   private void doCreatePermissionGrant(String resourcePath, String resourceType,
+                                        PermissionGrant grant, Principal principal)
+      throws Exception
+   {
+      requireGrantIdentity(grant);
       IdentityID idName = grant.getIdentityID();
       String idType = grant.getType();
       checkIdType(idType, idName);
@@ -3794,6 +4246,18 @@ public class SecurityService {
                                    String idName, String idType, PermissionGrant newGrant,
                                    Principal principal) throws Exception
    {
+      // Bug #80954, see createPermissionGrant
+      String path = canonicalResource(resourceType, resourcePath);
+      withPermissionLock(path, resourceType,
+         () -> doUpdatePermissionGrant(path, resourceType, idName, idType, newGrant,
+                                       principal));
+   }
+
+   private void doUpdatePermissionGrant(String resourcePath, String resourceType,
+                                        String idName, String idType, PermissionGrant newGrant,
+                                        Principal principal) throws Exception
+   {
+      requireGrantIdentity(newGrant);
       IdentityID oldId = IdentityID.getIdentityIDFromKey(idName);
       checkIdType(idType, oldId);
       checkIdType(newGrant.getType(), newGrant.getIdentityID());
@@ -3828,6 +4292,16 @@ public class SecurityService {
    public void deletePermissionGrant(String resourcePath, String resourceType,
                                      String idName, String idType,
                                      Principal principal) throws Exception
+   {
+      // Bug #80954, see createPermissionGrant
+      String path = canonicalResource(resourceType, resourcePath);
+      withPermissionLock(path, resourceType,
+         () -> doDeletePermissionGrant(path, resourceType, idName, idType, principal));
+   }
+
+   private void doDeletePermissionGrant(String resourcePath, String resourceType,
+                                        String idName, String idType, Principal principal)
+      throws Exception
    {
       IdentityID id = IdentityID.getIdentityIDFromKey(idName);
       checkIdType(idType, id);

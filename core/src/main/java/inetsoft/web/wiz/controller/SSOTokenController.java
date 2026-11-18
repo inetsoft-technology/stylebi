@@ -19,6 +19,7 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.web.assistant.AIAssistantController;
+import inetsoft.web.security.DefaultAuthorizationFilter;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import inetsoft.web.wiz.security.SSOTokenService;
 import jakarta.servlet.http.Cookie;
@@ -74,12 +75,8 @@ public class SSOTokenController {
       // If principal is null, the security filter should have redirected to login.
       // This is a fallback in case it didn't.
       if(principal == null) {
-         String currentUrl = LinkUriArgumentResolver.transformUri(request);
-         String queryString = request.getQueryString();
-
-         if(queryString != null) {
-            currentUrl = currentUrl + "?" + queryString;
-         }
+         // the path is container-decoded; build it percent-encoded (#79713)
+         String currentUrl = DefaultAuthorizationFilter.buildRequestedUrl(request);
 
          String loginUrl = LinkUriArgumentResolver.getLinkUri(request) + "login.html?requestedUrl=" +
             URLEncoder.encode(currentUrl, StandardCharsets.UTF_8);
@@ -130,6 +127,8 @@ public class SSOTokenController {
       response.setStatus(HttpServletResponse.SC_OK);
       response.setContentType(MediaType.TEXT_HTML_VALUE);
       response.setHeader(HttpHeaders.CACHE_CONTROL, CacheControl.noStore().getHeaderValue());
+      // every value in the form is HTML-escaped and the callback is checked against the allowed URLs.
+      // nosemgrep: java.lang.security.audit.xss.no-direct-response-writer.no-direct-response-writer
       response.getWriter().write(html);
    }
 

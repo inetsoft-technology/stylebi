@@ -270,10 +270,12 @@ public class ViewsheetService {
       try {
          AssetEntry entry = getAssetEntry(id, user);
          record.setObjectName(entry.getName());
+         // a scheduled task that uses the dashboard would be left naming a missing sheet (#77599)
+         RecycleUtils.checkScheduledTasks(entry);
          assetRepository.removeSheet(entry, user, true);
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
       }
-      catch(UnauthorizedAccessException | MissingResourceException e) {
+      catch(UnauthorizedAccessException | MissingResourceException | MessageException e) {
          record.setActionError("Failed to delete viewsheet: " + id);
          throw e;
       }

@@ -123,6 +123,8 @@ class SecurityServicePermissionWriteFailureTest {
          mock(ActionPermissionService.class), mock(LocalizationSettingsService.class),
          new IdentityThemeService(customThemesManager), mock(SystemAdminService.class),
          userTreeService, customThemesManager);
+      // Bug #80954/#80955, no Spring context here, a JVM-local lock stands in for the cluster's
+      service.setPermissionLockFactory(name -> new java.util.concurrent.locks.ReentrantLock());
    }
 
    @AfterEach

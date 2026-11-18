@@ -216,6 +216,8 @@ class SecurityServiceTest {
          securityEngine, identityService, actionPermissionService,
          mock(LocalizationSettingsService.class), themeService,
          systemAdminService, userTreeService, customThemesManager);
+      // Bug #80954/#80955, no Spring context here, a JVM-local lock stands in for the cluster's
+      service.setPermissionLockFactory(name -> new java.util.concurrent.locks.ReentrantLock());
    }
 
    @AfterEach
@@ -3156,6 +3158,31 @@ class SecurityServiceTest {
       verify(editableProvider).addOrganization(any());
    }
 
+   // Bug #79875
+   @Test
+   void createOrganization_recoversInterruptedOperationsBeforeTheIdIsLookedUp() throws Exception {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org2" });
+
+      service.createOrganization(newOrgRequest("Sales", "Sales West"), null, principal);
+
+      InOrder order = inOrder(identityService, editableProvider, securityProvider);
+      order.verify(identityService).recoverInterruptedOrganizationOperations(principal);
+      order.verify(editableProvider).getOrganization("Sales");
+      order.verify(securityProvider).getOrganizationIDs();
+   }
+
+   @Test
+   void createOrganization_notSiteAdmin_noRecovery() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> service.createOrganization(newOrgRequest("Sales", "Sales West"), null,
+                                                    principal));
+
+      verify(identityService, never()).recoverInterruptedOrganizationOperations(any());
+   }
+
    @Test
    void createOrganization_cloneOfCaseVariantOrgId_rejectedBeforeClone() {
       when(orgManager.isSiteAdmin(principal)).thenReturn(true);
@@ -3744,13 +3771,13 @@ class SecurityServiceTest {
    }
 
    @Test
-   void createPermissionGrant_identityNotFoundUnderAnyKind_stillPermitted() throws Exception {
+   void createPermissionGrant_identityNotFoundUnderAnyKind_refused() throws Exception {
       // a grant is written for the caller's current org only (Bug #77274)
       when(orgManager.getCurrentOrgID()).thenReturn("org1");
-      // Narrower-scoping decision: only a resolvable-but-mismatched kind is refused. An
-      // identity that does not exist under ANY kind (e.g. not yet synced from LDAP/SSO) is
-      // still permitted -- this is deliberately left open as a separate product question, not
-      // tightened by this fix.
+      // Bug #80948 decided the question this test used to leave open: a grantee that does not
+      // exist under any kind is refused before anything is written. An identity not yet synced
+      // from SSO is still accepted, because under SSO (or a virtual provider) users, groups and
+      // roles are not looked up at all.
       IdentityID notYetSynced = new IdentityID("not-yet-synced-user", "org1");
       stubPermissionAccessGranted(ResourceType.ASSET, "Examples/Census");
 
@@ -3759,9 +3786,10 @@ class SecurityServiceTest {
       grant.setType("USER");
       grant.setActions(List.of("READ"));
 
-      service.createPermissionGrant("Examples/Census", "ASSET", grant, principal);
+      assertThrows(MissingResourceException.class,
+                   () -> service.createPermissionGrant("Examples/Census", "ASSET", grant, principal));
 
-      verify(securityProvider).setPermission(eq(ResourceType.ASSET), eq("Examples/Census"), any());
+      verify(securityProvider, never()).setPermission(eq(ResourceType.ASSET), eq("Examples/Census"), any());
    }
 
    @Test
@@ -4582,6 +4610,8 @@ class SecurityServiceTest {
          SecurityEngine.getSecurity(), identityService, mock(ActionPermissionService.class),
          mock(LocalizationSettingsService.class), themeService, systemAdminService,
          userTreeService, customThemesManager);
+      // Bug #80954/#80955, no Spring context here, a JVM-local lock stands in for the cluster's
+      deleteService.setPermissionLockFactory(name -> new java.util.concurrent.locks.ReentrantLock());
 
       deleteService.deleteRole(GLOBAL_ROLE_PATH, principal);
 
@@ -4609,6 +4639,8 @@ class SecurityServiceTest {
          SecurityEngine.getSecurity(), identityService, mock(ActionPermissionService.class),
          mock(LocalizationSettingsService.class), themeService, systemAdminService,
          userTreeService, customThemesManager);
+      // Bug #80954/#80955, no Spring context here, a JVM-local lock stands in for the cluster's
+      deleteService.setPermissionLockFactory(name -> new java.util.concurrent.locks.ReentrantLock());
 
       Exception error = assertThrows(Exception.class,
                                      () -> deleteService.deleteRole(GLOBAL_ROLE_PATH, principal));
@@ -4740,7 +4772,10 @@ class SecurityServiceTest {
       // the org does not exist, so no IdentityInfo create record
       verify(Audit.getInstance(), never()).auditIdentityInfo(any(), any());
       verify(editableProvider, never()).removeOrganization(any());
-      verifyNoInteractions(identityService);
+      // Bug #79875, the recovery of an interrupted operation runs before the id is looked up,
+      // nothing else of the identity service is used
+      verify(identityService).recoverInterruptedOrganizationOperations(principal);
+      verifyNoMoreInteractions(identityService);
    }
 
    @Test
@@ -6519,6 +6554,36 @@ class SecurityServiceTest {
                                           eq(editableProvider), eq(principal));
    }
 
+   // Bug #79875
+   @Test
+   void updateOrganization_recoversInterruptedOperationsBeforeTheOrgIsLookedUp() throws Exception {
+      grantOrgAdminEverywhere(principal);
+      stubOrganization("org1", "Org One");
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org1" });
+
+      service.updateOrganization("org1", newOrgRequest("org1", "Org One"), principal);
+
+      InOrder order = inOrder(identityService, securityProvider);
+      order.verify(identityService).recoverInterruptedOrganizationOperations(principal);
+      order.verify(securityProvider).getOrganization("org1");
+      order.verify(identityService).setIdentity(any(Organization.class),
+                                                any(EditOrganizationPaneModel.class),
+                                                eq(editableProvider), eq(principal));
+   }
+
+   @Test
+   void updateOrganization_permissionDenied_noRecovery() throws Exception {
+      stubOrganization("org1", "Org One");
+
+      // the update wraps its precondition refusals (see PreMutationRefusalException)
+      SecurityService.PreMutationRefusalException ex = assertThrows(
+         SecurityService.PreMutationRefusalException.class,
+         () -> service.updateOrganization("org1", newOrgRequest("org1", "Org One"), principal));
+      assertInstanceOf(UnauthorizedAccessException.class, ex.getCause());
+
+      verify(identityService, never()).recoverInterruptedOrganizationOperations(any());
+   }
+
    @Test
    void updateOrganization_homeOrgUsedNotSwitchedCurrentOrg() throws Exception {
       // the current org can be moved to another org (curr_org_id), the home org is what counts.
@@ -6933,11 +6998,14 @@ class SecurityServiceTest {
    // identity's org even when the caller's current org is a different one.
 
    private SecurityService serviceWithRealUserTree(UserTreeService realUserTree) {
-      return new SecurityService(
+      SecurityService created = new SecurityService(
          SecurityEngine.getSecurity(), identityService, mock(ActionPermissionService.class),
          mock(LocalizationSettingsService.class), mock(IdentityThemeService.class),
          mock(SystemAdminService.class), realUserTree,
          mock(CustomThemesManager.class));
+      // Bug #80954/#80955, no Spring context here, a JVM-local lock stands in for the cluster's
+      created.setPermissionLockFactory(name -> new java.util.concurrent.locks.ReentrantLock());
+      return created;
    }
 
    private UserTreeService realUserTree(IndexedStorage storage, DataCycleManager cycleManager,

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.security;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.general.LocalizationSettingsService;
@@ -79,6 +80,12 @@ class SecurityServicePermissionWriteOracleTest {
       organizationManagerStatic = mockStatic(OrganizationManager.class,
                                              withSettings().strictness(Strictness.LENIENT));
       organizationManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+      // Bug #80948, SSO is off (the property is unset) and every grantee exists unless a test says
+      // otherwise
+      sreeEnvStatic = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT));
+      when(securityProvider.getUser(any())).thenReturn(mock(User.class));
+      when(securityProvider.getGroup(any())).thenReturn(mock(Group.class));
+      when(securityProvider.getOrganization(anyString())).thenReturn(mock(Organization.class));
 
       ActionPermissionService actionService =
          mock(ActionPermissionService.class, withSettings().lenient());
@@ -113,11 +120,14 @@ class SecurityServicePermissionWriteOracleTest {
          mock(LocalizationSettingsService.class), mock(IdentityThemeService.class),
          mock(SystemAdminService.class), mock(UserTreeService.class),
          mock(CustomThemesManager.class));
+      // Bug #80954/#80955, no Spring context here, a JVM-local lock stands in for the cluster's
+      service.setPermissionLockFactory(name -> new java.util.concurrent.locks.ReentrantLock());
    }
 
    @AfterEach
    void tearDown() {
       organizationManagerStatic.close();
+      sreeEnvStatic.close();
    }
 
    // ── the three oracles of the report ────────────────────────────────────
@@ -571,4 +581,5 @@ class SecurityServicePermissionWriteOracleTest {
    private Principal principal;
    private SecurityService service;
    private MockedStatic<OrganizationManager> organizationManagerStatic;
+   private MockedStatic<SreeEnv> sreeEnvStatic;
 }

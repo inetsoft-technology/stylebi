@@ -115,6 +115,8 @@ class SecurityServiceUpdateUserPasswordTest {
          mock(LocalizationSettingsService.class), themeService,
          mock(SystemAdminService.class), mock(UserTreeService.class, withSettings().lenient()),
          customThemesManager);
+      // Bug #80954/#80955, no Spring context here, a JVM-local lock stands in for the cluster's
+      service.setPermissionLockFactory(name -> new java.util.concurrent.locks.ReentrantLock());
 
       oldUser = new FSUser(USER_ID);
       when(securityProvider.getUser(USER_ID)).thenReturn(oldUser);

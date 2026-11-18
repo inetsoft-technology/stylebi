@@ -90,6 +90,8 @@ class PermissionIdentityRefsTest {
 
       securityService = spy(new SecurityService(securityEngine, null, null, null, null, null,
                                                 null, null));
+      // Bug #80954, no Spring context here, a JVM-local lock stands in for the cluster's
+      securityService.setPermissionLockFactory(name -> new java.util.concurrent.locks.ReentrantLock());
       doAnswer(inv -> resourcePermission()).when(securityService)
          .getPermission(eq(PATH), eq("ASSET"), any());
       doAnswer(inv -> {
