@@ -73,9 +73,9 @@ public class ScheduleTaskJob implements InterruptableJob {
                principal = SUtil.getScheduleTaskRunPrincipal(task, addr, true);
             }
 
-            if(principal != null) {
-               ThreadContext.setContextPrincipal(principal);
-            }
+            // Bug #81691, Quartz worker threads are reused, so an internal task (no principal)
+            // must not inherit the principal a previous user task left on this thread
+            ThreadContext.setContextPrincipal(principal);
 
             if(orgChanged) {
                OrganizationContextHolder.setCurrentOrgId(owner.getOrgID());
