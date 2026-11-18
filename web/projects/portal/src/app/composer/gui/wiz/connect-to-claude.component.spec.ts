@@ -1327,4 +1327,133 @@ describe("ConnectToClaudeComponent", () => {
          expect(paneStates()).toEqual([]);
       });
    });
+
+   /*
+    * Bug #81676: the dialog hosts two scripts behind a radio and its editorContext getter follows
+    * it, but the agent's session was bound to the location a code was minted for. A flip after an
+    * agent joined must move the session; before a join there is no session to move.
+    */
+   describe("follows the dialog radio (Bug #81676)", () => {
+      const script = { kind: "assemblyMain", assembly: "Submit1" };
+      const onClick = { kind: "assemblyOnClick", assembly: "Submit1" };
+
+      function notice(body: any): any {
+         return { frame: { body: JSON.stringify(body) } };
+      }
+
+      function mintAt(context: any): void {
+         let mintHandler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (dest: string, h: (msg: any) => void) => {
+               if(dest === "/user/commands/wiz/pairing/mint") { mintHandler = h; }
+               return { unsubscribe: vi.fn() };
+            });
+         component.runtimeId = "vs-1";
+         component.sheetType = "VIEWSHEET";
+         component.editorContext = context;
+         component.requestCode();
+         mintHandler!(notice({ code: "ABC123" }));
+      }
+
+      function agentJoins(context: any): void {
+         const call = mockStompConnection.subscribe.mock.calls
+            .filter((c: any[]) => c[0] === "/user/commands/wiz/pairing/joined").pop();
+         call[1](notice({ runtimeId: "vs-1", sheetType: "VIEWSHEET", editorContext: context }));
+      }
+
+      function flipTo(context: any): void {
+         component.editorContext = context;
+         component.ngOnChanges({ editorContext: { currentValue: context, firstChange: false,
+                                                  isFirstChange: () => false } } as any);
+      }
+
+      function switches(): any[] {
+         return mockStompConnection.send.mock.calls
+            .filter((c: any[]) => c[0] === "/events/wiz/pairing/pane-switch")
+            .map((c: any[]) => JSON.parse(c[2]));
+      }
+
+      it("sends a pane-switch from the bound location to the new radio position", () => {
+         mintAt(script);
+         agentJoins(script);
+
+         flipTo({ ...onClick });
+
+         expect(switches()).toEqual([{ runtimeId: "vs-1", from: script, to: onClick }]);
+      });
+
+      it("does not resend while the getter keeps handing out the same location", () => {
+         mintAt(script);
+         agentJoins(script);
+
+         flipTo({ ...script });
+         flipTo({ ...script });
+
+         expect(switches()).toEqual([]);
+      });
+
+      it("a second flip moves from where the first one went", () => {
+         mintAt(script);
+         agentJoins(script);
+
+         flipTo({ ...onClick });
+         flipTo({ ...script });
+
+         expect(switches()).toEqual([
+            { runtimeId: "vs-1", from: script, to: onClick },
+            { runtimeId: "vs-1", from: onClick, to: script }]);
+      });
+
+      it("sends nothing before an agent has joined, then moves the session when it joins", () => {
+         mintAt(script);
+
+         flipTo({ ...onClick });
+         expect(switches()).toEqual([]);
+
+         agentJoins(script);
+
+         expect(switches()).toEqual([{ runtimeId: "vs-1", from: script, to: onClick }]);
+      });
+
+      it("covers the viewsheet Script dialog's onInit/onRefresh radio too", () => {
+         mintAt({ kind: "viewsheetOnInit" });
+         agentJoins({ kind: "viewsheetOnInit" });
+
+         flipTo({ kind: "viewsheetOnLoad" });
+
+         expect(switches()).toEqual([{ runtimeId: "vs-1", from: { kind: "viewsheetOnInit" },
+                                      to: { kind: "viewsheetOnLoad" } }]);
+      });
+
+      it("never sends for anything but the two scripts of one dialog", () => {
+         mintAt({ kind: "calcField", assembly: "Query1", name: "Margin" });
+         agentJoins({ kind: "calcField", assembly: "Query1", name: "Margin" });
+
+         flipTo({ kind: "calcField", assembly: "Query1", name: "Renamed" });
+         flipTo({ kind: "assemblyOnClick", assembly: "Query1" });
+
+         expect(switches()).toEqual([]);
+      });
+
+      it("never sends for a whole-sheet (toolbar) instance", () => {
+         component.runtimeId = "vs-1";
+         component.sheetType = "VIEWSHEET";
+         component.requestCode();
+         flipTo({ ...onClick });
+
+         expect(switches()).toEqual([]);
+      });
+
+      it("still detaches with the context the code was minted with", () => {
+         mintAt(script);
+         agentJoins(script);
+         flipTo({ ...onClick });
+
+         component.detach();
+
+         const detach = mockStompConnection.send.mock.calls
+            .filter((c: any[]) => c[0] === "/events/wiz/pairing/detach").pop();
+         expect(JSON.parse(detach[2]).editorContext).toEqual(script);
+      });
+   });
 });

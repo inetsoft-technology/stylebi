@@ -34,6 +34,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -267,6 +268,52 @@ public class SheetPairingController {
          JoinSession retargeted =
             sessions.retarget(accessor.getSessionId(), req.runtimeId(), req.editorContext());
          broadcast.sendFocusChanged(retargeted);
+         return RetargetResponse.success();
+      }
+      catch(PairingException e) {
+         return RetargetResponse.failure(e.getMessage());
+      }
+   }
+
+   /**
+    * Payload for the STOMP pane switch.
+    *
+    * @param runtimeId the sheet the pane belongs to
+    * @param from      the location the session is bound to now
+    * @param to        the other script the same dialog hosts, which the user just switched to
+    */
+   public record PaneSwitchRequest(String runtimeId, EditorContext from, EditorContext to) {}
+
+   /**
+    * STOMP pane switch -- sent by a script dialog that hosts two scripts behind a radio
+    * (Script/onClick, onInit/onRefresh) when the user flips it, so the session paired from that
+    * dialog follows the radio: {@code status}, {@code get_pane_context} and the script tools'
+    * default target then name the script the user is looking at. Not gated on Follow Focus (it
+    * never leaves the dialog's own scripts); see {@link SheetSessionService#switchWithinDialog}
+    * for what is checked. Replies like {@link #retargetViaSocket}, and broadcasts the same
+    * {@code focusChanged} notice so a driver polling the focus counter sees the move.
+    * {@code socketSessionId} is derived from the accessor, never trusted from the client.
+    *
+    * <p>Send to: {@code /app/wiz/pairing/pane-switch}<br>
+    * Reply arrives on: {@code /user/queue/wiz/pairing/pane-switch}
+    */
+   @MessageMapping("/wiz/pairing/pane-switch")
+   @SendToUser("/commands/wiz/pairing/pane-switch")
+   public RetargetResponse paneSwitchViaSocket(@Payload PaneSwitchRequest req,
+                                               SimpMessageHeaderAccessor accessor)
+   {
+      if(req == null || req.runtimeId() == null || req.from() == null || req.to() == null) {
+         return RetargetResponse.failure("runtimeId, from and to are required");
+      }
+
+      try {
+         List<JoinSession> moved = sessions.switchWithinDialog(
+            accessor.getSessionId(), req.runtimeId(), req.from(), req.to());
+
+         for(JoinSession s : moved) {
+            broadcast.sendFocusChanged(s);
+         }
+
          return RetargetResponse.success();
       }
       catch(PairingException e) {

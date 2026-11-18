@@ -138,3 +138,27 @@ export function draftTargetLabel(target: EditorContext): string | null {
       return null;
    }
 }
+
+/** The two radio pairs one dialog hosts: the assembly Script dialog and the viewsheet one. */
+const DIALOG_RADIO_PAIRS: string[][] = [
+   ["assemblyMain", "assemblyOnClick"],
+   ["viewsheetOnInit", "viewsheetOnLoad"]
+];
+
+/**
+ * Whether going from `from` to `to` is the user flipping the radio of ONE dialog that hosts two
+ * scripts (Script/onClick, onInit/onRefresh): the two kinds are the two halves of one pair and
+ * name the same assembly. The only change a pairing follows without Follow Focus -- another
+ * assembly, another kind family, or a rename of a formula is not one.
+ */
+export function isDialogRadioSwitch(from: EditorContext | null | undefined,
+                                    to: EditorContext | null | undefined): boolean
+{
+   if(!from || !to || from.kind === to.kind ||
+      (from.assembly ?? null) !== (to.assembly ?? null))
+   {
+      return false;
+   }
+
+   return DIALOG_RADIO_PAIRS.some(pair => pair.includes(from.kind) && pair.includes(to.kind));
+}

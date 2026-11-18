@@ -99,7 +99,7 @@ class PaneScopeServiceVsConditionGrantTest {
    /**
     * The old trailing {@code return true} matched everything for a kind no earlier branch
     * classified. For every kind the grant must match a fabricated different target only when it is
-    * one of the two whole-viewsheet script kinds, whose kind equality is their whole identity.
+    * one of the two whole-viewsheet script kinds, whose kind family is their whole identity.
     */
    @Test
    void everyKindHasAMatchesGrantBranch() throws Exception {
@@ -111,7 +111,12 @@ class PaneScopeServiceVsConditionGrantTest {
             boolean viewsheetScript = granted == ScriptTarget.Kind.VIEWSHEET_ON_INIT ||
                granted == ScriptTarget.Kind.VIEWSHEET_ON_LOAD;
 
-            if(viewsheetScript && granted == k) {
+            // the viewsheet Script dialog hosts onInit and onRefresh behind one radio, so a grant
+            // for either one matches the other (Bug #81676)
+            boolean sibling = k == ScriptTarget.Kind.VIEWSHEET_ON_INIT ||
+               k == ScriptTarget.Kind.VIEWSHEET_ON_LOAD;
+
+            if(viewsheetScript && sibling) {
                continue;
             }
 

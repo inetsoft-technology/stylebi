@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -824,5 +825,174 @@ class SheetSessionServiceTest {
       JoinSession kept = svc.open("vs-1", "owner~;~org", SheetType.VIEWSHEET, "sock-2", "owner", ctx);
       assertEquals(PaneState.DEFAULT, svc.paneStateOf(gone));
       assertEquals(new PaneState(true), svc.paneStateOf(kept));
+   }
+
+   // ---- Bug #81676: a pane session follows the radio of its own dialog ----------------------------
+
+   private static final String OWNER = "owner~;~org";
+
+   /** A service whose location validation accepts everything, so these tests exercise only the
+    *  switch's own rules (the real check is {@code SheetPairingService.validateEditorContext}). */
+   private SheetSessionService lenientService() {
+      return new SheetSessionService(() -> FIXED_NOW, mock(SheetPairingService.class));
+   }
+
+   @Test
+   void switchMovesAPaneSessionToItsDialogSiblingKeepingTokenAndNeedingNoFollowFocus()
+      throws PairingException
+   {
+      SheetSessionService svc = lenientService();
+      EditorContext script = new EditorContext("assemblyMain", "Submit1", null, null);
+      EditorContext onClick = new EditorContext("assemblyOnClick", "Submit1", null, null);
+      JoinSession pane = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", script);
+
+      List<JoinSession> moved = svc.switchWithinDialog("sock-1", "vs-1", script, onClick);
+
+      assertEquals(1, moved.size());
+      JoinSession after = svc.resolve(pane.sessionToken(), OWNER);
+      assertEquals(onClick, after.editorContext());
+      assertFalse(after.followFocusEnabled());
+      assertEquals("sock-1", after.socketSessionId());
+   }
+
+   @Test
+   void switchMovesTheViewsheetOnInitSessionToOnLoad() throws PairingException {
+      SheetSessionService svc = lenientService();
+      EditorContext init = new EditorContext("viewsheetOnInit", null, null, null);
+      EditorContext load = new EditorContext("viewsheetOnLoad", null, null, null);
+      JoinSession pane = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", init);
+
+      svc.switchWithinDialog("sock-1", "vs-1", init, load);
+
+      assertEquals(load, svc.resolve(pane.sessionToken(), OWNER).editorContext());
+   }
+
+   @Test
+   void switchTouchesOnlyTheSessionBoundToFromNotTheToolbarSessionOnTheSameSocketAndRuntime()
+      throws PairingException
+   {
+      SheetSessionService svc = lenientService();
+      EditorContext init = new EditorContext("viewsheetOnInit", null, null, null);
+      EditorContext load = new EditorContext("viewsheetOnLoad", null, null, null);
+      JoinSession toolbar = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", null);
+      JoinSession pane = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", init);
+
+      svc.switchWithinDialog("sock-1", "vs-1", init, load);
+
+      assertNull(svc.resolve(toolbar.sessionToken(), OWNER).editorContext(),
+                 "a whole-sheet session must never be moved by a pane's radio");
+      assertEquals(load, svc.resolve(pane.sessionToken(), OWNER).editorContext());
+   }
+
+   @Test
+   void switchRefusesWhenNoSessionIsBoundToFromAndLeavesEverythingAlone() {
+      SheetSessionService svc = lenientService();
+      EditorContext script = new EditorContext("assemblyMain", "Submit1", null, null);
+      EditorContext onClick = new EditorContext("assemblyOnClick", "Submit1", null, null);
+      JoinSession pane = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", script);
+
+      assertThrows(PairingException.class,
+                   () -> svc.switchWithinDialog("sock-1", "vs-1", onClick, script));
+      assertThrows(PairingException.class,
+                   () -> svc.switchWithinDialog("other-socket", "vs-1", script, onClick));
+      assertThrows(PairingException.class,
+                   () -> svc.switchWithinDialog("sock-1", "vs-2", script, onClick));
+
+      assertEquals(script, svc.resolve(pane.sessionToken(), OWNER).editorContext());
+   }
+
+   @Test
+   void switchRefusesAnotherAssemblyAnotherFamilyAndAWholeSheetSession() {
+      SheetSessionService svc = lenientService();
+      EditorContext script = new EditorContext("assemblyMain", "Submit1", null, null);
+      JoinSession pane = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", script);
+      JoinSession toolbar = svc.open("vs-2", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", null);
+
+      assertThrows(PairingException.class, () -> svc.switchWithinDialog("sock-1", "vs-1", script,
+         new EditorContext("assemblyOnClick", "Submit2", null, null)));
+      assertThrows(PairingException.class, () -> svc.switchWithinDialog("sock-1", "vs-1", script,
+         new EditorContext("calcField", "Query1", "Margin", null)));
+      assertThrows(PairingException.class, () -> svc.switchWithinDialog("sock-1", "vs-1", script,
+         new EditorContext("viewsheetOnInit", null, null, null)));
+      assertThrows(PairingException.class, () -> svc.switchWithinDialog("sock-1", "vs-2", null,
+         new EditorContext("assemblyMain", "Submit1", null, null)));
+      assertThrows(PairingException.class,
+                   () -> svc.switchWithinDialog("sock-1", "vs-1", script, null));
+
+      assertEquals(script, svc.resolve(pane.sessionToken(), OWNER).editorContext());
+      assertNull(svc.resolve(toolbar.sessionToken(), OWNER).editorContext());
+   }
+
+   @Test
+   void switchRefusesAnExpiredSession() {
+      SheetSessionService svc = lenientService();
+      EditorContext script = new EditorContext("assemblyMain", "Submit1", null, null);
+      svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", script);
+      SheetSessionService later = new SheetSessionService(
+         () -> FIXED_NOW + SheetSessionService.TTL_MILLIS + 1, svc);
+
+      assertThrows(PairingException.class, () -> later.switchWithinDialog("sock-1", "vs-1", script,
+         new EditorContext("assemblyOnClick", "Submit1", null, null)));
+   }
+
+   @Test
+   void switchRefusesALocationTheRuntimeDoesNotHaveAndTouchesNothing() throws PairingException {
+      SheetPairingService pairing = mock(SheetPairingService.class);
+      EditorContext script = new EditorContext("assemblyMain", "Submit1", null, null);
+      EditorContext onClick = new EditorContext("assemblyOnClick", "Submit1", null, null);
+      doThrow(new PairingException(PairingException.Kind.INVALID_ARGUMENT, "no such script"))
+         .when(pairing).validateEditorContext(any(), any(), any(), eq(onClick));
+      SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW, pairing);
+      JoinSession pane = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", script);
+
+      assertThrows(PairingException.class,
+                   () -> svc.switchWithinDialog("sock-1", "vs-1", script, onClick));
+
+      assertEquals(script, svc.resolve(pane.sessionToken(), OWNER).editorContext());
+   }
+
+   @Test
+   void switchCarriesTheReportedPaneStateAcrossToTheNewLocation() throws PairingException {
+      SheetSessionService svc = lenientService();
+      EditorContext script = new EditorContext("assemblyMain", "Submit1", null, null);
+      EditorContext onClick = new EditorContext("assemblyOnClick", "Submit1", null, null);
+      JoinSession pane = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", script);
+      svc.setPaneState("sock-1", "vs-1", script, new PaneState(true));
+
+      svc.switchWithinDialog("sock-1", "vs-1", script, onClick);
+
+      assertEquals(new PaneState(true), svc.paneStateOf(svc.resolve(pane.sessionToken(), OWNER)));
+   }
+
+   /**
+    * The leak the minted-context detach was introduced to avoid, one step further: after the
+    * radio moved the session, the dialog still detaches with the context it MINTED, which no
+    * longer equals the session's. Detach matches the dialog family of that assembly instead.
+    */
+   @Test
+   void detachWithTheMintedContextEndsASessionThatHasSinceBeenSwitched() throws PairingException {
+      SheetSessionService svc = lenientService();
+      EditorContext init = new EditorContext("viewsheetOnInit", null, null, null);
+      EditorContext load = new EditorContext("viewsheetOnLoad", null, null, null);
+      JoinSession pane = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner", init);
+      svc.switchWithinDialog("sock-1", "vs-1", init, load);
+
+      svc.detach("sock-1", init);
+
+      assertNull(svc.resolve(pane.sessionToken(), OWNER));
+   }
+
+   @Test
+   void detachDoesNotReachAnotherAssemblysSessionOrAnotherFamilyOnTheSameSocket() {
+      SheetSessionService svc = lenientService();
+      JoinSession other = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner",
+         new EditorContext("assemblyOnClick", "Submit2", null, null));
+      JoinSession calc = svc.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "owner",
+         new EditorContext("calcField", "Query1", "Margin", null));
+
+      svc.detach("sock-1", new EditorContext("assemblyMain", "Submit1", null, null));
+
+      assertNotNull(svc.resolve(other.sessionToken(), OWNER));
+      assertNotNull(svc.resolve(calc.sessionToken(), OWNER));
    }
 }

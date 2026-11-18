@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { draftTargetLabel, dynamicValueLabel, hyperlinkRegionLabel } from "./editor-context";
+import { draftTargetLabel, dynamicValueLabel, hyperlinkRegionLabel, isDialogRadioSwitch } from "./editor-context";
 
 describe("dynamicValueLabel", () => {
    it("shows a bare name as the property key", () => {
@@ -79,5 +79,31 @@ describe("draftTargetLabel", () => {
    it("has no label for any other kind", () => {
       expect(draftTargetLabel({ kind: "dynamicValue", assembly: "T", name: "visible" })).toBeNull();
       expect(draftTargetLabel({ kind: "calcField", assembly: "T" })).toBeNull();
+   });
+});
+
+describe("isDialogRadioSwitch", () => {
+   it("is true for the two scripts of one assembly's dialog, in both directions", () => {
+      expect(isDialogRadioSwitch({ kind: "assemblyMain", assembly: "Submit1" },
+                                 { kind: "assemblyOnClick", assembly: "Submit1" })).toBe(true);
+      expect(isDialogRadioSwitch({ kind: "assemblyOnClick", assembly: "Submit1" },
+                                 { kind: "assemblyMain", assembly: "Submit1" })).toBe(true);
+   });
+
+   it("is true for the viewsheet Script dialog's onInit/onRefresh", () => {
+      expect(isDialogRadioSwitch({ kind: "viewsheetOnInit" }, { kind: "viewsheetOnLoad" })).toBe(true);
+   });
+
+   it("is false for another assembly, another family, the same location or a missing side", () => {
+      expect(isDialogRadioSwitch({ kind: "assemblyMain", assembly: "A" },
+                                 { kind: "assemblyOnClick", assembly: "B" })).toBe(false);
+      expect(isDialogRadioSwitch({ kind: "assemblyOnClick", assembly: "A" },
+                                 { kind: "viewsheetOnInit" })).toBe(false);
+      expect(isDialogRadioSwitch({ kind: "calcField", assembly: "T", name: "A" },
+                                 { kind: "calcField", assembly: "T", name: "B" })).toBe(false);
+      expect(isDialogRadioSwitch({ kind: "assemblyMain", assembly: "A" },
+                                 { kind: "assemblyMain", assembly: "A" })).toBe(false);
+      expect(isDialogRadioSwitch(null, { kind: "viewsheetOnLoad" })).toBe(false);
+      expect(isDialogRadioSwitch({ kind: "viewsheetOnInit" }, undefined)).toBe(false);
    });
 });

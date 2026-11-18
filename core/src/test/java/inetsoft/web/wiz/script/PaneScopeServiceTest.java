@@ -252,19 +252,43 @@ class PaneScopeServiceTest {
    }
 
    /**
-    * The two viewsheet-level whole-viewsheet kinds are not dialog siblings of each other — a
-    * pane session scoped to {@code viewsheetOnInit} must not roam to {@code viewsheetOnLoad},
-    * even with strict posture off (where the addressability gate alone would let either kind
-    * through from ANY session, pane-scoped or not).
+    * The viewsheet Script dialog hosts onInit and onRefresh behind one radio, so they are dialog
+    * siblings (Bug #81676, reversing the exclusion #4654 / ec46b37d95 had tested): a pane session
+    * scoped to {@code viewsheetOnInit} may act on {@code viewsheetOnLoad}, and the other way
+    * round, but on nothing else -- not an assembly script, not another expression-level kind.
     */
    @Test
-   void aPaneScopedSessionMayNotActOnADifferentViewsheetLevelKind() throws Exception {
-      JoinSession pane =
-         sessionScopedTo(new EditorContext("viewsheetOnInit", null, null, null));
-      ScriptTarget onLoad = ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_LOAD, null);
+   void aPaneScopedViewsheetSessionMayActOnTheOtherScriptTheSameDialogHosts() throws Exception {
+      JoinSession onInit = sessionScopedTo(new EditorContext("viewsheetOnInit", null, null, null));
+      JoinSession onLoad = sessionScopedTo(new EditorContext("viewsheetOnLoad", null, null, null));
+      ScriptTarget initTarget = ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_INIT, null);
+      ScriptTarget loadTarget = ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_LOAD, null);
 
-      assertThrows(PairingException.class,
-         () -> new PaneScopeService(false).check(pane, onLoad));
+      new PaneScopeService(false).check(onInit, loadTarget);
+      new PaneScopeService(false).check(onLoad, initTarget);
+
+      assertThrows(PairingException.class, () -> new PaneScopeService(false)
+         .check(onInit, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Chart1")));
+      assertThrows(PairingException.class, () -> new PaneScopeService(false)
+         .check(onInit, ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin")));
+   }
+
+   @Test
+   void dialogSiblingsAreTheRadioPairsOfOneAssemblyOnly() {
+      EditorContext main = new EditorContext("assemblyMain", "Submit1", null, null);
+      EditorContext click = new EditorContext("assemblyOnClick", "Submit1", null, null);
+      EditorContext otherClick = new EditorContext("assemblyOnClick", "Submit2", null, null);
+      EditorContext init = new EditorContext("viewsheetOnInit", null, null, null);
+      EditorContext load = new EditorContext("viewsheetOnLoad", null, null, null);
+
+      assertTrue(PaneScopeService.areDialogSiblings(main, click));
+      assertTrue(PaneScopeService.areDialogSiblings(init, load));
+      assertFalse(PaneScopeService.areDialogSiblings(main, otherClick));
+      assertFalse(PaneScopeService.areDialogSiblings(click, init));
+      assertFalse(PaneScopeService.areDialogSiblings(main, null));
+      assertFalse(PaneScopeService.areDialogSiblings(
+         new EditorContext("calcField", "Query1", "A", null),
+         new EditorContext("calcField", "Query1", "B", null)));
    }
 
    /**
