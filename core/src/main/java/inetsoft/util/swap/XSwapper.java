@@ -505,8 +505,8 @@ public final class XSwapper {
     * see {@code claude/cluster.md}) is kept as long as the lease of its seed is live (Feature
     * #79134, see {@link SwapSeedLeases}): the topology alone can't tell such a JVM from one that
     * is gone. The lease is read only for a seed whose owners are not in the topology or that is
-    * not registered, never for a healthy one, and a
-    * lease that is missing or stale leaves the decision to the topology, as before. The sweep of
+    * not registered, never for a healthy one, and a lease that is missing or stale leaves the
+    * decision to the topology, as before. The sweep of
     * a JVM that crashed and left its lease reads that lease as live the first time, so it takes
     * the timeout of the lease, counted from the first sweep that read it, before the files are
     * deleted; the one-shot startup sweep of a restarted JVM or scheduler therefore doesn't

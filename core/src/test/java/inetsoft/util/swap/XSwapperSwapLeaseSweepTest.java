@@ -244,6 +244,11 @@ class XSwapperSwapLeaseSweepTest {
       Fixture fixture = new Fixture();
       writeLease(fixture.liveSeed, "10");
       Map<Long, String> seeds = Cluster.getInstance().getMap(XSwapper.SWAP_SEED_MAP);
+      // positive control, the owner is in the topology and its lease goes stale the same way
+      long inTopology = nextSeed();
+      seeds.put(inTopology, OTHER_LIVE_NODE);
+      File healthy = createRegistered("s" + inTopology + "_1_s.tdat");
+      writeLease(inTopology, "10");
 
       // the first look is live, however old the file is
       XSwapper.getSwapper().sweepDeadSeedSwapFiles(cacheDir);
@@ -253,9 +258,44 @@ class XSwapperSwapLeaseSweepTest {
       now.addAndGet(SwapSeedLeases.getTimeout() + 1);
       XSwapper.getSwapper().sweepDeadSeedSwapFiles(cacheDir);
 
+      assertTrue(healthy.exists(), "a stale lease made the file of a node in the topology dead");
+      assertTrue(seeds.containsKey(inTopology));
       assertFalse(fixture.live.exists(), "the file of a JVM with a stale lease survived");
       assertFalse(seeds.containsKey(fixture.liveSeed), "the seed of a stale lease was kept");
       assertFalse(leaseFile(fixture.liveSeed).exists(), "the stale lease was kept");
+   }
+
+   // D2, the topology decides first: a lease only adds protection, a stale lease or none never
+   // makes the files of an owner that is in the topology dead
+   @ParameterizedTest
+   @EnumSource(value = Entry.class, names = { "SWEEP_DEAD_SEED_SWAP_FILES", "STARTUP_SWEEP",
+                                              "CLEAR_CACHE_FILES" })
+   void staleLeaseNeverMakesTheFilesOfAnOwnerInTheTopologyDead(Entry entry) throws Exception {
+      Fixture control = new Fixture();
+      Map<Long, String> seeds = Cluster.getInstance().getMap(XSwapper.SWAP_SEED_MAP);
+      long inTopology = nextSeed();
+      long noLease = nextSeed();
+      seeds.put(inTopology, OTHER_LIVE_NODE);
+      seeds.put(noLease, OTHER_LIVE_NODE);
+      File stale = createRegistered("s" + inTopology + "_1_s.tdat");
+      File none = createRegistered("s" + noLease + "_1_s.tdat");
+      File unregistered = createUnregistered("s" + inTopology + "_2.tdat");
+      writeLease(inTopology, "10");
+      assertTrue(SwapSeedLeases.isAlive(cacheDir, inTopology));
+      // aged past T, not renewed
+      now.addAndGet(SwapSeedLeases.getTimeout() * 2);
+      assertFalse(SwapSeedLeases.isAlive(cacheDir, inTopology), "the lease must be stale");
+
+      run(entry);
+
+      // the control is dead (owner not in topology, no lease) and is deleted by the same run
+      assertFalse(control.dead.exists(), "the sweep did not run");
+      assertTrue(stale.exists(), entry + " deleted the file of a node in the topology");
+      assertTrue(none.exists(), entry + " deleted the file of a node in the topology");
+      assertTrue(unregistered.exists(), entry + " deleted an unregistered file of a live node");
+      assertTrue(seeds.containsKey(inTopology), "the seed of a node in the topology was removed");
+      assertTrue(Cluster.getInstance().<String, Integer>getMap(XSwapper.SWAP_FILE_MAP)
+                    .containsKey(stale.getAbsolutePath()));
    }
 
    // C2, the lease never skips the grace period, with a stale lease or none

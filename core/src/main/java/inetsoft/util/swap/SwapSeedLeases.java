@@ -49,7 +49,12 @@ import java.util.function.LongSupplier;
  * written when the swapper is created, before it can write a swap file, and every
  * {@link #REFRESH_INTERVAL} with a new counter by a dedicated daemon thread, never on the swap
  * path. It is deleted when the swapper stops or the JVM exits normally; a JVM that is halted
- * leaves it, and it is removed once it is found stale.
+ * leaves it. Its leases are removed by the sweeps once they are found stale if the seed is in the
+ * seed map of the sweeping node, and any lease that has not been written for a day is removed.
+ * <p>
+ * A lease is replaced atomically, so normally a reader never sees a part of it. Where the atomic
+ * replace fails (e.g. Windows, with the lease open in another process) it is rewritten in place,
+ * and a reader that sees a partial or empty lease takes it as live, as its time changes.
  * <p>
  * A lease is live until its counter has not changed for {@link #getTimeout()} on the clock of the
  * reader, so the clocks of two hosts that share a network mount are never compared. The first
@@ -265,7 +270,8 @@ final class SwapSeedLeases {
    /**
     * Reads the lease of another JVM.
     *
-    * @return false if it is missing or its counter has not changed for the timeout.
+    * @return false if it is missing or stale: its counter has not changed for the timeout, i.e.
+    *         now - firstSeen >= timeout on the clock of the reader.
     */
    private static boolean isLive(File lease) {
       String path = lease.getAbsolutePath();
@@ -365,7 +371,9 @@ final class SwapSeedLeases {
 
    /**
     * Writes a local lease. It is written to a temporary file that replaces the lease, so that
-    * another JVM never reads a part of it. A failure is logged and does not throw.
+    * normally another JVM never reads a part of it. Where the replace fails (e.g. Windows, with
+    * the lease open elsewhere) the lease is rewritten in place, and a reader that sees a partial or
+    * empty lease takes it as live. A failure is logged and does not throw.
     */
    private static void write(File lease, String nodeId) {
       File leaseDir = lease.getParentFile();
