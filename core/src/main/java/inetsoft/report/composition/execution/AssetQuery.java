@@ -1700,6 +1700,8 @@ public abstract class AssetQuery extends PreAssetQuery {
          count = base.getColCount();
       }
 
+      checkExpressionCycle(columns);
+
       ColumnSelection columns0 = new ColumnSelection();
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
@@ -1865,6 +1867,75 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
+    * Fail with a message if script expression columns refer to each other, directly or through
+    * other expressions. A cyclic definition has no value, and evaluating it would only give
+    * what the evaluation order leaves behind (Bug #81206). A column that refers to itself is
+    * not checked here.
+    */
+   private void checkExpressionCycle(ColumnSelection columns) {
+      Map<String, List<String>> graph = new LinkedHashMap<>();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         ColumnRef column = (ColumnRef) columns.getAttribute(i);
+
+         if(!column.isExpression() || column.isSQL() ||
+            !(getBaseAttribute(column) instanceof ExpressionRef) ||
+            ((ExpressionRef) getBaseAttribute(column)).isVirtual())
+         {
+            continue;
+         }
+
+         List<String> deps = new ArrayList<>();
+         Enumeration<?> iterator = column.getExpAttributes();
+
+         while(iterator.hasMoreElements()) {
+            DataRef ref = (DataRef) iterator.nextElement();
+            int index = ref == null ? -1 : columns.indexOfAttribute(ref);
+
+            if(index >= 0) {
+               ColumnRef dep = (ColumnRef) columns.getAttribute(index);
+
+               if(!Objects.equals(dep.getName(), column.getName())) {
+                  deps.add(dep.getName());
+               }
+            }
+         }
+
+         graph.put(column.getName(), deps);
+      }
+
+      Set<String> done = new HashSet<>();
+
+      for(String name : graph.keySet()) {
+         checkExpressionCycle(name, graph, new HashSet<>(), done);
+      }
+   }
+
+   private void checkExpressionCycle(String name, Map<String, List<String>> graph,
+                                     Set<String> path, Set<String> done)
+   {
+      List<String> deps = graph.get(name);
+
+      if(deps == null || done.contains(name)) {
+         return;
+      }
+
+      if(!path.add(name)) {
+         String msg = Catalog.getCatalog().getString(
+            "common.expression.circularReference", name);
+         LOG.error(msg);
+         throw new MessageException(msg, LogLevel.ERROR);
+      }
+
+      for(String dep : deps) {
+         checkExpressionCycle(dep, graph, path, done);
+      }
+
+      path.remove(name);
+      done.add(name);
+   }
+
+   /**
     * Add expression.
     */
    private void addExpression(ColumnRef column, ColumnSelection columns,
@@ -1873,9 +1944,13 @@ public abstract class AssetQuery extends PreAssetQuery {
                               List<FormulaHeaderInfo> hinfos,
                               List<Boolean> mergetables, Set<String> inProgress)
    {
-      // expressions that refer to each other must not recurse forever (Bug #81206)
+      // expressions that refer to each other have no value, and skipping the repeated column
+      // would leave a result that depends on the evaluation order (Bug #81206)
       if(!inProgress.add(getAttributeString(column))) {
-         return;
+         String msg = Catalog.getCatalog().getString(
+            "common.expression.circularReference", column.getName());
+         LOG.error(msg);
+         throw new MessageException(msg, LogLevel.ERROR);
       }
 
       try {
