@@ -32,6 +32,9 @@ import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAestheticModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
+import inetsoft.web.binding.model.graph.ChartGeoRefModel;
+import inetsoft.web.binding.model.graph.GeographicOptionInfo;
+import inetsoft.report.internal.graph.MapData;
 import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
@@ -39,6 +42,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.binding.model.GeoFieldLayer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -83,6 +87,7 @@ public class BindingReadService {
       Map<String, List<FieldRef>> shelves = new LinkedHashMap<>();
       Map<String, Object> sorts = new LinkedHashMap<>();
       List<FieldRef> dateComparisonSeries = null;
+      Map<String, GeoFieldLayer> geoLayers = null;
 
       if(model instanceof ChartBindingModel chart) {
          // Under Multi Style each measure renders with its own type, so x and y carry it per field.
@@ -103,6 +108,7 @@ public class BindingReadService {
          // so a caller doesn't mistake x/y (lat/lon measures on a map) for "nothing is bound".
          if(GraphTypes.isGeo(chart.getChartType()) || !chart.getGeoFields().isEmpty()) {
             shelves.put("geo", refs(chart.getGeoFields()));
+            geoLayers = geoLayers(chart);
          }
 
          // describeSorts already disambiguates a column bound twice on the SAME shelf (its own
@@ -198,7 +204,82 @@ public class BindingReadService {
                                  assembly.getClass().getSimpleName(),
                                  model == null || model.getSource() == null
                                     ? null : BindingSources.displayName(model.getSource().getSource()),
-                                 shelves, sorts, dateComparisonSeries);
+                                 shelves, sorts, dateComparisonSeries, geoLayers);
+   }
+
+   /**
+    * Each geo field's layer and map type (Bug #81664), keyed by the field's column. They are read
+    * from the chart's geo COLUMN, matched by name: that is where the Composer keeps the layer
+    * (it copies the column's option onto the shelf field before applying a change), and the
+    * shelf field's own option can be stale or carry no map type. The field's own option is the
+    * fallback for a field with no matching column.
+    *
+    * @return the layers, or {@code null} when the chart has no geo fields
+    */
+   static Map<String, GeoFieldLayer> geoLayers(ChartBindingModel chart) {
+      List<ChartRefModel> fields = chart.getGeoFields();
+
+      if(fields == null || fields.isEmpty()) {
+         return null;
+      }
+
+      Map<String, GeoFieldLayer> layers = new LinkedHashMap<>();
+
+      for(ChartRefModel field : fields) {
+         if(!(field instanceof ChartGeoRefModel geo)) {
+            continue;
+         }
+
+         ChartGeoRefModel col = null;
+
+         if(chart.getGeoCols() != null) {
+            for(DataRefModel c : chart.getGeoCols()) {
+               if(c instanceof ChartGeoRefModel g && g.getOption() != null &&
+                  geo.getColumnValue() != null &&
+                  geo.getColumnValue().equalsIgnoreCase(g.getColumnValue()))
+               {
+                  col = g;
+                  break;
+               }
+            }
+         }
+
+         GeographicOptionInfo option = col != null ? col.getOption() : geo.getOption();
+         layers.put(geo.getColumnValue(), geoLayer(option, chart.getMapType()));
+      }
+
+      return layers.isEmpty() ? null : layers;
+   }
+
+   /**
+    * One field's layer name and map type. The layer id is named after the map type because
+    * {@code MapData.getLayerName} cannot tell State from Province (both are id 2): Canada and
+    * Mexico call it Province. A value that is not a plain id (a variable or expression) has no
+    * name, and is reported as {@code layerValue} only.
+    */
+   static GeoFieldLayer geoLayer(GeographicOptionInfo option, String chartMapType) {
+      String value = option == null ? null : option.getLayerValue();
+      String mapType = option != null && option.getMapping() != null
+         ? option.getMapping().getType() : null;
+
+      if(mapType == null || mapType.isBlank()) {
+         mapType = chartMapType == null || chartMapType.isBlank() ? null : chartMapType;
+      }
+
+      String name = null;
+
+      if(value != null && !value.isBlank()) {
+         try {
+            int id = Integer.parseInt(value.trim());
+            name = id == 2 && ("Canada".equals(mapType) || "Mexico".equals(mapType))
+               ? "Province" : MapData.getLayerName(id);
+         }
+         catch(NumberFormatException e) {
+            // a variable or expression: reported through layerValue
+         }
+      }
+
+      return new GeoFieldLayer(name, mapType, value == null || value.isBlank() ? null : value);
    }
 
    /**
