@@ -123,6 +123,7 @@ public class TimeScale extends Scale {
 
       nullValue = false;
       nodata = false;
+      fitStep = 0;
       ticks = null;
 
       int rowCnt = data.getRowCount();
@@ -243,6 +244,17 @@ public class TimeScale extends Scale {
       cmin = min0;
       cmax = max0;
 
+      // pick a round unit whose ticks all fit a label
+      if(labelFitPlotPx > 0 && labelFitLabelPx > 0 && increment == null && type0 == null &&
+         !nodata)
+      {
+         int budget = Math.max(2, (int) Math.floor(labelFitPlotPx / labelFitLabelPx));
+         int[] fit = chooseFitUnit(cmax - cmin, getIncLength(type), budget);
+         type = fit[0];
+         fitStep = fit[1];
+         cacheSpec = null;
+      }
+
       // force min/max to include ticks
       getTicks();
    }
@@ -255,6 +267,7 @@ public class TimeScale extends Scale {
       this.cmin = scale.cmin;
       this.cmax = scale.cmax;
       this.type = scale.type;
+      this.fitStep = scale.fitStep;
       this.nullValue = scale.nullValue;
       this.nodata = scale.nodata;
       this.interval = scale.interval;
@@ -362,6 +375,59 @@ public class TimeScale extends Scale {
     */
    public double getEndPadRatio() {
       return endPadRatio;
+   }
+
+   /**
+    * Set the plot width and label width in pixels used to pick a round time unit with a
+    * label on every tick. Zero turns it off.
+    * @hidden
+    */
+   public void setLabelFit(double plotPx, double labelPx) {
+      this.labelFitPlotPx = plotPx;
+      this.labelFitLabelPx = labelPx;
+   }
+
+   /**
+    * Get the plot width in pixels used to fit the labels.
+    * @hidden
+    */
+   public double getLabelFitPlotPx() {
+      return labelFitPlotPx;
+   }
+
+   /**
+    * Get the label width in pixels used to fit the labels.
+    * @hidden
+    */
+   public double getLabelFitLabelPx() {
+      return labelFitLabelPx;
+   }
+
+   /**
+    * Get the number of units between ticks picked by the label fit, 0 if it is off or did
+    * not run.
+    * @hidden
+    */
+   public int getFitStep() {
+      return fitStep;
+   }
+
+   /**
+    * Choose the unit type and step for a label on every tick.
+    *
+    * @return {type, step}: the first candidate at least as long as the data unit whose tick
+    * count fits the budget, else the last candidate.
+    */
+   static int[] chooseFitUnit(long rangeMs, long dataUnitMs, int maxTicks) {
+      for(int[] cand : FIT_CANDIDATES) {
+         long length = getIncLength(cand[0]) * cand[1];
+
+         if(length >= dataUnitMs && rangeMs / length + 1 <= maxTicks) {
+            return cand.clone();
+         }
+      }
+
+      return FIT_CANDIDATES[FIT_CANDIDATES.length - 1].clone();
    }
 
    /**
@@ -516,7 +582,7 @@ public class TimeScale extends Scale {
          // add dates on the tick to dates
          List<Date> dates = new ArrayList<>();
          GregorianCalendar cal = new GregorianCalendar();
-         int n = increment != null ? Math.max(1, increment.intValue()) : 1;
+         int n = fitStep > 0 ? fitStep : increment != null ? Math.max(1, increment.intValue()) : 1;
          long incLen = getIncLength();
          int maxTicks = Integer.MAX_VALUE;
 
@@ -545,14 +611,15 @@ public class TimeScale extends Scale {
          maxTicks = Math.min(maxTicks, GDefaults.AXIS_LABEL_MAX_COUNT * 2);
 
          Format fmt = getAxisSpec().getTextSpec().getFormat();
-         boolean hasDup = isFormattedToHigherInterval() && !getAxisSpec().isAllTicks();
+         boolean hasDup = fitStep == 0 && isFormattedToHigherInterval() &&
+            !getAxisSpec().isAllTicks();
          // if the format shows a higher interval (e.g. second data formatted as days), step by
          // that interval instead of visiting every unit of type only to drop duplicate labels
          int stepType = hasDup && increment == null ? getFormatInterval(fmt) : type;
          long stepLen = getIncLength(stepType);
 
          // make sure the number of ticks is not too large (out of memory)
-         if(!getAxisSpec().isAllTicks()) {
+         if(fitStep == 0 && !getAxisSpec().isAllTicks()) {
             while((max - min) / (stepLen * n) > maxTicks) {
                n++;
             }
@@ -610,7 +677,7 @@ public class TimeScale extends Scale {
             }
 
             // make sure last date is on scale if the increment changed due to maxTicks. (53670)
-            if(n > 1 && (increment == null || n != increment.intValue()) && dates.size() > 0) {
+            if(fitStep == 0 && n > 1 && (increment == null || n != increment.intValue()) && dates.size() > 0) {
                Date last = dates.get(dates.size() - 1);
 
                if(last.getTime() < max && (!hasDup || fmt == null ||
@@ -869,6 +936,16 @@ public class TimeScale extends Scale {
       { YEAR, 0 },
       };
 
+   // fit candidates {type, step}, ascending by length
+   private static final int[][] FIT_CANDIDATES = {
+      { MINUTE, 1 }, { MINUTE, 5 }, { MINUTE, 15 }, { MINUTE, 30 },
+      { HOUR, 1 }, { HOUR, 3 }, { HOUR, 6 }, { HOUR, 12 },
+      { DAY, 1 }, { DAY, 2 }, { WEEK, 1 }, { WEEK, 2 },
+      { MONTH, 1 }, { QUARTER, 1 }, { QUARTER, 2 },
+      { YEAR, 1 }, { YEAR, 2 }, { YEAR, 5 }, { YEAR, 10 }, { YEAR, 25 }, { YEAR, 50 },
+      { YEAR, 100 },
+   };
+
    private Long umin = null; // explicitly set min
    private Long umax = null; // explicitly set max
    private long cmin = 0; // calculated min
@@ -884,6 +961,9 @@ public class TimeScale extends Scale {
    private double interval = -1; // smallest interval in data
    private Number increment = null; // increment for ticks
    private Integer maxTicks = null;
+   private double labelFitPlotPx = 0; // plot width for the label fit, 0 is off
+   private double labelFitLabelPx = 0; // label width for the label fit
+   private int fitStep = 0; // units between ticks picked by the fit, 0 is off
    private boolean isTime = false;
    private transient double[] ticks;
    private transient boolean gen = false; // true if VGraph generation started
