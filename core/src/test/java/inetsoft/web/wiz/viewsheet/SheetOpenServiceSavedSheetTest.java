@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeSheet;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
@@ -473,5 +474,56 @@ class SheetOpenServiceSavedSheetTest {
          "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/VS", null, false);
 
       assertTrue(opened.warnings().isEmpty(), opened.warnings().toString());
+   }
+
+   private static AssetEntry savedEntry(String path, AssetEntry.Type type) {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, type, path, null, "host-org");
+   }
+
+   private static RuntimeViewsheet openViewsheet(String path) {
+      AssetEntry entry = savedEntry(path, AssetEntry.Type.VIEWSHEET);
+      RuntimeViewsheet sheet = mock(RuntimeViewsheet.class);
+      when(sheet.getEntry()).thenReturn(entry);
+      return sheet;
+   }
+
+   @Test
+   void warnsWhenTheSameUserAlreadyHasTheViewsheetOpen() throws Exception {
+      RuntimeViewsheet tab = openViewsheet("Sales/Dashboard");
+      when(viewsheetService.getRuntimeViewsheets(any(Principal.class)))
+         .thenReturn(new RuntimeViewsheet[] { tab });
+
+      SheetOpenService.OpenedSheet opened = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null, false);
+
+      assertEquals(1, opened.warnings().size());
+      assertTrue(opened.warnings().get(0).contains("already open"), opened.warnings().toString());
+   }
+
+   @Test
+   void doesNotWarnWhenOnlyADifferentViewsheetIsOpen() throws Exception {
+      RuntimeViewsheet other = openViewsheet("Sales/Other");
+      when(viewsheetService.getRuntimeViewsheets(any(Principal.class)))
+         .thenReturn(new RuntimeViewsheet[] { other });
+
+      SheetOpenService.OpenedSheet opened = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null, false);
+
+      assertTrue(opened.warnings().isEmpty(), opened.warnings().toString());
+   }
+
+   @Test
+   void warnsWhenTheSameUserAlreadyHasTheWorksheetOpen() throws Exception {
+      AssetEntry entry = savedEntry("Sales/Orders", AssetEntry.Type.WORKSHEET);
+      RuntimeSheet tab = mock(RuntimeSheet.class);
+      when(tab.getEntry()).thenReturn(entry);
+      when(worksheetService.getRuntimeSheets(any(Principal.class)))
+         .thenReturn(new RuntimeSheet[] { tab });
+
+      SheetOpenService.OpenedSheet opened = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.WORKSHEET, "Sales/Orders", null, false);
+
+      assertEquals(1, opened.warnings().size());
+      assertTrue(opened.warnings().get(0).contains("already open"), opened.warnings().toString());
    }
 }

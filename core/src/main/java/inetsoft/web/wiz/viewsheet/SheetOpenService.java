@@ -48,6 +48,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -372,6 +373,8 @@ public class SheetOpenService {
       Principal browserUser = actingSheet == null ? user : actingSheet.getUser();
       String runtimeId;
       List<String> warnings = List.of();
+      // Checked before the open so the new runtime is not counted as its own other copy.
+      boolean otherCopyOpen = hasOpenCopy(entry, isViewsheet, browserUser);
 
       try {
          if(isViewsheet) {
@@ -405,6 +408,15 @@ public class SheetOpenService {
             "no " + typeName + " named '" + assetPath + "' could be opened.");
       }
 
+      if(otherCopyOpen) {
+         List<String> withCopyWarning = new ArrayList<>(warnings);
+         withCopyWarning.add(
+            "This " + typeName + " is already open for this user in another Composer tab or " +
+            "agent session. The copies are independent: saving either one overwrites the other " +
+            "without a prompt. Save or close the other copy first.");
+         warnings = List.copyOf(withCopyWarning);
+      }
+
       JoinSession session = sheetSessions.open(runtimeId, actingSession.ownerIdentity(), type,
                                                actingSession.socketSessionId(),
                                                actingSession.socketUserName(), null);
@@ -421,6 +433,28 @@ public class SheetOpenService {
       broadcast.sendToComposer(actingSession.socketSessionId(), command);
 
       return new OpenedSheet(session, warnings);
+   }
+
+   /**
+    * Whether the user already has a runtime open on {@code entry}: the Composer's own tab or a
+    * copy an earlier open minted. The Composer's open-lock only checks other users, so without
+    * this the second copy is invisible and a save from either one silently overwrites the other.
+    */
+   private boolean hasOpenCopy(AssetEntry entry, boolean viewsheet, Principal user) {
+      RuntimeSheet[] open = viewsheet ? viewsheetService.getRuntimeViewsheets(user)
+                                      : worksheetService.getRuntimeSheets(user);
+
+      if(open == null) {
+         return false;
+      }
+
+      for(RuntimeSheet sheet : open) {
+         if(sheet != null && Tool.equals(entry, sheet.getEntry())) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -457,8 +491,8 @@ public class SheetOpenService {
     *
     * @param session  the session paired to the opened sheet
     * @param warnings warning and error messages raised while loading a worksheet, such as an
-    *                 outer mirror whose source could not be copied; empty for a clean open and
-    *                 always empty for a viewsheet
+    *                 outer mirror whose source could not be copied, or a copy of the same sheet the
+    *                 user already has open; empty for a clean open
     */
    public record OpenedSheet(JoinSession session, List<String> warnings) {}
 
