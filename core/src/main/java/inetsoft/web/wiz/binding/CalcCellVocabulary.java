@@ -138,7 +138,7 @@ public final class CalcCellVocabulary {
    private static final List<String> SORT_KEYS = List.of("direction", "manualOrder", "rankBy");
 
    /** The keys {@code CalcTableService} reads from a cell's {@code topn}. */
-   private static final List<String> TOPN_KEYS = List.of("mode", "n", "rankBy");
+   private static final List<String> TOPN_KEYS = List.of("mode", "n", "rankBy", "others");
 
    /** The keys {@code CalcTableService} reads from a {@code rankBy} inside sort or topn. */
    private static final List<String> RANK_BY_KEYS = List.of("column", "formula");
@@ -615,6 +615,13 @@ public final class CalcCellVocabulary {
       if(topn.get("rankBy") != null) {
          requireRankBy(topn.get("rankBy"), "'topn.rankBy'");
       }
+
+      Object others = topn.get("others");
+
+      if(others != null && !(others instanceof Boolean)) {
+         throw new IllegalArgumentException(
+            "'topn.others' must be true or false, got " + others + ".");
+      }
    }
 
    /**
@@ -870,6 +877,7 @@ public final class CalcCellVocabulary {
          if(topn.getType() != XCondition.NONE) {
             topnOut.put("n", topn.getTopn());
             topnOut.put("rankBy", rankByOf(aggregates, topn.getSumCol()));
+         topnOut.put("others", topn.getOthers());
          }
 
          if(info.getType() != CellBinding.BIND_FORMULA) {

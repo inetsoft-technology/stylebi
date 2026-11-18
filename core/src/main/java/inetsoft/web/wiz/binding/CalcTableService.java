@@ -1824,6 +1824,14 @@ public class CalcTableService {
          Object n = topn.get("n");
          model.setTopn(n == null ? 3 : ((Number) n).intValue());
          model.setSumCol(resolveRankBy(rvs, assembly, asMap(topn.get("rankBy")), "'topn'"));
+
+         // The Others row the Composer's Top-N pane offers; omitted keeps the stored setting.
+         if(topn.get("others") != null) {
+            model.setOthers((Boolean) topn.get("others"));
+         }
+      }
+      else {
+         model.setOthers(false);
       }
    }
 
