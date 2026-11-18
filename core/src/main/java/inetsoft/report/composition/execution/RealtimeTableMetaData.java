@@ -252,7 +252,16 @@ public class RealtimeTableMetaData extends TableMetaData {
                      idxs[i] = meta;
                   }
 
-                  if(idxs != null) {
+                  if(idxs != null && cube) {
+                     // cube members are not comparable with the slider bounds (captions)
+                     // as values, so compare by member position instead
+                     List<Object> cubeConds = toCubeRanges(conds, idxs);
+
+                     if(cubeConds != null) {
+                        ranges.put(idxs, cubeConds);
+                     }
+                  }
+                  else if(idxs != null) {
                      ranges.put(idxs, conds);
                   }
                }
@@ -567,6 +576,138 @@ public class RealtimeTableMetaData extends TableMetaData {
    }
 
    @Serial
+   /**
+    * Convert the range conditions of a cube slider to position based ranges.
+    * @return the converted ranges, or null if any bound can not be resolved to a member (the
+    * range is then not applied).
+    */
+   private List<Object> toCubeRanges(List<Object> conds, ColumnMetaData[] keyMetas) {
+      List<Object> result = new ArrayList<>();
+
+      for(Object obj : conds) {
+         CubeRange range = CubeRange.create((RangeCondition) obj, keyMetas, colmap);
+
+         if(range == null) {
+            LOG.debug("Unable to resolve the cube range bounds to members: {}", obj);
+            return null;
+         }
+
+         result.add(range);
+      }
+
+      return result;
+   }
+
+   /**
+    * A range on cube members. The bounds are resolved to member positions in the column
+    * metadata and compared by position. This assumes the member order in the metadata is the
+    * hierarchy order of the cube (the order the members are returned by the cube query), since
+    * neither the unique name nor the caption of a member sorts chronologically.
+    */
+   private static final class CubeRange {
+      static CubeRange create(RangeCondition cond, ColumnMetaData[] keyMetas,
+                              Map<String, ColumnMetaData> colmap)
+      {
+         DataRef[] refs = cond.getRefs();
+         Object[] mins = cond.getMins();
+         Object[] maxes = cond.getMaxes();
+         CubeRange range = new CubeRange();
+         range.id = cond.getId();
+         range.lowerInclusive = cond.isLowerInclusive();
+         range.upperInclusive = cond.isUpperInclusive();
+         range.metas = new ColumnMetaData[refs.length];
+         range.mins = new int[refs.length];
+         range.maxes = new int[refs.length];
+
+         for(int i = 0; i < refs.length; i++) {
+            ColumnMetaData meta = colmap.get(refs[i].getName());
+
+            if(meta == null && refs[i] instanceof AttributeRef) {
+               meta = colmap.get(((AttributeRef) refs[i]).getAttribute());
+            }
+
+            if(meta == null && keyMetas.length == refs.length) {
+               meta = keyMetas[i];
+            }
+
+            if(meta == null) {
+               return null;
+            }
+
+            range.metas[i] = meta;
+            range.mins[i] = indexOf(meta, mins[i]);
+            range.maxes[i] = indexOf(meta, maxes[i]);
+
+            if(range.mins[i] < 0 || range.maxes[i] < 0) {
+               return null;
+            }
+         }
+
+         return range;
+      }
+
+      private static int indexOf(ColumnMetaData meta, Object bound) {
+         if(bound == null) {
+            return -1;
+         }
+
+         String str = bound.toString();
+         List<Object> values = meta.getValues();
+
+         for(int i = 0; i < values.size(); i++) {
+            if(values.get(i) instanceof MemberObject) {
+               MemberObject mobj = (MemberObject) values.get(i);
+
+               if(str.equals(mobj.getUName()) || str.equals(mobj.getCaption()) ||
+                  str.equals(mobj.toView()))
+               {
+                  return i;
+               }
+            }
+         }
+
+         for(int i = 0; i < values.size(); i++) {
+            if(values.get(i) instanceof MemberObject &&
+               XMLAUtil.isIdentity(str, (MemberObject) values.get(i)))
+            {
+               return i;
+            }
+         }
+
+         return -1;
+      }
+
+      boolean evaluate(int[] tuple) {
+         int[] vals = new int[metas.length];
+
+         for(int i = 0; i < vals.length; i++) {
+            vals[i] = tuple[metas[i].getIndex()];
+         }
+
+         int cmin = compare(vals, mins);
+         int cmax = compare(vals, maxes);
+         return (cmin > 0 || cmin == 0 && lowerInclusive) &&
+            (cmax < 0 || cmax == 0 && upperInclusive);
+      }
+
+      private static int compare(int[] a, int[] b) {
+         for(int i = 0; i < a.length; i++) {
+            if(a[i] != b[i]) {
+               return a[i] < b[i] ? -1 : 1;
+            }
+         }
+
+         return 0;
+      }
+
+      private String id;
+      private ColumnMetaData[] metas;
+      private int[] mins;
+      private int[] maxes;
+      private boolean lowerInclusive;
+      private boolean upperInclusive;
+   }
+
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
       in.defaultReadObject();
       lock = new ReentrantReadWriteLock();
@@ -674,13 +815,12 @@ public class RealtimeTableMetaData extends TableMetaData {
             }
 
             for(int i = 0; i < conds.size(); ) {
-               RangeCondition cond = (RangeCondition) conds.get(i);
-               String condId = cond.getId();
+               String condId = rangeId(conds.get(i));
                int end = i + 1;
 
                // find index of next group
                for(; end < conds.size(); end++) {
-                  if(!Objects.equals(condId, ((RangeCondition) conds.get(end)).getId())) {
+                  if(!Objects.equals(condId, rangeId(conds.get(end)))) {
                      break;
                   }
                }
@@ -689,9 +829,11 @@ public class RealtimeTableMetaData extends TableMetaData {
 
                // ranges in same group are OR conditions (calendar)
                for(; i < end; i++) {
-                  cond = (RangeCondition) conds.get(i);
+                  Object cond = conds.get(i);
 
-                  if(cond.evaluate(vals)) {
+                  if(cond instanceof CubeRange ? ((CubeRange) cond).evaluate(tuple) :
+                     ((RangeCondition) cond).evaluate(vals))
+                  {
                      ok = true;
                      break;
                   }
@@ -713,6 +855,10 @@ public class RealtimeTableMetaData extends TableMetaData {
          }
 
          return vidx;
+      }
+
+      private static String rangeId(Object cond) {
+         return cond instanceof CubeRange ? ((CubeRange) cond).id : ((RangeCondition) cond).getId();
       }
 
       /**

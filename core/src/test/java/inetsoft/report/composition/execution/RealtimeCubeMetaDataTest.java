@@ -65,7 +65,7 @@ public class RealtimeCubeMetaDataTest {
                           { "[Y].[2002]", "[M].[Mar]", "[C].[Parts]" } };
       DefaultTableLens table = new DefaultTableLens(rows.length + 1, 3);
       table.setObject(0, 0, "Year");
-      table.setObject(0, 1, "Month");
+      table.setObject(0, 1, CAL + ".Month");
       table.setObject(0, 2, "Category");
       table.setHeaderRowCount(1);
 
@@ -130,5 +130,135 @@ public class RealtimeCubeMetaDataTest {
    void rangeOnOtherHierarchyDoesNotFilterMonthList() throws Exception {
       Assertions.assertEquals(
          3, monthCount(create(), SelectionVSAssembly.RANGE + "Category", range("o", "Category")));
+   }
+
+   // ---- real-shaped members: uName + caption, months in chronological member order ----
+
+   private static final String[] MONTHS = { "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December" };
+
+   private static MemberObject captioned(String uName, String caption) throws Exception {
+      MemberObject m = member(uName, CAL);
+      Field f = MemberObject.class.getDeclaredField("caption");
+      f.setAccessible(true);
+      f.set(m, caption);
+      return m;
+   }
+
+   // 38 months Jul 2001 .. Aug 2004
+   private RealtimeCubeMetaData createReal() throws Exception {
+      List<int[]> months = new ArrayList<>();
+
+      for(int y = 2001; y <= 2004; y++) {
+         for(int m = 1; m <= 12; m++) {
+            if((y > 2001 || m >= 7) && (y < 2004 || m <= 8)) {
+               months.add(new int[] { y, m });
+            }
+         }
+      }
+
+      DefaultTableLens table = new DefaultTableLens(months.size() + 1, 2);
+      table.setObject(0, 0, CAL + ".Calendar Year");
+      table.setObject(0, 1, CAL + ".Month");
+      table.setHeaderRowCount(1);
+
+      for(int r = 0; r < months.size(); r++) {
+         int y = months.get(r)[0];
+         int m = months.get(r)[1];
+         table.setObject(r + 1, 0, captioned("[Date].[Calendar].[Calendar Year].&[" + y + "]", "CY " + y));
+         table.setObject(r + 1, 1, captioned("[Date].[Calendar].[Month].&[" + y + "]&[" + m + "]",
+                                          MONTHS[m - 1] + " " + y));
+      }
+
+      return new RealtimeCubeMetaData("cube", table, new String[] { CAL + ".Calendar Year", CAL + ".Month" },
+                                      new ArrayList<>());
+   }
+
+   private static DataRef cubeRef(String name) {
+      AttributeRef ref = new AttributeRef(CAL, name);
+      ref.setRefType(DataRef.CUBE);
+      return ref;
+   }
+
+   private static RangeCondition realRange(String[] names, Object[] mins, Object[] maxes)
+      throws Exception
+   {
+      DataRef[] refs = new DataRef[names.length];
+
+      for(int i = 0; i < refs.length; i++) {
+         refs[i] = cubeRef(names[i]);
+      }
+
+      java.lang.reflect.Constructor<RangeCondition> c = RangeCondition.class.getDeclaredConstructor(
+         Object[].class, Object[].class, DataRef[].class, boolean.class, boolean.class,
+         boolean.class, String.class);
+      c.setAccessible(true);
+      return c.newInstance(mins, maxes, refs, true, true, false, "slider");
+   }
+
+   private Set<String> values(RealtimeCubeMetaData md, String key, RangeCondition cond, String col)
+      throws Exception
+   {
+      Map<String, Collection<Object>> selections = new HashMap<>();
+      selections.put(key, new ArrayList<>(List.of(cond)));
+      SelectionSet set = md.getAssociatedValues(
+         col, selections, new DataRef[] { cubeRef(col) }, null,
+         new SelectionMeasureAggregation(false));
+      Set<String> result = new TreeSet<>();
+
+      for(Object obj : set) {
+         Object v = obj instanceof SelectionSet.Tuple ? ((SelectionSet.Tuple) obj).get(0) : obj;
+         result.add(((MemberObject) v).getCaption());
+      }
+
+      return result;
+   }
+
+   @Test
+   void realCompositeRangeKeepsMonthsAndYearsInRange() throws Exception {
+      RangeCondition cond = realRange(new String[] { CAL + ".Calendar Year", CAL + ".Month" },
+                                      new Object[] { "CY 2002", "November 2002" },
+                                      new Object[] { "CY 2003", "December 2003" });
+      String key = SelectionVSAssembly.RANGE + "[Date].[Calendar].Calendar Year^/^[Date].[Calendar].Month";
+      RealtimeCubeMetaData md = createReal();
+      Set<String> months = values(md, key, cond, "Month");
+      Assertions.assertEquals(14, months.size(), months.toString());
+      Assertions.assertTrue(months.contains("November 2002"));
+      Assertions.assertTrue(months.contains("December 2003"));
+      Assertions.assertFalse(months.contains("October 2002"));
+      Assertions.assertFalse(months.contains("January 2004"));
+      Assertions.assertEquals(Set.of("CY 2002", "CY 2003"),
+                              values(md, key, cond, "Calendar Year"));
+   }
+
+   @Test
+   void realMonthOnlyRangeKeepsMonthsInRange() throws Exception {
+      RangeCondition cond = realRange(new String[] { "Month" },
+                                      new Object[] { "November 2002" },
+                                      new Object[] { "December 2003" });
+      String key = SelectionVSAssembly.RANGE + "[Date].[Calendar].Month";
+      Assertions.assertEquals(14, values(createReal(), key, cond, "Month").size());
+   }
+
+   @Test
+   void captionOrderDisagreeingWithChronologyUsesMemberOrder() throws Exception {
+      // "March 2003" < "November 2002" as strings
+      RangeCondition cond = realRange(new String[] { "Month" },
+                                      new Object[] { "November 2002" },
+                                      new Object[] { "March 2003" });
+      String key = SelectionVSAssembly.RANGE + "[Date].[Calendar].Month";
+      Set<String> months = values(createReal(), key, cond, "Month");
+      Assertions.assertEquals(
+         Set.of("November 2002", "December 2002", "January 2003", "February 2003", "March 2003"),
+         months);
+   }
+
+   @Test
+   void unresolvableBoundDoesNotApplyRange() throws Exception {
+      RangeCondition cond = realRange(new String[] { "Month" },
+                                      new Object[] { "Smarch 2002" },
+                                      new Object[] { "December 2003" });
+      String key = SelectionVSAssembly.RANGE + "[Date].[Calendar].Month";
+      Assertions.assertEquals(38, values(createReal(), key, cond, "Month").size());
    }
 }
