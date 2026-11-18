@@ -382,9 +382,8 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, not decided): year, month, day and hour " +
-      "of a null date are -1")
-   void pin_nullDate_partsAreMinusOne() {
+   @DisplayName("Year, month, day and hour of a null date are -1 (convention kept in #81204)")
+   void nullDate_partsAreMinusOne() {
       for(String part : new String[] { "year", "month", "day", "hour" }) {
          assertEquals(-1, first(oneDate(null), "CALC." + part + "(field['orderdate'])",
                                 XSchema.INTEGER), part);
@@ -549,9 +548,8 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, not decided): a declared Integer truncates " +
-      "toward zero")
-   void pin_integerTruncatesTowardZero() {
+   @DisplayName("A declared Integer truncates toward zero (kept in #81200)")
+   void integerTruncatesTowardZero() {
       assertEquals(Arrays.asList(2, 3, -3, 2),
                    values(calc(rows(new Object[] { 2.5, 1, 1, "NY", "Albany", null },
                                     new Object[] { 3.5, 1, 1, "NY", "Albany", null },
@@ -669,9 +667,8 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, not decided): null * 1 is the number 0 " +
-      "converted to every declared type")
-   void pin_nullTimesOne() {
+   @DisplayName("Null * 1 is the number 0 converted to every declared type (#81197)")
+   void nullTimesOne() {
       Object[][] data = oneDate(null);
       assertEquals(0, first(data, "null * 1", XSchema.INTEGER));
       assertEquals(0.0, first(data, "null * 1", XSchema.DOUBLE));

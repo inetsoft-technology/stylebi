@@ -312,9 +312,8 @@ class NthMostFrequentFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, not decided): case-different texts with " +
-      "equal counts")
-   void pin_caseDifferentTie() {
+   @DisplayName("Case-different texts with equal counts: the smaller one wins (#80953 Q4)")
+   void caseDifferentTie() {
       NthMostFrequentFormula forward = new NthMostFrequentFormula(1);
       NthMostFrequentFormula reverse = new NthMostFrequentFormula(1);
       addAll(forward, "B", "B", "a", "a");

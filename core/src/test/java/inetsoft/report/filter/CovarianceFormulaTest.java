@@ -324,8 +324,7 @@ class CovarianceFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, not decided): separator, hex and Arabic " +
-      "digit text pairs are skipped")
+   @DisplayName("Separator, hex and Arabic digit text pairs are skipped")
    void separatorHexAndArabicDigitText_pairIsSkipped() {
       CovarianceFormula clean = new CovarianceFormula(2);
       pairs(clean, p(1, 2), p(2, 7), p(3, 4));

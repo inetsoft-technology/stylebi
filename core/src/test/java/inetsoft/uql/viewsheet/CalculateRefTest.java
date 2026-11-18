@@ -166,9 +166,8 @@ class CalculateRefTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, not decided): a raw U+0001 character cannot " +
-      "be written to XML 1.0 and does not come back")
-   void pin_rawControlCharacterIsLost() throws Exception {
+   @DisplayName("A raw U+0001 character cannot be written to XML 1.0 and does not come back")
+   void rawControlCharacterIsLost() throws Exception {
       CalculateRef ref = calc(true, "'x" + (char) 1 + "y'");
       ExpressionRef back = (ExpressionRef) ((CalculateRef) roundTrip(ref)).getDataRef();
       assertFalse(back.getExpression().indexOf((char) 1) >= 0);
