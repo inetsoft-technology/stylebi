@@ -222,6 +222,9 @@ public abstract class AbstractEditableAuthenticationProvider
       identityService.addCopiedIdentityPermission(fromOrganization.getIdentityID(), new IdentityID(newOrg.getName(), newOrgID),
                                                   newOrgID, Identity.ORGANIZATION, replace);
       String fromOrgId = fromOrganization.getId();
+      // another node may have just saved a property that this node has not reloaded yet
+      // (Bug #81618)
+      PropertiesEngine.getInstance().syncOrgScopedProperties(fromOrgId);
       copyScopedProperties(fromOrgId, newOrgID, replace);
       copyDataSpace(fromOrganization, newOrg, replace);
       String newOrgThemeId = copyThemes(fromOrgId, newOrgID, replace);

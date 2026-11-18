@@ -1090,7 +1090,10 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          return;
       }
 
-      List<String> members = new ArrayList<>(Arrays.asList(org.getMembers()));
+      // an organization created without a member list has null members
+      String[] orgMembers = org.getMembers();
+      List<String> members =
+         orgMembers == null ? new ArrayList<>() : new ArrayList<>(Arrays.asList(orgMembers));
       members.remove(oldIdentity.name);
       org.setMembers(members.toArray(new String[0]));
 
