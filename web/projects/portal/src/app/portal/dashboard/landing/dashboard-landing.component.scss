@@ -74,7 +74,7 @@
     border: 1px solid var(--inet-default-border-color);
     border-radius: var(--inet-radius-lg);
     background: var(--inet-shell-surface-default);
-    box-shadow: var(--inet-shadow-small);
+    box-shadow: var(--inet-shadow-low);
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -88,7 +88,7 @@
     &:hover,
     &:focus-visible {
       border-color: var(--inet-primary-color);
-      box-shadow: var(--inet-focus-ring), var(--inet-shadow-medium);
+      box-shadow: var(--inet-shadow-medium);
       outline: var(--inet-focus-ring-outline);
 
       .landing-card__icon-wrap {
@@ -96,10 +96,10 @@
       }
     }
 
-    // hover is not a focus state: a dark shell draws no ring around the hover border
-    &:hover:not(:focus-visible) {
-      box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-dark-hover-ring-color, var(--inet-focus-ring-color)),
-                  var(--inet-shadow-medium);
+    // hover, focus and selected are distinct states: only keyboard focus adds the ring, in both
+    // shells, and a hovered card that also has keyboard focus keeps it
+    &:focus-visible {
+      box-shadow: var(--inet-focus-ring), var(--inet-shadow-medium);
     }
   }
 

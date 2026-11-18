@@ -248,10 +248,6 @@ $dark-ws-row-hover-bg: #302D27;
   // the halo around a checked tree checkbox, which is not a focus state: it keeps the dark
   // shell's earlier focus-ring strength
   --inet-dark-check-halo-color: rgba(217, 122, 26, 0.45);
-  // The ring a clickable card draws on hover, outside its orange hover border. Hover is not a focus
-  // state. A light shell's faint ring blends into its light page as a glow, but on a dark page a
-  // translucent orange turns brown and reads as a second edge, so a dark shell shows the border only.
-  --inet-dark-hover-ring-color: transparent;
   // a faint tint for a selected row that holds chips drawn in the hover surface, so the chips
   // still stand out from it
   --inet-dark-selected-tint-color: rgba(255, 255, 255, 0.05);

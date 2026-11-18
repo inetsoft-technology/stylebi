@@ -142,6 +142,11 @@ How it works (Feature #80673):
   list over 500 labels, the combo box / text input / table cell date calendar). App command menus
   (context menus, the mini-toolbar More menu) and tooltips are shell chrome; annotation tooltips are
   the exception and keep the annotation's own fill (white by default), as in a light shell.
+- **Clickable cards** (home cards, workspace chooser tiles, New Data Source cards) hover the same as
+  in the light shell's "Clickable cards" rule (shell-design-spec.md): primary border plus the dark
+  medium shadow, no lift and **no hover ring** in either shell. Hover, focus and selected are three
+  distinct states, and a light hover with the ring was pixel-identical to focus. Focus keeps the
+  `2px` ring at the dark strength (`.75`).
 - **Authored and third-party surfaces stay as designed for white:** CKEditor editing areas (email
   messages and annotations) and data source brand logos, which sit on a white circle in both shells.
   CodeMirror uses the Darcula theme in a dark shell.

@@ -387,7 +387,16 @@ body {
 .restricted-action-btn--primary:focus-visible,
 #activeSession .modal-footer .btn-primary:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--ln-focus);
+  box-shadow: 0 0 0 2px var(--ln-focus);
+}
+
+/* the restricted page's primary action is a link drawn as a button: without this the global
+   a:hover colour (the same orange as the hover fill) hides its label, and the link underline shows */
+.restricted-action-btn--primary,
+.restricted-action-btn--primary:hover,
+.restricted-action-btn--primary:focus-visible {
+  color: var(--ln-button-primary-text);
+  text-decoration: none;
 }
 
 .btn-default,
