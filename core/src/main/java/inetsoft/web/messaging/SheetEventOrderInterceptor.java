@@ -54,9 +54,9 @@ import java.util.concurrent.atomic.*;
  * The periodic touch-asset event is not queued again while the same event is held for the sheet
  * with only touch-asset events after it, so a refresh that takes longer than the refresh interval
  * cannot build a backlog, and a touch-asset (e.g. an auto save) is never moved before a later
- * event. A close is not held behind the running event unless other events are held, so closing a
- * busy sheet still cancels its query without overtaking a held event (e.g. a save) sent before the
- * close.
+ * event. A close is not held behind the running event unless events other than touch-assets are
+ * held, so closing a busy sheet still cancels its query without overtaking a held event (e.g. a
+ * save) sent before the close. The held touch-assets are dropped when the close is sent.
  * <p>
  * The tickets are kept out of the message headers, which are copied into the
  * {@code ServiceProxyContext} of cluster calls. Only the ticket id is put in a header.
@@ -110,8 +110,18 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
             queue = new ArrayDeque<>();
             action.set(Action.SEND);
          }
-         else if(CLOSE_DESTINATIONS.contains(destination) && queue.size() == 1) {
-            // only the running event is queued, let the close cancel it
+         else if(CLOSE_DESTINATIONS.contains(destination) && onlyCoalescedHeld(queue)) {
+            // only the running event is queued, or only periodic events (e.g. an auto save) are
+            // held after it, let the close cancel it. The held ones are dropped, they must not
+            // run after the close (Bug #81374)
+            Iterator<Ticket> iterator = queue.iterator();
+            iterator.next();
+
+            while(iterator.hasNext()) {
+               tickets.remove(iterator.next().id);
+               iterator.remove();
+            }
+
             action.set(Action.SEND_UNORDERED);
             return queue;
          }
@@ -235,6 +245,25 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
       }
 
       return false;
+   }
+
+   /**
+    * Check if every event held after the running one (the head of the queue) is a coalesced one.
+    */
+   private static boolean onlyCoalescedHeld(Deque<Ticket> queue) {
+      Iterator<Ticket> iterator = queue.iterator();
+      iterator.next();
+
+      while(iterator.hasNext()) {
+         String heldDestination =
+            SimpMessageHeaderAccessor.getDestination(iterator.next().message.getHeaders());
+
+         if(!COALESCED_DESTINATIONS.contains(heldDestination)) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    private static int getSubscriberCount(MessageChannel channel) {
