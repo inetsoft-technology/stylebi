@@ -146,7 +146,15 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          // for all cases. only use lens for AttributeTableLens to narrow the scope
          // of change and reduce the chance of backward compatibility problem.
          // may consider removing this and use lens in the future. (13.5)
-         if(lens instanceof AttributeTableLens) {
+         RuntimeCalcTableLens runtime = lens != null && getInfo() instanceof CalcTableVSAssemblyInfo ?
+            (RuntimeCalcTableLens) Util.getNestedTable(lens, RuntimeCalcTableLens.class) : null;
+
+         // a value the script writes to a freehand table cell must reach the runtime calc
+         // table, or a $name formula reads the bound text of the cell instead (81610)
+         if(runtime != null) {
+            tarr = new TableArray(new CalcWriteTableLens(lens, runtime));
+         }
+         else if(lens instanceof AttributeTableLens) {
             tarr = new TableArray(lens);
          }
          else {
@@ -1258,6 +1266,39 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       }
 
       return scriptRows;
+   }
+
+   /**
+    * The table array of a freehand table. It keeps the attributes a script sets on the cells in
+    * the view table, and also writes the cell values to the runtime calc table, where the
+    * $name references of the formula cells read them.
+    */
+   public static class CalcWriteTableLens extends AttributeTableLens {
+      public CalcWriteTableLens(TableLens table, RuntimeCalcTableLens runtime) {
+         super(table);
+         this.runtime = runtime;
+      }
+
+      @Override
+      public void setObject(int r, int c, Object val) {
+         runtime.setObject(r, c, val);
+         TableLens base = getTable();
+
+         // the view table reads the value from the attribute table below this one
+         if(base instanceof AttributeTableLens) {
+            ((AttributeTableLens) base).setObject(r, c, val);
+         }
+         else {
+            super.setObject(r, c, val);
+         }
+      }
+
+      @Override
+      public void setData(int r, int c, Object val) {
+         setObject(r, c, val);
+      }
+
+      private final RuntimeCalcTableLens runtime;
    }
 
    /**
