@@ -1208,7 +1208,7 @@ export namespace ChartTool {
          // an empty getPropertyValue would be ignored by the canvas, leaving the last colour set
          context.strokeStyle = vizModern
             ? getComputedStyle(document.documentElement)
-                 .getPropertyValue("--inet-primary-color").trim() || "#E58A2A"
+                 .getPropertyValue("--inet-primary-color").trim() || "#D97A1A"
             : "#dc581e";
          const len = 5;
 
