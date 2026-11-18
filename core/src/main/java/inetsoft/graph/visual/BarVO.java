@@ -714,7 +714,7 @@ public class BarVO extends ElementVO {
          }
 
          // text in middle of bar, support auto text color
-         if(elem.isAutoTextColor()) {
+         if(elem.isAutoTextColor() && !(elem.isValueFitInside() && isHighlightColor(vtext, elem))) {
             vtext.setAutoBackground(gobj.getColor(0));
             vtext.setContrastInk(elem.isContrastInk());
          }
@@ -735,9 +735,41 @@ public class BarVO extends ElementVO {
       vtext.setSize(new DimensionD(prefw, prefh));
       vtext.setPlacement(placement);
 
+      if(elem.isValueFitInside()) {
+         applyValueFit(vtext, prefw, prefh, box);
+      }
+
       Point2D pt = new Point2D.Double(midx, midy);
       Point2D offset = vtext.getRotationOffset(pt, placement);
       vtext.setOffset(offset);
+   }
+
+   // hide a value that does not fit its mark, and show it again once it does
+   private void applyValueFit(VOText text, double prefw, double prefh, Rectangle2D box) {
+      boolean fits = prefw + 2 * VALUE_FIT_INSET <= box.getWidth() &&
+         prefh + 2 * VALUE_FIT_INSET <= box.getHeight();
+      boolean stack = text == stackText;
+      boolean hidden = stack ? stackFitHidden : fitHidden;
+
+      if(!fits) {
+         text.setZIndex(-1);
+      }
+      else if(hidden) {
+         text.setZIndex(GDefaults.TEXT_Z_INDEX);
+      }
+
+      if(stack) {
+         stackFitHidden = !fits;
+      }
+      else {
+         fitHidden = !fits;
+      }
+   }
+
+   // a highlight gives the label its own colour, which the automatic colour must not replace
+   private static boolean isHighlightColor(VOText text, GraphElement elem) {
+      TextSpec base = elem.getLabelTextSpec(text.getMeasureName());
+      return base != null && !Objects.equals(text.getTextSpec().getColor(), base.getColor());
    }
 
    /**
@@ -2029,6 +2061,9 @@ public class BarVO extends ElementVO {
    private Shape geomShape;
    private boolean negative = false;
    private VOText vtext;
+   private boolean fitHidden;
+   private boolean stackFitHidden;
+   private static final double VALUE_FIT_INSET = 3;
    private VOText stackText;
    private Coordinate coord;
    private boolean has_border = false;
