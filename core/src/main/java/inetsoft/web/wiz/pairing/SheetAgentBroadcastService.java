@@ -26,6 +26,7 @@ import inetsoft.uql.asset.AbstractTableAssembly;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.WSAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -502,7 +503,18 @@ public class SheetAgentBroadcastService {
 
          RefreshVSObjectCommand command = new RefreshVSObjectCommand();
          command.setInfo(model);
-         sendCommand(user, sessionId, runtimeId, command);
+
+         // Bug #81648: the native refresh (CoreLifecycleService.refreshVSObject) addresses a
+         // selection-container child to its container. The client updates the child inside the
+         // container only on an addressed command; an unaddressed one draws the child again at
+         // its stored position, leaving a ghost copy until the user hits Refresh.
+         if(vsAssembly.getContainer() instanceof CurrentSelectionVSAssembly container) {
+            sendToBrowser(user, sessionId, runtimeId, container.getAbsoluteName(), command);
+         }
+         else {
+            sendCommand(user, sessionId, runtimeId, command);
+         }
+
          sent++;
       }
 

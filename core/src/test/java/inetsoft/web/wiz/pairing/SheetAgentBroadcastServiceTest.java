@@ -23,6 +23,7 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -230,6 +231,67 @@ class SheetAgentBroadcastServiceTest {
       // One RefreshVSObjectCommand plus one UpdateUndoStateCommand (undo-state sync).
       verify(dispatcher, times(2)).convertAndSendToUser(
          eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), any(), any());
+   }
+
+   /**
+    * Bug #81648: the native refresh addresses a selection-container child to its container
+    * (CoreLifecycleService.refreshVSObject). An unaddressed refresh makes the Composer draw the
+    * child a second time at its stored position, outside the container's flow.
+    */
+   @Test
+   void viewsheetBroadcastAddressesSelectionContainerChildToItsContainer() {
+      CommandDispatcherService dispatcher = TestDispatchers.live();
+      VSObjectModelFactoryService modelFactory = mock(VSObjectModelFactoryService.class);
+      SheetAgentBroadcastService svc =
+         new SheetAgentBroadcastService(dispatcher, modelFactory, noopBindingTreeService(),
+                                        noopCoreLifecycleService());
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getSocketSessionId()).thenReturn("stomp-vs-2");
+      when(rvs.getSocketUserName()).thenReturn("alice~;~host-org");
+
+      CurrentSelectionVSAssembly container = mock(CurrentSelectionVSAssembly.class);
+      when(container.isVisible()).thenReturn(true);
+      when(container.getName()).thenReturn("Panel1");
+      when(container.getAbsoluteName()).thenReturn("Panel1");
+      VSAssembly child = mock(VSAssembly.class);
+      when(child.isVisible()).thenReturn(true);
+      when(child.getName()).thenReturn("State1");
+      when(child.getContainer()).thenReturn(container);
+      VSAssembly outside = mock(TextVSAssembly.class);
+      when(outside.isVisible()).thenReturn(true);
+      when(outside.getName()).thenReturn("Text1");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssemblies()).thenReturn(
+         new inetsoft.uql.asset.Assembly[]{ container, child, outside });
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(modelFactory.createModel(any(VSAssembly.class), eq(rvs)))
+         .thenAnswer(inv -> mock(VSObjectModel.class));
+
+      svc.broadcastRefresh(rvs, SheetType.VIEWSHEET, "ViewsheetRuntime/bar-10",
+                           TestPrincipals.user("alice", "host-org"));
+
+      ArgumentCaptor<MessageHeaders> headers = ArgumentCaptor.forClass(MessageHeaders.class);
+      ArgumentCaptor<Object> payloads = ArgumentCaptor.forClass(Object.class);
+      verify(dispatcher, atLeast(3)).convertAndSendToUser(
+         eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), payloads.capture(),
+         headers.capture());
+
+      List<String> addressed = new java.util.ArrayList<>();
+
+      for(int i = 0; i < payloads.getAllValues().size(); i++) {
+         if(payloads.getAllValues().get(i) instanceof RefreshVSObjectCommand) {
+            SimpMessageHeaderAccessor acc = SimpMessageHeaderAccessor.wrap(
+               new org.springframework.messaging.support.GenericMessage<>(
+                  "", headers.getAllValues().get(i)));
+            List<String> h = acc.getNativeHeader(CommandDispatcher.ASSEMBLY_NAME_HEADER);
+            addressed.add(h == null ? null : h.get(0));
+         }
+      }
+
+      // container and the outside text are top-level (unaddressed); the child goes to the container
+      assertEquals(java.util.Arrays.asList(null, "Panel1", null), addressed);
    }
 
    @Test
