@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.binding.BaseField;
@@ -57,6 +58,7 @@ import inetsoft.web.composer.ws.RenameColumnController;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
+import inetsoft.web.composer.ws.dialog.ExpressionNameSupport;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.composer.ws.joins.JoinUtil;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
@@ -79,6 +81,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -110,7 +113,6 @@ public class WorksheetEditService {
     *                                {@code ScriptEditService}'s optional-{@code CalcFieldService}
     *                                shape.
     */
-   @Autowired
    public WorksheetEditService(SheetSessionService sessions,
                                SheetRuntimeAccess runtimeAccess,
                                SheetAgentBroadcastService broadcast,
@@ -118,6 +120,25 @@ public class WorksheetEditService {
                                InnerJoinService innerJoinService,
                                ExpressionDialogService expressionDialogService)
    {
+      this(sessions, runtimeAccess, broadcast, securityEngine, innerJoinService,
+           expressionDialogService, null);
+   }
+
+   /**
+    * @param worksheetEngine reads a bound table's source columns so a new expression column
+    *                        cannot take the name of a source column that is merely not selected
+    *                        (Bug #81675); {@code null} skips that check.
+    */
+   @Autowired
+   public WorksheetEditService(SheetSessionService sessions,
+                               SheetRuntimeAccess runtimeAccess,
+                               SheetAgentBroadcastService broadcast,
+                               SecurityEngine securityEngine,
+                               InnerJoinService innerJoinService,
+                               ExpressionDialogService expressionDialogService,
+                               WorksheetService worksheetEngine)
+   {
+      this.worksheetEngine = worksheetEngine;
       this.sessions = sessions;
       this.runtimeAccess = runtimeAccess;
       this.broadcast = broadcast;
@@ -169,7 +190,8 @@ public class WorksheetEditService {
       };
 
       Editor editor = new Editor(rws.getWorksheet(), agent, securityEngine, innerJoinService,
-         expressionDialogService, scriptEnvSupplier);
+         expressionDialogService, scriptEnvSupplier,
+         t -> ExpressionNameSupport.sourceColumns(worksheetEngine, rws, t));
 
       // Bug #79074: a mutator can itself execute a live query synchronously (e.g.
       // convertToEmbedded's AssetEventUtil.convertEmbeddedTable -> box.getTableLens(...)), which
@@ -652,6 +674,7 @@ public class WorksheetEditService {
    private final SecurityEngine securityEngine;
    private final InnerJoinService innerJoinService;
    private final ExpressionDialogService expressionDialogService;
+   private final WorksheetService worksheetEngine;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetEditService.class);
 
    /**
@@ -705,6 +728,15 @@ public class WorksheetEditService {
       Editor(Worksheet ws, Principal agent, SecurityEngine securityEngine,
              InnerJoinService innerJoinService, ExpressionDialogService expressionDialogService,
              Supplier<ScriptEnv> scriptEnvSupplier) {
+         this(ws, agent, securityEngine, innerJoinService, expressionDialogService,
+              scriptEnvSupplier, t -> null);
+      }
+
+      Editor(Worksheet ws, Principal agent, SecurityEngine securityEngine,
+             InnerJoinService innerJoinService, ExpressionDialogService expressionDialogService,
+             Supplier<ScriptEnv> scriptEnvSupplier,
+             Function<TableAssembly, ColumnSelection> sourceColumnsProvider) {
+         this.sourceColumnsProvider = sourceColumnsProvider;
          this.ws = ws;
          this.agent = agent;
          this.securityEngine = securityEngine;
@@ -1007,9 +1039,26 @@ public class WorksheetEditService {
             // Fail loud: adding anyway would create a second ColumnRef sharing the same
             // identity, making later lookups by name ambiguous — and a hidden column
             // stays in the selection, so "re-adding" it would silently duplicate it.
+            String hint = " If it is hidden, use set_column_visibility to show it instead.";
+
+            for(int i = 0; i < cs.getAttributeCount(); i++) {
+               if(cs.getAttribute(i) instanceof ColumnRef cr &&
+                  (name.equals(cr.getAttribute()) || name.equals(cr.getAlias())))
+               {
+                  if(cr.getDataRef() instanceof ExpressionRef) {
+                     hint = " It is an expression column; use edit_expression to change it, " +
+                        "or remove_column it first.";
+                  }
+                  else if(cr.isVisible()) {
+                     hint = "";
+                  }
+
+                  break;
+               }
+            }
+
             throw new PairingException(
-               "A column named '" + name + "' already exists on table '" + table +
-               "'. If it is hidden, use set_column_visibility to show it instead.");
+               "A column named '" + name + "' already exists on table '" + table + "'." + hint);
          }
 
          // Bug #81498: before any write. Embedded tables also count the physical data columns,
@@ -1379,6 +1428,20 @@ public class WorksheetEditService {
             throw new PairingException(
                "A column named '" + name + "' already exists on table '" + table +
                "'. Use edit_expression to modify an existing expression column.");
+         }
+
+         // Bug #81675: the native Create Expression dialog also refuses a name held by a column
+         // of the bound source, selected or not; a removed source column would otherwise be
+         // shadowed by the computed one.
+         if(name != null && t instanceof BoundTableAssembly) {
+            ColumnSelection source = sourceColumnsProvider.apply(t);
+            ColumnRef conflict = source == null ? null :
+               AssetUtil.findColumnConflictingWithAlias(source, null, name, false);
+
+            if(conflict != null) {
+               throw new PairingException(
+                  RenameColumnController.createColumnConflictErrorMessage(name, conflict));
+            }
          }
 
          // The Composer's ExpressionDialogService refuses once the table already holds the
@@ -6179,6 +6242,7 @@ public class WorksheetEditService {
       private final SecurityEngine securityEngine;
       private final InnerJoinService innerJoinService;
       private final ExpressionDialogService expressionDialogService;
+      private final Function<TableAssembly, ColumnSelection> sourceColumnsProvider;
       private final Supplier<ScriptEnv> scriptEnvSupplier;
    }
 }
