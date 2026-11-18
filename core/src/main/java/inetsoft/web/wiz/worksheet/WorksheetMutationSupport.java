@@ -4709,6 +4709,25 @@ public final class WorksheetMutationSupport {
          return;
       }
 
+      String why = unevaluableRankingsReason(t, specs);
+
+      if(why != null) {
+         throw new IllegalArgumentException(
+            "set_rankings: more than one ranking is only supported on a grouped table with each " +
+            "ranking on a different group column and an 'of' aggregate (" + why + "). Rankings " +
+            "on the same group column, on an aggregate, on an ungrouped table, or without 'of' " +
+            "are not applied together - only one of them would take effect. Use one ranking, " +
+            "or rank different group columns.");
+      }
+   }
+
+   /**
+    * Returns why {@code specs} is not the nested per-group-column shape the engine evaluates
+    * (see {@link #checkMultipleRankingsEvaluable}), or {@code null} when it is. Unlike
+    * {@link #checkMultipleRankingsEvaluable} this also checks a single entry, for callers that
+    * need to validate a lone ranking that carries an {@code of} aggregate.
+    */
+   public static String unevaluableRankingsReason(TableAssembly t, List<RankingSpec> specs) {
       String why = null;
       AggregateInfo ainfo = t.getAggregateInfo();
 
@@ -4748,14 +4767,7 @@ public final class WorksheetMutationSupport {
          }
       }
 
-      if(why != null) {
-         throw new IllegalArgumentException(
-            "set_rankings: more than one ranking is only supported on a grouped table with each " +
-            "ranking on a different group column and an 'of' aggregate (" + why + "). Rankings " +
-            "on the same group column, on an aggregate, on an ungrouped table, or without 'of' " +
-            "are not applied together - only one of them would take effect. Use one ranking, " +
-            "or rank different group columns.");
-      }
+      return why;
    }
 
    /**
