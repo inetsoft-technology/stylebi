@@ -34,6 +34,8 @@ import { EditorContext } from "../editor-context";
 interface FollowFocusState {
    enabled: boolean;
    stack: EditorContext[];
+   /** The connection the flag was last sent over, so unticking elsewhere can turn it off here. */
+   socketConnection?: ViewsheetClientService;
 }
 
 /**
@@ -115,9 +117,33 @@ export class FollowFocusService {
          return;
       }
 
-      this.stateFor(runtimeId).enabled = enabled;
+      const own = this.stateFor(runtimeId);
+      own.enabled = enabled;
+      own.socketConnection = socketConnection;
       // the same checkbox also turns tab following on/off for the whole Composer
       this.followTabs = enabled;
+
+      if(!enabled) {
+         // One box, so unticking it anywhere is an opt-out everywhere: switch off every other
+         // sheet that was ticked (client flag and server session flag), or the box would read off
+         // while another sheet's script/formula panes still retarget the agent (Bug #80379).
+         this.state.forEach((other, otherId) => {
+            if(otherId !== runtimeId && other.enabled) {
+               other.enabled = false;
+               this.sendEnabled(otherId, other.socketConnection, false);
+            }
+         });
+      }
+
+      this.sendEnabled(runtimeId, socketConnection, enabled);
+   }
+
+   private sendEnabled(runtimeId: string, socketConnection: ViewsheetClientService,
+                       enabled: boolean): void
+   {
+      if(!socketConnection) {
+         return;
+      }
 
       socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
          conn.send("/events/wiz/pairing/follow-focus", {},

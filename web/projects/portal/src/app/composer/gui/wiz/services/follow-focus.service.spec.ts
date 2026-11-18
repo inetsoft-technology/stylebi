@@ -280,6 +280,33 @@ describe("FollowFocusService", () => {
          expect(service.isFollowTabsEnabled()).toBe(false);
       });
 
+      it("unticking on another sheet opts out everywhere: client and server flags of every ticked sheet", () => {
+         service.setEnabled("rt-A", mockSocketConnection, true);
+         mockStompConnection.send.mockClear();
+
+         service.setEnabled("rt-B", mockSocketConnection, false);
+
+         expect(service.isEnabled("rt-A")).toBe(false);
+         expect(service.isEnabled("rt-B")).toBe(false);
+         expect(service.pushFocus("rt-A", mockSocketConnection,
+                                  { kind: "assemblyMain", assembly: "C" } as any)).toBe(false);
+         expect(mockStompConnection.send).toHaveBeenCalledWith(
+            "/events/wiz/pairing/follow-focus", {},
+            JSON.stringify({ runtimeId: "rt-A", enabled: false }));
+         expect(mockStompConnection.send).toHaveBeenCalledWith(
+            "/events/wiz/pairing/follow-focus", {},
+            JSON.stringify({ runtimeId: "rt-B", enabled: false }));
+      });
+
+      it("unticking sends off only for sheets that were ticked (single sheet: one event)", () => {
+         service.setEnabled("rt-A", mockSocketConnection, true);
+         mockStompConnection.send.mockClear();
+
+         service.setEnabled("rt-A", mockSocketConnection, false);
+
+         expect(mockStompConnection.send).toHaveBeenCalledTimes(1);
+      });
+
       it("sends nothing new to the server for tab following (protocol unchanged)", () => {
          service.setEnabled("rt-1", mockSocketConnection, true);
          expect(mockStompConnection.send).toHaveBeenCalledTimes(1);
