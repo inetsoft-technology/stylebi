@@ -446,11 +446,12 @@ public class VLabel extends BoundedVisualizable {
       double angle = Math.toRadians(spec.getRotation());
       boolean vertical = (spec.getRotation() + 90) % 180 == 0;
       boolean horizontal = spec.getRotation() % 180 == 0;
+      String dots = ellipsis ? "…" : "..";
       // truncated text width/height (.. subtracted)
       double twidth = vertical ?
-         iwidth : iwidth - getPreferredWidth("..") * Math.abs(Math.cos(angle));
+         iwidth : iwidth - getPreferredWidth(dots) * Math.abs(Math.cos(angle));
       double theight = horizontal ?
-         iheight : iheight - getPreferredHeight("..") * Math.abs(Math.sin(angle));
+         iheight : iheight - getPreferredHeight(dots) * Math.abs(Math.sin(angle));
 
       if(twidth <= 0) {
          twidth = getSize().getWidth();
@@ -485,7 +486,7 @@ public class VLabel extends BoundedVisualizable {
                dbounds = getTransformedBounds0(0, 0, dlabel).getBounds2D();
             }
 
-            dlabels[i] = dlabel + "..";
+            dlabels[i] = dlabel + dots;
             truncated = true;
          }
 
@@ -496,11 +497,11 @@ public class VLabel extends BoundedVisualizable {
                   spec.isReverseLines() ? dlabels[0] : dlabels[dlabels.length - 1]
                };
 
-               if(dlabels[0].endsWith("..")) {
-                  dlabels[0] = ".." + dlabels[0].substring(0, dlabels[0].length() - 2);
+               if(dlabels[0].endsWith(dots)) {
+                  dlabels[0] = dots + dlabels[0].substring(0, dlabels[0].length() - dots.length());
                }
                else if(truncated) {
-                  dlabels[0] = ".." + dlabels[0];
+                  dlabels[0] = dots + dlabels[0];
                }
             }
             else {
@@ -1687,6 +1688,20 @@ public class VLabel extends BoundedVisualizable {
    }
 
    /**
+    * Check whether truncation appends an ellipsis character instead of "..".
+    */
+   public boolean isEllipsis() {
+      return ellipsis;
+   }
+
+   /**
+    * Set whether truncation appends an ellipsis character instead of "..".
+    */
+   public void setEllipsis(boolean ellipsis) {
+      this.ellipsis = ellipsis;
+   }
+
+   /**
     * Check if text can be wrapped into multiple lines.
     */
    @TernMethod
@@ -1858,6 +1873,7 @@ public class VLabel extends BoundedVisualizable {
    private Object label;
    private TextSpec spec = new TextSpec();
    private Dimension2D maxSize = null;
+   private boolean ellipsis = false;
    private int alignx = GraphConstants.CENTER_ALIGNMENT;
    private int aligny = GraphConstants.MIDDLE_ALIGNMENT;
    private Point2D offset = new Point2D.Double(0, 0);

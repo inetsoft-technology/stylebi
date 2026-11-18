@@ -1783,7 +1783,7 @@ public class FormatPainterService {
          }
 
          format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box.get(),
-                                         area, true);
+                                         area, true, VizContext.of(info));
          format.getCSSFormat().addCSSAttribute("axis", "x");
       }
       else if(box.isPresent() && region.equals(ChartFormatConstants.TOP_X_AXIS)) {
@@ -1792,7 +1792,7 @@ public class FormatPainterService {
          }
 
          format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box.get(),
-                                         area, true);
+                                         area, true, VizContext.of(info));
          format.getCSSFormat().addCSSAttribute("axis", "x2");
       }
       else if(box.isPresent() && region.equals(ChartFormatConstants.LEFT_Y_AXIS)) {
@@ -1801,13 +1801,13 @@ public class FormatPainterService {
          }
 
          format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box.get(),
-                                         area, false);
+                                         area, false, VizContext.of(info));
          String axisIndex = ChartRegionHandler.getXfieldsIndex(chartInfo, columnName, true);
          format.getCSSFormat().addCSSAttribute("axis", axisIndex);
       }
       else if(box.isPresent() && region.equals(ChartFormatConstants.RIGHT_Y_AXIS)) {
          format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box.get(),
-                                         area, false);
+                                         area, false, VizContext.of(info));
          format.getCSSFormat().addCSSAttribute("axis", "y2");
       }
       else if(box.isPresent() && region.equals(ChartFormatConstants.LEGEND_CONTENT)) {
@@ -1825,7 +1825,7 @@ public class FormatPainterService {
             }
          }
 
-         fixAxisDefaultFormat(box.get(), chartInfo, format, name, columnName);
+         fixAxisDefaultFormat(box.get(), chartInfo, format, name, columnName, VizContext.LEGACY);
          format.getCSSFormat().setCSSType(CSSConstants.CHART_LEGEND_CONTENT);
       }
       else if(region.equals(ChartFormatConstants.LEGEND_TITLE)) {
@@ -1846,14 +1846,14 @@ public class FormatPainterService {
    private CompositeTextFormat getAxisLabelTextFormat(String name, String region, int index,
                                                       String columnName, VSChartInfo chartInfo,
                                                       ViewsheetSandbox box, ChartArea area,
-                                                      boolean isX)
+                                                      boolean isX, VizContext ctx)
       throws Exception
    {
       AxisDescriptor descriptor = regionHandler
          .getAxisDescriptor(chartInfo, area, region, index, columnName);
       CompositeTextFormat format = GraphFormatUtil.getAxisLabelTextFormat(
          columnName, chartInfo, descriptor, isX);
-      fixAxisDefaultFormat(box, chartInfo, format, name, columnName);
+      fixAxisDefaultFormat(box, chartInfo, format, name, columnName, ctx);
       return format;
    }
 
@@ -1883,7 +1883,8 @@ public class FormatPainterService {
    }
 
    private void fixAxisDefaultFormat(ViewsheetSandbox box, VSChartInfo chartInfo,
-                                     CompositeTextFormat format, String cname, String columnName)
+                                     CompositeTextFormat format, String cname, String columnName,
+                                     VizContext ctx)
       throws Exception
    {
       if(format == null) {
@@ -1891,6 +1892,9 @@ public class FormatPainterService {
       }
 
       Format defFormat = getAxisDefaultFormat(box, chartInfo, cname, columnName);
+      defFormat = CompactDateRule.paneDefault(
+         ctx, chartInfo, columnName == null ? null : chartInfo.getFieldByName(columnName, true),
+         defFormat);
       boolean userDefined = !format.getUserDefinedFormat().getFormat().isEmpty();
 
       if(!userDefined && defFormat != null) {

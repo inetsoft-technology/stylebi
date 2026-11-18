@@ -1970,7 +1970,13 @@ public class RectCoord extends Coordinate {
       double vowidth = min ? getVOMinWidth() : getVOPreferredWidth();
 
       if(axis != null && axis.isLabelVisible()) {
-         if(scale instanceof CategoricalScale || scale instanceof TimeScale) {
+         // labels under a length limit are thinned to fit, so they reserve no width
+         if((scale instanceof CategoricalScale || scale instanceof TimeScale) &&
+            scale.getAxisSpec().getLabelLimit() > 0)
+         {
+            lwidth = 0;
+         }
+         else if(scale instanceof CategoricalScale || scale instanceof TimeScale) {
             double ucnt = scale.getUnitCount();
             int tcnt = scale.getTicks().length;
             lwidth = min ? axis.getLabelMinWidth() : axis.getLabelPreferredWidth();

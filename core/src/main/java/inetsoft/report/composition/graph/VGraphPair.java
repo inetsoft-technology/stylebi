@@ -962,6 +962,7 @@ public class VGraphPair {
       // For facet charts the expanded graph will be created even though there's no scrolling.
       // If that's the case then the scaled size will be smaller than the design size so we
       // will want to use the design size instead.
+      evgraph.followTitles(vgraph);
       evgraph.layout(0, 0, ewidth, eheight);
    }
 

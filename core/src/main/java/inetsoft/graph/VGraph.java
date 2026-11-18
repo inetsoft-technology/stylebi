@@ -326,6 +326,8 @@ public class VGraph extends BoundedContainer {
     * Create x and y title.
     */
    private void createTitle() {
+      xTitleFull = x2TitleFull = yTitleFull = y2TitleFull = null;
+      xTitleHide = x2TitleHide = yTitleHide = y2TitleHide = false;
       TitleSpec xTitleSpec = graph.getXTitleSpec();
       TitleSpec yTitleSpec = graph.getYTitleSpec();
       TitleSpec x2TitleSpec = graph.getX2TitleSpec();
@@ -337,6 +339,8 @@ public class VGraph extends BoundedContainer {
             new Insets(xTitleSpec.getLabelGap(), 0, 0, 0),
             xTitleSpec.getTextSpec().getRotation()));
          xTitle.setLimitInsets(true);
+         xTitleFull = xTitle;
+         xTitleHide = xTitleSpec.isHideWhenLonger();
       }
 
       if(x2TitleSpec != null && x2TitleSpec.getLabel() != null) {
@@ -345,6 +349,8 @@ public class VGraph extends BoundedContainer {
             new Insets(0, 0, x2TitleSpec.getLabelGap(), 0),
             x2TitleSpec.getTextSpec().getRotation()));
          x2Title.setLimitInsets(true);
+         x2TitleFull = x2Title;
+         x2TitleHide = x2TitleSpec.isHideWhenLonger();
       }
 
       if(yTitleSpec != null && yTitleSpec.getLabel() != null) {
@@ -353,6 +359,8 @@ public class VGraph extends BoundedContainer {
             new Insets(0, 0, 0, yTitleSpec.getLabelGap()),
             yTitleSpec.getTextSpec().getRotation()));
          yTitle.setLimitInsets(true);
+         yTitleFull = yTitle;
+         yTitleHide = yTitleSpec.isHideWhenLonger();
       }
 
       if(y2TitleSpec != null && y2TitleSpec.getLabel() != null) {
@@ -361,6 +369,8 @@ public class VGraph extends BoundedContainer {
             new Insets(0, y2TitleSpec.getLabelGap(), 0, 0),
             y2TitleSpec.getTextSpec().getRotation()));
          y2Title.setLimitInsets(true);
+         y2TitleFull = y2Title;
+         y2TitleHide = y2TitleSpec.isHideWhenLonger();
       }
    }
 
@@ -605,6 +615,11 @@ public class VGraph extends BoundedContainer {
     * Layout visual graph.
     */
    private void layout0(double x, double y, double w, double h) {
+      xTitle = xTitleFull;
+      x2Title = x2TitleFull;
+      yTitle = yTitleFull;
+      y2Title = y2TitleFull;
+
       // title shouldn't take up all space
       if(xTitle != null) {
          xTitle.setMaxSize(new DimensionD(w / 3, h / 3));
@@ -743,6 +758,8 @@ public class VGraph extends BoundedContainer {
       coord.setCoordBounds(new Rectangle2D.Double(contentx, contenty,
                                                   contentw, contenth));
 
+      dropLongTitles(contentw, contenth);
+
       SizeManager wmanager = SizeManager.width(
          contentw, new ILayout[] {yTitle, y2Title, coord}, coord);
       SizeManager hmanager = SizeManager.height(
@@ -852,6 +869,105 @@ public class VGraph extends BoundedContainer {
 
       coord.layoutCompleted();
       this.layoutCompleted();
+   }
+
+   /**
+    * Get the titles (x, x2, y, y2) hidden by the last layout.
+    * @hidden
+    */
+   public Set<String> getDroppedTitles() {
+      return droppedTitles;
+   }
+
+   /**
+    * Hide exactly the titles the source graph hid, without an estimate of its own.
+    * @hidden
+    */
+   public void followTitles(VGraph source) {
+      this.titleSource = source;
+   }
+
+   /**
+    * Drop the flagged titles whose text is longer than their axis.
+    */
+   private void dropLongTitles(double contentw, double contenth) {
+      droppedTitles = new HashSet<>();
+
+      if(titleSource != null) {
+         Set<String> dropped = titleSource.getDroppedTitles();
+
+         if(dropped.contains("x")) {
+            xTitle = null;
+         }
+
+         if(dropped.contains("x2")) {
+            x2Title = null;
+         }
+
+         if(dropped.contains("y")) {
+            yTitle = null;
+         }
+
+         if(dropped.contains("y2")) {
+            y2Title = null;
+         }
+
+         droppedTitles.addAll(dropped);
+         return;
+      }
+
+      if(!(xTitleHide && xTitle != null || x2TitleHide && x2Title != null ||
+           yTitleHide && yTitle != null || y2TitleHide && y2Title != null))
+      {
+         return;
+      }
+
+      double xLen = contentw - getLeftAxisPreferredWidth() - getRightAxisPreferredWidth() -
+         thickness(yTitle, true) - thickness(y2Title, true);
+
+      if(xTitleHide && xTitle != null && titleLength(xTitle, true) > xLen) {
+         xTitle = null;
+         droppedTitles.add("x");
+      }
+
+      if(x2TitleHide && x2Title != null && titleLength(x2Title, true) > xLen) {
+         x2Title = null;
+         droppedTitles.add("x2");
+      }
+
+      double yLen = contenth - getBottomAxisPreferredHeight() - getTopAxisPreferredHeight() -
+         thickness(xTitle, false) - thickness(x2Title, false);
+
+      if(yTitleHide && yTitle != null && titleLength(yTitle, false) > yLen) {
+         yTitle = null;
+         droppedTitles.add("y");
+      }
+
+      if(y2TitleHide && y2Title != null && titleLength(y2Title, false) > yLen) {
+         y2Title = null;
+         droppedTitles.add("y2");
+      }
+   }
+
+   private static double thickness(VLabel title, boolean width) {
+      if(title == null) {
+         return 0;
+      }
+
+      return width ? title.getPreferredWidth() : title.getPreferredHeight();
+   }
+
+   // uncapped text length, or negative infinity when the text does not run along its axis
+   private static double titleLength(VLabel title, boolean horizontal) {
+      double angle = title.getTextSpec().getRotation();
+      double mod = ((angle % 180) + 180) % 180;
+
+      if(mod != (horizontal ? 0 : 90)) {
+         return Double.NEGATIVE_INFINITY;
+      }
+
+      String[] lines = title.getText().split("\n");
+      return horizontal ? title.getPreferredWidth(lines) : title.getPreferredHeight(lines);
    }
 
    /**
@@ -1939,6 +2055,10 @@ public class VGraph extends BoundedContainer {
    private List<Axis> axises = new ArrayList<>(4);
    private Coordinate coord;
    private VLabel xTitle;
+   private VLabel xTitleFull, x2TitleFull, yTitleFull, y2TitleFull;
+   private boolean xTitleHide, x2TitleHide, yTitleHide, y2TitleHide;
+   private Set<String> droppedTitles = new HashSet<>();
+   private VGraph titleSource;
    private VLabel yTitle;
    private VLabel x2Title;
    private VLabel y2Title;

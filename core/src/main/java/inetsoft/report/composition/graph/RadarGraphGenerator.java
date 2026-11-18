@@ -20,6 +20,7 @@ package inetsoft.report.composition.graph;
 import inetsoft.graph.AxisSpec;
 import inetsoft.graph.coord.*;
 import inetsoft.graph.data.DataSet;
+import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.Scale;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.ConfirmException;
@@ -34,6 +35,8 @@ import inetsoft.util.log.LogLevel;
 
 import java.awt.*;
 import java.text.Format;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * RadarGraphGenerator generates radar element graph.
@@ -158,6 +161,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
       fixCoordProperties(coord, GraphTypes.CHART_RADAR);
 
       PolarCoord polarCoord = new PolarCoord(coord);
+      polarCoord.setSpokeLabelRule(vizContext.modern);
       Coordinate graphCoord = createCoord(polarCoord, ctype);
 
       graph.setCoordinate(graphCoord);
@@ -208,6 +212,33 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
       spec.setLabelVisible(!maxMode && xdesc.isLabelVisible() || maxMode && xdesc.isMaxModeLabelVisible());
       spec.setTextFrame(xdesc.getTextFrame());
       spec.setTruncate(xdesc.isTruncate());
+
+      if(ctx.modern) {
+         if(xdesc.isTruncate()) {
+            spec.setLabelLimit(ModernLabelRule.limitPx(spec.getTextSpec().getFont()));
+         }
+
+         if(GraphTypes.isRadarN(info) && scale != null) {
+            Map<Object, String> texts = new HashMap<>();
+
+            for(Object v : scale.getValues()) {
+               if(xdesc.getLabelAlias(GTool.toString(v)) != null) {
+                  continue;
+               }
+
+               ChartRef ref = info.getFieldByName(GTool.toString(v), true);
+               ChartAggregateRef agg = ref instanceof ChartAggregateRef a ? a : null;
+
+               if(ModernLabelRule.dropsDefaultSum(agg)) {
+                  texts.put(v, ModernLabelRule.fieldText(agg));
+               }
+            }
+
+            if(!texts.isEmpty()) {
+               spec.setDisplayTexts(texts);
+            }
+         }
+      }
 
       if(xdesc.isNoNull()) {
          scale.setScaleOption(scale.getScaleOption() | Scale.NO_NULL);

@@ -19,10 +19,13 @@ package inetsoft.graph;
 
 import com.inetsoft.build.tern.*;
 import inetsoft.graph.aesthetic.*;
+import inetsoft.graph.guide.axis.CompactDates;
 import inetsoft.graph.internal.GDefaults;
 
 import java.awt.*;
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -288,6 +291,50 @@ public class AxisSpec implements Cloneable, Serializable {
    @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setTruncate.htm")
    public void setTruncate(boolean truncated) {
       this.truncate = truncated;
+   }
+
+   /**
+    * Get the longest label length in pixels, 0 for no limit.
+    */
+   public double getLabelLimit() {
+      return labelLimit;
+   }
+
+   /**
+    * Set the longest label length in pixels. When above 0, longer labels end in an ellipsis
+    * and category labels are thinned until none overlap.
+    */
+   public void setLabelLimit(double labelLimit) {
+      this.labelLimit = labelLimit;
+   }
+
+   /**
+    * Get the text drawn for a value the text frame does not map, or null for the value itself.
+    */
+   public Map<Object, String> getDisplayTexts() {
+      return displayTexts;
+   }
+
+   /**
+    * Set the text drawn for a value the text frame does not map. The value stays the key for
+    * aliases, formats and selection.
+    */
+   public void setDisplayTexts(Map<Object, String> displayTexts) {
+      this.displayTexts = displayTexts;
+   }
+
+   /**
+    * Get the compact date labels, or null for the date format of the label text.
+    */
+   public CompactDates getCompactDates() {
+      return compactDates;
+   }
+
+   /**
+    * Set the compact date labels, which show the year only where it changes. Null is off.
+    */
+   public void setCompactDates(CompactDates compactDates) {
+      this.compactDates = compactDates;
    }
 
    /**
@@ -615,6 +662,9 @@ public class AxisSpec implements Cloneable, Serializable {
          labelOnSecondaryAxis == axisSpec.labelOnSecondaryAxis &&
          Double.compare(asize, axisSpec.asize) == 0 && minPadding == axisSpec.minPadding &&
          maxPadding == axisSpec.maxPadding && maxLabelSpacing == axisSpec.maxLabelSpacing &&
+         Double.compare(labelLimit, axisSpec.labelLimit) == 0 &&
+         Objects.equals(compactDates, axisSpec.compactDates) &&
+         Objects.equals(displayTexts, axisSpec.displayTexts) &&
          Objects.equals(lineColor, axisSpec.lineColor) &&
          Objects.equals(line2Color, axisSpec.line2Color) &&
          Objects.equals(textFrame, axisSpec.textFrame) &&
@@ -630,7 +680,8 @@ public class AxisSpec implements Cloneable, Serializable {
                           labelGap, textFrame, colorFrame, fontFrame, textSpec, abbreviate,
                           allTick, truncate, inPlot, lastOrAll, gridColor, gridStyle, gridAsShape,
                           gridOnTop, gridBetween, labelBetween, facetGrid, labelOnSecondaryAxis, asize,
-                          minPadding, maxPadding, maxLabelSpacing);
+                          minPadding, maxPadding, maxLabelSpacing, labelLimit, compactDates,
+                          displayTexts);
    }
 
    /**
@@ -655,6 +706,10 @@ public class AxisSpec implements Cloneable, Serializable {
 
          if(textSpec != null) {
             obj.textSpec = textSpec.clone();
+         }
+
+         if(displayTexts != null) {
+            obj.displayTexts = new HashMap<>(displayTexts);
          }
 
          return obj;
@@ -682,6 +737,9 @@ public class AxisSpec implements Cloneable, Serializable {
    private boolean abbreviate = false;
    private boolean allTick = false; // ignore abbreviated (ignored) ticks
    private boolean truncate = true;
+   private double labelLimit = 0;
+   private CompactDates compactDates;
+   private Map<Object, String> displayTexts;
    private boolean inPlot = false;
    private boolean lastOrAll = false;
 

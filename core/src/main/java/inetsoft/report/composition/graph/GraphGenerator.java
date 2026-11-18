@@ -23,6 +23,7 @@ import inetsoft.graph.coord.*;
 import inetsoft.graph.data.*;
 import inetsoft.graph.element.*;
 import inetsoft.graph.geometry.ElementGeometry;
+import inetsoft.graph.guide.axis.CompactDates;
 import inetsoft.graph.guide.form.*;
 import inetsoft.graph.guide.legend.LegendGroup;
 import inetsoft.graph.internal.GDefaults;
@@ -910,8 +911,17 @@ public abstract class GraphGenerator {
    public EGraph createEGraph() {
       fixComparer();
       fixDefaultFormats();
+      topDownApplied = false;
       createEGraph0();
       fixGraphProperties();
+
+      if(topDownApplied) {
+         for(int i = 0; i < graph.getElementCount(); i++) {
+            if(graph.getElement(i) instanceof IntervalElement) {
+               ((IntervalElement) graph.getElement(i)).setDodgeReversed(true);
+            }
+         }
+      }
 
       if(dateComparison != null) {
          GraphDefault.setDefaultOutlines(graph);
@@ -2375,6 +2385,7 @@ public abstract class GraphGenerator {
             CompositeTextFormat format = getAxisLabelFormat(xdesc, flds, false);
             Format fmt2 = GraphUtil.getFormat(format);
             AxisSpec xaxis = createAxisSpec(xdesc, plotdesc, flds, xscale, false, inner, true);
+            applyCompactDates(xscale, xaxis, format, flds, inner);
 
             /* the pie axis can be controlled now so shouldn't change the user set options.
             // fix bug1288772087744, since pie cannot set the property of axis
@@ -2412,12 +2423,23 @@ public abstract class GraphGenerator {
                }
             }
 
+            if(isTopDownBars() && isTransposedCategories(rect, xscale)) {
+               ((CategoricalScale) xscale).setReversed(true);
+               topDownApplied = true;
+            }
+
             if(xscale instanceof LinearScale) {
                applyAxisDescriptor((LinearScale) xscale, xdesc);
             }
+            // the categories of a horizontal chart or a Gantt's tasks
+            else if(format.getRotation() == null && isTransposedCategories(rect, xscale) &&
+                    isModernLabelAxis(xaxis, true))
+            {
+               setModernColumnLimit(xaxis, xscale, ydims);
+            }
             // rotate the labels if auto and too crowded
             else if(xmeasures.size() == 0 && format.getRotation() == null) {
-               setDefaultRotation(xaxis, xscale, xdims);
+               setDefaultRotation(xaxis, xscale, xdims, rect.getYScale(), true);
             }
 
             if(inner) {
@@ -2667,9 +2689,9 @@ public abstract class GraphGenerator {
                xaxis.getTextSpec().setRotation(0);
             }
 
-            // bars are displayed from bottom up sorted by dates, so we should
-            // reverse the lines so it displays bottom up instead of top down.
-            xaxis.getTextSpec().setReverseLines(true);
+            // lines reverse while the bars read bottom-up (classic), and read
+            // top-down with the bars on a marked horizontal bar
+            xaxis.getTextSpec().setReverseLines(reverseDcLines());
          }
       }
    }
@@ -2745,6 +2767,7 @@ public abstract class GraphGenerator {
          GraphTypes.isRect(info.getRTChartType());
       PlotDescriptor plotdesc = desc.getPlotDescriptor();
       AxisSpec yaxis = createAxisSpec(ydesc, plotdesc, flds, yscale, secondary, inner, false);
+      applyCompactDates(yscale, yaxis, format, flds, inner);
 
       if(isSparkline()) {
          yaxis.setAxisStyle(AxisSpec.AXIS_NONE);
@@ -2807,7 +2830,13 @@ public abstract class GraphGenerator {
       }
       // rotate the labels if auto and too crowded
       else if(xmeasures.size() > 0 && format.getRotation() == null) {
-         setDefaultRotation(yaxis, yscale, ydims);
+         setDefaultRotation(yaxis, yscale, ydims, null, false);
+      }
+      // any other category axis on Y, such as a heat map's rows, reads as a column
+      else if(format.getRotation() == null && isYCategories(yscale, inner) &&
+              isModernLabelAxis(yaxis, false))
+      {
+         setModernColumnLimit(yaxis, yscale, ydims);
       }
 
       if(inner) {
@@ -4209,10 +4238,8 @@ public abstract class GraphGenerator {
             yscale = GTool.createFakeScale(xscale);
          }
 
-         if(isGantt(chartType)) {
-            if(yscale instanceof CategoricalScale) {
-               ((CategoricalScale) yscale).setReversed(true);
-            }
+         if((isGantt(chartType) || topDownApplied) && yscale instanceof CategoricalScale) {
+            ((CategoricalScale) yscale).setReversed(true);
          }
 
          RectCoord outer = new RectCoord(xscale, yscale);
@@ -6411,6 +6438,7 @@ public abstract class GraphGenerator {
       }
 
       List<String> labels = new ArrayList<>();
+      List<String> generated = new ArrayList<>();
 
       if(type.equals("x")) {
          if(xdims.size() > 0 && xconsumed) {
@@ -6419,6 +6447,7 @@ public abstract class GraphGenerator {
 
             if(!isHiddenTitleLabel(label)) {
                labels.add(label);
+               generated.add(label);
             }
          }
 
@@ -6432,8 +6461,11 @@ public abstract class GraphGenerator {
             label = getRefLabel(xmeasures.get(i));
 
             if(!isHiddenTitleLabel(label)) {
+               String refLabel = label;
                label = xmeasurelabels.get(label) == null ? label : xmeasurelabels.get(label);
                labels.add(label);
+               generated.add(generatedMeasureTitle(xmeasures.get(i), agg, refLabel,
+                                                   xmeasurelabels));
             }
          }
 
@@ -6449,6 +6481,7 @@ public abstract class GraphGenerator {
                if(!isHiddenTitleLabel(label)) {
                   label = xdimlabels.get(label) == null ? label : xdimlabels.get(label);
                   labels.add(label);
+                  generated.add(label);
                }
             }
          }
@@ -6464,8 +6497,11 @@ public abstract class GraphGenerator {
                label = getRefLabel(xmeasures.get(i));
 
                if(!isHiddenTitleLabel(label)) {
+                  String refLabel = label;
                   label = xmeasurelabels.get(label) == null ? label : xmeasurelabels.get(label);
                   labels.add(label);
+                  generated.add(generatedMeasureTitle(xmeasures.get(i), agg, refLabel,
+                                                      xmeasurelabels));
                }
             }
          }
@@ -6479,6 +6515,7 @@ public abstract class GraphGenerator {
             if(!isHiddenTitleLabel(label)) {
                label = ydimlabels.get(label) == null ? label : ydimlabels.get(label);
                labels.add(label);
+               generated.add(label);
             }
          }
 
@@ -6492,9 +6529,12 @@ public abstract class GraphGenerator {
             label = getRefLabel(ymeasures.get(i));
 
             if(!isHiddenTitleLabel(label)) {
+               String refLabel = label;
                label = ymeasurelabels.get(label) == null ? label :
                   ymeasurelabels.get(label);
                labels.add(label);
+               generated.add(generatedMeasureTitle(ymeasures.get(i), agg, refLabel,
+                                                   ymeasurelabels));
             }
          }
 
@@ -6514,8 +6554,11 @@ public abstract class GraphGenerator {
             }
 
             label = getRefLabel(ymeasures.get(i));
+            String refLabel = label;
             label = ymeasurelabels.get(label) == null ? label : ymeasurelabels.get(label);
             labels.add(label);
+            generated.add(generatedMeasureTitle(ymeasures.get(i), agg, refLabel,
+                                                ymeasurelabels));
          }
 
          textId = localMap.get("Secondary Y Axis Title");
@@ -6552,16 +6595,17 @@ public abstract class GraphGenerator {
       {
          StringBuilder buffer = new StringBuilder();
 
-         for(int i = 0; i < labels.size(); i++) {
+         for(int i = 0; i < generated.size(); i++) {
             if(buffer.length() > 0) {
                buffer.append(" / ");
             }
 
-            buffer.append(labels.get(i));
+            buffer.append(generated.get(i));
          }
 
          String titleName = buffer.toString();
          tSpec.setLabel(Tool.localizeTextID(textId) == null ? titleName : Tool.localize(textId));
+         tSpec.setHideWhenLonger(vizContext.modern);
          CompositeTextFormat tfmt = titleDesc.getTextFormat();
          tSpec.setTextSpec(GraphUtil.getTextSpec(tfmt, null, null));
       }
@@ -6573,6 +6617,24 @@ public abstract class GraphGenerator {
          titleDesc.getLabelGap(), titleDesc.hasLabelGapValue(), abuttingLabelsDrawn, vizContext));
 
       return tSpec;
+   }
+
+   /**
+    * Get a measure's text in a generated title.
+    */
+   private String generatedMeasureTitle(String measure, ChartAggregateRef agg, String refLabel,
+                                        Map<String, String> aliases)
+   {
+      String text = aliases.get(refLabel) == null ? refLabel : aliases.get(refLabel);
+
+      if(vizContext.modern && GraphTypes.isPoint(GraphTypeUtil.getChartType(measure, info)) &&
+         (!(agg instanceof VSAggregateRef) || ((VSAggregateRef) agg).getCaption() == null) &&
+         ModernLabelRule.dropsDefaultSum(agg))
+      {
+         return ModernLabelRule.fieldText(agg);
+      }
+
+      return text;
    }
 
    /**
@@ -6721,7 +6783,9 @@ public abstract class GraphGenerator {
    /**
     * Get the default rotation.
     */
-   private void setDefaultRotation(AxisSpec axis, Scale scale, List<String> dims) {
+   private void setDefaultRotation(AxisSpec axis, Scale scale, List<String> dims,
+                                   Scale primaryY, boolean xAxis)
+   {
       TextSpec spec = axis.getTextSpec();
       String[] fields = scale.getFields();
       int idx = dims.size() - 1;
@@ -6730,6 +6794,11 @@ public abstract class GraphGenerator {
       scale.getAxisSpec().getTextSpec().setFormat(spec.getFormat());
       scale.init(data);
       Object[] vals = scale.getValues();
+
+      if(isModernLabelAxis(axis, xAxis)) {
+         setModernRotation(axis, scale, dims, vals, primaryY, xAxis);
+         return;
+      }
 
       // always rotate if inner coord of facet with more than a couple of items
       if(dims.size() > 1) {
@@ -6771,6 +6840,250 @@ public abstract class GraphGenerator {
       else {
          spec.setRotation(0);
       }
+   }
+
+   // draw compact dates on a date axis of a marked chart, unless the author set a format
+   void applyCompactDates(Scale scale, AxisSpec axis, CompositeTextFormat format,
+                          String[] fields, boolean inner)
+   {
+      if(!vizContext.modern || fields == null || fields.length == 0 ||
+         CompactDateRule.hasAuthorFormat(format) || CompactDateRule.isDateComparison(info))
+      {
+         return;
+      }
+
+      Locale locale = CompactDateRule.locale();
+
+      // a time axis follows its tick unit, whatever field it shows (a Gantt's is a measure)
+      if(scale instanceof TimeScale) {
+         setCompactDates(axis, new CompactDates(CompactDates.FROM_SCALE, locale), format, inner);
+         return;
+      }
+
+      ChartRef ref = info.getFieldByName(fields[0], true);
+      ref = ref == null ? info.getFieldByName(ElementVO.getBaseName(fields[0]), true) : ref;
+
+      if(!(ref instanceof XDimensionRef dim) || !dim.isDateTime() ||
+         (dim.getRefType() & DataRef.CUBE) != 0)
+      {
+         return;
+      }
+
+      int unit = CompactDateRule.unit(dim.getDateLevel());
+
+      if(unit == TimeScale.HOUR || unit == TimeScale.MINUTE || unit == TimeScale.SECOND) {
+         axis.setAbbreviate(true);
+         return;
+      }
+
+      CompactDates compact = new CompactDates(unit, locale);
+      Format full = unit == -1 ? null : compact.full(scale);
+
+      if(full == null) {
+         return;
+      }
+
+      if(CompactDateRule.inDateOrder(dim)) {
+         setCompactDates(axis, compact, format, inner);
+      }
+      else if(axis.getTextSpec() != null) {
+         axis.getTextSpec().setFormat(full);
+      }
+   }
+
+   // compact dates are cut at the label limit and thinned like other modern labels
+   private void setCompactDates(AxisSpec axis, CompactDates compact, CompositeTextFormat format,
+                                boolean inner)
+   {
+      axis.setCompactDates(compact);
+      Font font = axis.getTextSpec() == null ? null : axis.getTextSpec().getFont();
+
+      // a facet's outer labels, an author's rotation and wrapped labels keep today's cut
+      if(inner && (format == null || format.getRotation() == null) && axis.isTruncate() &&
+         axis.getLabelLimit() <= 0 && font != null)
+      {
+         axis.setLabelLimit(ModernLabelRule.limitPx(font));
+      }
+   }
+
+   /**
+    * Whether the axis takes the modern label rule: a marked chart, labels that may be cut, and
+    * no date comparison on an X axis.
+    */
+   boolean isModernLabelAxis(AxisSpec axis, boolean xAxis) {
+      return vizContext.modern && axis.isTruncate() && !isDateComparisonAxis(xAxis);
+   }
+
+   // an X axis of a chart with date comparison applied keeps today's label rule
+   boolean isDateComparisonAxis(boolean xAxis) {
+      return xAxis && CompactDateRule.isDateComparison(info);
+   }
+
+   // an inner category Y axis, or the last Y dimension of a chart without measures
+   private boolean isYCategories(Scale yscale, boolean inner) {
+      String[] flds = yscale.getFields();
+      return yscale instanceof CategoricalScale && (inner || fake && flds.length > 0 &&
+         !ydims.isEmpty() && flds[0].equals(ydims.get(ydims.size() - 1)));
+   }
+
+   // a marked horizontal bar, interval or stack of measures on X against dimensions on Y
+   boolean isTopDownBars() {
+      return vizContext.modern && !fake && !xmeasures.isEmpty() && ymeasures.isEmpty() &&
+         !ydims.isEmpty() && isGraphType(CHART_BAR, CHART_BAR_STACK, CHART_INTERVAL);
+   }
+
+   // whether date comparison label lines read bottom-up, as the bars do
+   boolean reverseDcLines() {
+      return !topDownApplied;
+   }
+
+   // a category X axis drawn down the side of a transposed chart
+   private boolean isTransposedCategories(RectCoord rect, Scale xscale) {
+      return xscale instanceof CategoricalScale &&
+         (isRotated(rect) || GTool.getRotation(rect.getCoordTransform()) != 0);
+   }
+
+   // set the label limit and, on an X axis, the rotation from the measured labels
+   private void setModernRotation(AxisSpec axis, Scale scale, List<String> dims, Object[] vals,
+                                  Scale primaryY, boolean xAxis)
+   {
+      TextSpec spec = axis.getTextSpec();
+      String[] fields = scale.getFields();
+      boolean inner = dims.size() <= 1 ||
+         fields.length > 0 && dims.get(dims.size() - 1).equals(fields[fields.length - 1]);
+
+      // the outer axes of a facet keep flat, uncut labels
+      if(!inner) {
+         spec.setRotation(0);
+         return;
+      }
+
+      Font font = spec.getFont();
+
+      if(!xAxis) {
+         setModernColumnLimit(axis, scale, dims);
+         return;
+      }
+
+      double limit = ModernLabelRule.limitPx(font);
+      AxisDescriptor desc = getAxisDescriptor(scale, null);
+      double widest = 0;
+
+      for(Object val : vals) {
+         String lbl = GTool.format(spec.getFormat(), val);
+         String alias = desc == null ? null : desc.getLabelAlias(Tool.getDataString(val));
+         lbl = alias != null ? alias : lbl;
+         widest = Math.max(widest, Math.min(limit, GTool.stringWidth(new String[] { lbl }, font)));
+      }
+
+      axis.setLabelLimit(limit);
+
+      if(vals.length == 0) {
+         spec.setRotation(0);
+         return;
+      }
+
+      double slot = estimateAxisLength(primaryY) / panelCount(dims) / vals.length;
+      int dimIdx = dims.size() - 1;
+      ChartRef ref = dimIdx < 0 ? null : info.getFieldByName(dims.get(dimIdx), true);
+      boolean dateOrNumber = ref instanceof XDimensionRef && ((XDimensionRef) ref).isDateTime() ||
+         ref != null && XSchema.isNumericType(ref.getDataType());
+      spec.setRotation(ModernLabelRule.rotation(dateOrNumber, widest, slot));
+   }
+
+   // a category column reads flat and is cut at the column limit
+   private void setModernColumnLimit(AxisSpec axis, Scale scale, List<String> dims) {
+      String[] fields = scale.getFields();
+      TextSpec spec = axis.getTextSpec();
+      spec.setRotation(0);
+
+      if(dims.size() <= 1 || fields.length > 0 &&
+         dims.get(dims.size() - 1).equals(fields[fields.length - 1]))
+      {
+         double width = graphSize != null ? graphSize.width : 1000;
+         axis.setLabelLimit(ModernLabelRule.columnLimitPx(spec.getFont(), width));
+      }
+   }
+
+   // the product of the distinct values of the outer dimensions of a facet
+   private int panelCount(List<String> dims) {
+      int panels = 1;
+
+      for(int i = 0; i < dims.size() - 1; i++) {
+         Set<Object> distinct = new HashSet<>();
+
+         if(data.indexOfHeader(dims.get(i)) >= 0) {
+            for(int r = 0; r < data.getRowCount(); r++) {
+               distinct.add(data.getData(dims.get(i), r));
+            }
+         }
+
+         panels *= Math.max(1, distinct.size());
+      }
+
+      return panels;
+   }
+
+   // the plot width an X axis draws in: the graph less padding, the Y labels, title and legend
+   private double estimateAxisLength(Scale primaryY) {
+      double width = graphSize != null ? graphSize.width : 1000;
+      Insets padding = VSDensityDefaults.chartPadding(vizContext);
+      double length = width - padding.left - padding.right;
+
+      if(primaryY != null) {
+         AxisDescriptor ydesc = getAxisDescriptor(primaryY, "y");
+
+         if(!maxMode && ydesc.isLabelVisible() || maxMode && ydesc.isMaxModeLabelVisible()) {
+            CompositeTextFormat format = getAxisLabelFormat(ydesc, primaryY.getFields(), false);
+            Format fmt = GraphUtil.getFormat(format);
+            Font font = GraphUtil.getTextSpec(format, null, null).getFont();
+            // a copy, so the real scale's range is not fixed before its options are set
+            Scale probe = primaryY instanceof LinearScale ?
+               ((LinearScale) primaryY).clone(false) : primaryY.clone();
+            probe.init(data);
+            double widest = 0;
+
+            for(Object val : probe.getValues()) {
+               widest = Math.max(widest,
+                                 GTool.stringWidth(new String[] { GTool.format(fmt, val) }, font));
+            }
+
+            length -= widest + EST_Y_LABEL_GAP;
+         }
+      }
+
+      TitlesDescriptor titles = desc.getTitlesDescriptor();
+      TitleDescriptor ytitle = titles == null ? null : titles.getYTitleDescriptor();
+
+      if(ytitle != null && (maxMode ? ytitle.isMaxModeVisible(vizContext) : ytitle.isVisible())) {
+         length -= EST_Y_TITLE_BAND;
+      }
+
+      if(hasSideLegend()) {
+         length -= EST_SIDE_LEGEND_SHARE * width;
+      }
+
+      return Math.max(length, 1);
+   }
+
+   // whether a legend is drawn at the left or right of the plot
+   private boolean hasSideLegend() {
+      LegendsDescriptor legends = desc.getLegendsDescriptor();
+
+      if(legends == null || legends.getLayout() != LegendsDescriptor.LEFT &&
+         legends.getLayout() != LegendsDescriptor.RIGHT)
+      {
+         return false;
+      }
+
+      return legendDrawn(info.getColorField(), legends.getColorLegendDescriptor()) ||
+         legendDrawn(info.getShapeField(), legends.getShapeLegendDescriptor()) ||
+         legendDrawn(info.getSizeField(), legends.getSizeLegendDescriptor());
+   }
+
+   private boolean legendDrawn(AestheticRef field, LegendDescriptor legend) {
+      return field != null && legend != null &&
+         (maxMode ? legend.isMaxModeVisible() : legend.isVisible());
    }
 
    // apply scale format to merge dates cell.
@@ -7873,6 +8186,12 @@ public abstract class GraphGenerator {
 
    // RED for sparkline
    private static final Color SOFT_RED = new Color(212, 71, 71);
+   // estimates for an X axis's length before layout: the gap between the Y labels and the
+   // plot, the band a Y axis title takes, and the share of the width a side legend takes
+   // (a typical legend, under the 30% cap of a modern side legend)
+   private static final double EST_Y_LABEL_GAP = 8;
+   private static final double EST_Y_TITLE_BAND = 16;
+   private static final double EST_SIDE_LEGEND_SHARE = 0.25;
 
    protected ArrayList<String> xdims; // x dimensions
    protected ArrayList<String> xmeasures; // x measures
@@ -7884,6 +8203,7 @@ public abstract class GraphGenerator {
    protected Map<String, String> ymeasurelabels; // y measure labels
    protected Map<String, Scale> scales; // col -> scale
    protected boolean fake; // fake chart indicator
+   private boolean topDownApplied; // category axis reversed to list the first at the top
    protected ChartInfo info; // chart info stores data info
    protected final ChartDescriptor desc; // chart descriptor stores view info
    protected final ChartDescriptor desc0; // original (non-runtime) chart descriptor
