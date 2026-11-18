@@ -32,10 +32,26 @@
   }
 }
 
-// the default button's hover and focus states redraw a full 1px border; the addon has no left
-// border, so redrawing it would grow the button 1px and shift it on hover
-.btn.btn-default.input-group-btn-addon {
+// Apply and its Apply-and-Collapse addon are one split button with one outline. The default
+// button's hover, press and focus states redraw a full 1px border in the hover border colour
+// (transparent), which would open that outline around the hovered half, and on the addon would grow
+// it 1px and shift it. So in the group a half only changes its fill: it keeps the rest border and
+// edges. !important: the global press rule (.btn.btn-default:not(...)x4:active) outranks any
+// component selector. A lone Apply (outside a slide-out) has neither class and hovers as usual.
+.input-group > .btn.btn-default:is(.input-group-btn, .input-group-btn-addon):not(:disabled) {
   &:hover, &:active, &:focus {
-    border-left: none;
+    border-color: var(--inet-default-border-color) !important;
+  }
+}
+
+.input-group > .btn.btn-default.input-group-btn:not(:disabled) {
+  &:hover, &:active, &:focus {
+    border-right: 1px dashed !important;
+  }
+}
+
+.input-group > .btn.btn-default.input-group-btn-addon:not(:disabled) {
+  &:hover, &:active, &:focus {
+    border-left: none !important;
   }
 }
