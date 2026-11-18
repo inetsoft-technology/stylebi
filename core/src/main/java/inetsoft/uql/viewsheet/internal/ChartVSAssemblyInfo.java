@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.graph.GraphConstants;
 import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.CategoricalShapeFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
 import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.graph.aesthetic.TealColorFrame;
@@ -249,6 +250,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here
       seedColorPalette(ctx);
+      seedShapeLists(ctx);
       // only a marked chart saves its seeded tiers
       getChartDescriptor().setSaveDefaults(ctx.modern);
 
@@ -350,6 +352,35 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // measure-backed node color the loop already reached simply takes the same write twice.
       if(info instanceof RelationChartInfo) {
          seedColorFrame(((RelationChartInfo) info).getNodeColorField(), ctx);
+      }
+   }
+
+   // swaps each categorical shape list that is a default; an author's list stays
+   private void seedShapeLists(VizContext ctx) {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      for(boolean runtime : new boolean[]{ false, true }) {
+         for(AestheticRef ref : info.getAestheticRefs(runtime)) {
+            seedShapeList(ref, ctx);
+         }
+
+         for(ChartRef ref : info.getBindingRefs(runtime)) {
+            if(ref instanceof ChartAggregateRef) {
+               seedShapeList(((ChartAggregateRef) ref).getShapeField(), ctx);
+            }
+         }
+      }
+
+      seedShapeList(info.getShapeField(), ctx);
+   }
+
+   private void seedShapeList(AestheticRef ref, VizContext ctx) {
+      if(ref != null && ref.getVisualFrame() instanceof CategoricalShapeFrame) {
+         ModernShapes.swap((CategoricalShapeFrame) ref.getVisualFrame(), ctx.modern);
       }
    }
 

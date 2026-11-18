@@ -1950,6 +1950,11 @@ public abstract class GraphGenerator {
             legends.getGap(), legends.hasGapValue(), vizContext, legends.getLayout()));
          legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
             legends.getPadding(), legends.hasPaddingValue(), vizContext));
+
+         // glyphs only; texture and line legends keep their symbols
+         if(vizContext.modern && shpframe instanceof ShapeFrame) {
+            legend.setSymbolFallbackColor(VSChartChromeDefaults.labelColor(vizContext));
+         }
       }
    }
 

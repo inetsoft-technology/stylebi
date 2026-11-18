@@ -95,7 +95,8 @@ public class PointChartFilter extends ChartTypeFilter {
       info.setSizeFrameWrapper(size);
 
       StaticShapeFrameWrapper shape = new StaticShapeFrameWrapper();
-      GShape point = GraphTypeUtil.isDotPlot(info) ? GShape.FILLED_CIRCLE : GShape.CIRCLE;
+      GShape point = GraphTypeUtil.isDotPlot(info) || vizContext.modern ?
+         GShape.FILLED_CIRCLE : GShape.CIRCLE;
       shape.setShape(ShapeFrameWrapper.getID(point));
       info.setShapeFrameWrapper(shape);
 
