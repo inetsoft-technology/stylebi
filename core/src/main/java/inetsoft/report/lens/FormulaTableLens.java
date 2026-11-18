@@ -1655,6 +1655,11 @@ public class FormulaTableLens extends AbstractTableLens
                nresult = null;
             }
 
+            // text that is neither a boolean nor a number would silently become false
+            if(nresult != null && isUnconvertibleBoolean(types[col], result)) {
+               nresult = null;
+            }
+
             // if type conversion causes data lost, don't force it (unless spark which causes error)
             if(nresult != null || forceType) {
                result = nresult;
@@ -2079,6 +2084,35 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       return nrows - 1;
+   }
+
+   /**
+    * Check if a text result declared Boolean is neither a boolean nor a number, so the
+    * conversion would turn it into false and lose the text.
+    *
+    * @param type the declared type of the column.
+    * @param val  the script result.
+    *
+    * @return true if the text should be kept as is.
+    */
+   static boolean isUnconvertibleBoolean(Class<?> type, Object val) {
+      if(!Boolean.class.equals(type) || !(val instanceof String)) {
+         return false;
+      }
+
+      String str = (String) val;
+
+      if(str.isEmpty() || "true".equalsIgnoreCase(str) || "false".equalsIgnoreCase(str)) {
+         return false;
+      }
+
+      try {
+         NumberParserWrapper.getDouble(str);
+         return false;
+      }
+      catch(Exception ex) {
+         return true;
+      }
    }
 
    /**
