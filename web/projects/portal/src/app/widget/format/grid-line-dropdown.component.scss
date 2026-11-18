@@ -65,7 +65,7 @@
   }
 
   &.selected {
-    background-color: var(--inet-selected-cell-bg-color, var(--inet-hover-primary-bg-color));
+    background-color: var(--inet-shell-selected-bg-color); // the selected fill, distinct from hover
     font-weight: 600;
   }
 }

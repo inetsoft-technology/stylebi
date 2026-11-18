@@ -124,7 +124,7 @@ vpm-value-editor {
   }
 
   &.selected {
-    background-color: var(--inet-selected-cell-bg-color, var(--inet-hover-primary-bg-color));
+    background-color: var(--inet-shell-selected-bg-color); // the selected fill, distinct from hover
     color: var(--inet-text-color);
     font-weight: 600;
   }

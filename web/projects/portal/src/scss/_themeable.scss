@@ -293,8 +293,9 @@ body {
   }
 }
 
+// a selected row (.bg-selected, or a tree's .bg-node-selected) keeps its selected fill while hovered
 .hover-bg-primary {
-  &:not([disabled]):not(.bg-selected):hover {
+  &:not([disabled]):not(.bg-selected):not(.bg-node-selected):hover {
     @extend %bg-hover-primary;
     cursor: pointer;
   }
@@ -1324,12 +1325,18 @@ binding-editor {
 
 .tree-node-hover {
   &:not([disabled]):hover {
-    background-color: var(--inet-ui-neutral-hover-bg-color);
     cursor: pointer;
   }
 
+  // a selected row keeps its selected fill while hovered
+  &:not([disabled]):not(.bg-node-selected):not(.bg-portal-node-selected):hover {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+  }
+
+  // the hover fill reaches the row's left edge by making the 4px filler border transparent (the fill
+  // paints under it), not by removing it, which would shift the row's content 4px on hover
   &:not([disabled]):hover:not(.bg-node-selected) {
-    border-left: none !important;
+    border-left-color: transparent !important;
   }
 
   &.bl-highlight-primary {

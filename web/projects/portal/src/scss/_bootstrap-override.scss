@@ -756,6 +756,12 @@ a:not([href]) {
     color: var(--inet-text-color);
     background-color: var(--inet-hover-primary-bg-color);
   }
+
+  // an item marked with the shell selected fill (the current bookmark) keeps it while hovered
+  &.bg-selected:hover,
+  &.bg-bold-selected:hover {
+    background-color: var(--inet-shell-selected-bg-color);
+  }
 }
 
 .card {
@@ -1004,7 +1010,8 @@ a:not([href]) {
     }
   }
 
-  &:hover:not(.not-selectable) {
+  // the active (selected) item keeps its selected fill while hovered
+  &:hover:not(.not-selectable):not(.active) {
     color: var(--inet-text-color);
     background-color: var(--inet-list-hover-bg-color);
 
@@ -1072,9 +1079,11 @@ a:not([href]) {
   border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-shell-surface-default);
 }
 
-.nav-tabs .nav-link:hover {
+// the active tab keeps its look (surface fill, open bottom edge) while hovered
+.nav-tabs .nav-link:not(.active):hover {
   background-color: var(--inet-ui-neutral-hover-bg-color);
-  border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-default-border-color);
+  // the neutral fill is the hover; a border box on hover reads as a second, nested tab
+  border-color: transparent;
 }
 
 .nav-pills .nav-link.selected {
