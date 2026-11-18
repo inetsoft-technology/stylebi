@@ -17,25 +17,8 @@
  */
 @use 'sass:color';
 
-// The composer canvas, the portal viewer, the visualization recommender preview and the chart
-// editor preview. Only the assembly area: the editors' own bars and panes are shell.
-$dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container";
-// An assembly's own value pickers, attached to body: the combo box's value list when it has too
-// many labels for a native select, and the date calendar of a combo box, text input or table cell.
-// They are the dashboard's input controls, not app commands, so they are content and compute as in
-// a light shell, like the native select they stand beside (whose popup follows the content's light
-// color-scheme). Other BI apps' dark modes do the same: chrome only, a report's controls follow the
-// report (Power BI and Tableau dark mode docs, Power BI slicer dropdown theme colors). App command
-// menus attached to body (context menus, the mini-toolbar More menu) and tooltips stay shell chrome.
-// A dark-marked assembly's calendar is the exception: it follows its assembly's mark in both shells
-// (the .dropdown-datepicker.viz-dark block at the end). The combo box list stays light when marked.
-$content-popup: ".vs-combo-box__list, .dropdown-datepicker";
-// The popups the shell resets to light: a dark-marked calendar is left out, it follows its mark (see
-// the .dropdown-datepicker.viz-dark block at the end of this file). Same specificity as the others.
-$content-popup-light: ".vs-combo-box__list, .dropdown-datepicker:not(.viz-dark)";
-// Matches an element outside dashboard content without adding specificity, for dark rules that
-// would otherwise also reach the content.
-$outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))";
+// $dashboard-content, $content-popup and $outside-content (the content boundary) live in
+// _variables.scss, so light-shell rules can stay out of dashboard content too.
 
 /***
  * Shell dark

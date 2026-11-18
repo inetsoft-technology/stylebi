@@ -23,6 +23,21 @@
   &:not(.bg-selected) {
     background-color: transparent;
   }
+
+  // an icon toggle: neutral fill and a stronger icon on hover (the <i> glyph carries its own icon
+  // colour, so it is set on the glyph); a selected toggle keeps its selected fill
+  &:not(.bg-selected):hover {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+
+    i {
+      color: var(--inet-hover-text-color);
+    }
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--inet-focus-ring);
+  }
 }
 
 .container {

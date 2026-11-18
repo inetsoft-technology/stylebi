@@ -28,17 +28,17 @@
             [ngModel]="searchStr" (ngModelChange)="search($event)" (keydown.escape)="onSearchEscape($event)" [disabled]="disabled"/>
         </div>
         <div class="p-1 search-icon-container">
-          <i class="close-icon icon-size-medium" aria-hidden="true" (click)="clearSearchContent()"
+          <i class="close-icon icon-size-medium icon-btn-ghost icon-btn-ghost--glyph" aria-hidden="true" (click)="clearSearchContent()"
           title="_#(Delete)"></i>
         </div>
         @if (showHelpLink) {
-          <i class="help-question-mark-icon cursor-pointer" (click)="openHelp()" tabindex="0"
+          <i class="help-question-mark-icon cursor-pointer icon-btn-ghost icon-btn-ghost--glyph" (click)="openHelp()" tabindex="0"
           aria-label="_#(Help Information)" role="link" title="_#(Help)"></i>
         }
       }
       @if (recentEnabled && getRecentTreeFun) {
         <div class="p-1 search-icon-container">
-          <i class="icon-size-medium"
+          <i class="icon-size-medium icon-btn-ghost icon-btn-ghost--glyph"
             [class.recent-outline-icon]="!isRecentView"
             [class.recent-icon]="isRecentView"
             [class.focus-icon-color]="isRecentView"

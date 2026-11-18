@@ -50,6 +50,25 @@
   align-items: center;
   flex: 0 0 auto;
   position: relative;
+  // above the tree pane's gutter cover (.data-tree-pane::after, z-index 1), so the focus ring of the
+  // flush-right Search button is not hidden under it
+  z-index: 2;
+  // room for that ring inside the pane, which clips at its edge (as the Repository toolbar has)
+  padding-right: 3px;
+
+  // the Search icon button is an inset chip sized to its icon, as in the Repository tree toolbar
+  // (repository-tree-view.component.scss), not a block line box taller than the toolbar
+  .nav-item {
+    display: flex;
+    align-items: center;
+  }
+
+  .nav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
 }
 
 .data-tree-toolbar-label {

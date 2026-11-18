@@ -434,6 +434,37 @@ input[type="radio"]:not(.form-check-input) {
   }
 }
 
+// A dialog's close button is an icon button, so it hovers with the neutral fill (shell-design-spec.md
+// "Ghost/icon"). background-color only: the X itself is the background images above, drawn in
+// --inet-icon-color, so the hover sets that property on the button to darken the X like the help icon
+// beside it. Not in dashboard content (a text input's error box draws a dialog header inside the
+// assembly). Like a bare-glyph .icon-btn-ghost--glyph, a box-shadow spread draws the fill a few
+// pixels past the X, so the chip matches the other icon chips without moving the rest layout.
+.modal-header .btn-close#{$outside-content}:not([disabled]):hover {
+  --inet-icon-color: var(--inet-hover-text-color);
+  background-color: var(--inet-ui-neutral-hover-bg-color);
+  border-radius: var(--inet-radius-lg);
+  box-shadow: 0 0 0 3px var(--inet-ui-neutral-hover-bg-color);
+}
+
+// keyboard focus draws the same neutral chip as hover with the 2px ring outside it, as on
+// .icon-btn-ghost; the X keeps its rest colour unless hovered. The ring starts past the 3px chip
+// spread, so that area is chip, not ring colour (Bootstrap's own focus shadow is made transparent on
+// .btn-close above)
+.modal-header .btn-close#{$outside-content}:not([disabled]):focus-visible {
+  outline: none;
+  background-color: var(--inet-ui-neutral-hover-bg-color);
+  border-radius: var(--inet-radius-lg);
+  box-shadow: 0 0 0 3px var(--inet-ui-neutral-hover-bg-color),
+              0 0 0 calc(3px + var(--inet-focus-ring-width)) var(--inet-focus-ring-color);
+}
+
+// hovered while keyboard-focused: the same chip and ring (the hover rule above would drop the ring)
+.modal-header .btn-close#{$outside-content}:not([disabled]):focus-visible:hover {
+  box-shadow: 0 0 0 3px var(--inet-ui-neutral-hover-bg-color),
+              0 0 0 calc(3px + var(--inet-focus-ring-width)) var(--inet-focus-ring-color);
+}
+
 .dropdown-toggle.no-caret::after {
   display: none;
 }

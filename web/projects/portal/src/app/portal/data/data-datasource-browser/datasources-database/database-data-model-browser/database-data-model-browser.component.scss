@@ -174,7 +174,8 @@
 
   .data-model-detail-pane__close {
     flex-shrink: 0;
-    color: var(--inet-secondary-text-color, #6e6759);
+    // an icon, in the icon colour (--inet-secondary-text-color is the text-on-violet role)
+    color: var(--inet-icon-color);
   }
 
   .data-model-detail-pane__subtitle {
