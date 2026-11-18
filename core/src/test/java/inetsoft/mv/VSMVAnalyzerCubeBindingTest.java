@@ -135,6 +135,7 @@ class VSMVAnalyzerCubeBindingTest {
       Method prepare = VSMVAnalyzer.class.getDeclaredMethod("prepare");
       prepare.setAccessible(true);
       prepare.invoke(analyzer);
+      analyzer.getDescriptor();
 
       Class<?> infoClass = Class.forName("inetsoft.mv.VSMVAnalyzer$TableInfo");
       Method check = VSMVAnalyzer.class.getDeclaredMethod(
