@@ -28,6 +28,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
 import inetsoft.web.wiz.binding.model.GeoFieldLayer;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -41,6 +42,7 @@ import static org.mockito.Mockito.when;
  * Bug #81664: {@code get_binding} reported a geo field with no layer and no map type, so a caller
  * could not tell what a field was set to and had to guess when adding another.
  */
+@Tag("core")
 class BindingReadServiceGeoLayerTest {
    private static GeographicOptionInfo option(String layer, String mapType) {
       GeographicOptionInfo option = new GeographicOptionInfo();
