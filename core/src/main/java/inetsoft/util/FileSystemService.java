@@ -593,7 +593,8 @@ public class FileSystemService {
 
                try {
                   XSwapper.RegisteredSwapFiles registered =
-                     new XSwapper.RegisteredSwapFiles(FileSystemService.this.cluster);
+                     new XSwapper.RegisteredSwapFiles(
+                        FileSystemService.this.cluster, filePath.toFile());
                   // Bug #78082, the snapshot copies of a node that is gone are not in use
                   SnapshotEmbeddedTableAssembly.removeStaleFileReferences(
                      FileSystemService.this.cluster);
