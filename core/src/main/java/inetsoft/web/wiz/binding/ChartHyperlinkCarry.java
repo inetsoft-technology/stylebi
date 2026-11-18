@@ -191,7 +191,7 @@ final class ChartHyperlinkCarry {
          ref instanceof VSDimensionRef d ? d.getFullName() : ref.getName();
    }
 
-   private static boolean sameField(ChartRef a, ChartRef b) {
+   static boolean sameField(ChartRef a, ChartRef b) {
       if(a instanceof VSAggregateRef x && b instanceof VSAggregateRef y) {
          return x.getName() != null && x.getName().equalsIgnoreCase(y.getName()) &&
             Objects.equals(x.getFormula(), y.getFormula());
