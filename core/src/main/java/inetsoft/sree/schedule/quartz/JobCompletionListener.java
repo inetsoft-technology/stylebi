@@ -168,8 +168,15 @@ public class JobCompletionListener extends JobListenerSupport {
 
          if(finishActionRecord != null) {
             String seeScheduleLog = Catalog.getCatalog().getString("em.task.runStatus");
-            String actionError = status ==Scheduler.Status.FAILED ?
-               jobException.getMessage() + "." + seeScheduleLog : null;
+            String actionError = null;
+
+            if(status == Scheduler.Status.FAILED) {
+               actionError = jobException.getMessage() + "." + seeScheduleLog;
+            }
+            else if(status == Scheduler.Status.INTERRUPTED) {
+               actionError = Catalog.getCatalog().getString("em.task.stopped");
+            }
+
             finishActionRecord.setActionStatus(status == Scheduler.Status.FINISHED ?
                                                   ActionRecord.ACTION_STATUS_SUCCESS :
                                                   ActionRecord.ACTION_STATUS_FAILURE);
