@@ -25,7 +25,6 @@ import inetsoft.sree.security.Organization;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.*;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -49,7 +48,7 @@ import static org.mockito.Mockito.when;
  *             Production likelihood: LOW. Portal/EM schedule UI only offers formats from the server-provided
  *             saveFileFormats list; users set a path per selected format via setFilePath before save. Normal UI
  *             and ScheduleService/ScheduleApiService paths do not call getFilePath(int) for a format that was never
- *             registered on the action. The @Disabled test getFilePath_unregisteredFormat_returnsNull documents
+ *             registered on the action. The test getFilePath_unregisteredFormat_returnsNull documents
  *             contract-vs-implementation for programmatic callers (tests, migration, direct API use) — not a
  *             typical end-user schedule flow.
  */
@@ -185,7 +184,6 @@ public class ViewsheetActionTest {
    // --- getFilePath ---
 
    @Test
-   @Disabled("Suspect 1: getFilePath(format) throws NullPointerException when format was never registered - ViewsheetAction:1851; Fix: null-check filePaths.get(format) before calling getPath(). See class header: unlikely via Portal/EM UI (format list is server-constrained).")
    void getFilePath_unregisteredFormat_returnsNull() {
       ViewsheetAction action = new ViewsheetAction();
       assertNull(action.getFilePath(FileFormatInfo.EXPORT_TYPE_PDF));

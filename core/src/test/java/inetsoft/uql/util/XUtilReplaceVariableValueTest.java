@@ -20,7 +20,6 @@ package inetsoft.uql.util;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import inetsoft.test.*;
@@ -252,20 +251,35 @@ class XUtilReplaceVariableValueTest {
          x01_scalarVsArray("time");
       }
 
-      @Disabled("mismatch X01 #81117")
-      @DisplayName("X01 a Date / Timestamp value as scalar and as a one-element array gives the same text")
+      /**
+       * Decided in #81117: without a registered format a scalar Date / Timestamp is rendered
+       * with toString() and a one-element array with Tool.toString, and this is kept.
+       * Unifying them would change the query text of every unformatted Date variable. If this
+       * test fails, the default rendering changed; check the queries that depend on it first.
+       */
+      @DisplayName("X01 a Date / Timestamp value as scalar and as a one-element array keeps different default text")
       @ParameterizedTest(name = "[{index}] {0}")
       @ValueSource(strings = { "date", "timestamp" })
       void x01_dateScalarVsArray(String kind) {
-         x01_scalarVsArray(kind);
+         assertNotEquals(scalarText(kind), arrayText(kind));
+      }
+
+      private Object x01Value(String kind) {
+         long millis = new GregorianCalendar(2024, Calendar.MARCH, 15, 10, 30, 0).getTimeInMillis();
+         return kind.equals("date") ? new java.util.Date(millis) :
+            kind.equals("timestamp") ? new java.sql.Timestamp(millis) : new java.sql.Time(millis);
+      }
+
+      private String scalarText(String kind) {
+         return replace("$(d)", "d", x01Value(kind));
+      }
+
+      private String arrayText(String kind) {
+         return replace("$(d)", "d", (Object) new Object[] { x01Value(kind) });
       }
 
       private void x01_scalarVsArray(String kind) {
-         long millis = new GregorianCalendar(2024, Calendar.MARCH, 15, 10, 30, 0).getTimeInMillis();
-         Object value = kind.equals("date") ? new java.util.Date(millis) :
-            kind.equals("timestamp") ? new java.sql.Timestamp(millis) : new java.sql.Time(millis);
-
-         assertEquals(replace("$(d)", "d", value), replace("$(d)", "d", (Object) new Object[] { value }));
+         assertEquals(scalarText(kind), arrayText(kind));
       }
 
       @DisplayName("X02 a date before 1901 is formatted as its local date in every zone")

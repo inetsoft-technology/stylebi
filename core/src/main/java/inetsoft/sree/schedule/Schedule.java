@@ -73,6 +73,15 @@ public interface Schedule extends Remote, TestableRemote {
    void removeTask(String taskName) throws RemoteException;
 
    /**
+    * Notifies the scheduler that a task has been removed.
+    *
+    * @param taskName  the name of the task that was removed.
+    * @param replacing true if the task is saved again under the same name right away (an edit), so
+    *                  a run in progress is not the run of a removed task (Bug #81647).
+    */
+   void removeTask(String taskName, boolean replacing) throws RemoteException;
+
+   /**
     * remove old task cache
     *
     * @param orgId org id.

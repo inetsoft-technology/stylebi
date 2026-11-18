@@ -383,7 +383,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
          manager.checkScheduleTaskSave(newTask.getTaskId(), newTask, principal);
 
          if(existing != null) {
-            manager.removeScheduleTask(newTask.getTaskId(), principal);
+            manager.removeScheduleTaskForReplace(newTask.getTaskId(), principal);
          }
 
          // Bug #77972, the batch action targets are checked against the removed task's targets

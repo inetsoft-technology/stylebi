@@ -200,8 +200,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
          const result = EMBED_CHART_URL_MATCHER(tree.root?.children?.primary?.segments);
-         this.assetId = result.posParams?.assetId?.path;
-         this.assemblyName = result.posParams?.assemblyName?.path;
+         this.assetId = result?.posParams?.assetId?.path;
+         this.assemblyName = result?.posParams?.assemblyName?.path;
          this.queryParams = tree.queryParams;
 
          this.subscriptions.add((window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {

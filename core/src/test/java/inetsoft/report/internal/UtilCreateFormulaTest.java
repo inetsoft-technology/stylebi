@@ -148,16 +148,14 @@ class UtilCreateFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): an unknown formula name gives " +
-      "a SumFormula")
-   void pin_unknownNameGivesSum() {
+   @DisplayName("An unknown formula name gives a SumFormula")
+   void unknownNameGivesSum() {
       assertInstanceOf(SumFormula.class, Util.createFormula(null, "Bogus"));
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a column name without a table " +
-      "gives a SumFormula")
-   void pin_columnNameWithoutTableGivesSum() {
+   @DisplayName("A formula with a column name but no table gives a SumFormula")
+   void columnNameWithoutTableGivesSum() {
       assertInstanceOf(SumFormula.class, Util.createFormula(null, "Correlation(price)"));
    }
 

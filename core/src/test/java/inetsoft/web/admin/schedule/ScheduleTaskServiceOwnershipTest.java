@@ -378,6 +378,20 @@ class ScheduleTaskServiceOwnershipTest {
       assertEquals(other, saved.getValue().getOwner());
    }
 
+   @ParameterizedTest
+   @NullAndEmptySource
+   void saveTask_ownerOmitted_doesNotRenameTaskToBlankOwner(String owner) throws Exception {
+      // Bug #81653, a blank owner must not reach updateTaskName as an identity with an empty
+      // name, which would rename the task before the later permission check refuses the save
+      ScheduleTaskEditorModel model = model(null, options(owner, null));
+
+      runSaveIgnoringDownstreamFailures(model);
+
+      ArgumentCaptor<IdentityID> renamedOwner = ArgumentCaptor.forClass(IdentityID.class);
+      verify(scheduleService).updateTaskName(any(), any(), renamedOwner.capture(), any());
+      assertNull(renamedOwner.getValue());
+   }
+
    // ── Bug #77281: an owner or execute-as identity that doesn't exist ──────
 
    // an org admin has SECURITY_USER ADMIN on any user name of the org, even one that doesn't

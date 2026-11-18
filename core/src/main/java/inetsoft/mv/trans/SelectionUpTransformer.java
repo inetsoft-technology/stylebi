@@ -1689,7 +1689,13 @@ public final class SelectionUpTransformer extends AbstractTransformer {
             // left join with right condition
             // right join with left condition
             if(left && rcond || right && lcond) {
-               // move up outer table as well if mv.outer.moveUp is true
+               // move up outer table as well if mv.outer.moveUp is true.
+               // NOT equivalent to filtering the inner table before the join:
+               // the rewritten condition is evaluated on joined rows, so an
+               // outer-side row whose inner matches all fail the condition is
+               // dropped instead of being NULL-padded, and inner rows whose
+               // condition column is NULL are kept (see addOuterCondition0).
+               // The default (false) reports an outerJoin fault, which is exact.
                if(up) {
                   if(left && name.equals(tbls[1]) ||
                      right && name.equals(tbls[0]))
@@ -1826,7 +1832,8 @@ public final class SelectionUpTransformer extends AbstractTransformer {
    }
 
    /**
-    * Add outer condition to table.
+    * Add outer condition to table. Only used when mv.outer.moveUp is true;
+    * see addOuterCondition0 for the resulting loss of exactness.
     */
    private void addOuterCondition(TableAssembly table) {
       ConditionListWrapper wrapper = table.getPreRuntimeConditionList();
@@ -1836,7 +1843,19 @@ public final class SelectionUpTransformer extends AbstractTransformer {
    }
 
    /**
-    * Add outer condition to table.
+    * Rewrite condition C of the inner side of an outer join into
+    * "C OR <first condition item column> IS NULL" so it can be moved above the
+    * join. This is an approximation, not an equivalent of filtering the inner
+    * table before the join, because the result is evaluated on joined rows:
+    * <ul>
+    * <li>an outer-side row whose inner matches all fail C is lost instead of
+    * being NULL-padded;</li>
+    * <li>inner rows whose condition column is NULL are kept;</li>
+    * <li>only the column of the first condition item gets the IS NULL guard;</li>
+    * <li>the guard is added only at runtime (not during MV analysis) and only
+    * on the matching side of the join.</li>
+    * </ul>
+    * Results can therefore differ from a query that does not hit the MV.
     */
    private ConditionListWrapper addOuterCondition0(ConditionListWrapper wrapper)
    {

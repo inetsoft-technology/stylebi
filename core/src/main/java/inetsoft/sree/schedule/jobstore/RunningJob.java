@@ -33,11 +33,35 @@ public final class RunningJob implements Serializable {
    public RunningJob(String fireInstanceId, TriggerKey triggerKey, String ownerNode,
                      String ownerMember, long startTime)
    {
+      this(fireInstanceId, triggerKey, ownerNode, ownerMember, startTime, false);
+   }
+
+   private RunningJob(String fireInstanceId, TriggerKey triggerKey, String ownerNode,
+                      String ownerMember, long startTime, boolean orphaned)
+   {
       this.fireInstanceId = fireInstanceId;
       this.triggerKey = triggerKey;
       this.ownerNode = ownerNode;
       this.ownerMember = ownerMember;
       this.startTime = startTime;
+      this.orphaned = orphaned;
+   }
+
+   /**
+    * Gets a copy of this record that is marked as the run of a task that was removed while the run
+    * was in progress (Bug #81647).
+    */
+   RunningJob asOrphaned() {
+      return new RunningJob(fireInstanceId, triggerKey, ownerNode, ownerMember, startTime, true);
+   }
+
+   /**
+    * Checks if the task was removed while this run was in progress, so the completion of the run
+    * must not write the status of, or trigger the dependants of, a task of the same name. A record
+    * written by a node of an older version has no mark, which reads as false.
+    */
+   public boolean isOrphaned() {
+      return orphaned;
    }
 
    public String getFireInstanceId() {
@@ -68,6 +92,7 @@ public final class RunningJob implements Serializable {
          + ", ownerNode=" + ownerNode
          + ", ownerMember=" + ownerMember
          + ", startTime=" + startTime
+         + ", orphaned=" + orphaned
          + '}';
    }
 
@@ -78,4 +103,7 @@ public final class RunningJob implements Serializable {
    private final String ownerNode;
    private final String ownerMember;
    private final long startTime;
+   // Bug #81647, set by Scheduler.removeTask on the record of the run in progress; has the
+   // lifecycle of the record, which endRun or the next startRun ends
+   private final boolean orphaned;
 }

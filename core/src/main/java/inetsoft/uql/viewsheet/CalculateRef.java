@@ -184,6 +184,20 @@ public class CalculateRef extends ColumnRef {
    }
 
    /**
+    * Set the declared data type. The type of the expression is kept in step, so a type set after
+    * the expression ref (or changed later) is the one the calc field's values are converted to.
+    */
+   @Override
+   public void setDataType(String type) {
+      super.setDataType(type);
+      DataRef ref = getDataRef();
+
+      if(ref instanceof ExpressionRef) {
+         ((ExpressionRef) ref).setDataType(getDataType());
+      }
+   }
+
+   /**
     * Set the name of the field.
     * @param name the name of the field
     */
