@@ -1646,6 +1646,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                           originalFirst);
 
                if(cols[k] == measures && isStackChart(name) &&
+                  (element == null || element.getHint(GraphGenerator.SINGLE_STACK_LAYER) == null) &&
                   (!isText || !isStackValue(evo, vtext)))
                {
                   HashMap<String, String> map = getStackTooltipValues(

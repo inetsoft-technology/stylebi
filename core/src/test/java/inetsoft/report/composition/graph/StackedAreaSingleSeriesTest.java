@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition.graph;
 
+import inetsoft.graph.EGraph;
 import inetsoft.graph.Plotter;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.Visualizable;
@@ -26,6 +27,7 @@ import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.geometry.AreaGeometry;
 import inetsoft.graph.scale.Scale;
 import inetsoft.graph.visual.*;
+import inetsoft.report.composition.region.ChartArea;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
@@ -38,6 +40,7 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
+import inetsoft.util.Catalog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Tag;
@@ -52,7 +55,9 @@ import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -68,6 +73,7 @@ class StackedAreaSingleSeriesTest {
    private static final double[] COST = { 60, 70, 40, 85, 90, 55 };
    private static final int WIDTH = 400;
    private static final int HEIGHT = 240;
+   private static final String TOTAL = Catalog.getCatalog().getString("Total");
 
    @AfterEach
    void reset() {
@@ -214,6 +220,59 @@ class StackedAreaSingleSeriesTest {
       assertEquals(List.of(0.8), drawing.alphasOf(GraphUtil.getName(cost)));
    }
 
+   // one stack layer has no stack total to show
+   @Test
+   void oneMeasureTooltipsMatchThePlainArea() {
+      Map<Point, String> plain = tooltips(GraphTypes.CHART_AREA, VizMark.MODERN_LIGHT, false);
+      Map<Point, String> stacked = tooltips(GraphTypes.CHART_AREA_STACK, VizMark.MODERN_LIGHT,
+                                            false);
+
+      assertFalse(plain.isEmpty());
+      assertEquals(plain, stacked);
+   }
+
+   @Test
+   void aMarkedStepAreaTooltipsMatchStacked() {
+      Map<Point, String> plain = tooltips(GraphTypes.CHART_STEP_AREA, VizMark.MODERN_LIGHT, false);
+      Map<Point, String> stacked = tooltips(GraphTypes.CHART_STEP_AREA_STACK,
+                                            VizMark.MODERN_LIGHT, false);
+
+      assertFalse(plain.isEmpty());
+      assertEquals(plain, stacked);
+   }
+
+   @Test
+   void aClassicStackedAreaTooltipKeepsTheStackTotal() {
+      List<String> stacked = pointTips(tooltips(GraphTypes.CHART_AREA_STACK, null, false));
+
+      assertFalse(stacked.isEmpty());
+      stacked.forEach(tip -> assertTrue(tip.contains(TOTAL), tip));
+   }
+
+   @Test
+   void aMarkedStackedAreaWithAColourDimensionKeepsTheStackTotal() {
+      List<String> stacked = pointTips(tooltips(GraphTypes.CHART_AREA_STACK,
+                                                VizMark.MODERN_LIGHT, true));
+
+      assertFalse(stacked.isEmpty());
+      stacked.forEach(tip -> assertTrue(tip.contains(TOTAL), tip));
+   }
+
+   // the data points' tooltips, without the axis labels'
+   private static List<String> pointTips(Map<Point, String> tips) {
+      return tips.values().stream().filter(tip -> tip.contains("Sum(Sales)")).toList();
+   }
+
+   private static Map<Point, String> tooltips(int type, VizMark mark, boolean colorDimension) {
+      Chart chart = chart(type, false, false, colorDimension);
+      GraphGenerator gen = generator(chart, mark, new Dimension(WIDTH, HEIGHT));
+      EGraph egraph = gen.createEGraph();
+      VGraph vgraph = Plotter.getPlotter(egraph).plotAndLayout(gen.getData(), 0, 0, WIDTH, HEIGHT);
+      ChartArea area = new ChartArea(vgraph, egraph, gen.getData(), null, chart.info());
+
+      return new HashMap<>(area.getTooltips());
+   }
+
    private static String pixelDiff(Drawing plain, Drawing stacked) {
       int count = 0;
       int first = -1;
@@ -237,6 +296,12 @@ class StackedAreaSingleSeriesTest {
 
    private static Drawing draw(int type, VizMark mark, boolean twoMeasures, boolean values,
                                boolean colorDimension)
+   {
+      return plot(chart(type, twoMeasures, values, colorDimension), mark);
+   }
+
+   private static Chart chart(int type, boolean twoMeasures, boolean values,
+                              boolean colorDimension)
    {
       VSChartDimensionRef month = dim("Month");
       VSChartDimensionRef region = dim("Region");
@@ -293,7 +358,7 @@ class StackedAreaSingleSeriesTest {
          desc.getPlotDescriptor().setStackMeasures(false);
       }
 
-      return plot(new Chart(cinfo, desc, rows), mark);
+      return new Chart(cinfo, desc, rows);
    }
 
    private static Drawing plot(Chart chart, VizMark mark) {
