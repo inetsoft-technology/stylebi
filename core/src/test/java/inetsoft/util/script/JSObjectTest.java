@@ -48,6 +48,17 @@ class JSObjectTest {
    }
 
    @Test
+   void convertBooleanFollowsJavaScriptRuleForNumbers() {
+      assertEquals(Boolean.TRUE, JSObject.convert(1.0, boolean.class));
+      assertEquals(Boolean.TRUE, JSObject.convert(1, Boolean.class));
+      assertEquals(Boolean.TRUE, JSObject.convert(-2.5, boolean.class));
+      assertEquals(Boolean.FALSE, JSObject.convert(0.0, boolean.class));
+      assertEquals(Boolean.FALSE, JSObject.convert(0, Boolean.class));
+      assertEquals(Boolean.TRUE, JSObject.convert("true", boolean.class));
+      assertEquals(Boolean.FALSE, JSObject.convert("false", boolean.class));
+   }
+
+   @Test
    @Disabled("Task 5.3: JSObject is now a Rhino-free static-utility class; the " +
       "instance constructor JSObject(scope, obj, type) and the instance get(name, scope) " +
       "method that enforced the getClass/getClassLoader prohibition were removed. Member " +
