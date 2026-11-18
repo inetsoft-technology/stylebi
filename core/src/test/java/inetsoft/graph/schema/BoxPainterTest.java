@@ -47,8 +47,8 @@ class BoxPainterTest {
 
       BufferedImage img = paint(elem);
 
-      // the median line is drawn with the border color
-      assertEquals(Color.RED.getRGB(), img.getRGB(10, 20));
+      // the box is filled with the border color
+      assertEquals(Color.RED.getRGB(), img.getRGB(5, 5));
    }
 
    @Test
