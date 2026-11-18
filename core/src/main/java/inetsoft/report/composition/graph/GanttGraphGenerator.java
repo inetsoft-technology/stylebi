@@ -20,6 +20,7 @@ package inetsoft.report.composition.graph;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.data.DataSet;
+import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.Scale;
 import inetsoft.graph.scale.TimeScale;
 import inetsoft.uql.VariableTable;
@@ -145,10 +146,10 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
       Scale yScale = coord.getYScale();
 
       if(yScale != null) {
-         // centre month labels between their boundary ticks on the time axis.
-         yScale.getAxisSpec().setLabelBetween(true);
+         boolean fit = false;
 
          if(vizContext.modern && yScale instanceof TimeScale) {
+            TimeScale time = (TimeScale) yScale;
             // the chart's own padding, as the title gap uses
             Insets padding = chartPadding != null ? chartPadding
                : VSDensityDefaults.chartPadding(vizContext);
@@ -158,8 +159,20 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
                ModernLabelRule.columnLimitPx(
                   coord.getXScale().getAxisSpec().getTextSpec().getFont(), width);
             double plot = width - padding.left - padding.right - tasks;
-            ((TimeScale) yScale).setEndPadRatio(endPadRatio(padding.right, plot));
+            time.setEndPadRatio(endPadRatio(padding.right, plot));
+
+            // an author increment keeps the classic ticks
+            if(time.getIncrement() == null) {
+               Font font = time.getAxisSpec().getTextSpec().getFont();
+               // widest label plus the flat gap
+               double label = GTool.stringWidth(new String[] { "Sep 2026" }, font) + 4;
+               time.setLabelFit(plot, label);
+               fit = true;
+            }
          }
+
+         // centre month labels between their boundary ticks on the time axis.
+         yScale.getAxisSpec().setLabelBetween(!fit);
       }
 
       Scale xScale = coord.getXScale();
