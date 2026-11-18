@@ -376,6 +376,26 @@ class ViewsheetEditServiceTest {
       assertFalse(captor.getValue().confirmed());
    }
 
+   /**
+    * Bug #81549: the Layout dropdown only learns the layout list from SetViewsheetInfoCommand,
+    * so refresh_viewsheet must resend it after the sheet refresh (fails without the
+    * setViewsheetInfo call in refreshWholeSheet).
+    */
+   @Test
+   void refreshViewsheetResendsTheViewsheetInfoSoNewLayoutsAreListed() throws Exception {
+      VSRefreshService refreshService = mock(VSRefreshService.class);
+      CoreLifecycleService lifecycle = mock(CoreLifecycleService.class);
+      ViewsheetEditService service = serviceWithRefresh(mock(ViewsheetReadService.class),
+                                                        refreshService, lifecycle);
+
+      service.apply("tok", principal(), request("refresh_viewsheet", null), "linkUri1");
+
+      InOrder order = inOrder(refreshService, lifecycle);
+      order.verify(refreshService).refreshViewsheet(eq("rt1"), any(VSRefreshEvent.class),
+                                                    any(Principal.class), any(), eq("linkUri1"));
+      order.verify(lifecycle).setViewsheetInfo(any(RuntimeViewsheet.class), eq("linkUri1"), any());
+   }
+
    @Test
    void addRequiresATypeAndFailsLoudWithoutOne() {
       ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
@@ -2729,6 +2749,13 @@ class ViewsheetEditServiceTest {
    private static ViewsheetEditService serviceWithRefresh(ViewsheetReadService reader,
                                                           VSRefreshService refreshService)
    {
+      return serviceWithRefresh(reader, refreshService, mock(CoreLifecycleService.class));
+   }
+
+   private static ViewsheetEditService serviceWithRefresh(ViewsheetReadService reader,
+                                                          VSRefreshService refreshService,
+                                                          CoreLifecycleService lifecycle)
+   {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
       try {
@@ -2747,7 +2774,7 @@ class ViewsheetEditServiceTest {
                                       mock(VSObjectPropertyService.class), reader,
                                       mock(ComposerGroupService.class),
                                       mock(GroupingService.class), refreshService,
-                                      mock(CoreLifecycleService.class));
+                                      lifecycle);
    }
 
    /** Runs the mutation against a supplied runtime, for the guards that inspect the assembly. */
