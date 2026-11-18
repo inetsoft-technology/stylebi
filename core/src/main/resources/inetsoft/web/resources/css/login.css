@@ -379,7 +379,6 @@ body {
 #activeSession .modal-footer .btn-primary:hover {
   background: var(--ln-primary-hover);
   border-color: var(--ln-primary-hover);
-  box-shadow: var(--ln-shadow-low);
 }
 
 #loginButton.btn-primary:focus-visible,
