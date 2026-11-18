@@ -123,6 +123,7 @@ final class ChartHyperlinkCarry {
 
       List<Saved> pool = new ArrayList<>(saved);
       List<ChartRef> now = refs(info, shelf);
+      Set<ChartRef> matched = new HashSet<>();
 
       for(ChartRef ref : now) {
          for(Saved candidate : pool) {
@@ -154,10 +155,13 @@ final class ChartHyperlinkCarry {
                }
             }
 
+            matched.add(ref);
             pool.remove(candidate);
             break;
          }
       }
+
+      carryAcrossFormula(pool, now, matched, shelf, notes);
 
       for(Saved dropped : pool) {
          if(dropped.hasHighlight() && sameColumn(dropped.ref(), now)) {
@@ -171,6 +175,58 @@ final class ChartHyperlinkCarry {
       }
 
       return notes;
+   }
+
+   /**
+    * A measure whose aggregate formula changed (Sum to Average) is a different field to
+    * {@link #sameField}, but it is still the same column the link was put on. Its link moves to the
+    * new aggregate only when the pairing is 1:1: exactly one unmatched linked ref and exactly one
+    * unmatched new aggregate on that column. Otherwise the target is a guess, so the link is
+    * dropped and reported. Highlights are not carried here.
+    */
+   private static void carryAcrossFormula(List<Saved> pool, List<ChartRef> now,
+                                          Set<ChartRef> matched, String shelf, List<String> notes)
+   {
+      for(Saved saved : pool) {
+         if(saved.link() == null || !(saved.ref() instanceof VSAggregateRef)) {
+            continue;
+         }
+
+         String column = saved.ref().getName();
+         List<Saved> oldOnes = new ArrayList<>();
+         List<ChartRef> newOnes = new ArrayList<>();
+
+         for(Saved other : pool) {
+            if(other.link() != null && other.ref() instanceof VSAggregateRef &&
+               column != null && column.equalsIgnoreCase(other.ref().getName()))
+            {
+               oldOnes.add(other);
+            }
+         }
+
+         for(ChartRef ref : now) {
+            if(ref instanceof VSAggregateRef && !matched.contains(ref) && column != null &&
+               column.equalsIgnoreCase(ref.getName()) &&
+               ref instanceof HyperlinkRef h && h.getHyperlink() == null)
+            {
+               newOnes.add(ref);
+            }
+         }
+
+         if(newOnes.isEmpty()) {
+            continue;
+         }
+
+         if(oldOnes.size() == 1 && newOnes.size() == 1) {
+            ((HyperlinkRef) newOnes.get(0)).setHyperlink((Hyperlink) saved.link().clone());
+            matched.add(newOnes.get(0));
+         }
+         else {
+            notes.add("The hyperlink on " + fullName(saved.ref()) + " was removed: its field stays " +
+               "on the " + shelf + " shelf under a different aggregate formula and the new " +
+               "target is ambiguous. Re-create it with set_hyperlink on the new field.");
+         }
+      }
    }
 
    private static boolean sameColumn(ChartRef old, List<ChartRef> now) {
