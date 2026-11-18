@@ -770,6 +770,13 @@ a:not([href]) {
   &.bg-bold-selected:active {
     background-color: var(--inet-shell-selected-bg-color);
   }
+
+  // keyboard focus on a selected item can't show as a fill change, so it gets the shell focus
+  // ring, drawn inside because the dropdown clips at its edge
+  &.bg-selected:focus-visible,
+  &.bg-bold-selected:focus-visible {
+    box-shadow: inset 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+  }
 }
 
 .card {
