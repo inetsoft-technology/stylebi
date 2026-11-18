@@ -509,7 +509,7 @@ class CorrelationFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): separator, hex and Arabic " +
+   @DisplayName("PIN(current behavior, not decided): separator, hex and Arabic " +
       "digit text pairs are skipped")
    void separatorHexAndArabicDigitText_pairIsSkipped() {
       CorrelationFormula clean = new CorrelationFormula(2);

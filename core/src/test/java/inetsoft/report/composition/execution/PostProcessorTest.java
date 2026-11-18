@@ -27,7 +27,6 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -154,7 +153,7 @@ public class PostProcessorTest {
 
    // divide by zero and a null operand follow JavaScript: x / 0 is Infinity (returned as
    // null, ScriptValueConverter turns Infinity into null) and null * 2 is 0.
-   // Current behavior, not in #80953 (that covers aggregate calc fields)
+   // Intended: row-level calc fields follow JavaScript coercion (decision in #81197)
    @Test
    void formula_divideByZeroAndNullOperand_followJavaScript() {
       Object[][] data = rows(new Object[] { 10.0, 0, 1, "NY", "Albany", null },
@@ -177,7 +176,7 @@ public class PostProcessorTest {
       assertEquals(Arrays.asList("NY_Albany", "CA_Fresno"), values(t));
    }
 
-   // a null in concatenation is the text "null" (JavaScript). Current behavior, not confirmed
+   // a null in concatenation is the text "null" (JavaScript). Intended, decision in #81197
    @Test
    void formula_concatenateWithNull_givesTheTextNull() {
       TableLens t = calc(rows(new Object[] { 1.0, 1, 1, null, "Albany", null }),
@@ -189,7 +188,7 @@ public class PostProcessorTest {
    // the query cannot be merged into the database, AssetQuery.addExpression runs the same
    // text as script (ExpressionRef.getScriptExpression), and the script has no concat, so
    // reading the formula table fails (end to end, AssetQuery then shows the design-time
-   // sample table, see AssetQueryExpressionColumnTest). Current behavior
+   // sample table, see AssetQueryExpressionColumnTest). Current behavior, pending #81223
    @Test
    void formula_sqlFunctionRunAsScript_failsTheTable() {
       ExpressionFailedException ex = assertThrows(ExpressionFailedException.class, () ->
@@ -376,7 +375,6 @@ public class PostProcessorTest {
       }
    }
 
-   @Disabled("Bug #81204: CALC.quarter(null) returns 1 instead of -1")
    @Test
    @DisplayName("The quarter of a null date is -1, like year, month, day and hour")
    void nullDate_quarterIsMinusOne() {
@@ -384,7 +382,7 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): year, month, day and hour " +
+   @DisplayName("PIN(current behavior, not decided): year, month, day and hour " +
       "of a null date are -1")
    void pin_nullDate_partsAreMinusOne() {
       for(String part : new String[] { "year", "month", "day", "hour" }) {
@@ -393,7 +391,6 @@ public class PostProcessorTest {
       }
    }
 
-   @Disabled("Bug #81200: Declared Integer clamps a larger result")
    @Test
    @DisplayName("A declared Integer never turns a value beyond int into a clamped number")
    void integerBeyondInt_isNotClamped() {
@@ -552,7 +549,7 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a declared Integer truncates " +
+   @DisplayName("PIN(current behavior, not decided): a declared Integer truncates " +
       "toward zero")
    void pin_integerTruncatesTowardZero() {
       assertEquals(Arrays.asList(2, 3, -3, 2),
@@ -672,7 +669,7 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): null * 1 is the number 0 " +
+   @DisplayName("PIN(current behavior, not decided): null * 1 is the number 0 " +
       "converted to every declared type")
    void pin_nullTimesOne() {
       Object[][] data = oneDate(null);

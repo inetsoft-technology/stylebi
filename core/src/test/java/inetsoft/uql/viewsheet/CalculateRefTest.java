@@ -166,7 +166,7 @@ class CalculateRefTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a raw U+0001 character cannot " +
+   @DisplayName("PIN(current behavior, not decided): a raw U+0001 character cannot " +
       "be written to XML 1.0 and does not come back")
    void pin_rawControlCharacterIsLost() throws Exception {
       CalculateRef ref = calc(true, "'x" + (char) 1 + "y'");

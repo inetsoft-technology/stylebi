@@ -1143,7 +1143,7 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): PthPercentile uses the " +
+   @DisplayName("PIN(current behavior, not decided): PthPercentile uses the " +
       "nearest rank, Median averages the two middle values")
    void pin_percentileNearestRank() {
       for(Object[] row : new Object[][] { { "PthPercentile(50)", 5.0 },
