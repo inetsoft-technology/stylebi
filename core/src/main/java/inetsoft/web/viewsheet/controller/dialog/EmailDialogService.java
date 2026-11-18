@@ -192,6 +192,20 @@ public class EmailDialogService {
    public MessageDialogModel emailViewsheet(@ClusterProxyKey String runtimeId, EmailDialogModel value,
                                             Principal principal, String linkUri) throws Exception
    {
+      // the Email toolbar action only hides the button in the viewer, so enforce it here
+      if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+                                         "Email", ResourceAction.READ))
+      {
+         LOG.warn("Failed to email viewsheet since {} has no permission for viewsheet email.",
+                  principal == null ? null : principal.getName());
+         return MessageDialogModel.builder()
+            .type(MessageCommand.Type.ERROR)
+            .success(false)
+            .message(Catalog.getCatalog(principal).getString(
+               "viewer.viewsheet.email.noPermission"))
+            .build();
+      }
+
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       MessageDialogModel message;
 
