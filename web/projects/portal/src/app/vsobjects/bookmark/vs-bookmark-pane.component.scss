@@ -18,9 +18,15 @@
 .bookmark-search {
   display: flex;
   width: 100%;
-  overflow: hidden;
+  // clip, with room for the 2px focus ring of the Remove and Filter icon buttons, which sit 1px
+  // from the top edge (overflow-clip-margin needs overflow: clip; the layout is unchanged)
+  overflow: clip;
+  overflow-clip-margin: 2px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--inet-default-border-color);
+  // room for that ring at the flush-right Filter button: the dropdown clips at its own edge (as the
+  // Data tab tree toolbar has)
+  padding-right: 3px;
 
   .nav-item {
     display: flex;

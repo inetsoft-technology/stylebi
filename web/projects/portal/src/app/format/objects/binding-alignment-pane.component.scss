@@ -34,9 +34,15 @@
     }
   }
 
+  // keyboard focus: the hover chip plus the ring, as on every shell icon button; a selected toggle
+  // keeps its selected fill
   &:focus-visible {
     outline: none;
     box-shadow: var(--inet-focus-ring);
+  }
+
+  &:not(.bg-selected):focus-visible {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
   }
 }
 
