@@ -1293,6 +1293,11 @@ public class ViewsheetEditService {
                refreshService.refreshViewsheet(
                   runtimeId, VSRefreshEvent.builder().confirmed(false).build(), user, dispatcher,
                   linkUri);
+
+               // Bug #81549: the Composer's Layout dropdown is filled only from
+               // SetViewsheetInfoCommand.layouts, which the sheet refresh does not resend, so a
+               // print/device layout written by the agent stayed unlisted until a save.
+               coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
             }
             finally {
                if(box != null) {
