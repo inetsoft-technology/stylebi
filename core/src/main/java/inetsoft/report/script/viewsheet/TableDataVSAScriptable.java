@@ -1056,6 +1056,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          else if(state instanceof String) {
             rows = ftable.rows(getRowState((String) state));
          }
+         else {
+            throw new RuntimeException("Unsupported state : " + state);
+         }
 
          return convertFormTableRows(rows);
       }
