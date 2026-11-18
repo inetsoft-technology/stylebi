@@ -16,5 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .dropdown-datepicker {
-  background: white;
+  // follows the popup's tokens: dark under .viz-dark, light otherwise (was a literal white)
+  background: var(--inet-dropdown-bg-color);
 }

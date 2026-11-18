@@ -67,7 +67,8 @@ input {
 }
 
 .dropdown-datepicker {
-  background: white;
+  // follows the popup's tokens: dark under .viz-dark, light otherwise (was a literal white)
+  background: var(--inet-dropdown-bg-color);
 }
 
 .date-input-container {

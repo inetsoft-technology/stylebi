@@ -593,6 +593,8 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
       this.dropdownRef = this.dropdownService.open(VSTableCellCalendar, options);
       const calendar: VSTableCellCalendar = this.dropdownRef.componentInstance;
       calendar.date = this.date;
+      calendar.vizModern = !!this.table?.vizModern;
+      calendar.vizDark = !!this.table?.vizDark;
 
       const sub = calendar.onDateChange.subscribe((date) => {
          sub.unsubscribe();

@@ -124,7 +124,8 @@
             [class.bd-selected-cell]="focused == FocusRegions.CALENDAR" [class.disable-input]="isInputDisabled()"
           [fixedDropdown]="dropdownMenu" [autoClose]="false" dropdownPlacement="bottom" [style.color]="model.objectFormat.foreground"></i>
           <ng-template #dropdownMenu>
-            <div class="dropdown-datepicker">
+            <div class="dropdown-datepicker"
+                 [class.viz-modern]="model.vizModern" [class.viz-dark]="model.vizDark">
               <ngb-datepicker #dp [ngModel]="date" defaultFocus [autoSelect]="false" [startDate]="date"
                 [minDate]="minDate" [maxDate]="maxDate" [firstDayOfWeek]="firstDayOfWeek"
                 [attr.aria-label]="model.absoluteName + ' _#(Date Input) _#(Calendar)'"

@@ -340,6 +340,26 @@ describe("VSTableCell", () => {
          expect(dropdownService.open).toHaveBeenCalled();
          expect(emitSpy).toHaveBeenCalledWith(new Date(2024, 0, 3, 0, 0, 0, 0).getTime() + "");
       });
+
+      it("should hand the owning table's viz mark to the calendar it opens", () => {
+         const { comp, dropdownRef } = createComponent({
+            table: { vizModern: true, vizDark: true },
+         });
+
+         comp.openCalendar({ pageX: 1, pageY: 2 } as any);
+
+         expect((dropdownRef.componentInstance as any).vizModern).toBe(true);
+         expect((dropdownRef.componentInstance as any).vizDark).toBe(true);
+      });
+
+      it("should open an unmarked table's calendar with no viz mark", () => {
+         const { comp, dropdownRef } = createComponent();
+
+         comp.openCalendar({ pageX: 1, pageY: 2 } as any);
+
+         expect((dropdownRef.componentInstance as any).vizModern).toBe(false);
+         expect((dropdownRef.componentInstance as any).vizDark).toBe(false);
+      });
    });
 
    describe("Display getters", () => {
