@@ -145,6 +145,34 @@ class ScheduleTaskJobTest {
       }
    }
 
+   @Test
+   void execute_internalTask_doesNotSeePreviousTasksPrincipal() throws Exception {
+      // Bug #81691, a previous user task left its principal on the reused worker thread
+      ThreadContext.setContextPrincipal(mock(SRPrincipal.class));
+
+      ScheduleTask task = mock(ScheduleTask.class);
+      when(task.getOwner()).thenReturn(new IdentityID("owner1", "host-org"));
+      java.util.concurrent.atomic.AtomicReference<java.security.Principal> seen =
+         new java.util.concurrent.atomic.AtomicReference<>();
+
+      try(MockedStatic<Tool> tool = mockStatic(Tool.class, org.mockito.Answers.CALLS_REAL_METHODS);
+          MockedStatic<ScheduleManager> scheduleManager = mockStatic(ScheduleManager.class);
+          MockedStatic<SUtil> sUtil = mockStatic(SUtil.class))
+      {
+         tool.when(Tool::getIP).thenReturn("127.0.0.1");
+         scheduleManager.when(() -> ScheduleManager.isInternalTask(anyString())).thenReturn(true);
+         sUtil.when(() -> SUtil.runTask(any(), any(), anyString())).thenAnswer(inv -> {
+            seen.set(ThreadContext.getContextPrincipal());
+            return null;
+         });
+
+         JobExecutionContext context = buildContext("internal1", task);
+         assertDoesNotThrow(() -> new ScheduleTaskJob().execute(context));
+      }
+
+      org.junit.jupiter.api.Assertions.assertNull(seen.get());
+   }
+
    private static JobExecutionContext buildContext(String taskName, ScheduleTask task) {
       JobDataMap dataMap = new JobDataMap();
       dataMap.put(ScheduleTask.class.getName(), task);
