@@ -669,11 +669,113 @@ class HierarchyDimensionServiceTest {
    void listReadsBackABasicIntervalDateLevelByName() throws Exception {
       Harness h = harnessChart(paneWithDimensions(
          new OutputColumnRefModel[0],
-         dimensionWithOption(DateRangeRef.QUARTER_INTERVAL, column("Order Date"))));
+         dimensionWithOption(DateRangeRef.QUARTER_INTERVAL, dateColumn("Order Date"))));
 
       Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
 
       assertEquals("quarter", membersOf(out, 0).get(0).get("dateLevel"));
+   }
+
+   /**
+    * Regression for bug #81685: the Composer Hierarchy dialog stores a year option on every
+    * dropped column, string and number included. A member whose column is not date-typed reads
+    * back as "none", never "year".
+    */
+   @Test
+   void listReadsAYearOptionOnNonDateColumnsAsNone() throws Exception {
+      OutputColumnRefModel number = column("Total");
+      number.setDataType(XSchema.DOUBLE);
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[0],
+         dimensionWithOption(DateRangeRef.YEAR_INTERVAL, column("State")),
+         dimensionWithOption(DateRangeRef.YEAR_INTERVAL, number)));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+
+      assertEquals("none", membersOf(out, 0).get(0).get("dateLevel"));
+      assertEquals("none", membersOf(out, 1).get(0).get("dateLevel"));
+   }
+
+   /** Date, time and timestamp columns keep the level they were stored with. */
+   @Test
+   void listKeepsTheStoredLevelOfDateTypedColumns() throws Exception {
+      OutputColumnRefModel time = column("Open Time");
+      time.setDataType(XSchema.TIME);
+      OutputColumnRefModel instant = column("Order Stamp");
+      instant.setDataType(XSchema.TIME_INSTANT);
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[0],
+         dimensionWithOption(DateRangeRef.YEAR_INTERVAL, dateColumn("Ship Date")),
+         dimensionWithOption(DateRangeRef.YEAR_INTERVAL, instant),
+         dimensionWithOption(DateRangeRef.HOUR_INTERVAL, time)));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+
+      assertEquals("year", membersOf(out, 0).get(0).get("dateLevel"));
+      assertEquals("year", membersOf(out, 1).get(0).get("dateLevel"));
+      assertEquals("hour", membersOf(out, 2).get(0).get("dateLevel"));
+   }
+
+   /** With no type from the member or the catalog the stored level is reported unchanged. */
+   @Test
+   void listReportsTheStoredLevelWhenTheColumnTypeIsUnknown() throws Exception {
+      OutputColumnRefModel untyped = column("State");
+      untyped.setDataType(null);
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[0], dimensionWithOption(DateRangeRef.YEAR_INTERVAL, untyped)));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+
+      assertEquals("year", membersOf(out, 0).get(0).get("dateLevel"));
+   }
+
+   /** A member with no stored type takes its type from the pane's column catalog. */
+   @Test
+   void listTakesTheTypeFromTheCatalogWhenTheMemberHasNone() throws Exception {
+      OutputColumnRefModel untyped = column("State");
+      untyped.setDataType(null);
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[] { column("State") },
+         dimensionWithOption(DateRangeRef.YEAR_INTERVAL, untyped)));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+
+      assertEquals("none", membersOf(out, 0).get(0).get("dateLevel"));
+   }
+
+   /**
+    * Regression for bug #81685: what list reports for a UI-built hierarchy can be sent straight
+    * back to update, and the echo of that update reads the same.
+    */
+   @Test
+   void updateAcceptsTheListReadBackOfAUiBuiltHierarchy() throws Exception {
+      VSDimensionMemberModel state = new VSDimensionMemberModel();
+      state.setDataRef(column("State"));
+      state.setOption(DateRangeRef.YEAR_INTERVAL);
+      VSDimensionMemberModel city = new VSDimensionMemberModel();
+      city.setDataRef(column("City"));
+      city.setOption(DateRangeRef.YEAR_INTERVAL);
+      VSDimensionModel dim = new VSDimensionModel();
+      dim.setMembers(new VSDimensionMemberModel[] { state, city });
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[] { column("State"), column("City") }, dim));
+
+      List<Map<String, Object>> read = membersOf(h.service.list("tok", principal(), "Chart1"), 0);
+      List<String> columns = read.stream().map(m -> (String) m.get("column")).toList();
+      List<String> levels = read.stream().map(m -> (String) m.get("dateLevel")).toList();
+      assertEquals(List.of("none", "none"), levels);
+      // the plugin sends a "none" level as blank (its normalizeDateLevels)
+      List<String> sent = levels.stream().map(l -> "none".equals(l) ? "" : l).toList();
+
+      Map<String, Object> result =
+         h.service.update("tok", principal(), "Chart1", 0, columns, sent, "");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> echoed = (Map<String, Object>) result.get("dimension");
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> members = (List<Map<String, Object>>) echoed.get("members");
+      assertEquals("none", members.get(0).get("dateLevel"));
+      assertEquals("none", members.get(1).get("dateLevel"));
    }
 
    /**
@@ -686,7 +788,7 @@ class HierarchyDimensionServiceTest {
    void listReadsBackAPartLevelDateLevelByName() throws Exception {
       Harness h = harnessChart(paneWithDimensions(
          new OutputColumnRefModel[0],
-         dimensionWithOption(DateRangeRef.QUARTER_OF_YEAR_PART, column("Order Date"))));
+         dimensionWithOption(DateRangeRef.QUARTER_OF_YEAR_PART, dateColumn("Order Date"))));
 
       Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
 
@@ -709,7 +811,7 @@ class HierarchyDimensionServiceTest {
       for(Map.Entry<String, Integer> level : expected.entrySet()) {
          Harness h = harnessChart(paneWithDimensions(
             new OutputColumnRefModel[0],
-            dimensionWithOption(level.getValue(), column("Order Date"))));
+            dimensionWithOption(level.getValue(), dateColumn("Order Date"))));
 
          Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
 
