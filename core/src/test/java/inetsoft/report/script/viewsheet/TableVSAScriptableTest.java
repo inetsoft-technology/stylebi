@@ -356,6 +356,24 @@ public class TableVSAScriptableTest {
       assertEquals(36, Arrays.stream(tableVSAScriptable2.getFormRows(FormTableRow.OLD)).count());
    }
 
+   /**
+    * getFormRows with a state that is neither a number nor a string must fail with the same
+    * readable error as an unknown state text, not a raw NullPointerException.
+    */
+   @Test
+   void testGetFormRowsUnsupportedStateType() throws Exception {
+      processAssembly("TableView2");
+
+      RuntimeException textError = assertThrows(
+         RuntimeException.class, () -> tableVSAScriptable2.getFormRows("nosuchstate"));
+      assertEquals("Unsupported state : nosuchstate", textError.getMessage());
+
+      RuntimeException boolError = assertThrows(
+         RuntimeException.class, () -> tableVSAScriptable2.getFormRows(Boolean.TRUE));
+      assertEquals("Unsupported state : true", boolError.getMessage());
+      assertFalse(boolError instanceof NullPointerException);
+   }
+
    private static OpenViewsheetEvent createOpenViewsheetEvent() {
       OpenViewsheetEvent event = new OpenViewsheetEvent();
       event.setEntryId(ASSET_ID);
