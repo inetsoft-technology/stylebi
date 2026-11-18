@@ -21,4 +21,6 @@ export interface VSConditionDialogModel {
    tableName: string;
    fields: DataRef[];
    conditionList: any[];
+   // views of the condition fields that are no longer bound; display only
+   unboundFields?: string[];
 }

@@ -79,6 +79,8 @@ export class ConditionItemPane implements OnInit, OnChanges {
    @Input() variableNames: string[];
    @Input() showExpression: boolean = true;
    @Input() isHighlight: boolean = false;
+   // views of fields that are no longer bound (display only)
+   @Input() unboundFields: string[];
    @Input() table: string;
    @Input() vsId: string;
    @Input() addNoneItem = true;
@@ -183,6 +185,14 @@ export class ConditionItemPane implements OnInit, OnChanges {
 
    getSource(): SourceInfo {
       return null;
+   }
+
+   /**
+    * Whether the field of the condition is one reported by the server as no longer bound.
+    */
+   isFieldUnbound(): boolean {
+      const view = this.condition?.field?.view;
+      return !!view && !!this.unboundFields && this.unboundFields.indexOf(view) >= 0;
    }
 
    get showUseList(): boolean {
