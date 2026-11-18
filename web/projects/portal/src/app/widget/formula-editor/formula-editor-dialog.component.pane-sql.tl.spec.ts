@@ -22,6 +22,7 @@
  * serves is script, so it reports nothing for them. The value follows the radio live, because the
  * user can flip it after pairing.
  */
+import { ConditionOperation } from "../../common/data/condition/condition-operation";
 import { FormulaType } from "../../common/data/formula-type";
 import { createDialog } from "./formula-editor-dialog.component.test-helpers";
 
@@ -82,6 +83,55 @@ describe("FormulaEditorDialog - paneSqlMode (bug #81541)", () => {
       comp.socketConnection = undefined;
 
       expect(comp.editorContext).toBeNull();
+      expect(comp.paneSqlMode).toBeUndefined();
+   });
+});
+
+describe("FormulaEditorDialog - paneSqlMode for worksheet dialogs (bug #81557)", () => {
+   function worksheetDialog(configure: (comp: any) => void) {
+      const { comp } = createDialog();
+      comp.runtimeId = "rt-1";
+      comp.socketConnection = {} as any;
+      comp.isVSContext = false;
+      comp.contextTable = "Orders";
+      comp.assemblyName = "Orders";
+      comp.formulaName = "Margin";
+      comp.returnTypeVisible = true;
+      configure(comp);
+      comp.initForm();
+      return comp;
+   }
+
+   it("reports the switch of a worksheet expression column and follows the radio", () => {
+      const comp = worksheetDialog(c => c.formulaType = FormulaType.SCRIPT);
+
+      expect(comp.editorContext.kind).toBe("worksheetExpression");
+      expect(comp.paneSqlMode).toBe(false);
+
+      comp.form.get("formulaType").setValue(FormulaType.SQL);
+      expect(comp.paneSqlMode).toBe(true);
+   });
+
+   it("reports the switch of a worksheet condition's Expression value", () => {
+      const comp = worksheetDialog(c => {
+         c.isCondition = true;
+         c.conditionOperation = ConditionOperation.GREATER_THAN;
+         c.formulaType = FormulaType.SQL;
+      });
+
+      expect(comp.editorContext.kind).toBe("worksheetConditionValue");
+      expect(comp.paneSqlMode).toBe(true);
+
+      comp.form.get("formulaType").setValue(FormulaType.SCRIPT);
+      expect(comp.paneSqlMode).toBe(false);
+   });
+
+   it("reports nothing for a worksheet variable default, which has no switch", () => {
+      const comp = worksheetDialog(c => {
+         c.pairingContext = { kind: "worksheetVariableDefault", assembly: "Var1" };
+      });
+
+      expect(comp.editorContext.kind).toBe("worksheetVariableDefault");
       expect(comp.paneSqlMode).toBeUndefined();
    });
 });
