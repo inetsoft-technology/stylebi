@@ -612,9 +612,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, open decision, Bug #81632): the declared type of an " +
-      "aggregate calc field is ignored in a freehand cell")
-   void pin_aggregateCalcDeclaredType() throws Exception {
+   @DisplayName("Bug #81668: the declared type of an " +
+      "aggregate calc field is applied in a freehand cell")
+   void aggregateCalcDeclaredType() throws Exception {
       for(String type : new String[] { XSchema.INTEGER, XSchema.STRING }) {
          tearDown();
          initCityAb();
@@ -622,7 +622,10 @@ class VSCalcFieldQueryTest {
          TableLens lens = freehand(groupCell("city"), summaryCell("a", "Sum"),
                                    summaryCell("b", "Sum"), summaryCell("ratio", "None"));
          List<Object> ratios = column(body(lens, 4), 3);
-         assertEquals(Arrays.asList(1.5, 1.0), ratios, type);
+         // Integer cuts the fraction, String keeps the text of the number
+         List<Object> expected = XSchema.INTEGER.equals(type) ?
+            Arrays.asList(1.0, 1.0) : Arrays.asList("1.5", "1");
+         assertEquals(expected, ratios, type);
       }
    }
 
@@ -658,9 +661,24 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, open decision, Bug #81632): the declared type of an " +
-      "aggregate calc field is ignored in a crosstab")
-   void pin_declaredTypeIgnored() throws Exception {
+   @DisplayName("Bug #81668: an aggregate calc field with no declared type keeps its Double result")
+   void undeclaredTypeKeepsDouble() throws Exception {
+      initCityAb();
+      CalculateRef calc = new CalculateRef(false);
+      ExpressionRef expr = new ExpressionRef(null, "ratio");
+      expr.setExpression("field['Sum([a])'] / field['Sum([b])']");
+      calc.setDataRef(expr);
+      vs.addCalcField("D", calc);
+      List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
+                                     aggregate("b", "Sum", XSchema.INTEGER),
+                                     aggregate("ratio", "None", XSchema.DOUBLE));
+      assertEquals(Arrays.asList(9.0, 6.0, 1.5, 1.0, 1.0, 1.0), values);
+   }
+
+   @Test
+   @DisplayName("Bug #81668: the declared type of an " +
+      "aggregate calc field is applied in a crosstab")
+   void declaredTypeAppliedInCrosstab() throws Exception {
       for(String type : new String[] { XSchema.INTEGER, XSchema.DOUBLE, XSchema.STRING }) {
          tearDown();
          initCityAb();
@@ -669,7 +687,11 @@ class VSCalcFieldQueryTest {
                                         aggregate("b", "Sum", XSchema.INTEGER),
                                         aggregate("ratio", "None", type));
          // A: Sum(a) 9, Sum(b) 6, ratio 1.5; B: 1, 1, 1
-         assertEquals(Arrays.asList(9.0, 6.0, 1.5, 1.0, 1.0, 1.0), values, type);
+         List<Object> expected = XSchema.INTEGER.equals(type) ?
+            Arrays.asList(9.0, 6.0, 1, 1.0, 1.0, 1) :
+            XSchema.DOUBLE.equals(type) ? Arrays.asList(9.0, 6.0, 1.5, 1.0, 1.0, 1.0) :
+            Arrays.asList(9.0, 6.0, "1.5", 1.0, 1.0, "1");
+         assertEquals(expected, values, type);
       }
    }
 
@@ -690,9 +712,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, open decision, Bug #81632): a date aggregate calc field " +
-      "stays a Timestamp and a comparison stays a Boolean, whatever type is declared")
-   void pin_dateAndBooleanDeclaredTypes() throws Exception {
+   @DisplayName("Bug #81668: a date aggregate calc field " +
+      "and a comparison follow the declared type")
+   void dateAndBooleanDeclaredTypes() throws Exception {
       for(String type : new String[] { XSchema.DATE, XSchema.TIME_INSTANT, XSchema.STRING }) {
          tearDown();
          init(new String[] { XSchema.STRING, XSchema.TIME_INSTANT },
@@ -703,10 +725,15 @@ class VSCalcFieldQueryTest {
          addCalc("mx", false, "field['Max([d])']", type);
          VSAggregateRef max = aggregate("d", "Max", XSchema.TIME_INSTANT);
          List<Object> values = crosstab(max, aggregate("mx", "None", type));
-         assertEquals(Arrays.asList(Timestamp.valueOf("2020-12-01 00:00:00"),
-                                    Timestamp.valueOf("2020-12-01 00:00:00"),
-                                    Timestamp.valueOf("2021-05-05 00:00:00"),
-                                    Timestamp.valueOf("2021-05-05 00:00:00")), values, type);
+         Timestamp t1 = Timestamp.valueOf("2020-12-01 00:00:00");
+         Timestamp t2 = Timestamp.valueOf("2021-05-05 00:00:00");
+         List<Object> expected = XSchema.DATE.equals(type) ?
+            Arrays.asList(t1, java.sql.Date.valueOf("2020-12-01"), t2,
+                          java.sql.Date.valueOf("2021-05-05")) :
+            XSchema.STRING.equals(type) ?
+            Arrays.asList(t1, t1.toString(), t2, t2.toString()) :
+            Arrays.asList(t1, t1, t2, t2);
+         assertEquals(expected, values, type);
       }
 
       for(String type : new String[] { XSchema.BOOLEAN, XSchema.STRING, XSchema.INTEGER }) {
@@ -715,7 +742,10 @@ class VSCalcFieldQueryTest {
          addCalc("gt", false, "field['Sum([a])'] > 5", type);
          List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
                                         aggregate("gt", "None", type));
-         assertEquals(Arrays.asList(9.0, true, 1.0, false), values, type);
+         // a Boolean that the declared type cannot hold stays a Boolean
+         List<Object> expected = XSchema.STRING.equals(type) ?
+            Arrays.asList(9.0, "true", 1.0, "false") : Arrays.asList(9.0, true, 1.0, false);
+         assertEquals(expected, values, type);
       }
    }
 
