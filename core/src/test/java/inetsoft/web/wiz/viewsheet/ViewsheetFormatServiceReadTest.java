@@ -398,10 +398,11 @@ class ViewsheetFormatServiceReadTest {
       String message = refused(service, "Chart1", "field", "Sum(Total)").getMessage();
       assertTrue(message.contains("'field'") && message.contains("plotLabel"), message);
 
+      // Bug #81733: these are readable now, so on a chart they are refused as the wrong assembly
       for(String target : new String[]{ "data", "header", "cell", "measureText", "measureBar",
                                         "measureBarNegative" }) {
          message = refused(service, "Chart1", target, null).getMessage();
-         assertTrue(message.contains("'" + target + "'") && message.contains("cannot be read"),
+         assertTrue(message.startsWith("get_format:") && message.contains("only applies to"),
                     message);
       }
 
@@ -418,7 +419,7 @@ class ViewsheetFormatServiceReadTest {
       assertTrue(refused(service, null, "object", null).getMessage()
                     .contains("requires 'assembly'"));
       assertTrue(refused(service, "Chart1", "object", "Sum(Total)").getMessage()
-                    .contains("'field' only applies to targets 'plotLabel' and 'text'"));
+                    .contains("'field' only applies to targets 'plotLabel', 'text', 'data' and 'header'"));
    }
 
    @Test
@@ -494,5 +495,107 @@ class ViewsheetFormatServiceReadTest {
       assertEquals("Gauge1", out.get("assembly"));
       assertEquals("object", out.get("target"));
       assertEquals(List.of("assembly", "target", "format"), List.copyOf(out.keySet()));
+   }
+
+   // ── Bug #81733: Table/Crosstab body+header and Selection regions ──
+
+   private static RuntimeViewsheet selectionRvs(VSAssemblyInfo info, int levels) {
+      inetsoft.uql.viewsheet.SelectionTreeVSAssembly tree =
+         mock(inetsoft.uql.viewsheet.SelectionTreeVSAssembly.class);
+      when(tree.getVSAssemblyInfo()).thenReturn(info);
+      when(tree.getDataRefs()).thenReturn(new inetsoft.uql.erm.DataRef[levels]);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      when(viewsheet.getAssembly("Tree1")).thenReturn(tree);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(rvs.getID()).thenReturn("rt1");
+      return rvs;
+   }
+
+   private static FormatPainterService painterAnsweringTree(VSObjectFormatInfoModel model)
+      throws Exception
+   {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      doAnswer(invocation -> {
+         CapturingCommandDispatcher dispatcher = invocation.getArgument(3);
+         dispatcher.sendCommand("Tree1", new SetCurrentFormatCommand(model));
+         return null;
+      }).when(painter).getFormat(eq("rt1"), any(GetVSObjectFormatEvent.class),
+                                 any(Principal.class), any());
+      return painter;
+   }
+
+   @Test
+   void aSelectionRegionWhoseLevelsAgreeReadsOneFormat() throws Exception {
+      VSAssemblyInfo info = titledInfo();
+      TableDataPath bar0 =
+         inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo.getMeasureBarPath(0);
+      TableDataPath bar1 =
+         inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo.getMeasureBarPath(1);
+      info.getFormatInfo().setFormat(bar0, userFormat(f -> f.setForegroundValue("0x00FF00", true)));
+      info.getFormatInfo().setFormat(bar1, userFormat(f -> f.setForegroundValue("0x00FF00", true)));
+      FormatPainterService painter = painterAnsweringTree(paneModel());
+
+      Map<String, Object> out = service(painter, selectionRvs(info, 2))
+         .getFormat("tok", principal(),
+                    new ViewsheetFormatService.FormatReadRequest("Tree1", "measureBar", null));
+
+      assertEquals("measureBar", out.get("target"));
+      assertNotNull(out.get("format"), out.toString());
+      assertFalse(out.containsKey("mixed"), out.toString());
+   }
+
+   @Test
+   void aSelectionRegionWhoseLevelsDifferReportsMixedVariantsNotOneArbitraryLevel()
+      throws Exception
+   {
+      VSAssemblyInfo info = titledInfo();
+      info.getFormatInfo().setFormat(
+         inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo.getMeasureBarPath(0),
+         userFormat(f -> f.setForegroundValue("0x00FF00", true)));
+      // level 1 has no entry of its own
+      FormatPainterService painter = painterAnsweringTree(paneModel());
+
+      Map<String, Object> out = service(painter, selectionRvs(info, 2))
+         .getFormat("tok", principal(),
+                    new ViewsheetFormatService.FormatReadRequest("Tree1", "measureBar", null));
+
+      assertNull(out.get("format"));
+      assertEquals(Boolean.TRUE, out.get("mixed"));
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> variants = (List<Map<String, Object>>) out.get("variants");
+      assertEquals(2, variants.size(), out.toString());
+      assertEquals(1, variants.get(0).get("pathCount"));
+      assertNull(variants.get(1).get("format"));
+   }
+
+   @Test
+   void aSelectionLevelReadsOnlyThatLevelAndNoEntryReadsNull() throws Exception {
+      VSAssemblyInfo info = titledInfo();
+      info.getFormatInfo().setFormat(
+         inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo.getMeasureBarPath(0),
+         userFormat(f -> f.setForegroundValue("0x00FF00", true)));
+      FormatPainterService painter = painterAnsweringTree(paneModel());
+      ViewsheetFormatService service = service(painter, selectionRvs(info, 2));
+
+      Map<String, Object> level1 = service.getFormat("tok", principal(),
+         new ViewsheetFormatService.FormatReadRequest("Tree1", "measureBar", null, 1));
+      assertTrue(level1.containsKey("format"));
+      assertNull(level1.get("format"));
+      verify(painter, never()).getFormat(anyString(), any(), any(), any());
+
+      assertTrue(assertThrows(IllegalArgumentException.class, () -> service.getFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatReadRequest("Tree1", "measureBar", null, 5)))
+         .getMessage().startsWith("get_format: level 5 is out of range"));
+   }
+
+   @Test
+   void levelIsRefusedOnATargetWithNoLevels() throws Exception {
+      ViewsheetFormatService service = service(painterAnswering(paneModel()), gaugeRvs(titledInfo()));
+      String message = assertThrows(IllegalArgumentException.class, () -> service.getFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatReadRequest("Gauge1", "object", null, 1))).getMessage();
+      assertTrue(message.contains("'level' only applies"), message);
    }
 }

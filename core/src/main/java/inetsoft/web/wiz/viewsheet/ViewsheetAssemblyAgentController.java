@@ -487,12 +487,14 @@ public class ViewsheetAssemblyAgentController {
       @RequestParam(required = false) String assembly,
       @RequestParam(required = false) String target,
       @RequestParam(required = false) String field,
+      @RequestParam(required = false) Integer level,
       Principal user)
       throws Exception
    {
       requireEnabled();
       return formatService.getFormat(
-         sessionToken, user, new ViewsheetFormatService.FormatReadRequest(assembly, target, field));
+         sessionToken, user,
+         new ViewsheetFormatService.FormatReadRequest(assembly, target, field, level));
    }
 
    /** Writes the font/colour of one chart text sub-region (axis labels/title, legend, target). */
