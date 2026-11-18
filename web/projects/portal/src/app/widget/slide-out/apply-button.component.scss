@@ -31,3 +31,11 @@
     color: inherit;
   }
 }
+
+// the default button's hover and focus states redraw a full 1px border; the addon has no left
+// border, so redrawing it would grow the button 1px and shift it on hover
+.btn.btn-default.input-group-btn-addon {
+  &:hover, &:active, &:focus {
+    border-left: none;
+  }
+}
