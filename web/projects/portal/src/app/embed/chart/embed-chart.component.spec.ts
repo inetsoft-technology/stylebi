@@ -247,3 +247,37 @@ describe("EmbedChartComponent close before the viewsheet is open", () => {
       expect(connection.disconnects).toBe(1);
    });
 });
+
+// Bug #81645: a url without path segments makes the url matcher return null, which must leave
+// assetId undefined instead of throwing in ngOnInit.
+describe("EmbedChartComponent url without a path", () => {
+   afterEach(() => {
+      delete window.inetsoftConnected;
+   });
+
+   for(const url of ["?region=east", "/", "/?region=east"]) {
+      it(`leaves assetId undefined for url "${url}"`, () => {
+         window.inetsoftConnected = new BehaviorSubject<boolean>(true);
+
+         TestBed.configureTestingModule({
+            providers: [
+               provideZonelessChangeDetection(),
+               ...embedElementConfig.providers,
+               provideRouter([]),
+               ...EMBED_CHART_ROUTE_PROVIDERS,
+               provideHttpClientTesting()
+            ]
+         });
+         TestBed.overrideComponent(EmbedChartComponent, {
+            set: { imports: [], schemas: [NO_ERRORS_SCHEMA] }
+         });
+
+         const fixture = TestBed.createComponent(EmbedChartComponent);
+         fixture.componentRef.setInput("url", url);
+         expect(() => fixture.detectChanges()).not.toThrow();
+         expect(fixture.componentInstance.assetId).toBeUndefined();
+         expect(fixture.componentInstance.assemblyName).toBeUndefined();
+         fixture.destroy();
+      });
+   }
+});
