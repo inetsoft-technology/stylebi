@@ -415,11 +415,35 @@ class SheetPairingControllerTest {
       accessor.setSessionId("stomp-9");
 
       c.paneStateViaSocket(
-         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, true), accessor);
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, true, false), accessor);
 
       assertEquals(new PaneState(true), sessions.paneStateOf(mine));
       assertEquals(PaneState.DEFAULT, sessions.paneStateOf(theirs),
                    "the socket id comes from the STOMP session, so another user's pane is untouched");
+   }
+
+   @Test
+   void paneStateViaSocketRecordsTheAggregateChoice() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetPairingController c = new SheetPairingController(new SheetPairingService(), sessions,
+         mock(SheetAgentFeature.class), mock(SheetAgentBroadcastService.class),
+         mock(SheetJoinService.class), true);
+      EditorContext ctx = new EditorContext("calcField", "Orders", "Margin", null, true);
+      JoinSession mine = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                       "stomp-9", "alice", ctx);
+
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      c.paneStateViaSocket(
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, false, true), accessor);
+
+      assertEquals(new PaneState(false, true), sessions.paneStateOf(mine));
+
+      c.paneStateViaSocket(
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, false, false), accessor);
+
+      assertEquals(PaneState.DEFAULT, sessions.paneStateOf(mine), "flipping back to Detail");
    }
 
    @Test
@@ -435,9 +459,9 @@ class SheetPairingControllerTest {
       accessor.setSessionId("stomp-9");
 
       c.paneStateViaSocket(null, accessor);
-      c.paneStateViaSocket(new SheetPairingController.PaneStateRequest(null, ctx, true), accessor);
+      c.paneStateViaSocket(new SheetPairingController.PaneStateRequest(null, ctx, true, false), accessor);
       c.paneStateViaSocket(
-         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", null, true), accessor);
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", null, true, false), accessor);
 
       assertEquals(PaneState.DEFAULT, sessions.paneStateOf(pane));
    }

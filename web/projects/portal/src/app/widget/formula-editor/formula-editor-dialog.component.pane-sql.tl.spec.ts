@@ -158,7 +158,8 @@ describe("FormulaEditorDialog - paneSqlMode through Follow Focus (bug #81541)", 
       const { comp, report } = followingDialog(true);
 
       expect(report).toHaveBeenCalledTimes(1);
-      expect(report).toHaveBeenCalledWith("rt-1", comp.socketConnection, comp.editorContext, false);
+      expect(report).toHaveBeenCalledWith("rt-1", comp.socketConnection, comp.editorContext, false,
+         false);
    });
 
    it("reports every flip, under the context that was pushed even after a rename", () => {
