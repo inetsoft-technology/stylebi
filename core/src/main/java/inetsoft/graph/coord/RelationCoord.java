@@ -24,6 +24,7 @@ import inetsoft.graph.element.RelationElement;
 import inetsoft.graph.geometry.RelationGeometry;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.internal.DimensionD;
+import inetsoft.graph.mxgraph.model.mxGeometry;
 import inetsoft.graph.scale.Scale;
 import inetsoft.graph.visual.RelationVO;
 
@@ -199,6 +200,17 @@ public class RelationCoord extends Coordinate {
          return 1;
       }
 
+      RelationElement tree = getFittedTree();
+
+      // the laid-out nodes already hold the size the drawing needs
+      if(tree != null) {
+         Rectangle2D natural = getNaturalLayoutBounds(tree);
+
+         if(natural != null) {
+            return natural.getWidth() + GAP * 2;
+         }
+      }
+
       Rectangle2D box = getVisualObjectBounds();
 
       if(box == null) {
@@ -225,12 +237,23 @@ public class RelationCoord extends Coordinate {
          return 1;
       }
 
+      RelationElement tree = getFittedTree();
+
+      // the laid-out nodes already hold the size the drawing needs
+      if(tree != null) {
+         Rectangle2D natural = getNaturalLayoutBounds(tree);
+
+         if(natural != null) {
+            return natural.getHeight() + GAP * 2;
+         }
+      }
+
       // Horizontal mode: read natural mxcell bounds directly. Visual bounds union scaled node
       // positions with fixed-pixel text labels; back-dividing then amplifies the label
       // contribution by 1/scaleY, padding each cell well beyond the rotated tree's actual
       // extent when facet rows shrink scaleY.
       if(isFirstElementHorizontal()) {
-         Rectangle2D natural = getNaturalLayoutBounds();
+         Rectangle2D natural = getNaturalLayoutBounds(null);
 
          if(natural != null) {
             return natural.getHeight() + GAP * 2;
@@ -305,7 +328,24 @@ public class RelationCoord extends Coordinate {
             re.getAlgorithm() == RelationElement.Algorithm.ORGANIC);
    }
 
-   private Rectangle2D getNaturalLayoutBounds() {
+   // a tree laid out in the plot box, not faceted, or null
+   private RelationElement getFittedTree() {
+      VGraph vg = getVGraph();
+      EGraph eg = vg != null ? vg.getEGraph() : null;
+
+      if(getParentCoordinate() == null && eg != null && eg.getElementCount() > 0
+         && eg.getElement(0) instanceof RelationElement re && re.isPlotFit()
+         && re.getAlgorithm() == RelationElement.Algorithm.COMPACT_TREE
+         && re.getLaidOutBox() != null)
+      {
+         return re;
+      }
+
+      return null;
+   }
+
+   // the laid-out node boxes: every node, or a tree's own with room for outside labels
+   private Rectangle2D getNaturalLayoutBounds(RelationElement tree) {
       VGraph vgraph = getVGraph();
 
       if(vgraph == null) {
@@ -317,9 +357,20 @@ public class RelationCoord extends Coordinate {
       for(int i = 0; i < vgraph.getVisualCount(); i++) {
          if(vgraph.getVisual(i) instanceof RelationVO vo
             && vo.getGeometry() instanceof RelationGeometry geo
-            && geo.getMxCell().getGeometry() != null)
+            && geo.getMxCell().getGeometry() != null
+            && (tree == null || geo.getElement() == tree))
          {
-            Rectangle2D rect = geo.getMxCell().getGeometry().getRectangle();
+            mxGeometry g = geo.getMxCell().getGeometry();
+            Rectangle2D rect = g.getRectangle();
+
+            // the outer size is centred on the node, as the layouts read it
+            if(tree != null && !tree.isLabelInside()) {
+               double w = Math.max(g.getWidth(), g.getOuterWidth());
+               double h = Math.max(g.getHeight(), g.getOuterHeight());
+               rect = new Rectangle2D.Double(g.getCenterX() - w / 2, g.getCenterY() - h / 2,
+                                             w, h);
+            }
+
             bounds = bounds == null ? rect : bounds.createUnion(rect);
          }
       }

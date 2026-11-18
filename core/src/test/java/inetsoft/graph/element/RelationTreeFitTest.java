@@ -18,11 +18,16 @@
 package inetsoft.graph.element;
 
 import inetsoft.graph.EGraph;
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.Plotter;
 import inetsoft.graph.VGraph;
+import inetsoft.graph.aesthetic.DefaultTextFrame;
 import inetsoft.graph.aesthetic.LinearSizeFrame;
 import inetsoft.graph.aesthetic.SizeFrame;
 import inetsoft.graph.aesthetic.StaticSizeFrame;
+import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.coord.FacetCoord;
+import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.coord.RelationCoord;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.geometry.RelationEdgeGeometry;
@@ -30,6 +35,7 @@ import inetsoft.graph.geometry.RelationGeometry;
 import inetsoft.graph.mxgraph.model.mxCell;
 import inetsoft.graph.mxgraph.model.mxGeometry;
 import inetsoft.graph.mxgraph.util.mxPoint;
+import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.visual.RelationEdgeVO;
 import inetsoft.graph.visual.RelationVO;
 import inetsoft.sree.SreeEnv;
@@ -44,6 +50,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.geom.Dimension2D;
+import java.awt.geom.Rectangle2D;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -64,6 +71,9 @@ class RelationTreeFitTest {
       SreeEnv.setProperty("viewsheet.darkMode", null);
       SreeEnv.setProperty("viewsheet.density", null);
    }
+
+   // the gap RelationCoord leaves around the drawing
+   private static final int GAP = 4;
 
    @Test
    void aTreeThatFitsKeepsItsNaturalLayout() {
@@ -207,6 +217,143 @@ class RelationTreeFitTest {
                  "scrolls horizontally");
    }
 
+   @Test
+   void aScrollingTreeIsAsLargeAsItsNodes() {
+      for(boolean flipped : new boolean[] { false, true }) {
+         String msg = flipped ? "bottom-to-top" : "top-to-bottom";
+         Tree tree = labelled(deep(), true, false, flipped, 376, 190, GraphConstants.CENTER);
+         Rectangle2D extent = tree.extent();
+         VGraph vgraph = tree.vgraph();
+
+         assertTrue(vgraph.getMinPlotWidth() > vgraph.getPlotBounds().getWidth(),
+                    msg + ": premise: scrolls horizontally");
+         assertEquals(extent.getHeight() + 2 * GAP, vgraph.getMinPlotHeight(), 2,
+                      msg + ": min height for " + extent);
+         assertEquals(extent.getWidth() + 2 * GAP, vgraph.getMinPlotWidth(), 2,
+                      msg + ": min width for " + extent);
+      }
+   }
+
+   @Test
+   void anExpandedTreeOpensWithItsRootAtTheEdge() {
+      for(boolean flipped : new boolean[] { false, true }) {
+         String msg = flipped ? "bottom-to-top" : "top-to-bottom";
+         Tree tree = labelled(deep(), true, false, flipped, 376, 190, GraphConstants.CENTER);
+         assertTrue(tree.vgraph().getMinPlotHeight() > tree.vgraph().getPlotBounds().getHeight(),
+                    msg + ": premise: scrolls down");
+
+         Tree expanded = expand(tree, deep(), false, flipped, GraphConstants.CENTER);
+         Rectangle2D plot = expanded.vgraph().getPlotBounds();
+         Rectangle2D root = expanded.root();
+         // screen y grows upward, so the top-to-bottom root is at the plot's max y
+         double gap = flipped ? root.getMinY() - plot.getMinY() : plot.getMaxY() - root.getMaxY();
+
+         assertTrue(gap >= 0 && gap <= root.getHeight(),
+                    msg + ": the root is " + gap + " from the edge of " + plot);
+      }
+   }
+
+   @Test
+   void aSidewaysTreeThatFitsItsDepthDoesNotScrollAcross() {
+      for(boolean flipped : new boolean[] { false, true }) {
+         String msg = flipped ? "right-to-left" : "left-to-right";
+         Tree tree = labelled(big(), true, true, flipped, 376, 190, GraphConstants.CENTER);
+         Rectangle2D extent = tree.extent();
+         VGraph vgraph = tree.vgraph();
+         double plotW = vgraph.getPlotBounds().getWidth();
+
+         assertTrue(vgraph.getMinPlotHeight() > vgraph.getPlotBounds().getHeight(),
+                    msg + ": premise: scrolls vertically");
+         assertTrue(extent.getWidth() + 2 * GAP < plotW, msg + ": premise: the depth fits");
+         assertTrue(vgraph.getMinPlotWidth() <= plotW,
+                    msg + ": min width " + vgraph.getMinPlotWidth() + " of " + plotW);
+         assertEquals(extent.getWidth() + 2 * GAP, vgraph.getMinPlotWidth(), 2,
+                      msg + ": min width for " + extent);
+         assertEquals(extent.getHeight() + 2 * GAP, vgraph.getMinPlotHeight(), 2,
+                      msg + ": min height for " + extent);
+      }
+   }
+
+   @Test
+   void aTreeWithOutsideLabelsKeepsRoomForThem() {
+      Tree tree = labelled(deep(), true, false, false, 376, 190, GraphConstants.TOP);
+      Rectangle2D extent = tree.extent();
+      VGraph vgraph = tree.vgraph();
+      double label = tree.maxLabelRoom();
+
+      assertTrue(label > 5, "premise: labels outside the nodes, " + label);
+      assertTrue(vgraph.getMinPlotWidth() > vgraph.getPlotBounds().getWidth(),
+                 "premise: scrolls horizontally");
+      assertTrue(vgraph.getMinPlotHeight() >= extent.getHeight() + 2 * GAP + label - 2,
+                 "min height " + vgraph.getMinPlotHeight() + " for " + extent + " and " + label);
+      assertTrue(vgraph.getMinPlotHeight() <= extent.getHeight() + 2 * GAP + label + 2,
+                 "min height " + vgraph.getMinPlotHeight() + " for " + extent + " and " + label);
+
+      Tree expanded = expand(tree, deep(), false, false, GraphConstants.TOP);
+      Rectangle2D plot = expanded.vgraph().getPlotBounds();
+      Rectangle2D root = expanded.root();
+      double gap = plot.getMaxY() - root.getMaxY();
+
+      assertTrue(gap >= 0 && gap <= root.getHeight() + label,
+                 "the root is " + gap + " from the top of " + plot);
+   }
+
+   @Test
+   void aClassicTreeKeepsTodaysMinimumSize() {
+      for(boolean horizontal : new boolean[] { false, true }) {
+         String msg = horizontal ? "left-to-right" : "top-to-bottom";
+         Tree tree = labelled(big(), false, horizontal, false, 376, 190, GraphConstants.CENTER);
+         VGraph vgraph = tree.vgraph();
+         Rectangle2D visuals = tree.visuals();
+         Rectangle2D extent = tree.extent();
+         double scaleX = Math.abs(vgraph.getScreenTransform().getScaleX());
+         double scaleY = Math.abs(vgraph.getScreenTransform().getScaleY());
+         double height = horizontal ? tree.integerExtent().getHeight() + 2 * GAP
+            : visuals.getHeight() / scaleY + 2 * GAP;
+
+         assertNull(tree.elem().getLaidOutBox(), msg + ": premise: classic");
+         assertTrue(Math.max(vgraph.getMinPlotWidth() - extent.getWidth(),
+                             vgraph.getMinPlotHeight() - extent.getHeight()) > 2 * GAP + 20,
+                    msg + ": premise: the labels widen the classic size");
+         assertEquals(visuals.getWidth() / scaleX + 2 * GAP, vgraph.getMinPlotWidth(), 0.01,
+                      msg + ": min width");
+         assertEquals(height, vgraph.getMinPlotHeight(), 0.01, msg + ": min height");
+      }
+   }
+
+   @Test
+   void aFacetedTreeKeepsTodaysMinimumSize() {
+      RelationElement elem = labelledElement(false, false, GraphConstants.CENTER);
+      elem.setPlotFit(true);
+      EGraph egraph = new EGraph();
+      egraph.addElement(elem);
+      FacetCoord facet = new FacetCoord(new RectCoord(new CategoricalScale("Group"), null),
+                                        new RelationCoord());
+      egraph.setCoordinate(facet);
+      VGraph vgraph = Plotter.getPlotter(egraph).plotAndLayout(faceted(), 0, 0, 376, 190);
+      assertNotNull(vgraph);
+      int cells = 0;
+
+      for(Coordinate[] row : facet.getExpandedInnerCoords()) {
+         for(Coordinate inner : row) {
+            RelationCoord coord = (RelationCoord) inner;
+            VGraph cell = coord.getVGraph();
+            Rectangle2D visuals = union(cell, true);
+            double scaleX = Math.abs(cell.getScreenTransform().getScaleX());
+            double scaleY = Math.abs(cell.getScreenTransform().getScaleY());
+
+            assertNull(elem.getLaidOutBox(), "premise: a faceted tree has no box");
+            assertEquals(visuals.getWidth() / scaleX + 2 * GAP, coord.getUnitMinWidth(), 0.01,
+                         "cell min width");
+            assertEquals(visuals.getHeight() / scaleY + 2 * GAP, coord.getUnitMinHeight(), 0.01,
+                         "cell min height");
+            cells++;
+         }
+      }
+
+      assertTrue(cells > 1, "premise: several cells");
+   }
+
    private static void assertBoxes(List<mxGeometry> boxes, double w, double h, double delta,
                                    String message)
    {
@@ -328,9 +475,160 @@ class RelationTreeFitTest {
       return new Tree(coord, elem, horizontal, vgraph);
    }
 
+   // R with N1..N6, each with nine leaves
+   private static DefaultDataSet big() {
+      return new DefaultDataSet(treeRows(new int[] { 9, 9, 9, 9, 9, 9 }, false));
+   }
+
+   // six levels, 199 nodes: deeper and wider than the plot even at the floor
+   private static DefaultDataSet deep() {
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { "From", "To" });
+      List<String> level = List.of("R");
+
+      for(int fan : new int[] { 2, 2, 3, 3, 4 }) {
+         List<String> next = new ArrayList<>();
+
+         for(String parent : level) {
+            for(int i = 0; i < fan; i++) {
+               String child = "N" + rows.size();
+               rows.add(new Object[] { parent, child });
+               next.add(child);
+            }
+         }
+
+         level = next;
+      }
+
+      return new DefaultDataSet(rows.toArray(new Object[0][]));
+   }
+
+   // two groups, each a root with nine leaves
+   private static DefaultDataSet faceted() {
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { "Group", "From", "To" });
+
+      for(int g = 1; g <= 2; g++) {
+         for(int i = 1; i <= 9; i++) {
+            rows.add(new Object[] { "G" + g, "R" + g, "L" + g + "_" + i });
+         }
+      }
+
+      return new DefaultDataSet(rows.toArray(new Object[0][]));
+   }
+
+   // a tree element with a label on every node, as a tree chart draws it
+   private static RelationElement labelledElement(boolean horizontal, boolean flipped,
+                                                  int placement)
+   {
+      RelationElement elem = new RelationElement("From", "To");
+      elem.setAlgorithm(RelationElement.Algorithm.COMPACT_TREE);
+      elem.setSizeFrame(new StaticSizeFrame(1));
+      elem.setNodeSizeFrame(new StaticSizeFrame(1));
+      elem.setTextFrame(new DefaultTextFrame("To"));
+      elem.setLabelPlacement(placement);
+      elem.setHorizontal(horizontal);
+      elem.setFlipped(flipped);
+      return elem;
+   }
+
+   private static Tree labelled(DefaultDataSet data, boolean plotFit, boolean horizontal,
+                                boolean flipped, int w, int h, int placement)
+   {
+      RelationElement elem = labelledElement(horizontal, flipped, placement);
+      elem.setPlotFit(plotFit);
+      EGraph egraph = new EGraph();
+      egraph.addElement(elem);
+      RelationCoord coord = new RelationCoord();
+      egraph.setCoordinate(coord);
+
+      VGraph vgraph = Plotter.getPlotter(egraph).plotAndLayout(data, 0, 0, w, h);
+      assertNotNull(vgraph);
+      return new Tree(coord, elem, horizontal, vgraph);
+   }
+
+   // plot a fitted tree again at the size a scrolling chart gives its expanded graph
+   private static Tree expand(Tree tree, DefaultDataSet data, boolean horizontal,
+                              boolean flipped, int placement)
+   {
+      VGraph vgraph = tree.vgraph();
+      Rectangle2D graph = vgraph.getBounds();
+      Rectangle2D plot = vgraph.getPlotBounds();
+      int w = (int) (Math.max(vgraph.getMinPlotWidth(), plot.getWidth()) +
+         graph.getWidth() - plot.getWidth());
+      int h = (int) (Math.max(vgraph.getMinPlotHeight(), plot.getHeight()) +
+         graph.getHeight() - plot.getHeight());
+      return labelled(data, true, horizontal, flipped, w, h, placement);
+   }
+
+   // the union of the visuals' screen bounds, or of the nodes' only
+   private static Rectangle2D union(VGraph vgraph, boolean all) {
+      Rectangle2D union = null;
+
+      for(int i = 0; i < vgraph.getVisualCount(); i++) {
+         if(all || vgraph.getVisual(i) instanceof RelationVO) {
+            Rectangle2D b = vgraph.getVisual(i).getBounds();
+
+            if(b != null) {
+               union = union == null ? b : union.createUnion(b);
+            }
+         }
+      }
+
+      assertNotNull(union, "premise: visuals");
+      return union;
+   }
+
    private record Tree(RelationCoord coord, RelationElement elem, boolean horizontal,
                        VGraph vgraph)
    {
+      // the laid-out node boxes in layout space
+      Rectangle2D extent() {
+         Rectangle2D union = null;
+
+         for(mxGeometry g : nodes().values()) {
+            Rectangle2D b = new Rectangle2D.Double(g.getX(), g.getY(), g.getWidth(),
+                                                   g.getHeight());
+            union = union == null ? b : union.createUnion(b);
+         }
+
+         return union;
+      }
+
+      // the laid-out node boxes rounded to whole pixels
+      Rectangle2D integerExtent() {
+         Rectangle2D union = null;
+
+         for(mxGeometry g : nodes().values()) {
+            union = union == null ? g.getRectangle() : union.createUnion(g.getRectangle());
+         }
+
+         return union;
+      }
+
+      // the room a node's outside label adds to its height
+      double maxLabelRoom() {
+         return nodes().values().stream()
+            .mapToDouble(g -> g.getOuterHeight() - g.getHeight()).max().orElse(0);
+      }
+
+      Rectangle2D visuals() {
+         return union(vgraph, true);
+      }
+
+      // the root node in screen space
+      Rectangle2D root() {
+         for(int i = 0; i < vgraph.getVisualCount(); i++) {
+            if(vgraph.getVisual(i) instanceof RelationVO vo &&
+               vo.getGeometry() instanceof RelationGeometry geo && geo.isRoot())
+            {
+               return vo.getBounds();
+            }
+         }
+
+         return fail("premise: a root");
+      }
+
       // the node boxes in layout space, by node name
       Map<String, mxGeometry> nodes() {
          Map<String, mxGeometry> map = new HashMap<>();
