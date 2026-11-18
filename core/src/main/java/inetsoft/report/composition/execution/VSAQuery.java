@@ -18,10 +18,15 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.report.CellBindingInfo;
+import inetsoft.report.TableCellBinding;
+import inetsoft.report.TableLayout;
+import inetsoft.report.TableLayout.TableCellBindingInfo;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.report.internal.binding.BindingTool;
 import inetsoft.report.lens.MaxRowsTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
@@ -1684,6 +1689,58 @@ public abstract class VSAQuery {
       }
    }
 
+   /**
+    * Get the text of everything in a calc table that can use a column of its base table: the
+    * bindings and the scripts of its cells, and the sort of its table.
+    */
+   private String getCalcTableUsedText(CalcTableVSAssembly calc, TableAssembly table) {
+      StringBuilder text = new StringBuilder();
+      TableLayout layout =
+         ((inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo) calc.getInfo()).getTableLayout();
+
+      if(layout != null) {
+         for(CellBindingInfo cinfo : layout.getCellInfos(true)) {
+            if(!(cinfo instanceof TableCellBindingInfo)) {
+               continue;
+            }
+
+            TableCellBindingInfo tinfo = (TableCellBindingInfo) cinfo;
+            text.append(';').append(tinfo.getValue());
+            String second = BindingTool.getSecondFormula(tinfo.getFormula());
+
+            if(second != null) {
+               text.append(';').append(second);
+            }
+
+            TableCellBinding cell = tinfo.getCellBinding();
+
+            if(cell != null && cell.getExpression() != null) {
+               text.append(';').append(cell.getExpression());
+            }
+         }
+      }
+
+      SortInfo sinfo = table.getSortInfo();
+
+      if(sinfo != null) {
+         for(SortRef sort : sinfo.getSorts()) {
+            text.append(';').append(sort.getName());
+         }
+      }
+
+      return text.toString();
+   }
+
+   private static void removePassThrough(ColumnSelection cols, String name) {
+      for(int i = cols.getAttributeCount() - 1; i >= 0; i--) {
+         DataRef col = cols.getAttribute(i);
+
+         if(name.equals(col.getName()) || name.equals(col.getAttribute())) {
+            cols.removeAttribute(i);
+         }
+      }
+   }
+
    private boolean removeUnusedCalcField(TableAssembly table) {
       // the structure of the table assembly is
       //   table - aggragetInfo and public columnSelection reflects whether field is used
@@ -1710,13 +1767,25 @@ public abstract class VSAQuery {
       ColumnSelection privcols = table.getColumnSelection(false);
       AggregateInfo ainfo = table.getAggregateInfo();
       // all columns used in table, including columns referenced from expression
-      String allCols = Stream.concat(childPriv.stream(), privcols.stream())
+      boolean calcTable = getAssembly() instanceof CalcTableVSAssembly;
+      Set<String> detailCalcNames = !calcTable ? Collections.emptySet() :
+         childPriv.stream()
+            .filter(ref -> ref instanceof CalculateRef && ((CalculateRef) ref).isBaseOnDetail())
+            .map(DataRef::getName).collect(Collectors.toSet());
+      // the table of a calc table is bound to every column of its base table, so a detail
+      // calc field appearing there says nothing about whether a cell uses it (bug #81627)
+      String allCols = Stream.concat(childPriv.stream(), privcols.stream()
+            .filter(ref -> !detailCalcNames.contains(ref.getAttribute())))
          .filter(ref -> ref instanceof ColumnRef)
          .map(ref -> ((ColumnRef) ref).getDataRef())
          .filter(Objects::nonNull)
          .map(ref -> ref instanceof ExpressionRef ? ((ExpressionRef) ref).getExpression()
                : ref.getAttribute())
          .collect(Collectors.joining(";"));
+
+      if(calcTable) {
+         allCols += ";" + getCalcTableUsedText((CalcTableVSAssembly) getAssembly(), table);
+      }
 
       ConditionListWrapper conds = table.getPreRuntimeConditionList();
 
@@ -1741,7 +1810,7 @@ public abstract class VSAQuery {
          if(ref instanceof CalculateRef && ((CalculateRef) ref).isBaseOnDetail()) {
             CalculateRef calc = (CalculateRef) ref;
 
-            boolean inSelection = usedInSelection(pubcols, calc);
+            boolean inSelection = !calcTable && usedInSelection(pubcols, calc);
             boolean inGroup = usedInGroup(ainfo, calc);
             boolean inAggregate = usedInAggregate(ainfo, calc);
             boolean inAllCols = allCols.contains(ref.getName());
@@ -1755,6 +1824,13 @@ public abstract class VSAQuery {
                pubcols.getAttribute(ref.getName());
                childPriv.removeAttribute(i);
                childPub.removeAttribute(i);
+
+               // the table of a calc table holds the column of the removed calc field too
+               if(calcTable) {
+                  removePassThrough(pubcols, ref.getName());
+                  removePassThrough(privcols, ref.getName());
+               }
+
                return true;
             }
          }
