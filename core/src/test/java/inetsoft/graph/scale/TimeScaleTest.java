@@ -259,4 +259,114 @@ class TimeScaleTest {
       assertTrue(Double.isFinite(padded.getMax()));
       assertEquals(plain.getMax(), padded.getMax(), 0);
    }
+
+   private static final long DAY_MS = 86400000L;
+   private static final long HOUR_MS = 3600000L;
+
+   @Test
+   void aDailySpanOfFourMonthsGetsMonths() {
+      assertArrayEquals(new int[] { TimeScale.MONTH, 1 },
+                        TimeScale.chooseFitUnit(120 * DAY_MS, DAY_MS, 7));
+   }
+
+   @Test
+   void aDailySpanOfThreeWeeksGetsDays() {
+      assertArrayEquals(new int[] { TimeScale.DAY, 1 },
+                        TimeScale.chooseFitUnit(21 * DAY_MS, DAY_MS, 30));
+      assertArrayEquals(new int[] { TimeScale.WEEK, 1 },
+                        TimeScale.chooseFitUnit(21 * DAY_MS, DAY_MS, 10));
+   }
+
+   @Test
+   void anIntradaySpanKeepsHours() {
+      assertArrayEquals(new int[] { TimeScale.HOUR, 3 },
+                        TimeScale.chooseFitUnit(10 * HOUR_MS, HOUR_MS, 7));
+   }
+
+   @Test
+   void neverFinerThanTheData() {
+      assertArrayEquals(new int[] { TimeScale.WEEK, 1 },
+                        TimeScale.chooseFitUnit(3 * DAY_MS, 7 * DAY_MS, 50));
+   }
+
+   @Test
+   void aZeroRangeOrTinyBudgetStillPicksAUnit() {
+      assertArrayEquals(new int[] { TimeScale.DAY, 1 },
+                        TimeScale.chooseFitUnit(0, DAY_MS, 7));
+      assertArrayEquals(new int[] { TimeScale.YEAR, 100 },
+                        TimeScale.chooseFitUnit(500 * 365 * DAY_MS, DAY_MS, 2));
+   }
+
+   private static TimeScale dailyScale(boolean fit) {
+      TimeScale scale = new TimeScale("Date");
+
+      if(fit) {
+         scale.setLabelFit(300, 45);
+      }
+
+      scale.init(dailyData());
+      return scale;
+   }
+
+   private static DefaultDataSet dailyData() {
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { "Date" });
+      long start = date(2026, Calendar.JANUARY, 1, 0, 0, 0);
+      long end = date(2026, Calendar.APRIL, 30, 0, 0, 0);
+
+      for(long t = start; t <= end; t += DAY_MS) {
+         rows.add(new Object[] { new Date(t) });
+      }
+
+      return new DefaultDataSet(rows.toArray(new Object[0][]));
+   }
+
+   @Test
+   void theFitSetsTheTypeAndStep() {
+      TimeScale scale = dailyScale(true);
+
+      assertEquals(TimeScale.MONTH, scale.getType());
+      assertEquals(1, scale.getFitStep());
+      assertArrayEquals(new double[] {
+         date(2026, Calendar.JANUARY, 1, 0, 0, 0),
+         date(2026, Calendar.FEBRUARY, 1, 0, 0, 0),
+         date(2026, Calendar.MARCH, 1, 0, 0, 0),
+         date(2026, Calendar.APRIL, 1, 0, 0, 0),
+      }, scale.getTicks());
+   }
+
+   @Test
+   void anAuthorIncrementTurnsTheFitOff() {
+      TimeScale scale = new TimeScale("Date");
+      scale.setLabelFit(300, 45);
+      scale.setIncrement(7);
+      scale.init(dailyData());
+
+      assertEquals(TimeScale.DAY, scale.getType());
+      assertEquals(0, scale.getFitStep());
+   }
+
+   @Test
+   void anExplicitTypeTurnsTheFitOff() {
+      TimeScale scale = new TimeScale("Date");
+      scale.setLabelFit(300, 45);
+      scale.setType(TimeScale.WEEK);
+      scale.init(dailyData());
+
+      assertEquals(TimeScale.WEEK, scale.getType());
+      assertEquals(0, scale.getFitStep());
+   }
+
+   @Test
+   void noFitIsTodaysTicks() {
+      TimeScale plain = dailyScale(false);
+      TimeScale off = new TimeScale("Date");
+      off.setLabelFit(0, 0);
+      off.init(dailyData());
+
+      assertEquals(0, plain.getFitStep());
+      assertEquals(TimeScale.DAY, plain.getType());
+      assertArrayEquals(plain.getTicks(), off.getTicks(), 0);
+      assertTrue(plain.getTicks().length > 4);
+   }
 }
