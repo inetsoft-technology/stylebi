@@ -570,7 +570,7 @@ public class ScheduleTaskService {
 
          IdentityID owner = null;
 
-         if(model.options() != null && model.options().owner() != null) {
+         if(model.options() != null && !Tool.isEmptyString(model.options().owner())) {
             owner = getIdentityId(model.options().owner(), principal);
          }
 
