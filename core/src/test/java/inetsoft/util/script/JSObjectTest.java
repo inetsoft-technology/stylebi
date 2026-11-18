@@ -334,6 +334,17 @@ class JSObjectTest {
       assertArrayEquals(new Object[]{ "1", "2", "3" }, result);
    }
 
+   /** A single non-text value stays one element with its type, as in 13.8. (#81695) */
+   @Test
+   void testSplitSingleNonTextValue() {
+      Date date = new Date(1709614800000L);
+      assertArrayEquals(new Object[]{ date }, JSObject.split(date));
+      assertArrayEquals(new Object[]{ 5.0 }, JSObject.split(5.0));
+      assertArrayEquals(new Object[]{ Boolean.TRUE }, JSObject.split(true));
+      assertArrayEquals(new Object[0], JSObject.split(null));
+      assertArrayEquals(new Object[]{ "a", "b" }, JSObject.split("a,b"));
+   }
+
    @Test
    void testSplitN() {
       // Test with a Java array

@@ -346,7 +346,8 @@ public class JSObject {
    }
 
    /**
-    * Split an object into an array.
+    * Split an object into an array. A text is split at commas. A single value that is not a
+    * text (a Date, a Number, a Boolean, ...) is kept, with its type, as the one element.
     */
    public static Object[] split(Object str) {
       str = JavaScriptEngine.unwrap(str);
@@ -370,6 +371,10 @@ public class JSObject {
       }
       else if(str instanceof java.util.List) {
          return ((java.util.List<?>) str).toArray();
+      }
+
+      if(!(str instanceof CharSequence)) {
+         return new Object[] { str };
       }
 
       return Tool.split(str.toString(), ',');

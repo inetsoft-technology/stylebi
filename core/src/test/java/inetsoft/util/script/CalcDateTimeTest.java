@@ -1469,6 +1469,23 @@ public class CalcDateTimeTest {
     * CalcDateTime.date(..., WEEK_DATE_GROUP, 1), under the given JVM default locale. Must be
     * called on a fresh thread per locale (see dateWeekGroupMatchesEnUsUnderAnyLocale).
     */
+   /** A single Date, not in an array, is a list of one. (#81695) */
+   @Test
+   public void testSingleDateAsList() {
+      Date start = toDate("2024-03-05T00:00");
+      Date holiday = toDate("2024-03-06T00:00");
+      Date end = toDate("2024-03-08T00:00");
+
+      assertEquals(CalcDateTime.workday(start, 1, new Object[] { holiday }),
+                   CalcDateTime.workday(start, 1, holiday));
+      assertEquals(CalcDateTime.networkdays(start, end, new Object[] { holiday }),
+                   CalcDateTime.networkdays(start, end, holiday));
+      assertEquals(start, CalcDateTime.maxDate(start));
+      assertEquals(start, CalcDateTime.minDate(start));
+      assertEquals(CalcFinancial.xnpv(0.1, new Object[] { 100.0 }, new Object[] { start }),
+                   CalcFinancial.xnpv(0.1, 100.0, start));
+   }
+
    private long[] weekGroupDates(String tag) {
       Locale.setDefault(Locale.forLanguageTag(tag));
       java.util.List<Long> millis = new java.util.ArrayList<>();
