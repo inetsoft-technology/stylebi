@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #79267: {@link SecurityChain} took its reload watermark from a LATER read of the file's
+ * Bug #79267 and Bug #79127: {@link SecurityChain} took its reload watermark from a LATER read of the file's
  * modification time than the content it described (loadConfiguration read the mtime again after
  * the content, saveConfiguration read it after the write without checking the blob was its own),
  * so a second edit landing in between was skipped for good and one node kept stale providers.
@@ -115,55 +115,98 @@ class SecurityChainWatermarkTest {
       assertSame(provider, host.getProviderList().get(0), "own save reloaded itself");
    }
 
-   // save: a remote commit around this node's mtime and digest reads is not skipped
+   // save: a remote commit around this node's save is not skipped. The premise of the old
+   // tests, a watermark made of the mtime and digest read after the write, is gone (Bug #79127:
+   // the mtime is not ordered across nodes): a save records the digest of the bytes it wrote
+   // without reading the store, so a remote commit at any point after the write has another
+   // digest and is reloaded. The intent, that no commit is skipped, is kept.
 
    @Test
-   void remoteCommitBeforeMtimeReadIsNotSkipped() throws Exception {
+   void remoteCommitAfterSaveIsNotSkipped() throws Exception {
       TestChain host = newHost();
       TestChain other = newHost();
-      host.beforeMtime = remoteSave(other, "R");
 
       host.setProviders(named("A", "E"));
-      assertNull(host.beforeMtime, "the hook did not run");
+      remoteSave(other, "R").run();
 
       host.loadConfiguration();
       assertEquals(List.of("R"), names(host.getProviders()), "the remote commit was skipped");
    }
 
    @Test
-   void remoteCommitBetweenMtimeAndDigestReadIsNotSkipped() throws Exception {
+   void remoteCommitBetweenWriteAndEventIsNotSkippedEvenWithEqualMtime() throws Exception {
+      // no tick() between the saves: both writes can carry the same mtime
       TestChain host = newHost();
       TestChain other = newHost();
-      host.beforeDigest = remoteSave(other, "R");
 
       host.setProviders(named("A", "E"));
-      assertNull(host.beforeDigest, "the hook did not run");
+      other.setProviders(named("R"));
 
       host.loadConfiguration();
       assertEquals(List.of("R"), names(host.getProviders()), "the remote commit was skipped");
    }
 
    @Test
-   void remoteCommitAfterDigestReadIsReloaded() throws Exception {
+   void overwrittenOwnSaveIsReloadedEvenWhenTheOverwriteHoldsEarlierContent() throws Exception {
+      // A -> B -> A: the content the node held before its save comes back
       TestChain host = newHost();
       TestChain other = newHost();
-      host.afterDigest = remoteSave(other, "R");
+      save(other, "R");
+      host.loadConfiguration();
+      assertEquals(List.of("R"), names(host.getProviders()));
 
       host.setProviders(named("A", "E"));
-      assertNull(host.afterDigest, "the hook did not run");
+      save(other, "R");
 
       host.loadConfiguration();
       assertEquals(List.of("R"), names(host.getProviders()), "the remote commit was skipped");
    }
 
-   // the order is part of the fix: the digest first would bring the defect back
+   @Test
+   void unchangedFileIsNotReloaded() throws Exception {
+      TestChain host = newHost();
+      save(host, "A");
+      List<AuthenticationProvider> held = new ArrayList<>(host.getProviderList());
+
+      host.loadConfiguration();
+      host.loadConfiguration();
+
+      assertEquals(held.size(), host.getProviderList().size());
+      assertSame(held.get(0), host.getProviderList().get(0), "an unchanged file was reloaded");
+   }
 
    @Test
-   void saveReadsMtimeBeforeDigest() throws Exception {
+   void unavailableDigestReloadsInsteadOfSkipping() throws Exception {
       TestChain host = newHost();
+      TestChain other = newHost();
+      host.digestOverride = Optional.empty();
+
+      other.setProviders(named("R"));
+
+      host.loadConfiguration();
+      assertEquals(List.of("R"), names(host.getProviders()));
+      other.setProviders(named("S"));
+
+      host.loadConfiguration();
+      assertEquals(List.of("S"), names(host.getProviders()), "a null digest skipped a change");
+   }
+
+   // the order is part of the fix: reading the digest after the content could record a digest
+   // newer than the content loaded
+
+   @Test
+   void loadReadsDigestBeforeContent() throws Exception {
+      TestChain host = newHost();
+      TestChain other = newHost();
+      save(other, "probe");
       host.calls.clear();
-      host.setProviders(named("A"));
-      assertEquals(List.of("mtime", "digest"), host.calls);
+      ProbeProvider.hook = () -> host.calls.add("content");
+
+      host.loadConfiguration();
+
+      assertNull(ProbeProvider.hook, "the hook did not run");
+      assertEquals("digest", host.calls.get(0));
+      assertTrue(host.calls.indexOf("content") > host.calls.indexOf("digest"));
    }
 
    // helpers
@@ -240,52 +283,21 @@ class SecurityChainWatermarkTest {
       }
    }
 
-   /** Runs one-shot hooks at the points of saveConfiguration and records the read order. */
+   /** Records the digest reads and can make the digest unavailable. */
    private static final class TestChain extends AuthenticationChain {
-      volatile Runnable beforeMtime;
-      volatile Runnable beforeDigest;
-      volatile Runnable afterDigest;
+      volatile Optional<String> digestOverride;
       final List<String> calls = Collections.synchronizedList(new ArrayList<>());
 
       @Override
-      long readLastModified(DataSpace dataSpace, String configFile) {
-         record("mtime");
-         Runnable run = beforeMtime;
-         beforeMtime = null;
-
-         if(run != null) {
-            run.run();
-         }
-
-         return super.readLastModified(dataSpace, configFile);
-      }
-
-      @Override
       String readDigest(DataSpace dataSpace, String configFile) {
-         record("digest");
-         Runnable run = beforeDigest;
-         beforeDigest = null;
-
-         if(run != null) {
-            run.run();
-         }
-
-         String digest = super.readDigest(dataSpace, configFile);
-         run = afterDigest;
-         afterDigest = null;
-
-         if(run != null) {
-            run.run();
-         }
-
-         return digest;
-      }
-
-      private void record(String call) {
-         // null while the superclass constructor runs
+         // calls is null while the superclass constructor runs
          if(calls != null) {
-            calls.add(call);
+            calls.add("digest");
          }
+
+         Optional<String> override = digestOverride;
+         return override != null ? override.orElse(null) :
+            super.readDigest(dataSpace, configFile);
       }
    }
 }

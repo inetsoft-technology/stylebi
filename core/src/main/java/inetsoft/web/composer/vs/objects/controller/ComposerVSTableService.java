@@ -589,6 +589,11 @@ public class ComposerVSTableService {
          ViewsheetScope.IGNORE_EXCEPTION.set(null);
       }
 
+      // the scope caches one scriptable per assembly name, and the old one (e.g. the
+      // CrosstabVSAScriptable) is still cached for the renamed assembly. recreate it so that
+      // it matches the new assembly type, otherwise cancel/processChange will fail
+      rvs.getViewsheetSandbox().ifPresent(sandbox -> sandbox.getScope().refreshScriptable());
+
       // 8. execute the viewsheet
       this.coreLifecycleService.execute(rvs, oname, linkUri, hint, dispatcher);
       // don't change table size after conversion

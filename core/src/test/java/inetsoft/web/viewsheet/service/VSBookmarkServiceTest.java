@@ -374,6 +374,10 @@ class VSBookmarkServiceTest {
 
       XPrincipal principal = mock(XPrincipal.class);
       when(principal.getOrgId()).thenReturn(principalOrg);
+      // the caller sets its own bookmark, so it passes the owner check (Bug #79436) and only
+      // the default-org rule decides
+      IdentityID caller = new IdentityID("u", principalOrg);
+      when(principal.getName()).thenReturn(caller.convertToKey());
 
       VSObjectService objectService = mock(VSObjectService.class);
       when(objectService.getRuntimeViewsheet("rt", principal)).thenReturn(rvs);
@@ -382,7 +386,7 @@ class VSBookmarkServiceTest {
          mock(Cluster.class), mock(XSessionService.class));
       VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
          .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name("b1")
-            .owner(new IdentityID("u", "orgA")).build())
+            .owner(caller).build())
          .confirmed(false).build();
 
       try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {

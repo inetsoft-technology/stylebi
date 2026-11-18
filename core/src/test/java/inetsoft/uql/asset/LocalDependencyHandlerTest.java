@@ -60,7 +60,11 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -71,6 +75,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -527,6 +532,134 @@ class LocalDependencyHandlerTest {
       }
 
       return model;
+   }
+
+   /*
+    * Bug #80472: deleteDependencies() visits every key of the dependency store and used to rewrite
+    * each one that has dependents, even when the deleted asset is not among them. Only keys that
+    * actually list the deleted asset should be written.
+    */
+   @Test
+   void deleteDependenciesOnlyWritesKeysThatListTheEntry() throws Exception {
+      AssetEntry deleted = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "deleted", null);
+      AssetEntry other = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "other", null);
+      DependenciesInfo listing = new DependenciesInfo();
+      listing.setDependencies(new ArrayList<>(List.of(deleted, other)));
+      DependenciesInfo unrelated = new DependenciesInfo();
+      unrelated.setDependencies(new ArrayList<>(List.of(other)));
+      when(dependencyStorageService.getKeys(any())).thenReturn(java.util.Set.of("A", "B"));
+      when(dependencyStorageService.get("A")).thenReturn(listing);
+      when(dependencyStorageService.get("B")).thenReturn(unrelated);
+
+      handler.deleteDependencies(deleted);
+
+      verify(dependencyStorageService).put(eq("A"), any());
+      verify(dependencyStorageService, never()).put(eq("B"), any());
+      assertEquals(List.of(other), listing.getDependencies());
+      assertEquals(List.of(other), unrelated.getDependencies());
+   }
+
+   /*
+    * Bug #81546: renaming a folder updated the dependency store once per renamed sheet, each time
+    * scanning every key (N sheets x K keys reads). The batch overload rewrites the store in a
+    * single pass: one key listing, one read per key, one write per changed key.
+    */
+   @Test
+   void batchRenameScansTheDependencyStoreOnce() throws Exception {
+      int sheets = 20;
+      int keys = 200;
+      Map<AssetObject, AssetObject> renames = new LinkedHashMap<>();
+
+      for(int i = 0; i < sheets; i++) {
+         renames.put(sheet("old" + i), sheet("new" + i));
+      }
+
+      Set<String> keyNames = new LinkedHashSet<>();
+      DependenciesInfo[] infos = new DependenciesInfo[keys];
+
+      for(int k = 0; k < keys; k++) {
+         String name = "K" + k;
+         keyNames.add(name);
+         infos[k] = new DependenciesInfo();
+         // even keys list one renamed sheet, odd keys list none; key 0 lists several
+         List<AssetObject> list = new ArrayList<>(List.of(sheet("untouched")));
+
+         if(k == 0) {
+            list.add(sheet("old1"));
+            list.add(sheet("old2"));
+            list.add(sheet("old3"));
+         }
+         else if(k % 2 == 0) {
+            list.add(sheet("old" + (k % sheets)));
+         }
+
+         infos[k].setDependencies(list);
+         when(dependencyStorageService.get(name)).thenReturn(infos[k]);
+      }
+
+      when(dependencyStorageService.getKeys(any())).thenReturn(keyNames);
+
+      handler.updateDependencies(renames);
+
+      verify(dependencyStorageService, times(1)).getKeys(any());
+      verify(dependencyStorageService, times(keys)).get(anyString());
+      verify(dependencyStorageService, times(keys / 2)).put(anyString(), any());
+      verify(dependencyStorageService, never()).put(eq("K1"), any());
+      assertEquals(List.of(sheet("untouched"), sheet("new1"), sheet("new2"), sheet("new3")),
+                   infos[0].getDependencies());
+   }
+
+   // a key that lists several renamed sheets is written once with all of them replaced
+   @Test
+   void batchRenameWritesAKeyOnceForSeveralSheets() throws Exception {
+      DependenciesInfo info = new DependenciesInfo();
+      info.setDependencies(new ArrayList<>(List.of(sheet("a"), sheet("b"))));
+      info.setEmbedDependencies(new ArrayList<>(List.of(sheet("a"))));
+      when(dependencyStorageService.getKeys(any())).thenReturn(Set.of("K"));
+      when(dependencyStorageService.get("K")).thenReturn(info);
+
+      handler.updateDependencies(Map.of(sheet("a"), sheet("a2"), sheet("b"), sheet("b2")));
+
+      verify(dependencyStorageService, times(1)).put(eq("K"), any());
+      assertEquals(List.of(sheet("a2"), sheet("b2")), info.getDependencies());
+      assertEquals(List.of(sheet("a2")), info.getEmbedDependencies());
+   }
+
+   // an overlapping map (a -> b, b -> c) replaces each element once, by its original identifier
+   @Test
+   void batchRenameDoesNotChainOverlappingRenames() throws Exception {
+      DependenciesInfo info = new DependenciesInfo();
+      info.setDependencies(new ArrayList<>(List.of(sheet("a"), sheet("b"))));
+      when(dependencyStorageService.getKeys(any())).thenReturn(Set.of("K"));
+      when(dependencyStorageService.get("K")).thenReturn(info);
+
+      handler.updateDependencies(Map.of(sheet("a"), sheet("b"), sheet("b"), sheet("c")));
+
+      assertEquals(List.of(sheet("b"), sheet("c")), info.getDependencies());
+   }
+
+   // the single pair method behaves as before: it replaces the entry and writes only that key
+   @Test
+   void singleRenameStillReplacesTheEntry() throws Exception {
+      DependenciesInfo listing = new DependenciesInfo();
+      listing.setDependencies(new ArrayList<>(List.of(sheet("a"))));
+      DependenciesInfo unrelated = new DependenciesInfo();
+      unrelated.setDependencies(new ArrayList<>(List.of(sheet("z"))));
+      when(dependencyStorageService.getKeys(any())).thenReturn(Set.of("A", "B"));
+      when(dependencyStorageService.get("A")).thenReturn(listing);
+      when(dependencyStorageService.get("B")).thenReturn(unrelated);
+
+      handler.updateDependencies(sheet("a"), sheet("a2"));
+
+      verify(dependencyStorageService).put(eq("A"), any());
+      verify(dependencyStorageService, never()).put(eq("B"), any());
+      assertEquals(List.of(sheet("a2")), listing.getDependencies());
+   }
+
+   private AssetEntry sheet(String name) {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, name, null);
    }
 
    private String identifier(AssetEntry.Type type, String name) {

@@ -127,6 +127,20 @@ class SaveWorksheetDialogServiceSnapshotTest {
       order.verify(engine).setWorksheet(eq(ws), isTarget(), any(), eq(true), anyBoolean());
    }
 
+   // bug #81238: the overwrite is refused for lack of DELETE permission, no data file is written
+   @Test
+   void refusedOverwriteWritesNoDataFiles() throws Exception {
+      doThrow(new MessageException("Permission denied to delete: target77986"))
+         .when(repository).checkAssetPermission(
+            any(), isTarget(), eq(inetsoft.sree.security.ResourceAction.DELETE));
+
+      assertThrows(MessageException.class,
+                   () -> service.process(rws, createModel(), PRINCIPAL, true));
+
+      assertNull(assembly.getDataPaths(), "data files were written for a refused save");
+      verify(repository, never()).removeSheet(any(), any(), anyBoolean());
+   }
+
    private static SaveWorksheetDialogModel createModel() {
       AssetRepositoryPaneModel pane = new AssetRepositoryPaneModel();
       pane.setName("target77986");

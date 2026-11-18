@@ -441,3 +441,55 @@ describe("LocalizationPane — find", () => {
       expect(comp.find({ name: "myName", textId: "someOtherTextId" })).toBe(true);
    });
 });
+
+// ---------------------------------------------------------------------------
+// Bug #80366: duplicate selection must never delete an unselected row
+// ---------------------------------------------------------------------------
+
+describe("LocalizationPane — duplicate selection (Bug #80366)", () => {
+   const plain = { ctrlKey: false, shiftKey: false } as MouseEvent;
+   const ctrl = { ctrlKey: true, shiftKey: false } as MouseEvent;
+   const shift = { ctrlKey: false, shiftKey: true } as MouseEvent;
+
+   async function setup() {
+      const rows = ["L1", "L2", "L3", "L4"].map((n) => makeLocalized(n));
+      const ctx = await renderComponent({ localized: [...rows] });
+      return { ...ctx, rows };
+   }
+
+   it("click L1, shift-click L3 selects each row once and Remove leaves L4", async () => {
+      const { comp, model, rows } = await setup();
+      comp.selectLocalized(plain, rows[0]);
+      comp.selectLocalized(shift, rows[2]);
+      expect(comp.selectedLocalized).toEqual([rows[0], rows[1], rows[2]]);
+      comp.remove();
+      expect(model.localized).toEqual([rows[3]]);
+   });
+
+   it("ctrl-click toggles a selected row off instead of duplicating it", async () => {
+      const { comp, model, rows } = await setup();
+      comp.selectLocalized(plain, rows[0]);
+      comp.selectLocalized(ctrl, rows[0]);
+      expect(comp.selectedLocalized).toEqual([]);
+      comp.selectLocalized(ctrl, rows[1]);
+      comp.selectLocalized(ctrl, rows[2]);
+      comp.remove();
+      expect(model.localized).toEqual([rows[0], rows[3]]);
+   });
+
+   it("click L2, shift-click L2 removes only L2", async () => {
+      const { comp, model, rows } = await setup();
+      comp.selectLocalized(plain, rows[1]);
+      comp.selectLocalized(shift, rows[1]);
+      comp.remove();
+      expect(model.localized).toEqual([rows[0], rows[2], rows[3]]);
+   });
+
+   it("remove() ignores a selected row that is not in the model", async () => {
+      const { comp, model, rows } = await setup();
+      const stale = makeLocalized("stale");
+      comp.selectedLocalized = [rows[0], stale, stale];
+      comp.remove();
+      expect(model.localized).toEqual([rows[1], rows[2], rows[3]]);
+   });
+});

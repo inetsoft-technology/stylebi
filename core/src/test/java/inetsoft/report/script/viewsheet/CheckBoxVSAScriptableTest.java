@@ -25,6 +25,9 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CheckBoxVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
@@ -149,5 +152,57 @@ public class CheckBoxVSAScriptableTest {
       checkBoxVSAScriptable.setSelectedObjects(objects);
       assertArrayEquals(objects, (Object[]) checkBoxVSAScriptable.getSelectedObjectsArray());
       assertArrayEquals(objects, checkBoxVSAssemblyInfo.getSelectedObjects());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "top", "bottom", "left", "right" })
+   void labelPositionAcceptsTheFourValidPositions(String position) {
+      checkBoxVSAScriptable.addProperties();
+      checkBoxVSAScriptable.putMember("labelPosition", position);
+      assertEquals(position, checkBoxVSAScriptable.getMember("labelPosition"));
+   }
+
+   @ParameterizedTest
+   @NullAndEmptySource
+   @ValueSource(strings = { "TOP", "middle" })
+   void invalidLabelPositionFallsBackToLeft(String position) {
+      checkBoxVSAScriptable.addProperties();
+      checkBoxVSAScriptable.putMember("labelPosition", "bottom");
+      checkBoxVSAScriptable.putMember("labelPosition", position);
+      assertEquals("left", checkBoxVSAScriptable.getMember("labelPosition"));
+   }
+
+   @ParameterizedTest
+   @org.junit.jupiter.params.provider.CsvSource({ "12,12", "0,0", "-3,0" })
+   void labelGapIsClampedToNonNegative(int gap, int expected) {
+      checkBoxVSAScriptable.addProperties();
+      checkBoxVSAScriptable.putMember("labelGap", gap);
+      assertEquals(expected, checkBoxVSAScriptable.getMember("labelGap"));
+   }
+
+   @Test
+   void labelTextReadsBackAndNullBecomesEmpty() {
+      checkBoxVSAScriptable.addProperties();
+      checkBoxVSAScriptable.putMember("labelText", "Name");
+      assertEquals("Name", checkBoxVSAScriptable.getMember("labelText"));
+
+      checkBoxVSAScriptable.putMember("labelText", null);
+      assertEquals("", checkBoxVSAScriptable.getMember("labelText"));
+   }
+
+   @Test
+   void scriptLabelTextAndGapAreRevertedToDesignValuesOnReset() {
+      checkBoxVSAScriptable.addProperties();
+      checkBoxVSAssemblyInfo.getLabelInfo().setLabelTextValue("D");
+      checkBoxVSAssemblyInfo.getLabelInfo().setLabelGapValue(9);
+
+      checkBoxVSAScriptable.putMember("labelText", "R");
+      checkBoxVSAScriptable.putMember("labelGap", 3);
+      assertEquals("R", checkBoxVSAScriptable.getMember("labelText"));
+      assertEquals(3, checkBoxVSAScriptable.getMember("labelGap"));
+
+      checkBoxVSAssemblyInfo.resetRuntimeValues();
+      assertEquals("D", checkBoxVSAScriptable.getMember("labelText"));
+      assertEquals(9, checkBoxVSAScriptable.getMember("labelGap"));
    }
 }

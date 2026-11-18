@@ -30,6 +30,7 @@ import { DatePeriodModel } from "../../model/date-period-model";
 import { DynamicValueModel, ValueTypes } from "../../model/dynamic-value-model";
 import { DateComparisonService } from "../../util/date-comparison.service";
 import { DynamicValueEditorComponent } from "../../../widget/date-type-editor/dynamic-value-editor.component";
+import { DateComparisonUtil } from "./date-comparison-utill";
 
 
 @Component({
@@ -55,11 +56,11 @@ export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
 
    ngOnInit(): void {
       this.initCustomPeriodModel();
-      this.validChange.emit(this.isValidCustomPeriod());
+      this.validChange.emit(this.isValidAndNotOverlapping());
    }
 
    ngOnChanges(): void {
-      this.validChange.emit(this.isValidCustomPeriod());
+      this.validChange.emit(this.isValidAndNotOverlapping());
    }
 
    // position of each period in the stored comparison, before the pane sorts them: the server and
@@ -105,7 +106,7 @@ export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
 
    delDatePeriod(index: number): void {
       this.customPeriodPaneModel.datePeriods.splice(index, 1);
-      this.validChange.emit(this.isValidCustomPeriod());
+      this.validChange.emit(this.isValidAndNotOverlapping());
    }
 
    get isRemoveDisable(): boolean {
@@ -119,17 +120,21 @@ export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
    }
 
    isValidCustomPeriod(): boolean {
-      let dynamicValue: DynamicValueModel[] = [];
+      return DateComparisonUtil.isValidCustomPeriodDates(this.customPeriodPaneModel,
+                                                         this.dateComparisonService);
+   }
 
-      this.customPeriodPaneModel.datePeriods.forEach(datePeriod => {
-         dynamicValue.push(datePeriod.start);
-         dynamicValue.push(datePeriod.end);
-      });
+   get isOverlapping(): boolean {
+      return this.dateComparisonService.hasOverlappingFixedPeriods(
+         this.customPeriodPaneModel.datePeriods);
+   }
 
-      return !dynamicValue.some(value => !this.dateComparisonService.isValidDate(value.value));
+   private isValidAndNotOverlapping(): boolean {
+      return DateComparisonUtil.isValidCustomPeriod(this.customPeriodPaneModel,
+                                                    this.dateComparisonService);
    }
 
    onValueChange(): void {
-      this.validChange.emit(this.isValidCustomPeriod());
+      this.validChange.emit(this.isValidAndNotOverlapping());
    }
 }

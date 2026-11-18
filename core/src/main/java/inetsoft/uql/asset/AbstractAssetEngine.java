@@ -406,6 +406,11 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          Principal user0 = ThreadContext.getContextPrincipal();
          Catalog ucata = Catalog.getCatalog(user0, Catalog.REPORT);
 
+         // check the storage timestamp once per listing, not once per child sheet
+         if(!oneoff) {
+            checkStorageModified();
+         }
+
          for(AssetEntry childEntry : entries) {
             AssetEntry.Type type = childEntry.getType();
 
@@ -414,7 +419,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                   if(!oneoff) {
                      if(childEntry.isVSSnapshot()) {
                         VSSnapshot snap = (VSSnapshot) getSheet(
-                           childEntry, user, false, AssetContent.CONTEXT);
+                           childEntry, user, false, AssetContent.CONTEXT, true, false);
 
                         if(snap != null) {
                            childEntry.setProperty(AssetEntry.SHEET_DESCRIPTION,
@@ -428,7 +433,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                      }
                      else if(childEntry.isViewsheet()) {
                         Viewsheet vs = (Viewsheet) getSheet(
-                           childEntry, user, false, AssetContent.CONTEXT);
+                           childEntry, user, false, AssetContent.CONTEXT, true, false);
 
                         if(vs != null) {
                            ViewsheetInfo vinfo = vs.getViewsheetInfo();
@@ -1960,9 +1965,15 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                               boolean callFireEvent) throws Exception
    {
 
-      List<RenameDependencyInfo> renameDependencyInfos = new ArrayList<>();
-      changeFolder0(oentry, ostorage, nentry, nstorage, root, changed, callFireEvent,
-         renameDependencyInfos);
+      PendingRenames renameDependencyInfos = new PendingRenames();
+
+      try {
+         changeFolder0(oentry, ostorage, nentry, nstorage, root, changed, callFireEvent,
+            renameDependencyInfos);
+      }
+      finally {
+         renameDependencyInfos.flush();
+      }
 
       // for relation viewsheets under the same folder and folder changed, in order to avoid
       // transform thread and rename thread information(asset path) is out of sync.
@@ -2425,6 +2436,27 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    protected void removeFolder0(AssetEntry entry, IndexedStorage storage, boolean root)
       throws Exception
    {
+      // Bug #80473: scan the bookmark keys once for the whole folder tree, not once per
+      // child dashboard
+      boolean ownsIndex = root && bookmarkIndex.get() == null;
+
+      if(ownsIndex) {
+         bookmarkIndex.set(new HashMap<>());
+      }
+
+      try {
+         removeFolder1(entry, storage, root);
+      }
+      finally {
+         if(ownsIndex) {
+            bookmarkIndex.remove();
+         }
+      }
+   }
+
+   private void removeFolder1(AssetEntry entry, IndexedStorage storage, boolean root)
+      throws Exception
+   {
       try {
          clearCache(entry);
          AssetFolder folder = getFolder(entry, storage);
@@ -2622,6 +2654,40 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                                  boolean permission, AssetContent ctype, boolean useCache)
       throws Exception
    {
+      return getSheet(entry, user, permission, ctype, useCache, true);
+   }
+
+   /**
+    * Checks whether the storage was modified since the last check and, if so, records the new
+    * timestamp and clears the node-local sheet caches. This is the only cross-node invalidation
+    * of those caches, so it must run at least once per request that reads cached sheets.
+    */
+   private void checkStorageModified() {
+      long modified = istore.lastModified();
+
+      if(modified != lastMod) {
+         lastMod = modified;
+         contextmap.clear();
+
+         synchronized(sheetCacheLock) {
+            sheetCacheGeneration++;
+            sheetmap.clear();
+         }
+
+         foldermap.clear();
+         bookmarkmap.clear();
+      }
+   }
+
+   /**
+    * @param checkModified false if the caller has already called checkStorageModified for the
+    *                      current operation (e.g. a folder listing), so the (expensive) storage
+    *                      timestamp is not re-read for every sheet.
+    */
+   private AbstractSheet getSheet(AssetEntry entry, Principal user, boolean permission,
+                                  AssetContent ctype, boolean useCache, boolean checkModified)
+      throws Exception
+   {
       if(entry == null) {
          return null;
       }
@@ -2659,19 +2725,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             checkAssetPermission(user, entry, ResourceAction.READ, true);
          }
 
-         long modified = istore.lastModified();
-
-         if(modified != lastMod) {
-            lastMod = modified;
-            contextmap.clear();
-
-            synchronized(sheetCacheLock) {
-               sheetCacheGeneration++;
-               sheetmap.clear();
-            }
-
-            foldermap.clear();
-            bookmarkmap.clear();
+         if(checkModified) {
+            checkStorageModified();
          }
 
          copyEntryProperty(entry, storage);
@@ -3411,6 +3466,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       DependencyHandler dependencyHandler = DependencyHandler.getInstance();
+      PendingRenames.Pending pendingTransform = null;
 
       if(oentry.isWorksheet()) {
          RenameInfo rinfo = new RenameInfo(oidentifier, nidentifier,
@@ -3425,16 +3481,26 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             rinfo.setNewPath(npath);
          }
 
-         if(renameDependencyInfos != null) {
-            if(dependencyHandler.updateDependencies(oentry, nentry)) {
-               renameDependencyInfos.add(dependencyHandler.getRenameDependencyInfo(oentry, nentry));
-            }
+         if(renameDependencyInfos instanceof PendingRenames) {
+            // batched: the dependency store is rewritten once for the whole folder, and the
+            // transform is queued after that so it sees the renamed dependents
+            pendingTransform = ((PendingRenames) renameDependencyInfos).record(
+               oentry, nentry, dependencyHandler, rinfo);
          }
-         else if(!Tool.equals(oentry, nentry)) {
-            dependencyHandler.updateDependencies(oentry, nentry);
+         else {
+            if(renameDependencyInfos != null) {
+               if(dependencyHandler.updateDependencies(oentry, nentry)) {
+                  renameDependencyInfos.add(
+                     dependencyHandler.getRenameDependencyInfo(oentry, nentry));
+               }
+            }
+            else if(!Tool.equals(oentry, nentry)) {
+               dependencyHandler.updateDependencies(oentry, nentry);
+            }
+
+            XRepository.getRepository().renameTransform(rinfo);
          }
 
-         XRepository.getRepository().renameTransform(rinfo);
          RenameSheetEvent renameSheetEvent = new RenameSheetEvent(oentry);
          renameSheetEvent.setRenameInfo(rinfo);
          cluster.sendMessage(renameSheetEvent);
@@ -3444,7 +3510,11 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             nentry.setProperty("__bookmark_id__", null);
          }
 
-         if(renameDependencyInfos != null) {
+         if(renameDependencyInfos instanceof PendingRenames) {
+            pendingTransform = ((PendingRenames) renameDependencyInfos).record(
+               oentry, nentry, dependencyHandler, null);
+         }
+         else if(renameDependencyInfos != null) {
             if(dependencyHandler.updateDependencies(oentry, nentry)) {
                renameDependencyInfos.add(dependencyHandler.getRenameDependencyInfo(oentry, nentry));
             }
@@ -3518,6 +3588,74 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          fireEvent(sheet.getType(), AssetChangeEvent.ASSET_RENAMED, nentry,
             oidentifier, root, sheet, "changeSheet: " + oentry + ", " + nentry);
       }
+
+      if(pendingTransform != null) {
+         pendingTransform.completed = true;
+      }
+   }
+
+   /**
+    * Collects the dependency renames of one folder rename so the dependency storage is
+    * rewritten in a single pass instead of once per renamed sheet.
+    */
+   private static final class PendingRenames extends ArrayList<RenameDependencyInfo> {
+      Pending record(AssetEntry oentry, AssetEntry nentry, DependencyHandler handler,
+                     RenameInfo wsTransform)
+      {
+         // snapshot: nentry is still modified by the caller after this point
+         AssetEntry snapshot = Tool.equals(oentry, nentry) ? nentry : (AssetEntry) nentry.clone();
+         Pending pending = new Pending(oentry, snapshot, wsTransform);
+         pendings.add(pending);
+         this.handler = handler;
+         add(handler.getRenameDependencyInfo(oentry, nentry));
+         return pending;
+      }
+
+      void flush() {
+         if(handler == null || pendings.isEmpty()) {
+            return;
+         }
+
+         try {
+            Map<AssetObject, AssetObject> renames = new LinkedHashMap<>();
+
+            for(Pending pending : pendings) {
+               renames.put(pending.oentry, pending.nentry);
+            }
+
+            handler.updateDependencies(renames);
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to update the dependencies of the renamed folder", ex);
+         }
+
+         for(Pending pending : pendings) {
+            if(pending.completed && pending.wsTransform != null) {
+               try {
+                  XRepository.getRepository().renameTransform(pending.wsTransform);
+               }
+               catch(Exception ex) {
+                  LOG.warn("Failed to transform the dependents of {}", pending.oentry, ex);
+               }
+            }
+         }
+      }
+
+      static final class Pending {
+         Pending(AssetEntry oentry, AssetEntry nentry, RenameInfo wsTransform) {
+            this.oentry = oentry;
+            this.nentry = nentry;
+            this.wsTransform = wsTransform;
+         }
+
+         final AssetEntry oentry;
+         final AssetEntry nentry;
+         final RenameInfo wsTransform;
+         boolean completed;
+      }
+
+      private final List<Pending> pendings = new ArrayList<>();
+      private DependencyHandler handler;
    }
 
    private boolean isRenameUser(AssetEntry oentry, AssetEntry nentry) {
@@ -4675,20 +4813,35 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       final String viewsheetPath = bookmarkEntry.getPath();
+      Map<String, List<IdentityID>> index = getFolderBookmarkIndex(entry, storage);
+
+      if(index != null) {
+         List<IdentityID> users = index.get(viewsheetPath);
+
+         if(users != null) {
+            userList.addAll(users);
+         }
+
+         return sortBookmarkUsers(userList, provider);
+      }
+
+      final String inner = "^" + viewsheetPath + "^";
+      final String tail = "^" + viewsheetPath;
 
       IndexedStorage.Filter filter = key -> {
+         // Bug #80473: cheap necessary condition before parsing the key; the parsed path
+         // is always delimited by '^' (and the org, if any) in the identifier
+         if(!key.contains(inner) && !key.endsWith(tail)) {
+            return false;
+         }
+
          AssetEntry entry0 = AssetEntry.createAssetEntry(key);
 
          if(entry0 != null &&
             entry0.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK &&
             entry0.getUser() != null && entry0.getPath().equals(viewsheetPath))
          {
-            AssetEntry bEntry = AssetEntry.createAssetEntry(key);
-
-            if(bEntry != null) {
-               userList.add(bEntry.getUser());
-            }
-
+            userList.add(entry0.getUser());
             return true;
          }
 
@@ -4697,7 +4850,58 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       storage.getKeys(filter, entry.getOrgID());
 
-      return userList.stream().filter(id ->  provider.getOrganization(id.orgID) != null).sorted().toList();
+      return sortBookmarkUsers(userList, provider);
+   }
+
+   private static List<IdentityID> sortBookmarkUsers(List<IdentityID> userList,
+                                                     SecurityProvider provider)
+   {
+      return userList.stream().filter(id -> provider.getOrganization(id.orgID) != null)
+         .sorted().toList();
+   }
+
+   /**
+    * Get the bookmark index (bookmark path to owners) shared by a folder delete. The index
+    * of an org is built by one scan of that org's keys on first use.
+    *
+    * @return the index, or null if no folder delete is in progress on this thread.
+    */
+   private Map<String, List<IdentityID>> getFolderBookmarkIndex(AssetEntry entry,
+                                                                IndexedStorage storage)
+      throws Exception
+   {
+      Map<String, Map<String, List<IdentityID>>> indexes = bookmarkIndex.get();
+
+      if(indexes == null || storage == null) {
+         return null;
+      }
+
+      String orgID = entry.getOrgID();
+      Map<String, List<IdentityID>> index = indexes.get(orgID);
+
+      if(index == null) {
+         final Map<String, List<IdentityID>> index0 = new HashMap<>();
+         index = index0;
+
+         // same predicate as getBookmarkUsers, for every bookmark path at once
+         storage.getKeys(key -> {
+            AssetEntry entry0 = AssetEntry.createAssetEntry(key);
+
+            if(entry0 != null && entry0.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK &&
+               entry0.getUser() != null)
+            {
+               index0.computeIfAbsent(entry0.getPath(), k -> new ArrayList<>())
+                  .add(entry0.getUser());
+               return true;
+            }
+
+            return false;
+         }, orgID);
+
+         indexes.put(orgID, index);
+      }
+
+      return index;
    }
 
    /**
@@ -4844,8 +5048,15 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       AssetEntry bookmarkEntry = getVSBookmarkEntry(entry, entry.getUser());
       String viewsheetPath = bookmarkEntry.getPath();
       List<AssetEntry> entries = new ArrayList<>();
+      final String inner = "^" + viewsheetPath + "^";
+      final String tail = "^" + viewsheetPath;
 
       IndexedStorage.Filter filter = key -> {
+         // Bug #80473: cheap necessary condition before parsing the key
+         if(!key.contains(inner) && !key.endsWith(tail)) {
+            return false;
+         }
+
          AssetEntry entry0 = AssetEntry.createAssetEntry(key);
 
          if(entry0 != null && entry0.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK &&
@@ -5233,6 +5444,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
    // set while a storage refresh event is being fired, see refreshListener
    private final ThreadLocal<Boolean> storageRefreshing = new ThreadLocal<>();
+   // Bug #80473: per-org bookmark path to owners index, live only during a folder delete
+   private final ThreadLocal<Map<String, Map<String, List<IdentityID>>>> bookmarkIndex =
+      new ThreadLocal<>();
 
    private final StorageRefreshListener refreshListener = event -> {
       final List<TimestampIndexChange> changes = event.getChanges();

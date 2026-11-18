@@ -514,7 +514,9 @@ public class SortFilter extends AbstractTableLens
          catch(Exception ex) {
             // parsing number from string for numeric comparison may cause the comparison to
             // violate transitory property. if it fails, turn it off. (61642, group on Bethlehem)
-            Arrays.stream(comparers).filter(c -> c instanceof DefaultComparer)
+            Arrays.stream(comparers)
+               .map(c -> c instanceof NullsHighComparer ? ((NullsHighComparer) c).getBase() : c)
+               .filter(c -> c instanceof DefaultComparer)
                .forEach(c -> ((DefaultComparer) c).setParseNumber(false));
             rowmap = sortObj.sort(rowmap, lo0, hi0 + 1, new IntArraySort.IntComparator() {
                public int compare(int v1, int v2) {

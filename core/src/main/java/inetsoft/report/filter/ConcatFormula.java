@@ -43,7 +43,7 @@ public class ConcatFormula implements Formula {
    @Override
    public void addValue(Object v) {
       if(v != null) {
-         if(buf.length() > 0) {
+         if(cnt > 0) {
             buf.append(",");
          }
 
@@ -61,7 +61,7 @@ public class ConcatFormula implements Formula {
          return;
       }
 
-      if(buf.length() > 0) {
+      if(cnt > 0) {
          buf.append(",");
       }
 
@@ -78,7 +78,7 @@ public class ConcatFormula implements Formula {
          return;
       }
 
-      if(buf.length() > 0) {
+      if(cnt > 0) {
          buf.append(",");
       }
 
@@ -95,7 +95,7 @@ public class ConcatFormula implements Formula {
          return;
       }
 
-      if(buf.length() > 0) {
+      if(cnt > 0) {
          buf.append(",");
       }
 
@@ -112,7 +112,7 @@ public class ConcatFormula implements Formula {
          return;
       }
 
-      if(buf.length() > 0) {
+      if(cnt > 0) {
          buf.append(",");
       }
 
@@ -129,7 +129,7 @@ public class ConcatFormula implements Formula {
          return;
       }
 
-      if(buf.length() > 0) {
+      if(cnt > 0) {
          buf.append(",");
       }
 
@@ -146,7 +146,7 @@ public class ConcatFormula implements Formula {
          return;
       }
 
-      if(buf.length() > 0) {
+      if(cnt > 0) {
          buf.append(",");
       }
 

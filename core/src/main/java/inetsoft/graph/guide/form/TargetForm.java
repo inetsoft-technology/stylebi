@@ -201,7 +201,7 @@ public class TargetForm extends GraphForm {
       // Lower Rectangle (Fill below)
       if(fillBelow != null) {
          Object[] topLeft, bottomRight;
-         double min = Arrays.stream(bandBoundaries).max().orElse(0);
+         double min = Arrays.stream(bandBoundaries).min().orElse(0);
          Object bottom = inverted ? Scale.MAX_VALUE : Scale.MIN_VALUE;
 
          if(xFieldTarget) {

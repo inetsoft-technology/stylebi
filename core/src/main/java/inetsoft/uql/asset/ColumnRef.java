@@ -121,7 +121,7 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
       DataRef dataRef = ref.getDataRef();
 
       if(attributeView == null) {
-         return tooltip;
+         return ref.isExpression() ? ref.getDescription() : tooltip;
       }
 
       if(dataRef instanceof DateRangeRef || dataRef instanceof NumericRangeRef) {

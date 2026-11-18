@@ -161,8 +161,8 @@ public class ScriptFunction implements ProxyExecutable {
          return ScriptValueConverter.toGuest(result);
       }
       catch(Exception ex) {
-         Throwable cause = ex instanceof InvocationTargetException && ex.getCause() != null ?
-            ex.getCause() : ex;
+         Throwable cause = ex instanceof InvocationTargetException && ex.getCause() != null
+            ? ex.getCause() : ex;
          String msg = cause.getMessage();
          String text = "Failed to invoke script function: " + name;
 

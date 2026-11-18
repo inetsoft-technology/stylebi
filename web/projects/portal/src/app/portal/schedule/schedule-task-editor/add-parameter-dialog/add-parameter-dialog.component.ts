@@ -180,7 +180,7 @@ export class AddParameterDialog implements OnInit {
       let vals: string[] = value.split(",");
 
       for(let i = 0; i < vals.length; i++) {
-         if(dataType == XSchema.INTEGER && this.checkIntegerRange(parseInt(vals[i])) ||
+         if(dataType == XSchema.INTEGER && this.getIntegerEntryError(vals[i]) != null ||
             !this.isValidDataTypeValue(vals[i], dataType))
          {
             return false;
@@ -226,6 +226,33 @@ export class AddParameterDialog implements OnInit {
 
    private checkIntegerRange(integer: number): boolean {
       return !(integer > 2147483647 || integer < -2147483648)
+   }
+
+   /**
+    * Validates one Integer entry (the whole value when not an array).
+    * @return "invalid" if not an integer, "range" if outside the 32-bit range, else null.
+    */
+   private getIntegerEntryError(entry: string): "invalid" | "range" | null {
+      if(!this.isValidDataTypeValue(entry, XSchema.INTEGER)) {
+         return "invalid";
+      }
+
+      return this.checkIntegerRange(parseInt(entry.trim(), 10)) ? null : "range";
+   }
+
+   /** Returns the first failing Integer entry's error, checking each comma entry for arrays. */
+   private getIntegerError(value: string, isArray: boolean): "invalid" | "range" | null {
+      const entries = isArray ? value.split(",") : [value];
+
+      for(let entry of entries) {
+         const error = this.getIntegerEntryError(entry);
+
+         if(error != null) {
+            return error;
+         }
+      }
+
+      return null;
    }
 
    private fixTimeValue() {
@@ -330,16 +357,20 @@ export class AddParameterDialog implements OnInit {
          return errorMessage;
       }
 
-      if(XSchema.isNumericType(value.dataType) &&
+      if(value.dataType == XSchema.INTEGER) {
+         const error = this.getIntegerError(value.value.toString(), this.model.array);
+
+         if(error == "range") {
+            errorMessage = "_#(js:em.common.param.number.outNegativeRange)";
+         }
+         else if(error == "invalid") {
+            errorMessage = "_#(js:em.common.param.numberInvalid)";
+         }
+      }
+      else if(XSchema.isNumericType(value.dataType) &&
          !this.validValue(value.value.toString(), value.dataType, this.model.array))
       {
          errorMessage = "_#(js:em.common.param.numberInvalid)";
-      }
-      else if(value.dataType == XSchema.INTEGER &&
-         (!this.validValue(value.value.toString(), value.dataType, this.model.array) ||
-            !this.checkIntegerRange(value.value)))
-      {
-         errorMessage = "_#(js:em.common.param.number.outNegativeRange)";
       }
       else if(value.dataType == XSchema.BOOLEAN &&
          !this.validValue(value.value.toString(), value.dataType, this.model.array))

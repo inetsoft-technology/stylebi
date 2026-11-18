@@ -379,9 +379,7 @@ export class DateComparisonIntervalPaneComponent implements OnInit{
    }
 
    showEndDate(): boolean {
-      return !this.isCustomPeriod && (this.intervalPaneModel.level.type != ValueTypes.VALUE ||
-         (Number(this.intervalPaneModel.level.value) > IntervalLevel.TO_DATE ||
-         this.intervalPaneModel.level.type != ValueTypes.VALUE));
+      return DateComparisonUtil.showIntervalEndDate(this.intervalPaneModel, this.isCustomPeriod);
    }
 
    showInclusive(): boolean {
@@ -431,7 +429,8 @@ export class DateComparisonIntervalPaneComponent implements OnInit{
    }
 
    isValidInterval(): boolean {
-      return !this.showEndDate() || this.intervalPaneModel.endDayAsToDate || this.verifyEndDate();
+      return DateComparisonUtil.isValidInterval(this.intervalPaneModel, this.isCustomPeriod,
+                                                this.dateComparisonService);
    }
 
    verifyEndDate(): boolean {

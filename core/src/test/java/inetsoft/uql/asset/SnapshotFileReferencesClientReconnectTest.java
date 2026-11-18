@@ -61,7 +61,8 @@ import static org.junit.jupiter.api.Assertions.*;
    SnapshotFileReferencesClientReconnectTest.TestClusterConfiguration.class
 }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
+@Tag("cluster")
 class SnapshotFileReferencesClientReconnectTest {
    @BeforeAll
    static void startServer() throws Exception {

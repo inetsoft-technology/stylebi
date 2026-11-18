@@ -145,7 +145,7 @@ class AIAssistantControllerTest {
    void installsATrustAllContextWhenVerificationIsDisabled()
       throws Exception
    {
-      sreeEnvStatic.when(() -> SreeEnv.getProperty("chat.app.server.ssl.verify", "false"))
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("chat.app.server.ssl.verify", "true"))
          .thenReturn("false");
 
       HttpClient.Builder builder = HttpClient.newBuilder();
@@ -198,7 +198,7 @@ class AIAssistantControllerTest {
 
    @Test
    void leavesTlsUntouchedWhenVerificationIsEnabled() throws Exception {
-      sreeEnvStatic.when(() -> SreeEnv.getProperty("chat.app.server.ssl.verify", "false"))
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("chat.app.server.ssl.verify", "true"))
          .thenReturn("true");
 
       HttpClient.Builder builder = HttpClient.newBuilder();
@@ -210,5 +210,27 @@ class AIAssistantControllerTest {
       // rather than an assumed one.
       assertNull(client.sslParameters().getEndpointIdentificationAlgorithm());
       assertSame(SSLContext.getDefault(), client.sslContext());
+   }
+
+   // isSslVerifyEnabled() (Bug #81264): verification must default to on, and the explicit
+   // trust-all opt-out must still be reachable.
+   @Test
+   void sslVerifyDefaultsToTrueWhenPropertyIsUnset() {
+      // SreeEnv.getProperty(key, default) returns the default when the property is unset.
+      sreeEnvStatic.when(() -> SreeEnv.getProperty(eq("chat.app.server.ssl.verify"), any()))
+         .thenAnswer(invocation -> invocation.getArgument(1));
+
+      assertTrue(AIAssistantController.isSslVerifyEnabled(),
+                 "certificate verification must be on by default");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "false", "FALSE", "False" })
+   void sslVerifyCanBeExplicitlyDisabled(String value) {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("chat.app.server.ssl.verify", "true"))
+         .thenReturn(value);
+
+      assertFalse(AIAssistantController.isSslVerifyEnabled(),
+                   "an explicit opt-out must still disable verification");
    }
 }

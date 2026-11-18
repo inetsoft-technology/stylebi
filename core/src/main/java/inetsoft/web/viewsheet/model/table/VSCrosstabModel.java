@@ -184,7 +184,10 @@ public class VSCrosstabModel extends BaseTableModel<CrosstabVSAssembly> {
          DateComparisonUtil.getDateComparison(cinfo, assembly.getViewsheet());
       setCustomPeriod(dcInfo != null && dcInfo.getPeriods() instanceof CustomPeriods);
       setHasHiddenColumn(assembly.getCrosstabInfo().hasHiddenColumn());
-      setFilterFields(BaseDrillHandler.getDrillFiltersFields(rvs.getViewsheet()));
+      // a crosstab with Enable Drilling off must not offer Drill Up Filter either
+      setFilterFields(cinfo.isDrillEnabled()
+                         ? BaseDrillHandler.getDrillFiltersFields(rvs.getViewsheet())
+                         : new java.util.ArrayList<>());
 
       sortOnHeader = "true".equals(SreeEnv.getProperty("vs.crosstab.sortonheader"));
       sortAggregate = "true".equals(SreeEnv.getProperty("sort.crosstab.aggregate"));

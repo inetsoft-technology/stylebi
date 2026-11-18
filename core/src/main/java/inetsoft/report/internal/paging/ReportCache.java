@@ -143,13 +143,37 @@ public class ReportCache implements Serializable {
       int hcount = scount * 2;
       String val = SreeEnv.getProperty("reportCache.thread.count",
                                        (scount * 2) + "");
+      return parseMaxThreads(val, scount * 2);
+   }
+
+   /**
+    * Parses the maximum number of threads property. A value that is not a positive integer
+    * would leave the thread pool unable to create any worker, so the default is used instead.
+    *
+    * @param val          the property value.
+    * @param defaultCount the default number of threads.
+    *
+    * @return the maximum number of threads.
+    */
+   static int parseMaxThreads(String val, int defaultCount) {
+      int hcount;
+
       try {
-         hcount = Integer.parseInt(val);
+         hcount = Integer.parseInt(val.trim());
       }
       catch(Throwable exc) {
          LOG.warn("Invalid value for the maximum number of " +
                      "report execution threads property " +
-                     "(reportCache.thread.count): " + val, exc);
+                     "(reportCache.thread.count): " + val +
+                     ", using the default: " + defaultCount, exc);
+         return defaultCount;
+      }
+
+      if(hcount <= 0) {
+         LOG.warn("The maximum number of report execution threads property " +
+                     "(reportCache.thread.count) must be positive: " + val +
+                     ", using the default: " + defaultCount);
+         return defaultCount;
       }
 
       return hcount;
@@ -179,6 +203,9 @@ public class ReportCache implements Serializable {
                   oneoff);
    }
 
+   private static final long ID_LOCK_WAIT_SECONDS = 120;
+   private final ReportIdLocks idLocks = new ReportIdLocks();
+
    /**
     * Add a report (StylePage objects) to the cache. If page streaming is on,
     * the pages are added to the cache in a separate thread and the function
@@ -199,37 +226,55 @@ public class ReportCache implements Serializable {
       fireProcessEvent(id, PENDING);
       PagingProcessor0 proc = null;
 
-      if(pnmap.get(id) != null || threadmap.get(id) != null) {
-         remove0(id, true, report);
+      // serialize "remove previous run + register new run" per report id, otherwise two
+      // concurrent refreshes share the per-id run state and one run clears the other's
+      boolean locked = idLocks.acquire(id, ID_LOCK_WAIT_SECONDS);
+
+      if(!locked) {
+         LOG.warn("Timed out waiting for a concurrent put of report {}, proceeding", id);
       }
 
       try {
-         proclock.lock();
-         proc = new PagingProcessor0(id, report, pages, priority,
-                                     interactive, batch, oneoff);
-         procs.put(id, ProcState.RUNNING);
+         if(pnmap.get(id) != null || threadmap.get(id) != null) {
+            remove0(id, true, report);
+         }
 
          try {
-            threadlock.lock();
-            threadmap.put(id, proc);
+            proclock.lock();
+            proc = new PagingProcessor0(id, report, pages, priority,
+                                        interactive, batch, oneoff);
+            procs.put(id, ProcState.RUNNING);
 
-            if(proc instanceof ThreadPool.ContextRunnable) {
-               ((ThreadPool.ContextRunnable) proc)
-                  .addRecord("report:" + ProfileUtils.getReportSheetName(report));
+            try {
+               threadlock.lock();
+               threadmap.put(id, proc);
+
+               if(proc instanceof ThreadPool.ContextRunnable) {
+                  ((ThreadPool.ContextRunnable) proc)
+                     .addRecord("report:" + ProfileUtils.getReportSheetName(report));
+               }
+            }
+            finally {
+               threadcond.signalAll();
+               threadlock.unlock();
             }
          }
          finally {
-            threadcond.signalAll();
-            threadlock.unlock();
+            proccond.signalAll();
+            proclock.unlock();
          }
+
+         // enqueue under the id lock, so a later put's remove0 always finds this processor
+         // queued and can dequeue it
+         pendings.add(id);
+         threadpool.add(proc);
       }
       finally {
-         proccond.signalAll();
-         proclock.unlock();
+         if(locked) {
+            idLocks.release(id);
+         }
       }
 
-      pendings.add(id);
-      threadpool.add(proc);
       return proc;
    }
 

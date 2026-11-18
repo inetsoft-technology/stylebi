@@ -175,5 +175,31 @@ class ExtendedDecimalFormatTest {
       return (Map<String, Long>) field.get(null);
    }
 
+   // Bug #80103, the unit used for the Excel pattern is the unit format() displays
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "#,##0.#M|500|N", "#,##0.#M|20250|K", "#,##0.#M|317062.69|K",
+      "#,##0.#M|2300872.18|M", "#,##0.#M|999999|K", "#,##0.#M|1000000|M",
+      "#,##0.#M|0|M", "#,##0.#M|-317062|K", "$#,###B|0|N", "$#,###B|999499|K",
+      "$#,###B|2300872|M", "$#,###B|2500000000|B", "$#,###K|500|N",
+      "$#,###K|2300872|K", "#,##0|2300872|N"
+   })
+   public void displayedSymbolMatchesFormattedText(String pattern, double value, String expected) {
+      char symbol = "N".equals(expected) ? ' ' : expected.charAt(0);
+      final ExtendedDecimalFormat format = new ExtendedDecimalFormat(pattern, US);
+      Assertions.assertEquals(symbol, format.getDisplayedSymbol(value));
+      String text = format.format(value);
+      char last = text.charAt(text.length() - 1);
+      Assertions.assertEquals(symbol, last == 'K' || last == 'M' || last == 'B' ? last : ' ');
+   }
+
+   @Test
+   public void displayedPatternAddsDecimalsWithoutUnit() {
+      final ExtendedDecimalFormat format = new ExtendedDecimalFormat("$#,###K", US);
+      Assertions.assertEquals("$#,###.#", format.getDisplayedPattern(500));
+      Assertions.assertEquals("$#,###", format.getDisplayedPattern(2300872));
+      Assertions.assertEquals("$499.6", format.format(499.55));
+   }
+
    private static final DecimalFormatSymbols US = new DecimalFormatSymbols(Locale.US);
 }

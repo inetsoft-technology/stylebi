@@ -214,6 +214,10 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
     */
    @Override
    public Object convert(Object obj) {
+      // a date/time column from a JDBC driver may hold java.time or driver objects
+      // (e.g. OffsetDateTime) rather than java.util.Date (Bug #79858)
+      obj = MVCreatorUtil.toTemporal(obj, XSchema.TIME_INSTANT);
+
       if(obj == null || !(obj instanceof Date)) {
          return null;
       }
@@ -276,6 +280,15 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
     */
    public synchronized void setMax(Date max) {
       this.max0 = max;
+   }
+
+   /**
+    * Clear the date range. The range only grows through convert(), so an update that removes
+    * rows must clear it before the remaining rows are converted again (Bug #79747).
+    */
+   public synchronized void resetRange() {
+      min0 = null;
+      max0 = null;
    }
 
    /**

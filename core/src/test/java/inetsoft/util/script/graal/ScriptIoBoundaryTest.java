@@ -482,6 +482,210 @@ class ScriptIoBoundaryTest {
       }));
    }
 
+   // ---- Bug #79846: JDK String-path file primitives (Formatter, ICC_Profile) ----------
+
+   private static final String ORIGINAL_79846 = "ORIGINAL-79846";
+
+   /** Run with the given restricted flag; null if the engine refused/threw. */
+   private String runString(GraalJavaScriptEngine engine, String src, boolean restricted) {
+      boolean old = FormulaContext.isRestricted();
+
+      try {
+         FormulaContext.setRestricted(restricted);
+         Object o = engine.exec(engine.compile(src), null, null);
+         return o == null ? null : o.toString();
+      }
+      catch(Throwable t) {
+         return null;
+      }
+      finally {
+         FormulaContext.setRestricted(old);
+      }
+   }
+
+   /** Wraps a script body so a refusal comes back as "REFUSED:..." from both engines. */
+   private static String guarded(String body) {
+      return "try { " + body + "; 'DONE'; } catch(ex) { 'REFUSED:' + String(ex); }";
+   }
+
+   private static void assertRefused(String r, String what) {
+      assertTrue(r == null || r.startsWith("REFUSED:"), what + ": expected a refusal, got " + r);
+   }
+
+   /** Every engine x restricted/unrestricted: BLOCKED_CLASSES applies in both modes. */
+   private List<Executable> eachEngineAndMode(ProbeCheck check) {
+      List<Executable> checks = new ArrayList<>();
+
+      for(Eng e : engines()) {
+         for(boolean restricted : new boolean[] { true, false }) {
+            String what = e.name() + (restricted ? " restricted" : " unrestricted");
+            checks.add(() -> check.run(e.engine(), restricted, what));
+         }
+      }
+
+      return checks;
+   }
+
+   @FunctionalInterface
+   private interface ProbeCheck {
+      void run(GraalJavaScriptEngine engine, boolean restricted, String what) throws Exception;
+   }
+
+   private static List<String> formatterRoutes(String path) {
+      String use = "; f.format('%s', 'pwned-79846'); f.close()";
+      return List.of(
+         "var F = Java.type('java.util.Formatter'); var f = new F('" + path + "')" + use,
+         "var f = new java.util.Formatter('" + path + "')" + use,
+         "var f = new Packages.java.util.Formatter('" + path + "')" + use,
+         "var f = java.util.Formatter('" + path + "')" + use,
+         "importClass(java.util.Formatter); var f = new Formatter('" + path + "')" + use,
+         "var f = new java.util.Formatter('" + path + "', 'UTF-8')" + use);
+   }
+
+   @Test
+   void formatterCannotCreateFile() {
+      assertAll(eachEngineAndMode((engine, restricted, what) -> {
+         List<String> routes = formatterRoutes("<p>");
+
+         for(int i = 0; i < routes.size(); i++) {
+            File out = tmp.resolve("formatter-" + what.replace(' ', '-') + "-" + i + ".txt")
+               .toFile();
+            String r = runString(engine, guarded(routes.get(i).replace("<p>", js(out))),
+                                 restricted);
+            assertRefused(r, what + " route " + i);
+            assertFalse(out.exists(), what + " route " + i + ": Formatter created " + out);
+         }
+      }));
+   }
+
+   @Test
+   void formatterCannotTruncateExistingFile() {
+      assertAll(eachEngineAndMode((engine, restricted, what) -> {
+         File victim = tmp.resolve("formatter-victim-" + what.replace(' ', '-') + ".txt")
+            .toFile();
+         Files.writeString(victim.toPath(), ORIGINAL_79846, StandardCharsets.UTF_8);
+         List<String> routes = formatterRoutes(js(victim));
+
+         for(int i = 0; i < routes.size(); i++) {
+            String r = runString(engine, guarded(routes.get(i)), restricted);
+            assertRefused(r, what + " route " + i);
+            assertEquals(ORIGINAL_79846,
+                         Files.readString(victim.toPath(), StandardCharsets.UTF_8),
+                         what + " route " + i + ": Formatter truncated/overwrote the file");
+         }
+      }));
+   }
+
+   /** ICC_Profile instances reached by name and, with no name lookup, from admitted APIs. */
+   private static final List<String> ICC_INSTANCE_ROUTES = List.of(
+      "Java.type('java.awt.color.ICC_Profile').getInstance(" +
+         "Java.type('java.awt.color.ColorSpace').CS_GRAY)",
+      "java.awt.color.ICC_Profile.getInstance(java.awt.color.ColorSpace.CS_GRAY)",
+      "Java.type('java.awt.color.ColorSpace').getInstance(" +
+         "Java.type('java.awt.color.ColorSpace').CS_sRGB).getProfile()",
+      "new java.awt.image.BufferedImage(1, 1, 1).getColorModel().getColorSpace().getProfile()");
+
+   @Test
+   void iccProfileCannotWriteFile() {
+      assertAll(eachEngineAndMode((engine, restricted, what) -> {
+         for(int i = 0; i < ICC_INSTANCE_ROUTES.size(); i++) {
+            String tag = what.replace(' ', '-') + "-" + i;
+            File out = tmp.resolve("icc-new-" + tag + ".icc").toFile();
+            File victim = tmp.resolve("icc-victim-" + tag + ".txt").toFile();
+            Files.writeString(victim.toPath(), ORIGINAL_79846, StandardCharsets.UTF_8);
+            String route = ICC_INSTANCE_ROUTES.get(i);
+
+            String r = runString(engine, guarded(route + ".write('" + js(out) + "')"),
+                                 restricted);
+            assertRefused(r, what + " route " + i + " (new file)");
+            assertFalse(out.exists(), what + " route " + i + ": ICC_Profile.write created " + out);
+
+            r = runString(engine, guarded(route + ".write('" + js(victim) + "')"), restricted);
+            assertRefused(r, what + " route " + i + " (victim)");
+            assertEquals(ORIGINAL_79846,
+                         Files.readString(victim.toPath(), StandardCharsets.UTF_8),
+                         what + " route " + i + ": ICC_Profile.write overwrote the file");
+         }
+      }));
+   }
+
+   @Test
+   void iccProfileGetInstanceIsNotAnExistenceOracle() {
+      String missing = js(tmp.resolve("missing-79846.icc").toFile());
+      List<String> routes = List.of(
+         "Java.type('java.awt.color.ICC_Profile')",
+         "java.awt.color.ICC_Profile",
+         "Java.type('java.awt.color.ICC_ProfileRGB')",
+         "Java.type('java.awt.color.ICC_ProfileGray')");
+
+      assertAll(eachEngineAndMode((engine, restricted, what) -> {
+         for(String route : routes) {
+            String w = what + " [" + route + "]";
+            String existing = runString(
+               engine, guarded("var p = " + route + ".getInstance('" + js(secretFile) + "')"),
+               restricted);
+            String absent = runString(
+               engine, guarded("var p = " + route + ".getInstance('" + missing + "')"),
+               restricted);
+
+            for(String r : new String[] { existing, absent }) {
+               assertRefused(r, w);
+               assertFalse(r != null && (r.contains("Cannot open file") ||
+                                         r.contains("Invalid ICC Profile")),
+                           w + ": getInstance opened the path: " + r);
+            }
+
+            String e1 = existing == null ? null : normalize(existing, js(secretFile));
+            String e2 = absent == null ? null : normalize(absent, missing);
+            assertEquals(e1, e2, w + ": existing and missing paths are distinguishable");
+         }
+      }));
+   }
+
+   @Test
+   void iccProfileClassesAreRefusedByNameAndType() {
+      List<String> names = List.of("java.awt.color.ICC_Profile",
+                                   "java.awt.color.ICC_ProfileRGB",
+                                   "java.awt.color.ICC_ProfileGray",
+                                   "java.util.Formatter");
+
+      assertAll(eachEngineAndMode((engine, restricted, what) -> {
+         for(String name : names) {
+            String r = runString(engine, guarded("var t = Java.type('" + name + "')"),
+                                 restricted);
+            assertTrue(r == null || r.startsWith("REFUSED:") && r.contains("not allowed"),
+                       what + ": Java.type('" + name + "') must be refused, got " + r);
+         }
+      }));
+
+      assertTrue(ScriptHostAccess.isTypeDenied(java.util.Formatter.class));
+      assertTrue(ScriptHostAccess.isTypeDenied(java.awt.color.ICC_Profile.class));
+      assertTrue(ScriptHostAccess.isTypeDenied(java.awt.color.ICC_ProfileRGB.class));
+      assertTrue(ScriptHostAccess.isTypeDenied(java.awt.color.ICC_ProfileGray.class));
+   }
+
+   /** The neighbours of the blocked classes must keep working. */
+   @Test
+   void jdkControlsStillWork79846() {
+      Map<String, String> controls = new LinkedHashMap<>();
+      controls.put("new java.awt.Color(1, 2, 3).getGreen()", "2");
+      controls.put("java.awt.color.ColorSpace.getInstance(" +
+                      "java.awt.color.ColorSpace.CS_sRGB).getNumComponents()", "3");
+      controls.put("var p = new java.util.Properties(); p.setProperty('k', 'v79846');" +
+                      " p.getProperty('k')", "v79846");
+      controls.put("java.lang.String.format('%05d', 42)", "00042");
+      controls.put("new java.util.Scanner('1 2').nextInt()", "1");
+
+      assertAll(eachEngineAndMode((engine, restricted, what) -> {
+         for(Map.Entry<String, String> c : controls.entrySet()) {
+            String r = runString(engine, c.getKey(), restricted);
+            assertNotNull(r, what + ": control must still work: " + c.getKey());
+            assertEquals(c.getValue(), r.replaceAll("\\.0$", ""),
+                         what + ": control " + c.getKey());
+         }
+      }));
+   }
+
    // ---- Positive control: a benign admitted report value object must keep working -----
 
    @Test

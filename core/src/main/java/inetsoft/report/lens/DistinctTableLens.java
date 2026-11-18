@@ -585,37 +585,14 @@ public class DistinctTableLens extends AbstractTableLens
    }
 
    /**
-    * Create a table sorted on the distinct columns.
+    * Create a table sorted on the distinct columns. Package-private for tests.
     */
-   private TableFilter createSortedTable() {
+   TableFilter createSortedTable() {
       // reuse the base table if it's already sorted
-      if(table instanceof SortedTable) {
-         int[] ocols = ((SortedTable) table).getSortCols();
-         boolean compatible = true;
-         int lastidx = -1;
-
-         // check if the columns are sorted in the same order
-         for(int i = 0; i < cols.length; i++) {
-            int idx = -1;
-
-            for(int j = 0; ocols != null && j < ocols.length; j++) {
-               if(ocols[j] == cols[i]) {
-                  idx = j;
-                  break;
-               }
-            }
-
-            if(idx <= lastidx) {
-               compatible = false;
-               break;
-            }
-
-            lastidx = idx;
-         }
-
-         if(compatible) {
-            return (TableFilter) table;
-         }
+      if(table instanceof SortedTable &&
+         isSortedOn(((SortedTable) table).getSortCols(), cols))
+      {
+         return (TableFilter) table;
       }
 
       SortFilter sfilter = new SortFilter(table, cols);
@@ -629,6 +606,24 @@ public class DistinctTableLens extends AbstractTableLens
       }
 
       return sfilter;
+   }
+
+   /**
+    * Check if a table sorted on the sort columns is already sorted on the distinct
+    * columns, i.e. the leading sort columns are the distinct columns in the same order.
+    * A distinct column after another sort column (e.g. distinct on (a,c) of a table sorted
+    * on (a,b,c)) is not grouped, and reordered columns (e.g. (b,a)) are not in the order a
+    * new sort on the distinct columns gives.
+    * @param ocols the columns the table is sorted on.
+    * @param dcols the distinct columns.
+    */
+   static boolean isSortedOn(int[] ocols, int[] dcols) {
+      if(ocols == null) {
+         ocols = new int[0];
+      }
+
+      return ocols.length >= dcols.length &&
+         Arrays.equals(Arrays.copyOf(ocols, dcols.length), dcols);
    }
 
    /**

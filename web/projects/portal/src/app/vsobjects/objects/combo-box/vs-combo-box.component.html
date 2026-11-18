@@ -60,11 +60,11 @@
           @if (model?.labels?.length <= 500) {
             <select #selection class="ps-1"
               [attr.aria-label]="model.absoluteName + ' _#(ComboBox)'"
-              [ngModel]="model.selectedLabel" (ngModelChange)="onChange($event)"
+              [ngModel]="selectedIndex" (ngModelChange)="onSelectIndex($event)"
               [style.text-align-last]="model.objectFormat.hAlign"
               [style.background-color]="model.objectFormat.background == '' ? 'transparent' : model.objectFormat.background">
-              @for (entry of model.labels; track entry) {
-                <option [value]="entry">{{entry}}</option>
+              @for (entry of model.labels; track $index; let i = $index) {
+                <option [ngValue]="i">{{entry}}</option>
               }
             </select>
           }
@@ -115,9 +115,9 @@
             [style.background-color]="model.objectFormat.background || 'transparent'">
             <cdk-virtual-scroll-viewport [itemSize]="35" class="dropdown-viewport">
               <div class="dropdown-item"
-                *cdkVirtualFor="let entry of model.labels"
-                (click)="selectItem(entry)"
-                [class.selected]="entry === model.selectedLabel">
+                *cdkVirtualFor="let entry of model.labels; let i = index"
+                (click)="selectItem(i)"
+                [class.selected]="i === selectedIndex">
                 {{ entry }}
               </div>
             </cdk-virtual-scroll-viewport>

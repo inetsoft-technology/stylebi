@@ -145,7 +145,7 @@ class UniformSQLDefaultLocaleFoldTest {
       assertEquals("select \"id\" as \"ida\" from \"t\" order by \"id\" asc",
                    regenerate(fixed("postgresql", "select id as \"ida\" from t order by IDA",
                                     "id")));
-      assertEquals("select \"id\" as IDA from \"t\" order by \"id\" asc",
+      assertEquals("select \"id\" as \"IDA\" from \"t\" order by \"id\" asc",
                    regenerate(fixed("snowflake", "select id as \"IDA\" from t order by ida",
                                     "id")));
    }

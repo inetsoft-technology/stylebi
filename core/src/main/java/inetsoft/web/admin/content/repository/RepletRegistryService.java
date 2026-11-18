@@ -908,7 +908,7 @@ public class RepletRegistryService {
                              Principal principal)
       throws Exception
    {
-      AssetEntry oentry = getAssetEntry(identifier, principal);
+      AssetEntry oentry = getAssetEntry(identifier, principal, false);
 
       return copySheet(oentry, pathFrom, userFrom, pathTo, userTo, infos, isWorksheet, move, false,
          principal);
@@ -1174,6 +1174,26 @@ public class RepletRegistryService {
    public AssetEntry getAssetEntry(String identifier, Principal user)
       throws Exception
    {
+      return getAssetEntry(identifier, user, true);
+   }
+
+   /**
+    * Gets the entry for the specified asset.
+    *
+    * @param identifier     the asset identifier.
+    * @param user           the name of the user requesting the asset.
+    * @param loadProperties <tt>false</tt> to skip loading every sibling sheet in the parent folder
+    *                       to fill in its listing properties (onReport, mainType, ...); use it
+    *                       only when the caller needs no more than the identity, type, alias and
+    *                       dates of the entry, or just an existence check.
+    *
+    * @return the asset entry.
+    *
+    * @throws Exception if the asset entry could not be obtained.
+    */
+   public AssetEntry getAssetEntry(String identifier, Principal user, boolean loadProperties)
+      throws Exception
+   {
       AssetRepository repository = AssetUtil.getAssetRepository(false);
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
 
@@ -1183,6 +1203,11 @@ public class RepletRegistryService {
 
       AssetEntry parent = entry.getParent();
       entry = null;
+
+      if(!loadProperties) {
+         parent.setProperty("__oneoff__", "true");
+      }
+
       AssetEntry.Selector selector = new AssetEntry.Selector(
          AssetEntry.Type.FOLDER, AssetEntry.Type.WORKSHEET,
          AssetEntry.Type.VIEWSHEET, AssetEntry.Type.DATA,
@@ -1196,6 +1221,67 @@ public class RepletRegistryService {
       }
 
       return entry;
+   }
+
+   /**
+    * Gets the entry for the specified asset, listing each parent folder at most once per
+    * <code>listings</code> map.
+    * <p>
+    * Resolving one entry lists its whole parent folder, so a caller that resolves N entries of
+    * one folder pays N listings. Pass one map for a batch of lookups made for the same principal
+    * to list each distinct parent once. The permission (ADMIN), selector and org handling are
+    * those of the listing, so a null result means the same as for the other overloads.
+    * <p>
+    * A batch lookup lists the parent with <code>__oneoff__</code>, so the entries do not get the
+    * alias/description/localStr display properties and no sheet is loaded for each child. Use it
+    * only when the entry is checked for existence/visibility, not when those properties are read.
+    *
+    * @param identifier the asset identifier.
+    * @param user       the name of the user requesting the asset.
+    * @param listings   the parent listings of this batch (parent identifier to the visible
+    *                   entries by identifier), or null to list the parent for this call only.
+    *
+    * @return the asset entry.
+    *
+    * @throws Exception if the asset entry could not be obtained.
+    */
+   public AssetEntry getAssetEntry(String identifier, Principal user,
+                                   Map<String, Map<String, AssetEntry>> listings)
+      throws Exception
+   {
+      if(listings == null) {
+         return getAssetEntry(identifier, user, true);
+      }
+
+      AssetRepository repository = AssetUtil.getAssetRepository(false);
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+
+      if(entry == null) {
+         return null;
+      }
+
+      AssetEntry parent = entry.getParent();
+
+      AssetEntry.Selector selector = new AssetEntry.Selector(
+         AssetEntry.Type.FOLDER, AssetEntry.Type.WORKSHEET,
+         AssetEntry.Type.VIEWSHEET, AssetEntry.Type.DATA,
+         AssetEntry.Type.PHYSICAL, AssetEntry.Type.VIEWSHEET_SNAPSHOT);
+
+      String key = parent.toIdentifier();
+      Map<String, AssetEntry> visible = listings.get(key);
+
+      if(visible == null) {
+         parent.setProperty("__oneoff__", "true");
+         visible = new HashMap<>();
+
+         for(AssetEntry e : repository.getEntries(parent, user, ResourceAction.ADMIN, selector)) {
+            visible.putIfAbsent(e.toIdentifier(), e);
+         }
+
+         listings.put(key, visible);
+      }
+
+      return visible.get(identifier);
    }
 
    /**

@@ -61,6 +61,10 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       this.blobStorageManager = blobStorageManager;
    }
 
+   private static String getWriteOrgID(String orgID) {
+      return orgID != null ? orgID : OrganizationManager.getInstance().getCurrentOrgID();
+   }
+
    private BlobStorage<Metadata> getMetadataStorage(String orgID) {
       if(LOG.isDebugEnabled() && Organization.getSelfOrganizationID().equals(orgID)) {
          LOG.debug("Getting indexed storage for self organization", new Exception("Stack trace"));
@@ -150,6 +154,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       metadata.setIdentifier(key);
       int orgIDIndex = StringUtils.ordinalIndexOf(key, "^", 4);
       String orgID = key.substring(orgIDIndex + 1);
+      OrgIdChangeGuard.checkWritable(orgID);
 
       if(value instanceof AssetFolder) {
          metadata.setFolder((AssetFolder) value);
@@ -203,6 +208,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       Metadata metadata = new Metadata();
       metadata.setClassName(className);
       metadata.setIdentifier(key);
+      OrgIdChangeGuard.checkWritable(getWriteOrgID(orgID));
 
       try {
          Class<?> valueClass = Class.forName(className);
@@ -262,6 +268,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    @Override
    protected void put(String key, byte[] value, String orgID) throws Exception {
+      OrgIdChangeGuard.checkWritable(getWriteOrgID(orgID));
+
       try(BlobTransaction<Metadata> tx = getMetadataStorage(orgID).beginTransaction();
           OutputStream out = tx.newStream(key, new Metadata()))
       {
@@ -301,6 +309,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       try {
          int orgIDIndex = StringUtils.ordinalIndexOf(key, "^", 4);
          String orgID = key.substring(orgIDIndex + 1);
+         OrgIdChangeGuard.checkWritable(orgID);
          getMetadataStorage(orgID).delete(key);
          return true;
       }
@@ -315,6 +324,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    @Override
    public boolean rename(String okey, String nkey, boolean overwrite) {
+      OrgIdChangeGuard.checkWritable(getWriteOrgID(null));
+
       if(!overwrite && getMetadataStorage(null).exists(nkey)) {
          return false;
       }
@@ -342,6 +353,17 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          .sum();
    }
 
+   /**
+    * Gets the last modified timestamp of the storage.
+    *
+    * <p>The value is the newest timestamp of the current and the host organization, kept as a
+    * node-wide non-decreasing high-water mark. Callers (asset engine, repository engine) compare
+    * it with the previous value to detect changes and clear node-local caches. The value used to
+    * be the maximum over all organizations, i.e. one stable value for the whole node. The
+    * high-water mark keeps that property when requests of different organizations are
+    * interleaved: the value changes only when some organization seen by this node has a newer
+    * change, instead of flipping between per-organization values (Bug #79879).</p>
+    */
    @Override
    public long lastModified() {
       long ts = 0;
@@ -354,7 +376,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          }
       }
 
-      return ts;
+      return lastModifiedHighWater.accumulateAndGet(ts, Math::max);
    }
 
    @Override
@@ -392,14 +414,32 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       return ts;
    }
 
+   /**
+    * Gets the indexed storages that a timestamp query has to look at: the storage of the current
+    * organization and of the host (default) organization, restricted to organizations that exist.
+    * Storages of unrelated organizations are deliberately not opened, because opening a storage
+    * blocks on a cluster load and the storage caches are bounded (Bug #79879).
+    */
    private List<BlobStorage<Metadata>> getStorages() {
-      // Iterate through all available orgIDs
       ArrayList<BlobStorage<Metadata>> storages = new ArrayList<>();
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      Set<String> scope = new LinkedHashSet<>();
+      scope.add(OrganizationManager.getInstance().getCurrentOrgID().toLowerCase());
+      String hostOrgID = Organization.getDefaultOrganizationID();
+
+      if(hostOrgID != null) {
+         scope.add(hostOrgID.toLowerCase());
+      }
+
+      Set<String> done = new HashSet<>();
 
       for(String orgID : provider.getOrganizationIDs()) {
-         String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
-         storages.add(blobStorageManager.getStorage(storeID, true, changeListener));
+         String lowerID = orgID.toLowerCase();
+
+         if(scope.contains(lowerID) && done.add(lowerID)) {
+            String storeID = lowerID + "__" + "indexedStorage";
+            storages.add(blobStorageManager.getStorage(storeID, true, changeListener));
+         }
       }
 
       return storages;
@@ -440,12 +480,17 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    @Override
    public boolean isInitialized(String orgID) {
-      return cachedOrgIDs.contains(orgID);
+      return cachedOrgIDs.contains(initKey(orgID));
    }
 
    @Override
    public void setInitialized(String orgID) {
-      cachedOrgIDs.add(orgID);
+      cachedOrgIDs.add(initKey(orgID));
+   }
+
+   @Override
+   public void resetInitialized(String orgID) {
+      cachedOrgIDs.remove(initKey(orgID));
    }
 
    @Override
@@ -480,7 +525,13 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       Organization currOrg = SecurityEngine.getSecurity().getSecurityProvider()
                               .getOrganization(orgID);
 
-      for(String key : getKeys(null, orgID)) {
+      Set<String> keys = getKeys(null, orgID);
+      // Bug #81508, the identifiers of the viewsheets that already have a task. A viewsheet must
+      // be rewritten by one task only: the blob of a document written by several threads at the
+      // same time can be lost.
+      Set<String> submittedSheets = new HashSet<>();
+
+      for(String key : keys) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
          boolean viewsheet = entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK;
 
@@ -495,8 +546,12 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          }
          else if(entry.getUser() != null && entry.getUser().name.equals(oname) || viewsheet) {
             if(viewsheet) {
-               updateDependencySheet(oname, nname, key, executor);
-               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname, currOrg).updateNameProcess());
+               updateDependencySheet(oname, nname, key, executor, keys, submittedSheets);
+
+               if(submittedSheets.add(key)) {
+                  MigrateViewsheetTask task = new MigrateViewsheetTask(entry, oname, nname, currOrg);
+                  executor.submit(task::updateNameProcess);
+               }
             }
             else if(entry.isWorksheet()) {
                executor.submit(() -> new MigrateWorksheetTask(entry, oname, nname, currOrg).updateNameProcess());
@@ -570,8 +625,14 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
    }
 
+   /**
+    * Updates the viewsheets that depend on a viewsheet and are not stored under the organization's
+    * keys. A dependent that is a key of the organization is skipped: the migration loop gives it
+    * its own task, and a second task would write the same document concurrently.
+    */
    private void updateDependencySheet(String oname, String nname, String key,
-                                      ExecutorService executor)
+                                      ExecutorService executor, Set<String> keys,
+                                      Set<String> submittedSheets)
    {
       DependencyStorageService service = DependencyStorageService.getInstance();
 
@@ -593,7 +654,12 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             }
 
             if(entry.isViewsheet()) {
-               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
+               String id = entry.toIdentifier();
+
+               if(!keys.contains(id) && submittedSheets.add(id)) {
+                  MigrateViewsheetTask task = new MigrateViewsheetTask(entry, oname, nname);
+                  executor.submit(task::updateNameProcess);
+               }
             }
          }
       }
@@ -620,13 +686,34 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          OrganizationManager.getInstance().getCurrentOrgID();
       String nId = norg instanceof Organization ? ((Organization) norg).getId() :
          OrganizationManager.getInstance().getCurrentOrgID();
+      // Bug #79856, the key set is a snapshot. A key added, or a folder changed, after it was
+      // read (a write that was already past the organization's write guard when an id change
+      // started, or an unguarded copy) is migrated by the following rounds when renaming. The
+      // modified times are read first, so a change in between shows in the next round.
+      Map<String, Long> migrated =
+         rename ? new HashMap<>(getModifiedTimes(oId, null)) : new HashMap<>();
       Set<String> allKeys = getKeys(null, oId);
       int numThreads = Runtime.getRuntime().availableProcessors();
-      ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
-         Thread t = new Thread(r, "BlobStorageMigrateOrg");
-         t.setDaemon(true);
-         return t;
-      });
+
+      for(int round = 0; ; round++) {
+         if(round > 0) {
+            allKeys = getChangedKeys(oId, migrated);
+
+            if(allKeys.isEmpty()) {
+               break;
+            }
+         }
+
+         // the workers write into the new organization, part of the guarded id change
+         Map<String, String> guarded = OrgIdChangeGuard.snapshot();
+         ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
+            Thread t = new Thread(() -> {
+               OrgIdChangeGuard.adopt(guarded);
+               r.run();
+            }, "BlobStorageMigrateOrg");
+            t.setDaemon(true);
+            return t;
+         });
 
       for(String key : allKeys) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
@@ -685,19 +772,52 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          }
       }
 
-      executor.shutdown();
+         executor.shutdown();
 
-      try {
-         executor.awaitTermination(Integer.MAX_VALUE, TimeUnit.SECONDS);
-      }
-      catch(InterruptedException ignore) {
-         LOG.error(Catalog.getCatalog().getString(
-            "Failed to finish migrate storage from {0} to {1}", oorg, norg));
+         try {
+            executor.awaitTermination(Integer.MAX_VALUE, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException ignore) {
+            LOG.error(Catalog.getCatalog().getString(
+               "Failed to finish migrate storage from {0} to {1}", oorg, norg));
+         }
+
+         if(!rename || round >= MAX_MIGRATE_ROUNDS) {
+            break;
+         }
       }
 
       if(removeOld && !Tool.equals(oId, nId)) {
          removeStorage(oId);
       }
+   }
+
+   private Map<String, Long> getModifiedTimes(String orgID, Set<String> keys) {
+      Map<String, Long> times = new HashMap<>();
+      getMetadataStorage(orgID).stream()
+         .filter(b -> keys == null || keys.contains(b.getPath()))
+         .forEach(b -> times.put(b.getPath(), b.getLastModified().toEpochMilli()));
+      return times;
+   }
+
+   /**
+    * Gets the keys of the organization that are new, or modified since they were recorded in
+    * {@code migrated}, and records them.
+    */
+   private Set<String> getChangedKeys(String orgID, Map<String, Long> migrated) {
+      Set<String> changed = new HashSet<>();
+
+      getMetadataStorage(orgID).stream().forEach(b -> {
+         long time = b.getLastModified().toEpochMilli();
+         Long old = migrated.get(b.getPath());
+
+         if(old == null || old != time) {
+            changed.add(b.getPath());
+            migrated.put(b.getPath(), time);
+         }
+      });
+
+      return changed;
    }
 
    @Override
@@ -707,13 +827,22 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    @Override
    public void removeStorage(String orgID) throws Exception  {
-      cachedOrgIDs.remove(orgID);
+      cachedOrgIDs.remove(initKey(orgID));
       BlobStorage<Metadata> metadataStorage = getMetadataStorage(orgID);
       metadataStorage.deleteBlobStorage();
    }
 
+   private static final int MAX_MIGRATE_ROUNDS = 10;
    private final BlobStorageManager blobStorageManager;
-   private Set<String> cachedOrgIDs = new HashSet<>();
+   private final java.util.concurrent.atomic.AtomicLong lastModifiedHighWater =
+      new java.util.concurrent.atomic.AtomicLong();
+   // written from login threads and from the cluster message listener thread (org delete)
+   private final Set<String> cachedOrgIDs = ConcurrentHashMap.newKeySet();
+
+   // a concurrent set rejects null, which callers may pass for the default org
+   private static String initKey(String orgID) {
+      return orgID == null ? " null" : orgID;
+   }
    private static final Logger LOG = LoggerFactory.getLogger(BlobIndexedStorage.class);
 
    public static final class Metadata implements Serializable {

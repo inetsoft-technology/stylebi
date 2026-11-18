@@ -159,6 +159,8 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
          this._model.selectedLabel =
             index != -1 ? this._model.labels[index] : this._model.selectedObject;
       }
+
+      this.updateSelectedIndex();
    }
 
    get model(): VSComboBoxModel {
@@ -215,6 +217,9 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
    // even afater mouse is released. check if this is necessary after interactjs has
    // be upgraded (12.3)
    firefox: boolean = GuiTool.isFF();
+   // the options are identified by index, not by label, since labels may repeat
+   // (e.g. two rows with the same label and different values)
+   selectedIndex: number = -1;
    constructor(private socket: ViewsheetClientService,
                private formDataService: CheckFormDataService,
                private formInputService: FormInputService,
@@ -261,9 +266,9 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
       this.isDropdownOpen = !this.isDropdownOpen;
    }
 
-   selectItem(entry: string) {
+   selectItem(index: number) {
       this.isDropdownOpen = false;
-      this.onChange(entry);
+      this.onSelectIndex(index);
    }
 
    getLabelIndex(label: string): number {
@@ -286,22 +291,81 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
       }
    }
 
+   /**
+    * Called with a typed label (editable input). A typed label can't tell duplicate labels
+    * apart, so the first matching label is used.
+    */
    onChange(option: string): void {
       let index = this.getLabelIndex(option);
 
       if(this.model.editable || index != -1) {
-         this.unappliedSelection = true;
-         this._model.selectedLabel = option;
-         this._model.selectedObject = index != -1 ? this._model.values[index] : option;
+         this.setSelection(option, index != -1 ? this._model.values[index] : option);
+      }
+   }
 
-         if(this._model.refresh || this.model.writeBackDirectly) {
-            this.applySelection();
-         }
-         else {
-            this.formInputService.addPendingValue(this._model.absoluteName,
-                                                  this._model.selectedObject);
+   /**
+    * Called when an option is picked from the list. The option is identified by its index so
+    * that the value of the picked row is used even when another row has the same label.
+    */
+   onSelectIndex(index: number): void {
+      if(index == null || index < 0 || index >= this._model.labels.length) {
+         return;
+      }
+
+      this.setSelection(this._model.labels[index], this._model.values[index], index);
+   }
+
+   private setSelection(label: string, value: any, index?: number): void {
+      this.unappliedSelection = true;
+      this._model.selectedLabel = label;
+      this._model.selectedObject = value;
+
+      if(index != null) {
+         this.selectedIndex = index;
+      }
+      else {
+         this.updateSelectedIndex();
+      }
+
+      if(this._model.refresh || this.model.writeBackDirectly) {
+         this.applySelection();
+      }
+      else {
+         this.formInputService.addPendingValue(this._model.absoluteName,
+                                               this._model.selectedObject);
+      }
+   }
+
+   private updateSelectedIndex(): void {
+      this.selectedIndex = this.findSelectedIndex();
+   }
+
+   /**
+    * Find the option to show as selected. The selected value identifies the row, since labels
+    * may repeat. Values are compared as strings (as VSCompound.getIndex does) because the
+    * value may come back as a number or a string. Falls back to the first matching label when
+    * the value is not in the list (e.g. free text in an editable combo box).
+    */
+   private findSelectedIndex(): number {
+      const model = this._model;
+
+      if(!model || !model.labels) {
+         return -1;
+      }
+
+      const selected = model.selectedObject;
+
+      // no selection must not match a row with a null or empty value
+      if(selected != null && selected !== "" && !!model.values) {
+         const key = selected + "";
+         const index = model.values.findIndex(v => v != null && v + "" == key);
+
+         if(index >= 0 && index < model.labels.length) {
+            return index;
          }
       }
+
+      return model.selectedLabel == null ? -1 : model.labels.indexOf(model.selectedLabel);
    }
 
    onBlur(option: string): void {

@@ -98,9 +98,19 @@ public class AuthorizationProviderService {
             return getAuthorizationChain().orElseThrow(() -> new MessageException("Could not initialize security."));
          });
 
-      List<AuthorizationProvider> providerList = chain.getProviders();
-      providerList.add(newProvider);
-      chain.setProviders(providerList);
+      // Read, add and save under the cluster lock, after reloading the file (Bug #79127)
+      chain.editProviders(() -> {
+         // checked again, another node may have added the name since the check above
+         if(getProviderByName(model.providerName()) != null) {
+            newProvider.tearDown();
+            throw new MessageException(
+               Catalog.getCatalog().getString("security.authorization.exists"));
+         }
+
+         List<AuthorizationProvider> providerList = chain.getProviders();
+         providerList.add(newProvider);
+         chain.setProviders(providerList);
+      });
    }
 
    @Audited(
@@ -121,27 +131,37 @@ public class AuthorizationProviderService {
       AuthorizationChain chain = getAuthorizationChain()
          .orElseThrow(() -> new IllegalStateException("The authorization chain has not been initialized."));
 
-      List<AuthorizationProvider> providerList = chain.getProviders();
-      boolean found = false;
-
-      for(int i = 0; i < providerList.size(); i++) {
-         AuthorizationProvider provider = providerList.get(i);
-
-         if(Objects.equals(providerName, provider.getProviderName())) {
-            found = true;
-            provider = getProviderFromModel(model).orElseThrow(
-               () -> new MessageException("Failed to edit authorization provider"));
-            providerList.set(i, provider);
-            break;
+      chain.editProviders(() -> {
+         // checked again, another node may have added the name since the check above
+         if(!model.providerName().equals(providerName) &&
+            getProviderByName(model.providerName()) != null)
+         {
+            throw new MessageException(
+               Catalog.getCatalog().getString("security.authorization.exists"));
          }
-      }
 
-      if(!found) {
-         throw new MessageException(
-            "Could not find authorization provider named \"" + providerName + "\"");
-      }
+         List<AuthorizationProvider> providerList = chain.getProviders();
+         boolean found = false;
 
-      chain.setProviders(providerList);
+         for(int i = 0; i < providerList.size(); i++) {
+            AuthorizationProvider provider = providerList.get(i);
+
+            if(Objects.equals(providerName, provider.getProviderName())) {
+               found = true;
+               provider = getProviderFromModel(model).orElseThrow(
+                  () -> new MessageException("Failed to edit authorization provider"));
+               providerList.set(i, provider);
+               break;
+            }
+         }
+
+         if(!found) {
+            throw new MessageException(
+               "Could not find authorization provider named \"" + providerName + "\"");
+         }
+
+         chain.setProviders(providerList);
+      });
    }
 
    @Audited(
@@ -154,17 +174,33 @@ public class AuthorizationProviderService {
       AuthorizationChain chain = getAuthorizationChain()
          .orElseThrow(() -> new Exception("The authorization chain has not been initialized."));
 
-      List<AuthorizationProvider> providerList = chain.getProviders();
+      chain.editProviders(() -> {
+         List<AuthorizationProvider> providerList = chain.getProviders();
 
-      //If index == -1, throw an exception here.
-      if(index >= 0 && index < providerList.size()) {
-         AuthorizationProvider removedProvider = providerList.remove(index);
-         removedProvider.tearDown();
-         chain.setProviders(providerList);
-      }
-      else {
-         throw new IndexOutOfBoundsException("Provider index out of bounds");
-      }
+         //If index == -1, throw an exception here.
+         if(index >= 0 && index < providerList.size()) {
+            // the index is the admin's view of the list: the list of the file may have
+            // changed since (another admin removed an entry), and the index must not then
+            // remove a different provider
+            if(!Objects.equals(providerName, providerList.get(index).getProviderName())) {
+               throw new MessageException(
+                  Catalog.getCatalog(principal).getString("em.security.providerListChanged"));
+            }
+
+            AuthorizationProvider removedProvider = providerList.remove(index);
+            removedProvider.tearDown();
+            chain.setProviders(providerList);
+         }
+         else if(index >= 0) {
+            // the reloaded list is shorter than the admin's list: another admin removed
+            // entries meanwhile. Nothing is removed.
+            throw new MessageException(
+               Catalog.getCatalog(principal).getString("em.security.providerListChanged"));
+         }
+         else {
+            throw new IndexOutOfBoundsException("Provider index out of bounds");
+         }
+      });
    }
 
    public void reorderAuthorizationProviders(ProviderListReorderModel reorderModel) throws Exception {
@@ -173,25 +209,28 @@ public class AuthorizationProviderService {
 
       int source = reorderModel.source();
       int destination = reorderModel.destination();
-      List<AuthorizationProvider> providers = providerChain.getProviders();
 
-      //Check if the destination index is in bounds
-      if(source >= 0 && source < providers.size() &&
-         destination >= 0 && destination < providers.size()) {
+      providerChain.editProviders(() -> {
+         List<AuthorizationProvider> providers = providerChain.getProviders();
 
-         //Rotate is used to preserve the order of everything but the source
-         if(source > destination) { //Moving "up" the list
-            Collections.rotate(providers.subList(destination, source + 1), +1);
-            providerChain.setProviders(providers);
+         //Check if the destination index is in bounds
+         if(source >= 0 && source < providers.size() &&
+            destination >= 0 && destination < providers.size()) {
+
+            //Rotate is used to preserve the order of everything but the source
+            if(source > destination) { //Moving "up" the list
+               Collections.rotate(providers.subList(destination, source + 1), +1);
+               providerChain.setProviders(providers);
+            }
+            else { //Moving "down" the list
+               Collections.rotate(providers.subList(source, destination + 1), -1);
+               providerChain.setProviders(providers);
+            }
          }
-         else { //Moving "down" the list
-            Collections.rotate(providers.subList(source, destination + 1), -1);
-            providerChain.setProviders(providers);
+         else {
+            throw new IndexOutOfBoundsException("Source and/or Destination index out of bounds");
          }
-      }
-      else {
-         throw new IndexOutOfBoundsException("Source and/or Destination index out of bounds");
-      }
+      });
    }
 
    public SecurityProviderStatus clearAuthorizationProviderCache(int index) throws Exception {

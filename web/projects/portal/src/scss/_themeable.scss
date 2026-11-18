@@ -576,7 +576,7 @@ div.disable-link, a.disable-link {
 }
 
 .ws-assembly-graph-element--primary .ws-assembly-thumbnail-image {
-  @extend .txt-light;
+  color: var(--inet-button-primary-text-color);
   background-color: var(--inet-primary-color);
 }
 
@@ -779,6 +779,7 @@ schema-column, edit-join-table-column {
 
 .table-data__row.highlighted {
   background-color: var(--inet-primary-color);
+  color: var(--inet-button-primary-text-color);
 }
 
 /********************************** Buttons and Icons *********************************************/
@@ -849,6 +850,17 @@ schema-column, edit-join-table-column {
       outline: none !important;
       box-shadow: 0px 0px 5px var(--inet-primary-color) !important;
   }
+}
+
+// Trees take arrow-key focus (tabindex=-1), which [tabindex]{outline:none} hides unless body.accessible.
+// Text colour reaches 3:1 on both the white background and the selected-node fill. Placed after the
+// .accessible block so it wins the equal-specificity `.accessible :focus{outline:none}`.
+.tree-div:focus-visible,
+.tree-node:focus-visible {
+  outline: 2px solid var(--inet-text-color);
+  // softer than full text colour, still about 5.8:1 on white and above 4.5:1 on the selected-node fill
+  outline-color: color-mix(in srgb, var(--inet-text-color) 70%, white);
+  outline-offset: -2px;
 }
 
 /********************************** Others *********************************************/
@@ -1221,6 +1233,23 @@ binding-editor {
       color: var(--inet-composer-navbar-hover-text-color);
       background-color: var(--inet-composer-navbar-hover-bg-color);
     }
+
+    // Keyboard focus: Bootstrap's .btn:focus-visible recolours with its hover vars (pale fill, white
+    // label) and _layout.scss removes the ring. Use the same teal fill/label as :hover, plus an inset
+    // outline in the navbar text colour so the indicator does not depend on the fill/navbar contrast.
+    // The outline is !important because the @inetsoft-technology/ai-assistant bundle (loaded globally
+    // via angular.json scripts) injects an unscoped `button:focus, button:focus-visible
+    // { outline: none !important }` into <head>; only an !important rule beats it.
+    &:focus-visible:not(:disabled):not(.disabled) {
+      &, span, i {
+        color: var(--inet-composer-navbar-hover-text-color);
+      }
+
+      color: var(--inet-composer-navbar-hover-text-color);
+      background-color: var(--inet-composer-navbar-hover-bg-color);
+      outline: 2px solid var(--inet-composer-navbar-text-color) !important;
+      outline-offset: -2px;
+    }
   }
 
   .show > .composer-btn.dropdown-toggle {
@@ -1291,6 +1320,15 @@ binding-editor {
       background-color: var(--inet-nav-tabs-bg-color);
     }
   }
+}
+
+// .vpm-navbar is not a Bootstrap .navbar, so --bs-navbar-toggler-icon-bg is undefined; draw the
+// toggler icon with currentColor so it follows the button text color in every theme.
+.vpm-navbar .navbar-toggler-icon {
+  background-image: none;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='black' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") center / 100% no-repeat;
+  mask: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='black' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") center / 100% no-repeat;
 }
 
 .composer-body.library-in-view {

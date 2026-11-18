@@ -49,9 +49,12 @@ import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidOrgException;
 import inetsoft.util.MessageException;
+import inetsoft.web.admin.InvalidResourceException;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -238,5 +241,31 @@ class ResourcePermissionControllerTest {
 
          assertSame(permissionModel, result);
       }
+   }
+
+   // Bug #81497, an entry type with no permission resource is an invalid target (4xx), and
+   // the permission check is never reached
+   @ParameterizedTest
+   @ValueSource(ints = { 0, 2, 3, 999999, -1 })
+   void getPermissions_unsupportedType_throwsInvalidResource(int type) throws Exception {
+      when(resourcePermissionService.getRepositoryResourceType(type, "Examples"))
+         .thenReturn(new Resource(null, "Examples"));
+
+      assertThrows(InvalidResourceException.class,
+         () -> controller.getRepositoryEntryPermissions("Examples", type, principal));
+
+      verify(securityEngine, never()).checkPermission(any(), any(), anyString(), any());
+   }
+
+   @Test
+   void setPermissions_unsupportedType_throwsInvalidResource() throws Exception {
+      when(resourcePermissionService.getRepositoryResourceType(999999, "Examples"))
+         .thenReturn(new Resource(null, "Examples"));
+
+      assertThrows(InvalidResourceException.class,
+         () -> controller.setRepositoryEntryPermissions(
+            "Examples", 999999, permissionModel, principal));
+
+      verify(securityEngine, never()).checkPermission(any(), any(), anyString(), any());
    }
 }

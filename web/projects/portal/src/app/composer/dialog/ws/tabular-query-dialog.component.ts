@@ -95,6 +95,14 @@ export class TabularQueryDialog implements OnInit {
       return value;
    }
 
+   /**
+    * The help topic id, or empty (hides the help button) when the type has no help page.
+    */
+   get helpCshid(): string {
+      const title = this.helpDisplayTitle;
+      return title ? "CreatingDataSet" + title : "";
+   }
+
    get helpDisplayTitle(): string {
       let dataSources: {dataSourceTypeName, value}[] = [
          {dataSourceTypeName: "Rest.FortyTwoMatters", value: "42Matters"},

@@ -556,24 +556,6 @@
       "description": "The repositories included in one organisation migration. Requires the organisation and migration id."
     },
     {
-      "paged": "false",
-      "name": "Source Import Progress",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/import",
-      "description": "The state of an import into one repository from an external version control system, with the stage reached, commit count and any failure. Requires the owner and repository name. A one-off migration record -- empty for any repository that was created on GitHub directly, which is most of them."
-    },
-    {
-      "paged": "true",
-      "name": "Source Import Authors",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/import/authors?since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
-      "description": "The commit authors detected in a source import, so they can be mapped to GitHub accounts. Requires the owner and repository name. Only meaningful while an import is in progress."
-    },
-    {
-      "paged": "true",
-      "name": "Source Import Large Files",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/import/large_files",
-      "description": "The files in a source import that exceed GitHub's size limit and must be handled through Git LFS. Requires the owner and repository name."
-    },
-    {
       "paged": "true",
       "name": "User Migrations",
       "suffix": "/user/migrations",

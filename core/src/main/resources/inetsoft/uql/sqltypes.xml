@@ -31,4 +31,5 @@
   <types type="mongo" class="inetsoft.uql.jdbc.util.MongoSQLTypes"/>
   <types type="sqlite" class="inetsoft.uql.jdbc.util.SqliteSQLTypes"/>
   <types type="clickhouse" class="inetsoft.uql.jdbc.util.ClickHouseSQLTypes"/>
+  <types type="postgresql" class="inetsoft.uql.jdbc.util.PostgreSQLTypes"/>
 </config>

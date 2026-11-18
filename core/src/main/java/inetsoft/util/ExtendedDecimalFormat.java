@@ -190,6 +190,161 @@ public class ExtendedDecimalFormat extends DecimalFormat {
    }
 
    /**
+    * The unit (and decimal pattern) used to display one value.
+    */
+   private static final class Unit {
+      long multiple = 1;
+      char symbol = ' ';
+      // modified simple pattern, null if the original pattern is used
+      String pattern;
+   }
+
+   /**
+    * Resolve the unit and the decimal pattern used to display a value. This is the single
+    * implementation shared by format() and the Excel export.
+    */
+   private Unit resolveUnit(double value, String opattern) {
+      Unit unit = new Unit();
+      char symbol = this.symbol;
+      long multiple = 1;
+      String npattern = null;
+      switch(symbol) {
+      case 'k':
+      case 'K':
+         multiple = 1000;
+         break;
+      case 'm':
+      case 'M':
+         multiple = 1000000;
+         break;
+      case 'b':
+      case 'B':
+         multiple = 1000000000L;
+         break;
+      }
+
+      // abs since scale could be reversed
+      double increment = Math.abs(this.increment);
+      double nval = Math.abs(value);
+
+      // avoid 0B even if not used on axis
+      if(increment == 0 && nval > 0) {
+         int dot = opattern.lastIndexOf('.');
+         int precision = dot > 0 ? opattern.length() - dot - 1 : 0;
+         increment = Math.pow(10, Math.log10(nval) - precision);
+      }
+
+      // if increment is set, auto downgrade to make sure the unit is less than the increment
+      if(increment > 0 && isAutoDowngrade()) {
+         // if increment is set, only adjust if it's fraction and has decimal
+         if(opattern.contains(".") && (this.increment == 0 || increment - (int) increment > 0)) {
+            int dot = opattern.indexOf('.');
+
+            for(int decimalPlace = opattern.length() - dot - 1; decimalPlace > 0;
+                decimalPlace--)
+            {
+               increment *= 10;
+            }
+         }
+
+         // if the increment is less than the unit, downgrade the unit so we don't have 1K, 1K
+         // as axis labels
+         while(multiple > 1 && multiple > increment) {
+            multiple /= 1000;
+
+            switch((int) multiple) {
+            case 1:
+               symbol = ' ';
+               break;
+            case 1000:
+               symbol = 'K';
+               break;
+            case 1000000:
+               symbol = 'M';
+               break;
+            }
+         }
+
+         // if pattern has no decimal point, and the increment is less that 1, add
+         // decimal points so the increments don't show up as identical numbers.
+         if(increment < 1 && multiple == 1 && opattern.indexOf('.') < 0) {
+            boolean percent = opattern.endsWith("%");
+            npattern = (percent ? opattern.substring(0, opattern.length() - 1) : opattern)
+               + ".#";
+
+            for(double incr = increment * 10; incr < 1; incr *= 10) {
+               npattern += "#";
+            }
+
+            if(percent) {
+               npattern += "%";
+            }
+         }
+         // try to keep three decimal places when increment is less than 1 and
+         // apply the auto downgrade the unit
+         else if(Math.abs(this.increment) < 1 && multiple == 1 && symbol != this.symbol) {
+            String incrementStr = this.increment + "";
+            int incrementDecimalCount = incrementStr.length() -
+               incrementStr.lastIndexOf(".") - 1;
+            incrementDecimalCount = Math.min(incrementDecimalCount, 3);
+            int addNum = 0;
+
+            if(opattern.contains(".")) {
+               int patternDecimalCount = opattern.length() - opattern.lastIndexOf(".") - 1;
+
+               if(patternDecimalCount < incrementDecimalCount) {
+                  addNum = incrementDecimalCount - patternDecimalCount;
+                  npattern = opattern;
+               }
+            }
+            else {
+               addNum = incrementDecimalCount;
+               npattern = opattern + ".";
+            }
+
+            if(addNum > 0) {
+               npattern += StringUtils.repeat("#", addNum);
+            }
+         }
+      }
+
+      unit.multiple = multiple;
+      unit.symbol = symbol;
+      unit.pattern = npattern;
+      return unit;
+   }
+
+   /**
+    * Get the K/M/B symbol that is displayed for the value, ' ' if no unit is displayed. The
+    * dashboard (format()) and the Excel export both use this.
+    */
+   public char getDisplayedSymbol(double value) {
+      String opattern = getSimplePattern();
+
+      if(!"".equals(userSymbol) || symbol == ' ' || "MMW#".equals(opattern)) {
+         return ' ';
+      }
+
+      char dsymbol = resolveUnit(value, opattern).symbol;
+      return dsymbol != ' ' && (value != 0 || dsymbol != 'B' || increment != 0) ? dsymbol : ' ';
+   }
+
+   /**
+    * Get the simple (number part) pattern used to display the value. Decimal places may be added
+    * when the value is displayed without a unit.
+    */
+   public String getDisplayedPattern(double value) {
+      String opattern = getSimplePattern();
+
+      if(!"".equals(userSymbol) || symbol == ' ' || "MMW#".equals(opattern)) {
+         return opattern;
+      }
+
+      String npattern = resolveUnit(value, opattern).pattern;
+      return npattern != null ? npattern : opattern;
+   }
+
+   /**
     * Format a number.
     */
    private StringBuffer format(Number num, StringBuffer result,
@@ -210,107 +365,13 @@ public class ExtendedDecimalFormat extends DecimalFormat {
          multiple = getMultiple(userSymbol);
       }
       else if(symbol != ' ') {
-         switch(symbol) {
-         case 'k':
-         case 'K':
-            multiple = 1000;
-            break;
-         case 'm':
-         case 'M':
-            multiple = 1000000;
-            break;
-         case 'b':
-         case 'B':
-            multiple = 1000000000L;
-            break;
-         }
+         Unit unit = resolveUnit(num.doubleValue(), opattern);
+         multiple = unit.multiple;
+         symbol = unit.symbol;
+         npattern = unit.pattern;
 
-         // abs since scale could be reversed
-         double increment = Math.abs(this.increment);
-         double nval = Math.abs(num.doubleValue());
-
-         // avoid 0B even if not used on axis
-         if(increment == 0 && nval > 0) {
-            int dot = opattern.lastIndexOf('.');
-            int precision = dot > 0 ? opattern.length() - dot - 1 : 0;
-            increment = Math.pow(10, Math.log10(nval) - precision);
-         }
-
-         // if increment is set, auto downgrade to make sure the unit is less than the increment
-         if(increment > 0 && isAutoDowngrade()) {
-            // if increment is set, only adjust if it's fraction and has decimal
-            if(opattern.contains(".") && (this.increment == 0 || increment - (int) increment > 0)) {
-               int dot = opattern.indexOf('.');
-
-               for(int decimalPlace = opattern.length() - dot - 1; decimalPlace > 0;
-                   decimalPlace--)
-               {
-                  increment *= 10;
-               }
-            }
-
-            // if the increment is less than the unit, downgrade the unit so we don't have 1K, 1K
-            // as axis labels
-            while(multiple > 1 && multiple > increment) {
-               multiple /= 1000;
-
-               switch((int) multiple) {
-               case 1:
-                  symbol = ' ';
-                  break;
-               case 1000:
-                  symbol = 'K';
-                  break;
-               case 1000000:
-                  symbol = 'M';
-                  break;
-               }
-            }
-
-            // if pattern has no decimal point, and the increment is less that 1, add
-            // decimal points so the increments don't show up as identical numbers.
-            if(increment < 1 && multiple == 1 && opattern.indexOf('.') < 0) {
-               boolean percent = opattern.endsWith("%");
-               npattern = (percent ? opattern.substring(0, opattern.length() - 1) : opattern)
-                  + ".#";
-
-               for(double incr = increment * 10; incr < 1; incr *= 10) {
-                  npattern += "#";
-               }
-
-               if(percent) {
-                  npattern += "%";
-               }
-
-               super.applyPattern(npattern);
-            }
-            // try to keep three decimal places when increment is less than 1 and
-            // apply the auto downgrade the unit
-            else if(Math.abs(this.increment) < 1 && multiple == 1 && symbol != this.symbol) {
-               String incrementStr = this.increment + "";
-               int incrementDecimalCount = incrementStr.length() -
-                  incrementStr.lastIndexOf(".") - 1;
-               incrementDecimalCount = Math.min(incrementDecimalCount, 3);
-               int addNum = 0;
-
-               if(opattern.contains(".")) {
-                  int patternDecimalCount = opattern.length() - opattern.lastIndexOf(".") - 1;
-
-                  if(patternDecimalCount < incrementDecimalCount) {
-                     addNum = incrementDecimalCount - patternDecimalCount;
-                     npattern = opattern;
-                  }
-               }
-               else {
-                  addNum = incrementDecimalCount;
-                  npattern = opattern + ".";
-               }
-
-               if(addNum > 0) {
-                  npattern += StringUtils.repeat("#", addNum);
-                  super.applyPattern(npattern);
-               }
-            }
+         if(npattern != null) {
+            super.applyPattern(npattern);
          }
       }
 

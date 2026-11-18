@@ -22,6 +22,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrgIdChangeGuard;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
@@ -746,6 +747,9 @@ public class RepletRegistry implements Serializable {
     * Save the registry to a registry file.
     */
    public synchronized void save() throws Exception {
+      // Bug #79856, a save during or just after an id change of the organization would recreate
+      // the registry file that the change moved away, and be lost
+      OrgIdChangeGuard.checkWritable(orgID);
       DataSpace space = DataSpace.getDataSpace();
       String repfile = getRegistryPath();
       // Bug #76977, each cluster node keeps its own copy and writes the whole file, so saves of
@@ -793,6 +797,8 @@ public class RepletRegistry implements Serializable {
          dmgr.removeChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
 
          try {
+            // change-detection digest of the registry file, not a security use.
+            // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
             MessageDigest written = MessageDigest.getInstance("MD5");
             // digest of the bytes this copy wrote, so that a commit of another writer landing
             // before the token would be read is not taken for this copy's own
@@ -901,7 +907,7 @@ public class RepletRegistry implements Serializable {
          writer.print("<Replet name=\"" + Tool.escape(folder) + "\"" +
                          (alias == null ? "" : " alias=\"" + Tool.escape(alias) + "\"") +
                          " orgID=\"" + orgID + "\" folder=\"true\"" +
-                         " favoritesUser=\"" + getFolderFavoritesUser(Tool.escape(folder)) + "\"" + ">");
+                         " favoritesUser=\"" + Tool.escape(getFolderFavoritesUser(folder)) + "\"" + ">");
 
          if(getFolderDescription(folder) != null) {
             writer.print("<![CDATA[" + getFolderDescription(folder) + "]]>");

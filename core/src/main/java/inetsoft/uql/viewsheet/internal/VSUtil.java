@@ -5182,7 +5182,7 @@ public final class VSUtil {
                                             List<String> matchNames,
                                             Viewsheet vs)
    {
-      String newExp = expression;
+      String[] replacements = new String[subaggs.size()];
 
       for(int i = 0; i < subaggs.size(); i++) {
          AggregateRef aref = VSUtil.createAliasAgg(subaggs.get(i), false);
@@ -5193,12 +5193,25 @@ public final class VSUtil {
          if(!Tool.equals(formula, pfromula)) {
             aref.setFormula(pfromula);
             vs.addAOARef(aref);
-            String str = VSUtil.getAggregateString(aref, false);
-            newExp = newExp.replace(matchNames.get(i), str);
+            replacements[i] = VSUtil.getAggregateString(aref, false);
          }
       }
 
-      return newExp;
+      // locate the names the way addUsedAggregateRef matched them: the exact spelling first,
+      // any other case only for the text left over (so `a` and `A` stay two columns)
+      StringBuilder newExp = new StringBuilder();
+      int pos = 0;
+
+      for(AggregateNameMatcher.Span span : AggregateNameMatcher.find(expression, matchNames)) {
+         if(span.name < replacements.length && replacements[span.name] != null) {
+            newExp.append(expression, pos, span.start);
+            newExp.append(replacements[span.name]);
+            pos = span.end;
+         }
+      }
+
+      newExp.append(expression, pos, expression.length());
+      return newExp.toString();
    }
 
    /**

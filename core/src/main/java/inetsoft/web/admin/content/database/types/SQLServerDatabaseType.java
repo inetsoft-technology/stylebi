@@ -67,7 +67,14 @@ public final class SQLServerDatabaseType
          }
 
          if(matcher.group(6) != null) {
-            properties += matcher.group(6);
+            // group 6 keeps its leading ';' (e.g. ";encrypt=true"); when no properties
+            // precede databaseName that ';' would be left at the start of the properties
+            if(properties.isEmpty() && matcher.group(6).startsWith(";")) {
+               properties = matcher.group(6).substring(1);
+            }
+            else {
+               properties += matcher.group(6);
+            }
 
             if(properties.endsWith(";")) {
                properties = properties.substring(0, properties.length() - 1);

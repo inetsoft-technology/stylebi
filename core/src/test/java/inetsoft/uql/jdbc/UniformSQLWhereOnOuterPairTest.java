@@ -51,7 +51,8 @@ import static org.junit.jupiter.api.Assertions.*;
                                   UniformSQLWhereOnOuterPairTest.DataSourceConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
+@Tag("database")
 class UniformSQLWhereOnOuterPairTest {
    private static final String COLS = "select a.id, a.k, b.id, b.k from ";
 

@@ -65,7 +65,9 @@ public class ParameterService {
       if(parameters != null) {
          for(Map.Entry<String, String[]> e : parameters.entrySet()) {
             String name = e.getKey();
-            String[] values0 = e.getValue();
+            // Bug #81111, a client JSON {"p": null} gives a null value array; treat it like an
+            // empty array, which VariableTable.put stores as a null parameter
+            String[] values0 = e.getValue() == null ? new String[0] : e.getValue();
 
             // Bug #77329, the identity variables are set from the user, never from the client
             if(name.endsWith(typeSuffix) || VariableTable.isContextVariable(name)) {

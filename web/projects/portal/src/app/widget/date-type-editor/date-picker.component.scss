@@ -31,7 +31,7 @@
     &.select-date {
       border:1px solid var(--inet-primary-color);
       background-color:var(--inet-primary-color);
-      color: #fff!important;
+      color: var(--inet-button-primary-text-color, #202020)!important;
       border-radius: .25rem;
     }
   }

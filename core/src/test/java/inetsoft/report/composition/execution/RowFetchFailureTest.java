@@ -134,6 +134,7 @@ import static org.mockito.Mockito.*;
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("database")
 class RowFetchFailureTest {
    private static final String DB = "memory:rowfetchfailure";
    private static final int ROWS = 60000;

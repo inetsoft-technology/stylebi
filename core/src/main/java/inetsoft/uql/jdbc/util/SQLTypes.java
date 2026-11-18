@@ -145,6 +145,8 @@ public class SQLTypes {
     * @return the table column creator.
     */
    public XTableColumnCreator getXTableColumnCreator(int type, String tname) {
+      type = normalizeZonedTimestampType(type);
+
       switch(type) {
       case Types.TINYINT:
          return XShortColumn.getCreator();
@@ -219,6 +221,8 @@ public class SQLTypes {
    public Object getObject(ResultSet result, int idx, int type)
       throws Exception
    {
+      type = normalizeZonedTimestampType(type);
+
       try {
          switch(type) {
          case Types.CHAR:
@@ -385,6 +389,8 @@ public class SQLTypes {
     * Convert a SQL type to a XSchema type.
     */
    public String convertToXType(int sqltype) {
+      sqltype = normalizeZonedTimestampType(sqltype);
+
       switch(sqltype) {
       case Types.BIT:
       case Types.BOOLEAN:
@@ -430,9 +436,32 @@ public class SQLTypes {
    }
 
    /**
+    * Map the JDBC type code of a zone-aware timestamp column to {@link Types#TIMESTAMP}.
+    * Drivers report these columns with a code that none of the type switches know: the
+    * standard {@link Types#TIMESTAMP_WITH_TIMEZONE} (H2, other JDBC 4.2 drivers) and
+    * SQL Server's {@code microsoft.sql.Types.DATETIMEOFFSET} (-155). Treated as TIMESTAMP,
+    * the column is a TimeInstant and its values are read with getTimestamp(), the same as
+    * PostgreSQL timestamptz (which pgjdbc already reports as TIMESTAMP). The value is the
+    * instant, shown in the JVM time zone; the original UTC offset is not kept.
+    *
+    * @param sqltype the type code reported by the driver.
+    * @return {@link Types#TIMESTAMP} for a zone-aware timestamp code, else sqltype.
+    */
+   public static int normalizeZonedTimestampType(int sqltype) {
+      return sqltype == Types.TIMESTAMP_WITH_TIMEZONE || sqltype == SQLSERVER_DATETIMEOFFSET ?
+         Types.TIMESTAMP : sqltype;
+   }
+
+   /**
     * Fix sql type according to type name.
     */
    public int fixSQLType(int sqltype, String tname) {
+      int normalized = normalizeZonedTimestampType(sqltype);
+
+      if(normalized != sqltype) {
+         return normalized;
+      }
+
       switch(sqltype) {
       case Types.BIT:
       case Types.TINYINT:
@@ -533,6 +562,8 @@ public class SQLTypes {
     * Convert a SQL type to a Java type (class).
     */
    public Class<?> convertToJava(int sqltype) {
+      sqltype = normalizeZonedTimestampType(sqltype);
+
       switch(sqltype) {
       case Types.BIT:
          return Boolean.class;
@@ -1297,5 +1328,7 @@ public class SQLTypes {
    private String[] translations;
    private static Map<String, SQLTypes> typemap = null;
    private static SQLTypes defaultTypes = new SQLTypes();
+   /** SQL Server's microsoft.sql.Types.DATETIMEOFFSET. */
+   public static final int SQLSERVER_DATETIMEOFFSET = -155;
    private static final Logger LOG = LoggerFactory.getLogger(SQLTypes.class);
 }

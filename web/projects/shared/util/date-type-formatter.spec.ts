@@ -76,6 +76,31 @@ describe("date-type-formatter", () => {
          .toBe("11:59:59 PM 2024-06-12");
    });
 
+   // Bug #80741
+   it("transformValue keeps a lower-case am/pm marker", () => {
+      expect(DateTypeFormatter.transformValue("11:59 pm", "hh:mm a", "HH:mm")).toBe("23:59");
+      expect(DateTypeFormatter.transformValue("11:59 pm", "hh:mm a", "hh:mm a")).toBe("11:59 PM");
+      expect(DateTypeFormatter.transformValue("11:59 am", "hh:mm a", "HH:mm")).toBe("11:59");
+      expect(DateTypeFormatter.transformValue("11:59 am", "hh:mm a", "hh:mm a")).toBe("11:59 AM");
+      expect(DateTypeFormatter.transformValue("11:59 pm", "hh:mm A", "HH:mm")).toBe("23:59");
+      expect(DateTypeFormatter.transformValue("2024-06-12 11:59:59 pm",
+         "YYYY-MM-DD hh:mm:ss a", "YYYY-MM-DDTHH:mm:ss"))
+         .toBe("2024-06-12T23:59:59");
+
+      // upper-case marker unchanged
+      expect(DateTypeFormatter.transformValue("11:59 PM", "hh:mm a", "HH:mm")).toBe("23:59");
+      expect(DateTypeFormatter.transformValue("11:59 PM", "hh:mm A", "hh:mm a")).toBe("11:59 PM");
+      expect(DateTypeFormatter.transformValue("11:59 AM", "hh:mm a", "HH:mm")).toBe("11:59");
+   });
+
+   // Bug #80741
+   it("transformValue still falls back when neither strict am/pm parse matches", () => {
+      // a value already in the new format is parsed with the new format
+      expect(DateTypeFormatter.transformValue("23:59", "hh:mm a", "HH:mm")).toBe("23:59");
+      // nothing parses at all -> null
+      expect(DateTypeFormatter.transformValue("not a time", "hh:mm a", "HH:mm")).toBeNull();
+   });
+
    it("toTimeInstant", () => {
       let expected = {
          "date": 8,

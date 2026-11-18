@@ -221,6 +221,11 @@ class AdminScheduleCycleGatewayTest {
 
    @Test
    void deleteCycles_removesWhenNotInUse() throws Exception {
+      // the delete needs ACCESS on the cycle
+      when(securityEngine.checkPermission(
+         user, ResourceType.SCHEDULE_CYCLE,
+         ScheduleCycleService.getCyclePermissionID("Cycle1", "host-org"), ResourceAction.ACCESS))
+         .thenReturn(true);
       gateway.deleteCycles(List.of("Cycle1"), user);
 
       verify(dataCycleManager).removeDataCycle(eq("Cycle1"), eq("host-org"));

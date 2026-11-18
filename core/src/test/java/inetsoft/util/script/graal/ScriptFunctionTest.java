@@ -64,6 +64,18 @@ class ScriptFunctionTest {
          this.called = true;
          this.label = label;
       }
+
+      public String parse() {
+         throw new NumberFormatException("Cannot parse null string");
+      }
+
+      public String failQuietly() {
+         throw new IllegalStateException();
+      }
+
+      public String ok() {
+         return "fine";
+      }
    }
 
    @Test
@@ -339,11 +351,40 @@ class ScriptFunctionTest {
    }
 
    @Test
+   void errorMessageIncludesCauseMessage() {
+      // Bug #81551: the InvocationTargetException wrapper hid the real error.
+      ScriptFunction fn = new ScriptFunction(new Target(), Target.class, "parse");
+
+      RuntimeException ex = assertThrows(RuntimeException.class, fn::execute);
+
+      assertEquals("Failed to invoke script function: parse: Cannot parse null string",
+                   ex.getMessage());
+      assertInstanceOf(NumberFormatException.class, ex.getCause());
+   }
+
+   @Test
+   void errorWithoutCauseMessageKeepsNameOnly() {
+      ScriptFunction fn = new ScriptFunction(new Target(), Target.class, "failQuietly");
+
+      RuntimeException ex = assertThrows(RuntimeException.class, fn::execute);
+
+      assertEquals("Failed to invoke script function: failQuietly", ex.getMessage());
+      assertInstanceOf(IllegalStateException.class, ex.getCause());
+   }
+
+   @Test
    void strictArityMessageIsUnchanged() {
       ScriptFunction fn = new ScriptFunction(
          new Thrower(), Thrower.class, "fail", true, String.class);
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> fn.execute());
       assertEquals("fail() expects 1 argument, got 0", ex.getMessage());
+   }
+
+   @Test
+   void successfulCallStillReturnsValue() {
+      ScriptFunction fn = new ScriptFunction(new Target(), Target.class, "ok");
+
+      assertEquals("fine", fn.execute());
    }
 }

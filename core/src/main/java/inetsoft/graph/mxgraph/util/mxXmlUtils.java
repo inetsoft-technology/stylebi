@@ -67,6 +67,8 @@ public class mxXmlUtils {
       }
 
       try {
+         // the factory is hardened (doctype disallowed, external entities off) when it is created above.
+         // nosemgrep: java.lang.security.audit.xxe.documentbuilderfactory-disallow-doctype-decl-missing.documentbuilderfactory-disallow-doctype-decl-missing
          return documentBuilderFactory.newDocumentBuilder();
       }
       catch(Exception e) {

@@ -142,4 +142,190 @@ public class AxisScriptableTest {
       axisScriptable.putMember("font", mock(PropertyDescriptor.class));
       assertNull(axisScriptable.getMember("font"));
    }
+
+   private VSChartDimensionRef dimRef;
+   private VSChartAggregateRef primaryRef;
+   private VSChartAggregateRef secondaryRef;
+   private DefaultVSChartInfo realInfo;
+
+   private void setUpRealInfo(boolean separated) {
+      realInfo = new DefaultVSChartInfo();
+      realInfo.setSeparatedGraph(separated);
+      dimRef = new VSChartDimensionRef();
+      dimRef.setGroupColumnValue("D");
+      primaryRef = new VSChartAggregateRef();
+      primaryRef.setColumnValue("A");
+      secondaryRef = new VSChartAggregateRef();
+      secondaryRef.setColumnValue("B");
+      secondaryRef.setSecondaryY(true);
+
+      for(VSChartRef ref : new VSChartRef[] { dimRef, primaryRef, secondaryRef }) {
+         ref.setRTAxisDescriptor(new AxisDescriptor());
+      }
+
+      realInfo.setRTYFields(new ChartRef[] { dimRef, primaryRef, secondaryRef });
+      realInfo.setRTAxisDescriptor(new AxisDescriptor());
+      realInfo.setRTAxisDescriptor2(new AxisDescriptor());
+   }
+
+   @Test
+   void y2AxisSeparatedOnlyWritesSecondaryAndOwnAxis() {
+      setUpRealInfo(true);
+      AxisScriptable y2 = new AxisScriptable(realInfo, realInfo.getRTAxisDescriptor2(), false, true);
+      y2.putMember("lineVisible", false);
+
+      assertTrue(dimRef.getRTAxisDescriptor().isLineVisible());
+      assertTrue(primaryRef.getRTAxisDescriptor().isLineVisible());
+      assertFalse(secondaryRef.getRTAxisDescriptor().isLineVisible());
+      assertFalse(realInfo.getRTAxisDescriptor2().isLineVisible());
+      assertTrue(realInfo.getRTAxisDescriptor().isLineVisible());
+      assertEquals(false, y2.getMember("lineVisible"));
+   }
+
+   @Test
+   void y2AxisNonSeparatedSkipsDimension() {
+      setUpRealInfo(false);
+      AxisScriptable y2 = new AxisScriptable(realInfo, realInfo.getRTAxisDescriptor2(), false, true);
+      y2.putMember("lineVisible", false);
+
+      assertTrue(dimRef.getRTAxisDescriptor().isLineVisible());
+      assertFalse(realInfo.getRTAxisDescriptor2().isLineVisible());
+      assertTrue(realInfo.getRTAxisDescriptor().isLineVisible());
+   }
+
+   @Test
+   void yAxisSeparatedBehaviorUnchanged() {
+      setUpRealInfo(true);
+      AxisScriptable y = new AxisScriptable(realInfo, realInfo.getRTAxisDescriptor(), false, false);
+      y.putMember("lineVisible", false);
+
+      assertFalse(dimRef.getRTAxisDescriptor().isLineVisible());
+      assertFalse(primaryRef.getRTAxisDescriptor().isLineVisible());
+      assertFalse(secondaryRef.getRTAxisDescriptor().isLineVisible());
+      assertTrue(realInfo.getRTAxisDescriptor2().isLineVisible());
+   }
+
+   private VSChartDimensionRef xDim;
+   private VSChartAggregateRef yMeasure1;
+   private VSChartAggregateRef yMeasure2;
+
+   private void setUpDimOnX(boolean separated) {
+      realInfo = new DefaultVSChartInfo();
+      realInfo.setSeparatedGraph(separated);
+      xDim = new VSChartDimensionRef();
+      xDim.setGroupColumnValue("Q");
+      yMeasure1 = new VSChartAggregateRef();
+      yMeasure1.setColumnValue("M1");
+      yMeasure2 = new VSChartAggregateRef();
+      yMeasure2.setColumnValue("M2");
+
+      for(VSChartRef ref : new VSChartRef[] { xDim, yMeasure1, yMeasure2 }) {
+         ref.setRTAxisDescriptor(new AxisDescriptor());
+      }
+
+      realInfo.setRTXFields(new ChartRef[] { xDim });
+      realInfo.setRTYFields(new ChartRef[] { yMeasure1, yMeasure2 });
+      realInfo.setRTAxisDescriptor(new AxisDescriptor());
+      realInfo.setRTAxisDescriptor2(new AxisDescriptor());
+   }
+
+   private AxisScriptable xAxis() {
+      return new AxisScriptable(realInfo, realInfo.getRTAxisDescriptor(), true, false);
+   }
+
+   private AxisScriptable yAxis() {
+      return new AxisScriptable(realInfo, realInfo.getRTAxisDescriptor(), false, false);
+   }
+
+   @Test
+   void xAxisReadIgnoresYAxisLineColorWrite() {
+      setUpDimOnX(false);
+      AxisScriptable x = xAxis();
+      Object def = x.getMember("lineColor");
+      AxisScriptable y = yAxis();
+      y.putMember("lineColor", java.awt.Color.MAGENTA);
+
+      assertEquals(java.awt.Color.MAGENTA, y.getMember("lineColor"));
+      assertEquals(def, xAxis().getMember("lineColor"));
+      assertEquals(def, x.getMember("lineColor"));
+      assertNotEquals(java.awt.Color.MAGENTA, xAxis().getMember("lineColor"));
+   }
+
+   @Test
+   void xAxisLineVisibleUnaffectedByYAxisWrite() {
+      setUpDimOnX(false);
+      yAxis().putMember("lineVisible", false);
+
+      assertEquals(false, yAxis().getMember("lineVisible"));
+      assertEquals(true, xAxis().getMember("lineVisible"));
+   }
+
+   @Test
+   void xAxisWriteReadsBack() {
+      setUpDimOnX(false);
+      AxisScriptable x = xAxis();
+      x.putMember("lineColor", java.awt.Color.BLUE);
+
+      assertEquals(java.awt.Color.BLUE, x.getMember("lineColor"));
+      assertEquals(java.awt.Color.BLUE, xDim.getRTAxisDescriptor().getLineColor());
+      assertNotEquals(java.awt.Color.BLUE, realInfo.getRTAxisDescriptor().getLineColor());
+   }
+
+   @Test
+   void xAxisFormatPropertyReadsBack() {
+      setUpDimOnX(false);
+      AxisScriptable x = xAxis();
+      x.putMember("labelColor", java.awt.Color.RED);
+
+      assertEquals(java.awt.Color.RED, x.getMember("labelColor"));
+      assertNotEquals(java.awt.Color.RED, yAxis().getMember("labelColor"));
+   }
+
+   @Test
+   void yAxisAndFieldAxisStillReadBack() {
+      setUpDimOnX(false);
+      AxisScriptable y = yAxis();
+      y.putMember("lineColor", java.awt.Color.GREEN);
+      assertEquals(java.awt.Color.GREEN, y.getMember("lineColor"));
+
+      xDim.getRTAxisDescriptor().setLineColor(java.awt.Color.ORANGE);
+      AxisScriptable field = new AxisScriptable(realInfo, "Q");
+      assertEquals(java.awt.Color.ORANGE, field.getMember("lineColor"));
+   }
+
+   @Test
+   void xAxisReadsFirstDimensionWhenMeasureComesFirst() {
+      setUpDimOnX(false);
+      realInfo.setRTXFields(new ChartRef[] { yMeasure1, xDim });
+      xDim.getRTAxisDescriptor().setLineColor(java.awt.Color.CYAN);
+
+      assertEquals(java.awt.Color.CYAN, xAxis().getMember("lineColor"));
+   }
+
+   @Test
+   void xAxisReadFollowsReboundFields() {
+      setUpDimOnX(false);
+      AxisScriptable x = xAxis();
+      xDim.getRTAxisDescriptor().setLineColor(java.awt.Color.CYAN);
+      assertEquals(java.awt.Color.CYAN, x.getMember("lineColor"));
+
+      VSChartDimensionRef other = new VSChartDimensionRef();
+      other.setGroupColumnValue("R");
+      other.setRTAxisDescriptor(new AxisDescriptor());
+      other.getRTAxisDescriptor().setLineColor(java.awt.Color.PINK);
+      realInfo.setRTXFields(new ChartRef[] { other });
+
+      assertEquals(java.awt.Color.PINK, x.getMember("lineColor"));
+   }
+
+   @Test
+   void xAxisWithoutFieldsFallsBackToSharedDescriptor() {
+      setUpDimOnX(false);
+      realInfo.setRTXFields(new ChartRef[0]);
+      AxisScriptable x = xAxis();
+      x.putMember("lineColor", java.awt.Color.BLUE);
+      realInfo.getRTAxisDescriptor().setLineColor(java.awt.Color.YELLOW);
+
+      assertEquals(java.awt.Color.YELLOW, x.getMember("lineColor"));
+   }
 }

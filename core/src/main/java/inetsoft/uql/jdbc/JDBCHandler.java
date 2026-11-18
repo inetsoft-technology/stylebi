@@ -2277,6 +2277,8 @@ public class JDBCHandler extends XHandler {
                         // access to.  Furthermore, we can remove the node
                         // from the tree as it will be empty.
                         try {
+                           // catalog name comes from the database's own getCatalogs(), not from user input.
+                           // nosemgrep: java.lang.security.audit.formatted-sql-string.formatted-sql-string
                            results = statement.executeQuery(
                               "select " + schemaColumn + " from \"" +
                                  parent.getName() + "\"." + schemaTable);

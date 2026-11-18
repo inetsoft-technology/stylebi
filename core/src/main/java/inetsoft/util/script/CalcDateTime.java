@@ -18,6 +18,7 @@
 package inetsoft.util.script;
 
 import inetsoft.util.CoreTool;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 
 import java.text.DateFormat;
@@ -184,25 +185,15 @@ public class CalcDateTime {
          return null;
       }
 
-      Date orig = (Date) ((Date) date).clone();
       Calendar cal = CoreTool.calendar.get();
       cal.setTime((Date) date);
-      int st_month = cal.get(Calendar.MONTH);
-
-      cal.set(Calendar.MONTH, cal.get(Calendar.MONTH) + months);
 
       // @by amitm, bug1130863074712
-      // Jan 31, 2000 + 1 using Calendar gives March 2, 2000
-      // Hence if the difference in the months > the number of months
-      // specified, we have to find the end of the nth month post current
-      // month.
-      if(cal.get(Calendar.MONTH) - st_month > months) {
-         Calendar calOg = CoreTool.calendar2.get();
-         calOg.setTime(orig);
-         calOg.set(Calendar.DATE, 1);
-         return eomonth(calOg.getTime(), months);
-      }
-
+      // Jan 31, 2000 + 1 using Calendar.set(MONTH) gives March 2, 2000.
+      // Calendar.add clamps the day to the end of the target month, for both
+      // positive and negative months and when the shift wraps the year
+      // (bug #80953: Dec 31, 2000 + 2 gave March 3, 2001).
+      cal.add(Calendar.MONTH, months);
       return cal.getTime();
    }
 
@@ -294,10 +285,16 @@ public class CalcDateTime {
    /**
     * Get the quarter from the date value
     * @param date input date
-    * @return quarter number, 1, 2, 3, 4.
+    * @return quarter number, 1, 2, 3, 4, or -1 if the date is null.
     */
    public static int quarter(Object date) {
-      return (month(date) - 1) / 3 + 1;
+      int month = month(date);
+
+      if(month < 0) {
+         return -1;
+      }
+
+      return (month - 1) / 3 + 1;
    }
 
    /**
@@ -732,7 +729,7 @@ public class CalcDateTime {
    public static String monthname(Object dateObj) {
       Date date = (Date) unwrapDate(dateObj);
 
-      return MONTH_FMT.get().format(date);
+      return MONTH_FMT.get().get().format(date);
    }
 
    /**
@@ -741,7 +738,7 @@ public class CalcDateTime {
    public static String weekdayname(Object dateObj) {
       Date date = (Date) unwrapDate(dateObj);
 
-      return WEEKDAY_FMT.get().format(date);
+      return WEEKDAY_FMT.get().get().format(date);
    }
 
    /**
@@ -1742,10 +1739,36 @@ public class CalcDateTime {
       return date;
    }
 
-   private static ThreadLocal<DateFormat> MONTH_FMT = ThreadLocal.withInitial(() ->
-      Tool.createDateFormat("MMMM")
+   /**
+    * A per-thread format that is rebuilt when the thread locale changes. The format takes the
+    * names from the thread locale at its first use, so a pooled thread would otherwise keep the
+    * language of the first user it served.
+    */
+   private static final class LocaleFormat {
+      LocaleFormat(String pattern) {
+         this.pattern = pattern;
+      }
+
+      DateFormat get() {
+         Locale current = ThreadContext.getLocale();
+
+         if(fmt == null || !Objects.equals(current, locale)) {
+            fmt = Tool.createDateFormat(pattern);
+            locale = current;
+         }
+
+         return fmt;
+      }
+
+      private final String pattern;
+      private DateFormat fmt;
+      private Locale locale;
+   }
+
+   private static ThreadLocal<LocaleFormat> MONTH_FMT = ThreadLocal.withInitial(() ->
+      new LocaleFormat("MMMM")
    );
-   private static ThreadLocal<DateFormat> WEEKDAY_FMT = ThreadLocal.withInitial(() ->
-      Tool.createDateFormat("EEEE")
+   private static ThreadLocal<LocaleFormat> WEEKDAY_FMT = ThreadLocal.withInitial(() ->
+      new LocaleFormat("EEEE")
    );
 }

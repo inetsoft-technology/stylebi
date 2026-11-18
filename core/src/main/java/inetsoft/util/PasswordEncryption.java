@@ -225,15 +225,31 @@ public interface PasswordEncryption {
     * @return a new instance.
     */
    static PasswordEncryption newInstance(SecretsConfig secretsConfig) {
-      return INSTANCE_CACHE.computeIfAbsent(secretsConfig, config -> {
-         String type = config.getType();
-         for(PasswordEncryptionFactory factory : ServiceLoader.load(PasswordEncryptionFactory.class)) {
-            if(factory.getType().equals(type)) {
-               return factory.createPasswordEncryption(config);
-            }
+      PasswordEncryption encryption = INSTANCE_CACHE.get(secretsConfig);
+
+      if(encryption != null) {
+         return encryption;
+      }
+
+      // The factory must not run inside ConcurrentHashMap.computeIfAbsent: the secrets manager
+      // constructors resolve their local encryption through this method, and a nested update of
+      // the same map throws "Recursive update" whenever the two keys share a bin. Two threads
+      // may both create an instance for a new config, the first one cached wins.
+      encryption = createInstance(secretsConfig);
+      PasswordEncryption previous = INSTANCE_CACHE.putIfAbsent(secretsConfig, encryption);
+      return previous == null ? encryption : previous;
+   }
+
+   private static PasswordEncryption createInstance(SecretsConfig config) {
+      String type = config.getType();
+
+      for(PasswordEncryptionFactory factory : ServiceLoader.load(PasswordEncryptionFactory.class)) {
+         if(factory.getType().equals(type)) {
+            return factory.createPasswordEncryption(config);
          }
-         throw new RuntimeException("Failed to get password encryption of type " + type);
-      });
+      }
+
+      throw new RuntimeException("Failed to get password encryption of type " + type);
    }
 
    /**

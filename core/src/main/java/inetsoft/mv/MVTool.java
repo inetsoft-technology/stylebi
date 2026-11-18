@@ -20,7 +20,7 @@ package inetsoft.mv;
 import inetsoft.mv.data.CompactString;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.uql.*;
-import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.*;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 import inetsoft.util.swap.XSwapUtil;
@@ -142,6 +142,29 @@ public class MVTool {
 
       MVExecutor executor = factory.newExecutor(table, mvName, vars, user);
       return executor;
+   }
+
+   /**
+    * Check if the condition list contains a correlated subquery condition.
+    */
+   public static boolean hasCorrelatedSubQuery(ConditionListWrapper wrapper) {
+      ConditionList conds = wrapper == null ? null : wrapper.getConditionList();
+
+      for(int i = 0; conds != null && i < conds.getSize(); i += 2) {
+         Object cond = conds.getXCondition(i);
+
+         if(!(cond instanceof AssetCondition)) {
+            continue;
+         }
+
+         SubQueryValue val = ((AssetCondition) cond).getSubQueryValue();
+
+         if(val != null && val.isCorrelated()) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -288,6 +311,25 @@ public class MVTool {
    }
 
    /**
+    * Get a date for a value of a date/time typed column; java.time and driver temporal values
+    * (e.g. OffsetDateTime) are not java.util.Date.
+    */
+   private static Date toDate(Object obj) {
+      if(obj instanceof Date) {
+         return (Date) obj;
+      }
+
+      Date date = CoreTool.getTimeInstantData(obj);
+
+      if(date == null) {
+         throw new ClassCastException("Cannot convert " + obj.getClass().getName() +
+                                         " to a date");
+      }
+
+      return date;
+   }
+
+   /**
     * Get the serialized objects in a compressed buffer.
     */
    private static byte[] getObjectsByteBuffer(Object[] objs, int length,
@@ -350,15 +392,15 @@ public class MVTool {
                output.writeLong(isnull ? Tool.NULL_LONG : ((Number) obj).longValue());
                break;
             case TIME_INSTANT_TYPE:
-               output.writeLong(isnull ? Tool.NULL_LONG : ((Date) obj).getTime());
+               output.writeLong(isnull ? Tool.NULL_LONG : toDate(obj).getTime());
                break;
             case DATE_TYPE:
                output.writeInt(isnull ? Tool.NULL_INTEGER :
-                                  ((int) (((Date) obj).getTime() / 3600000L)));
+                                  ((int) (toDate(obj).getTime() / 3600000L)));
                break;
             case TIME_TYPE:
                output.writeInt(isnull ? Tool.NULL_INTEGER :
-                                  ((int) ((((Date) obj).getTime() % 86400000L) / 1000L)));
+                                  ((int) (((toDate(obj).getTime()) % 86400000L) / 1000L)));
                break;
             default:
                throw new RuntimeException("Unsupport data type: " + dataType +

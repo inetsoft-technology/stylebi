@@ -1,0 +1,384 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.report.filter;
+
+import inetsoft.uql.XConstants;
+import inetsoft.util.Tool;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.util.Date;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Tests for DistinctCountFormula.
+ *
+ * <p>DistinctCountFormula counts the distinct non-null values. The percentage of a numeric
+ * total is covered in more detail by DistinctCountFormulaPercentageTest (Bug #80952).
+ */
+@Tag("core")
+class DistinctCountFormulaTest {
+
+   // -----------------------------------------------------------------------
+   // distinct values
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.count#distinct-count-unique-values
+   @Test
+   void addValue_repeatedValues_countedOnce() {
+      DistinctCountFormula distinct = new DistinctCountFormula();
+      addAll(distinct, 12, 11, 23, 23, 12, -1, "", null);
+      assertEquals(5, distinct.getResult());
+      assertEquals(5.0, distinct.getDoubleResult());
+
+      distinct.reset();
+      addAll(distinct, "red", "green", "red", "blue", "green");
+      assertEquals(3, distinct.getResult());
+
+      long base = 1_700_000_000_000L;
+      Date d1 = new Date(base);
+      Date d2 = new Date(base + 86_400_000L);
+      distinct.reset();
+      addAll(distinct, d1, d1, d2);
+      assertEquals(2, distinct.getResult());
+
+      // the primitive forms
+      distinct.reset();
+      distinct.addValue(1.5);
+      distinct.addValue(1.5);
+      distinct.addValue(Tool.NULL_DOUBLE);
+      distinct.addValue(4);
+      distinct.addValue(4);
+      distinct.addValue(Tool.NULL_INTEGER);
+      distinct.addValue(5L);
+      distinct.addValue((short) 6);
+      distinct.addValue(2.5f);
+      distinct.addValue(new double[] { 9.5 });
+      assertEquals(6, distinct.getResult());
+      assertEquals(Integer.class, distinct.getResultType());
+   }
+
+   // gap:report.summary-formulas.count#distinct-count-case-sensitive-and-blank
+   @Test
+   void addValue_caseAndBlankStrings_countedAsDistinct() {
+      DistinctCountFormula distinct = new DistinctCountFormula();
+      addAll(distinct, "a", "A");
+      assertEquals(2, distinct.getResult());
+
+      // an empty string counts once, null is ignored
+      distinct.reset();
+      addAll(distinct, "", null);
+      assertEquals(1, distinct.getResult());
+
+      distinct.reset();
+      addAll(distinct, "", "", null, null);
+      assertEquals(1, distinct.getResult());
+
+      distinct.reset();
+      addAll(distinct, "a", "a", "c", "C", "", "d", "");
+      assertEquals(5, distinct.getResult());
+
+      // blank text is not the empty string
+      distinct.reset();
+      addAll(distinct, "", " ");
+      assertEquals(2, distinct.getResult());
+   }
+
+   // -----------------------------------------------------------------------
+   // no values and reset
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.count#count-no-values-is-zero
+   // #80953 question 2 (decided): an empty Distinct Count is 0 and never null, unlike the other
+   // formulas, as SQL COUNT(DISTINCT) over no rows is 0
+   @Test
+   void getResult_noValues_returnsZero() {
+      DistinctCountFormula distinct = new DistinctCountFormula();
+      assertEquals(0, distinct.getResult());
+      assertEquals(0.0, distinct.getDoubleResult());
+      assertFalse(distinct.isNull());
+
+      // only nulls
+      addAll(distinct, null, null);
+      assertEquals(0, distinct.getResult());
+      assertFalse(distinct.isNull());
+
+      // after a reset
+      addAll(distinct, 1, 2);
+      distinct.reset();
+      assertEquals(0, distinct.getResult());
+      assertFalse(distinct.isNull());
+
+      // the default result makes no difference without a percentage
+      distinct.setDefaultResult(true);
+      assertEquals(0, distinct.getResult());
+   }
+
+   // gap:report.summary-formulas.count#distinct-count-reset
+   @Test
+   void reset_forgetsTheValuesSeenBefore() {
+      DistinctCountFormula distinct = new DistinctCountFormula();
+      addAll(distinct, "a", "b", "c");
+      assertEquals(3, distinct.getResult());
+      distinct.reset();
+      assertEquals(0, distinct.getResult());
+      addAll(distinct, "z");
+      assertEquals(1, distinct.getResult());
+
+      // a value seen before the reset counts again
+      distinct.reset();
+      addAll(distinct, "a", "b");
+      assertEquals(2, distinct.getResult());
+   }
+
+   // -----------------------------------------------------------------------
+   // percentage of total
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.count#distinct-count-percentage-of-total
+   @Test
+   void getResult_percentageOfTotal_returnsRatio() {
+      DistinctCountFormula distinct = percentage(new DistinctCountFormula(), 100);
+      addAll(distinct, "a", "a", "c", "C", "", "d", "");
+      assertEquals(0.05, distinct.getResult());
+      assertEquals(0.05, distinct.getDoubleResult());
+      assertEquals(5, distinct.getOriginalResult());
+
+      DistinctCountFormula negative = percentage(new DistinctCountFormula(), -100);
+      addAll(negative, 12, 11, 12, 11, 32.23, 11.2);
+      assertEquals(-0.04, negative.getResult());
+      assertEquals(4, negative.getOriginalResult());
+
+      long base = 1_700_000_000_000L;
+      Date d1 = new Date(base);
+      Date d2 = new Date(base + 86_400_000L);
+      DistinctCountFormula dates = percentage(new DistinctCountFormula(), 10);
+      addAll(dates, d1, d1, d2);
+      assertEquals(0.2, dates.getResult());
+   }
+
+   // gap:report.summary-formulas.count#count-percentage-needs-integer-total
+   @Test
+   void getResult_percentageWithAnyNumericTotal_returnsRatio() {
+      Object[] totals = { 100L, 100.0, 100.0f, (short) 100, "100" };
+
+      for(Object total : totals) {
+         String type = total.getClass().getSimpleName();
+         DistinctCountFormula distinct = percentage(new DistinctCountFormula(), total);
+         addAll(distinct, "a", "b", "b", "c");
+
+         // Distinct Count takes any numeric total since Bug #80952 (13.8 still needs an
+         // Integer); a non-numeric total leaves the plain count
+         if(total instanceof Number) {
+            assertEquals(0.03, (Double) distinct.getResult(), 1e-9, "distinct, total " + type);
+            assertEquals(0.03, distinct.getDoubleResult(), 1e-9, "distinct, total " + type);
+         }
+         else {
+            assertEquals(3, distinct.getResult(), "distinct, total " + type);
+            assertEquals(3.0, distinct.getDoubleResult(), "distinct, total " + type);
+         }
+      }
+
+      // an Integer total of 0: null, or 0 with the default result
+      DistinctCountFormula zeroDistinct = percentage(new DistinctCountFormula(), 0);
+      addAll(zeroDistinct, "a", "b");
+      assertNull(zeroDistinct.getResult());
+      assertEquals(0.0, zeroDistinct.getDoubleResult());
+      zeroDistinct.setDefaultResult(true);
+      assertEquals(0.0, zeroDistinct.getResult());
+   }
+
+   // Test Case #80957, #80953 question 5: a typed column reaches the formula through the
+   // primitive overloads (FormulaAgent), an Object column through addValue(Object). Within one
+   // type both paths give the same value. #80953 question 5 (decided): 1 and 1.0 stay two
+   // values and are not normalized until a real mixed column is shown, so mixed types are not
+   // asserted here
+   @Test
+   void addValue_primitiveAndObjectOfOneType_areTheSameValue() {
+      DistinctCountFormula distinct = new DistinctCountFormula();
+      distinct.addValue(7);
+      distinct.addValue((Object) Integer.valueOf(7));
+      assertEquals(1, distinct.getResult());
+
+      distinct.reset();
+      distinct.addValue(7L);
+      distinct.addValue((Object) Long.valueOf(7L));
+      assertEquals(1, distinct.getResult());
+
+      distinct.reset();
+      distinct.addValue((short) 7);
+      distinct.addValue((Object) Short.valueOf((short) 7));
+      assertEquals(1, distinct.getResult());
+
+      distinct.reset();
+      distinct.addValue(7.5f);
+      distinct.addValue((Object) Float.valueOf(7.5f));
+      assertEquals(1, distinct.getResult());
+
+      distinct.reset();
+      distinct.addValue(7.5);
+      distinct.addValue((Object) Double.valueOf(7.5));
+      distinct.addValue(new double[] { 7.5 });
+      assertEquals(1, distinct.getResult());
+   }
+
+   @Test
+   @DisplayName("A clone has its own set of values")
+   void clone_isIndependentOfTheOriginal() {
+      DistinctCountFormula original = new DistinctCountFormula();
+      addAll(original, 1, 2);
+      DistinctCountFormula copy = (DistinctCountFormula) original.clone();
+      assertEquals(2, copy.getResult());
+      copy.addValue((Object) 3);
+      assertEquals(2, original.getResult());
+      assertEquals(3, copy.getResult());
+      original.addValue((Object) 4);
+      assertEquals(3, original.getResult());
+      assertEquals(3, copy.getResult());
+   }
+
+   @Test
+   @DisplayName("NaN is one value, however often it is added")
+   void nan_countsOnce() {
+      DistinctCountFormula distinct = new DistinctCountFormula();
+      distinct.addValue(Double.NaN);
+      distinct.addValue(Double.NaN);
+      assertEquals(1, distinct.getResult());
+
+      DistinctCountFormula objects = new DistinctCountFormula();
+      addAll(objects, Double.NaN, Double.NaN);
+      assertEquals(1, objects.getResult());
+   }
+
+   @Test
+   @DisplayName("0.0 and -0.0 are the same value")
+   void negativeZero_isTheSameValueAsZero() {
+      DistinctCountFormula distinct = new DistinctCountFormula();
+      distinct.addValue(0.0);
+      distinct.addValue(-0.0);
+      assertEquals(1, distinct.getResult());
+   }
+
+   @Test
+   @DisplayName("The percentage of the group uses the same ratio as the grand total")
+   void percentageOfGroup_returnsRatio() {
+      DistinctCountFormula distinct = new DistinctCountFormula();
+      distinct.setPercentageType(XConstants.PERCENTAGE_OF_GROUP);
+      distinct.setTotal(10);
+      addAll(distinct, "a", "b");
+      assertEquals(0.2, (Double) distinct.getResult(), 1e-9);
+   }
+
+   @Test
+   @DisplayName("A Timestamp and a Date of the same instant are one value in either order")
+   void timestampAndDateOfTheSameInstant_countOnce() {
+      long time = 1_700_000_000_000L;
+      DistinctCountFormula timestampFirst = new DistinctCountFormula();
+      addAll(timestampFirst, new java.sql.Timestamp(time), new Date(time));
+      assertEquals(1, timestampFirst.getResult());
+
+      DistinctCountFormula dateFirst = new DistinctCountFormula();
+      addAll(dateFirst, new Date(time), new java.sql.Timestamp(time));
+      assertEquals(1, dateFirst.getResult());
+   }
+
+   @Test
+   @DisplayName("Boxed and primitive 0.0/-0.0 and float zeros are one value")
+   void negativeZero_boxedAndFloat() {
+      DistinctCountFormula boxed = new DistinctCountFormula();
+      addAll(boxed, 0.0, -0.0, Double.valueOf(-0.0));
+      assertEquals(1, boxed.getResult());
+
+      DistinctCountFormula floats = new DistinctCountFormula();
+      floats.addValue(0.0f);
+      floats.addValue(-0.0f);
+      assertEquals(1, floats.getResult());
+   }
+
+   @Test
+   @DisplayName("Timestamps with sub-millisecond precision are order independent and distinct")
+   void subMillisecondTimestamps() {
+      long time = 1_700_000_000_000L;
+      java.sql.Timestamp a = new java.sql.Timestamp(time);
+      a.setNanos(a.getNanos() + 1);
+      java.sql.Timestamp b = new java.sql.Timestamp(time);
+      b.setNanos(b.getNanos() + 2);
+
+      DistinctCountFormula f1 = new DistinctCountFormula();
+      addAll(f1, a, new Date(time), a, b);
+      DistinctCountFormula f2 = new DistinctCountFormula();
+      addAll(f2, new Date(time), b, a, a);
+      assertEquals(3, f1.getResult());
+      assertEquals(3, f2.getResult());
+
+      // the formula is Serializable, so the sub-millisecond keys must survive a round trip
+      DistinctCountFormula copy = roundTrip(f1);
+      assertEquals(3, copy.getResult());
+      copy.addValue((Object) a);
+      copy.addValue((Object) new Date(time));
+      assertEquals(3, copy.getResult());
+      copy.addValue((Object) new java.sql.Timestamp(time + 1));
+      assertEquals(4, copy.getResult());
+   }
+
+   @Test
+   @DisplayName("A clone keeps the normalized values")
+   void clone_keepsNormalizedValues() {
+      long time = 1_700_000_000_000L;
+      DistinctCountFormula original = new DistinctCountFormula();
+      addAll(original, 0.0, new java.sql.Timestamp(time));
+      DistinctCountFormula copy = (DistinctCountFormula) original.clone();
+      addAll(copy, -0.0, new Date(time));
+      assertEquals(2, copy.getResult());
+      assertEquals(2, original.getResult());
+   }
+
+   @SuppressWarnings("unchecked")
+   private static <T> T roundTrip(T obj) {
+      try {
+         java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+
+         try(java.io.ObjectOutputStream out = new java.io.ObjectOutputStream(bytes)) {
+            out.writeObject(obj);
+         }
+
+         try(java.io.ObjectInputStream in = new java.io.ObjectInputStream(
+            new java.io.ByteArrayInputStream(bytes.toByteArray())))
+         {
+            return (T) in.readObject();
+         }
+      }
+      catch(Exception ex) {
+         throw new AssertionError(ex);
+      }
+   }
+
+   private static void addAll(Formula formula, Object... values) {
+      for(Object value : values) {
+         formula.addValue(value);
+      }
+   }
+
+   private static <T extends PercentageFormula> T percentage(T formula, Object total) {
+      formula.setPercentageType(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      formula.setTotal(total);
+      return formula;
+   }
+}

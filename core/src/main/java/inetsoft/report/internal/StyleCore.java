@@ -436,11 +436,12 @@ public abstract class StyleCore extends AbstractAssetEngine
             switch(format.charAt(i)) {
             case 'P':
             case 'p':
-               s = "0";
+               // {P,number,000} needs the int argument, plain {P} keeps the String one
+               s = format.startsWith(",", i + 1) ? "3" : "0";
                break;
             case 'N':
             case 'n':
-               s = "1";
+               s = format.startsWith(",", i + 1) ? "4" : "1";
                break;
             case 'D':
             case 'd':
@@ -470,7 +471,7 @@ public abstract class StyleCore extends AbstractAssetEngine
             MessageFormat mf = locale == null ?
              new MessageFormat(format) :
                new MessageFormat(format, locale);
-            return mf.format(new Object[] {num, count, now});
+            return mf.format(new Object[] {num, count, now, pgnum, pgs});
          }
          catch(Exception ex) {
             LOG.error("Failed to format header/footer text: " + format, ex);
@@ -481,11 +482,16 @@ public abstract class StyleCore extends AbstractAssetEngine
    }
 
    /**
-    * Round up the value to the multiple of mul.
+    * Round up the value to the multiple of mul. A value that is a multiple of mul in exact
+    * arithmetic but a few float ulps above it (a height already rounded to a line count and
+    * subtracted from a total) is not rounded up to the next multiple.
     */
    static float roundup(float v, float mul) {
-      return (float) Math.ceil(v / mul) * mul;
+      return (float) Math.ceil(v / mul - ROUNDUP_TOLERANCE) * mul;
    }
+
+   // part of a multiple of mul that is treated as float error (about 0.01pt at a 12pt line)
+   private static final float ROUNDUP_TOLERANCE = 1e-3f;
 
    /**
     * Get the presenter for a type.

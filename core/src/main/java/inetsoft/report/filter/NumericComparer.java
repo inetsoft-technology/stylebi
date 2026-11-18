@@ -21,8 +21,17 @@ import inetsoft.report.Comparer;
 import inetsoft.util.Tool;
 import org.jnumbers.NumberParser;
 
+import java.util.Date;
+
 /**
  * Numeric comparison. The compared values must be in valid numeric format.
+ * <p>
+ * Values that are neither numbers nor parsable as numbers sort first and are
+ * equal to each other. {@link Date} values (including {@code java.sql.Date},
+ * {@code java.sql.Time} and {@code java.sql.Timestamp}) sort after those values
+ * and before all numeric values, and are ordered among themselves by
+ * {@link Date#getTime()}. Keeping dates in their own rank makes this a total
+ * order, so it is safe to use with {@code Arrays.sort} on mixed input.
  *
  * @version 5.1, 9/20/2003
  * @author InetSoft Technology Corp
@@ -33,6 +42,17 @@ public class NumericComparer implements Comparer {
     */
    @Override
    public int compare(Object v1, Object v2) {
+      boolean date1 = v1 instanceof Date;
+      boolean date2 = v2 instanceof Date;
+
+      if(date1 || date2) {
+         if(date1 && date2) {
+            return Long.compare(((Date) v1).getTime(), ((Date) v2).getTime());
+         }
+
+         return date1 ? -compareToDate(v2) : compareToDate(v1);
+      }
+
       double val1 = Double.NaN;
       double val2 = Double.NaN;
 
@@ -60,6 +80,24 @@ public class NumericComparer implements Comparer {
       }
 
       return Double.compare(val1, val2);
+   }
+
+   /**
+    * Compare a value that is not a date to a date. Numeric values sort after
+    * dates, and any other value (including null) sorts before dates.
+    */
+   private static int compareToDate(Object v) {
+      if(v instanceof Number) {
+         return 1;
+      }
+
+      try {
+         NumberParser.getDouble(v.toString());
+         return 1;
+      }
+      catch(Exception ex) {
+         return -1;
+      }
    }
 
    /**

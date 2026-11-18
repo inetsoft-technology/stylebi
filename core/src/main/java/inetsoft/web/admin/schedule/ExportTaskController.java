@@ -40,13 +40,18 @@ public class ExportTaskController {
       this.scheduleManager = scheduleManager;
    }
 
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
          resource = "settings/schedule/tasks",
          actions = ResourceAction.ACCESS
       )
-   )
+   })
    @GetMapping("/api/em/schedule/export/get-dependent-tasks")
    public List<TaskDependencyModel> getDependentTasks(
            @RequestParam("tasks") String tasks, Principal principal)
@@ -128,13 +133,18 @@ public class ExportTaskController {
     *
     * @throws Exception if could not get task
     */
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
          resource = "settings/schedule/tasks",
          actions = ResourceAction.ACCESS
       )
-   )
+   })
    @GetMapping("/em/schedule/export")
    public void exportScheduledTasks(
            @RequestParam("tasks") String tasks,

@@ -46,8 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 public class CrossJoinTableLensInvalidateRaceTest {
    /**
-    * The row order depends on the base table that completes loading first, so a cell is
-    * checked against the domain of its base column, not a fresh lens.
+    * A cell is checked against the domain of its base column, not a fresh lens.
     */
    @Test
    public void readsDuringInvalidateReturnBaseCell() throws Exception {

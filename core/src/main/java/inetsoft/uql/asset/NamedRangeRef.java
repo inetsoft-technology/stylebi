@@ -372,6 +372,12 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
             }
          }
 
+         // a group whose only members are nulls has no value to list, and an empty IN () is a
+         // syntax error; the IS NULL branch above already covers the group
+         if(list.isEmpty()) {
+            continue;
+         }
+
          sb.append(" WHEN ");
          sb.append(field);
 

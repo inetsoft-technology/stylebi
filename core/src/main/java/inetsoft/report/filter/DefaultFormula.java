@@ -49,14 +49,18 @@ public class DefaultFormula implements Formula {
       lv = Long.MIN_VALUE;
       iv = Integer.MIN_VALUE;
       sinited = false;
+      v = null;
    }
 
    /**
-    * Add a value to the formula.
+    * Add a value to the formula. A formula with no aggregation keeps the first value added, so
+    * only the first non-null value is stored.
     */
    @Override
    public void addValue(Object v) {
-      this.v = v;
+      if(this.v == null) {
+         this.v = v;
+      }
    }
 
    /**
@@ -64,7 +68,9 @@ public class DefaultFormula implements Formula {
     */
    @Override
    public void addValue(double v) {
-      this.dv = v;
+      if(dv == Double.MIN_VALUE) {
+         this.dv = v;
+      }
    }
 
    /**
@@ -72,7 +78,7 @@ public class DefaultFormula implements Formula {
     */
    @Override
    public void addValue(double[] v) {
-      this.dv = v[0];
+      addValue(v[0]);
    }
 
    /**
@@ -80,7 +86,9 @@ public class DefaultFormula implements Formula {
     */
    @Override
    public void addValue(float v) {
-      this.fv = v;
+      if(fv == Float.MIN_VALUE) {
+         this.fv = v;
+      }
    }
 
    /**
@@ -88,7 +96,9 @@ public class DefaultFormula implements Formula {
     */
    @Override
    public void addValue(long v) {
-      this.lv = v;
+      if(lv == Long.MIN_VALUE) {
+         this.lv = v;
+      }
    }
 
    /**
@@ -96,7 +106,9 @@ public class DefaultFormula implements Formula {
     */
    @Override
    public void addValue(int v) {
-      this.iv = v;
+      if(iv == Integer.MIN_VALUE) {
+         this.iv = v;
+      }
    }
 
    /**
@@ -104,7 +116,7 @@ public class DefaultFormula implements Formula {
     */
    @Override
    public void addValue(short v) {
-      if(v != Tool.NULL_SHORT) {
+      if(v != Tool.NULL_SHORT && !sinited) {
          this.sv = v;
          this.sinited = true;
       }

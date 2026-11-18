@@ -29,6 +29,14 @@ import java.util.Set;
  */
 public class InformixSQLHelper extends DB2SQLHelper {
    /**
+    * Informix is not verified, so it doesn't inherit the DB2 answer.
+    */
+   @Override
+   public Boolean getLikeCaseSensitivity() {
+      return null;
+   }
+
+   /**
     * Get the sql helper type.
     * @return the sql helper type.
     */

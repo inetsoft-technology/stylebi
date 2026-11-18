@@ -17,6 +17,7 @@
  */
 package inetsoft.report.filter;
 
+import inetsoft.uql.XConstants;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -244,5 +245,124 @@ public class FirstFormulaTest {
       assertTrue(formula.isDefaultResult());
       formula.setDefaultResult(false);
       assertFalse(formula.isDefaultResult());
+   }
+
+   // -----------------------------------------------------------------------
+   // ties, pairs that are skipped, result type
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.min-max#first-by-second-column
+   @Test
+   void addValue_tiedDimension_firstRowWins() {
+      FirstFormula first = new FirstFormula(1);
+      addPairs(first, pair("a", 1), pair("b", 1), pair("c", 2));
+      assertEquals("a", first.getResult());
+
+      first.reset();
+      assertTrue(first.isNull());
+      addPairs(first, pair("a", 5), pair("b", 2), pair("c", 2));
+      assertEquals("b", first.getResult());
+
+      // the double array form: {measure, by}
+      first.reset();
+      first.addValue(new double[] { 10, 3 });
+      first.addValue(new double[] { 20, 1 });
+      first.addValue(new double[] { 30, 1 });
+      assertEquals(20.0, first.getResult());
+      assertEquals(20.0, first.getDoubleResult());
+   }
+
+   // gap:report.summary-formulas.min-max#first-last-ignore-non-pairs
+   @Test
+   void addValue_nonPairsAndNullMeasures_skipped() {
+      FirstFormula first = new FirstFormula(1);
+      first.addValue((Object) null);
+      first.addValue("not a pair");
+      first.addValue((Object) 7);
+      assertTrue(first.isNull());
+
+      // a pair whose measure is null is skipped, even with the smallest By value
+      addPairs(first, pair(null, 1), pair(5, 2));
+      assertFalse(first.isNull());
+      assertEquals(5, first.getResult());
+
+      first.addValue("not a pair");
+      first.addValue((Object) null);
+      assertEquals(5, first.getResult());
+
+      // the double array form skips a null measure, a null array and an empty array
+      FirstFormula doubles = new FirstFormula(1);
+      doubles.addValue((double[]) null);
+      doubles.addValue(new double[0]);
+      doubles.addValue(new double[] { Tool.NULL_DOUBLE, 1 });
+      assertTrue(doubles.isNull());
+      doubles.addValue(new double[] { 5, 2 });
+      assertEquals(5.0, doubles.getResult());
+   }
+
+   // gap:report.summary-formulas.common#second-column-formulas-need-pairs
+   @Test
+   void addValueSingleValue_throwsUnsupportedMethod() {
+      FirstFormula pairFormula = new FirstFormula(3);
+
+      // one value alone has no second column to go with it
+      for(Runnable single : new Runnable[] {
+         () -> pairFormula.addValue(1.0), () -> pairFormula.addValue(1.0f),
+         () -> pairFormula.addValue(1L), () -> pairFormula.addValue(1),
+         () -> pairFormula.addValue((short) 1)})
+      {
+         RuntimeException ex = assertThrows(RuntimeException.class, single::run);
+         assertEquals("Unsupported method called!", ex.getMessage());
+      }
+   }
+
+   // gap:report.summary-formulas.common#result-type-defaults-to-input-type
+   @Test
+   void getResultType_takesTheInputType_returnsNull() {
+      assertNull(formula.getResultType());
+   }
+
+   // -----------------------------------------------------------------------
+   // percentage of total
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.min-max#first-last-percentage-of-total
+   @Test
+   void getResult_percentageOfTotal_returnsRatio() {
+      FirstFormula first = new FirstFormula(1);
+      first.setPercentageType(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      first.setTotal(10);
+      addPairs(first, pair(5.0, 2), pair(8.0, 1), pair(1.0, 3));
+      assertEquals(0.8, first.getResult());
+      assertEquals(0.8, first.getDoubleResult());
+      assertEquals(8.0, first.getOriginalResult());
+
+      // the total may be a double
+      first.setTotal(40.0);
+      assertEquals(0.2, first.getResult());
+
+      // a total of 0 and a negative total give 0
+      first.setTotal(0);
+      assertEquals(0.0, first.getResult());
+      first.setTotal(-10);
+      assertEquals(0.0, first.getResult());
+
+      // a measure that is not a number gives 0
+      FirstFormula text = new FirstFormula(1);
+      text.setPercentageType(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      text.setTotal(10);
+      addPairs(text, pair("a", 1), pair("b", 2));
+      assertEquals(0.0, text.getResult());
+      assertEquals("a", text.getOriginalResult());
+   }
+
+   private static void addPairs(Formula formula, Object[]... pairs) {
+      for(Object[] pair : pairs) {
+         formula.addValue((Object) pair);
+      }
+   }
+
+   private static Object[] pair(Object measure, Object by) {
+      return new Object[] { measure, by };
    }
 }

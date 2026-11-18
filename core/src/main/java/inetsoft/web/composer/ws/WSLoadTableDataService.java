@@ -35,6 +35,7 @@ import inetsoft.util.GroupedThread;
 import inetsoft.util.Tool;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.script.ExpressionFailedException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.web.composer.model.ws.WSTableData;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.WSLoadTableDataCommand;
@@ -86,8 +87,29 @@ public class WSLoadTableDataService extends WorksheetControllerService {
       });
 
       if(table != null) {
-         TableLens lens = box.getTableLens(assemblyName, WorksheetEventUtil.getMode(table));
+         TableLens lens;
          Exception ex = null;
+
+         try {
+            lens = box.getTableLens(assemblyName, WorksheetEventUtil.getMode(table));
+         }
+         catch(ExpressionFailedException e) {
+            if(ScriptTimeoutGuard.isStop(e)) {
+               // answer, so that the table does not wait for its data forever, then fail
+               final WSLoadTableDataCommand command = new WSLoadTableDataCommand();
+               command.setTableData(WSTableData.builder()
+                                       .loadedRows(new String[0][0])
+                                       .startRow(0)
+                                       .endRow(0)
+                                       .completed(true)
+                                       .build());
+               command.setContinuation(event.continuation());
+               command.setRequestId(event.requestId());
+               commandDispatcher.sendCommand(assemblyName, command);
+            }
+
+            throw e;
+         }
 
          if(sortData) {
             if(event.firstChange()) {
@@ -211,7 +233,25 @@ public class WSLoadTableDataService extends WorksheetControllerService {
 
       Instant start = Instant.now();
       int mode = WorksheetEventUtil.getMode(table);
-      TableLens lens = box.getTableLens(name, mode);
+      TableLens lens;
+
+      try {
+         lens = box.getTableLens(name, mode);
+      }
+      catch(ExpressionFailedException e) {
+         if(ScriptTimeoutGuard.isStop(e)) {
+            // answer, so that the count does not wait forever, then fail
+            commandDispatcher.sendCommand(WSLoadTableDataCountCommand.builder()
+                                             .name(name)
+                                             .count(0)
+                                             .completed(true)
+                                             .duration(1)
+                                             .build());
+         }
+
+         throw e;
+      }
+
       int count = 0;
       boolean more = false;
       Exception ex = null;

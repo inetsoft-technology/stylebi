@@ -292,6 +292,21 @@ public class SQLIteratorTest {
       assertEquals("a\n", columns.get(1));
    }
 
+   // Bug #81286, an unclosed tag after an earlier closed tag of the same name looped on the
+   // first closing tag; it is invalid, and a multi-line tag after such a pair closes at its own
+   // closing tag
+   @Test
+   void unclosedTagAfterClosedSameNamedTagThrowsInsteadOfLooping() {
+      assertThrows(RuntimeException.class, () -> assertTimeoutPreemptively(
+         Duration.ofSeconds(10),
+         () -> iterate("select /*<1>*/a/*</1>*/, /*<1>*/b\nfrom t\nwhere x = 1\n")));
+
+      setup();
+      String sql = "select /*<1>*/a/*</1>*/, /*<1>*/b\n/*</1>*/ from t\n";
+      assertEquals("select a, b\n from t\n",
+                   assertTimeoutPreemptively(Duration.ofSeconds(10), () -> iterate(sql)));
+   }
+
    // Bug #77663, a tag not closed on the last line was dropped with the whole line, it is
    // invalid as on any other line
    @Test

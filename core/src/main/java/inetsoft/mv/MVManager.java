@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVStorage;
 import inetsoft.mv.fs.*;
+import inetsoft.mv.fs.internal.AbstractFileSystem;
 import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.mv.util.MVRule;
@@ -513,11 +514,18 @@ public final class MVManager implements MessageListener {
                pending.put(key, job);
 
                try {
+                  // Bug #79854, the incremental update stores its read start in the MV file
+                  long previous = mv.getLastUpdateTime();
+
                   if(job.create()) {
                      getOrgLock(orgId).writeLock().lock();
 
                      try {
-                        mv.updateLastUpdateTime(); // set update ts
+                        // refresh() stamped the cloned def in the manager, not mv, so
+                        // take the current stamp from the manager entry
+                        MVDef existing = get(mv.getName());
+                        long current = existing == null ? previous : existing.getLastUpdateTime();
+                        mv.updateLastUpdateTimeAfterCreate(previous, current); // set update ts
                         add(mv);
                         SharedMVUtil.shareCreatedMV(mv);
                      }
@@ -1041,15 +1049,27 @@ public final class MVManager implements MessageListener {
     * Add one mv.
     */
    public void add(MVDef mv, boolean event) {
+      add(mv, event, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Add one mv to an explicitly supplied organization. Callers that run off the request thread
+    * have no context principal, so the current organization would fall back to the host
+    * organization.
+    */
+   public void add(MVDef mv, boolean event, String orgID) {
       if(mv == null) {
          return;
       }
 
+      final String org =
+         orgID == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgID;
+
       try {
-         mvs.put(mv.getName(), mv);
+         OrganizationManager.runInOrgScope(org, () -> mvs.put(mv.getName(), mv, org));
 
          if(event) {
-            fireEvent("mvmanager_" + mv.getName(), MV_CHANGE_EVENT, null, null);
+            fireEvent("mvmanager_" + mv.getName(), MV_CHANGE_EVENT, null, null, org);
          }
       }
       catch(Exception e) {
@@ -1246,7 +1266,7 @@ public final class MVManager implements MessageListener {
                   MVDef mvDef = mvs.get(key, orgID);
 
                   if(mvDef != null) {
-                     defs.add(mvs.get(key, orgID));
+                     defs.add(mvDef);
                   }
                   else {
                      LOG.warn("Can not find the MV definition: " + key + " " + orgID);
@@ -1452,6 +1472,8 @@ public final class MVManager implements MessageListener {
       XFileSystem fsys = server.getFSystem();
       XBlockSystem bsys = FSService.getDataNode(oorgId).getBSystem();
       fsys.refresh(bsys, true);
+      boolean reloaded = false;
+      List<String> missing = new ArrayList<>();
 
       for(String file : listFiles) {
          String defName = null;
@@ -1462,6 +1484,19 @@ public final class MVManager implements MessageListener {
             MVDef def = mv.getDef();
             def = def != null && copy ? def.deepClone() : def;
             String oldDefName = def.getName();
+
+            // the new org's file system map can be stale (e.g. a reused org id), reload it from
+            // the renamed <new>/fs.xml once, then refresh against the block system
+            if(fsys.get(oldDefName) == null && !reloaded && fsys instanceof AbstractFileSystem) {
+               reloaded = true;
+               ((AbstractFileSystem) fsys).reloadFromDataSpace();
+               fsys.refresh(bsys, true);
+            }
+
+            if(fsys.get(oldDefName) == null) {
+               missing.add(oldDefName);
+               continue;
+            }
 
             updateMVDef(def, oorg, norg);
             defName = def.getName();
@@ -1475,6 +1510,11 @@ public final class MVManager implements MessageListener {
          finally {
             cluster.unlockKey("mv.fs.update");
          }
+      }
+
+      if(!missing.isEmpty()) {
+         throw new RuntimeException("MV files missing from the distributed file system of " +
+                                       "organization " + norgId + ": " + missing);
       }
 
       if(!copy && idChanged) {
@@ -1629,8 +1669,11 @@ public final class MVManager implements MessageListener {
     * Fire property change event.
     */
    public void fireEvent(String src, String name, Object oval, Object nval) {
+      fireEvent(src, name, oval, nval, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   public void fireEvent(String src, String name, Object oval, Object nval, String orgId) {
       try {
-         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
          cluster.sendMessage(
             new MVChangedMessage(Util.getOrgEventSourceID(src, orgId), name, oval, nval));
       }

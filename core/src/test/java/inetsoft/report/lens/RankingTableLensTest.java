@@ -236,4 +236,24 @@ public class RankingTableLensTest {
 
       volatile RuntimeException failure;
    }
+
+   /**
+    * R03: the number of ranked data rows for out of range N values (5 data rows in the base).
+    */
+   @org.junit.jupiter.api.DisplayName("R03 RankingTableLens N bounds")
+   @org.junit.jupiter.params.ParameterizedTest(name = "[{index}] N={0} -> {1} data rows")
+   @org.junit.jupiter.params.provider.CsvSource({ "-1, 0", "0, 0", "2147483647, 5" })
+   public void r03_rankingNBounds(int n, int dataRows) {
+      RankingTableLens ranking = new RankingTableLens(new FailingBase(null));
+      ranking.setRankingColumn(1);
+      ranking.setRankingN(n);
+
+      int rows = 0;
+
+      while(ranking.moreRows(rows + 1)) {
+         rows++;
+      }
+
+      Assertions.assertEquals(dataRows, rows, "data rows");
+   }
 }

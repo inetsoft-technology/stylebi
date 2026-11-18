@@ -28,24 +28,9 @@ public final class ExcelConstants {
    public ExcelConstants() {
    }
 
-   /**
-    * get excel generate type.
-    */
-   public static String getGenerateType() {
-      return generateType;
-   }
-
-   /**
-    * set excel generate type.
-    */
-   public static void setGenerateType(String type) {
-      generateType = type;
-   }
-
    public static final int EXCEL_MAX_ROW = 1048575;
    public static final int EXCEL_MAX_COL = 16383;
    public static final int SHEET_MAX_ROWS = 1048000;
    public static final short DEFCOLWIDTH = 0x55; // Default Width for Columns.
-   private static String generateType = "";
 }
 

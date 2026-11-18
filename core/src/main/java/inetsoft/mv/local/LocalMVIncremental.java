@@ -27,6 +27,7 @@ import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ConditionUtil;
 import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.jdbc.XFilterNode;
@@ -67,6 +68,11 @@ public class LocalMVIncremental extends MVIncremental {
       if(update0()) {
          refresh();
       }
+      else {
+         // Bug #79854, the query returned no rows (or only the dictionary ranges changed), but
+         // a row inserted while it ran must still be selected by the next update
+         storeUpdateStart();
+      }
    }
 
    private boolean update0() throws Exception {
@@ -105,6 +111,8 @@ public class LocalMVIncremental extends MVIncremental {
       }
 
       MVConditionListHandler handler = new MVConditionListHandler(assembly, mv, vars, mvdef);
+      handler.setLikeCaseSensitive(MVConditionListHandler.getLikeCaseSensitivity(
+         assembly, AssetUtil.getSQLHelper(assembly)));
 
       // 2. fix delete condition
       List<XNode> filter = fixCondition(wrapper, handler, vars);
@@ -227,8 +235,16 @@ public class LocalMVIncremental extends MVIncremental {
       assembly = (TableAssembly) assembly.clone();
       assembly.getAggregateInfo().clear();
       LocalMVExecutor exec = new LocalMVExecutor(assembly, mvdef.getName(), vars, null);
-      XTable lensMV = MVCreatorUtil.expand(mvdef, exec.getData());
+      updateDictionaryRanges(MVCreatorUtil.expand(mvdef, exec.getData()));
+   }
 
+   /**
+    * Recompute the dictionary and column ranges from the rows that are left in the MV and
+    * save the MV. Package-private for tests.
+    *
+    * @param lensMV the expanded data of the MV.
+    */
+   void updateDictionaryRanges(XTable lensMV) throws Exception {
       // Get a list of columns in MV-sorted order
       List<MVColumn> cols = mvdef.getColumns();
       XIntList colList = new XIntList();
@@ -263,6 +279,10 @@ public class LocalMVIncremental extends MVIncremental {
                col.setRange(null, null);
             }
          }
+
+         // the date range of the date level columns is used by the time slider and calendar
+         // and is not reset by setRange, the re-scan below grows it again
+         resetDateRanges(mvdef.getColumns());
 
          int b = 0;
 
@@ -299,6 +319,9 @@ public class LocalMVIncremental extends MVIncremental {
          }
       }
       else {
+         // no rows are left, so no date range is left either
+         resetDateRanges(mvdef.getColumns());
+
          // if there is no data in the table, then null the dictionary ranges
          for(int b = 0; b < mv.getBlockSize(); b++) {
             for(int c = 0; c < mv.getHeaders().length; c++) {
@@ -310,6 +333,18 @@ public class LocalMVIncremental extends MVIncremental {
       }
 
       mv.save(MVStorage.getFile(mvdef.getName()));
+   }
+
+   /**
+    * Clear the date range of the date level columns, which is separate from the range reset by
+    * {@link MVColumn#setRange(Number, Number)} (Bug #79747).
+    */
+   static void resetDateRanges(List<MVColumn> cols) {
+      for(MVColumn col : cols) {
+         if(col instanceof DateMVColumn) {
+            ((DateMVColumn) col).resetRange();
+         }
+      }
    }
 
    /**

@@ -71,6 +71,7 @@ import static org.mockito.Mockito.when;
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("database")
 class SQLHelperCommaJoinGroupTest {
    private static final String DERBY = "jdbc:derby:memory:bug77675";
    private static final String HSQLDB = "jdbc:hsqldb:mem:bug77675";

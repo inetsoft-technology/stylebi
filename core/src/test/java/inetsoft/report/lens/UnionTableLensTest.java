@@ -70,6 +70,33 @@ public class UnionTableLensTest {
    }
 
    /**
+    * While a base is loading, getRowCount() is -loaded - 1 (TableLens loading convention) and
+    * the header of a later base is not counted (bug #80538).
+    */
+   @Test
+   public void nonDistinctRowCountFollowsLoadingConvention() {
+      // left complete: 3 rows + header = 4; right loading with 3 rows read (header + 2 data)
+      UnionTableLens lens = new UnionTableLens(new DefaultTableLens(data(3)), loading(data(2), 3));
+      lens.setDistinct(false);
+      // loaded = 4 + 3 - 1 (skipped header) = 6, convention gives -7
+      Assertions.assertEquals(-7, lens.getRowCount());
+
+      // first base loading with 3 rows read: -3 - 1
+      lens = new UnionTableLens(loading(data(2), 3), new DefaultTableLens(data(3)));
+      lens.setDistinct(false);
+      Assertions.assertEquals(-4, lens.getRowCount());
+   }
+
+   private static DefaultTableLens loading(Object[][] data, int loaded) {
+      return new DefaultTableLens(data) {
+         @Override
+         public int getRowCount() {
+            return -loaded - 1;
+         }
+      };
+   }
+
+   /**
     * {@code rows} rows of {@code id, value}, both {@code r} for row {@code r}.
     */
    private static Object[][] data(int rows) {

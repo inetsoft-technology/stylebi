@@ -43,7 +43,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
+@Tag("database")
 class SQLHelperJoinCycleTest {
    private static final String COLS3 = "select a.id, b.id, c.id ";
    private static final String COLS = "select a.id, b.id, c.id, d.id ";

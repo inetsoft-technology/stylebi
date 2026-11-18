@@ -1511,14 +1511,27 @@ public class AssetEventUtil {
     * permission move.
     */
    public static void renameTableStyleFolder(String oname, String nname, LibManager manager) {
+      renameTableStyleFolder(oname, nname, manager, SecurityEngine.getSecurity());
+   }
+
+   /**
+    * Renames a table style folder, its styles and its subfolders, and moves the permission of
+    * each renamed style with it (Bug #80959).
+    */
+   public static void renameTableStyleFolder(String oname, String nname, LibManager manager,
+                                             SecurityEngine security)
+   {
       XTableStyle[] tstyles = manager.getTableStyles(oname);
 
       for(XTableStyle tstyle : tstyles) {
-         String tstyleName = tstyle.getName();
+         // the style object is renamed in place, keep its old name for the permission move
+         String ostyleName = tstyle.getName();
+         String tstyleName = ostyleName;
          int idx = tstyleName.lastIndexOf(LibManager.SEPARATOR);
          tstyleName = idx < 0 ? tstyleName : tstyleName.substring(idx + 1);
-         manager.renameTableStyle(
-            tstyle.getName(), nname + LibManager.SEPARATOR + tstyleName, tstyle.getID());
+         String nstyleName = nname + LibManager.SEPARATOR + tstyleName;
+         manager.renameTableStyle(ostyleName, nstyleName, tstyle.getID());
+         moveTableStylePermission(security, ostyleName, nstyleName);
       }
 
       manager.renameTableStyleFolder(oname, nname);
@@ -1529,7 +1542,33 @@ public class AssetEventUtil {
          String subName = folder;
          int idx = folder.lastIndexOf(LibManager.SEPARATOR);
          subName = idx < 0 ? subName : subName.substring(idx + 1);
-         renameTableStyleFolder(folder, nname + LibManager.SEPARATOR + subName, manager);
+         renameTableStyleFolder(folder, nname + LibManager.SEPARATOR + subName, manager,
+                                security);
+      }
+   }
+
+   /**
+    * Bug #80959, LibManager renames a table style but leaves its permission at the old name, so
+    * the renamed style would be open to everyone with READ on the library. Moves it the way the
+    * EM script rename does (Bug #78217: the style is already renamed, a failed permission write
+    * is logged and does not fail the rename, and the new key is written before the old is
+    * removed). A stale permission left at the new name is removed so it is not inherited.
+    */
+   private static void moveTableStylePermission(SecurityEngine security, String oname,
+                                                String nname)
+   {
+      if(Objects.equals(oname, nname)) {
+         return;
+      }
+
+      Permission permission = security.getPermission(ResourceType.TABLE_STYLE, oname);
+
+      if(permission != null) {
+         AbstractAssetEngine.movePermissionBestEffort(
+            security, ResourceType.TABLE_STYLE, oname, nname, permission);
+      }
+      else {
+         AbstractAssetEngine.removePermissionBestEffort(security, ResourceType.TABLE_STYLE, nname);
       }
    }
 

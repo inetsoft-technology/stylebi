@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * chart shape constants and default palette, and thread-local statics. Identity of the shared
  * constants is kept. Failure messages report counts only.
  */
-@Tag("core")
+@Tag("slow")
 class ScriptSharedStaticStateTest {
    private GraalJavaScriptEngine engine;
    private final Map<GShape, Object[]> shapes = new IdentityHashMap<>();

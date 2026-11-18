@@ -20,6 +20,7 @@ package inetsoft.sree.security;
 import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
+import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.portal.PortalThemesManager;
@@ -191,6 +192,79 @@ class OrgScopedPropertiesMixedCaseOrgIdTest {
       assertEquals("debug", SreeEnv.getProperty(LOG_KEY + "^" + toOrgId),
                    "the log level property must be moved to the new org ID");
       assertNull(SreeEnv.getProperty(LOG_KEY + "^" + fromOrgId));
+   }
+
+   // Bug #81320: the whole rename chain with the real IdentityThemeService. The org's selected
+   // theme pointer is one property for a case-only rename, so no step after copyThemes (e.g.
+   // removeTheme of the old id) may reset it; a real id change moves it and clears the old one.
+   @Test
+   void rename_onlyCaseOfOrgIdChanges_keepsSelectedTheme() {
+      assertEquals("shared-theme", renameWithSelectedTheme("B81320Case", "b81320case"),
+                   "a case-only rename must keep the org's selected theme");
+   }
+
+   @Test
+   void rename_realIdChange_movesSelectedTheme() {
+      assertEquals("shared-theme", renameWithSelectedTheme("B81320From", "B81320To"));
+      assertEquals("default", selectedThemeProperty("B81320From"),
+                   "the old org's selection must be cleared");
+   }
+
+   private static String selectedThemeProperty(String orgId) {
+      String value = SreeEnv.getProperty("portal.org.selectedThemeId." + orgId);
+      return value == null ? "default" : value;
+   }
+
+   private static String renameWithSelectedTheme(String fromOrgId, String toOrgId) {
+      String key = "portal.org.selectedThemeId.";
+      CustomTheme theme = new CustomTheme();
+      theme.setId("shared-theme");
+      theme.setOrgID(null);
+      theme.setOrganizations(new ArrayList<>(List.of(fromOrgId)));
+      SreeEnv.setProperty(key + fromOrgId, "shared-theme");
+
+      FSOrganization fromOrg = new FSOrganization(fromOrgId);
+      fromOrg.setName(fromOrgId);
+      IdentityService identityService = mock(IdentityService.class);
+      doCallRealMethod().when(identityService).updateOrgProperties(any(), any());
+      doCallRealMethod().when(identityService).removeOrgProperties(any());
+      CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(themesManager);
+      when(themesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+      // the pointer is stored as the engine stores it, under the lower-cased name
+      doAnswer(inv -> {
+         String id = inv.getArgument(0);
+         String name = key + inv.<String>getArgument(1);
+
+         if(id == null || "default".equals(id)) {
+            SreeEnv.remove(name);
+         }
+         else {
+            SreeEnv.setProperty(name, id);
+         }
+
+         return null;
+      }).when(themesManager).setOrgSelectedTheme(any(), any());
+
+      try(MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+         ctm.when(CustomThemesManager::getManager).thenReturn(themesManager);
+         new StubProvider().copyOrganization(
+            fromOrg, null, toOrgId, toOrgId, identityService,
+            new IdentityThemeService(themesManager), mock(DashboardRegistryManager.class),
+            mock(DataCycleManager.class), mock(Principal.class), true);
+      }
+      catch(Exception e) {
+         // Tolerated as in renameOrganization(): the end of the rename needs registries that
+         // this context does not provide. removeTheme() runs before that point.
+      }
+      finally {
+         verify(identityService).removeOrgScopedDataSpaceElements(any());
+      }
+
+      String result = selectedThemeProperty(toOrgId);
+      SreeEnv.remove(key + toOrgId);
+      SreeEnv.remove(key + fromOrgId);
+      return result;
    }
 
    @Test

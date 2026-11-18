@@ -36,7 +36,7 @@ public final class GroupedMergedTableBlock extends MergedTableBlock {
       super(query, block);
 
       rows = new XSwappableObjectList<>(MVRow2.class);
-      comparator = new MVRow2.RowComparator(query.order);
+      comparator = new MVRow2.RowComparator(query.order, query.getBitKeys());
    }
 
    /**

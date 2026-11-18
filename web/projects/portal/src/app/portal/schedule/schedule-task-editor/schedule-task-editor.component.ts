@@ -152,11 +152,17 @@ export class ScheduleTaskEditorComponent implements OnInit {
 
       if(oldName == null || oldName.indexOf(":") == -1) {
          this.model.name = taskName;
-         return;
+      }
+      else if(external) {
+         this.form.patchValue({"name": taskName});
       }
 
-      if(external) {
-         this.form.patchValue({"name": taskName});
+      // The panes call this after a save, once the baseline was cloned from the response. Keep
+      // the baseline's identity in step with what is now shown, so a response whose label or
+      // name differs from the posted one is not reported as an unsaved change (Bug #79750).
+      if(this.originalModel && this.model) {
+         this.originalModel.name = this.model.name;
+         this.originalModel.label = this.model.label;
       }
    }
 
@@ -194,7 +200,6 @@ export class ScheduleTaskEditorComponent implements OnInit {
             this.updateConditionModel(m.taskConditionPaneModel);
             this.updateActionModel(m.taskActionPaneModel);
             this.updateOptionsModel(m.taskOptionsPaneModel);
-            this.originalModel = Tool.clone(this.model);
             this.saveSuccess();
 
             resolve(m);
@@ -219,7 +224,9 @@ export class ScheduleTaskEditorComponent implements OnInit {
 
    saveSuccess() {
       this.notifications.success(SAVE_TASK_MESSAGE);
-      this.originalModel = this.model;
+      // The baseline must be an independent copy: the panes edit this.model in place, so an
+      // alias would make every later edit invisible to scheduleSaveGuard (Bug #79750).
+      this.originalModel = Tool.clone(this.model);
    }
 
    get executeAsGroup(): boolean {

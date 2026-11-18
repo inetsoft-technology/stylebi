@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.util.audit.ActionRecord;
@@ -108,6 +109,21 @@ public class RepositoryTreeController {
       @RequestParam(value = "isDefaultOrgAsset", defaultValue = "false") boolean isDefaultOrgAsset,
       @RequestParam(value = "showVS", defaultValue = "false") boolean showVS,
       Principal principal) throws Exception
+   {
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         return getFolder0(path, permission, selector, detailType, isArchive, checkDetailType,
+                           isReport, isFavoritesTree, isGlobal, isPortalData, isPortalRepo,
+                           isDefaultOrgAsset, showVS, principal);
+      }
+   }
+
+   private TreeNodeModel getFolder0(String path, String permission, int selector,
+                                    String detailType, boolean isArchive, String checkDetailType,
+                                    boolean isReport, boolean isFavoritesTree, boolean isGlobal,
+                                    boolean isPortalData, boolean isPortalRepo,
+                                    boolean isDefaultOrgAsset, boolean showVS,
+                                    Principal principal)
+      throws Exception
    {
       if(OrganizationManager.getGlobalDefOrgFolderName().equals(path) && isDefaultOrgAsset) {
          return getGlobalRootNode(principal, isReport, isFavoritesTree, isGlobal, isPortalData, showVS);
@@ -200,6 +216,8 @@ public class RepositoryTreeController {
 
       List<TreeNodeModel> folderNodes = new ArrayList<>();
       List<TreeNodeModel> fileNodes = new ArrayList<>();
+      RepositoryTreeService.SupportedOperationsContext opsContext =
+         repositoryTreeService.new SupportedOperationsContext(principal);
 
       for(RepositoryEntry entry : entries) {
          if(!isVisible(entry, isReport, isPortalData, isFavoritesTree, isGlobal,
@@ -211,7 +229,8 @@ public class RepositoryTreeController {
          entry.setFavoritesUser(!isDefaultOrgAsset && repositoryTreeService.hasFavoritesUser(entry, principal));
          RepositoryEntryModel entryModel = repositoryEntryModelFactoryService
             .createModel(entry);
-         entryModel.setOp(repositoryTreeService.getSupportedOperations(entry, principal));
+         entryModel.setOp(repositoryTreeService.getSupportedOperations(
+            entry, principal, opsContext));
          entryModel.setDefaultOrgAsset(entry.isDefaultOrgAsset());
 
          TreeNodeModel.Builder builder = TreeNodeModel.builder();
@@ -280,6 +299,8 @@ public class RepositoryTreeController {
       RepositoryEntry[] entries = engine.getDefaultOrgRepositoryEntries(principal);
       List<TreeNodeModel> folderNodes = new ArrayList<>();
       List<TreeNodeModel> fileNodes = new ArrayList<>();
+      RepositoryTreeService.SupportedOperationsContext opsContext =
+         repositoryTreeService.new SupportedOperationsContext(principal);
 
       for(RepositoryEntry entry : entries) {
 
@@ -289,7 +310,8 @@ public class RepositoryTreeController {
 
          RepositoryEntryModel<RepositoryEntry> entryModel =
             repositoryEntryModelFactoryService.createModel(entry);
-         entryModel.setOp(repositoryTreeService.getSupportedOperations(entry, principal));
+         entryModel.setOp(repositoryTreeService.getSupportedOperations(
+            entry, principal, opsContext));
          entryModel.setDefaultOrgAsset(entry.isDefaultOrgAsset());
 
          TreeNodeModel node = TreeNodeModel.builder()
@@ -560,6 +582,8 @@ public class RepositoryTreeController {
 
          if(!SUtil.checkPermission(principal, entry, analyticRepository, ResourceAction.DELETE)) {
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+            // audit message text, not SQL.
+            // nosemgrep: java.spring.security.injection.tainted-sql-string.tainted-sql-string
             actionRecord.setActionError("Delete access denied: " + objectName);
             throw new RemoteException("Delete access denied: " + objectName);
          }
@@ -584,7 +608,13 @@ public class RepositoryTreeController {
             }
          }
          else {
-            LOG.error("Failed to remove asset", e);
+            if(e instanceof MessageException) {
+               LOG.debug("Failed to remove asset", e);
+            }
+            else {
+               LOG.error("Failed to remove asset", e);
+            }
+
             String message = e.getMessage();
 
             if(message == null) {

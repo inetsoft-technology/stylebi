@@ -56,6 +56,7 @@ import static org.mockito.Mockito.*;
  * instances whose {@code ignite} is a server or a client.
  */
 @Tag("slow")
+@Tag("cluster")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class IgniteClusterClientLockFailureTest {

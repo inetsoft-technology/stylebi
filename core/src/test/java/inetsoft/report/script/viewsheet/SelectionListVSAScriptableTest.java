@@ -27,6 +27,8 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
@@ -245,5 +247,28 @@ public class SelectionListVSAScriptableTest {
       selectionListVSAScriptable.setSingleSelectionValue(true);
       assertTrue(selectionListVSAScriptable.isSingleSelection());
       assertTrue(selectionListVSAssemblyInfo.getSingleSelectionValue());
+   }
+
+   @Test
+   void measureAndFormulaRoundTripThroughScript() {
+      selectionListVSAScriptable.addProperties();
+      selectionListVSAScriptable.putMember("measure", "sales");
+      selectionListVSAScriptable.putMember("formula", "Sum");
+
+      assertEquals("sales", selectionListVSAScriptable.getMember("measure"));
+      assertEquals("Sum", selectionListVSAScriptable.getMember("formula"));
+      assertEquals("sales", selectionListVSAssemblyInfo.getMeasure());
+      assertEquals("Sum", selectionListVSAssemblyInfo.getFormula());
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void showTextAndShowBarRoundTripThroughScript(boolean value) {
+      selectionListVSAScriptable.addProperties();
+      selectionListVSAScriptable.putMember("showText", value);
+      selectionListVSAScriptable.putMember("showBar", !value);
+
+      assertEquals(value, selectionListVSAScriptable.getMember("showText"));
+      assertEquals(!value, selectionListVSAScriptable.getMember("showBar"));
    }
 }

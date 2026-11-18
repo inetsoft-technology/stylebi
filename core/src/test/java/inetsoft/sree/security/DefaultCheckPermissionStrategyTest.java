@@ -1553,4 +1553,11 @@ class DefaultCheckPermissionStrategyTest {
 
       return perm;
    }
+
+   // Bug #81497, a resource with no mapped type (null) must be refused, not throw an NPE
+   @Test
+   void nullResourceType_doesNotThrow_andIsDenied() {
+      assertDoesNotThrow(() -> assertFalse(
+         mockStrategy.checkPermission(mockUser, null, "My Dashboards", ResourceAction.DELETE)));
+   }
 }

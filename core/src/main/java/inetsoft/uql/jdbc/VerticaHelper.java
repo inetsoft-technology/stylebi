@@ -86,4 +86,12 @@ public class VerticaHelper extends SQLHelper {
       Object[] normalized = normalizeFrameInterval(offset, unit);
       return "INTERVAL '" + normalized[0] + " " + ((String) normalized[1]).toLowerCase() + "s'";
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }

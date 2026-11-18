@@ -681,4 +681,53 @@ describe("Selection List Cell Test", () => {
       // jsdom 26+ normalizes hex colors to rgb() form when read back from styles.
       expect(listCell.styles["border-bottom-color"]).toBe("rgb(255, 0, 255)");
    });
+
+   // Bug #79407 the HTML label must go through Angular's sanitizer (real DomSanitizer here).
+   describe("HTML label sanitization (Bug #79407)", () => {
+      const renderLabel = (label: string): HTMLElement => {
+         selectionListCell.selectionValue = Object.assign(createModel(), { label, value: label });
+         selectionListCell.ngOnChanges({} as any);
+         fixture.detectChanges();
+         return fixture.nativeElement as HTMLElement;
+      };
+
+      it("should strip the onerror attribute from an <img> label", () => {
+         const root = renderLabel("Acme<img src=x onerror=\"window.__xss=1\">");
+         const img = root.querySelector(".selection-value img");
+
+         expect(img).not.toBeNull();
+         expect(img.hasAttribute("onerror")).toBe(false);
+         expect(root.querySelector(".selection-value").innerHTML).not.toContain("onerror");
+      });
+
+      it("should drop javascript: hrefs and inline style from a label", () => {
+         const root = renderLabel("<a href=\"javascript:alert(1)\" style=\"color:red\">go</a>");
+         const a = root.querySelector(".selection-value a");
+
+         expect(a).not.toBeNull();
+         expect(a.getAttribute("href") || "").not.toMatch(/^javascript:/i);
+         expect(a.hasAttribute("style")).toBe(false);
+      });
+
+      it("should still render simple markup", () => {
+         const root = renderLabel("<b>bold</b><br><i>it</i>");
+
+         expect(root.querySelector(".selection-value b").textContent).toBe("bold");
+         expect(root.querySelector(".selection-value i").textContent).toBe("it");
+         expect(root.querySelector(".selection-value br")).not.toBeNull();
+      });
+
+      it("should keep a plain-text label as text", () => {
+         const root = renderLabel("a < b & c");
+
+         expect(selectionListCell.htmlLabel).toBeNull();
+         expect(root.querySelector(".selection-value").textContent).toContain("a < b & c");
+      });
+
+      it("should render a leading <script> label as inert text", () => {
+         const root = renderLabel("<script>window.__xss=2</script>x");
+
+         expect(root.querySelector("script")).toBeNull();
+      });
+   });
 });

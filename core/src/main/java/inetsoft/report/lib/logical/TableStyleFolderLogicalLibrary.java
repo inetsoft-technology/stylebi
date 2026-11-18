@@ -176,11 +176,7 @@ public class TableStyleFolderLogicalLibrary extends AbstractLogicalLibrary<Strin
       lock.writeLock().lock();
 
       try {
-         if(options.init()) {
-            clear();
-         }
-
-         getNameToEntryMap().putAll(loadingMap);
+         applyLoadedEntries(loadingMap, options.init());
       }
       finally {
          lock.writeLock().unlock();

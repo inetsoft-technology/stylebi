@@ -17,7 +17,9 @@
  */
 package inetsoft.graph.internal;
 
+import inetsoft.graph.data.CombinedDataSetComparator;
 import inetsoft.report.filter.DefaultComparer;
+import inetsoft.report.filter.OthersComparator;
 import inetsoft.report.filter.SortOrder;
 import org.junit.jupiter.api.Test;
 
@@ -196,5 +198,125 @@ class FirstDayComparatorTest {
       // Thursday(5) > Wednesday(4) → in desc, compare(5,4) < 0
       assertTrue(cmp(comp, Double.valueOf(5.0), Double.valueOf(4.0)) < 0);
       assertTrue(cmp(comp, Long.valueOf(3L), Long.valueOf(6L)) > 0);
+   }
+
+   // ---- Non-DefaultComparer delegates (Bug #79739) ----
+
+   @Test
+   void manualDelegateHonoursManualOrderWithoutException() {
+      Comparator<Object> comp = (Comparator<Object>) new FirstDayComparator(
+         (Comparator) new ManualOrderComparer("integer", java.util.List.of(3, 2, 1)));
+
+      assertTrue(comp.compare(3, 2) < 0, "manual order puts 3 before 2");
+      assertTrue(comp.compare(2, 1) < 0, "manual order puts 2 before 1");
+      assertTrue(comp.compare(1, 3) > 0);
+   }
+
+   @Test
+   void othersDelegateDoesNotThrow() {
+      Comparator<Object> comp = (Comparator<Object>) new FirstDayComparator(
+         (Comparator) new OthersComparator());
+
+      assertDoesNotThrow(() -> comp.compare(2, 3));
+   }
+
+   @Test
+   void wrapLeavesManualOrderComparerUntouched() {
+      Comparator manual = new ManualOrderComparer("integer", java.util.List.of(3, 2, 1));
+      assertSame(manual, FirstDayComparator.wrap("day", manual));
+   }
+
+   @Test
+   void wrapLeavesOthersAndValueOrderStyleComparersUntouched() {
+      Comparator others = new OthersComparator();
+      assertSame(others, FirstDayComparator.wrap("day", others));
+   }
+
+   @Test
+   void wrapKeepsNullDelegateBehaviour() {
+      Comparator wrapped = FirstDayComparator.wrap("day", null);
+      assertInstanceOf(FirstDayComparator.class, wrapped);
+   }
+
+   @Test
+   void wrapWrapsDefaultComparer() {
+      Comparator wrapped = FirstDayComparator.wrap("day", new DefaultComparer());
+      assertInstanceOf(FirstDayComparator.class, wrapped);
+   }
+
+   @Test
+   void wrapDoesNotDoubleWrap() {
+      Comparator once = FirstDayComparator.wrap("day", new DefaultComparer());
+      assertSame(once, FirstDayComparator.wrap("day", once));
+   }
+
+   @Test
+   void wrapCombinedAscAndOthersRotatesAndKeepsOthersLast() {
+      withWeekStart("Monday", () -> {
+         Comparator combined = new CombinedDataSetComparator(
+            "day", new DefaultComparer(), new OthersComparator());
+         Comparator wrapped = FirstDayComparator.wrap("day", combined);
+
+         assertInstanceOf(CombinedDataSetComparator.class, wrapped);
+         assertNotSame(combined, wrapped);
+         Comparator<Object> c = (Comparator<Object>) wrapped;
+         // Monday-first: Mon(2) < Sat(7) < Sun(1)
+         assertTrue(c.compare(2, 1) < 0, "Mon before Sun");
+         assertTrue(c.compare(1, 7) > 0, "Sun after Sat");
+         assertTrue(c.compare(7, 2) > 0);
+      });
+   }
+
+   @Test
+   void wrapCombinedDescAndOthersRotatesDescending() {
+      withWeekStart("Monday", () -> {
+         DefaultComparer desc = new DefaultComparer();
+         desc.setNegate(true);
+         Comparator wrapped = FirstDayComparator.wrap(
+            "day", new CombinedDataSetComparator("day", desc, new OthersComparator()));
+         Comparator<Object> c = (Comparator<Object>) wrapped;
+
+         assertTrue(c.compare(1, 2) < 0, "Sun first when descending Monday-first");
+         assertTrue(c.compare(2, 7) > 0);
+      });
+   }
+
+   @Test
+   void wrapLeavesCombinedWithManualUntouched() {
+      Comparator combined = new CombinedDataSetComparator(
+         "day", new ManualOrderComparer("integer", java.util.List.of(3, 2, 1)),
+         new OthersComparator());
+      assertSame(combined, FirstDayComparator.wrap("day", combined));
+   }
+
+   @Test
+   void wrapTreatsRcalcStyleCombinedGenerically() {
+      withWeekStart("Monday", () -> {
+         Comparator rcalc = (a, b) -> 0;
+         Comparator wrapped = FirstDayComparator.wrap(
+            "day", new CombinedDataSetComparator("day", new DefaultComparer(), rcalc));
+
+         assertInstanceOf(CombinedDataSetComparator.class, wrapped);
+         assertTrue(((Comparator<Object>) wrapped).compare(1, 2) > 0);
+      });
+   }
+
+   private static void withWeekStart(String day, Runnable r) {
+      String old = inetsoft.sree.SreeEnv.getProperty("week.start");
+      try {
+         inetsoft.sree.SreeEnv.setProperty("week.start", day);
+         inetsoft.util.Tool.clearWeekStartCache();
+         r.run();
+      }
+      finally {
+         if(old == null) {
+            inetsoft.sree.SreeEnv.remove("week.start");
+         }
+         else {
+            inetsoft.sree.SreeEnv.setProperty("week.start", old);
+         }
+
+         inetsoft.util.Tool.clearWeekStartCache();
+      }
    }
 }

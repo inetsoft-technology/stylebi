@@ -154,4 +154,51 @@ public class ImageVSAScriptableTest {
       imageVSAScriptable.setImage(image);
       assertEquals(image, imageVSAScriptable.getImage());
    }
+
+   @Test
+   void popAlphaScriptValueIsRevertedToDesignValueOnReset() {
+      imageVSAssemblyInfo.setAlphaValue("30");
+      imageVSAScriptable.addProperties();
+      imageVSAScriptable.putMember("popAlpha", "70");
+      assertEquals("70", imageVSAScriptable.getMember("popAlpha"));
+
+      imageVSAssemblyInfo.resetRuntimeValues();
+      assertEquals("30", imageVSAScriptable.getMember("popAlpha"));
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "-5,0", "150,100", "49.9,49" })
+   void imageAlphaIsClampedToZeroToHundredAndTruncated(String value, String expected) {
+      imageVSAScriptable.addProperties();
+      imageVSAScriptable.putMember("imageAlpha", value);
+      assertEquals(expected, imageVSAScriptable.getMember("imageAlpha"));
+   }
+
+   @Test
+   void popLocationScriptValueIsRevertedToDesignValueOnReset() {
+      imageVSAssemblyInfo.setPopLocationValue(PopVSAssemblyInfo.PopLocation.CENTER);
+      imageVSAScriptable.setPopLocation("MOUSE");
+      assertEquals(PopVSAssemblyInfo.PopLocation.MOUSE.value, imageVSAScriptable.getPopLocation());
+
+      imageVSAssemblyInfo.resetRuntimeValues();
+      assertEquals(PopVSAssemblyInfo.PopLocation.CENTER.value, imageVSAScriptable.getPopLocation());
+   }
+
+   @Test
+   void popComponentTurnsOnRuntimePopOptionAndValueTurnsOnDesignOption() {
+      imageVSAScriptable.setPopComponent("c1");
+      assertEquals(PopVSAssemblyInfo.POP_OPTION, imageVSAssemblyInfo.getPopOption());
+
+      imageVSAScriptable.setPopComponentValue("c2");
+      assertEquals(PopVSAssemblyInfo.POP_OPTION, imageVSAssemblyInfo.getPopOptionValue());
+   }
+
+   @Test
+   void clonedImageInfoDoesNotShareRuntimePopLocation() {
+      imageVSAssemblyInfo.setPopLocation(PopVSAssemblyInfo.PopLocation.MOUSE);
+      ImageVSAssemblyInfo clone = imageVSAssemblyInfo.clone(false);
+      clone.setPopLocation(PopVSAssemblyInfo.PopLocation.CENTER);
+
+      assertEquals(PopVSAssemblyInfo.PopLocation.MOUSE, imageVSAssemblyInfo.getPopLocation());
+   }
 }

@@ -167,7 +167,7 @@ public class WizTableStyleFolderController {
          requireFolderWritePermission(principal, newParent);
       }
 
-      AssetEventUtil.renameTableStyleFolder(oldFull, newFull, lib);
+      AssetEventUtil.renameTableStyleFolder(oldFull, newFull, lib, securityEngine);
       lib.save();
       return summary(lib, newFull, principal);
    }

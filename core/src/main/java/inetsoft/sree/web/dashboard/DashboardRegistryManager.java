@@ -385,6 +385,14 @@ public class DashboardRegistryManager {
                boolean changeId = !Tool.equals(oOID, nOID);
                String oldPath = registry.getPath();
 
+               if(changeId && nKey != null && !dataSpace.exists(null, oldPath)) {
+                  // Bug #79875, no file, so nothing to move. A change that was interrupted and is
+                  // resumed has moved it, and saving the registry that was just created for the
+                  // missing file would overwrite the moved one with a blank one.
+                  clear(userName, oOID);
+                  return;
+               }
+
                if(norg != null) {
                   Arrays.stream(dashboardNames).forEach(name -> {
                      Dashboard dashboard = registry.getDashboard(name);
@@ -408,11 +416,18 @@ public class DashboardRegistryManager {
                      }
                      else {
                         registry.modifyOrgId(nOID);
+                        // Bug #79875, saved before the old file is deleted, so that a stop in
+                        // between does not lose the registry. A failure is not swallowed, the id
+                        // change would go on without the registry of the new organization.
                         registry.save();
+                        dataSpace.delete(null, oldPath);
                      }
                   }
                   catch(Exception ex) {
                      LOG.error(ex.getMessage(), ex);
+                     throw new IllegalStateException(
+                        "Failed to move the dashboard registry " + oldPath + " to organization " +
+                        nOID, ex);
                   }
                }
                else if(identityID != null && (norg == null || !Tool.equals(identityID.getOrgID(), norg.getId()))) {

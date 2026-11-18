@@ -1,0 +1,4 @@
+# Where the schedule task save checks differ from schedule-task-permission-policy.json
+# (Testing #79042). SchedulePermissionSaveMatrixTest fails when a difference is not listed here
+# and when a listed one is no longer seen. Format:
+#   <check> <actor> <shareTaskInGroup>/<deleteTaskOnlyByOwner> <actual answer> : <reason>

@@ -18,6 +18,7 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.filter.AggregateNameMatcher;
 import inetsoft.report.internal.Util;
 import inetsoft.report.lens.TextSizeLimitTableLens;
 import inetsoft.uql.*;
@@ -127,7 +128,7 @@ public class OutputVSAQuery extends VSAQuery {
             Viewsheet vs = getViewsheet();
             // add the calculate field sub aggregate ref to base table
             List<AggregateRef> aggs = VSUtil.findAggregate(vs, tname, matchNames, expression);
-            String newex = expression;
+            List<String> replacements = new ArrayList<>();
 
             for(int i = 0; i < aggs.size(); i++) {
                AggregateRef aref = VSUtil.createAliasAgg(aggs.get(i), true);
@@ -139,9 +140,11 @@ public class OutputVSAQuery extends VSAQuery {
                   info.addAggregate(aref);
                }
 
-               newex = newex.replace(matchNames.get(i),
-                  VSUtil.getAggregateString(aggs.get(i), false));
+               replacements.add(VSUtil.getAggregateString(aggs.get(i), false));
             }
+
+            // the exact spelling first, any other case for the rest (Bug #81202)
+            String newex = AggregateNameMatcher.replace(expression, matchNames, replacements);
 
             // replace the script and setVIsrtual to false to execute on
             // FormulaTableLens

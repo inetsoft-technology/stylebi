@@ -20,7 +20,6 @@ package inetsoft.report.filter;
 import inetsoft.report.Comparer;
 import inetsoft.util.Tool;
 
-import java.nio.charset.StandardCharsets;
 import java.text.Collator;
 
 /**
@@ -103,12 +102,19 @@ public class TextComparer implements Comparer {
    }
 
    private boolean isAsciiOnly(String str) {
-      if (str == null) {
+      if(str == null) {
          return false;
       }
 
-      byte[] bytes = str.getBytes(StandardCharsets.US_ASCII);
-      return bytes.length == str.length();
+      // check every char is below 0x80; encoding to US_ASCII and comparing lengths is wrong
+      // because unmappable BMP chars are replaced by a single '?' byte
+      for(int i = 0; i < str.length(); i++) {
+         if(str.charAt(i) >= 0x80) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**

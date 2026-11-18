@@ -43,6 +43,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Objects;
 
 @Controller
 public class RenameAssetController {
@@ -199,21 +200,9 @@ public class RenameAssetController {
 
          if(entry.isScript()) {
             ScriptLibraryValidator.requireValidName("name", nentry.getName());
-            SecurityEngine security = SecurityEngine.getSecurity();
-            Permission permission = security.getPermission(ResourceType.SCRIPT, entry.getName());
             manager.renameScript(entry.getName(), nentry.getName());
             manager.save();
-
-            // Bug #80189: grants are keyed by name and outlive the script; move the grant with the
-            // rename, or clear one stored at the new name so the renamed function does not inherit it
-            if(permission != null) {
-               AbstractAssetEngine.movePermissionBestEffort(
-                  security, ResourceType.SCRIPT, entry.getName(), nentry.getName(), permission);
-            }
-            else {
-               AbstractAssetEngine.removePermissionBestEffort(
-                  security, ResourceType.SCRIPT, nentry.getName());
-            }
+            movePermission(ResourceType.SCRIPT, entry.getName(), nentry.getName());
          }
          else if(entry.isTableStyle()) {
             String oname = entry.getProperty("styleName");
@@ -222,6 +211,7 @@ public class RenameAssetController {
             String oid = entry.getProperty("styleID");
             manager.renameTableStyle(oname, newName, oid);
             manager.save();
+            movePermission(ResourceType.TABLE_STYLE, oname, newName);
          }
          else if(entry.isTableStyleFolder()) {
             String oname = entry.getProperty("folder");
@@ -345,6 +335,29 @@ public class RenameAssetController {
       }
 
       return null;
+   }
+
+   /**
+    * Bug #80959, LibManager renames a script or table style but leaves its permission at the old
+    * name, so the renamed item would be open to everyone with READ on the library. Moves it the
+    * way the EM script rename does (Bug #78217: the item is already renamed, a failed permission
+    * write is logged and does not fail the rename, and the new key is written before the old is
+    * removed). A stale permission left at the new name is removed so it is not inherited.
+    */
+   private void movePermission(ResourceType type, String oname, String nname) {
+      if(Objects.equals(oname, nname)) {
+         return;
+      }
+
+      SecurityEngine security = SecurityEngine.getSecurity();
+      Permission permission = security.getPermission(type, oname);
+
+      if(permission != null) {
+         AbstractAssetEngine.movePermissionBestEffort(security, type, oname, nname, permission);
+      }
+      else {
+         AbstractAssetEngine.removePermissionBestEffort(security, type, nname);
+      }
    }
 
    /**

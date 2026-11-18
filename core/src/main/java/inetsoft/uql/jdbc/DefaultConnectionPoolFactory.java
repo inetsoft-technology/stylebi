@@ -35,8 +35,7 @@ import java.lang.reflect.Method;
 import java.security.Principal;
 import java.sql.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.*;
 import java.util.function.Predicate;
 
 /**
@@ -50,73 +49,75 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
     * Creates a new instance of <tt>DefaultConnectionPoolFactory</tt>.
     */
    public DefaultConnectionPoolFactory() {
-      dataSources = new HashMap<>();
+      dataSources = new ConcurrentHashMap<>();
    }
 
    @Override
    public DataSource getConnectionPool(JDBCDataSource jdbcDataSource,
                                        Principal user)
    {
-      DataSource result;
+      HikariDataSource result = null;
       final DataSourceKey key = DataSourceKey.Builder.from(jdbcDataSource).build();
 
-      synchronized(dataSources) {
-         result = dataSources.get(key);
+      // Bug #79485, the pool is created outside of any map-wide lock (creating it connects to
+      // the database), so a data source that is slow to connect only blocks its own callers.
+      // A null result means that the pool was closed while it was created, so create it again.
+      while(result == null) {
+         PoolEntry entry = dataSources.get(key);
+
+         if(entry == null) {
+            PoolEntry created = new PoolEntry();
+            entry = dataSources.putIfAbsent(key, created);
+
+            if(entry == null) {
+               result = createConnectionPool(key, created, jdbcDataSource);
+               continue;
+            }
+         }
+
+         result = entry.await(jdbcDataSource);
       }
 
-      if(result == null) {
-         result = createConnectionPool(key, jdbcDataSource);
-      }
-
-      if(jdbcDataSource.getDatabaseType() == JDBCDataSource.JDBC_ACCESS &&
-         result instanceof HikariDataSource)
-      {
-         removeInvalidConnections((HikariDataSource) result);
+      if(jdbcDataSource.getDatabaseType() == JDBCDataSource.JDBC_ACCESS) {
+         removeInvalidConnections(result);
       }
 
       return result;
    }
 
    /**
-    * Creates the pool of a data source. Building it opens a probe connection and starts the pool,
-    * which blocks for as long as the database takes to answer (20 s or more for an unreachable
-    * host), so it is serialized per data source, never under the lock of the whole map: one
-    * unreachable data source must not hold up the connection pools of every other one.
-    * A thread waiting for another thread's creation of the same pool can be interrupted.
+    * Creates the pool of an entry that this thread added to the map, and completes the entry.
+    *
+    * @return the pool, or <tt>null</tt> if the entry was closed while the pool was created.
     */
-   private DataSource createConnectionPool(DataSourceKey key, JDBCDataSource jdbcDataSource) {
-      ReentrantLock creationLock = creationLocks.computeIfAbsent(key, k -> new ReentrantLock());
+   private HikariDataSource createConnectionPool(DataSourceKey key, PoolEntry entry,
+                                                 JDBCDataSource jdbcDataSource)
+   {
+      HikariDataSource pool;
 
       try {
-         creationLock.lockInterruptibly();
+         pool = new HikariDataSource(createDataSourceConfig(jdbcDataSource));
       }
-      catch(InterruptedException e) {
-         Thread.currentThread().interrupt();
-         throw new IllegalStateException(
-            "Interrupted while waiting for the connection pool of data source " +
-            jdbcDataSource.getFullName(), e);
+      catch(RuntimeException | Error e) {
+         // a failed pool is not cached, the next call tries again
+         dataSources.remove(key, entry);
+         entry.future.completeExceptionally(e);
+         throw e;
       }
 
-      try {
-         DataSource result;
-
-         synchronized(dataSources) {
-            result = dataSources.get(key);
-         }
-
-         if(result == null) {
-            result = new HikariDataSource(createDataSourceConfig(jdbcDataSource, false));
-
-            synchronized(dataSources) {
-               dataSources.put(key, result);
-            }
-         }
-
-         return result;
+      if(entry.install(pool)) {
+         entry.future.complete(pool);
+         return pool;
       }
-      finally {
-         creationLock.unlock();
-      }
+
+      // the pool was created from a definition that was closed in the meantime, discard it
+      entry.future.complete(null);
+      pool.close();
+      return null;
+   }
+
+   private HikariConfig createDataSourceConfig(JDBCDataSource jdbcDataSource) {
+      return createDataSourceConfig(jdbcDataSource, false);
    }
 
    HikariConfig createDataSourceConfig(JDBCDataSource jdbcDataSource, boolean forceJdbc4) {
@@ -330,12 +331,13 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
 
    @Override
    public void closeConnectionPool(DataSource dataSource) {
-      synchronized(dataSources) {
-         for(Iterator<DataSource> i = dataSources.values().iterator(); i.hasNext();) {
-            if(i.next() == dataSource) {
-               i.remove();
-               break;
+      for(Map.Entry<DataSourceKey, PoolEntry> e : dataSources.entrySet()) {
+         if(e.getValue().getPool() == dataSource) {
+            if(dataSources.remove(e.getKey(), e.getValue())) {
+               e.getValue().close();
             }
+
+            break;
          }
       }
 
@@ -344,33 +346,37 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
 
    @Override
    public void closeConnectionPools(Predicate<DataSource> filter) {
+      closePools(filter);
+   }
+
+   @Override
+   public void closeAllConnectionsPools() {
+      closePools(ds -> true);
+   }
+
+   /**
+    * Removes the pools that match the filter from the map and closes them outside of any lock.
+    */
+   private void closePools(Predicate<DataSource> filter) {
       Set<DataSource> closed = new HashSet<>();
 
-      synchronized(dataSources) {
-         for(Iterator<DataSource> i = dataSources.values().iterator(); i.hasNext();) {
-            DataSource ds = i.next();
+      for(Map.Entry<DataSourceKey, PoolEntry> e : dataSources.entrySet()) {
+         PoolEntry entry = e.getValue();
+         HikariDataSource pool = entry.getPool();
 
-            if(filter.test(ds)) {
-               i.remove();
-               closed.add(ds);
+         // a pool that is still being created can't be tested, it is discarded when it is done.
+         // Never wait for it here, the caller may hold a lock that the creation needs.
+         if((pool == null || filter.test(pool)) && dataSources.remove(e.getKey(), entry)) {
+            pool = entry.close();
+
+            if(pool != null) {
+               closed.add(pool);
             }
          }
       }
 
       for(DataSource ds : closed) {
          ((HikariDataSource) ds).close();
-      }
-   }
-
-   @Override
-   public void closeAllConnectionsPools() {
-      synchronized(dataSources) {
-         for(Iterator<DataSource> i = dataSources.values().iterator();
-             i.hasNext();)
-         {
-            ((HikariDataSource) i.next()).close();
-            i.remove();
-         }
       }
    }
 
@@ -395,10 +401,84 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
       return false;
    }
 
-   private final Map<DataSourceKey, DataSource> dataSources;
-   private final Map<DataSourceKey, ReentrantLock> creationLocks = new ConcurrentHashMap<>();
+   private final ConcurrentMap<DataSourceKey, PoolEntry> dataSources;
    private static final Logger LOG =
       LoggerFactory.getLogger(DefaultConnectionPoolFactory.class);
+
+   /**
+    * The pool of a data source. The thread that adds the entry to the map creates the pool,
+    * the other callers of the same data source wait for it.
+    */
+   private static final class PoolEntry {
+      /**
+       * Sets the created pool, unless the entry was closed.
+       *
+       * @return <tt>true</tt> if the pool was set.
+       */
+      synchronized boolean install(HikariDataSource pool) {
+         if(closed) {
+            return false;
+         }
+
+         this.pool = pool;
+         return true;
+      }
+
+      /**
+       * Gets the pool, or <tt>null</tt> if it has not been created.
+       */
+      synchronized HikariDataSource getPool() {
+         return pool;
+      }
+
+      /**
+       * Marks the entry closed, so that a pool still being created is discarded.
+       *
+       * @return the pool to close, or <tt>null</tt> if it has not been created.
+       */
+      synchronized HikariDataSource close() {
+         closed = true;
+         return pool;
+      }
+
+      /**
+       * Waits for the pool created by another thread. The wait can be interrupted, so that a
+       * caller that gave up on an unreachable data source is not held until its pool is built
+       * (Bug #81417).
+       *
+       * @return the pool, or <tt>null</tt> if the entry was closed while the pool was created.
+       */
+      HikariDataSource await(JDBCDataSource jdbcDataSource) {
+         try {
+            return future.get();
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+               "Interrupted while waiting for the connection pool of data source " +
+               jdbcDataSource.getFullName(), e);
+         }
+         catch(ExecutionException e) {
+            // the user message of the failure is thread local, add it for this caller too
+            Tool.addUserMessage(
+               "Failed to instantiate JDBC data source " + jdbcDataSource.getFullName() + ".");
+
+            if(e.getCause() instanceof RuntimeException cause) {
+               throw cause;
+            }
+
+            if(e.getCause() instanceof Error cause) {
+               throw cause;
+            }
+
+            throw new CompletionException(e.getCause());
+         }
+      }
+
+      private final CompletableFuture<HikariDataSource> future = new CompletableFuture<>();
+      private HikariDataSource pool;
+      private boolean closed;
+   }
 
    /**
     * Data source implementation that gets the JDBC driver from JDBC handler.

@@ -442,22 +442,26 @@ public class ConditionListHandler {
          break;
       case XCondition.STARTING_WITH:
          XExpression xexpression = getExpression(cond, cond.getValue(0), vars);
+         String startEscape = escapeLikeVariable(xexpression, vars);
          String startStr = getStripQuotesString(sqlTypes, xexpression.getValue());
          condnode = new XBinaryCondition(
             field,
-            new XExpression("'" + startStr + "%'", XExpression.EXPRESSION),
+            new XExpression("'" + startStr + "%'" + startEscape, XExpression.EXPRESSION),
             "LIKE");
          break;
       case XCondition.CONTAINS:
          XExpression containsExpression = getExpression(cond, cond.getValue(0), vars);
+         String containsEscape = escapeLikeVariable(containsExpression, vars);
          String containsStr = getStripQuotesString(sqlTypes, containsExpression.getValue());
          condnode = new XBinaryCondition(
             field,
-            new XExpression("'%" + containsStr + "%'", XExpression.EXPRESSION),
+            new XExpression("'%" + containsStr + "%'" + containsEscape,
+                            XExpression.EXPRESSION),
             "LIKE");
          break;
       case XCondition.LIKE:
          XExpression likeExpression = getExpression(cond, cond.getValue(0), vars);
+         translateLikeWildcards(likeExpression, vars);
          String likeStr = getStripQuotesString(sqlTypes, likeExpression.getValue());
          condnode = new XBinaryCondition(
             field,
@@ -486,6 +490,90 @@ public class ConditionListHandler {
 
       condnode.setIsNot(cond.isNegated());
       return condnode;
+   }
+
+   /**
+    * The in-memory LIKE (Condition.getLikePattern) treats '?' as a single-character wildcard,
+    * like '_'. SQL LIKE only knows '_', so the '?' of a string value is translated to '_'
+    * in the variable table (the same technique as escapeLikeVariable) to select the same
+    * rows. Column expressions, non-string values and SQL expressions are left unchanged.
+    */
+   private void translateLikeWildcards(XExpression expression, VariableTable vars) {
+      Object text = expression.getValue();
+
+      if(!(text instanceof String) || !XExpression.EXPRESSION.equals(expression.getType())) {
+         return;
+      }
+
+      String placeholder = (String) text;
+
+      if(!placeholder.startsWith("$(") || !placeholder.endsWith(")")) {
+         return;
+      }
+
+      String name = placeholder.substring(2, placeholder.length() - 1);
+      Object value;
+
+      try {
+         value = vars.get(name);
+      }
+      catch(Exception ex) {
+         return;
+      }
+
+      if(value instanceof String && ((String) value).indexOf('?') >= 0) {
+         vars.put(name, ((String) value).replace('?', '_'));
+      }
+   }
+
+   /**
+    * Make a contains / starting with value match literally. The value is a variable that
+    * VarSQL splices into the quoted pattern later, so it is replaced in the variable table
+    * by its LIKE-escaped form (%, _ and the escape character, plus [ on SQL Server), and
+    * the matching ESCAPE clause is returned for the caller to append to the pattern.
+    * Returns an empty string and leaves the value as is when the data source's dialect is
+    * not known to support ESCAPE, or when the value is not a string variable (an inline
+    * literal or a SQL expression), so the generated SQL is unchanged there.
+    */
+   private String escapeLikeVariable(XExpression expression, VariableTable vars) {
+      Object text = expression.getValue();
+
+      if(sql == null || !(text instanceof String) ||
+         !XExpression.EXPRESSION.equals(expression.getType()))
+      {
+         return "";
+      }
+
+      String placeholder = (String) text;
+
+      if(!placeholder.startsWith("$(") || !placeholder.endsWith(")")) {
+         return "";
+      }
+
+      String name = placeholder.substring(2, placeholder.length() - 1);
+      Object value;
+
+      try {
+         value = vars.get(name);
+      }
+      catch(Exception ex) {
+         return "";
+      }
+
+      if(!(value instanceof String)) {
+         return "";
+      }
+
+      SQLHelper helper = SQLHelper.getSQLHelper(
+         SQLHelper.getProductName(sql.getDataSource(), true));
+      Character esc = helper.getLikeEscapeChar();
+
+      if(esc == null) {
+         return "";
+      }
+
+      vars.put(name, helper.escapeLikeValue((String) value));
+      return " ESCAPE '" + esc + "'";
    }
 
    private Object fixConditionValue(XExpression field, Object condValue) {

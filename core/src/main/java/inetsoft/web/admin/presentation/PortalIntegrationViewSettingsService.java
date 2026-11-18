@@ -136,59 +136,60 @@ public class PortalIntegrationViewSettingsService {
 
       // the portal buttons and tabs are global, so they may only be changed by a global save
       if(globalSettings) {
-         PortalThemesManager manager = getManager();
-         manager.loadThemes();
-         manager.setButtonVisible(PortalThemesManager.HELP_BUTTON, model.help());
-         manager.setButtonVisible(PortalThemesManager.PREFERENCES_BUTTON,
-                                  model.preference());
-         manager.setButtonVisible(PortalThemesManager.LOGOUT_BUTTON, model.logout());
-         manager.setButtonVisible(PortalThemesManager.SEARCH_BUTTON, model.search());
-         manager.setButtonVisible(PortalThemesManager.HOME_BUTTON, model.home());
+         // read, modify and save atomically, see PortalThemesManager.update(); the tabs
+         // must be read inside the update, the reload replaces them
+         getManager().updateChecked(manager -> {
+            manager.setButtonVisible(PortalThemesManager.HELP_BUTTON, model.help());
+            manager.setButtonVisible(PortalThemesManager.PREFERENCES_BUTTON,
+                                     model.preference());
+            manager.setButtonVisible(PortalThemesManager.LOGOUT_BUTTON, model.logout());
+            manager.setButtonVisible(PortalThemesManager.SEARCH_BUTTON, model.search());
+            manager.setButtonVisible(PortalThemesManager.HOME_BUTTON, model.home());
 
-         List<PortalTab> newPortalTabs = new ArrayList<>();
-         List<PortalTab> portalTabs = manager.getPortalTabs();
-         List<PortalTabModel> tabModels = model.tabs();
-         int insertIndex = 0;
-         Catalog catalog = Catalog.getCatalog(principal);
+            List<PortalTab> newPortalTabs = new ArrayList<>();
+            List<PortalTab> portalTabs = manager.getPortalTabs();
+            List<PortalTabModel> tabModels = model.tabs();
+            int insertIndex = 0;
+            Catalog catalog = Catalog.getCatalog(principal);
 
-         for(int i = 0; i < tabModels.size(); i++) {
-            PortalTabModel tabModel = tabModels.get(i);
-            PortalTab tab;
+            for(int i = 0; i < tabModels.size(); i++) {
+               PortalTabModel tabModel = tabModels.get(i);
+               PortalTab tab;
 
-            if(tabModel.originalIndex() != null) {
-               int originalIndex = tabModel.originalIndex();
+               if(tabModel.originalIndex() != null) {
+                  int originalIndex = tabModel.originalIndex();
 
-               if(originalIndex < 0 || originalIndex >= portalTabs.size()) {
-                  throw new MessageException(
-                     catalog.getString("em.presentation.portalIntegration.tabsChanged"));
-               }
+                  if(originalIndex < 0 || originalIndex >= portalTabs.size()) {
+                     throw new MessageException(
+                        catalog.getString("em.presentation.portalIntegration.tabsChanged"));
+                  }
 
-               tab = portalTabs.get(originalIndex);
+                  tab = portalTabs.get(originalIndex);
 
-               if(!tab.isEditable() && !Objects.equals(tab.getName(), tabModel.name())) {
-                  throw new MessageException(
-                     catalog.getString("em.presentation.portalIntegration.tabsChanged"));
-               }
+                  if(!tab.isEditable() && !Objects.equals(tab.getName(), tabModel.name())) {
+                     throw new MessageException(
+                        catalog.getString("em.presentation.portalIntegration.tabsChanged"));
+                  }
 
-               if(tab.isEditable()) {
-                  tab.setName(tabModel.name());
-                  tab.setLabel(tabModel.name());
-                  tab.setURI(tabModel.uri());
-                  tab.setVisible(tabModel.visible());
+                  if(tab.isEditable()) {
+                     tab.setName(tabModel.name());
+                     tab.setLabel(tabModel.name());
+                     tab.setURI(tabModel.uri());
+                     tab.setVisible(tabModel.visible());
+                  }
+                  else {
+                     insertIndex = i + 1;
+                  }
                }
                else {
-                  insertIndex = i + 1;
+                  tab = new PortalTab(tabModel.name(), tabModel.uri(), tabModel.visible());
                }
-            }
-            else {
-               tab = new PortalTab(tabModel.name(), tabModel.uri(), tabModel.visible());
+
+               newPortalTabs.add(tab);
             }
 
-            newPortalTabs.add(tab);
-         }
-
-         manager.setPortalTabs(newPortalTabs);
-         manager.save();
+            manager.setPortalTabs(newPortalTabs);
+         });
       }
 
       SreeEnv.save();
@@ -203,43 +204,42 @@ public class PortalIntegrationViewSettingsService {
       throws Exception
    {
       if(globalSettings) {
-         PortalThemesManager manager = getManager();
-         List<PortalTab> portalTabs = manager.getPortalTabs();
-         List<PortalTab> newPortalTabs = new ArrayList<>();
+         getManager().updateChecked(manager -> {
+            List<PortalTab> portalTabs = manager.getPortalTabs();
+            List<PortalTab> newPortalTabs = new ArrayList<>();
 
-         for(PortalTab tab : portalTabs) {
-            if(!tab.isEditable()) {
-               int index = 0;
+            for(PortalTab tab : portalTabs) {
+               if(!tab.isEditable()) {
+                  int index = 0;
 
-               switch(tab.getName()) {
-               case "Dashboard":
-                  index = 0;
-                  break;
-               case "Report":
-                  index = 1;
-                  break;
-               case "Schedule":
-                  index = 2;
-                  break;
-               case "Data":
-                  index = 3;
-                  break;
+                  switch(tab.getName()) {
+                  case "Dashboard":
+                     index = 0;
+                     break;
+                  case "Report":
+                     index = 1;
+                     break;
+                  case "Schedule":
+                     index = 2;
+                     break;
+                  case "Data":
+                     index = 3;
+                     break;
+                  }
+
+                  tab.setVisible(true);
+                  index = newPortalTabs.size() > index ? index : newPortalTabs.size();
+                  newPortalTabs.add(index, tab);
                }
-
-               tab.setVisible(true);
-               index = newPortalTabs.size() > index ? index : newPortalTabs.size();
-               newPortalTabs.add(index, tab);
             }
-         }
 
-         manager.loadThemes();
-         manager.setButtonVisible(PortalThemesManager.HELP_BUTTON, true);
-         manager.setButtonVisible(PortalThemesManager.PREFERENCES_BUTTON, true);
-         manager.setButtonVisible(PortalThemesManager.LOGOUT_BUTTON, true);
-         manager.setButtonVisible(PortalThemesManager.SEARCH_BUTTON, true);
-         manager.setButtonVisible(PortalThemesManager.HOME_BUTTON, true);
-         manager.setPortalTabs(newPortalTabs);
-         manager.save();
+            manager.setButtonVisible(PortalThemesManager.HELP_BUTTON, true);
+            manager.setButtonVisible(PortalThemesManager.PREFERENCES_BUTTON, true);
+            manager.setButtonVisible(PortalThemesManager.LOGOUT_BUTTON, true);
+            manager.setButtonVisible(PortalThemesManager.SEARCH_BUTTON, true);
+            manager.setButtonVisible(PortalThemesManager.HOME_BUTTON, true);
+            manager.setPortalTabs(newPortalTabs);
+         });
       }
 
       SreeEnv.remove("portal.customLoadingText", !globalSettings);

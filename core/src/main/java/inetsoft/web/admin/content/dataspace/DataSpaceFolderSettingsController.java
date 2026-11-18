@@ -232,6 +232,8 @@ public class DataSpaceFolderSettingsController {
                }
             }
             else {
+               // server-created temp file for the upload, not a client-supplied path.
+               // nosemgrep: java.spring.security.injection.tainted-file-path.tainted-file-path
                try(InputStream input = new FileInputStream(uploadedFile.file())) {
                   space.withOutputStream(
                      dir, uploadedFile.fileName(), os -> IOUtils.copy(input, os));

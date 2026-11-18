@@ -44,6 +44,9 @@
  *                        because these assertions are about real template output (rendered
  *                        placeholder attribute, select element's text-align-last style) that
  *                        cannot be observed on a directly-instantiated component.
+ *   Group 16 [Risk 3] — duplicate labels in the rendered select (Bug #80090): real TestBed
+ *                        render, picks the second of two equal labels and checks the sent
+ *                        value and the option shown after a fresh render.
  *
  * Fixed bugs:
  *   Bug #75597 — isValidDate default bounds (Group 10): defaultMinDate/defaultMaxDate are declared
@@ -627,6 +630,85 @@ describe("VSComboBox — Pass 3: Display", () => {
          fixture.detectChanges();
          let select = fixture.nativeElement.querySelector("select");
          expect(select.style["text-align-last"]).toEqual("right");
+      });
+   });
+
+   // -- Group 16 - duplicate labels in the rendered select (Bug #80090) ------
+   describe("Group 16 - duplicate labels in the rendered select", () => {
+      let fixture: ComponentFixture<VSComboBox>;
+      let comboBox: VSComboBox;
+      let socket: any;
+
+      beforeEach(waitForAsync(() => {
+         const formDataService: any = {
+            checkFormData: vi.fn((rt: string, name: string, sel: string,
+                                  confirmed: Function) => confirmed()),
+         };
+         const dataTipService: any = { isDataTip: vi.fn(), scrolled: new Subject<void>() };
+         const firstDayOfWeekService: any = { getFirstDay: vi.fn(() => of({})) };
+         socket = { sendEvent: vi.fn(), commands: of([]) };
+
+         TestBed.configureTestingModule({
+            imports: [FormsModule, VSComboBox, VSPopComponentDirective],
+            providers: [
+               PopComponentService,
+               FormInputService,
+               { provide: ContextProvider, useValue: {} },
+               { provide: ViewsheetClientService, useValue: socket },
+               { provide: CheckFormDataService, useValue: formDataService },
+               { provide: DebounceService, useValue: { debounce: vi.fn() } },
+               { provide: DataTipService, useValue: dataTipService },
+               { provide: FirstDayOfWeekService, useValue: firstDayOfWeekService },
+            ],
+            schemas: [NO_ERRORS_SCHEMA],
+         });
+         TestBed.compileComponents();
+
+         fixture = TestBed.createComponent(VSComboBox);
+         comboBox = fixture.componentInstance;
+      }));
+
+      function setModel(selectedLabel: string, selectedObject: any) {
+         const model = TestUtils.createMockVSComboBoxModel("Combo1");
+         model.labels = ["Adams", "Jones", "Smith", "Smith"];
+         model.values = [3, 4, 1, 2] as any;
+         model.selectedLabel = selectedLabel;
+         model.selectedObject = selectedObject;
+         model.refresh = true;
+         comboBox.model = model;
+      }
+
+      async function render(): Promise<HTMLSelectElement> {
+         fixture.detectChanges();
+         await fixture.whenStable();
+         fixture.detectChanges();
+         return fixture.nativeElement.querySelector("select");
+      }
+
+      it("should send the value of the second duplicate when it is picked", async () => {
+         setModel("Adams", 3);
+         const select = await render();
+
+         select.selectedIndex = 3;
+         select.dispatchEvent(new Event("change"));
+
+         expect(socket.sendEvent).toHaveBeenCalledWith(
+            "/events/comboBox/applySelection",
+            expect.objectContaining({ assemblyName: "Combo1", value: 2 }));
+      });
+
+      it("should show the second duplicate after a fresh render with its value", async () => {
+         setModel("Smith", 2);
+         const select = await render();
+
+         expect(select.selectedIndex).toBe(3);
+      });
+
+      it("should show the first duplicate after a fresh render with its value", async () => {
+         setModel("Smith", 1);
+         const select = await render();
+
+         expect(select.selectedIndex).toBe(2);
       });
    });
 });

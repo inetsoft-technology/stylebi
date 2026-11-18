@@ -79,6 +79,12 @@ class OrgWelcomePageSeedingTest {
       manager = spy(new PortalThemesManager(null, mock(DataSpace.class)));
       doNothing().when(manager).save();
       doNothing().when(manager).loadThemes();
+      // update() reloads and saves under the cluster lock (Bug #81434); apply the mutation
+      // directly, as the stubbed save() above stands in for persistence
+      doAnswer(inv -> {
+         inv.<java.util.function.Consumer<PortalThemesManager>>getArgument(0).accept(manager);
+         return null;
+      }).when(manager).update(any());
 
       welcomeService = new WelcomePageService();
       bannerService = new PresentationLoginBannerSettingsService();

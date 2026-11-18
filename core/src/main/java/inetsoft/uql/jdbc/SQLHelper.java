@@ -627,6 +627,18 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Check if this database sorts NULL above every other value, i.e. an ascending ORDER BY
+    * returns NULL last and a descending one returns it first. This is a capability flag in
+    * sqlhelper.xml (nullsorder=high). Dialects that do not declare it are treated as sorting
+    * NULL lowest, which is also how the in-memory sort (Tool.compare) orders NULL.
+    * @return true if NULL sorts high.
+    */
+   public boolean isNullsSortHigh() {
+      getHelperClass(getSQLHelperType());
+      return nullsHigh.contains(getSQLHelperType());
+   }
+
+   /**
     * Get the db product's version.
     */
    public String getProductVersion() {
@@ -1999,6 +2011,11 @@ public class SQLHelper implements KeywordProvider {
             // and on a case-sensitive helper the column may have been written quoted
             else if(!isCaseSensitive() && !(uniformSql.getTableName(table) instanceof UniformSQL)) {
                qcolumn = quoteAggregateColumn(column);
+            }
+            // a column of a physical table on a case-sensitive helper: it names a column, not an
+            // alias, so a helper may quote aliases differently (#80212)
+            else if(isCaseSensitive() && !(uniformSql.getTableName(table) instanceof UniformSQL)) {
+               qcolumn = quoteCaseSensitiveAggregateColumn(column);
             }
             else {
                qcolumn = quoteColumnAlias(column);
@@ -4854,6 +4871,22 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Check if the LIKE operator of the database is case sensitive by default. This is
+    * used by the materialized view to match contains/starts with/like conditions the
+    * same way as the database would. The answer is per product, not per database: a
+    * case-insensitive collation or column type (e.g. H2 IGNORECASE/varchar_ignorecase,
+    * Oracle NLS_COMP, PostgreSQL citext) can make a particular database differ from
+    * the product default, so only products with a well-known case-sensitive default
+    * answer TRUE.
+    *
+    * @return TRUE if LIKE is case sensitive, null if unknown or collation dependent,
+    * in which case the global string comparison setting applies.
+    */
+   public Boolean getLikeCaseSensitivity() {
+      return null;
+   }
+
+   /**
     * Check if is case sensitive when quote table or column.
     */
    @Override
@@ -4938,6 +4971,25 @@ public class SQLHelper implements KeywordProvider {
     */
    protected String quoteColumnPartAlias(String alias) {
       return quoteColumnAlias(alias);
+   }
+
+   /**
+    * Quote the column of a physical table as the only argument of a function (sum(t.col)) on
+    * a case-sensitive helper. The column is not a select alias, so a helper that quotes every
+    * alias (see quoteColumnAlias) must not quote it by the alias rule: the column found
+    * ignoring case may be another one.
+    */
+   protected String quoteCaseSensitiveAggregateColumn(String column) {
+      return quoteColumnAlias(column);
+   }
+
+   /**
+    * The alias of a derived table column is the column part of table.alias, a reference to
+    * the select alias of the derived table (see quoteColumnAlias), not to a column of a
+    * physical table (see quoteColumnPartAlias).
+    */
+   protected String quoteAliasColumnPart(String alias) {
+      return quoteColumnPartAlias(alias);
    }
 
    /**
@@ -5527,7 +5579,7 @@ public class SQLHelper implements KeywordProvider {
                // oracle sql helper will quote any column alias when
                // calling the method quoteColumnAlias, which is not
                // allowed if is table.calias pattern
-               cpart = tpart == null ? quoteColumnAlias(cpart) : quoteColumnPartAlias(cpart);
+               cpart = tpart == null ? quoteColumnAlias(cpart) : quoteAliasColumnPart(cpart);
             }
             else {
                cpart = tpart == null ? XUtil.quoteName(cpart, this) :
@@ -5828,6 +5880,54 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Get the character this dialect accepts in a {@code LIKE ... ESCAPE 'c'} clause, used to
+    * match a contains / starting with value literally instead of as a pattern. Returns
+    * {@code null} (the default) for a dialect not known to support the clause, in which
+    * case the value is spliced unescaped.
+    *
+    * @return the escape character, or {@code null} if the ESCAPE clause is not used.
+    */
+   public Character getLikeEscapeChar() {
+      return null;
+   }
+
+   /**
+    * Get the characters, besides the escape character itself, that are special in a LIKE
+    * pattern of this dialect and must be escaped to be matched literally.
+    */
+   protected String getLikeSpecialChars() {
+      return "%_";
+   }
+
+   /**
+    * Escape a value so that a LIKE pattern built from it matches the value literally.
+    * Only meaningful when {@link #getLikeEscapeChar()} is not {@code null}; the pattern must
+    * then be followed by the matching ESCAPE clause.
+    */
+   public String escapeLikeValue(String value) {
+      Character esc = getLikeEscapeChar();
+
+      if(esc == null || value == null) {
+         return value;
+      }
+
+      String special = getLikeSpecialChars();
+      StringBuilder escaped = new StringBuilder(value.length() + 4);
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == esc || special.indexOf(c) >= 0) {
+            escaped.append(esc.charValue());
+         }
+
+         escaped.append(c);
+      }
+
+      return escaped.toString();
+   }
+
+   /**
     * Create a query that limits the output to the specified number of rows.
     */
    protected String generateMaxRowsClause(String sql, int maxrows) {
@@ -5926,6 +6026,12 @@ public class SQLHelper implements KeywordProvider {
                      if(mnode != null) {
                         String str = Tool.getValue(mnode);
                         maxidentifier.put(type, Integer.valueOf(str));
+                     }
+
+                     Element nnode = Tool.getChildNodeByTagName(node2, "nullsorder");
+
+                     if(nnode != null && "high".equalsIgnoreCase(Tool.getValue(nnode))) {
+                        nullsHigh.add(type);
                      }
                   }
 
@@ -6756,6 +6862,8 @@ public class SQLHelper implements KeywordProvider {
    private static Set<String> keywords = new HashSet<>(); // keywords
    private static Hashtable<String, Integer> maxidentifier = new Hashtable<>(); // type -> id len
    private static Map<String, String> connectionTestQuery = new ConcurrentHashMap<>();
+   // helper types whose ascending ORDER BY puts NULL last (NULL sorts above every value)
+   private static final Set<String> nullsHigh = ConcurrentHashMap.newKeySet();
 
    static {
       keywords.add("absolute");

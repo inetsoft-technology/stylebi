@@ -67,6 +67,11 @@ class PortalIntegrationViewSettingsServiceTest {
    @BeforeEach
    void setUp() throws Exception {
       manager = mock(PortalThemesManager.class);
+      // the update runs its mutation against the manager, as the real one does
+      doAnswer(inv -> {
+         inv.<PortalThemesManager.Mutation>getArgument(0).apply(manager);
+         return null;
+      }).when(manager).updateChecked(any());
       when(manager.getPortalTabs()).thenReturn(new ArrayList<>());
       sreeEnvStatic = mockStatic(SreeEnv.class, withSettings().lenient());
 
@@ -107,7 +112,7 @@ class PortalIntegrationViewSettingsServiceTest {
 
       verify(manager).setButtonVisible(PortalThemesManager.HELP_BUTTON, false);
       verify(manager).setButtonVisible(PortalThemesManager.HOME_BUTTON, true);
-      verify(manager).save();
+      verify(manager).updateChecked(any());
 
       var captor = org.mockito.ArgumentCaptor.forClass(List.class);
       verify(manager).setPortalTabs(captor.capture());

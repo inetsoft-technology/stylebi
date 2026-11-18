@@ -484,6 +484,24 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
       return organizationId;
    }
 
+   /**
+    * Gets a copy of this rename that starts where the pending rename {@code prior} started, for
+    * chaining it to that rename: the old name and, when this rename carries paths, the old path
+    * are those of {@code prior}, the new name and new path stay. A rename without a new path
+    * (the worksheet changed between the renames) gets no old path either.
+    */
+   RenameInfo copyChainedTo(RenameInfo prior) {
+      try {
+         RenameInfo copy = clone();
+         copy.oname = prior.oname;
+         copy.opath = npath == null ? null : prior.opath;
+         return copy;
+      }
+      catch(CloneNotSupportedException e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
    public boolean isAlias() {
       return alias;
    }

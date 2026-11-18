@@ -46,7 +46,7 @@ afterEach(() => {
 
 describe("ScheduleTaskEditorComponent - risk", () => {
    describe("Group 1 - saveSuccess", () => {
-      it("should emit the save success notification and point originalModel at the current model", () => {
+      it("should emit the save success notification and snapshot the current model into originalModel", () => {
          const { comp } = createScheduleTaskEditor();
          const notifications = attachScheduleTaskNotifications(comp);
          const model = makeScheduleTaskDialogModel({ label: "Saved Task" });
@@ -55,7 +55,9 @@ describe("ScheduleTaskEditorComponent - risk", () => {
          comp.saveSuccess();
 
          expect(notifications.success).toHaveBeenCalledWith("_#(js:em.schedule.task.saveSuccess)");
-         expect(comp.originalModel).toBe(model);
+         // an independent clone, not an alias (Bug #79750)
+         expect(comp.originalModel).not.toBe(model);
+         expect(comp.originalModel).toEqual(model);
       });
    });
 

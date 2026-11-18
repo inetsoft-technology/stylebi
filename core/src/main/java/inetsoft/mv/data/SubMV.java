@@ -165,16 +165,25 @@ public class SubMV implements Cloneable {
     * Get rows of the keys which is filtered by the condition.
     */
    public BitSet getRows(XNode node) {
+      return getRows(node, false);
+   }
+
+   /**
+    * Get rows of the keys which is filtered by the condition.
+    * @param delete true to get the rows an incremental update deletes (deleteRecord), false
+    *               to get the rows a query keeps. See {@link #addDeleteNullRows}.
+    */
+   BitSet getRows(XNode node, boolean delete) {
       access(node);
 
       if(node instanceof XSet) {
-         return getRows((XSet) node);
+         return getRows((XSet) node, delete);
       }
       else if(node instanceof XBinaryCondition) {
-         return getRows((XBinaryCondition) node);
+         return getRows((XBinaryCondition) node, delete);
       }
       else if(node instanceof XUnaryCondition) {
-         return getRows((XUnaryCondition) node);
+         return getRows((XUnaryCondition) node, delete);
       }
 
       return null;
@@ -212,23 +221,25 @@ public class SubMV implements Cloneable {
    /**
     * Get rows of the keys which is filtered by the condition.
     */
-   private BitSet getRows(XSet set) {
+   private BitSet getRows(XSet set, boolean delete) {
       String relation = set.getRelation();
       boolean and = XSet.AND.equals(relation);
       boolean isNot = set.isIsNot();
       BitSet res = null;
 
       // special handling for between condition
-      if(and && (res = getBetween(set)) != null) {
+      if(and && (res = getBetween(set, delete)) != null) {
          return res;
       }
 
       int cnt = set.getChildCount();
+      // the delete null rows are only right for a leaf that is not negated again by a set
+      boolean cdelete = delete && !isNot;
 
       for(int i = 0; i < cnt; i++) {
          XNode node = set.getChild(i);
-         BitSet rows = (node instanceof XSet) ? getRows((XSet) node) :
-            getRows((XBinaryCondition) node);
+         BitSet rows = (node instanceof XSet) ? getRows((XSet) node, cdelete) :
+            getRows((XBinaryCondition) node, cdelete);
 
          // first item? do nothing
          if(i == 0) {
@@ -294,7 +305,7 @@ public class SubMV implements Cloneable {
     * Special processing for between conditions. A between condition can be
     * handled by an index in one call instead of two.
     */
-   private BitSet getBetween(XSet cond) {
+   private BitSet getBetween(XSet cond, boolean delete) {
       if(cond.getChildCount() != 2) {
          return null;
       }
@@ -346,8 +357,18 @@ public class SubMV implements Cloneable {
             boolean cnull = "true".equals(cond1.getAttribute("containsNull"));
             long from = getCondValue(right1, rtdims[idx], cnull);
             long to = getCondValue(right2, rtdims[idx], cnull);
-            return rtdims[idx].getRows(from, leftInclusive, to,
-                                       rightInclusive, cnull);
+            BitSet rows = rtdims[idx].getRows(from, leftInclusive, to, rightInclusive, cnull);
+
+            // same rule as a single comparison (bug #81043): the incremental delete also removes
+            // the null rows, unless a bound is null or empty (mapped to the null key)
+            if(delete && right1 != null && !"".equals(right1) && right2 != null &&
+               !"".equals(right2) && !isNullKey(rtdims[idx], from, cnull) &&
+               !isNullKey(rtdims[idx], to, cnull))
+            {
+               rows = addDeleteNullRows(rtdims[idx], rows, cnull);
+            }
+
+            return rows;
          }
       }
 
@@ -373,7 +394,7 @@ public class SubMV implements Cloneable {
    /**
     * Get rows of the keys which is filtered by the condition.
     */
-   private BitSet getRows(XBinaryCondition cond) {
+   private BitSet getRows(XBinaryCondition cond, boolean delete) {
       String col = (String) cond.getExpression1().getValue();
       int idx = indexOfHeader(col);
       String op = cond.getOp();
@@ -433,9 +454,55 @@ public class SubMV implements Cloneable {
 
          // Pass the IncludeNullCompare flag down to the XDimIndex
          rtdims[idx].setIncludeNullCompare(getIncludeNullCompare());
-         return rtdims[idx].getRows(op, getCondValue(val, rtdims[idx], cnull),
-                                    cond.isIsNot(), cnull);
+         long key = getCondValue(val, rtdims[idx], cnull);
+         BitSet rows = rtdims[idx].getRows(op, key, cond.isIsNot(), cnull);
+
+         // A comparison against a non-null value is true or unknown (null) for the null rows. The
+         // MV creation keeps only the rows where the negated delete condition is true, so null
+         // rows are never kept for it, but the index ranges (and the query path since #79870) do
+         // not contain them. The incremental delete must remove the null rows too (bugs #80570,
+         // #81043). Not for 'is null' (two-valued), and not for a null or empty value: the
+         // dictionary (MV.fixFilter) has already mapped it to the null key, creation keeps the
+         // null rows for it and they must stay.
+         if(delete && !"null".equals(op) && val != null && !"".equals(val) &&
+            !isNullKey(rtdims[idx], key, cnull))
+         {
+            rows = addDeleteNullRows(rtdims[idx], rows, cnull);
+         }
+
+         return rows;
       }
+   }
+
+   /**
+    * Check if a condition key is the key of null in the column index.
+    * @param cnull true if the dimension column contains null.
+    */
+   private static boolean isNullKey(XDimIndex dim, long key, boolean cnull) {
+      if(dim instanceof MVMeasureColumn) {
+         return key == Double.doubleToLongBits(Tool.NULL_DOUBLE);
+      }
+
+      // the dictionary maps null and '' to 0 when the column contains null (XDimDictionary)
+      return cnull && key == 0;
+   }
+
+   /**
+    * Add the rows containing null to the rows deleted by a comparison delete condition.
+    * @param cnull true if the dimension column contains null.
+    */
+   private static BitSet addDeleteNullRows(XDimIndex dim, BitSet rows, boolean cnull) {
+      BitSet nulls = null;
+
+      if(dim instanceof MVMeasureColumn) {
+         nulls = dim.getRows("null", Double.doubleToLongBits(Tool.NULL_DOUBLE), false, cnull);
+      }
+      else if(cnull) {
+         nulls = dim.getRows("null", 0, false, true);
+      }
+
+      // BitSet.or returns a new set, the (possibly cached) index sets are not modified
+      return nulls == null ? rows : rows == null ? nulls : rows.or(nulls);
    }
 
    /**
@@ -767,7 +834,7 @@ public class SubMV implements Cloneable {
     * @return if condition applied.
     */
    public final boolean deleteRecord(XNode cond) throws IOException {
-      BitSet rows = getRows(cond);
+      BitSet rows = getRows(cond, true);
 
       if(rows.isEmpty()) {
          return false;

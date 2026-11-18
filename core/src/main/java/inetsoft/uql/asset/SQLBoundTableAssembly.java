@@ -330,15 +330,15 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
             return;
          }
 
-         UserVariable var = getVariable(varName, list);
+         UserVariable userVariable = getVariable(varName, list);
 
-         // the placeholder may not be a collected user variable, e.g. a vpm control point
-         if(!(var instanceof UserVariable)) {
+         // Bug #79841, a variable missing from the list (e.g. a built-in variable such as
+         // _USER_ or _ROLES_, which is never prompted, or a vpm control point) has nothing to fix
+         if(userVariable == null) {
             return;
          }
 
          String type = condition.getExpression1().getType();
-         UserVariable userVariable = var;
 
          if("IN".equals(condition.getOp())) {
             userVariable.setMultipleSelection(true);

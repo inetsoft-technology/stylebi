@@ -65,6 +65,8 @@ public final class RowMap {
 
       if(count > threshold && table.length < MAX_CAPACITY) {
          resize(table.length * 2);
+         // resize() swapped in a table twice as long, so the bucket index must follow
+         idx = hash & imask;
       }
 
       return table[idx] = new Entry(row, hash, table[idx]);

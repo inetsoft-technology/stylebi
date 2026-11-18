@@ -75,6 +75,18 @@ class MVCompositeDispatcher extends MVDispatcher implements Runnable {
             try {
                dispatch0();
             }
+            catch(Throwable ex) {
+               // record the failure inside the lock and before completed is set, so the
+               // thread waiting in isCompleted() always sees it. getException() returns an
+               // Exception, so wrap an Error (e.g. OutOfMemoryError) to let the caller fail
+               // the build instead of treating this segment as successful.
+               exception = ex instanceof Exception ? (Exception) ex : new RuntimeException(ex);
+
+               if(ex instanceof Error) {
+                  // keep reporting the Error to the thread pool as before
+                  throw (Error) ex;
+               }
+            }
             finally {
                completed = true;
                lock.notifyAll();

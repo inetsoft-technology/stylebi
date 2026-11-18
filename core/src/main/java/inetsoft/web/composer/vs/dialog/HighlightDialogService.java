@@ -1063,6 +1063,8 @@ public class HighlightDialogService {
          }
       }
 
+      boolean textResolved = false;
+
       // relation highlights defined on source/target instead of textfield, which is
       // shared by source and target.
       if(ref != null && (GraphTypeUtil.isWordCloud(chartInfo) || isText)) {
@@ -1077,10 +1079,12 @@ public class HighlightDialogService {
 
          if(aref != null && (aref.getFullName().equals(colName) || isText)) {
             ref = (ChartRef) aref.getDataRef();
+            // a text highlight belongs to the bound text field, don't override it below. (81499, 81501)
+            textResolved = isText;
          }
       }
 
-      if(GraphTypes.isTreemap(chartInfo.getRTChartType()) && !isAxis) {
+      if(GraphTypes.isTreemap(chartInfo.getRTChartType()) && !isAxis && !textResolved) {
          ChartRef[] groups = chartInfo.getGroupFields();
 
          if(groups != null) {

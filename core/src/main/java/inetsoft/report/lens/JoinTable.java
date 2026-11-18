@@ -62,34 +62,32 @@ abstract class JoinTable extends PagedTableLens {
    {
       setTypes(new Class[]{ Integer.class, Integer.class });
 
-      // sanity check
+      // sanity checks. a failed check leaves an empty, completed table, and the subclasses
+      // must not start their scanners on it (see isInvalid())
       if(leftCols.length != rightCols.length) {
          LOG.error("Join columns don't match");
-         complete();
+         invalidate();
          return;
       }
 
-      // sanity check
       if(leftCols.length == 0) {
          LOG.warn("No join columns specified");
-         complete();
+         invalidate();
          return;
       }
 
-      // sanity check
       for(int leftCol : leftCols) {
-         if(leftCol >= leftTable.getColCount()) {
+         if(leftCol < 0 || leftCol >= leftTable.getColCount()) {
             LOG.error("Invalid join column in left-hand table");
-            complete();
+            invalidate();
             return;
          }
       }
 
-      // sanity check
       for(int rightCol : rightCols) {
-         if(rightCol >= rightTable.getColCount()) {
+         if(rightCol < 0 || rightCol >= rightTable.getColCount()) {
             LOG.error("Invalid join column in right-hand table");
-            complete();
+            invalidate();
             return;
          }
       }
@@ -107,8 +105,8 @@ abstract class JoinTable extends PagedTableLens {
                                    rightTable.getHeaderRowCount());
 
          for(int i = 0; i < headerRows && leftTable.moreRows(i) && rightTable.moreRows(i); i++) {
+            // header rows do not count against the join.table.maxrows limit
             addRow(i, i);
-            dataRowCnt++;
          }
 
          flushPending();
@@ -152,6 +150,20 @@ abstract class JoinTable extends PagedTableLens {
       // worker's rows (bug #77273). Other inputs keep streaming from the workers
       leftTable.moreRows(PostProcessor.canReachScript(leftTable) ? XTable.EOT : 10000);
       rightTable.moreRows(PostProcessor.canReachScript(rightTable) ? XTable.EOT : 10000);
+   }
+
+   private void invalidate() {
+      invalid = true;
+      complete();
+   }
+
+   /**
+    * Check if the join arguments failed the sanity checks of the constructor. The table is
+    * then empty and complete, and a subclass constructor must return without creating or
+    * starting its join threads.
+    */
+   protected final boolean isInvalid() {
+      return invalid;
    }
 
    /**
@@ -649,6 +661,21 @@ abstract class JoinTable extends PagedTableLens {
       return csensitive;
    }
 
+   /**
+    * Add a joined data row unless the max rows limit is already reached, and check the limit.
+    * The check and the add are atomic, so concurrent scanner threads cannot go over the limit.
+    * @return true if the limit is reached and no more rows should be added.
+    */
+   protected synchronized boolean addRowWithinLimit(int leftRow, int rightRow) {
+      if(dataRowCnt >= maxRows) {
+         maxAlert = true;
+         return true;
+      }
+
+      addRow(leftRow, rightRow);
+      return checkMaxRows();
+   }
+
    protected boolean checkMaxRows() {
       if(++dataRowCnt >= maxRows) {
          maxAlert = true;
@@ -721,6 +748,7 @@ abstract class JoinTable extends PagedTableLens {
    private int headerRowCount = 0;
    // map from right table col index (in join table) to base right table col
    private int[] rightColMap;
+   private boolean invalid;
    private final List<int[]> pendingRows = new ObjectArrayList<>();
    private final HashMap<TableDataPath, Object> mmap = new HashMap<>();
    private transient int dataRowCnt = 0;

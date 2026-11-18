@@ -32,6 +32,9 @@ import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.viewsheet.Viewsheet;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -68,6 +71,25 @@ public abstract class MVIncremental {
    public abstract void cancel();
 
    /**
+    * Store the read start as the last update time for an update that read the source but does
+    * not go through refresh() (no rows returned). Does nothing if no read happened (e.g. a
+    * delete-only update), and never moves the stamp backwards.
+    */
+   protected void storeUpdateStart() throws Exception {
+      if(updateStart <= 0 || updateStart <= mvdef.getLastUpdateTime()) {
+         return;
+      }
+
+      try {
+         mv.updateLastModifiedTime(updateStart);
+         mvdef.updateLastUpdateTime(updateStart);
+      }
+      catch(Exception e) {
+         throw new MVExecutionException(e);
+      }
+   }
+
+   /**
     * Refresh MVDef last update time.
     */
    protected void refresh() throws Exception {
@@ -75,12 +97,23 @@ public abstract class MVIncremental {
          MVManager manager = MVManager.getManager();
 
          // refresh MV's def
-         mv.updateLastModifiedTime();
+         // Bug #79854, stamp the time the update started reading, not the time it ended, so a
+         // row inserted while the update runs is selected by the next update
+         long stamp = updateStart;
+
+         if(stamp <= 0) {
+            // no read happened (e.g. a delete-only update), so no row can be missed
+            LOG.debug("No source read recorded for the update of materialized view {}, " +
+                      "using the end time", mvdef.getName());
+            stamp = System.currentTimeMillis();
+         }
+
+         mv.updateLastModifiedTime(stamp);
          // MVDef.lastModified only be used in script, and we
          // just need to refresh the MV.mvdef
          // refresh MVManager's def
          // @by davyc, for data cache
-         mvdef.updateLastUpdateTime();
+         mvdef.updateLastUpdateTime(stamp);
          manager.add(mvdef);
 
          // @by ChrisSpagnoli, for Bug #7250
@@ -224,11 +257,22 @@ public abstract class MVIncremental {
       }
 
       // set time as now, not to use cached data when create mv
+      // Bug #79854, the stamp stored by refresh() must not be later than this read, and is
+      // taken after the lock waits and the delete pass so it does not widen the overlap window
+      long readStart = System.currentTimeMillis();
+      updateStart = readStart;
       return AssetDataCache.getCache().getData(
          null, (TableAssembly) assembly.clone(), box, null, AssetQuerySandbox.RUNTIME_MODE, false,
-         System.currentTimeMillis(), box.getQueryManager());
+         readStart, box.getQueryManager());
    }
 
    protected MV mv;
    protected MVDef mvdef;
+   private static final Logger LOG = LoggerFactory.getLogger(MVIncremental.class);
+
+   /**
+    * The time the update's data read started, set by {@link #getData}. Stored as the last
+    * update time by {@link #refresh()}; a subclass must read its data through getData().
+    */
+   protected long updateStart;
 }

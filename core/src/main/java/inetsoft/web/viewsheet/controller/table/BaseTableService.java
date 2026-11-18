@@ -51,6 +51,7 @@ import inetsoft.web.viewsheet.event.table.BaseTableEvent;
 import inetsoft.web.viewsheet.model.VSFormatModel;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
 import inetsoft.web.viewsheet.model.table.BaseTableModel;
+import inetsoft.web.viewsheet.model.table.DrillLevel;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
@@ -880,7 +881,8 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                   if(ref instanceof VSDimensionRef) {
                      // populate drill level
                      VSDimensionRef dim = (VSDimensionRef) ref;
-                     cell.setDrillLevel(VSUtil.getDrillLevel(dim, crosstabInfo.getXCube()));
+                     cell.setDrillLevel(crosstabInfo.isDrillEnabled()
+                        ? VSUtil.getDrillLevel(dim, crosstabInfo.getXCube()) : DrillLevel.None);
 
                      // setGrouped -- membership was already decided once, at query time, by
                      // the SQL/script expression that produced this row's value (NamedRangeRef),
@@ -950,7 +952,8 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                   if(ref instanceof VSDimensionRef) {
                      // populate drill level
                      VSDimensionRef dim = (VSDimensionRef) ref;
-                     cell.setDrillLevel(VSUtil.getDrillLevel(dim, crosstabInfo.getXCube()));
+                     cell.setDrillLevel(crosstabInfo.isDrillEnabled()
+                        ? VSUtil.getDrillLevel(dim, crosstabInfo.getXCube()) : DrillLevel.None);
                      cell.setPeriod(dim.getDates() != null && dim.getDates().length >= 2);
                      // grouped -- membership was already decided once, at query time, by the
                      // SQL/script expression that produced this row's value (NamedRangeRef), so

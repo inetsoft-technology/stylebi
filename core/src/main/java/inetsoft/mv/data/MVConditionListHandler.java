@@ -23,7 +23,9 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.PreAssetQuery;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
 import inetsoft.util.script.FormulaContext;
@@ -35,7 +37,11 @@ import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * MVConditionListHandler translates a selection from a data model into
@@ -46,12 +52,19 @@ import java.util.Map;
  * @see XFilterNode
  */
 public class MVConditionListHandler extends ConditionListHandler {
+   /**
+    * The condition node attribute telling XDimDictionary to match contains/starts
+    * with/like conditions case sensitively, as the source database does.
+    */
+   public static final String LIKE_CASE_SENSITIVE = "likeCaseSensitive";
+
    public MVConditionListHandler(TableAssembly table, MV mv, VariableTable vars,
       MVDef def)
    {
       super();
 
       this.mvdef = def;
+      this.table = table;
       this.mv = mv;
       this.vars = vars;
       Worksheet ws = table.getWorksheet();
@@ -98,6 +111,19 @@ public class MVConditionListHandler extends ConditionListHandler {
                                         XExpression field,
                                         VariableTable vars)
    {
+      // the column kind is unknown here, so the database's LIKE rule is not applied
+      return createCondNode(cond, field, vars, false);
+   }
+
+   /**
+    * Create XFilterNode.
+    *
+    * @param dbEvaluated true if the column of the condition is known to be evaluated by the
+    *                    source database, so the database's LIKE case sensitivity applies.
+    */
+   protected XFilterNode createCondNode(Condition cond, XExpression field,
+                                        VariableTable vars, boolean dbEvaluated)
+   {
       XFilterNode condnode = null;
       Object val = null;
       int vcnt = cond.getValueCount();
@@ -129,7 +155,77 @@ public class MVConditionListHandler extends ConditionListHandler {
       XExpression exp = new XExpression(val, XExpression.VALUE);
       condnode = new XBinaryCondition(field, exp, op);
       condnode.setIsNot(cond.isNegated());
+
+      // Bug #80152: only a column the database evaluates follows the database's LIKE rule.
+      // A column computed in memory (script expression, range/named group) follows the
+      // global string comparison setting, as it does without the MV.
+      if(likeCaseSensitive != null && dbEvaluated) {
+         condnode.setAttribute(LIKE_CASE_SENSITIVE, likeCaseSensitive.toString());
+      }
+
       return condnode;
+   }
+
+   /**
+    * Set whether the LIKE of the source database is case sensitive. If set, the
+    * contains/starts with/like conditions are matched in the MV the same way. If null
+    * (default), the global string comparison setting applies.
+    */
+   public void setLikeCaseSensitive(Boolean likeCaseSensitive) {
+      this.likeCaseSensitive = likeCaseSensitive;
+   }
+
+   /**
+    * Get the LIKE case sensitivity of the data source of a table to be applied to the
+    * conditions on the MV of the table.
+    *
+    * @param table  the table the MV is queried for.
+    * @param helper the sql helper of the table, may be null.
+    *
+    * @return TRUE if the table reads a single data source whose LIKE is case
+    * sensitive, null if unknown or the source can't be determined.
+    */
+   public static Boolean getLikeCaseSensitivity(TableAssembly table, SQLHelper helper) {
+      try {
+         if(helper == null || !Boolean.TRUE.equals(helper.getLikeCaseSensitivity())) {
+            return null;
+         }
+
+         Set<String> sources = new HashSet<>();
+
+         // a table that reads several sources (or any non-database source) is joined
+         // or filtered in memory without the database's semantics
+         if(!collectSources(table, sources) || sources.size() != 1) {
+            return null;
+         }
+
+         return Boolean.TRUE;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to get the LIKE case sensitivity of table {}", table, ex);
+         return null;
+      }
+   }
+
+   private static boolean collectSources(TableAssembly table, Set<String> sources) {
+      if(table instanceof BoundTableAssembly) {
+         sources.add(((BoundTableAssembly) table).getSource());
+         return true;
+      }
+
+      if(table instanceof ComposedTableAssembly) {
+         TableAssembly[] tables = ((ComposedTableAssembly) table).getTableAssemblies(false);
+
+         for(int i = 0; tables != null && i < tables.length; i++) {
+            if(!collectSources(tables[i], sources)) {
+               return false;
+            }
+         }
+
+         return true;
+      }
+
+      return false;
    }
 
    /**
@@ -237,8 +333,136 @@ public class MVConditionListHandler extends ConditionListHandler {
       DataRef dref = item.getAttribute();
       cond.replaceVariable(vars);
       XExpression field = createXExpression(dref);
-      XFilterNode condnode = createCondNode(cond, field, vars);
+      XFilterNode condnode = createCondNode(cond, field, vars, isDbEvaluated(resolveSourceColumn(dref)));
       return new XFilterNodeItem(condnode, item.getLevel());
+   }
+
+   /**
+    * Get the column that defines the values of a condition column. The MV transformers move a
+    * condition up through a mirror/composed table and rewrite its column to a plain
+    * attribute of the child table (AssetUtil.getOuterAttribute), which erases whether the
+    * column is a physical column, an SQL expression or a script expression. The kind is
+    * restored here from the child table's own column. The MV column does not keep it either.
+    *
+    * @return the column of the table that defines the values, or the condition column
+    * itself if it can't be resolved.
+    */
+   private DataRef resolveSourceColumn(DataRef dref) {
+      DataRef ref = dref;
+
+      for(int i = 0; i < 20; i++) {
+         AttributeRef attr = getOuterAttribute(ref);
+
+         if(attr == null) {
+            return ref;
+         }
+
+         TableAssembly owner = findTable(table, attr.getEntity(), 0);
+         ColumnRef source = null;
+
+         if(owner != null) {
+            ColumnSelection cols = owner.getColumnSelection(false);
+
+            for(int j = 0; cols != null && j < cols.getAttributeCount(); j++) {
+               DataRef col = cols.getAttribute(j);
+
+               if(col instanceof ColumnRef && attr.getAttribute().equals(col.getAttribute())) {
+                  source = (ColumnRef) col;
+                  break;
+               }
+            }
+         }
+
+         if(source == null) {
+            return ref;
+         }
+
+         // a column of a bound table is the real kind, a column of a mirror/composed table
+         // refers to its child table
+         if(!(owner instanceof ComposedTableAssembly)) {
+            return source;
+         }
+
+         ref = source;
+      }
+
+      return ref;
+   }
+
+   /**
+    * Get the attribute of a table column (entity set) if the reference is only a reference to
+    * a column of a child table.
+    */
+   private static AttributeRef getOuterAttribute(DataRef ref) {
+      while(ref instanceof ColumnRef || ref instanceof GroupRef) {
+         ref = ref instanceof ColumnRef ? ((ColumnRef) ref).getDataRef() :
+            ((GroupRef) ref).getDataRef();
+      }
+
+      if(ref instanceof AttributeRef && ref.getEntity() != null) {
+         return (AttributeRef) ref;
+      }
+
+      return null;
+   }
+
+   private static TableAssembly findTable(TableAssembly table, String name, int depth) {
+      if(table == null || name == null || depth > 20) {
+         return null;
+      }
+
+      if(name.equals(table.getName())) {
+         return table;
+      }
+
+      if(table instanceof ComposedTableAssembly) {
+         TableAssembly[] tables = ((ComposedTableAssembly) table).getTableAssemblies(false);
+
+         for(int i = 0; tables != null && i < tables.length; i++) {
+            TableAssembly found = findTable(tables[i], name, depth + 1);
+
+            if(found != null) {
+               return found;
+            }
+         }
+      }
+
+      Worksheet ws = table.getWorksheet();
+      Assembly assembly = ws == null ? null : ws.getAssembly(name);
+      return assembly instanceof TableAssembly ? (TableAssembly) assembly : null;
+   }
+
+   /**
+    * Check if the values of a column are computed by the source database, i.e. a physical
+    * column or an SQL expression. Anything else (script expression, date/numeric range, named
+    * group, aggregate) is computed in memory, and unknown is treated as in memory.
+    */
+   static boolean isDbEvaluated(DataRef dref) {
+      for(int i = 0; i < 20 && dref != null; i++) {
+         if(dref instanceof ColumnRef) {
+            ColumnRef col = (ColumnRef) dref;
+            dref = col.getDataRef();
+
+            // the SQL flag of the column decides a worksheet expression column
+            if(dref instanceof ExpressionRef && !(dref instanceof AliasDataRef)) {
+               return col.isSQL() || ((ExpressionRef) dref).isSQL();
+            }
+         }
+         else if(dref instanceof GroupRef) {
+            dref = ((GroupRef) dref).getDataRef();
+         }
+         else if(dref instanceof AliasDataRef) {
+            dref = ((AliasDataRef) dref).getDataRef();
+         }
+         else if(dref instanceof ExpressionRef) {
+            return ((ExpressionRef) dref).isSQL();
+         }
+         else {
+            return dref instanceof AttributeRef;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -289,7 +513,10 @@ public class MVConditionListHandler extends ConditionListHandler {
    // column name in mirror mapping to sub-table (with formula rewrite)
    private Map<String, String> colmap = new HashMap<>();
    private MVDef mvdef;
+   private TableAssembly table;
+   private static final Logger LOG = LoggerFactory.getLogger(MVConditionListHandler.class);
    private MVColumn mvcol;
+   private Boolean likeCaseSensitive;
    private MV mv;
    private VariableTable vars;
    private AssetQuerySandbox box;

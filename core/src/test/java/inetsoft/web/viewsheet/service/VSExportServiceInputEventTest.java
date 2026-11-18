@@ -27,6 +27,8 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
@@ -139,9 +141,13 @@ class VSExportServiceInputEventTest {
          .thenAnswer(inv -> new ChangedAssemblyList());
       inputs = new VSInputService(objects, lifecycle, mock(ViewsheetService.class), null, null,
                                   null, null, null, null, null);
+      // the export checks the export permission of the caller (Bug #81183)
+      SecurityEngine security = mock(SecurityEngine.class);
+      when(security.checkPermission(any(), any(ResourceType.class), anyString(),
+                                    any(ResourceAction.class))).thenReturn(true);
       exports = new VSExportService(
          mock(ViewsheetService.class), lifecycle, mock(ParameterService.class),
-         mock(SecurityEngine.class), mock(XSessionService.class), mock(FileSystemService.class));
+         security, mock(XSessionService.class), mock(FileSystemService.class));
    }
 
    @AfterEach

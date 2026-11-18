@@ -736,6 +736,20 @@ public final class LocalFileSystem extends AbstractFileSystem {
             if(fileList.size() > 0) {
                BlockFile[] remainds = fileList.toArray(new BlockFile[0]);
                add(name, remainds, nversion, false);
+
+               // add() stores its own copy of the XFile, with the new blocks, in the map.
+               // On a distributed map get() returns copies, so write back to the entry
+               // would drop those blocks. Merge them into this copy, which also carries the
+               // block changes made above.
+               XFile latest = get(name);
+
+               if(latest != null && latest != file) {
+                  for(SBlock nblock : latest.getBlocks()) {
+                     if(file.getBlock(nblock.getID()) == null) {
+                        sblocks.add(nblock);
+                     }
+                  }
+               }
             }
 
             bsys.save();

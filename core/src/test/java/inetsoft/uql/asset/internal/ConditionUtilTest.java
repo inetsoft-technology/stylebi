@@ -23,6 +23,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import org.junit.jupiter.api.Assertions;
+import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -463,5 +464,122 @@ public class ConditionUtilTest {
       Assertions.assertEquals(2, actualValues4.size());
       Assertions.assertIterableEquals(Arrays.asList("val18", "val19"), actualValues4);
       Assertions.assertEquals(2, item4.getLevel());
+   }
+
+   private static ConditionList oneOfList(int valueCount, boolean negated, boolean withSibling) {
+      List<Object> values = new ArrayList<>();
+
+      for(int i = 0; i < valueCount; i++) {
+         values.add("v" + i);
+      }
+
+      Condition cond = new Condition();
+      cond.setValues(values);
+      cond.setOperation(XCondition.ONE_OF);
+      cond.setNegated(negated);
+      ConditionList list = new ConditionList();
+
+      if(withSibling) {
+         Condition eq = new Condition();
+         eq.setOperation(XCondition.EQUAL_TO);
+         eq.addValue("t");
+         list.append(new ConditionItem(new ColumnRef(new AttributeRef("ref0")), eq, 0));
+         list.append(new JunctionOperator(JunctionOperator.AND, 0));
+      }
+
+      list.append(new ConditionItem(new ColumnRef(new AttributeRef("ref1")), cond, 0));
+      return list;
+   }
+
+   /**
+    * Bug #79483: "is not one of" split into chunks must be AND-ed, because
+    * NOT IN (a) OR NOT IN (b) is true for every row and excludes nothing.
+    */
+   @Test
+   void splitNegatedOneOfJoinsChunksWithAnd() {
+      // Oracle limit 1000, 2500 values -> 3 chunks
+      ConditionList list = ConditionUtil.splitOneOfCondition(oneOfList(2500, true, false), 1000);
+
+      assertEquals(5, list.getSize());
+      int[] sizes = { 1000, 1000, 500 };
+
+      for(int i = 0; i < 3; i++) {
+         Condition c = (Condition) list.getConditionItem(i * 2).getXCondition();
+         assertTrue(c.isNegated());
+         assertEquals(XCondition.ONE_OF, c.getOperation());
+         assertEquals(sizes[i], c.getValueCount());
+      }
+
+      assertEquals(JunctionOperator.AND, list.getJunctionOperator(1).getJunction());
+      assertEquals(JunctionOperator.AND, list.getJunctionOperator(3).getJunction());
+   }
+
+   @Test
+   void splitOneOfLimitBoundary() {
+      assertEquals(1, ConditionUtil.splitOneOfCondition(oneOfList(1000, true, false), 1000).getSize());
+      ConditionList list = ConditionUtil.splitOneOfCondition(oneOfList(1001, true, false), 1000);
+      assertEquals(3, list.getSize());
+      assertEquals(JunctionOperator.AND, list.getJunctionOperator(1).getJunction());
+      assertEquals(1, ((Condition) list.getConditionItem(2).getXCondition()).getValueCount());
+   }
+
+   /**
+    * Non-negated control: chunks stay OR-ed.
+    */
+   @Test
+   void splitNonNegatedOneOfStillUsesOr() {
+      ConditionList list = ConditionUtil.splitOneOfCondition(oneOfList(1001, false, false), 1000);
+      assertEquals(3, list.getSize());
+      assertFalse(((Condition) list.getConditionItem(0).getXCondition()).isNegated());
+      assertEquals(JunctionOperator.OR, list.getJunctionOperator(1).getJunction());
+   }
+
+   /**
+    * The chunks are grouped one level deeper than the sibling, so the surrounding AND is kept.
+    */
+   @Test
+   void splitNegatedOneOfKeepsGroupingWithSibling() {
+      ConditionList list = ConditionUtil.splitOneOfCondition(oneOfList(1001, true, true), 1000);
+
+      // sibling, AND, chunk, AND, chunk
+      assertEquals(5, list.getSize());
+      assertEquals(0, list.getConditionItem(0).getLevel());
+      assertEquals(JunctionOperator.AND, list.getJunctionOperator(1).getJunction());
+      assertEquals(0, list.getJunctionOperator(1).getLevel());
+      assertEquals(1, list.getConditionItem(2).getLevel());
+      assertEquals(JunctionOperator.AND, list.getJunctionOperator(3).getJunction());
+      assertEquals(1, list.getJunctionOperator(3).getLevel());
+      assertEquals(1, list.getConditionItem(4).getLevel());
+   }
+
+   /**
+    * The XFilterNode built from the split list is an AND of negated IN nodes.
+    */
+   @Test
+   void splitNegatedOneOfBuildsAndOfNotIn() {
+      ConditionList list = ConditionUtil.splitOneOfCondition(oneOfList(2001, true, false), 1000);
+      inetsoft.uql.jdbc.UniformSQL sql = new inetsoft.uql.jdbc.UniformSQL();
+      inetsoft.uql.jdbc.XFilterNode node = new inetsoft.uql.jdbc.util.ConditionListHandler()
+         .createXFilterNode(list, sql, new inetsoft.uql.VariableTable());
+
+      int[] leaves = { 0 };
+      checkAndOfNotIn(node, leaves);
+      assertEquals(3, leaves[0]);
+   }
+
+   private static void checkAndOfNotIn(inetsoft.uql.jdbc.XFilterNode node, int[] leaves) {
+      if(node instanceof inetsoft.uql.jdbc.XSet) {
+         inetsoft.uql.jdbc.XSet set = (inetsoft.uql.jdbc.XSet) node;
+         assertEquals(inetsoft.uql.jdbc.XSet.AND, set.getRelation());
+         assertFalse(set.isIsNot());
+
+         for(int i = 0; i < set.getChildCount(); i++) {
+            checkAndOfNotIn((inetsoft.uql.jdbc.XFilterNode) set.getChild(i), leaves);
+         }
+      }
+      else {
+         assertTrue(node.isIsNot());
+         leaves[0]++;
+      }
    }
 }

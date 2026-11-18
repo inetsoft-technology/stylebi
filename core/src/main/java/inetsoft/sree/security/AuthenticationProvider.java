@@ -496,7 +496,9 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
    }
 
    /**
-    * Tear down the security provider.
+    * Tear down the security provider. A chain reload tears the replaced provider down after its
+    * replacement is live and serving, so this must release only what this instance owns, not
+    * a resource shared with another provider of the same kind.
     */
    void tearDown();
 

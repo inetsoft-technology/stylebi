@@ -1273,6 +1273,14 @@ public class TableElementDef extends BaseElement
    }
 
    /**
+    * Limit the number of sub-rows a tall cell is split into to the lines it can hold (one per
+    * basic row height plus spacing), so no sub-row is left without a line. At least 1.
+    */
+   static int clampSplitRowCount(int n, float cellHeight, float spacing, float basicRowHeight) {
+      return Math.max(1, Math.min(n, (int) ((cellHeight + spacing) / (basicRowHeight + spacing))));
+   }
+
+   /**
     * Get basic line height of the table.
     */
    private float getBasicRowHeight(TableLens lens, int i) {
@@ -1424,6 +1432,7 @@ public class TableElementDef extends BaseElement
             float basicRowHeight = getBasicRowHeight(printlens0, i);
             float splitH = Math.min(basicRowHeight * 3, dynamicMaxCell);
             int n = (int) Math.ceil(rowhs[1] / splitH);
+            n = clampSplitRowCount(n, rowhs[1], getSpacing(), basicRowHeight);
 
              if(!false &&
                (splittedRows > 0 && dynamicMaxCell < rowh ||
@@ -2398,6 +2407,15 @@ public class TableElementDef extends BaseElement
 
       while(odx >= 0) {
          line = (idx >= 0) ? str.substring(odx, idx) : str.substring(odx);
+
+         // Common.processText drops the leading spaces of every wrapped line after
+         // the first one, including a line that starts after a hard newline, so
+         // measure it the same way or the row is reserved more lines than painted
+         if(wrap && odx > 0) {
+            while(line.length() > 0 && line.charAt(0) == ' ') {
+               line = line.substring(1);
+            }
+         }
 
          while(line != null) {
             h += fontH + getSpacing();

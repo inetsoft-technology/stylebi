@@ -649,19 +649,22 @@ public class FileAuthenticationProviderTest {
       // FileAuthenticationProvider initializes storage lazily via public entry points.
       provider.getUsers();
 
-      // Capture references before tearDown so isClosed() can be verified afterwards.
-      // All public methods call init() which would re-create storage, so closure
-      // can only be observed on a pre-captured reference.
+      // Capture references before tearDown so the storages can be checked afterwards.
       KeyValueStorage<?> userStore  = captureStorage("userStorage");
       KeyValueStorage<?> groupStore = captureStorage("groupStorage");
       KeyValueStorage<?> roleStore  = captureStorage("roleStorage");
 
       provider.tearDown();
 
-      // organizationStorage intentionally excluded — see testTearDown_organizationStorageNotNulled
-      assertTrue(userStore.isClosed(),  "userStorage should be closed after tearDown");
-      assertTrue(groupStore.isClosed(), "groupStorage should be closed after tearDown");
-      assertTrue(roleStore.isClosed(),  "roleStorage should be closed after tearDown");
+      // The storages are cached and shared by KeyValueStorageManager, which closes them. A chain
+      // reload tears the old provider down while the new one is live on the same storages, so
+      // tearDown() must leave them open and only remove its own listeners (Bug #79355).
+      assertFalse(userStore.isClosed(),  "userStorage is shared and must stay open after tearDown");
+      assertFalse(groupStore.isClosed(), "groupStorage is shared and must stay open after tearDown");
+      assertFalse(roleStore.isClosed(),  "roleStorage is shared and must stay open after tearDown");
+      assertSame(userStore, captureStorage("userStorage"));
+      assertSame(groupStore, captureStorage("groupStorage"));
+      assertSame(roleStore, captureStorage("roleStorage"));
    }
 
    @Test
@@ -669,17 +672,6 @@ public class FileAuthenticationProviderTest {
       // [Lifecycle: close×2] second tearDown call must not throw
       provider.tearDown();
       assertDoesNotThrow(() -> provider.tearDown());
-   }
-
-   // Issue #74696
-   @Test
-   @Disabled("Bug: tearDown() does not close organizationStorage")
-   void testTearDown_organizationStorageNotNulled() throws Exception {
-      provider.getUsers();
-
-      KeyValueStorage<?> orgStore = captureStorage("organizationStorage");
-      provider.tearDown();
-      assertTrue(orgStore.isClosed(), "organizationStorage should be closed after tearDown");
    }
 
    // Issue #74696
@@ -897,6 +889,51 @@ public class FileAuthenticationProviderTest {
                  "Same-named group membership should be kept");
       assertTrue(Arrays.asList(provider.getRoles(CLASH_USER)).contains(CLASH_GROUP_ROLE),
                  "Role inherited through the same-named group should be kept");
+   }
+
+   // [Scope] inside a PermissionRequestScope the leaf getUser/getOrganization read storage once,
+   // outside it every call reads storage as before
+   @Test
+   @SuppressWarnings("unchecked")
+   void testGetUserAndOrganizationReadStorageOncePerScope() throws Exception {
+      IdentityID userIdentity = new IdentityID("scopeUser", "scopeOrg");
+      provider.addUser(new FSUser(userIdentity));
+      FSOrganization org = new FSOrganization("scopeOrg");
+      org.setName("Scope Org");
+      provider.addOrganization(org);
+
+      Field uf = FileAuthenticationProvider.class.getDeclaredField("userStorage");
+      uf.setAccessible(true);
+      Field of = FileAuthenticationProvider.class.getDeclaredField("organizationStorage");
+      of.setAccessible(true);
+      KeyValueStorage<FSUser> users = Mockito.spy((KeyValueStorage<FSUser>) uf.get(provider));
+      KeyValueStorage<FSOrganization> orgs =
+         Mockito.spy((KeyValueStorage<FSOrganization>) of.get(provider));
+      uf.set(provider, users);
+      of.set(provider, orgs);
+
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         for(int i = 0; i < 50; i++) {
+            assertNotNull(provider.getUser(userIdentity));
+            assertNotNull(provider.getOrganization("scopeOrg"));
+            assertNull(provider.getUser(new IdentityID("nobody", "scopeOrg")));
+         }
+      }
+
+      Mockito.verify(users, Mockito.times(1)).get(userIdentity.convertToKey());
+      Mockito.verify(users, Mockito.times(1))
+         .get(new IdentityID("nobody", "scopeOrg").convertToKey());
+      Mockito.verify(orgs, Mockito.times(1)).get("scopeOrg");
+
+      Mockito.clearInvocations(users, orgs);
+
+      for(int i = 0; i < 5; i++) {
+         provider.getUser(userIdentity);
+         provider.getOrganization("scopeOrg");
+      }
+
+      Mockito.verify(users, Mockito.times(5)).get(userIdentity.convertToKey());
+      Mockito.verify(orgs, Mockito.times(5)).get("scopeOrg");
    }
 
    private static final String CLASH_ORG = "orgB";

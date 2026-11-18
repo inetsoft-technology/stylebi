@@ -223,11 +223,12 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
    private StandardWebSocketClient buildWsClient() {
       StandardWebSocketClient client = new StandardWebSocketClient();
 
-      // SSL verification is configurable via chat.app.server.ssl.verify.
-      // Default: skip both certificate chain and hostname verification, suitable for
-      // private-network deployments with self-signed certs (matching the nginx
-      // "proxy_ssl_verify off" used in Docker Compose).
-      // Set to "true" to use the JVM default trust store in production.
+      // SSL verification is configurable via chat.app.server.ssl.verify (defaults to true).
+      // With verification on, this falls through to Tomcat's own JVM default trust store and
+      // hostname check -- import a self-signed/private-CA cert into the JVM's cacerts
+      // (e.g. keytool -importcert) to use one without disabling verification.
+      // Set to "false" to skip both certificate chain and hostname verification instead,
+      // e.g. to match the nginx "proxy_ssl_verify off" used in Docker Compose.
       // Changing this property requires a server restart.
       if(!AIAssistantController.isSslVerifyEnabled()) {
          LOG.warn("SSL certificate and hostname verification are disabled for AI assistant " +
@@ -235,6 +236,8 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
             "production when the assistant server uses a CA-signed certificate.");
 
          try {
+            // trust-all only when chat.app.server.ssl.verify is explicitly set to false (Bug #81264).
+            // nosemgrep: java.lang.security.audit.weak-ssl-context.weak-ssl-context
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, new TrustManager[] { TRUST_ALL }, null);
             client.setUserProperties(Map.of("org.apache.tomcat.websocket.SSL_CONTEXT", sslContext));

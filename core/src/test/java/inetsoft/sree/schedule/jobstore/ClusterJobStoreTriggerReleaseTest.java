@@ -72,6 +72,7 @@ import static org.mockito.Mockito.*;
  * ones scaled by 1/10 (acquire horizon 2 s, misfire threshold 0.5 s).
  */
 @Tag("slow")
+@Tag("cluster")
 class ClusterJobStoreTriggerReleaseTest {
    @BeforeEach
    void setUp() {

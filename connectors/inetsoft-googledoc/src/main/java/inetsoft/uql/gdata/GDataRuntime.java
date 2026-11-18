@@ -148,36 +148,7 @@ public class GDataRuntime extends TabularRuntime implements TabularCatalogProvid
                      data[c] = value;
                   }
                   else {
-                     NumberFormat format = cellData.getEffectiveFormat().getNumberFormat();
-
-                     if("DATE".equals(format.getType())) {
-                        long days = value.longValue();
-                        Instant instant = BASE_DATE
-                           .plus(days + 1, ChronoUnit.DAYS)
-                           .toInstant();
-                        data[c] = new Date(instant.toEpochMilli());
-                     }
-                     else if("DATE_TIME".equals(format.getType())) {
-                        long days = value.longValue();
-                        long time = (long) ((value - days) * 24 * 60 * 60 * 1e3 + .5);
-                        Instant instant = BASE_DATE
-                           .plus(days, ChronoUnit.DAYS)
-                           .plus(time, ChronoUnit.MILLIS)
-                           .minusSeconds(OffsetDateTime.now().getOffset().getTotalSeconds())
-                           .toInstant();
-                        data[c] = new Timestamp(instant.toEpochMilli());
-                     }
-                     else if("TIME".equals(format.getType())) {
-                        long time = (long) (value * 24 * 60 * 60 * 1e3 + 0.5);
-                        Instant instant = BASE_DATE
-                           .plus(time, ChronoUnit.MILLIS)
-                           .minusSeconds(OffsetDateTime.now().getOffset().getTotalSeconds())
-                           .toInstant();
-                        data[c] = new Time(instant.toEpochMilli());
-                     }
-                     else {
-                        data[c] = value;
-                     }
+                     data[c] = formatNumberValue(value, cellData.getEffectiveFormat().getNumberFormat());
                   }
                }
                else if(cellData.getEffectiveValue().getBoolValue() != null) {
@@ -389,6 +360,38 @@ public class GDataRuntime extends TabularRuntime implements TabularCatalogProvid
 
    private static HttpRequestInitializer createInitializer(GDataDataSource ds, boolean saveTokens) {
       return new GDataRequestInitializer(ds, saveTokens);
+   }
+
+   /**
+    * Converts a Google Sheets serial number value into the Java type indicated by the cell's
+    * number format (DATE, DATE_TIME, TIME), or returns the raw numeric value unchanged.
+    */
+   private static Object formatNumberValue(Double value, NumberFormat format) {
+      if("DATE".equals(format.getType())) {
+         long days = value.longValue();
+         return Date.valueOf(BASE_DATE.toLocalDate().plusDays(days));
+      }
+      else if("DATE_TIME".equals(format.getType())) {
+         long days = value.longValue();
+         long time = (long) ((value - days) * 24 * 60 * 60 * 1e3 + .5);
+         Instant instant = BASE_DATE
+            .plus(days, ChronoUnit.DAYS)
+            .plus(time, ChronoUnit.MILLIS)
+            .minusSeconds(OffsetDateTime.now().getOffset().getTotalSeconds())
+            .toInstant();
+         return new Timestamp(instant.toEpochMilli());
+      }
+      else if("TIME".equals(format.getType())) {
+         long time = (long) (value * 24 * 60 * 60 * 1e3 + 0.5);
+         Instant instant = BASE_DATE
+            .plus(time, ChronoUnit.MILLIS)
+            .minusSeconds(OffsetDateTime.now().getOffset().getTotalSeconds())
+            .toInstant();
+         return new Time(instant.toEpochMilli());
+      }
+      else {
+         return value;
+      }
    }
 
    static String[][] listWorksheets(GDataDataSource ds, String spreadsheetId) throws IOException {

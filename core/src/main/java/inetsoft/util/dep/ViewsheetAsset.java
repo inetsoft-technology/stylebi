@@ -83,12 +83,10 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
    public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       List<XAssetDependency> dependencies = new ArrayList<>();
       Set<Hyperlink> hyperlinks = new HashSet<>();
-      Set<String> assetKeys = null;
       RepletRegistry registry = null;
       RepletRegistry userRegistry = null;
 
       try {
-         assetKeys = IndexedStorage.getIndexedStorage().getKeys(null);
          registry = RepletRegistryManager.getInstance().getRegistry();
          AssetEntry assetEntry = getAssetEntry();
 
@@ -223,7 +221,11 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
          }
       }
 
-      if(assetKeys != null && registry != null) {
+      if(registry != null) {
+         // getKeys() scans every key of the org store; load it only when a viewsheet link needs
+         // it (Bug #79435), once per call. A failure skips the link check, as before.
+         Set<String> assetKeys = null;
+         boolean keysFailed = false;
          final List<Hyperlink> linkDependencies = new ArrayList<>();
 
          for(Hyperlink hyperlink : hyperlinks) {
@@ -232,11 +234,20 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
             boolean isViewsheetLink = linkType == Hyperlink.VIEWSHEET_LINK;
 
             // we only care about finding dependencies for reports and viewsheets
-            if(isViewsheetLink && assetKeys.contains(link)) {
+            if(isViewsheetLink && assetKeys == null && !keysFailed) {
+               try {
+                  assetKeys = IndexedStorage.getIndexedStorage().getKeys(null);
+               }
+               catch(Exception ignored) {
+                  keysFailed = true;
+               }
+            }
+
+            if(isViewsheetLink && assetKeys != null && assetKeys.contains(link)) {
                linkDependencies.add(hyperlink);
             }
             else {
-               if(linkType == Hyperlink.VIEWSHEET_LINK) {
+               if(linkType == Hyperlink.VIEWSHEET_LINK && !keysFailed) {
                   LOG.warn("Failed to find asset for hyperlink {} in {}", link, getPath());
                }
             }

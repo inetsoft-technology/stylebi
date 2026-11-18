@@ -498,6 +498,18 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * Get the dynamic values of the cell-path formats (anything but the object and title
+    * path) that are evaluated per cell, with the cell context and a fallback, when the
+    * data is rendered. The sandbox evaluates them without a cell context, so a failure
+    * there is not an error of the assembly. These are a subset of
+    * {@link #getViewDynamicValues(boolean)}.
+    * @return the cell format dynamic values, empty unless the assembly renders cells.
+    */
+   public List<DynamicValue> getCellFormatDynamicValues() {
+      return new ArrayList<>();
+   }
+
+   /**
     * Get the dynamic property values for hyperlink.
     * @return the dynamic values.
     */

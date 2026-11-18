@@ -57,7 +57,8 @@ import static org.mockito.Mockito.when;
                                   SQLHelperTextJoinSymmetricOrderTest.DataSourceConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
+@Tag("database")
 class SQLHelperTextJoinSymmetricOrderTest {
    private static final String DERBY = "jdbc:derby:memory:bug77546";
    private static final String HSQLDB = "jdbc:hsqldb:mem:bug77546";

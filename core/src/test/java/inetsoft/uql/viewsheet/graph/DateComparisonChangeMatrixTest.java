@@ -30,7 +30,6 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,8 +67,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Value total is the sum of that period's days and that the periods are consecutive, so a row
  * lost from a period cannot hide behind a skipped Change. Two kinds of result are not judged
  * here: a part the previous period lacks (its Change is the whole value, see
- * changeOfAPartTheEarlierPeriodLacksIsTheValue()), and the empty chart and missing quarter of
- * To Date by Week with an early End Date (Bug #79347).
+ * changeOfAPartTheEarlierPeriodLacksIsTheValue()).
  * Everything else must have rows, and the share of rows not judged is bounded.</p>
  *
  * <p>Combinations: every shape at the datatest End Date; the shapes that use weeks also at
@@ -110,18 +108,6 @@ class DateComparisonChangeMatrixTest {
       boolean valuePlus() {
          return option == DateComparisonInfo.CHANGE_VALUE ||
             option == DateComparisonInfo.PERCENT_VALUE;
-      }
-
-      /** Bug #79347: these give a chart without a row. */
-      boolean knownEmpty() {
-         return "2021-01-02".equals(endDay) && !toDate &&
-            ("Q-qtd-gW-cQ".equals(shape.id()) || "Q-mtd-gW-cQ".equals(shape.id()));
-      }
-
-      /** Bug #79347: a whole quarter between others has no row. */
-      boolean knownGap() {
-         return "Q-mtd-gW-cM".equals(shape.id()) && "sunday".equals(weekStart) &&
-            "2021-01-02".equals(endDay);
       }
 
       DateComparisonInfo info() {
@@ -203,10 +189,10 @@ class DateComparisonChangeMatrixTest {
 
    /**
     * Quarter / Quarter to Date / Week with the End Date in the first days of the year (here
-    * 2021-01-02) leaves the chart without a single row, for both first days of week.
+    * 2021-01-02) left the chart without a single row, for both first days of week (#79347).
+    * The exact ranges are asserted in DateComparisonWeekToDateRangeTest.
     */
    @Test
-   @Disabled("Bug #79347: Quarter to Date / Month to Date by Week with an early End Date gives an empty chart")
    void weekToDateWithAnEndDateInTheFirstDaysHasData() {
       for(String shapeId : new String[] { "Q-qtd-gW-cQ", "Q-mtd-gW-cQ" }) {
          for(String ws : new String[] { "sunday", "monday" }) {
@@ -287,7 +273,7 @@ class DateComparisonChangeMatrixTest {
       DataSet data = pair.getData();
 
       if(data.getRowCount() == 0) {
-         return c.knownEmpty() ? List.of() : List.of("empty chart: " + headers(data));
+         return List.of("empty chart: " + headers(data));
       }
 
       int changeCol = data.getColCount() - 1;
@@ -365,7 +351,7 @@ class DateComparisonChangeMatrixTest {
 
       // the periods are consecutive: no period lost between the first and the last
       for(long period = totals.firstKey(); period <= totals.lastKey(); period++) {
-         if(!totals.containsKey(period) && !c.knownGap()) {
+         if(!totals.containsKey(period)) {
             problems.add("no row in period " + periods.label(period));
          }
       }

@@ -1189,6 +1189,7 @@ public class Util implements inetsoft.report.StyleConstants {
          // if has parameter, find constructor
          if(pstr != null) {
             int col = -1;
+            boolean numeric = false;
 
             if(table != null) {
                col = findColumn(table, pstr);
@@ -1197,6 +1198,7 @@ public class Util implements inetsoft.report.StyleConstants {
             if(col < 0) {
                try {
                   col = Integer.parseInt(pstr);
+                  numeric = true;
                }
                catch(Exception e) {
                }
@@ -1208,7 +1210,9 @@ public class Util implements inetsoft.report.StyleConstants {
 
                instance = (Formula) method.newInstance(new Object[] { col });
             }
-            else if(table == null) {
+            // a negative number is not a column; use the default instance (n = 1), same as
+            // when a table is present
+            else if(table == null && !numeric) {
                throw new RuntimeException(
                   "Table required for formulas with base column: " + pstr);
             }

@@ -189,4 +189,12 @@ public class SybaseHelper extends SQLHelper {
       keywords.add("while");
       keywords.add("writetext");
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }

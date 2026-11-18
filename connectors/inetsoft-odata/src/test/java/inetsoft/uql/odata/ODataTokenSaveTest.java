@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.odata;
 
+import com.sun.net.httpserver.HttpServer;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.storage.BlobStorageManager;
@@ -52,7 +53,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Constructor;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -141,6 +145,50 @@ class ODataTokenSaveTest {
       assertEquals("tok-B", stored.getAccessToken());
       assertEquals(SCOPE, stored.getOdataScope());
       assertEquals(URL, stored.getURL());
+   }
+
+   // Bug #79609: a refresh response without refresh_token keeps the stored refresh token, and a
+   // rotated one replaces it, so that the next expiry can refresh again. The token endpoint is a
+   // loopback server and AuthorizationClient is the real one.
+   @Test
+   void passwordGrantRefreshKeepsOrRotatesTheStoredRefreshToken() throws Exception {
+      for(String response : new String[] {
+         "{\"access_token\":\"tok-B\",\"expires_in\":3600}",
+         "{\"access_token\":\"tok-B\",\"refresh_token\":\"R2\",\"expires_in\":3600}" })
+      {
+         boolean rotated = response.contains("refresh_token");
+         HttpServer server = HttpServer.create(
+            new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+         server.createContext("/token", exchange -> {
+            byte[] body = response.getBytes(StandardCharsets.UTF_8);
+            exchange.getRequestBody().readAllBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+         });
+         server.start();
+
+         try {
+            String name = rotated ? "rotDs" : "keepDs";
+            ODataDataSource ds = source(name);
+            ds.setOdataTokenUri("http://127.0.0.1:" + server.getAddress().getPort() + "/token");
+            registry.setDataSource(ds, false);
+            ODataDataSource runtime = prepare(name);
+
+            HttpGet request = new HttpGet("http://127.0.0.1:1/acme/svc/Items");
+            intercept(new OAuthPasswordGrantClientFactory(runtime, true), request);
+            assertEquals("Bearer tok-B", request.getFirstHeader("Authorization").getValue());
+
+            registry.clearCache();
+            ODataDataSource stored = (ODataDataSource) registry.getDataSource(name);
+            assertEquals("tok-B", stored.getAccessToken());
+            assertEquals(rotated ? "R2" : "R", stored.getRefreshToken());
+         }
+         finally {
+            server.stop(0);
+         }
+      }
    }
 
    // e.g. a Test in the data source editor before the data source is saved: a token refresh

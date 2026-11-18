@@ -744,6 +744,12 @@ public class LMBoundQuery extends BoundQuery {
    }
 
    private boolean isHiddenColumn(ColumnRef column) {
+      XEntity owner = column.getEntity() == null ? null : lmodel.getEntity(column.getEntity());
+
+      if(owner != null) {
+         return owner.isVisible() && !owner.isAttributeVisible(column.getAttribute());
+      }
+
       Enumeration<XEntity> entities = lmodel.getEntities();
 
       while(entities.hasMoreElements()) {

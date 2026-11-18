@@ -25,6 +25,7 @@ import inetsoft.uql.table.XTableColumnCreator;
 import inetsoft.uql.util.TableWrapper;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.expr.ExprParser;
+import inetsoft.uql.util.expr.TokenMgrError;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 import inetsoft.util.algo.BidiMap;
@@ -55,7 +56,7 @@ public class XSelection implements java.io.Serializable, java.lang.Cloneable {
 
          return parser.xselection();
       }
-      catch(Exception e) {
+      catch(Exception | TokenMgrError e) {
          LOG.error("Failed to parse selection expression: " + select, e);
          throw new java.text.ParseException(e.toString(), 0);
       }
@@ -242,6 +243,8 @@ public class XSelection implements java.io.Serializable, java.lang.Cloneable {
     * @param quote for quoted alias for some db.
     */
    public void setAlias(int col, String alias, String quote) {
+      indexmap.clear();
+
       if(alias == null || alias.length() == 0) {
          if(col < aliasmap.size()) {
             aliasmap.set(col, null);
@@ -765,9 +768,13 @@ public class XSelection implements java.io.Serializable, java.lang.Cloneable {
     * @return the column index if found, <tt>null</tt> otherwise.
     */
    public int indexOfColumn(String name, boolean upperCasedAlias, boolean ignoreCase) {
-      Integer idx = indexmap.get(name);
+      // the cache key must capture upperCasedAlias/ignoreCase (53160's optimization
+      // otherwise returns a result cached for a different flag combination) and must
+      // be built from the original name before the suffix-matching loop below
+      // mutates it to upper case for ignoreCase comparisons. (80138)
+      String key = name + "\u0000" + upperCasedAlias + "\u0000" + ignoreCase;
+      Integer idx = indexmap.get(key);
 
-      // optimization, for very large selection. (53160)
       if(idx != null) {
          return idx;
       }
@@ -779,7 +786,7 @@ public class XSelection implements java.io.Serializable, java.lang.Cloneable {
          String column = getColumn(i);
 
          if(Tool.equals(name, column, !ignoreCase)) {
-            indexmap.put(name, i);
+            indexmap.put(key, i);
             return i;
          }
       }
@@ -788,7 +795,7 @@ public class XSelection implements java.io.Serializable, java.lang.Cloneable {
          String alias = getAlias(i);
 
          if(Tool.equals(alias, name, !upperCasedAlias && !ignoreCase)) {
-            indexmap.put(name, i);
+            indexmap.put(key, i);
             return i;
          }
       }
@@ -807,12 +814,12 @@ public class XSelection implements java.io.Serializable, java.lang.Cloneable {
          }
 
          if(column.endsWith("." + name)) {
-            indexmap.put(name, i);
+            indexmap.put(key, i);
             return i;
          }
       }
 
-      indexmap.put(name, -1);
+      indexmap.put(key, -1);
       return -1;
    }
 

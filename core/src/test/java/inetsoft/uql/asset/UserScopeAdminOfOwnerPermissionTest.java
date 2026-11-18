@@ -75,7 +75,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class UserScopeAdminOfOwnerPermissionTest {
    private static final String ORG = Organization.getDefaultOrganizationID();
    private static final String OWNER = "owner78075";

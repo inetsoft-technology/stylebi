@@ -178,6 +178,8 @@ public class ColumnCache {
 
       List<String> llist = new ArrayList<>();
       List<String> vlist = new ArrayList<>();
+      // membership index for llist, so the check is O(1) instead of a linear scan
+      Set<String> lset = new HashSet<>();
 
       for(int i = 0; i < labels.length; i++) {
          Object lb = labels[i];
@@ -210,7 +212,7 @@ public class ColumnCache {
             val = "'" + val + "'";
          }
 
-         if(!llist.contains(lb)) {
+         if(lset.add((String) lb)) {
             llist.add((String) lb);
             vlist.add((String) val);
          }
@@ -775,6 +777,13 @@ public class ColumnCache {
       vars.put("__browsed__", "true");
       vars.put("__column__", column);
       XTable tbl = wsproc.execute(entry, vars, user);
+
+      // execute() returns null when the worksheet is missing (or its primary assembly is not a
+      // table); return before any column scan so nothing is cached and the caller gets an empty
+      // model
+      if(tbl == null) {
+         return null;
+      }
       int col = -1;
       int icol = -1; // identifier col
       int pcol = -1; // partial col
@@ -876,7 +885,8 @@ public class ColumnCache {
       }
 
       List<Object> pairs = new ArrayList<>(); // [value, label]
-      List<Object> valList = new ArrayList<>();
+      // distinct values seen so far (first wins); a HashSet keeps the check O(1) instead of a linear scan
+      Set<Object> valSet = new HashSet<>();
 
       while(table != null && table.next()) {
          Object data = table.getObject(0);
@@ -887,9 +897,8 @@ public class ColumnCache {
             pair[1] = table.getObject(1);
          }
 
-         if(!valList.contains(data)) {
+         if(valSet.add(data)) {
             pairs.add(pair);
-            valList.add(data);
          }
       }
 

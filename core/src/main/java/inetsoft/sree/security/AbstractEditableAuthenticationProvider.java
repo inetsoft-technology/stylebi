@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Skeleton implementation of an editable authentication module.
@@ -136,6 +137,85 @@ public abstract class AbstractEditableAuthenticationProvider
                                          IdentityService identityService, IdentityThemeService themeService,
                                          DashboardRegistryManager dashboardRegistryManager,
                                          DataCycleManager dataCycleManager, Principal principal, boolean replace, String defaultPassword)
+   {
+      // Bug #79856, the copy below reads the old organization's stores from one-shot snapshots
+      // and then removes them, so a write into the old organization from any node meanwhile
+      // would be acknowledged and lost. Refuse such writes, into the new id too, until the change
+      // is over. A change that only differs in letter case is guarded too: the data space paths
+      // keep the case of the id.
+      String fromId = fromOrganization.getId();
+      // Bug #79861, IdentityService.setOrganizationInfo begins the change before it moves the
+      // per user data, in that case the guard is already running and is ended by its owner
+      boolean guarded = replace && fromId != null && !OrgIdChangeGuard.isRunning(fromId);
+      boolean completed = false;
+      String opId = null;
+      OrgIdChangeGuard.clear(newOrgID);
+      // Bug #79875, a clone is a long series of writes, so it is recorded before the first one.
+      // An id change is recorded by IdentityService, which also moves the per user data first.
+      // A new organization that already exists is not the clone's to undo, so it is not recorded
+      OrgOperationJournal.Entry journalEntry = null;
+
+      try {
+         if(guarded) {
+            opId = OrgIdChangeGuard.begin(fromId, newOrgID);
+         }
+
+         if(!replace && fromId != null && newOrgID != null && getOrganization(newOrgID) == null) {
+            journalEntry = OrgOperationJournal.getInstance().begin(
+               OrgOperationJournal.Type.CLONE, fromId, newOrgID, null,
+               getCloneTargets(fromOrganization, newOrgID), getProviderName());
+         }
+
+         copyOrganizationInternal0(fromOrganization, editedNewOrganization, newOrgID, newOrgName,
+                                   identityService, themeService, dashboardRegistryManager,
+                                   dataCycleManager, principal, replace, defaultPassword);
+         completed = true;
+      }
+      finally {
+         if(journalEntry != null) {
+            // a failed clone stays recorded, the next create or edit of an organization undoes it
+            if(completed) {
+               OrgOperationJournal.getInstance().complete(journalEntry.getOpId());
+            }
+            else {
+               OrgOperationJournal.getInstance().markFailed(journalEntry.getOpId());
+            }
+         }
+
+         if(guarded) {
+            OrgIdChangeGuard.end(opId, fromId, completed);
+         }
+      }
+   }
+
+   /**
+    * Gets the data space paths that a clone writes under the new id, the new ids of the paths of
+    * the source organization.
+    */
+   private List<String> getCloneTargets(Organization fromOrganization, String newOrgID) {
+      try {
+         DataSpace space = DataSpace.getDataSpace();
+
+         if(space == null) {
+            return List.of();
+         }
+
+         return Arrays.stream(space.getOrgScopedPaths(fromOrganization))
+            .map(p -> OrgScopedPaths.rewrite(p, fromOrganization.getId(), newOrgID))
+            .collect(Collectors.toList());
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to list the data space paths of organization {}",
+                   fromOrganization.getId(), e);
+         return List.of();
+      }
+   }
+
+   private void copyOrganizationInternal0(Organization fromOrganization, Organization editedNewOrganization,
+                                          String newOrgID, String newOrgName,
+                                          IdentityService identityService, IdentityThemeService themeService,
+                                          DashboardRegistryManager dashboardRegistryManager,
+                                          DataCycleManager dataCycleManager, Principal principal, boolean replace, String defaultPassword)
    {
       FSOrganization newOrg = new FSOrganization(newOrgID);
       newOrg.setName(newOrgName == null ? newOrgID : newOrgName);
@@ -384,7 +464,8 @@ public abstract class AbstractEditableAuthenticationProvider
          }
 
          identityService.removeOrgScopedDataSpaceElements(fromOrganization);
-         themeService.removeTheme(fromOrgId);
+         // a case-only rename shares the selected-theme pointer key with the new id (Bug #81320)
+         themeService.removeTheme(fromOrgId, sameScopedProperties);
          FSService.clearServerNodeCache(fromOrgId);
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
@@ -459,7 +540,7 @@ public abstract class AbstractEditableAuthenticationProvider
             // failed to load) would wipe every custom theme across all orgs. Skip persistence
             // entirely in that case so a failed/empty read cannot delete the store.
             if(themes.isEmpty()) {
-               if(replace) {
+               if(replace && !isSameOrgPropertyScope(fromOrgId, toOrgId)) {
                   manager.setOrgSelectedTheme(null, fromOrgId);
                }
 
@@ -662,7 +743,12 @@ public abstract class AbstractEditableAuthenticationProvider
          // than lost.
          themes.removeIf(t -> Tool.equals(t.getOrgID(), fromOrgId)
             && migratedOriginalIds.contains(t.getId()));
-         manager.setOrgSelectedTheme(null, fromOrgId);
+         // the selection is stored under the lower-cased org id, so for a case-only id
+         // change the old and new pointer are one key; clearing it would erase the pointer
+         // just migrated above (Bug #81320)
+         if(!isSameOrgPropertyScope(fromOrgId, toOrgId)) {
+            manager.setOrgSelectedTheme(null, fromOrgId);
+         }
       }
 
       return newOrgThemeId;

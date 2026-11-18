@@ -825,6 +825,14 @@ public class DataCycleManager
    }
 
    /**
+    * Check if the specified data cycle exists. A stored data cycle without any condition exists
+    * too, so this checks the storage entry rather than the conditions.
+    */
+   public boolean containsDataCycle(String name, String orgId) {
+      return getIndexedStorage().contains(getCycleEntry(name, orgId).toIdentifier(), orgId);
+   }
+
+   /**
     * Get the total number of the data cycles.
     */
    public int getDataCycleCount() {
@@ -1163,8 +1171,18 @@ public class DataCycleManager
          null, orgId);
    }
 
+   /**
+    * Called when the shared indexed storage changed, possibly by another cluster node. The
+    * extension tasks held by {@link ScheduleManager} are node-local, so when a data cycle changed
+    * (deleted, renamed, conditions/enabled/notification edited) the changed org's extension
+    * tasks must be regenerated and reloaded here, otherwise this node keeps listing stale cycle
+    * tasks until a local reload happens (Bug #81275).
+    */
    @Override
    public void storageRefreshed(StorageRefreshEvent event) {
+      // use the org id of the changed key itself (not the thread's current org, which is
+      // lower-cased), one reload per org even if the event carries several changes
+      Set<String> orgIds = new LinkedHashSet<>();
       boolean changed = false;
 
       for(TimestampIndexChange change : event.getChanges()) {
@@ -1173,12 +1191,39 @@ public class DataCycleManager
 
             if(entry != null && entry.getType() == AssetEntry.Type.DATA_CYCLE) {
                changed = true;
+
+               if(entry.getOrgID() != null) {
+                  orgIds.add(entry.getOrgID());
+               }
             }
          }
       }
 
-      if(changed) {
-         refresh();
+      if(!changed) {
+         return;
+      }
+
+      // cloud-runner nodes are short-lived task executors; their Ignite client may be shutting
+      // down (see propertyChange)
+      if(System.getProperty("ScheduleTaskRunner") != null) {
+         return;
+      }
+
+      // never let an exception escape into the storage event dispatch
+      try {
+         if(orgIds.isEmpty()) {
+            generateTasks(null, null, true, false);
+         }
+         else {
+            for(String orgId : orgIds) {
+               generateTasks(null, new Organization(new IdentityID(orgId, orgId)), true, false);
+            }
+         }
+
+         mvManager.setDefaultCycle(getDefaultCycle());
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to refresh data cycle tasks after storage change", ex);
       }
    }
 

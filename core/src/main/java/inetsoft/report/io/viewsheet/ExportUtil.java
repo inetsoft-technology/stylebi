@@ -50,6 +50,7 @@ import java.sql.Timestamp;
 import java.text.*;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Common utilities for exporting.
@@ -443,7 +444,8 @@ public class ExportUtil {
                vsformat = (VSFormatTableLens) filter;
                break;
             }
-            else if(filter instanceof TableFilter && r > 0 && c > 0) {
+            // Bug #79580, column 0 is data too; only the header row (r == 0) is skipped
+            else if(filter instanceof TableFilter && r > 0 && c >= 0) {
                c = ((TableFilter) filter).getBaseColIndex(c);
                r = ((TableFilter) filter).getBaseRowIndex(r);
                filter = ((TableFilter) filter).getTable();
@@ -525,7 +527,10 @@ public class ExportUtil {
             char[] extDataFmt = exFmt.getExtendedDataFormat();
 
             if(Arrays.binarySearch(extDataFmt, suffix) > -1) {
-               return null;
+               // Bug #79602: use the real Excel scaling-comma pattern (e.g. $#,###,"K")
+               // instead of falling back to the literal, unscaled K/M/B pattern.
+               String excelPattern = ExcelUtil.analyze(fmt, obj);
+               return "".equals(excelPattern) ? "General" : excelPattern;
             }
          }
       }
@@ -557,7 +562,7 @@ public class ExportUtil {
          // if string type, we should set text format in excel, but if format is
          // decimal format, we should use its original format.
          if(fmt instanceof DecimalFormat && obj instanceof Number) {
-            return ExcelUtil.analyze(fmt);
+            return ExcelUtil.analyze(fmt, obj);
          }
 
          return "@";
@@ -574,11 +579,13 @@ public class ExportUtil {
                return "@";
             }
 
-            return format;
+            // Bug #80208, a fixed "0.0" rounds every decimal; use the value's own decimals
+            return DECIMAL_NUMBER_FORMAT.equals(format) ? getDecimalPattern(text) : format;
          }
       }
 
-      ftmPatt = ExcelUtil.analyze(fmt);
+      // Bug #80103, the K/M/B unit shown depends on the value, so analyze for this cell's value
+      ftmPatt = ExcelUtil.analyze(fmt, obj);
 
       return "".equals(ftmPatt) ? "General" : ftmPatt;
    }
@@ -613,6 +620,13 @@ public class ExportUtil {
 
             if(t instanceof VSFormatTableLens) {
                vsfmt = (VSFormatTableLens) t;
+
+               // Bug #80208, a MessageFormat (e.g. "{0} pcs") has no Excel number pattern, the
+               // display text is the value; the raw value would lose the prefix/suffix
+               if(vsfmt.getCellFormat(r, c) instanceof MessageFormat) {
+                  return obj0;
+               }
+
                obj = vsfmt.getTable().getObject(r, c);
                break;
             }
@@ -767,6 +781,27 @@ public class ExportUtil {
       return getNumberFormat((String) obj) != null;
    }
 
+   private static final String INTEGER_NUMBER_FORMAT = "0";
+   private static final String DECIMAL_NUMBER_FORMAT = "0.0";
+   private static final Pattern PLAIN_DECIMAL = Pattern.compile("-?\\d+\\.\\d+");
+
+   /**
+    * Get the Excel pattern that shows a plain decimal text with exactly its own decimals. The
+    * text is what the dashboard shows (Tool.toString), so the cell displays the same digits.
+    * Anything that is not a plain decimal, or that needs more than 30 decimals, stays General.
+    */
+   private static String getDecimalPattern(String text) {
+      int dot = text == null ? -1 : text.indexOf('.');
+
+      if(dot < 0 || !PLAIN_DECIMAL.matcher(text).matches()) {
+         return "General";
+      }
+
+      int decimals = text.length() - dot - 1;
+
+      return decimals > 30 ? "General" : "0." + "0".repeat(decimals);
+   }
+
    /**
     * Get number format if the text is a number.
     */
@@ -774,7 +809,7 @@ public class ExportUtil {
       try {
          Long.parseLong(text);
 
-         return "0";
+         return INTEGER_NUMBER_FORMAT;
       }
       catch(NumberFormatException ex) {
       }
@@ -782,7 +817,7 @@ public class ExportUtil {
       try {
          Double.parseDouble(text);
 
-         return "0.0";
+         return DECIMAL_NUMBER_FORMAT;
       }
       catch(NumberFormatException ex) {
       }

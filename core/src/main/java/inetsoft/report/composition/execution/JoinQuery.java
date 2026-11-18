@@ -520,6 +520,8 @@ public class JoinQuery extends AssetQuery {
             // fix bug1331802914432
             boolean shouldProcess = false;
             boolean crossJoin = true;
+            // operators skipped because a join column was not found, as "table.column"
+            List<String> skippedColumns = new ArrayList<>();
 
             for(int k = 0; k < i; colOffset += lenses[k].getColCount(), k++) {
                String ltable = tables[k].getName();
@@ -569,11 +571,13 @@ public class JoinQuery extends AssetQuery {
 
                   if(lindex < 0) {
                      LOG.warn("Join column not found in left-hand table: " + lcolumn);
+                     skippedColumns.add(ltable + "." + lcolumn);
                      continue;
                   }
 
                   if(rindex < 0) {
                      LOG.warn("Join column not found in right-hand table: " + rcolumn);
+                     skippedColumns.add(rtable + "." + rcolumn);
                      continue;
                   }
 
@@ -601,6 +605,11 @@ public class JoinQuery extends AssetQuery {
 
             // inner join?
             if(eqJoin) {
+               if(lcolumns.isEmpty()) {
+                  warnNoJoinColumns(i, rtable, lenses, table2, shouldProcess,
+                                    skippedColumns);
+               }
+
                int[] larr = new int[lcolumns.size()];
                int[] rarr = new int[rcolumns.size()];
 
@@ -752,7 +761,10 @@ public class JoinQuery extends AssetQuery {
          JDBCQuery query0 = queries[0].getQuery();
          nquery = (JDBCQuery) query0.clone();
          nquery.setSQLDefinition(new UniformSQL());
-         nquery.setMaxRows(Integer.parseInt(SreeEnv.getProperty("join.table.maxrows", "0")));
+         int maxRows = Integer.parseInt(SreeEnv.getProperty("join.table.maxrows", "0"));
+         nquery.setMaxRows(maxRows);
+         // read by JDBCHandler so XNodeTableLens can warn when the merged join is truncated
+         nquery.setProperty("join.table.maxrows", maxRows);
          nquery.setName(box.getWSName() + "." + getTableDescription(table.getName()));
       }
 
@@ -1199,6 +1211,67 @@ public class JoinQuery extends AssetQuery {
    private JDBCQuery nquery; // new query
    private final Set<String> colset; // columns
    private transient Boolean sourceMergeable;
+
+   /**
+    * An equal join is about to be built with no usable join column, which makes the join
+    * table empty. Log which route led here and tell the user why the table is empty.
+    *
+    * @param index         index of the table being joined to the tables before it.
+    * @param rtable        name of that table.
+    * @param lenses        the lenses of the tables joined so far.
+    * @param table2        the lens of the table being joined.
+    * @param hasOperator   true if some earlier table has an operator to it.
+    * @param skipped       the "table.column" refs that were not found in the lenses.
+    */
+   private void warnNoJoinColumns(int index, String rtable, TableLens[] lenses,
+                                  TableLens table2, boolean hasOperator,
+                                  List<String> skipped)
+   {
+      String route;
+      String key;
+      String arg;
+
+      if(!skipped.isEmpty()) {
+         route = "skipped (join column not found at the skip site)";
+         key = "common.join.columnNotFound";
+         arg = skipped.get(0);
+      }
+      else if(hasOperator) {
+         route = "list empty (operator present but it holds no join condition)";
+         key = "common.join.noCondition";
+         arg = rtable;
+      }
+      else {
+         route = "no operator (no join operator from any earlier table to table " +
+            index + ")";
+         key = "common.join.noCondition";
+         arg = rtable;
+      }
+
+      StringBuilder ops = new StringBuilder();
+
+      for(int k = 0; k < index; k++) {
+         TableAssemblyOperator top = this.table.getOperator(tables[k].getName(), rtable);
+
+         if(top == null) {
+            continue;
+         }
+
+         for(TableAssemblyOperator.Operator op : top.getOperators()) {
+            ops.append(" [").append(tables[k].getName()).append("->").append(rtable)
+               .append(" lindex=").append(AssetUtil.findColumn(lenses[k], op.getLeftAttribute()))
+               .append(" rindex=").append(AssetUtil.findColumn(table2, op.getRightAttribute()))
+               .append(']');
+         }
+      }
+
+      LOG.error("Join {} has no usable join columns, the result is empty. route={}, " +
+                "table index={}, tables={}, operators={}", table.getName(), route, index,
+                Arrays.stream(tables).map(TableAssembly::getName).toList(),
+                ops.length() == 0 ? " none" : ops);
+      String msg = Catalog.getCatalog().getString(key, table.getName(), arg);
+      Tool.addUserMessage(new UserMessage(msg, ConfirmException.ERROR));
+   }
 
    private static final Logger LOG = LoggerFactory.getLogger(JoinQuery.class);
 }

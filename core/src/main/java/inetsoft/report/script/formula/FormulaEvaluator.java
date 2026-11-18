@@ -178,7 +178,8 @@ public class FormulaEvaluator {
                scriptcache.clear();
             }
 
-            script = senv.compile(expr);
+            // a bare call of a global function must not hit a same-named column (#81047)
+            script = senv.compileCalleeFallback(expr);
             scriptcache.put(expr, script);
          }
 

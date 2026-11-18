@@ -33,6 +33,7 @@ import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
 import inetsoft.uql.jdbc.util.SQLTypes;
+import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.util.*;
@@ -370,10 +371,12 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
       //Only separates the condition list if it has no OR junctions
       if(onlyAndJunction) {
+         SQLHelper sqlHelper = getSQLHelper(getUniformSQL());
+
          for(int i = 0; i < conds.getSize(); i += 2) {
             ConditionItem item = conds.getConditionItem(i);
 
-            if(!isConditionItemMergeable(item)) {
+            if(!isConditionItemMergeable(item, sqlHelper)) {
                conds.remove(i);
 
                if(i >= 0) {
@@ -451,7 +454,19 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       return mergeSuccess;
    }
 
-   private boolean isConditionItemMergeable(ConditionItem item) throws Exception {
+   /**
+    * Check if the condition is a "one of" that the data source can not execute (Mongo).
+    * Shared by the per-item and the whole-list mergeable checks so they stay in step.
+    */
+   private static boolean isOneOfUnsupported(XCondition xcond, SQLHelper sqlHelper) {
+      return xcond != null && sqlHelper != null &&
+         "mongo".equals(sqlHelper.getSQLHelperType()) &&
+         xcond.getOperation() == XCondition.ONE_OF;
+   }
+
+   private boolean isConditionItemMergeable(ConditionItem item, SQLHelper sqlHelper)
+      throws Exception
+   {
       DataRef ref = item.getAttribute();
       ref = findColumn(ref);
 
@@ -460,6 +475,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       XCondition xcond = item.getXCondition();
+
+      if(isOneOfUnsupported(xcond, sqlHelper)) {
+         return false;
+      }
 
       if((xcond instanceof DateCondition) && !(xcond instanceof DateRange)) {
          return true;
@@ -1865,6 +1884,16 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
     * @return the contained attributes.
     */
    protected List<AttributeRef> getContainedAttributes(DataRef attr, boolean vonly) {
+      return getContainedAttributes(attr, vonly, Collections.newSetFromMap(new IdentityHashMap<>()));
+   }
+
+   /**
+    * @param visiting the expressions being resolved, used to stop expressions that refer to
+    *                 each other from recursing forever (Bug #81206).
+    */
+   private List<AttributeRef> getContainedAttributes(DataRef attr, boolean vonly,
+                                                     Set<DataRef> visiting)
+   {
       ColumnRef column = attr instanceof ColumnRef ? (ColumnRef) attr : null;
       attr = getBaseAttribute(attr);
       List<AttributeRef> list = null;
@@ -1877,7 +1906,17 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          }
 
          if(list == null) {
-            list = getExprAttributes(attr, vonly, column);
+            if(!visiting.add(attr)) {
+               // circular reference between expressions, nothing more to contribute
+               return new ArrayList<>();
+            }
+
+            try {
+               list = getExprAttributes(attr, vonly, column, visiting);
+            }
+            finally {
+               visiting.remove(attr);
+            }
          }
 
          if(expr != null) {
@@ -1892,7 +1931,9 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       return list;
    }
 
-   private List<AttributeRef> getExprAttributes(DataRef attr, boolean vonly, ColumnRef column) {
+   private List<AttributeRef> getExprAttributes(DataRef attr, boolean vonly, ColumnRef column,
+                                                 Set<DataRef> visiting)
+   {
       List<AttributeRef> list = new ArrayList<>();
       Enumeration iter = column != null ? column.getExpAttributes() : attr.getAttributes();
 
@@ -1900,7 +1941,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          DataRef ref = (DataRef) iter.nextElement();
 
          if(ref instanceof ExpressionRef) {
-            list.addAll(getContainedAttributes(ref, vonly));
+            list.addAll(getContainedAttributes(ref, vonly, visiting));
             continue;
          }
 
@@ -1913,7 +1954,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          ref = convertAttributeInExpression(attr2, attr);
 
          if(ref instanceof ExpressionRef && ref != attr) {
-            list.addAll(getContainedAttributes(ref, vonly));
+            list.addAll(getContainedAttributes(ref, vonly, visiting));
             continue;
          }
 
@@ -3359,10 +3400,8 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
          XCondition xcond = item.getXCondition();
 
-         if(xcond != null && sqlHelper != null && "mongo".equals(sqlHelper.getSQLHelperType())) {
-            if(xcond.getOperation() == XCondition.ONE_OF) {
-               return false;
-            }
+         if(isOneOfUnsupported(xcond, sqlHelper)) {
+            return false;
          }
 
          if((xcond instanceof DateCondition) && !(xcond instanceof DateRange)) {
@@ -4581,21 +4620,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
                      vval = null;
                   }
 
-                  if(vval instanceof Object[]) {
-                     Object[] objs = (Object[]) vval;
-
-                     if(objs.length > 0) {
-                        for(int i = 0; i < objs.length - 1; i++) {
-                           valStr += AbstractCondition.getValueSQLString(
-                              objs[i]) + ",";
-                        }
-
-                        valStr += AbstractCondition.getValueSQLString(
-                           objs[objs.length - 1]);
-                     }
-                  }
-                  else if(vval != null){
-                     valStr = AbstractCondition.getValueSQLString(vval);
+                  if(vval != null) {
+                     // the value is spliced as SQL text that VarSQL never sees,
+                     // so escape its string literals here (Bug #79742)
+                     valStr = getSQLLiteral(vval, isBackslashEscapeChar());
                   }
 
                   exp = valStr == null || valStr.length() == 0 ? exp :
@@ -4626,6 +4654,44 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             String text = AbstractCondition.getValueSQLString(val);
             return new XExpression(text, XExpression.EXPRESSION);
          }
+      }
+
+      /**
+       * Get the SQL text of a variable value spliced into an SQL expression. It is
+       * {@link AbstractCondition#getValueSQLString} with every string escaped for the
+       * query's dialect, also inside an array (an IN list).
+       */
+      private String getSQLLiteral(Object value, boolean backslashEscape) {
+         if(value instanceof String) {
+            return "'" + VarSQL.escapeSQLLiteralValue((String) value, '\'', backslashEscape) +
+               "'";
+         }
+         else if(value instanceof Object[]) {
+            Object[] arr = (Object[]) value;
+            StringBuilder builder = new StringBuilder();
+
+            for(int i = 0; i < arr.length; i++) {
+               if(i != 0) {
+                  builder.append(",");
+               }
+
+               builder.append(getSQLLiteral(arr[i], backslashEscape));
+            }
+
+            return builder.toString();
+         }
+
+         return AbstractCondition.getValueSQLString(value);
+      }
+
+      /**
+       * Check if the dialect of the query's data source treats a backslash as an
+       * escape character in a string literal (e.g. MySQL), as JDBCHandler does for VarSQL.
+       */
+      private boolean isBackslashEscapeChar() {
+         UniformSQL sql = getUniformSQL();
+         SQLHelper helper = sql == null ? null : PreAssetQuery.this.getSQLHelper(sql);
+         return helper != null && helper.isBackslashEscapeChar();
       }
 
       /**

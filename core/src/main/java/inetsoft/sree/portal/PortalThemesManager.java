@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -88,17 +89,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
             // last write and would be skipped, losing that node's change. If the file
             // already holds exactly what this instance last wrote or loaded, there is
             // nothing to reload no matter who wrote it or when.
-            String digest = fileDigest(dataSpace, getThemesFile());
-
-            if(digest != null && digest.equals(syncedDigest)) {
-               return;
-            }
-
-            // set before loading: loadThemes() may itself call save() (the missing-file
-            // fallback), and that save must have the last word on syncedDigest
-            syncedDigest = digest;
-            reset();
-            loadThemes();
+            reloadIfChangedUnderLock();
          }
          catch(Exception ex) {
             LOG.error("Failed to load portal themes", ex);
@@ -625,6 +616,86 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    /**
+    * Atomically applies a change to the portal themes: under the distributed lock, picks
+    * up any newer file first, runs the mutation against the then-current in-memory state
+    * and writes the result. Every read-modify-write of the portal themes must go through
+    * here, rather than reading the manager, mutating the objects it returned and then
+    * calling {@link #save()} (Bug #81434): the change listener reloads the manager under
+    * the same lock, and a reload that lands between the mutation and the save replaces the
+    * objects that were mutated, so save() would write back the reloaded state and drop the
+    * change. A stale in-memory copy (a remote write whose notification has not arrived
+    * yet) would likewise be written back whole, dropping that write.
+    * <p>
+    * The mutation must fetch everything it changes from the manager passed in, inside the
+    * mutation, and should be free of cluster calls (it blocks change notifications for
+    * the duration). The lock is reentrant, so the mutation may call other manager
+    * methods.
+    *
+    * @param mutation the change to apply.
+    */
+   public void update(Consumer<PortalThemesManager> mutation) {
+      try {
+         updateChecked(mutation::accept);
+      }
+      catch(RuntimeException | Error ex) {
+         throw ex;
+      }
+      catch(Exception ex) {
+         // cannot happen, Consumer.accept throws no checked exception
+         throw new IllegalStateException(ex);
+      }
+   }
+
+   /**
+    * Same as {@link #update(Consumer)} for a mutation that throws a checked exception.
+    * If the mutation throws, nothing is saved and the exception propagates.
+    *
+    * @param mutation the change to apply.
+    *
+    * @throws Exception if the mutation fails.
+    */
+   public void updateChecked(Mutation mutation) throws Exception {
+      // Ignite reentrant lock is reentrant per thread; loadThemes() -> save() nests safely
+      Lock lock = cluster.getLock(DISTRIBUTED_LOCK_NAME);
+      lock.lock();
+
+      try {
+         reloadIfChangedUnderLock();
+         mutation.apply(this);
+         saveUnderLock();
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * A change to the portal themes, see {@link #updateChecked(Mutation)}.
+    */
+   @FunctionalInterface
+   public interface Mutation {
+      void apply(PortalThemesManager manager) throws Exception;
+   }
+
+   /**
+    * Reloads from the themes file when it holds something other than what this instance
+    * last wrote or loaded. Must be called with the distributed lock held.
+    */
+   private void reloadIfChangedUnderLock() {
+      String digest = fileDigest(dataSpace, getThemesFile());
+
+      if(digest != null && digest.equals(syncedDigest)) {
+         return;
+      }
+
+      // set before loading: loadThemes() may itself call save() (the missing-file
+      // fallback), and that save must have the last word on syncedDigest
+      syncedDigest = digest;
+      reset();
+      loadThemes();
+   }
+
+   /**
     * Performs the actual write without acquiring the distributed lock.
     * Must only be called by save(), which acquires the lock first.
     */
@@ -917,10 +988,11 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          portalTabs = new ArrayList<>();
       }
 
+      // writeXML omits an empty map, so a missing element means empty
+      cssEntries.clear();
       node = Tool.getChildNodeByTagName(tag, "cssEntries");
 
       if(node != null) {
-         cssEntries.clear();
          final NodeList list = Tool.getChildNodesByTagName(node, "cssEntry");
 
          for(int i = 0; i < list.getLength(); i++) {
@@ -939,10 +1011,11 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          }
       }
 
+      // writeXML omits an empty map, so a missing element means empty
+      faviconEntries.clear();
       node = Tool.getChildNodeByTagName(tag, "faviconEntries");
 
       if(node != null) {
-         faviconEntries.clear();
          final NodeList list = Tool.getChildNodesByTagName(node, "faviconEntry");
 
          for(int i = 0; i < list.getLength(); i++) {
@@ -961,10 +1034,11 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          }
       }
 
+      // writeXML omits an empty map, so a missing element means empty
+      logoEntries.clear();
       node = Tool.getChildNodeByTagName(tag, "logoEntries");
 
       if(node != null) {
-         logoEntries.clear();
          final NodeList list = Tool.getChildNodesByTagName(node, "logoEntry");
 
          for(int i = 0; i < list.getLength(); i++) {
@@ -990,10 +1064,10 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          welcomePage.parseXML(node);
       }
 
+      welcomePageEntries.clear();
       node = Tool.getChildNodeByTagName(tag, "welcomePageEntries");
 
       if(node != null) {
-         welcomePageEntries.clear();
          final NodeList list = Tool.getChildNodesByTagName(node, "orgPortalWelcomePage");
 
          for(int i = 0; i < list.getLength(); i++) {
@@ -1175,6 +1249,10 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       fontStyle = false;
       userFonts = new ArrayList<>();
       welcomePage = null;
+      cssEntries.clear();
+      faviconEntries.clear();
+      logoEntries.clear();
+      welcomePageEntries.clear();
    }
 
    private int reportListType;

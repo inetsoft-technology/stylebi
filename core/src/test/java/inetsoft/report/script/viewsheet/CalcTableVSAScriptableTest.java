@@ -25,6 +25,8 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
@@ -114,5 +116,17 @@ public class CalcTableVSAScriptableTest {
       assertEquals(java.util.List.of("notARealProperty"),
                    calcTableVSAScriptable.getUnrecognizedWrites());
       assertEquals("x", calcTableVSAScriptable.getMember("notARealProperty"));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "fillBlankWithZero", "sortOthersLast" })
+   void booleanPropertiesRoundTripTrueThenFalseThroughScript(String name) {
+      calcTableVSAScriptable.addProperties();
+
+      calcTableVSAScriptable.putMember(name, true);
+      assertEquals(true, calcTableVSAScriptable.getMember(name));
+
+      calcTableVSAScriptable.putMember(name, false);
+      assertEquals(false, calcTableVSAScriptable.getMember(name));
    }
 }

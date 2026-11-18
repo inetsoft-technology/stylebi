@@ -40,6 +40,7 @@
  *   Group 13 [Risk 1] — onKeyUp / onKeyDown: ctrlDown tracking + pending change flush
  *   Group 14 [Risk 1] — labelSearch: debounced typeahead filter
  *   Group 15 [Risk 1] — ngOnDestroy
+ *   Group 17 [Risk 3] — duplicate labels: options identified by index (Bug #80090)
  *
  * Out of scope this pass: inputPlaceholder, navigate, focusOnRegion, clearNavSelection,
  * showCalendar, showTime, getDateString, getDate, getTimeInstant, getDateTime, isValidDate,
@@ -381,12 +382,12 @@ describe("VSComboBox — Pass 1: Interaction", () => {
       it("should close the dropdown and apply the change on selectItem", () => {
          const { comp } = createComboBoxComponent();
          comp.isDropdownOpen = true;
-         const spy = vi.spyOn(comp, "onChange").mockImplementation(() => {});
+         const spy = vi.spyOn(comp, "onSelectIndex").mockImplementation(() => {});
 
-         comp.selectItem("Label B");
+         comp.selectItem(1);
 
          expect(comp.isDropdownOpen).toBe(false);
-         expect(spy).toHaveBeenCalledWith("Label B");
+         expect(spy).toHaveBeenCalledWith(1);
       });
 
       it("should flip isDropdownOpen in both directions", () => {
@@ -724,6 +725,163 @@ describe("VSComboBox — Pass 1: Interaction", () => {
 
          expect(formInputService.addPendingValue)
             .toHaveBeenCalledWith("Combo1", new Date(2024, 4, 6, 10, 0, 0, 0).getTime());
+      });
+   });
+
+   // -- Group 17 - duplicate labels (Bug #80090) -------------------------------
+   //
+   // Two rows may share a label but carry different values. The picked option used to be
+   // identified by its label and mapped back with labels.indexOf(), so picking the second
+   // "Smith" sent the value of the first one. Options are now identified by index.
+   describe("Group 17 - duplicate labels", () => {
+      const labels = ["Adams", "Jones", "Smith", "Smith"];
+      const values = [3, 4, 1, 2];
+
+      it("should send the value of the picked duplicate, not of the first one", () => {
+         const { comp, socket } = createComboBoxComponent({
+            model: { refresh: true, labels, values, selectedLabel: "Adams", selectedObject: 3 },
+         });
+
+         comp.onSelectIndex(3);
+
+         expect(comp.model.selectedLabel).toBe("Smith");
+         expect(comp.model.selectedObject).toBe(2);
+         expect(comp.selectedIndex).toBe(3);
+         expect(socket.sendEvent).toHaveBeenCalledWith(
+            "/events/comboBox/applySelection",
+            expect.objectContaining({ assemblyName: "Combo1", value: 2 }));
+      });
+
+      it("should still send the first duplicate's value when the first one is picked", () => {
+         const { comp, socket } = createComboBoxComponent({
+            model: { refresh: true, labels, values },
+         });
+
+         comp.onSelectIndex(2);
+
+         expect(comp.model.selectedObject).toBe(1);
+         expect(comp.selectedIndex).toBe(2);
+         expect(socket.sendEvent).toHaveBeenCalledWith(
+            "/events/comboBox/applySelection",
+            expect.objectContaining({ value: 1 }));
+      });
+
+      it("should queue the picked duplicate's value when refresh is off", () => {
+         const { comp, formInputService } = createComboBoxComponent({
+            model: { refresh: false, writeBackDirectly: false, labels, values },
+         });
+
+         comp.onSelectIndex(3);
+
+         expect(formInputService.addPendingValue).toHaveBeenCalledWith("Combo1", 2);
+         expect(comp.selectedIndex).toBe(3);
+      });
+
+      it("should send the picked duplicate's value from the virtual scroll list", () => {
+         const manyLabels = Array.from({ length: 600 }, (_, i) => "Label " + i);
+         const manyValues = Array.from({ length: 600 }, (_, i) => i);
+         manyLabels[598] = "Smith";
+         manyLabels[599] = "Smith";
+         const { comp, socket } = createComboBoxComponent({
+            model: { refresh: true, labels: manyLabels, values: manyValues },
+         });
+         comp.isDropdownOpen = true;
+
+         comp.selectItem(599);
+
+         expect(comp.isDropdownOpen).toBe(false);
+         expect(comp.model.selectedObject).toBe(599);
+         expect(comp.selectedIndex).toBe(599);
+         expect(socket.sendEvent).toHaveBeenCalledWith(
+            "/events/comboBox/applySelection",
+            expect.objectContaining({ value: 599 }));
+      });
+
+      it("should ignore an out of range index", () => {
+         const { comp, formInputService } = createComboBoxComponent({
+            model: { labels, values, selectedLabel: "Adams", selectedObject: 3 },
+         });
+
+         comp.onSelectIndex(-1);
+         comp.onSelectIndex(4);
+         comp.onSelectIndex(null);
+
+         expect(comp.model.selectedObject).toBe(3);
+         expect(formInputService.addPendingValue).not.toHaveBeenCalled();
+      });
+
+      it("should show the second duplicate when the model comes back with its value", () => {
+         const { comp } = createComboBoxComponent({ model: { labels, values } });
+
+         comp.model = makeMockComboBoxModel({
+            labels, values, selectedLabel: "Smith", selectedObject: 2,
+         });
+
+         expect(comp.selectedIndex).toBe(3);
+      });
+
+      it("should match the selected value whether it is a number or a string", () => {
+         const { comp } = createComboBoxComponent();
+
+         comp.model = makeMockComboBoxModel({
+            labels, values, selectedLabel: "Smith", selectedObject: "2",
+         });
+         expect(comp.selectedIndex).toBe(3);
+
+         comp.model = makeMockComboBoxModel({
+            labels, values: ["3", "4", "1", "2"], selectedLabel: "Smith", selectedObject: 2,
+         });
+         expect(comp.selectedIndex).toBe(3);
+      });
+
+      it("should not select a null value row when nothing is selected", () => {
+         const { comp } = createComboBoxComponent();
+
+         comp.model = makeMockComboBoxModel({
+            labels: ["", "Adams"], values: [null, 3], selectedLabel: null, selectedObject: null,
+         });
+
+         expect(comp.selectedIndex).toBe(-1);
+      });
+
+      it("should fall back to the first matching label when the value is not in the list", () => {
+         const { comp } = createComboBoxComponent();
+
+         comp.model = makeMockComboBoxModel({
+            labels, values, selectedLabel: "Smith", selectedObject: "not a value",
+         });
+         expect(comp.selectedIndex).toBe(2);
+
+         comp.model = makeMockComboBoxModel({
+            labels, values, selectedLabel: "Nobody", selectedObject: "not a value",
+         });
+         expect(comp.selectedIndex).toBe(-1);
+      });
+
+      it("should keep the first-match rule for a typed label in an editable combo box", () => {
+         const { comp, formInputService } = createComboBoxComponent({
+            model: { editable: true, labels, values },
+         });
+
+         comp.onChange("Smith");
+
+         expect(comp.model.selectedObject).toBe(1);
+         expect(comp.selectedIndex).toBe(2);
+         expect(formInputService.addPendingValue).toHaveBeenCalledWith("Combo1", 1);
+      });
+
+      it("should not re-map the picked duplicate on blur with the same label", () => {
+         const { comp } = createComboBoxComponent({
+            model: { editable: true, refresh: false, labels, values },
+         });
+         comp.onSelectIndex(3);
+         const spy = vi.spyOn(comp, "onChange");
+
+         comp.onBlur("Smith");
+
+         expect(spy).not.toHaveBeenCalled();
+         expect(comp.model.selectedObject).toBe(2);
+         expect(comp.selectedIndex).toBe(3);
       });
    });
 });

@@ -283,4 +283,52 @@ public class NoneFormulaTest {
    void getName_returnsNone() {
       assertEquals("none", formula.getName());
    }
+
+   // -----------------------------------------------------------------------
+   // no aggregation: the last value of each typed overload
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.count#none-formula-last-value
+   @Test
+   void addValue_eachPrimitiveOverload_keepsLastValue() {
+      formula.addValue(1);
+      formula.addValue(2);
+      formula.addValue(3);
+      assertEquals(3, formula.getResult());
+      assertFalse(formula.isNull());
+
+      formula.reset();
+      formula.addValue(1.5);
+      formula.addValue(2.5);
+      assertEquals(2.5, formula.getResult());
+      assertEquals(2.5, formula.getDoubleResult());
+
+      formula.reset();
+      formula.addValue(10L);
+      formula.addValue(20L);
+      assertEquals(20L, formula.getResult());
+
+      formula.reset();
+      formula.addValue(1.5f);
+      formula.addValue(3.5f);
+      assertEquals(3.5f, formula.getResult());
+
+      formula.reset();
+      formula.addValue((short) 1);
+      formula.addValue((short) 4);
+      assertEquals((short) 4, formula.getResult());
+   }
+
+   // gap:report.summary-formulas.count#none-formula-last-value
+   @Test
+   void addValueInt_andObject_primitiveWinsInEitherOrder() {
+      formula.addValue(7);
+      formula.addValue((Object) "text");
+      assertEquals(7, formula.getResult());
+
+      formula.reset();
+      formula.addValue((Object) "text");
+      formula.addValue(7);
+      assertEquals(7, formula.getResult());
+   }
 }

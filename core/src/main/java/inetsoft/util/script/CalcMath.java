@@ -1001,8 +1001,8 @@ public class CalcMath {
                               Object sum_rangeObj) {
       Object[] range = JavaScriptEngine.split(rangeObj);
       Object[] sum_range = JavaScriptEngine.split(sum_rangeObj);
-      double[] rge = CalcUtil.convertToDoubleArray(range);
-      double[] srge = CalcUtil.convertToDoubleArray(sum_range);
+      // decide "omitted" from the raw array: an all-empty sum_range is still a sum_range
+      boolean sumRangeOmitted = sum_range.length == 0;
 
       String cond = "_value_" + criteria;
       org.graalvm.polyglot.Source condSource;
@@ -1018,22 +1018,32 @@ public class CalcMath {
 
          double sum = 0;
 
-         for(int i = 0; i < rge.length; i++) {
+         // pair range and sum_range by original position; empty or non-numeric cells
+         // keep their position instead of being compacted away
+         for(int i = 0; i < range.length; i++) {
+            Double value = CalcUtil.toDouble(range[i]);
+
+            // an empty or non-numeric range cell never satisfies the criteria. Don't
+            // evaluate it in script, where null would match e.g. "<5"
+            if(value == null) {
+               continue;
+            }
+
             try {
-               cx.getBindings("js").putMember("_value_", rge[i]);
+               cx.getBindings("js").putMember("_value_", value.doubleValue());
                org.graalvm.polyglot.Value result = cx.eval(condSource);
 
                if(result.isBoolean() ? result.asBoolean() : "true".equals(result.toString())) {
-                  try {
-                     if(srge.length > 0 && i < srge.length) {
-                        sum += srge[i];
-                     }
-                     else if(srge.length == 0) {
-                        sum += rge[i];
-                     }
+                  if(sumRangeOmitted) {
+                     sum += value;
                   }
-                  catch(Exception e) {
-                     sum += rge[i];
+                  else if(i < sum_range.length) {
+                     Double sumValue = CalcUtil.toDouble(sum_range[i]);
+
+                     // an empty or non-numeric sum_range cell adds 0
+                     if(sumValue != null) {
+                        sum += sumValue;
+                     }
                   }
                }
             }
@@ -1043,6 +1053,63 @@ public class CalcMath {
 
          return sum;
       }
+   }
+
+   /**
+    * Converts one sumproduct argument to a matrix by position. Unlike
+    * {@link CalcUtil#convertToDoubleArray2D(Object[])} an empty, null or
+    * non-numeric element is kept as 0 (like Excel SUMPRODUCT) instead of being
+    * dropped, so the elements of different arguments stay aligned.
+    */
+   private static double[][] sumproductMatrix(Object[] array) {
+      if(array == null) {
+         return new double[0][0];
+      }
+
+      // a vanilla array is a matrix with a single row
+      if(array.length > 0 && !(array[0] instanceof Object[])) {
+         double[][] matrix = new double[1][array.length];
+
+         for(int i = 0; i < array.length; i++) {
+            matrix[0][i] = sumproductValue(array[i]);
+         }
+
+         return matrix;
+      }
+
+      List<double[]> rows = new ArrayList<>();
+      int cols = 0;
+
+      for(int i = 0; i < array.length; i++) {
+         Object[] row = (Object[]) array[i];
+         double[] values = new double[row == null ? 0 : row.length];
+
+         for(int j = 0; j < values.length; j++) {
+            values[j] = sumproductValue(row[j]);
+         }
+
+         // the column count is taken from the last row, as before
+         cols = values.length;
+         rows.add(values);
+      }
+
+      double[][] matrix = new double[array.length][cols];
+
+      for(int i = 0; i < rows.size(); i++) {
+         double[] values = rows.get(i);
+         if(values.length > cols) {
+            throw new RuntimeException("Arrays should have same dimensions");
+         }
+
+         System.arraycopy(values, 0, matrix[i], 0, values.length);
+      }
+
+      return matrix;
+   }
+
+   private static double sumproductValue(Object value) {
+      Double d = CalcUtil.toDouble(value);
+      return d == null ? 0 : d;
    }
 
    /**
@@ -1056,7 +1123,7 @@ public class CalcMath {
       List<double[][]> holder = new ArrayList<>();
 
       for(int i = 0; i < arrays.length; i++) {
-         holder.add(CalcUtil.convertToDoubleArray2D((Object[]) arrays[i]));
+         holder.add(sumproductMatrix((Object[]) arrays[i]));
       }
 
       int rows = holder.get(0).length;
@@ -1116,13 +1183,15 @@ public class CalcMath {
    public static double sumx2my2(Object array_xObj, Object array_yObj) {
       Object[] array_x = JavaScriptEngine.split(array_xObj);
       Object[] array_y = JavaScriptEngine.split(array_yObj);
-      double[] x = CalcUtil.convertToDoubleArray(array_x);
-      double[] y = CalcUtil.convertToDoubleArray(array_y);
+      double[][] pairs = CalcUtil.pairedDoubles(array_x, array_y);
 
-      if(x.length != y.length) {
+      if(pairs == null) {
          throw new RuntimeException("array_x and array_y have a different " +
                                     "number of values");
       }
+
+      double[] x = pairs[0];
+      double[] y = pairs[1];
 
       double sumx2my2 = 0;
 
@@ -1142,13 +1211,15 @@ public class CalcMath {
    public static double sumx2py2(Object array_xObj, Object array_yObj) {
       Object[] array_x = JavaScriptEngine.split(array_xObj);
       Object[] array_y = JavaScriptEngine.split(array_yObj);
-      double[] x = CalcUtil.convertToDoubleArray(array_x);
-      double[] y = CalcUtil.convertToDoubleArray(array_y);
+      double[][] pairs = CalcUtil.pairedDoubles(array_x, array_y);
 
-      if(x.length != y.length) {
+      if(pairs == null) {
          throw new RuntimeException("array_x and array_y have a different " +
                                     "number of values");
       }
+
+      double[] x = pairs[0];
+      double[] y = pairs[1];
 
       double sumx2py2 = 0;
 
@@ -1170,13 +1241,15 @@ public class CalcMath {
    public static double sumxmy2(Object array_xObj, Object array_yObj) {
       Object[] array_x = JavaScriptEngine.split(array_xObj);
       Object[] array_y = JavaScriptEngine.split(array_yObj);
-      double[] x = CalcUtil.convertToDoubleArray(array_x);
-      double[] y = CalcUtil.convertToDoubleArray(array_y);
+      double[][] pairs = CalcUtil.pairedDoubles(array_x, array_y);
 
-      if(x.length != y.length) {
+      if(pairs == null) {
          throw new RuntimeException("array_x and array_y have a different " +
                                     "number of values");
       }
+
+      double[] x = pairs[0];
+      double[] y = pairs[1];
 
       double sumxmy2 = 0;
 

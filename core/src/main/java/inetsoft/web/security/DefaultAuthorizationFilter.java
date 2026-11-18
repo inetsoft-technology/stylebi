@@ -93,14 +93,11 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
       if(unauthorized) {
          if(shouldSendAuthenticationRedirect(httpRequest, (HttpServletResponse) response)) {
             String orgID = SUtil.getLoginOrganization(httpRequest);
-            String requestedUrl = LinkUriArgumentResolver.transformUri(httpRequest);
-            String sep = requestedUrl.contains("?") ? "&" : "?";
-            String queryString = httpRequest.getQueryString() != null ?
-               sep + httpRequest.getQueryString() : "";
+            String requestedUrl = buildRequestedUrl(httpRequest);
 
             String redirectUrl = LinkUriArgumentResolver.getLinkUri(httpRequest) + LOGIN_PAGE +
                "?requestedUrl=" +
-               URLEncoder.encode(requestedUrl + queryString, StandardCharsets.UTF_8);
+               URLEncoder.encode(requestedUrl, StandardCharsets.UTF_8);
 
             if(orgID == null) {
                Cookie[] cookies = httpRequest.getCookies();
@@ -276,5 +273,58 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
       }
 
       private int status = HttpServletResponse.SC_OK;
+   }
+
+   /**
+    * Builds the URL to return to after login: the link URI, the percent-encoded request path and
+    * the raw (already encoded) query string.
+    * <p>
+    * The servlet path and path info are container-decoded, so a name containing a space, '?',
+    * '#' or '%' must be re-encoded here. Otherwise the value is rejected by
+    * {@link RequestedUrlValidator} (space) or points at the wrong resource (?, #, %).
+    *
+    * @param request the HTTP request.
+    *
+    * @return the requested URL, suitable for the {@code requestedUrl} login parameter.
+    */
+   public static String buildRequestedUrl(HttpServletRequest request) {
+      String linkUri = LinkUriArgumentResolver.getLinkUri(request);
+      String uri = LinkUriArgumentResolver.transformUri(request);
+      String url;
+
+      if(uri.startsWith(linkUri)) {
+         url = linkUri + encodePath(uri.substring(linkUri.length()));
+      }
+      else {
+         url = encodePath(uri);
+      }
+
+      String query = request.getQueryString();
+      // the encoded path never contains '?', so the separator is always '?'
+      return query == null ? url : url + "?" + query;
+   }
+
+   /**
+    * Percent-encodes a decoded URL path as UTF-8, keeping '/' separators and the RFC 3986
+    * unreserved characters. A space becomes %20.
+    */
+   static String encodePath(String path) {
+      StringBuilder sb = new StringBuilder(path.length() + 16);
+
+      for(byte b : path.getBytes(StandardCharsets.UTF_8)) {
+         int c = b & 0xff;
+
+         if(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
+            c == '-' || c == '.' || c == '_' || c == '~' || c == '/')
+         {
+            sb.append((char) c);
+         }
+         else {
+            sb.append('%').append(Character.toUpperCase(Character.forDigit(c >> 4, 16)))
+               .append(Character.toUpperCase(Character.forDigit(c & 0xf, 16)));
+         }
+      }
+
+      return sb.toString();
    }
 }

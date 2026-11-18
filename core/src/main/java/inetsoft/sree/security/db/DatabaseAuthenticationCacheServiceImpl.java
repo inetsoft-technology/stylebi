@@ -499,18 +499,28 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
     * Resolves the provider to load with. The host's own chain is the current configuration, so
     * the provider is looked up there first. If it is not there, for example while the host's
     * chain swaps its provider instances, the last bound instance is used, which may be
-    * {@code null} on a redeployed instance.
+    * {@code null} on a redeployed instance. A torn down instance, found in the chain or bound
+    * before, is not available: loading with it would open a pool that nothing closes (Bug
+    * #79352), so {@code null} is returned and the load is retried later.
     */
    private DatabaseAuthenticationProvider resolveProvider() {
       try {
-         provider = lookupProvider();
+         DatabaseAuthenticationProvider found = lookupProvider();
+
+         if(found != null && found.isTornDown()) {
+            LOG.debug("Provider {} found on this host is torn down", providerName);
+            return null;
+         }
+
+         provider = found;
       }
       catch(Exception e) {
          LOG.debug("Provider {} not found on this host, using the last bound instance: {}",
                    providerName, e.getMessage());
       }
 
-      return provider;
+      DatabaseAuthenticationProvider result = provider;
+      return result != null && result.isTornDown() ? null : result;
    }
 
    /**

@@ -177,6 +177,12 @@ public class MaxFormula implements PercentageFormula {
          return;
       }
 
+      // a blank string parses to NaN, which sorts above every number, so
+      // skip it like null when number strings are compared numerically
+      if(parseNum && v instanceof String && ((String) v).trim().isEmpty()) {
+         return;
+      }
+
       if(comp == null) {
          if(v instanceof Date) {
             comp = new DateComparer();

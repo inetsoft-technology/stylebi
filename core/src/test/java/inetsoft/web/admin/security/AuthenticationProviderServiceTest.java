@@ -116,7 +116,12 @@ class AuthenticationProviderServiceTest {
    }
 
    @BeforeEach
-   void setUp() {
+   void setUp() throws Exception {
+      // the chain is a mock: run the edit the way SecurityChain.editProviders() does (Bug #79127)
+      lenient().doAnswer(invocation -> {
+         invocation.<SecurityChain.ChainEdit<?>>getArgument(0).run();
+         return null;
+      }).when(authenticationChain).editProviders(any());
       service = new AuthenticationProviderService(securityEngine, new ObjectMapper(),
                                                    messageTemplate, cluster);
    }
@@ -145,7 +150,7 @@ class AuthenticationProviderServiceTest {
    void addAuthenticationProvider_databaseType_notLicensed_throws() {
       mockLicense(false);
       when(securityEngine.getAuthenticationChain()).thenReturn(Optional.of(authenticationChain));
-      when(authenticationChain.stream()).thenReturn(Stream.empty());
+      when(authenticationChain.stream()).thenAnswer(inv -> Stream.empty());
 
       AuthenticationProviderModel model = AuthenticationProviderModel.builder()
          .providerName("newDb")
@@ -164,7 +169,7 @@ class AuthenticationProviderServiceTest {
    void addAuthenticationProvider_customType_notLicensed_throws() {
       mockLicense(false);
       when(securityEngine.getAuthenticationChain()).thenReturn(Optional.of(authenticationChain));
-      when(authenticationChain.stream()).thenReturn(Stream.empty());
+      when(authenticationChain.stream()).thenAnswer(inv -> Stream.empty());
 
       AuthenticationProviderModel model = AuthenticationProviderModel.builder()
          .providerName("newCustom")
@@ -187,7 +192,7 @@ class AuthenticationProviderServiceTest {
    void addAuthenticationProvider_copyOfExistingDatabaseProvider_notLicensed_throws() {
       mockLicense(false);
       when(securityEngine.getAuthenticationChain()).thenReturn(Optional.of(authenticationChain));
-      when(authenticationChain.stream()).thenReturn(Stream.empty());
+      when(authenticationChain.stream()).thenAnswer(inv -> Stream.empty());
 
       AuthenticationProviderModel copyModel = AuthenticationProviderModel.builder()
          .providerName("existingDb (copy)")
@@ -235,7 +240,7 @@ class AuthenticationProviderServiceTest {
       when(securityEngine.getAuthenticationChain()).thenReturn(Optional.of(authenticationChain));
       when(authenticationChain.getProviders())
          .thenReturn(new ArrayList<>(List.of(existing)));
-      when(authenticationChain.stream()).thenReturn(Stream.of(existing));
+      when(authenticationChain.stream()).thenAnswer(inv -> Stream.of(existing));
 
       AuthenticationProviderModel model = AuthenticationProviderModel.builder()
          .providerName("newName")
@@ -293,7 +298,7 @@ class AuthenticationProviderServiceTest {
       mockLicense(true);
       when(ldapAuthenticationProvider.getProviderName()).thenReturn("existingLdap");
       when(securityEngine.getAuthenticationChain()).thenReturn(Optional.of(authenticationChain));
-      when(authenticationChain.stream()).thenReturn(Stream.empty());
+      when(authenticationChain.stream()).thenAnswer(inv -> Stream.empty());
 
       AuthenticationProviderModel addModel = AuthenticationProviderModel.builder()
          .providerName("newCustom")
@@ -318,7 +323,7 @@ class AuthenticationProviderServiceTest {
    @Test
    void getAuthenticationProvider_unknownName_throwsMessageException() {
       when(securityEngine.getAuthenticationChain()).thenReturn(Optional.of(authenticationChain));
-      when(authenticationChain.stream()).thenReturn(Stream.empty());
+      when(authenticationChain.stream()).thenAnswer(inv -> Stream.empty());
 
       MessageException exception = assertThrows(MessageException.class,
                                                  () -> service.getAuthenticationProvider("missing"));
@@ -331,7 +336,7 @@ class AuthenticationProviderServiceTest {
    @Test
    void getAuthenticationProvider_knownFileProvider_returnsModel() {
       when(securityEngine.getAuthenticationChain()).thenReturn(Optional.of(authenticationChain));
-      when(authenticationChain.stream()).thenReturn(Stream.of(fileAuthenticationProvider));
+      when(authenticationChain.stream()).thenAnswer(inv -> Stream.of(fileAuthenticationProvider));
       when(fileAuthenticationProvider.getProviderName()).thenReturn("myProvider");
 
       AuthenticationProviderModel result = service.getAuthenticationProvider("myProvider");

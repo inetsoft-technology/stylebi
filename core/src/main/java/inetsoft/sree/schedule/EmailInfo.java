@@ -268,6 +268,12 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
       from = tag.getAttribute("from");
       from = byteDecode(from);
 
+      // Bug #79654, the former built-in default is not a configured address; treat it as unset
+      // so the sender falls back to mail.from.address
+      if(LEGACY_DEFAULT_FROM.equals(from)) {
+         from = null;
+      }
+
       format = tag.getAttribute("format");
       format = byteDecode(format);
 
@@ -538,8 +544,10 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
     */
    private static final String XML_ILLEGAL_CHARS_ATTR = "ctrlEncoded";
 
+   private static final String LEGACY_DEFAULT_FROM = "stylereport@inetsoft.com";
+
    private String emails = "";
-   private String from = "stylereport@inetsoft.com";
+   private String from = null;
    private String ccAddresses;
    private String bccAddresses;
    private String format = "PDF";

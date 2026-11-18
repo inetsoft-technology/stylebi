@@ -63,10 +63,16 @@ public class SelectionTreeVSAQuery2 extends SelectionTreeVSAQuery {
       SelectionTreeVSAssembly assembly = (SelectionTreeVSAssembly) getAssembly();
       SelectionTreeVSAssemblyInfo sinfo = (SelectionTreeVSAssemblyInfo) assembly.getInfo();
       final DataRef[] refs = assembly.getDataRefs();
+      // placeholder data, keep the state composite value (Bug #80814)
+      boolean keepState = isMetadataDesignMode();
 
       if(data.getColCount() != refs.length || !data.moreRows(1) || refs.length == 0) {
          assembly.setCompositeSelectionValue(null);
-         assembly.setStateCompositeSelectionValue(null);
+
+         if(!keepState) {
+            assembly.setStateCompositeSelectionValue(null);
+         }
+
          return;
       }
 
@@ -216,7 +222,11 @@ public class SelectionTreeVSAQuery2 extends SelectionTreeVSAQuery {
 
       selection.sort(getSortType(
          (SelectionBaseVSAssemblyInfo) assembly.getInfo()));
-      assembly.setStateCompositeSelectionValue(cselection2);
+
+      if(!keepState) {
+         assembly.setStateCompositeSelectionValue(cselection2);
+      }
+
       syncSelections(assembly, appliedSelections, true);
 
       if(sinfo.isSingleSelection()) {

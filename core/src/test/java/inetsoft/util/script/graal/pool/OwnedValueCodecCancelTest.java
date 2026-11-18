@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * interrupt of the snapshot's own time bound, or of the timeout of an exec the snapshot runs
  * in, is still a time-out and never left on the thread.
  */
-@Tag("core")
+@Tag("slow")
 class OwnedValueCodecCancelTest {
    @BeforeEach
    @AfterEach

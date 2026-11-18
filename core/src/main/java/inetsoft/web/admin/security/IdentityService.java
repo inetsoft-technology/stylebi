@@ -50,6 +50,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
 import inetsoft.util.css.CSSDictionary;
+import inetsoft.util.log.LogContext;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.SnapshotFileGcService;
@@ -69,6 +70,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -749,7 +751,7 @@ public class IdentityService {
                themesManager.save();
                removeStorages(orgID);
                favoritesService.removeFavorites(orgID);
-               dataSourceRegistry.clearCache(orgID);
+               dataSourceRegistry.orgDeleted(orgID);
                FSService.clearServerNodeCache(orgID);
                XJobPool.resetOrgCache(orgID);
                repletRegistryManager.clearOrgCache(orgID);
@@ -1380,15 +1382,21 @@ public class IdentityService {
       IdentityID[] newUsers = memberModels.stream()
          .filter(member -> member.type() == Identity.USER)
          .filter(newUser -> Arrays.stream(users).noneMatch(oldUser -> oldUser.getName().equals(newUser.identityID().getName())))
+         // Bug #79875, a resumed id change has moved the members already, a member that exists
+         // in the new organization is not new, a blank one would overwrite it when the
+         // identities that are left in the old organization are copied
+         .filter(newUser -> !isMovedMember(newUser, orgID, eprovider))
          .map(IdentityModel::identityID).toArray(IdentityID[]::new);
       IdentityID[] newGroups = memberModels.stream()
          .filter(member -> member.type() == Identity.GROUP)
          .filter(newGroup -> Arrays.stream(groups).noneMatch(oldGroup -> oldGroup.getName().equals(newGroup.identityID().getName())))
+         .filter(newGroup -> !isMovedMember(newGroup, orgID, eprovider))
          .map(IdentityModel::identityID)
          .toArray(IdentityID[]::new);
       IdentityID[] newRoles = memberModels.stream()
          .filter(member -> member.type() == Identity.ROLE)
          .filter(newRole -> Arrays.stream(roles).noneMatch(oldRole -> oldRole.getName().equals(newRole.identityID().getName())))
+         .filter(newRole -> !isMovedMember(newRole, orgID, eprovider))
          .map(IdentityModel::identityID)
          .toArray(IdentityID[]::new);
       // compare with the edited organization's old id, not the current organization, which differs
@@ -1452,7 +1460,18 @@ public class IdentityService {
          else if(!members.contains(user.getName())) {
             // like deleteIdentities(), never delete the requesting user, which would also have to
             // log out the session of the request that is being processed
-            if(principal != null && isSelfAndEMUser(principal, oldID, Identity.USER)) {
+            // Bug #81308, a resumed id change protects the requester of the original request,
+            // not the one that resumes it, and tells nobody
+            RenameDecision frozen = frozenDecision();
+
+            if(frozen != null) {
+               if(frozen.getRequester() != null &&
+                  oldID.equals(IdentityID.getIdentityIDFromKey(frozen.getRequester())))
+               {
+                  continue;
+               }
+            }
+            else if(principal != null && isSelfAndEMUser(principal, oldID, Identity.USER)) {
                Tool.addUserMessage(Catalog.getCatalog().getString("em.security.delself"));
                continue;
             }
@@ -1535,6 +1554,27 @@ public class IdentityService {
          FSRole role = new FSRole(newRoles[i]);
          eprovider.setRole(role.getIdentityID(), role);
       }
+   }
+
+   /**
+    * Determines if a member of the saved model already exists in the organization, as the member
+    * of the id change that is resumed was moved by the part of the change that ran.
+    */
+   private boolean isMovedMember(IdentityModel member, String orgID,
+                                 EditableAuthenticationProvider eprovider)
+   {
+      if(RESUMING.get() == null || member.identityID() == null) {
+         return false;
+      }
+
+      IdentityID id = new IdentityID(member.identityID().getName(), orgID);
+
+      return switch(member.type()) {
+         case Identity.USER -> eprovider.getUser(id) != null;
+         case Identity.GROUP -> eprovider.getGroup(id) != null;
+         case Identity.ROLE -> eprovider.getRole(id) != null;
+         default -> false;
+      };
    }
 
    private void updateRoleForOrg(Organization identity, FSRole role, String orgID, String oldOrgID,
@@ -1699,7 +1739,15 @@ public class IdentityService {
    }
 
    public void removeStorages(String orgID) throws Exception {
-      removeOldOrgTaskFormScheduleServer(orgID);
+      try {
+         removeOldOrgTaskFormScheduleServer(orgID);
+      }
+      finally {
+         // other nodes keep their own in-memory task caches of the org; clear them even if
+         // the scheduler could not be reached
+         scheduleManager.orgTasksRemoved(orgID);
+      }
+
       dashboardManager.removeDashboardStorage(orgID);
       dependencyStorageService.removeDependencyStorage(orgID);
 
@@ -1740,7 +1788,12 @@ public class IdentityService {
          addNewOrgTaskToScheduleServer(nOrg.getOrganizationID());
       }
       catch(Exception e) {
-         LOG.warn("Could not copy Storages from "+ oOrg.getId() +" to "+ nOrg.getId() +", " + e);
+         // Bug #79875, the old storages are removed when the id change ends, so a failed copy
+         // must stop it. The change stays recorded and a retry completes it.
+         // Bug #81573, a clone fails the same way. Before, it only logged a warning and went on
+         // with an organization that was missing part of the content of its source.
+         throw new IllegalStateException("Could not copy Storages from " + oOrg.getId() +
+                                         " to " + nOrg.getId(), e);
       }
    }
 
@@ -1800,13 +1853,27 @@ public class IdentityService {
 
       Properties properties = SreeEnv.getProperties();
       Set<Object> orgProperties = properties.keySet().stream()
-         .filter(prop -> ((String) prop).startsWith(prefix) || ((String) prop).startsWith("log.")
-            && ((String) prop).endsWith("^" + orgID))
+         .filter(prop -> ((String) prop).startsWith(prefix) ||
+            LogManager.isOrgLogProperty((String) prop, orgID))
          .collect(Collectors.toSet());
 
       for(Object orgProp : orgProperties) {
          String propName = (String) orgProp;
          SreeEnv.remove(propName);
+      }
+
+      // removing only changes the node's own properties, the other nodes see it after a save
+      if(!orgProperties.isEmpty()) {
+         saveProperties("Unable to save properties after removing the organization's properties");
+      }
+   }
+
+   private void saveProperties(String errorMessage) {
+      try {
+         SreeEnv.save();
+      }
+      catch(IOException e) {
+         LOG.error(errorMessage, e);
       }
    }
 
@@ -1911,14 +1978,18 @@ public class IdentityService {
    private <T extends Serializable> void updateBlobStorageName(String suffix, String oId, String id,
                                                                Class<T> type, boolean copy) throws Exception
    {
-      BlobStorage<T> oStorage =
-         blobStorageManager.getStorage(oId.toLowerCase() + suffix, false);
-      BlobStorage<T> nStorage =
-         blobStorageManager.getStorage(id.toLowerCase() + suffix, false);
-
-      List<String> paths = oStorage.paths().collect(Collectors.toList());
+      // Bug #81573, the cache of the storage manager holds a limited number of stores and closes
+      // the least recently used one. A store is therefore fetched where it is used, and not held
+      // across the copy, so that a store evicted meanwhile is replaced by a new instance
+      String oName = oId.toLowerCase() + suffix;
+      String nName = id.toLowerCase() + suffix;
+      List<String> paths = blobStorageManager.<T>getStorage(oName, false).paths()
+         .collect(Collectors.toList());
 
       for(String path : paths) {
+         BlobStorage<T> oStorage = blobStorageManager.getStorage(oName, false);
+         BlobStorage<T> nStorage = blobStorageManager.getStorage(nName, false);
+
          try(InputStream input = oStorage.getInputStream(path);
              BlobTransaction<T> tx = nStorage.beginTransaction();
              OutputStream output = tx.newStream(path, type.getConstructor().newInstance()))
@@ -1928,40 +1999,86 @@ public class IdentityService {
          }
       }
 
+      verifyStorageCopied(oName, nName, paths);
+
       if(!copy) {
-         oStorage.deleteBlobStorage();
+         blobStorageManager.<T>getStorage(oName, false).deleteBlobStorage();
       }
    }
 
    private void updateLibraryStorage(String oId, String id, boolean copy) throws Exception {
-      try(BlobStorage<LibManager.Metadata> oStorage =
-             blobStorageManager.getStorage(oId.toLowerCase() + "__library", false);
-          BlobStorage<LibManager.Metadata> nStorage =
-             blobStorageManager.getStorage(id.toLowerCase() + "__library", false))
-      {
-         List<String> paths = oStorage.paths().collect(Collectors.toList());
+      // the stores are shared through the cache of the storage manager, they are not closed here,
+      // and, see updateBlobStorageName(), they are fetched where they are used
+      String oName = oId.toLowerCase() + "__library";
+      String nName = id.toLowerCase() + "__library";
+      List<String> paths = blobStorageManager.<LibManager.Metadata>getStorage(oName, false)
+         .paths().collect(Collectors.toList());
 
-         for(String path : paths) {
-            LibManager.Metadata metadata = oStorage.getMetadata(path);
+      for(String path : paths) {
+         BlobStorage<LibManager.Metadata> oStorage = blobStorageManager.getStorage(oName, false);
+         BlobStorage<LibManager.Metadata> nStorage = blobStorageManager.getStorage(nName, false);
+         LibManager.Metadata metadata = oStorage.getMetadata(path);
 
-            if(metadata.isDirectory()) {
-               nStorage.createDirectory(path, metadata);
-            }
-            else {
-               try(InputStream input = oStorage.getInputStream(path);
-                   BlobTransaction<LibManager.Metadata> tx = nStorage.beginTransaction();
-                   OutputStream output = tx.newStream(path, new LibManager.Metadata()))
-               {
-                  IOUtils.copy(input, output);
-                  tx.commit();
-               }
-            }
+         if(metadata.isDirectory()) {
+            nStorage.createDirectory(path, metadata);
          }
-
-         if(!copy) {
-            oStorage.deleteBlobStorage();
+         else {
+            try(InputStream input = oStorage.getInputStream(path);
+                BlobTransaction<LibManager.Metadata> tx = nStorage.beginTransaction();
+                OutputStream output = tx.newStream(path, copyLibraryMetadata(metadata)))
+            {
+               IOUtils.copy(input, output);
+               tx.commit();
+            }
          }
       }
+
+      verifyStorageCopied(oName, nName, paths);
+
+      if(!copy) {
+         blobStorageManager.<LibManager.Metadata>getStorage(oName, false).deleteBlobStorage();
+      }
+   }
+
+   /**
+    * Checks that every blob that was listed in the source storage is in the target storage after
+    * the copy. The target may hold more, so the sizes are not compared.
+    *
+    * @throws IllegalStateException if a blob is missing from the target storage.
+    */
+   private void verifyStorageCopied(String sourceName, String targetName, List<String> paths) {
+      Set<String> copied =
+         blobStorageManager.getStorage(targetName, false).paths().collect(Collectors.toSet());
+      List<String> missing = paths.stream().filter(p -> !copied.contains(p)).toList();
+
+      if(!missing.isEmpty()) {
+         throw new IllegalStateException(
+            "Copy of storage " + sourceName + " to " + targetName + " is incomplete, " +
+            missing.size() + " of " + paths.size() + " entries are missing: " + missing);
+      }
+   }
+
+   /**
+    * Creates a copy of the library metadata of a file entry so that the comment and the comment
+    * properties (comment, created, modified, createdBy, modifiedBy) survive the copy, without
+    * sharing the mutable properties between the source and the target storage.
+    */
+   private static LibManager.Metadata copyLibraryMetadata(LibManager.Metadata source) {
+      LibManager.Metadata target = new LibManager.Metadata();
+
+      if(source != null) {
+         target.setPath(source.getPath());
+         target.setDirectory(source.isDirectory());
+         target.setComment(source.getComment());
+
+         if(source.getCommentProperties() != null) {
+            Properties properties = new Properties();
+            properties.putAll(source.getCommentProperties());
+            target.setCommentProperties(properties);
+         }
+      }
+
+      return target;
    }
 
    public void updateOrgProperties(String oId, String id) {
@@ -1999,21 +2116,30 @@ public class IdentityService {
     */
    private void updateOrgLogProperties(Properties properties, String oId, String id) {
       String oldSuffix = "^" + oId;
+      String orgPrefix = "log." + LogContext.ORGANIZATION + ".level.";
       Set<String> logProperties = properties.keySet().stream()
          .map(prop -> (String) prop)
-         .filter(prop -> prop.startsWith("log.") && prop.endsWith(oldSuffix))
+         .filter(prop -> LogManager.isOrgLogProperty(prop, oId))
          .collect(Collectors.toSet());
 
       for(String oldName : logProperties) {
          String value = properties.getProperty(oldName);
+         String newName = oldName.startsWith(orgPrefix) ? orgPrefix + id :
+            oldName.substring(0, oldName.length() - oldSuffix.length()) + "^" + id;
 
          if(value != null) {
-            String newName =
-               oldName.substring(0, oldName.length() - oldSuffix.length()) + "^" + id;
             SreeEnv.setProperty(newName, value);
          }
 
-         SreeEnv.remove(oldName);
+         // a rename that only changes the case keeps no distinct name to remove
+         if(!oldName.equals(newName)) {
+            SreeEnv.remove(oldName);
+         }
+      }
+
+      // the other nodes see the moved properties only after a save
+      if(!logProperties.isEmpty()) {
+         saveProperties("Unable to save properties after moving the organization's log levels");
       }
    }
 
@@ -2367,6 +2493,78 @@ public class IdentityService {
    }
 
    /**
+    * Bug #80956, moves the permission keyed by an identity (who may administer it) to its new
+    * name when the identity is renamed. setIdentity() renames the identity where it is a grantee,
+    * but not the grant keyed by the identity itself, so without this the old key keeps the grant
+    * and a new identity created with the old name inherits it.
+    * <p>
+    * The permission is moved as is, in the organization bucket it is stored in, so every grant
+    * and scope is kept. The key is looked up in every organization, because the key of a global
+    * role is stored in each organization and an administrator may rename an identity of another
+    * organization than the current one.
+    *
+    * @param resourceType the type of the renamed identity.
+    * @param oldID        the identity ID before the rename.
+    * @param newID        the identity ID after the rename.
+    */
+   public void moveIdentityPermission(ResourceType resourceType, IdentityID oldID,
+                                      IdentityID newID)
+   {
+      if(oldID == null || newID == null || oldID.equals(newID)) {
+         return;
+      }
+
+      boolean scanned = false;
+      Optional<AuthorizationChain> chain = securityEngine.getAuthorizationChain();
+
+      if(chain.isPresent()) {
+         for(AuthorizationProvider aprovider : chain.get().getProviders()) {
+            List<Tuple4<ResourceType, String, String, Permission>> permissions;
+
+            try {
+               permissions = aprovider.getPermissions();
+            }
+            catch(UnsupportedOperationException e) {
+               continue;
+            }
+
+            scanned = true;
+
+            if(permissions == null) {
+               continue;
+            }
+
+            for(Tuple4<ResourceType, String, String, Permission> entry : permissions) {
+               String orgID = entry.getSecond();
+               String path = entry.getThird();
+               Permission permission = entry.getForth();
+
+               // a legacy key without an organization is moved by the storage migration
+               if(entry.getFirst() != resourceType || permission == null || orgID == null ||
+                  path == null || !path.contains(IdentityID.KEY_DELIMITER) ||
+                  !oldID.equals(IdentityID.getIdentityIDFromKey(path)))
+               {
+                  continue;
+               }
+
+               aprovider.setPermission(resourceType, newID, permission, orgID);
+               aprovider.removePermission(resourceType, oldID, orgID);
+            }
+         }
+      }
+
+      if(!scanned) {
+         AuthorizationProvider authzProvider = securityProvider.getAuthorizationProvider();
+         Permission permission = authzProvider.getPermission(resourceType, oldID);
+
+         if(permission != null) {
+            authzProvider.setPermission(resourceType, newID, permission);
+            authzProvider.removePermission(resourceType, oldID);
+         }
+      }
+   }
+
+   /**
     * Removes a grant from the given bucket org, or from the ambient current org when it is null.
     */
    private static void removePermission(AuthorizationProvider authzProvider,
@@ -2492,6 +2690,10 @@ public class IdentityService {
          }
 
          if(type == Identity.ORGANIZATION) {
+            // Bug #79875, an interrupted clone or id change makes the new id unusable
+            checkNotRecovered(recoverInterruptedOrganizationOperations(principal),
+                              ((Organization) identity).getId(),
+                              ((EditOrganizationPaneModel) model).id());
             checkDefaultOrganizationRename((Organization) identity, (EditOrganizationPaneModel) model);
             OrganizationIdRules.checkRename(((Organization) identity).getId(),
                                             ((EditOrganizationPaneModel) model).id());
@@ -3119,6 +3321,16 @@ public class IdentityService {
             IdentityInfoRecord.STATE_INACTIVE;
       }
 
+      String idChange = null;
+
+      if(type == Identity.ORGANIZATION) {
+         final String newOrgId = ((EditOrganizationPaneModel) model).id();
+
+         if(newOrgId != null && !newOrgId.isBlank() && !newOrgId.equals(oldID.orgID)) {
+            idChange = newOrgId;
+         }
+      }
+
       if(!name.equals(oldID.name)) {
          IdentityID[] identityIds = new IdentityID[0];
          switch(type) {
@@ -3142,15 +3354,31 @@ public class IdentityService {
             throw new MessageException(err);
          }
 
-         actionRecord.setActionError("new name:" + name);
+         String desc = "Rename " + oldID.name + " to " + name;
+
+         if(idChange == null) {
+            actionRecord.setActionError("new name:" + name);
+         }
+         else {
+            actionRecord.setActionError("new name:" + name + ", new id:" + idChange);
+            desc += ", change id " + oldID.orgID + " to " + idChange;
+         }
+
          return SUtil.getIdentityInfoRecord(new IdentityID(model.oldName(), oldID.orgID),
                                             type, IdentityInfoRecord.ACTION_TYPE_RENAME,
-                                            "Rename " + oldID.name + " to " + name, state);
+                                            desc, state);
       }
       else {
          actionRecord.setObjectName(model.name());
+         String desc = null;
+
+         if(idChange != null) {
+            actionRecord.setActionError("new id:" + idChange);
+            desc = "Change id " + oldID.orgID + " to " + idChange;
+         }
+
          return SUtil.getIdentityInfoRecord(oldID, type, IdentityInfoRecord.ACTION_TYPE_MODIFY,
-                                            null, state);
+                                            desc, state);
       }
    }
 
@@ -3244,6 +3472,21 @@ public class IdentityService {
          }
          catch(Exception e) {
             LOG.warn("Failed to update live session principals for user {}", oIdentity, e);
+         }
+      }
+
+      // a user set inactive can't sign in again, so its open sessions end like a deleted user's
+      // (Bug #81089). Done once the new status is saved, so that no sign-in can slip in between.
+      // Only the active to inactive change counts, a save that keeps the status keeps the
+      // sessions. A rename or password change above has already logged the old identity out.
+      if(!loggedOut && oldUser != null && oldUser.isActive() && !user.isActive() &&
+         Tool.equals(oldUser.getName(), user.getName()))
+      {
+         try {
+            logoutSession(oIdentity);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to end the sessions of the inactive user {}", oIdentity, e);
          }
       }
 
@@ -3490,9 +3733,408 @@ public class IdentityService {
          OrganizationManager.getInstance().isSiteAdmin(principal);
    }
 
+   /**
+    * Bug #79861, an id change moves the users' registries, the replet registry and the org scoped
+    * data space before it copies the organization, and each of those deletes or renames the old
+    * organization's files. Another node that writes into the old organization meanwhile would
+    * recreate a file that is then overwritten, so refuse such writes for the whole change, not
+    * only for the copy at its end.
+    */
    private Identity setOrganizationInfo(FSOrganization oldOrg, EditOrganizationPaneModel model,
                                         EditableAuthenticationProvider eprovider,
                                         Principal principal)
+      throws Exception
+   {
+      String oldID = oldOrg.getId() != null ? oldOrg.getId() : model.id();
+      Organization fromOrg = eprovider.getOrganization(oldID);
+      String fromOrgID = fromOrg != null ? fromOrg.getId() : null;
+      boolean guarded = fromOrgID != null && !Tool.equals(fromOrgID, model.id()) &&
+         !OrgIdChangeGuard.isRunning(fromOrgID);
+      String opId = null;
+      boolean completed = false;
+      // Bug #79875, recorded before the first write of an id change, see OrgOperationJournal
+      OrgOperationJournal.Entry[] journalEntry = { null };
+
+      try {
+         if(guarded) {
+            opId = OrgIdChangeGuard.begin(fromOrgID, model.id());
+         }
+
+         Identity result = setOrganizationInfo0(oldOrg, model, eprovider, principal, names -> {
+            // a recovery that resumes the change keeps the record that it started from
+            if(RESUMING.get() == null) {
+               // Bug #81308, what the caller's permissions decided (the members that are kept
+               // although the request dropped them, who the requester is) is journaled with the
+               // request, the node that resumes it replays it instead of deciding again
+               journalEntry[0] = OrgOperationJournal.getInstance().begin(
+                  OrgOperationJournal.Type.RENAME, fromOrgID, model.id(), toJson(model),
+                  getRenameTargets(fromOrg, model.id()), eprovider.getProviderName(),
+                  toJson(new RenameDecision(names, principal != null ? principal.getName() : null)));
+            }
+         });
+         completed = true;
+         return result;
+      }
+      finally {
+         if(journalEntry[0] != null) {
+            // a failed change stays recorded, the next create or edit of an organization
+            // completes it
+            if(completed) {
+               OrgOperationJournal.getInstance().complete(journalEntry[0].getOpId());
+            }
+            else {
+               OrgOperationJournal.getInstance().markFailed(journalEntry[0].getOpId());
+            }
+         }
+
+         if(guarded) {
+            OrgIdChangeGuard.end(opId, fromOrgID, completed);
+         }
+      }
+   }
+
+   /**
+    * Bug #79875, completes the id changes and undoes the clones of organizations that a node
+    * that died, or a failure, left half done, see {@link OrgOperationJournal}. Called before the
+    * code that consults an organization id (create, edit, rename), so that the half done state
+    * does not make the id unusable. Does nothing when no operation was interrupted.
+    *
+    * @param principal the principal of the request, that the recovery runs as.
+    *
+    * @return the number of operations that were recovered.
+    */
+   public List<OrgOperationJournal.Entry> recoverInterruptedOrganizationOperations(
+      Principal principal)
+   {
+      try {
+         return OrgOperationRecovery.recoverEntries(new OrgOperationRecovery.Actions() {
+            @Override
+            public void rollForwardRename(OrgOperationJournal.Entry entry) throws Exception {
+               resumeOrganizationRename(entry, principal);
+            }
+
+            @Override
+            public void rollBackClone(OrgOperationJournal.Entry entry) throws Exception {
+               undoOrganizationClone(entry);
+            }
+         });
+      }
+      catch(RuntimeException e) {
+         // the request goes on, an id that is still blocked is refused with the usual message
+         LOG.error("Failed to recover the interrupted organization operations", e);
+         return List.of();
+      }
+   }
+
+   /**
+    * Bug #79875, stops a request that was built on the state of an organization before an
+    * interrupted operation on it was recovered. The request continues with a model of the
+    * organization as it was, which after the recovery would be written over the recovered
+    * organization (a member that is not in the model is deleted). The recovery itself is done, so
+    * the administrator only has to reload the organization.
+    *
+    * @param recovered the operations that were recovered before the request.
+    * @param orgIds    the ids of the organization that the request edits.
+    *
+    * @throws MessageException if one of the recovered operations is on one of the ids.
+    */
+   public static void checkNotRecovered(List<OrgOperationJournal.Entry> recovered,
+                                        String... orgIds) throws MessageException
+   {
+      for(OrgOperationJournal.Entry entry : recovered) {
+         for(String id : orgIds) {
+            if(entry.involves(id)) {
+               throw new MessageException(
+                  "The interrupted " +
+                  (entry.getType() == OrgOperationJournal.Type.CLONE ? "clone" : "id change") +
+                  " of organization " + entry.getFromId() + " to " + entry.getToId() +
+                  " was completed or undone just now. Reload the organization and apply the " +
+                  "change again if it is still needed.");
+            }
+         }
+      }
+   }
+
+   /**
+    * Completes an id change that was interrupted. The change is resumed with the model of the
+    * original request: every step of it moves what is still under the old id, so a step that is
+    * already done is skipped.
+    */
+   private void resumeOrganizationRename(OrgOperationJournal.Entry entry, Principal principal)
+      throws Exception
+   {
+      String fromId = entry.getFromId();
+      String toId = entry.getToId();
+      EditableAuthenticationProvider eprovider =
+         OrgOperationRecovery.findEditableProvider(securityProvider, entry.getProviderName());
+
+      if(eprovider == null) {
+         throw new IllegalStateException("There is no editable authentication provider");
+      }
+
+      EditOrganizationPaneModel model = fromJson(entry.getPayload());
+
+      if(entry.getDecision() == null) {
+         LOG.warn("The record of the id change {} has no frozen decision of its original " +
+                  "request (written before Bug #81308), the dropped members, groups and roles " +
+                  "are decided with the permissions of {}", entry,
+                  principal != null ? principal.getName() : null);
+      }
+      else if(readDecision(entry) == null) {
+         LOG.warn("The frozen decision of the id change {} cannot be read, the dropped " +
+                  "members, groups and roles are decided with the permissions of {}", entry,
+                  principal != null ? principal.getName() : null);
+      }
+
+      Organization fromOrg = eprovider.getOrganization(fromId);
+      LOG.info("Resuming the id change of organization {} to {} ({}): old organization {}, new " +
+               "organization {}, before: {}", fromId, toId, entry.getOpId(),
+               fromOrg != null ? "exists" : "gone",
+               eprovider.getOrganization(toId) != null ? "exists" : "absent",
+               describeOrganizationIdentities(eprovider, fromId, toId));
+      String currentOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String fromName = fromOrg != null ? fromOrg.getName() : fromId;
+
+      if(fromOrg instanceof FSOrganization) {
+         RESUMING.set(entry);
+
+         try {
+            setOrganizationInfo((FSOrganization) fromOrg, model, eprovider, principal);
+         }
+         finally {
+            RESUMING.remove();
+         }
+      }
+      else if(fromOrg == null) {
+         // the old organization is already removed, what is left is the removal of its data
+         finishOrganizationRename(fromId, toId);
+      }
+      else {
+         throw new IllegalStateException("Organization " + fromId + " is not resumable");
+      }
+
+      // the change moves the current organization of the thread to the new id, the request that
+      // recovers it is not the one that changed it
+      if(currentOrgId != null && !Tool.equals(currentOrgId, fromId)) {
+         OrganizationManager.getInstance().setCurrentOrgID(currentOrgId);
+      }
+
+      LOG.info("Resumed the id change of organization {} to {} ({}): new organization {}, " +
+               "after: {}", fromId, toId, entry.getOpId(),
+               eprovider.getOrganization(toId) != null ? "exists" : "absent",
+               describeOrganizationIdentities(eprovider, fromId, toId));
+      cluster.sendMessage(new IdentityChangedMessage(
+         Identity.ORGANIZATION, new IdentityID(model.name(), toId),
+         new IdentityID(fromName, fromId)));
+   }
+
+   private static String describeOrganizationIdentities(EditableAuthenticationProvider provider,
+                                                        String fromId, String toId)
+   {
+      try {
+         return "users " + provider.getUsers().length + " (" + countOrg(provider.getUsers(), fromId) +
+            " in " + fromId + ", " + countOrg(provider.getUsers(), toId) + " in " + toId +
+            "), groups (" + countOrg(provider.getGroups(), fromId) + ", " +
+            countOrg(provider.getGroups(), toId) + "), roles (" +
+            countOrg(provider.getRoles(), fromId) + ", " + countOrg(provider.getRoles(), toId) +
+            ")";
+      }
+      catch(RuntimeException e) {
+         return "unknown (" + e + ")";
+      }
+   }
+
+   private static long countOrg(IdentityID[] ids, String orgId) {
+      return ids == null ? 0 : Arrays.stream(ids).filter(i -> Tool.equals(orgId, i.getOrgID()))
+         .count();
+   }
+
+   /**
+    * Removes what an id change leaves of the old organization after it was removed, see the end
+    * of AbstractEditableAuthenticationProvider.copyOrganizationInternal0. Each step is on its
+    * own, the data it removes is not needed any more.
+    */
+   private void finishOrganizationRename(String fromId, String toId) {
+      // the old and the new id share the properties and the storage buckets, nothing is left
+      if(fromId.equalsIgnoreCase(toId)) {
+         return;
+      }
+
+      Organization from = new FSOrganization(fromId);
+      runCleanupStep("properties", fromId, () -> removeOrgProperties(fromId));
+      runCleanupStep("data space", fromId, () -> removeOrgScopedDataSpaceElements(from));
+      runCleanupStep("themes", fromId, () -> themeService.removeTheme(fromId));
+      FSService.clearServerNodeCache(fromId);
+      XJobPool.resetOrgCache(fromId);
+      repletRegistryManager.clearOrgCache(fromId);
+      runCleanupStep("storages", fromId, () -> {
+         updateRepletRegistry(fromId, null);
+         removeStorages(fromId);
+      });
+   }
+
+   private void runCleanupStep(String step, String orgId, RenameStep cleanup) {
+      try {
+         cleanup.run();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the {} of the old organization {}", step, orgId, e);
+      }
+   }
+
+   /**
+    * Undoes a clone that was interrupted: the files the clone wrote, and then the organization
+    * with the delete path of an organization. The source organization is not changed by a clone.
+    */
+   private void undoOrganizationClone(OrgOperationJournal.Entry entry) throws Exception {
+      String toId = entry.getToId();
+      EditableAuthenticationProvider eprovider =
+         OrgOperationRecovery.findEditableProvider(securityProvider, entry.getProviderName());
+
+      if(eprovider == null) {
+         throw new IllegalStateException("There is no editable authentication provider");
+      }
+
+      LOG.info("Undoing the clone of organization {} to {} ({}): organization {}, identities: {}",
+               entry.getFromId(), toId, entry.getOpId(),
+               eprovider.getOrganization(toId) != null ? "exists" : "absent",
+               describeOrganizationIdentities(eprovider, entry.getFromId(), toId));
+      String opId = OrgIdChangeGuard.isRunning(toId) ? null : OrgIdChangeGuard.begin(toId);
+
+      try {
+         // the files that the record lists, the rest of what is under the new id is removed with
+         // the organization
+         for(String path : entry.getTargets()) {
+            if(dataSpace.exists(null, path)) {
+               dataSpace.delete(null, path);
+            }
+         }
+
+         // a clone that stopped before it added the organization has identities of it, the delete
+         // path of an organization removes them with the organization
+         Organization org = eprovider.getOrganization(toId);
+
+         if(org == null) {
+            FSOrganization stub = new FSOrganization(toId);
+            stub.setName(toId);
+            eprovider.addOrganization(stub);
+            org = eprovider.getOrganization(toId);
+         }
+
+         if(org != null) {
+            IdentityID orgId = org.getIdentityID();
+            syncIdentity(eprovider, org, null);
+            cluster.sendMessage(new IdentityChangedMessage(Identity.ORGANIZATION, null, orgId));
+         }
+      }
+      finally {
+         // not retired, the id is free for a new organization
+         OrgIdChangeGuard.end(opId, toId, false);
+      }
+   }
+
+   private static String toJson(EditOrganizationPaneModel model) {
+      try {
+         return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(model);
+      }
+      catch(IOException e) {
+         throw new IllegalStateException("Failed to record the organization change", e);
+      }
+   }
+
+   private static EditOrganizationPaneModel fromJson(String json) throws IOException {
+      return new com.fasterxml.jackson.databind.ObjectMapper()
+         .readValue(json, EditOrganizationPaneModel.class);
+   }
+
+   private static String toJson(RenameDecision decision) {
+      try {
+         return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(decision);
+      }
+      catch(IOException e) {
+         throw new IllegalStateException("Failed to record the organization change", e);
+      }
+   }
+
+   /**
+    * Gets the decision that the original request of the id change that is being resumed froze,
+    * null if the change is not resumed, or its record has no readable decision, in which case
+    * the permissions of the caller decide as before. An empty member list is a decision.
+    */
+   private static RenameDecision frozenDecision() {
+      OrgOperationJournal.Entry entry = RESUMING.get();
+      return entry == null ? null : readDecision(entry);
+   }
+
+   private static RenameDecision readDecision(OrgOperationJournal.Entry entry) {
+      if(entry.getDecision() == null) {
+         return null;
+      }
+
+      try {
+         RenameDecision decision = new com.fasterxml.jackson.databind.ObjectMapper()
+            .readValue(entry.getDecision(), RenameDecision.class);
+         return decision.getMembers() == null ? null : decision;
+      }
+      catch(IOException e) {
+         return null;
+      }
+   }
+
+   /**
+    * What the principal of the caller decided in the original request of an id change, which a
+    * resume of it replays. The caller of the resume is another principal and must not decide again.
+    */
+   static final class RenameDecision {
+      @com.fasterxml.jackson.annotation.JsonCreator
+      RenameDecision(@com.fasterxml.jackson.annotation.JsonProperty("members") List<String> members,
+                     @com.fasterxml.jackson.annotation.JsonProperty("requester") String requester)
+      {
+         this.members = members == null ? null : new ArrayList<>(members);
+         this.requester = requester;
+      }
+
+      /**
+       * The names of the members of the organization after the original request kept the hidden
+       * members and the groups and roles that its caller could not delete.
+       */
+      public List<String> getMembers() {
+         return members;
+      }
+
+      /**
+       * The principal name of the caller of the original request, null if it had no principal.
+       */
+      public String getRequester() {
+         return requester;
+      }
+
+      private final List<String> members;
+      private final String requester;
+   }
+
+   /**
+    * Gets the data space paths that an id change moves to the new id.
+    */
+   private List<String> getRenameTargets(Organization fromOrg, String newId) {
+      try {
+         return Arrays.stream(dataSpace.getOrgScopedPaths(fromOrg))
+            .map(p -> OrgScopedPaths.rewrite(p, fromOrg.getId(), newId))
+            .collect(Collectors.toList());
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to list the data space paths of organization {}", fromOrg.getId(), e);
+         return List.of();
+      }
+   }
+
+   // set while the recovery resumes an id change
+   private static final ThreadLocal<OrgOperationJournal.Entry> RESUMING = new ThreadLocal<>();
+
+   private Identity setOrganizationInfo0(FSOrganization oldOrg, EditOrganizationPaneModel model,
+                                         EditableAuthenticationProvider eprovider,
+                                         Principal principal,
+                                         Consumer<List<String>> beforeIdChange)
       throws Exception
    {
       final String name = model.name();
@@ -3506,8 +4148,14 @@ public class IdentityService {
          .map(i -> i.name)
          .collect(Collectors.toList());
       String[] oldMembers = oldOrg.getMembers();
+      // Bug #81308, a resumed id change replays what the caller of the original request decided
+      RenameDecision frozen = frozenDecision();
 
-      if(oldMembers != null) {
+      if(frozen != null) {
+         memberNames.clear();
+         memberNames.addAll(frozen.getMembers());
+      }
+      else if(oldMembers != null) {
          // members hidden from the editor are never sent back by the client, so keep them
          Arrays.stream(oldMembers)
             .filter(m -> securityProvider.getUser(new IdentityID(m, oldOrg.getId())) != null)
@@ -3528,7 +4176,10 @@ public class IdentityService {
 
          // an existing identity of another organization must never be taken over as a member,
          // updateOrganizationMembers() would overwrite it with a blank identity
-         if(isExistingIdentityOfOtherOrg(member, oldOrg.getId(), eprovider)) {
+         // not when the change is resumed, some members are moved to the new organization
+         if(RESUMING.get() == null &&
+            isExistingIdentityOfOtherOrg(member, oldOrg.getId(), eprovider))
+         {
             throw new MessageException(Catalog.getCatalog().getString(
                "em.security.orgMemberFromOtherOrg", member.identityID().getName()));
          }
@@ -3536,7 +4187,9 @@ public class IdentityService {
 
       // a dropped group or role is deleted, so it must pass the same checks as deleteIdentities().
       // Called after the validation, so a rejected save leaves no message behind on the thread.
-      keepUndeletableGroupsAndRoles(oldOrg.getId(), memberNames, eprovider, principal);
+      if(frozen == null) {
+         keepUndeletableGroupsAndRoles(oldOrg.getId(), memberNames, eprovider, principal);
+      }
 
       newOrg.setMembers(memberNames.toArray(new String[0]));
       newOrg.setActive(model.status());
@@ -3553,6 +4206,11 @@ public class IdentityService {
       // which tests membership with List.contains(), not by position.
       Set<String> oldMemberSet = oldOrg.getMembers() != null ?
          new HashSet<>(Arrays.asList(oldOrg.getMembers())) : Collections.emptySet();
+
+      if(fromOrg != null && !Tool.equals(fromOrgID, newOrg.getId())) {
+         // everything before this point only validated, the first write follows
+         beforeIdChange.accept(new ArrayList<>(memberNames));
+      }
 
       if(model.oldName() == null ||
             !oldMemberSet.equals(new HashSet<>(memberNames)) ||
@@ -3728,8 +4386,13 @@ public class IdentityService {
             customThemesManager.setOrgSelectedTheme("default", newOrgID);
          }
 
-         // If org ID changed, clean up old org's selection property
-         if(!Tool.equals(oldOrgID, newOrgID)) {
+         // If org ID changed, clean up old org's selection property. A case-only change is
+         // the same property key (the engine lower-cases the name), so it must not be cleared
+         // or it would erase the selection just written above (Bug #81320)
+         if(!Tool.equals(oldOrgID, newOrgID) &&
+            !PropertiesEngine.getOrgPropertyPrefix(oldOrgID)
+               .equals(PropertiesEngine.getOrgPropertyPrefix(newOrgID)))
+         {
             customThemesManager.setOrgSelectedTheme("default", oldOrgID);
          }
       }

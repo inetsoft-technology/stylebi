@@ -257,6 +257,21 @@ public final class MVQuery {
    }
 
    /**
+    * Get the groups whose value is the <code>Double.doubleToLongBits</code> of a double,
+    * float, time, date or timestamp column (not a dictionary or integer column). Such keys
+    * must be compared by numeric value, not as signed longs.
+    */
+   boolean[] getBitKeys() {
+      boolean[] bitKeys = new boolean[dcnt];
+
+      for(int i = 0; i < dcnt; i++) {
+         bitKeys[i] = sdictIdxes[i] == -1 && !intcols[i];
+      }
+
+      return bitKeys;
+   }
+
+   /**
     * Convert the value to real value.
     */
    private void convertRow(SubTableBlock block) throws IOException {
@@ -279,6 +294,20 @@ public final class MVQuery {
 
       Object[] arr = new Object[smcnt];
       XSwappableObjectList<MVRow> rows = new XSwappableObjectList<>(MVRow2.class);
+      // the sub block rows are sorted by dictionary index, i.e. the case sensitive order of
+      // the dictionary values. if the string compare is case insensitive, the rows must be
+      // re-sorted by value, which is the order the merged blocks (and non-MV) expect.
+      boolean resort = false;
+      // the rows from the sub mv may be sorted by the raw (signed) key of a double-based
+      // group, so the sender's order must not be trusted
+      boolean resortBits = false;
+      boolean[] bitKeys = getBitKeys();
+
+      for(boolean bitKey : bitKeys) {
+         resortBits = resortBits || bitKey;
+      }
+
+      List<MVRow> rowList = new ArrayList<>(Math.max(rcnt, 0));
 
       for(int i = 0; i < rcnt; i++) {
          MVRow row = block.getRow(i);
@@ -288,6 +317,7 @@ public final class MVQuery {
          for(int j = 0; j < dcnt; j++) {
             if(dicts[j] != null) {
                groups[j] = dicts[j].getValue((int) row.getGroups()[j]);
+               resort = resort || groups[j] instanceof String;
             }
             else {
                groups[j] = row.getGroups()[j];
@@ -319,9 +349,15 @@ public final class MVQuery {
          }
 
          nrow.setFormulas(row.getFormulas());
-         rows.add(nrow);
+         rowList.add(nrow);
       }
 
+      // only the grouped merge assumes comparator order; detail rows keep the stored order
+      if(!detail && (resort && !Tool.isCaseSensitive() || resortBits)) {
+         rowList.sort(new MVRow2.RowComparator(order, bitKeys));
+      }
+
+      rowList.forEach(rows::add);
       rows.complete();
       block.setRows(rows);
    }

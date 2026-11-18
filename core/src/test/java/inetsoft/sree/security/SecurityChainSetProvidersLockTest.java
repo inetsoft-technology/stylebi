@@ -68,7 +68,7 @@ class SecurityChainSetProvidersLockTest {
       authzChains.forEach(AuthorizationChain::tearDown);
    }
 
-   // (a) an EM edit lands while a reload is between clear() and setProviderList()
+   // (a) an EM edit lands while a reload has published its list and not yet disposed the old
 
    @Test
    void emEditInsideReloadWindow() throws Exception {
@@ -104,7 +104,8 @@ class SecurityChainSetProvidersLockTest {
       Thread reloader = start("reloader", host::loadConfiguration);
       assertTrue(host.inWindow.await(WAIT_SECONDS, TimeUnit.SECONDS), "reload never started");
 
-      // the reload is between clear() and setProviderList(): the EM save lands now
+      // the reload has published the list and holds its lock until the old providers are
+      // disposed: the EM save lands now
       Thread em = start("em", () -> host.setProviders(emList));
       awaitState(em, Thread.State.WAITING);
       host.release.countDown();
@@ -168,7 +169,7 @@ class SecurityChainSetProvidersLockTest {
       assertEquals(List.of("A", "E"), names(host.getProviders()), "runtime");
    }
 
-   // a bare save inside the window must not write the transient empty list
+   // a bare save inside the window must write the list the reload published, not the old one
 
    @Test
    void bareSaveInsideReloadWindowDoesNotWriteEmptyList() throws Exception {
@@ -186,6 +187,41 @@ class SecurityChainSetProvidersLockTest {
 
       assertEquals(List.of("A", "R"), fileNames(AUTHC_FILE), "file");
       assertEquals(List.of("A", "R"), names(host.getProviders()), "runtime");
+   }
+
+   // an EM edit as AuthenticationProviderService does it reads the list and adds to it: inside
+   // the window it must read the published list, or it would save a chain of only its own
+   // provider and wipe the file for the cluster (Bug #79355)
+
+   @Test
+   void emReadModifyWriteInsideReloadWindowKeepsTheProviders() throws Exception {
+      HookedAuthcChain host = newHost(List.of("A"));
+      AuthenticationChain other = newAuthc();
+      save(other, List.of("A", "R"));
+
+      Thread reloader = start("reloader", host::loadConfiguration);
+      assertTrue(host.inWindow.await(WAIT_SECONDS, TimeUnit.SECONDS), "reload never started");
+
+      Thread em = start("em", () -> {
+         host.writeLock();
+
+         try {
+            List<AuthenticationProvider> list = host.getProviders();
+            assertEquals(List.of("A", "R"), names(list), "the list the edit read");
+            list.add(named("E").get(0));
+            host.setProviders(list);
+         }
+         finally {
+            host.writeUnlock();
+         }
+      });
+      awaitState(em, Thread.State.WAITING);
+      host.release.countDown();
+      reloader.join(WAIT_MILLIS);
+      em.join(WAIT_MILLIS);
+
+      assertEquals(List.of("A", "R", "E"), fileNames(AUTHC_FILE), "file");
+      assertEquals(List.of("A", "R", "E"), names(host.getProviders()), "runtime");
    }
 
    // (d) a reload, an EM edit as AuthenticationProviderService does it (write lock, then save),
@@ -207,9 +243,10 @@ class SecurityChainSetProvidersLockTest {
       });
 
       try {
-         // lock free: must answer while the reload holds its lock inside the window
+         // lock free: must answer while the reload holds its lock inside the window, with the
+         // list the reload published and never an empty one (Bug #79355)
          Future<List<AuthenticationProvider>> peek = pool.submit(host::peekProviders);
-         assertEquals(List.of(), peek.get(WAIT_SECONDS, TimeUnit.SECONDS));
+         assertEquals(List.of("A", "R"), names(peek.get(WAIT_SECONDS, TimeUnit.SECONDS)));
 
          Future<?> edit = pool.submit(() -> {
             host.writeLock();
@@ -382,7 +419,10 @@ class SecurityChainSetProvidersLockTest {
       void run() throws Exception;
    }
 
-   /** Parks the thread named "reloader" between clear() and setProviderList(). */
+   /**
+    * Parks the thread named "reloader" after setProviderList() and before the old providers are
+    * disposed, with the reload lock held.
+    */
    private static final class HookedAuthcChain extends AuthenticationChain {
       final CountDownLatch inWindow;
       final CountDownLatch release;
@@ -394,9 +434,9 @@ class SecurityChainSetProvidersLockTest {
       }
 
       @Override
-      void clear() {
-         super.clear();
+      void disposeAll(List<AuthenticationProvider> list) {
          park(inWindow, release);
+         super.disposeAll(list);
       }
    }
 
@@ -411,9 +451,9 @@ class SecurityChainSetProvidersLockTest {
       }
 
       @Override
-      void clear() {
-         super.clear();
+      void disposeAll(List<AuthorizationProvider> list) {
          park(inWindow, release);
+         super.disposeAll(list);
       }
    }
 

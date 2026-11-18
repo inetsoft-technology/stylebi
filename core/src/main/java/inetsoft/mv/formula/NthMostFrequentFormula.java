@@ -66,6 +66,11 @@ public class NthMostFrequentFormula
     */
    @Override
    public void addValue(double v) {
+      // MV measure columns store null as NULL_DOUBLE, null is ignored (Bug #81181)
+      if(v == Tool.NULL_DOUBLE) {
+         return;
+      }
+
       int freq = map.get(v);
       map.put(v, freq + 1);
    }
@@ -115,6 +120,10 @@ public class NthMostFrequentFormula
     */
    @Override
    public void addValue(Object v) {
+      if(v == null) {
+         return;
+      }
+
       addValue(v.hashCode());
    }
 
@@ -194,8 +203,7 @@ public class NthMostFrequentFormula
       });
 
       if(values.size() >= n) {
-         Object val = values.get(n - 1);
-         return (val == __NULL__) ? null : val;
+         return values.get(n - 1);
       }
 
       return null;

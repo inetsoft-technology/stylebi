@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpErrorResponse } from "@angular/common/http";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject } from "rxjs";
 import { ComponentTool } from "./component-tool";
 
@@ -103,5 +105,48 @@ describe("ComponentTool.showDialog", () => {
       await flush();
 
       expect(received.revision).toBe(7);
+   });
+});
+
+describe("ComponentTool.showHttpError", () => {
+   const modal = {} as NgbModal;
+   let dialogSpy: ReturnType<typeof vi.spyOn>;
+
+   beforeEach(() => {
+      dialogSpy = vi.spyOn(ComponentTool, "showMessageDialog").mockResolvedValue("ok");
+      vi.spyOn(console, "error").mockImplementation(() => {});
+   });
+
+   afterEach(() => vi.restoreAllMocks());
+
+   it("shows the status when the response has no error body", () => {
+      const error = new HttpErrorResponse({ status: 500, error: null });
+
+      expect(() => ComponentTool.showHttpError("Failed to save", error, modal)).not.toThrow();
+      expect(dialogSpy).toHaveBeenCalledWith(modal, "_#(js:Error)", "Failed to save [500]");
+   });
+
+   it("shows the message of a JSON string error body", () => {
+      const error = new HttpErrorResponse({ status: 500, error: JSON.stringify({ message: "boom" }) });
+
+      ComponentTool.showHttpError("Failed to save", error, modal);
+
+      expect(dialogSpy).toHaveBeenCalledWith(modal, "_#(js:Error)", "Failed to save: boom");
+   });
+
+   it("shows a non-JSON string error body as is", () => {
+      const error = new HttpErrorResponse({ status: 500, error: "plain text" });
+
+      ComponentTool.showHttpError("Failed to save", error, modal);
+
+      expect(dialogSpy).toHaveBeenCalledWith(modal, "_#(js:Error)", "plain text");
+   });
+
+   it("shows the gateway message for a 502", () => {
+      const error = new HttpErrorResponse({ status: 502, error: null });
+
+      ComponentTool.showHttpError("Failed to save", error, modal);
+
+      expect(dialogSpy).toHaveBeenCalledWith(modal, "_#(js:Error)", "_#(js:login.error.gateway)");
    });
 });

@@ -44,11 +44,11 @@ public class ExpressionRef extends AbstractDataRef {
 
       String prefix = "/*script";
       String suffix = "script*/";
-      String lowexp = exp.toLowerCase();
+      String lowexp = exp.toLowerCase(java.util.Locale.ROOT);
       int from = lowexp.indexOf(prefix);
       int to = lowexp.indexOf(suffix);
 
-      if(from < 0 || to < from) {
+      if(from < 0 || to < from + prefix.length()) {
          return exp;
       }
 
@@ -66,11 +66,11 @@ public class ExpressionRef extends AbstractDataRef {
 
       String prefix = "/*script";
       String suffix = "script*/";
-      String lowexp = exp.toLowerCase();
+      String lowexp = exp.toLowerCase(java.util.Locale.ROOT);
       int from = lowexp.indexOf(prefix);
       int to = lowexp.indexOf(suffix);
 
-      if(from < 0 || to < from) {
+      if(from < 0 || to < from + prefix.length()) {
          return exp;
       }
 

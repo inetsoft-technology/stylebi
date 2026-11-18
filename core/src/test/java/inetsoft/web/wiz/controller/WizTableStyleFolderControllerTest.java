@@ -256,8 +256,12 @@ class WizTableStyleFolderControllerTest {
       when(lib.getTableStyles("A~B")).thenReturn(new XTableStyle[] { style("2", "A~B~T") });
       when(lib.getTableStyleFolders("A~B")).thenReturn(new String[0]);
 
-      AssetEventUtil.renameTableStyleFolder("A", "X~A", lib);
+      // the rename also moves each style's permission (Bug #80959), through this engine
+      SecurityEngine security = mock(SecurityEngine.class);
+      AssetEventUtil.renameTableStyleFolder("A", "X~A", lib, security);
 
+      verify(security).getPermission(ResourceType.TABLE_STYLE, "A~S");
+      verify(security).getPermission(ResourceType.TABLE_STYLE, "A~B~T");
       verify(lib).renameTableStyle("A~S", "X~A~S", "1");
       verify(lib).renameTableStyleFolder("A", "X~A");
       verify(lib).renameTableStyle("A~B~T", "X~A~B~T", "2");

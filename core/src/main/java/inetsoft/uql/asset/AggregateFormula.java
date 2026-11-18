@@ -1422,11 +1422,24 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             }
          }
 
-         return "(" + COVARIANCE.getExpression(column, col2, helper) +
-            ") / ("
-            + POPULATION_STANDARD_DEVIATION.getExpression(column, null, helper) +
-            " * "
-            + POPULATION_STANDARD_DEVIATION.getExpression(col2, null, helper) + ")";
+         // all terms range over the rows where both columns are not null, so a pair
+         // with one missing value is left out (Bug #81095)
+         return "(" + pairCovariance(column, col2) + ") / " + guardedDenominator(
+            pairVariance(column, col2), pairVariance(col2, column));
+      }
+
+      /**
+       * Get the denominator, sqrt(varx * vary), as NULL when either population variance is not
+       * positive. A group with one row, or with a constant x or y, has zero variance, and the
+       * division by zero fails the whole query on most databases (Derby, PostgreSQL, SQL
+       * Server...). The raw-sum variance of a constant column of inexact doubles can even come
+       * out slightly negative, which fails the SQRT. The in-memory CorrelationFormula returns
+       * null for all of these, so the result must not depend on the pushdown (Bug #81096).
+       * The outer NULLIF covers a product of two tiny variances that underflows to 0.
+       */
+      private static String guardedDenominator(String varx, String vary) {
+         return "NULLIF(SQRT(CASE WHEN (" + varx + ") > 0 AND (" + vary + ") > 0 THEN ((" +
+            varx + ") * (" + vary + ")) END), 0)";
       }
 
       /**
@@ -1445,12 +1458,10 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       public String getExpressionSub(String column, String col2,
                                      AggregateHelper helper) {
-         return "(" + COVARIANCE.getExpressionSub(column, col2, helper) +
-            ") / (" + POPULATION_STANDARD_DEVIATION
-            .getExpressionSub(column, null, helper) +
-            " * " + POPULATION_STANDARD_DEVIATION
-            .getExpressionSub(col2, null, helper) +
-            ")";
+         return "(" + COVARIANCE.getExpressionSub(column, col2, helper) + ") / " +
+            guardedDenominator(
+               POPULATION_VARIANCE.getExpressionSub(column, null, helper),
+               POPULATION_VARIANCE.getExpressionSub(col2, null, helper));
       }
 
       /**
@@ -1526,13 +1537,8 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             }
          }
 
-         return "(0.0+" + SUMWT.getExpression(column, col2, helper) + ") / "
-            + COUNT_ALL.getExpression(column, null, helper)+ " - (0.0+ " +
-            SUM.getExpression(column, null, helper) + ") * ((0.0 + " +
-            SUM.getExpression(col2, null, helper)
-            + ") / ((0.0 + " +
-            COUNT_ALL.getExpression(column, null, helper) + ") * " +
-            COUNT_ALL.getExpression(column, null, helper) + "))";
+         // all terms range over the rows where both columns are not null (Bug #81095)
+         return pairCovariance(column, col2);
       }
 
       /**
@@ -1630,16 +1636,40 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             String func = helper.getAggregateExpression("var", column, col2);
 
             if(func != null) {
-               return func;
+               // Oracle VARIANCE already returns 0 for a single row
+               return isOracle(helper) ? func :
+                  singleRowZero(COUNT_ALL.getExpression(column, null, helper), func, helper);
             }
          }
 
-         return "((0.0+" + SUMSQ.getExpression(column, null, helper) + ") * " +
+         String expr = "((0.0+" + SUMSQ.getExpression(column, null, helper) + ") * " +
             COUNT_ALL.getExpression(column, null, helper) + " - ((0.0 + " +
             SUM.getExpression(column, null, helper) + ") * " +
-            SUM.getExpression(column, null, helper) + " ))/NULLIF(((0.0 + " +
+            SUM.getExpression(column, null, helper) + " ))/NULLIF(((" +
+            // DB2 types 0.0 as DECIMAL(2,1), which truncates the quotient to one digit,
+            // so only the divisor starts from a DOUBLE zero (Bug #79477)
+            PopulationVariance.getDenominatorZeroLiteral(helper) + " + " +
             COUNT_ALL.getExpression(column, null, helper) + ") * (" +
             COUNT_ALL.getExpression(column, null, helper) + " - 1)), 0)";
+         return singleRowZero(COUNT_ALL.getExpression(column, null, helper), expr, helper);
+      }
+
+      private static boolean isOracle(AggregateHelper helper) {
+         return helper != null && "oracle".equals(helper.getDBType());
+      }
+
+      /**
+       * Make a sample variance/standard deviation expression return 0 for a group
+       * with exactly one value (Bug #80342), like the in-memory VarianceFormula and
+       * the MV CompositeVarianceFormula. A group without values stays NULL.
+       * Access has no CASE, so IIF is used.
+       */
+      private static String singleRowZero(String count, String expr, AggregateHelper helper) {
+         if(helper != null && "access".equals(helper.getDBType())) {
+            return "IIF(" + count + " = 1, 0.0, " + expr + ")";
+         }
+
+         return "CASE WHEN " + count + " = 1 THEN 0.0E0 ELSE " + expr + " END";
       }
 
       /**
@@ -1669,13 +1699,14 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
                COUNT_ALL.getExpressionSub(column, null, helper) + "))";
          }
 
-         return "((0.0+" + SUMSQ.getExpressionSub(column, null, helper) +
+         String expr = "((0.0+" + SUMSQ.getExpressionSub(column, null, helper) +
             ") * " +
             COUNT_ALL.getExpressionSub(column, null, helper) + " - ((0.0 + "
             + SUM.getExpressionSub(column, col2, helper) + ") * " +
             SUM.getExpressionSub(column, col2, helper) + " ))/NULLIF(((0.0 + " +
             COUNT_ALL.getExpressionSub(column, null, helper) + ") * (" +
             COUNT_ALL.getExpressionSub(column, null, helper) + " - 1)), 0)";
+         return singleRowZero(COUNT_ALL.getExpressionSub(column, null, helper), expr, helper);
       }
 
       /**
@@ -1745,7 +1776,8 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             String func = helper.getAggregateExpression("stddev", column, col2);
 
             if(func != null) {
-               return func;
+               return Variance.isOracle(helper) ? func :
+                  Variance.singleRowZero(COUNT_ALL.getExpression(column, null, helper), func, helper);
             }
          }
 
@@ -1842,12 +1874,10 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             }
          }
 
-         return "((0.0+" + SUMSQ.getExpression(column, null, helper) + ") * " +
-            COUNT_ALL.getExpression(column, null, helper) + " - ((0.0 + " +
-            SUM.getExpression(column, null, helper) + ") * " +
-            SUM.getExpression(column, null, helper) + " ))/((0.0 + " +
-            COUNT_ALL.getExpression(column, null, helper) + ") * " +
-            COUNT_ALL.getExpression(column, null, helper) + ")";
+         return build(getDenominatorZeroLiteral(helper),
+                      SUMSQ.getExpression(column, null, helper),
+                      COUNT_ALL.getExpression(column, null, helper),
+                      SUM.getExpression(column, null, helper), helper);
       }
 
       /**
@@ -1866,13 +1896,46 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       public String getExpressionSub(String column, String col2,
                                      AggregateHelper helper) {
-         return "((0.0+" + SUMSQ.getExpressionSub(column, null, helper) +
-            ") * " +
-            COUNT_ALL.getExpressionSub(column, null, helper) + " - ((0.0 + " +
-            SUM.getExpressionSub(column, col2, helper) + ") * " +
-            SUM.getExpressionSub(column, col2, helper) + " ))/((0.0 + " +
-            COUNT_ALL.getExpressionSub(column, null, helper) + ") * " +
-            COUNT_ALL.getExpressionSub(column, null, helper) + ")";
+         return build(getDenominatorZeroLiteral(helper),
+                      SUMSQ.getExpressionSub(column, null, helper),
+                      COUNT_ALL.getExpressionSub(column, null, helper),
+                      SUM.getExpressionSub(column, col2, helper), helper);
+      }
+
+      private static boolean isDb2(AggregateHelper helper) {
+         return helper != null && "db2".equals(helper.getDBType());
+      }
+
+      /**
+       * Build the population variance expression from its aggregate terms.
+       * Other databases get the original expression. On DB2 the numerator
+       * n*SUM(x^2)-SUM(x)^2 keeps the exact DECIMAL literal 0.0 so a constant group
+       * gives exactly 0, only the denominator is DOUBLE so the division is not
+       * truncated, and the numerator is clamped at 0 (CASE, since DB2 10.5 has no
+       * GREATEST) so DOUBLE columns or scale-capped DECIMAL arithmetic can never
+       * produce a negative variance, which would make SQRT fail with SQLCODE -802.
+       */
+      private static String build(String zeroDen, String sumsq, String count,
+                                  String sum, AggregateHelper helper)
+      {
+         String num = "((0.0+" + sumsq + ") * " + count + " - ((0.0 + " +
+            sum + ") * " + sum + " ))";
+
+         if(isDb2(helper)) {
+            num = "(CASE WHEN " + num + " < 0 THEN 0.0E0 ELSE " + num + " END)";
+         }
+
+         return num + "/((" + zeroDen + " + " + count + ") * " + count + ")";
+      }
+
+      /**
+       * Get the zero literal used in the denominator. DB2 types 0.0 as DECIMAL(2,1),
+       * so the final division would keep only one decimal digit (truncated). 0.0E0
+       * is a DOUBLE literal on DB2 and makes the division floating point (Bug #79479).
+       * Other databases are unchanged.
+       */
+      private static String getDenominatorZeroLiteral(AggregateHelper helper) {
+         return isDb2(helper) ? "0.0E0" : "0.0";
       }
 
       /**
@@ -2044,7 +2107,9 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
          String sumwt = "(0.0+" + SUMWT.getExpression(column, col2, helper) + ")";
          String sum2 = "(0.0 + " + SUM2.getExpression(col2, column, helper) + ")";
 
-         return "CASE WHEN " + sum2 + " = 0 THEN 0.0 ELSE " + sumwt + "/" + sum2 + " END";
+         // weights summing to 0 have no weighted average: NULL, like the in-memory formula
+         // (Bug #81182)
+         return "CASE WHEN " + sum2 + " = 0 THEN NULL ELSE " + sumwt + "/" + sum2 + " END";
       }
 
       /**
@@ -2063,7 +2128,7 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       public String getExpressionSub(String column, String col2, AggregateHelper helper) {
          return "(0.0+" + SUMWT.getExpressionSub(column, col2, helper) +
-            ") / (0.0+" + SUM.getExpressionSub(col2, column, helper) + ")";
+            ") / NULLIF(0.0+" + SUM.getExpressionSub(col2, column, helper) + ", 0)";
       }
 
       /**
@@ -2959,6 +3024,69 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       catch(CloneNotSupportedException ex) {
          return null;
       }
+   }
+
+   /**
+    * Parenthesize a column or expression unless it is a plain (qualified) name, so that
+    * an expression argument keeps its precedence inside CASE and arithmetic.
+    */
+   private static String pairParens(String col) {
+      if(col == null || col.matches("[\\w.$#@]+") || isField(col)) {
+         return col;
+      }
+
+      return "(" + col + ")";
+   }
+
+   /**
+    * Count of the rows where both columns are not null.
+    */
+   private static String pairCount(String x, String y) {
+      return "COUNT(CASE WHEN " + pairParens(y) + " IS NOT NULL THEN " + pairParens(x) +
+         " END)";
+   }
+
+   /**
+    * Sum of x over the rows where y is not null (SUM skips the rows where x is null).
+    */
+   private static String pairSum(String x, String y) {
+      return "SUM(CASE WHEN " + pairParens(y) + " IS NOT NULL THEN " + pairParens(x) +
+         " END)";
+   }
+
+   /**
+    * Population covariance over the rows where both columns are not null. The result is
+    * NULL if there is no such row. 0.0E0 (DOUBLE) so that integer columns are not
+    * truncated by DECIMAL division.
+    */
+   private static String pairCovariance(String x, String y) {
+      String n = "NULLIF(" + pairCount(x, y) + ", 0)";
+
+      return "(0.0E0+SUM(" + pairParens(x) + " * " + pairParens(y) + ")) / " + n +
+         " - (0.0E0+ " + pairSum(x, y) + ") * ((0.0E0 + " + pairSum(y, x) +
+         ") / ((0.0E0 + " + n + ") * " + n + "))";
+   }
+
+   /**
+    * Population standard deviation of x over the rows where both columns are not null.
+    * The result is NULL if there is no such row.
+    */
+   private static String pairStdDev(String x, String y) {
+      return "SQRT(" + pairVariance(x, y) + ")";
+   }
+
+   /**
+    * Population variance of x over the rows where both columns are not null. The result is
+    * NULL if there is no such row.
+    */
+   private static String pairVariance(String x, String y) {
+      String n = "NULLIF(" + pairCount(x, y) + ", 0)";
+      String sum = pairSum(x, y);
+      String sumsq = "SUM(CASE WHEN " + pairParens(y) + " IS NOT NULL THEN (0.0E0+" +
+         pairParens(x) + ") * (0.0E0+" + pairParens(x) + ") END)";
+
+      return "((0.0E0+" + sumsq + ") * " + n + " - ((0.0E0 + " + sum + ") * " + sum +
+         " ))/((0.0E0 + " + n + ") * " + n + ")";
    }
 
    // surround with parens for expression

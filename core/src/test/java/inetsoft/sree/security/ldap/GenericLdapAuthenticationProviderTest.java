@@ -47,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome()
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @Tag("slow")
+@Tag("docker")
 class GenericLdapAuthenticationProviderTest {
    @BeforeAll()
    static void startLdapServer() {

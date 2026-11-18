@@ -468,20 +468,12 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
    }
 
    /**
-    * Tear down the security provider.
+    * Tear down the security provider. The storage is cached and shared by
+    * {@code KeyValueStorageManager}, which closes it, and a chain reload tears the old provider
+    * down after the new one is live, so it is neither closed nor released here (Bug #79355).
     */
    @Override
    public void tearDown() {
-      if(storage != null) {
-         try {
-            storage.close();
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to close permission storate", e);
-         }
-
-         storage = null;
-      }
    }
 
    /**

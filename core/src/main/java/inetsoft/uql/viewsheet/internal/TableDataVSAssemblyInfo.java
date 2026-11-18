@@ -1536,6 +1536,28 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Get the dynamic values of the cell formats of the table, crosstab and freehand table.
+    */
+   @Override
+   public List<DynamicValue> getCellFormatDynamicValues() {
+      List<DynamicValue> list = new ArrayList<>();
+
+      for(TableDataPath path : getFormatInfo().getPaths()) {
+         if(path.getType() == TableDataPath.TITLE || path.getType() == TableDataPath.OBJECT) {
+            continue;
+         }
+
+         VSCompositeFormat fmt = getFormatInfo().getFormat(path);
+
+         if(fmt != null) {
+            list.addAll(fmt.getDynamicValues());
+         }
+      }
+
+      return list;
+   }
+
+   /**
     * Get the dynamic property values. Dynamic properties are properties that
     * can be a variable or a script.
     * @return the dynamic values.

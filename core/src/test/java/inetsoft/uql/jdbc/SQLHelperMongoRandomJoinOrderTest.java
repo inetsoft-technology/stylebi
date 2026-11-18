@@ -49,6 +49,7 @@ import static org.mockito.Mockito.mock;
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("database")
 class SQLHelperMongoRandomJoinOrderTest {
    @Configuration
    @Import(CredentialService.class)

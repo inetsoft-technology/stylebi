@@ -57,28 +57,31 @@ public class PresentationLoginBannerSettingsService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void setModel(PresentationLoginBannerSettingsModel model, boolean global) {
-      PortalThemesManager manager = portalThemesManager;
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-      PortalWelcomePage welcomePage;
-
-      if(global) {
-         welcomePage = manager.getWelcomePage();
-
-         if(welcomePage == null) {
-            welcomePage = new PortalWelcomePage();
-            manager.setWelcomePage(welcomePage);
-         }
-      }
-      else {
-         welcomePage = manager.getOrCreateOrgWelcomePage(orgId);
-      }
-
       String loginBanner = model.loginBanner() == null ? "" : model.loginBanner();
+      int bannerType = Integer.parseInt(model.bannerType());
 
-      welcomePage.setBannerType(Integer.parseInt(model.bannerType()));
-      welcomePage.setBanner(loginBanner);
+      // read, modify and save atomically; the welcome page must be fetched inside the
+      // update so that a reload cannot replace it between the modify and the save
+      portalThemesManager.update(manager -> {
+         PortalWelcomePage welcomePage;
 
-      manager.save();
+         if(global) {
+            welcomePage = manager.getWelcomePage();
+
+            if(welcomePage == null) {
+               welcomePage = new PortalWelcomePage();
+               manager.setWelcomePage(welcomePage);
+            }
+         }
+         else {
+            // an org's first write starts from the global page (Bug #79439)
+            welcomePage = manager.getOrCreateOrgWelcomePage(orgId);
+         }
+
+         welcomePage.setBannerType(bannerType);
+         welcomePage.setBanner(loginBanner);
+      });
    }
 
    @Audited(
@@ -87,21 +90,19 @@ public class PresentationLoginBannerSettingsService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void resetSettings(boolean global) {
-      PortalThemesManager manager = portalThemesManager;
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(global) {
-         manager.setWelcomePage(new PortalWelcomePage());
+      portalThemesManager.update(manager -> {
+         if(global) {
+            manager.setWelcomePage(new PortalWelcomePage());
 
-         PortalWelcomePage welcomePage = manager.getWelcomePage();
-         String loginBanner = "";
-
-         welcomePage.setBannerType(0);
-         welcomePage.setBanner(loginBanner);
-      }
-      else {
-         manager.removeWelcomePage(OrganizationManager.getInstance().getCurrentOrgID());
-      }
-
-      manager.save();
+            PortalWelcomePage welcomePage = manager.getWelcomePage();
+            welcomePage.setBannerType(0);
+            welcomePage.setBanner("");
+         }
+         else {
+            manager.removeWelcomePage(orgId);
+         }
+      });
    }
 }

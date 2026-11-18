@@ -3011,34 +3011,39 @@ public class DataSourceRegistry implements MessageListener {
    /**
     * Fire event.
     */
-   protected synchronized void fireEvent(StorageRefreshEvent e) {
+   protected void fireEvent(StorageRefreshEvent e) {
       long nts = e.getLastModified();
-      long currts;
-      if(ts.containsKey(OrganizationManager.getInstance().getCurrentOrgID())) {
-         currts = ts.get(OrganizationManager.getInstance().getCurrentOrgID());
-      }
-      else {
-         currts = 0;
-      }
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      Long cur = ts.get(orgID);
+      long currts = cur != null ? cur : 0;
 
       if(nts != 0 && nts != currts && currts < nts) {
+         // Do not hold the registry monitor while querying the storage. The query may block
+         // on a cluster load, and every synchronized registry method would queue behind it
+         // (Bug #79879).
          long actual = indexedStorage.lastModified(datasourceFilter);
 
-         if(currts < actual) {
-            clearCache();
-            ts.put(OrganizationManager.getInstance().getCurrentOrgID(), nts);
-            PropertyChangeEvent event =
-               new PropertyChangeEvent(this, "DataSourceRegistry", null, null);
-            final List<PropertyChangeListener> refreshedListeners =
-               new ArrayList<>(this.refreshedListeners);
+         synchronized(this) {
+            cur = ts.get(orgID);
+            currts = cur != null ? cur : 0;
 
-            (new GroupedThread() {
-               protected void doRun() {
-                  for(PropertyChangeListener listener : refreshedListeners) {
-                     listener.propertyChange(event);
+            // re-check under the monitor, a concurrent event may have already handled this change
+            if(currts < actual && currts < nts) {
+               clearCache();
+               ts.put(orgID, nts);
+               PropertyChangeEvent event =
+                  new PropertyChangeEvent(this, "DataSourceRegistry", null, null);
+               final List<PropertyChangeListener> refreshedListeners =
+                  new ArrayList<>(this.refreshedListeners);
+
+               (new GroupedThread() {
+                  protected void doRun() {
+                     for(PropertyChangeListener listener : refreshedListeners) {
+                        listener.propertyChange(event);
+                     }
                   }
-               }
-            }).start();
+               }).start();
+            }
          }
       }
    }
@@ -3141,22 +3146,31 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void setObject(AssetEntry entry, XMLSerializable obj, boolean fireEvent) {
       try {
-         AssetFolder root = getRoot(entry.getOrgID());
+         // Bug #81435, the root is read, changed and written back under the cluster lock
+         Lock lock = lockRoot();
 
-         if(root != null && root.containsEntry(entry)) {
-            entry = root.getEntry(entry);
-            root.removeEntry(entry);
+         try {
+            AssetFolder root = getRoot(entry.getOrgID());
+
+            if(root != null && root.containsEntry(entry)) {
+               entry = root.getEntry(entry);
+               root.removeEntry(entry);
+            }
+
+            AssetUtil.updateMetaData(
+               entry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
+
+            if(root != null) {
+               root.addEntry(entry);
+               setRoot(root);
+            }
+
+            indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
+         }
+         finally {
+            unlockRoot(lock);
          }
 
-         AssetUtil.updateMetaData(
-            entry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
-
-         if(root != null) {
-            root.addEntry(entry);
-            setRoot(root);
-         }
-
-         indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
          clearCache2();
          sendClearDataSourceCacheEvent();
 
@@ -3633,33 +3647,40 @@ public class DataSourceRegistry implements MessageListener {
     * is restored too.
     */
    private void updateRoot(List<AssetEntry> removed, List<AssetEntry> added) throws Exception {
-      AssetFolder root = getRoot();
-      Map<AssetEntry, AssetEntry> previous = new HashMap<>();
-
-      for(AssetEntry entry : removed) {
-         previous.put(entry, root.getEntry(entry));
-      }
-
-      for(AssetEntry entry : added) {
-         previous.put(entry, root.getEntry(entry));
-      }
-
-      removed.forEach(root::removeEntry);
-      added.forEach(root::addEntry);
+      Lock lock = lockRoot();
 
       try {
-         setRoot(root);
+         AssetFolder root = getRoot();
+         Map<AssetEntry, AssetEntry> previous = new HashMap<>();
+
+         for(AssetEntry entry : removed) {
+            previous.put(entry, root.getEntry(entry));
+         }
+
+         for(AssetEntry entry : added) {
+            previous.put(entry, root.getEntry(entry));
+         }
+
+         removed.forEach(root::removeEntry);
+         added.forEach(root::addEntry);
+
+         try {
+            setRoot(root);
+         }
+         catch(Exception e) {
+            previous.forEach((entry, stored) -> {
+               root.removeEntry(entry);
+
+               if(stored != null) {
+                  root.addEntry(stored);
+               }
+            });
+
+            throw e;
+         }
       }
-      catch(Exception e) {
-         previous.forEach((entry, stored) -> {
-            root.removeEntry(entry);
-
-            if(stored != null) {
-               root.addEntry(stored);
-            }
-         });
-
-         throw e;
+      finally {
+         unlockRoot(lock);
       }
    }
 
@@ -3797,7 +3818,35 @@ public class DataSourceRegistry implements MessageListener {
          return;
       }
 
+      ClearDataSourceCacheEvent cevent = (ClearDataSourceCacheEvent) event.getMessage();
+
+      if(cevent.isOrgDeleted() && cevent.getOrgID() != null) {
+         // the org was deleted on another node: drop only that org's cached state, and let the
+         // next login re-run init() so the re-created org gets its root
+         clearCache(cevent.getOrgID());
+         indexedStorage.resetInitialized(cevent.getOrgID());
+         return;
+      }
+
       clearCache();
+   }
+
+   /**
+    * Called when an organization is deleted. Clears the organization's cached state on this
+    * node and on every other node of the cluster.
+    */
+   public void orgDeleted(String orgID) throws Exception {
+      clearCache(orgID);
+      indexedStorage.resetInitialized(orgID);
+
+      // the local clear is done; a failed broadcast must not abort the rest of the org delete
+      try {
+         Cluster.getInstance().sendMessage(new ClearDataSourceCacheEvent(orgID, true));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to notify the cluster that organization {} was deleted; other nodes " +
+                  "may keep its data source cache until restarted", orgID, e);
+      }
    }
 
    public void removeCacheEntry(Object key) {
@@ -3917,10 +3966,18 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void removeObject(AssetEntry entry) {
       try {
-         AssetFolder root = getRoot();
-         root.removeEntry(entry);
-         setRoot(root);
-         indexedStorage.remove(entry.toIdentifier(), true);
+         Lock lock = lockRoot();
+
+         try {
+            AssetFolder root = getRoot();
+            root.removeEntry(entry);
+            setRoot(root);
+            indexedStorage.remove(entry.toIdentifier(), true);
+         }
+         finally {
+            unlockRoot(lock);
+         }
+
          clearCache2();
          sendClearDataSourceCacheEvent();
 
@@ -3947,18 +4004,29 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void removeObjects(AssetEntry[] entries) {
       try {
-         AssetFolder root = getRoot();
+         Lock lock = lockRoot();
 
-         for(AssetEntry entry : entries) {
-            root.removeEntry(entry);
-            indexedStorage.remove(entry.toIdentifier(), true);
-            Resource resource = AssetUtil.getSecurityResource(entry);
-            updatePermission(resource.getType(), resource.getPath(), null);
-            clearCache2();
+         try {
+            AssetFolder root = getRoot();
+
+            for(AssetEntry entry : entries) {
+               root.removeEntry(entry);
+               indexedStorage.remove(entry.toIdentifier(), true);
+            }
+
+            setRoot(root);
+         }
+         finally {
+            unlockRoot(lock);
          }
 
+         for(AssetEntry entry : entries) {
+            Resource resource = AssetUtil.getSecurityResource(entry);
+            updatePermission(resource.getType(), resource.getPath(), null);
+         }
+
+         clearCache2();
          sendClearDataSourceCacheEvent();
-         setRoot(root);
       }
       catch(Exception e) {
          LOG.error(
@@ -4082,7 +4150,17 @@ public class DataSourceRegistry implements MessageListener {
       clearCache2(null);
    }
 
+   /**
+    * Clears everything cached on this node for one organization: the loaded objects, the
+    * last modified timestamp and the name indexes.
+    */
    public void clearCache(String orgId) {
+      if(orgId != null) {
+         cachemap.keySet().removeIf(
+            k -> k instanceof AssetEntry && orgId.equalsIgnoreCase(((AssetEntry) k).getOrgID()));
+         ts.keySet().removeIf(orgId::equalsIgnoreCase);
+      }
+
       clearCache2(orgId);
    }
 
@@ -4132,7 +4210,17 @@ public class DataSourceRegistry implements MessageListener {
          initLastModified();
 
          if(!indexedStorage.contains(getRootIdentifier())) {
-            setRoot(new AssetFolder());
+            Lock lock = lockRoot();
+
+            try {
+               // another node may have created the root while waiting for the lock
+               if(!indexedStorage.contains(getRootIdentifier())) {
+                  setRoot(new AssetFolder());
+               }
+            }
+            finally {
+               unlockRoot(lock);
+            }
          }
       }
       finally {
@@ -4140,6 +4228,74 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       reportDataSourcePathClashes();
+   }
+
+   /**
+    * Locks the registry root of the current organization across the cluster. Bug #81435, the root
+    * is read, changed and written back as a whole and each node has its own cache, so changes
+    * made on two nodes at the same time dropped one of them. Like
+    * {@code AbstractAssetEngine.lockWrite}, the lock is reentrant and is only taken around the
+    * root and object writes, never around listeners, permission or message calls. The cached
+    * root is dropped once the lock is held, so that the change starts from the stored root.
+    *
+    * @return the locked lock, or {@code null} if there is no cluster (tests).
+    */
+   private Lock lockRoot() {
+      if(cluster == null) {
+         return null;
+      }
+
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      Lock lock = cluster.getLock(
+         DataSourceRegistry.class.getName() + ".root." + (orgId == null ? "" : orgId.toLowerCase()));
+      // a cluster without locks (tests with a mock) is only locked in its own JVM
+      if(lock == null) {
+         return null;
+      }
+
+      lock.lock();
+
+      try {
+         // another node may have replaced the root, read it again under the lock
+         dropCachedRootIfStale();
+      }
+      catch(RuntimeException | Error e) {
+         lock.unlock();
+         throw e;
+      }
+
+      return lock;
+   }
+
+   private void unlockRoot(Lock lock) {
+      if(lock != null) {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Drops the cached root if the stored root was changed after it was cached, so that the next
+    * read loads it from the storage. The registry timestamp that {@code getCachedObject} checks
+    * first is only moved by an asynchronous event from the other node, so it is not used here.
+    * A cached root that a failed save left changed is kept, as before.
+    */
+   private void dropCachedRootIfStale() {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      AssetEntry plain = getRootEntry();
+      AssetEntry withOrg = getRootEntry();
+      withOrg.setOrgID(orgId);
+
+      for(AssetEntry entry : List.of(plain, withOrg)) {
+         CachedObject cached = cachemap.get(entry);
+
+         if(cached != null) {
+            long stored = indexedStorage.lastModified(entry.toIdentifier(), entry.getOrgID());
+
+            if(stored > cached.timeTS || stored == 0) {
+               cachemap.remove(entry);
+            }
+         }
+      }
    }
 
    /**

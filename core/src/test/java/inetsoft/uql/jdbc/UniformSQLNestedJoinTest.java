@@ -53,6 +53,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("database")
 class UniformSQLNestedJoinTest {
    // an ANSI join data source, the sql of a query is generated with its data source
    private static JDBCDataSource ansiSource;

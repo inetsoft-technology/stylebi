@@ -81,8 +81,8 @@ public final class DatabaseCacheTestSupport {
 
    /**
     * A provider whose tear-down signals {@link #inTearDown} and then takes {@link #sleepMs}
-    * (800 ms by default) while the latch is set, to hold a chain reload between clearing the provider list and setting the
-    * new one.
+    * (800 ms by default) while the latch is set, to hold a chain reload in the disposal of the replaced
+    * providers, after the new list is published and while the reload lock is still held.
     */
    public static class SlowTearDownProvider extends SeamProvider {
       @Override

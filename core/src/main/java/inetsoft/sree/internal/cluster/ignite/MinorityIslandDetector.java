@@ -378,6 +378,8 @@ final class MinorityIslandDetector implements AutoCloseable {
       int port = Integer.parseInt(endpoint.substring(index + 1));
 
       // a plain connect first, so that an address with nothing behind it doesn't cost a client
+      // connect-only probe; the thin client that follows gets SSL from its own config.
+      // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
       try(Socket socket = new Socket()) {
          socket.connect(new InetSocketAddress(host, port), connectTimeoutMillis);
       }

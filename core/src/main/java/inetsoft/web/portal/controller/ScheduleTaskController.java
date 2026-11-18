@@ -130,6 +130,19 @@ public class ScheduleTaskController {
       catch(Exception ignore) {
       }
 
+      // Bug #79866, the EM edit refuses a task in a folder the user can't read, as the other
+      // portal task actions do. Internal tasks aren't in a task folder.
+      if(!ScheduleManager.isInternalTask(taskName)) {
+         ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+
+         if(task != null && !scheduleTaskFolderService.checkFolderPermission(
+            ScheduleTaskFolderService.getTaskFolderPath(task), principal, ResourceAction.READ))
+         {
+            throw new SecurityException(Catalog.getCatalog().getString(
+               "en.schedule.task.unauthorized", "\"" + taskName + "\""));
+         }
+      }
+
       return scheduleTaskService.getDialogModel(taskName, principal);
    }
 

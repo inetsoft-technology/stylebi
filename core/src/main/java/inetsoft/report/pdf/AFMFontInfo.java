@@ -204,7 +204,7 @@ class AFMFontInfo extends FontInfo {
             fullname = line.substring(8).trim();
          }
          else if(line.startsWith("FontName")) {
-            name = line.substring(10).trim();
+            name = line.substring(8).trim();
          }
 
          if(name != null && fullname != null) {

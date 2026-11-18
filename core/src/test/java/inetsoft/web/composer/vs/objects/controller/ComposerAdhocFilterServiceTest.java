@@ -28,6 +28,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
 import inetsoft.web.composer.vs.objects.event.FilterChartEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -118,6 +119,39 @@ class ComposerAdhocFilterServiceTest {
          any(), anyInt(), any(), any(), any(), any(), any());
    }
 
+   @Test
+   void viewerSkipsContainersThatDisallowAdhocFilters() {
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      CurrentSelectionVSAssembly off = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      ((CurrentSelectionVSAssemblyInfo) off.getVSAssemblyInfo()).setAdhocEnabled(false);
+      vs.addAssembly(chart);
+      vs.addAssembly(off);
+
+      assertTrue(ComposerAdhocFilterService.findContainers(vs, chart, true).isEmpty());
+      assertEquals(1, ComposerAdhocFilterService.findContainers(vs, chart, false).size());
+
+      CurrentSelectionVSAssembly on = new CurrentSelectionVSAssembly(vs, "CurrentSelection2");
+      ((CurrentSelectionVSAssemblyInfo) on.getVSAssemblyInfo()).setAdhocEnabled(true);
+      vs.addAssembly(on);
+
+      List<CurrentSelectionVSAssembly> found =
+         ComposerAdhocFilterService.findContainers(vs, chart, true);
+      assertEquals(1, found.size());
+      assertEquals("CurrentSelection2", found.get(0).getName());
+   }
+
+   @Test
+   void runtimeAddFilterIgnoresContainersThatDisallowAdhocFilters() throws Exception {
+      Captured cap = runFilter(GraphTypes.CHART_NETWORK, "color", dimension(false), null,
+                               true, false);
+      assertEquals(0, cap.calls, "no filter may be added to a container that disallows it");
+
+      Captured design = runFilter(GraphTypes.CHART_NETWORK, "color", dimension(false), null,
+                                  false, false);
+      assertEquals(1, design.calls, "design mode still uses every container");
+   }
+
    private static void assertCreated(Captured cap, boolean date) {
       assertEquals(1, cap.calls);
       assertEquals(date ? AbstractSheet.TIME_SLIDER_ASSET : AbstractSheet.SELECTION_LIST_ASSET,
@@ -168,6 +202,13 @@ class ComposerAdhocFilterServiceTest {
    private static Captured runFilter(int chartType, String slot, VSDataRef ref, String columnName)
       throws Exception
    {
+      return runFilter(chartType, slot, ref, columnName, false, true);
+   }
+
+   private static Captured runFilter(int chartType, String slot, VSDataRef ref, String columnName,
+                                     boolean runtime, boolean containerAllowsAdhoc)
+      throws Exception
+   {
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
       ChartVSAssemblyInfo cinfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
@@ -201,7 +242,10 @@ class ComposerAdhocFilterServiceTest {
 
       cinfo.setVSChartInfo(rinfo);
       vs.addAssembly(chart);
-      vs.addAssembly(new CurrentSelectionVSAssembly(vs, "CurrentSelection1"));
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      ((CurrentSelectionVSAssemblyInfo) container.getVSAssemblyInfo())
+         .setAdhocEnabled(containerAllowsAdhoc);
+      vs.addAssembly(container);
 
       ColumnSelection cols = new ColumnSelection();
       addColumn(cols, "Source", XSchema.STRING);
@@ -216,6 +260,7 @@ class ComposerAdhocFilterServiceTest {
       Principal principal = mock(Principal.class);
       when(viewsheetService.getViewsheet("rid", principal)).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.isRuntime()).thenReturn(runtime);
 
       VSTableService tableService = spy(new VSTableService(null));
       Captured cap = new Captured(tableService);

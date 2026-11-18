@@ -195,7 +195,7 @@ public class ManualOrderComparer implements Comparator, Serializable, Comparer {
     * @return < 0, 0, or > 0 for v1<v2, v1==v2, or v1>v2.
     */
    public int compare(long v1, long v2) {
-      return (int) (v1 - v2);
+      return Long.compare(v1, v2);
    }
 
    /**

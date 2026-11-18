@@ -29,7 +29,7 @@ import {
    Renderer2
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { DomSanitizer, SafeHtml, SafeStyle } from "@angular/platform-browser";
+import { DomSanitizer, SafeStyle } from "@angular/platform-browser";
 import { DragEvent } from "../../../common/data/drag-event";
 import { TableTransfer } from "../../../common/data/dnd-transfer";
 import { GuiTool } from "../../../common/util/gui-tool";
@@ -110,7 +110,8 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
    measureTextVAlign: string;
    isParentIDTree: boolean = false;
    quickSwitchAllowed: boolean = false;
-   htmlLabel: SafeHtml;
+   // raw label string; Angular's [innerHTML] binding sanitizes it (never bypass)
+   htmlLabel: string;
    mobile: boolean = GuiTool.isMobileDevice();
 
    // Long-press state machine (mobile only).
@@ -189,7 +190,7 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
       }
 
       this.htmlLabel = this.isHTML(this.selectionValue.label) ?
-         this.sanitization.bypassSecurityTrustHtml(this.selectionValue.label) : null;
+         this.selectionValue.label : null;
    }
 
    ngOnDestroy(): void {

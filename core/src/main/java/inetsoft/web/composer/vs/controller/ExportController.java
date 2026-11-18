@@ -188,16 +188,18 @@ public class ExportController {
       }
    }
 
-   private void exportViewsheet0(String path, boolean match, int format, String type,
-                                 Map<String, String[]> parameters, String sessionId, String userAgent,
-                                 boolean previewPrintLayout, boolean expandSelections, boolean current,
-                                 boolean print, String[] bookmarks, boolean onlyDataComponents, boolean exportAllTabbedTables,
-                                 CSVConfig csvConfig, HttpServletResponse response, Principal principal) throws Exception {
-      String runtimeId;
+   /**
+    * Refuses the request unless the principal holds the Export toolbar action. The print
+    * preview flag only exempts a PDF export (Bug #79412). Shared by every export endpoint
+    * that serves viewsheet data as a file (Bug #81183).
+    */
+   private void checkExportAllowed(Principal principal, boolean previewPrintLayout, int format)
+      throws Exception
+   {
       boolean exportEnabled = securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ);
 
-      if(!previewPrintLayout && !exportEnabled) {
+      if(!VSExportService.isExportAllowed(exportEnabled, previewPrintLayout, format)) {
          LOG.error(
             "Failed to export viewsheet since {} have no permission for viewsheet export.",
             principal.getName());
@@ -206,7 +208,14 @@ public class ExportController {
          throw new MessageException(Catalog.getCatalog().getString(
             "viewer.viewsheet.exporting.failed", user), LogLevel.INFO, false);
       }
+   }
 
+   private void exportViewsheet0(String path, boolean match, int format, String type,
+                                 Map<String, String[]> parameters, String sessionId, String userAgent,
+                                 boolean previewPrintLayout, boolean expandSelections, boolean current,
+                                 boolean print, String[] bookmarks, boolean onlyDataComponents, boolean exportAllTabbedTables,
+                                 CSVConfig csvConfig, HttpServletResponse response, Principal principal) throws Exception {
+      String runtimeId;
       //if there is an outtype param, its value overrides the format value
       if(type != null) {
          format = VSExportService.getFormatNumberFromExtension(type);
@@ -215,6 +224,9 @@ public class ExportController {
             match = false;
          }
       }
+
+      // the print preview flag only exempts a PDF export from the Export action (Bug #79412)
+      checkExportAllowed(principal, previewPrintLayout, format);
 
       AssetEntry entry = exportService.getPathAssetEntry(path, principal);
       boolean matchesAssetIdFormat = true;
@@ -250,6 +262,8 @@ public class ExportController {
                                     HttpServletResponse response, Principal principal)
       throws Exception
    {
+      // table export is the Export toolbar action; no previewPrintLayout exemption applies
+      checkExportAllowed(principal, false, FileFormatInfo.EXPORT_TYPE_CSV);
       boolean exporting = "true".equals(request.getSession().getAttribute("vs_table_export"));
 
       if(exporting) {
@@ -280,6 +294,8 @@ public class ExportController {
             result.getMime());
 
          OutputStream out = response.getOutputStream();
+         // binary export download sent as an attachment, not HTML.
+         // nosemgrep: java.lang.security.audit.xss.no-direct-response-writer.no-direct-response-writer
          out.write(result.getData());
       }
       finally {
@@ -301,6 +317,8 @@ public class ExportController {
       @LinkUri String linkUri)
       throws Exception
    {
+      // the chart image is served by the Export toolbar action path
+      checkExportAllowed(principal, false, FileFormatInfo.EXPORT_TYPE_PNG);
       AssetEntry entry = VSExportService.getPathAssetEntry(path, principal);
       OpenViewsheetEvent openVSEvent = new OpenViewsheetEvent();
       openVSEvent.setEntryId(entry.toIdentifier());

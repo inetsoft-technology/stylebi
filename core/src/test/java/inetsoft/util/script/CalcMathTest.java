@@ -760,6 +760,44 @@ class CalcMathTest {
       assertEquals(0.0, CalcMath.sumif(range, criteria, mismatchedRange), 0.0001);
    }
 
+   // bug #79847, empty or non-numeric cells must keep range and sum_range aligned
+   @Test
+   void testSumifWithEmptyCells() {
+      Object range = new Object[]{ 1.0, 2.0, 3.0, 4.0 };
+
+      // control, no holes
+      assertEquals(70.0, CalcMath.sumif(range, ">2", new Object[]{ 10.0, 20.0, 30.0, 40.0 }), 0.0001);
+
+      // holes in sum_range
+      assertEquals(70.0, CalcMath.sumif(range, ">2", new Object[]{ 10.0, null, 30.0, 40.0 }), 0.0001);
+      assertEquals(70.0, CalcMath.sumif(range, ">2", new Object[]{ 10.0, "", 30.0, 40.0 }), 0.0001);
+      assertEquals(70.0, CalcMath.sumif(range, ">2", new Object[]{ 10.0, "x", 30.0, 40.0 }), 0.0001);
+      assertEquals(40.0, CalcMath.sumif(range, ">2", new Object[]{ 10.0, 20.0, null, 40.0 }), 0.0001);
+
+      // holes in range never satisfy the criteria, even one like "<5" that null would match
+      Object sumRange = new Object[]{ 10.0, 20.0, 30.0, 40.0 };
+      assertEquals(70.0, CalcMath.sumif(new Object[]{ 1.0, null, 3.0, 4.0 }, ">2", sumRange), 0.0001);
+      assertEquals(70.0, CalcMath.sumif(new Object[]{ 1.0, "", 3.0, 4.0 }, ">2", sumRange), 0.0001);
+      assertEquals(70.0, CalcMath.sumif(new Object[]{ 1.0, "x", 3.0, 4.0 }, ">2", sumRange), 0.0001);
+      assertEquals(80.0, CalcMath.sumif(new Object[]{ 1.0, null, 3.0, 4.0 }, "<5", sumRange), 0.0001);
+
+      // comma separated strings, the empty item is a hole
+      assertEquals(70.0, CalcMath.sumif("1,2,3,4", ">2", "10,,30,40"), 0.0001);
+      assertEquals(70.0, CalcMath.sumif("1,,3,4", ">2", "10,20,30,40"), 0.0001);
+
+      // omitted sum_range sums the matching range cells
+      assertEquals(7.0, CalcMath.sumif(range, ">2", null), 0.0001);
+      assertEquals(7.0, CalcMath.sumif(new Object[]{ 1.0, null, 3.0, 4.0 }, ">2", null), 0.0001);
+
+      // a sum_range with only empty or text cells is not an omitted sum_range
+      assertEquals(0.0, CalcMath.sumif(range, ">2", new Object[]{ null, null, null, null }), 0.0001);
+      assertEquals(0.0, CalcMath.sumif(range, ">2", new Object[]{ "a", "b", "c", "d" }), 0.0001);
+
+      // numeric strings are still parsed
+      assertEquals(70.0, CalcMath.sumif(new Object[]{ "1", "2", "3", "4" }, ">2",
+                                        new Object[]{ "10", "20", "30", "40" }), 0.0001);
+   }
+
    @Test
    void testSumproduct() {
       // Test with valid inputs
@@ -974,5 +1012,94 @@ class CalcMathTest {
 
       // Test with fractional angle
       assertEquals(Math.PI / 2, CalcMath.radians(90.0), 0.0001);
+   }
+
+   /**
+    * Bug #79859: a hole (null, empty or non-numeric) in either array drops the
+    * whole pair instead of shifting the two arrays against each other.
+    */
+   @Test
+   void testPairedFunctionsDropPairWithHole() {
+      // pairs (1,2) and (5,4) survive; x[1]=null and y[2]=null at different positions
+      Object[] x = {1.0, null, 3.0, 5.0};
+      Object[] y = {2.0, 9.0, null, 4.0};
+      assertEquals(2.0, CalcMath.sumxmy2(x, y), 1e-9);
+      assertEquals(6.0, CalcMath.sumx2my2(x, y), 1e-9);
+      assertEquals(46.0, CalcMath.sumx2py2(x, y), 1e-9);
+
+      // empty string, non-numeric text and numeric string: pairs (3,3) and (5,4) survive
+      Object[] x2 = {"", 3.0, "abc", "5"};
+      Object[] y2 = {7.0, "3", 8.0, 4.0};
+      assertEquals(1.0, CalcMath.sumxmy2(x2, y2), 1e-9);
+      assertEquals(9.0, CalcMath.sumx2my2(x2, y2), 1e-9);
+      assertEquals(59.0, CalcMath.sumx2py2(x2, y2), 1e-9);
+
+      // holes at the same positions give the same result as before
+      assertEquals(0.0, CalcMath.sumxmy2(new Object[] {1.0, null, 3.0, 4.0},
+                                         new Object[] {1.0, null, 3.0, 4.0}), 1e-9);
+
+      // every pair dropped
+      assertEquals(0.0, CalcMath.sumxmy2(new Object[] {null, 1.0}, new Object[] {1.0, null}));
+      assertEquals(0.0, CalcMath.sumx2my2(new Object[] {null, 1.0}, new Object[] {1.0, null}));
+      assertEquals(0.0, CalcMath.sumx2py2(new Object[] {null, 1.0}, new Object[] {1.0, null}));
+   }
+
+   @Test
+   void testPairedFunctionsRawLengthMustMatch() {
+      // a hole in one array only: the raw lengths still differ, so it is an error
+      // even though the numeric counts would be equal after dropping the hole
+      Object[] x = {1.0, null, 3.0, 4.0};
+      Object[] y = {1.0, 3.0, 4.0};
+      String msg = "array_x and array_y have a different number of values";
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcMath.sumxmy2(x, y)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcMath.sumx2my2(x, y)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcMath.sumx2py2(x, y)).getMessage());
+
+      // no holes: unchanged
+      assertEquals(msg, assertThrows(RuntimeException.class, () ->
+         CalcMath.sumxmy2(new Object[] {1.0, 2.0}, new Object[] {1.0})).getMessage());
+      assertEquals(17.0, CalcMath.sumx2my2(new Object[] {3.0, 4.0}, new Object[] {2.0, 2.0}), 1e-9);
+   }
+
+   @Test
+   void testSumproductWithHoles() {
+      // 1-D rows: a null counts as 0 and keeps its position
+      Object arrays = new Object[] {
+         new Object[] {1.0, null, 3.0},
+         new Object[] {4.0, 5.0, 6.0}
+      };
+      assertEquals(22.0, CalcMath.sumproduct(arrays), 1e-9);
+
+      // null in the second row
+      Object arrays2 = new Object[] {
+         new Object[] {1.0, 2.0, 3.0},
+         new Object[] {4.0, 5.0, null}
+      };
+      assertEquals(14.0, CalcMath.sumproduct(arrays2), 1e-9);
+
+      // empty string and text are treated as 0
+      Object arrays3 = new Object[] {
+         new Object[] {"", 2.0, "x"},
+         new Object[] {4.0, "5", 6.0}
+      };
+      assertEquals(10.0, CalcMath.sumproduct(arrays3), 1e-9);
+
+      // 2-D matrices
+      Object matrices = new Object[] {
+         new Object[][] {{1.0, null}, {3.0, 4.0}},
+         new Object[][] {{5.0, 6.0}, {7.0, 8.0}}
+      };
+      assertEquals(58.0, CalcMath.sumproduct(matrices), 1e-9);
+
+      // no holes: unchanged
+      assertEquals(32.0, CalcMath.sumproduct(new Object[] {
+         new Object[] {1.0, 2.0, 3.0}, new Object[] {4.0, 5.0, 6.0}}), 1e-9);
+   }
+
+   @Test
+   void productMultipliesNumbersAndSkipsNonNumericEntries() {
+      assertEquals(24.0, CalcMath.product(new Object[] { 2.0, 3.0, 4.0 }), 1e-9);
+      assertEquals(6.0, CalcMath.product(new Object[] { "2", "x", null, 3.0 }), 1e-9);
+      assertEquals(7.0, CalcMath.product(new Object[] { 7.0 }), 1e-9);
    }
 }

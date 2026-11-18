@@ -100,7 +100,7 @@ class AssistantTlsHandshakeTest {
    }
 
    private HttpResponse<String> get(String host, String verify) throws Exception {
-      sreeEnvStatic.when(() -> SreeEnv.getProperty("chat.app.server.ssl.verify", "false"))
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("chat.app.server.ssl.verify", "true"))
          .thenReturn(verify);
       HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(
          java.time.Duration.ofSeconds(10));

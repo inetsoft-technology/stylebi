@@ -85,12 +85,18 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
       SelectionList selection2 = null;
       SelectionListVSAssembly assembly = (SelectionListVSAssembly) getAssembly();
       SelectionListVSAssemblyInfo sinfo = (SelectionListVSAssemblyInfo) assembly.getInfo();
+      // placeholder data, keep the state selection list (Bug #80814)
+      boolean keepState = isMetadataDesignMode();
 
       if(data.getColCount() != 1 || !data.moreRows(1)) {
          // view selection list
          assembly.setSelectionList(selection);
-         // state selection list
-         assembly.setStateSelectionList(selection2);
+
+         if(!keepState) {
+            // state selection list
+            assembly.setStateSelectionList(selection2);
+         }
+
          return;
       }
 
@@ -286,8 +292,12 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
 
       // view selection list
       assembly.setSelectionList(selection);
-      // state selection list
-      assembly.setStateSelectionList(selection2);
+
+      if(!keepState) {
+         // state selection list
+         assembly.setStateSelectionList(selection2);
+      }
+
       selection.complete();
       selection2.complete();
 

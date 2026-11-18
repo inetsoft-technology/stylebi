@@ -2462,6 +2462,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       flyoverValue.setRValue(null);
       flyClickValue.setRValue(null);
       tipClickValue.setRValue(null);
+      alphaValue.setRValue(null);
       summarySortCol.setRValue(null);
       summarySortVal.setRValue(null);
 

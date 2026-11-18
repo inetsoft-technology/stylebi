@@ -53,6 +53,11 @@ public class AuthenticationChain
 
    @Override
    public User getUser(IdentityID userIdentity) {
+      return PermissionRequestScope.memo(this, "getUser", userIdentity,
+                                         () -> lookupUser(userIdentity));
+   }
+
+   private User lookupUser(IdentityID userIdentity) {
       RuntimeException failure = null;
 
       for(AuthenticationProvider p : getProviders()) {
@@ -150,11 +155,12 @@ public class AuthenticationChain
 
    @Override
    public Organization getOrganization(String id) {
-      return stream()
-         .map(p -> p.getOrganization(id))
-         .filter(Objects::nonNull)
-         .findFirst()
-         .orElse(null);
+      return PermissionRequestScope.memo(this, "getOrganization", id, () ->
+         stream()
+            .map(p -> p.getOrganization(id))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null));
    }
 
    @Override
@@ -199,9 +205,11 @@ public class AuthenticationChain
          return new String[0];
       }
 
+      // call each provider once, the call can be expensive (e.g. scans a distributed map)
       return stream()
-         .filter(p -> p.getOrganizationIDs() != null)
-         .flatMap(p -> Arrays.stream(p.getOrganizationIDs()))
+         .map(AuthenticationProvider::getOrganizationIDs)
+         .filter(Objects::nonNull)
+         .flatMap(Arrays::stream)
          .distinct()
          .toArray(String[]::new);
    }
@@ -500,7 +508,8 @@ public class AuthenticationChain
    private void refreshReloaded(List<DatabaseAuthenticationProvider> providers) {
       for(DatabaseAuthenticationProvider changed : providers) {
          // A later reload may have replaced it: refresh the current provider of that name. A
-         // reload in progress empties the list before it sets the new one, so wait for it.
+         // reload holds the reload lock until it has published the new list and disposed the
+         // old providers, so wait for it and read the list afterwards.
          String waiter = "the cache refresh of security provider " + changed.getProviderName();
          DatabaseAuthenticationProvider db = getProvidersAfterReload(waiter).stream()
             .filter(p -> p instanceof DatabaseAuthenticationProvider &&

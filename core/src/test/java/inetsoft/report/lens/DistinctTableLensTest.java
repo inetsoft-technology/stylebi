@@ -20,6 +20,7 @@ package inetsoft.report.lens;
 
 import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
+import inetsoft.report.filter.SortFilter;
 import inetsoft.report.filter.SortedTable;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
@@ -34,6 +35,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -137,6 +140,132 @@ public class DistinctTableLensTest {
 
       Assertions.assertTrue(interrupted.get(), "the reader's interrupt was lost");
    }
+
+   /**
+    * The base is reused only when its leading sort columns are the distinct columns in the
+    * same order. The base is sorted descending while the distinct sort filter sorts
+    * ascending, so the output order shows whether the base was reused (bug #80695).
+    */
+   @Test
+   public void reusesBaseSortedOnDistinctColumns() {
+      // reused: rows in base (descending) order, adjacent duplicates removed
+      Assertions.assertEquals(List.of("2,2", "2,1", "1,2", "1,1"), distinctOf(0, 1));
+      Assertions.assertEquals(
+         List.of("2,2,2", "2,2,1", "2,1,2", "2,1,1", "1,2,2", "1,1,2", "1,1,1"),
+         distinctOf(0, 1, 2));
+   }
+
+   /**
+    * Reordered distinct columns are sorted again on the distinct columns, as before
+    * (bug #80695).
+    */
+   @Test
+   public void doesNotReuseBaseForReorderedDistinctColumns() {
+      Assertions.assertEquals(List.of("1,1", "1,2", "2,1", "2,2"), distinctOf(1, 0));
+      Assertions.assertEquals(
+         List.of("1,1,1", "1,1,2", "1,2,2", "2,1,1", "2,1,2", "2,2,1", "2,2,2"),
+         distinctOf(2, 1, 0));
+   }
+
+   /**
+    * Distinct columns that are not the leading sort columns of the base are not adjacent in
+    * the base (another sort column comes between them), so the base must not be reused
+    * (bug #80695).
+    */
+   @Test
+   public void doesNotReuseBaseWhenDistinctColumnsAreNotTheLeadingSortColumns() {
+      // not reused: sorted ascending on the distinct columns, each value once
+      Assertions.assertEquals(List.of("1,1", "1,2", "2,1", "2,2"), distinctOf(0, 2));
+      Assertions.assertEquals(List.of("1,1", "1,2", "2,1", "2,2"), distinctOf(1, 2));
+   }
+
+   /**
+    * The reuse decision itself: the base instance is returned only when its leading sort
+    * columns are the distinct columns in the same order (bug #80695).
+    */
+   @Test
+   public void createSortedTableReturnsBaseOnlyWhenSortedOnDistinctColumns() {
+      int[][] reuse = { { 0, 1 }, { 0, 1, 2 } };
+      int[][] noReuse = { { 1, 0 }, { 2, 1, 0 }, { 0, 2 }, { 1, 2 }, { 0, 2, 2 } };
+
+      for(int[] cols : reuse) {
+         SortFilter base = presorted();
+         Assertions.assertSame(base, new DistinctTableLens(base, cols, false).createSortedTable(),
+                               "must reuse the base for " + java.util.Arrays.toString(cols));
+      }
+
+      for(int[] cols : noReuse) {
+         SortFilter base = presorted();
+         Assertions.assertNotSame(base,
+                                  new DistinctTableLens(base, cols, false).createSortedTable(),
+                                  "must not reuse the base for " + java.util.Arrays.toString(cols));
+      }
+   }
+
+   /**
+    * Duplicated distinct columns (a,c,c) of a base sorted on (a,b,c) are not the leading sort
+    * columns, so the base is not reused and each (a,c) value is returned once (bug #80695).
+    */
+   @Test
+   public void doesNotReuseBaseForDuplicatedDistinctColumns() {
+      Assertions.assertEquals(List.of("1,1,1", "1,2,2", "2,1,1", "2,2,2"), distinctOf(0, 2, 2));
+   }
+
+   @Test
+   public void isSortedOnRequiresTheDistinctColumnsAsOrderedPrefix() {
+      int[] abc = { 0, 1, 2 };
+
+      Assertions.assertTrue(DistinctTableLens.isSortedOn(abc, new int[] { 0, 1 }));
+      Assertions.assertTrue(DistinctTableLens.isSortedOn(abc, new int[] { 0, 1, 2 }));
+      Assertions.assertFalse(DistinctTableLens.isSortedOn(abc, new int[] { 1, 0 }));
+      Assertions.assertFalse(DistinctTableLens.isSortedOn(abc, new int[] { 2, 1, 0 }));
+      Assertions.assertFalse(DistinctTableLens.isSortedOn(abc, new int[] { 0, 2 }));
+      Assertions.assertFalse(DistinctTableLens.isSortedOn(abc, new int[] { 1, 2 }));
+      Assertions.assertFalse(DistinctTableLens.isSortedOn(abc, new int[] { 0, 2, 2 }));
+      Assertions.assertFalse(DistinctTableLens.isSortedOn(new int[] { 0 }, new int[] { 0, 1 }));
+      Assertions.assertFalse(DistinctTableLens.isSortedOn(null, new int[] { 0, 1 }));
+      // no distinct column: unchanged, the base is reused
+      Assertions.assertTrue(DistinctTableLens.isSortedOn(new int[0], new int[0]));
+      Assertions.assertTrue(DistinctTableLens.isSortedOn(abc, new int[0]));
+      Assertions.assertTrue(DistinctTableLens.isSortedOn(null, new int[0]));
+   }
+
+   private static List<String> distinctOf(int... cols) {
+      DistinctTableLens lens =
+         new DistinctTableLens(presorted(), cols, false);
+      List<String> rows = new ArrayList<>();
+      lens.moreRows(XTable.EOT);
+
+      for(int r = lens.getHeaderRowCount(); lens.moreRows(r); r++) {
+         StringBuilder row = new StringBuilder();
+
+         for(int i = 0; i < cols.length; i++) {
+            row.append(i == 0 ? "" : ",").append(lens.getObject(r, cols[i]));
+         }
+
+         rows.add(row.toString());
+      }
+
+      return rows;
+   }
+
+   /**
+    * A base sorted on (a,b,c) descending, while the sort filter of a distinct table that
+    * does not reuse its base sorts ascending.
+    */
+   private static SortFilter presorted() {
+      return new SortFilter(new DefaultTableLens(UNSORTED_DATA), new int[] { 0, 1, 2 }, false);
+   }
+
+   /**
+    * Sorted on (a,b,c) descending: (2,2,2) (2,2,2) (2,2,1) (2,1,2) (2,1,1) (1,2,2) (1,1,2)
+    * (1,1,1).
+    */
+   private static final Object[][] UNSORTED_DATA = {
+      { "a", "b", "c" },
+      { 1, 1, 2 }, { 2, 2, 1 }, { 2, 1, 1 }, { 2, 2, 2 }, { 1, 1, 1 },
+      { 2, 1, 2 }, { 1, 2, 2 }, { 2, 2, 2 }
+   };
 
    private static final int[] DISTINCT_COLS = { 0, 1 };
    private static final int[] DISTINCT_COLS_SINGLE = { 0 };

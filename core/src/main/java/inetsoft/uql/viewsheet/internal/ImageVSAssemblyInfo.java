@@ -321,7 +321,7 @@ public class ImageVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
          }
 
          if (popLocationValue != null) {
-            info.popLocationValue = popLocationValue;
+            info.popLocationValue = (DynamicValue) popLocationValue.clone();
          }
 
          if(popComponentValue != null) {
@@ -668,6 +668,7 @@ public class ImageVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
       imageValue.setRValue(null);
       popComponentValue.setRValue(null);
       popLocationValue.setRValue(null);
+      alphaValue.setRValue(null);
       scaleInfo.resetRuntimeValues();
    }
    /*

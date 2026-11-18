@@ -160,8 +160,18 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
 
    @Override
    public void tearDown() {
+      // before the cache is closed, so that nothing re-creates it or the pool afterwards
+      tornDown = true;
       connectionProvider.close();
       closeCache();
+   }
+
+   /**
+    * Checks if {@link #tearDown()} ran. A torn down provider opens no connection pool and no
+    * cache client any more (Bug #79352).
+    */
+   boolean isTornDown() {
+      return tornDown;
    }
 
    @Override
@@ -581,7 +591,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
 
    @Override
    public void clearCache() {
-      if(cacheEnabled) {
+      if(cacheEnabled && !tornDown) {
          cacheLock.lock();
 
          try {
@@ -960,6 +970,17 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          if(cacheEnabled) {
             if(securityCache == null) {
                securityCache = new DatabaseAuthenticationCache(this);
+
+               if(tornDown) {
+                  // a closed client reads as empty and never connects to the service, so a
+                  // torn down provider leaves no client count that nothing disconnects
+                  try {
+                     securityCache.close();
+                  }
+                  catch(Exception e) {
+                     LOG.warn("Failed to close security cache", e);
+                  }
+               }
             }
 
             result = securityCache;
@@ -1135,6 +1156,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    private final AuthenticationDAO dao = new AuthenticationDAO(this);
    private final Lock cacheLock = new ReentrantLock();
    private DatabaseAuthenticationCache securityCache;
+   private volatile boolean tornDown;
    private final ThreadLocal<Boolean> ignoreCache = ThreadLocal.withInitial(() -> false);
    private final ThreadLocal<Boolean> queryFailed = ThreadLocal.withInitial(() -> false);
    private final ConnectionProvider connectionProvider = new ConnectionProvider(this);

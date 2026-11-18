@@ -29,6 +29,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.web.binding.drm.AggregateRefModel;
 import inetsoft.web.binding.model.AggregateInfoModel;
 import inetsoft.web.binding.model.GroupRefModel;
@@ -93,8 +94,10 @@ public class TableAssemblyModelFactory {
          table = new TableAssemblyModel(assembly, rws);
       }
 
+      boolean stopped = false;
+
       if(liveMetadata) {
-         setTableLensMetaData(assembly, rws, table);
+         stopped = setTableLensMetaData(assembly, rws, table);
       }
       else {
          table.setRowsCompleted(false);
@@ -104,7 +107,7 @@ public class TableAssemblyModelFactory {
       setAssemblyInfo(assembly, table, principal);
 
       if(liveMetadata) {
-         setColumnInfos(assembly, rws, table);
+         setColumnInfos(assembly, rws, table, stopped);
       }
       else {
          table.setColInfos(new ArrayList<>());
@@ -116,14 +119,19 @@ public class TableAssemblyModelFactory {
       return table;
    }
 
-   private static void setTableLensMetaData(TableAssembly assembly, RuntimeWorksheet rws,
-                                            TableAssemblyModel model)
+   /**
+    * @return true if the script timeout stopped the table, so that its data can not be read (a
+    * stop is not kept, reading the table again runs the query, and stalls, again).
+    */
+   private static boolean setTableLensMetaData(TableAssembly assembly, RuntimeWorksheet rws,
+                                               TableAssemblyModel model)
    {
       final AssetQuerySandbox box = rws.getAssetQuerySandbox();
       XTable lens = null;
+      boolean stopped = false;
 
       if(box == null) {
-         return;
+         return false;
       }
 
       Instant start = Instant.now();
@@ -136,9 +144,10 @@ public class TableAssemblyModelFactory {
       }
       catch(Exception e) {
          if(box.isDisposed()) {
-            return;
+            return false;
          }
 
+         stopped = ScriptTimeoutGuard.isStop(e);
          LOG.error("Failed to execute table: " + assembly.getAbsoluteName(), e);
       }
 
@@ -159,6 +168,8 @@ public class TableAssemblyModelFactory {
       if(model.isHasMaxRow()) {
          model.setExceededMaximum(AssetEventUtil.getExceededMsg(assembly, model.getTotalRows()));
       }
+
+      return stopped;
    }
 
    private static void setAssemblyInfo(TableAssembly assembly, TableAssemblyModel model,
@@ -192,10 +203,18 @@ public class TableAssemblyModelFactory {
    }
 
    private static void setColumnInfos(TableAssembly assembly, RuntimeWorksheet rws,
-                                      TableAssemblyModel model)
+                                      TableAssemblyModel model, boolean stopped)
    {
       final ArrayList<ColumnInfoModel> columnInfoModels = new ArrayList<>();
       final AssetQuerySandbox box = rws.getAssetQuerySandbox();
+
+      if(stopped) {
+         // do not read the stopped table again; the columns of the table keep its headers
+         // (and the editors of its columns)
+         addDesignColumnInfos(assembly, columnInfoModels);
+         model.setColInfos(columnInfoModels);
+         return;
+      }
 
       try {
          int mode = WorksheetEventUtil.getMode(assembly);
@@ -216,9 +235,47 @@ public class TableAssemblyModelFactory {
          }
 
          LOG.warn("Failed to get column infos: " + e, e);
+
+         if(ScriptTimeoutGuard.isStop(e)) {
+            columnInfoModels.clear();
+            addDesignColumnInfos(assembly, columnInfoModels);
+         }
       }
 
       model.setColInfos(columnInfoModels);
+   }
+
+   /**
+    * Add the column infos of the columns of a table, without reading its data. Used for a
+    * table that the script timeout stopped.
+    */
+   private static void addDesignColumnInfos(TableAssembly assembly,
+                                            List<ColumnInfoModel> columnInfoModels)
+   {
+      final int mode = WorksheetEventUtil.getMode(assembly);
+      final ColumnSelection lensColumns =
+         assembly.getColumnSelection(AssetQuerySandbox.isPublicSelection(assembly, mode));
+      final boolean pub = AssetQuerySandbox.isRuntimeMode(mode) ||
+         AssetQuerySandbox.isEmbeddedMode(mode) || assembly.isAggregate();
+      final ColumnSelection columns = assembly.getColumnSelection(pub);
+      final SortInfo sinfo = assembly.getSortInfo();
+      final AggregateInfo ginfo = assembly.getAggregateInfo();
+
+      for(int i = 0; i < lensColumns.getAttributeCount(); i++) {
+         final ColumnRef column = (ColumnRef) lensColumns.getAttribute(i);
+         SortRef sort = sinfo == null ? null : sinfo.getSort(column);
+         sort = sort == null ? null : (SortRef) sort.clone();
+         GroupRef group = ginfo == null ? null : ginfo.getGroup(column);
+         group = group == null ? null : (GroupRef) group.clone();
+         AggregateRef aggregate = ginfo == null ? null : ginfo.getAggregate(column);
+         aggregate = aggregate == null ? null : (AggregateRef) aggregate.clone();
+         final String alias = column.getAlias();
+         final String header = alias != null && !alias.isEmpty() ? alias : column.getAttribute();
+         final ColumnInfo info = new ColumnInfo(
+            (ColumnRef) column.clone(), sort, group, aggregate, assembly.getAbsoluteName(),
+            header, ginfo != null && ginfo.isCrosstab());
+         columnInfoModels.add(new ColumnInfoModel(info, columns.indexOfAttribute(column)));
+      }
    }
 
    private static void setTooltipContainer(AbstractTableAssembly assembly, TableAssemblyModel table)

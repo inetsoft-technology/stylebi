@@ -761,6 +761,17 @@ public class VSLayoutTool extends LayoutTool {
       return col;
    }
 
+   /**
+    * Check whether the name is a formula wrapper such as "Sum(price)", i.e. the text before
+    * the first "(" is an aggregate formula name.
+    */
+   private static boolean isFormulaWrapped(String col) {
+      int left = col.indexOf('(');
+
+      return left > 0 && col.endsWith(")") &&
+         AggregateFormula.getFormula(col.substring(0, left)) != null;
+   }
+
    private static String getAlias(DataRef ref) {
       if(ref == null) {
          return null;
@@ -821,6 +832,12 @@ public class VSLayoutTool extends LayoutTool {
    {
       if(col == null) {
          return null;
+      }
+
+      // a bare column name that merely contains parentheses (e.g. "Sales (USD)") is not an
+      // aggregate wrapper, so it must not be cut at the parentheses
+      if(Tool.equals(col, aggrColName) && !isFormulaWrapped(col)) {
+         return col;
       }
 
       String original = getOriginalColumn(col);

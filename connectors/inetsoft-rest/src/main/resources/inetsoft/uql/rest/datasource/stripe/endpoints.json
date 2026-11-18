@@ -102,7 +102,7 @@
       "name": "Balance Transactions",
       "description": "Every movement of money through the Stripe balance -- charges, refunds, payouts, fees and adjustments alike. Carries gross amount, fee and net separately, currency and exchange_rate, the date funds become available_on, and a reporting_category and type naming what caused the movement. The right table for net revenue and fee analysis, because it is the only one where fees are broken out from gross.",
       "paged": true,
-      "suffix": "/v1/balance_transactions?payout={Payout ID?}&type={Type?:charge|refund|...}&available_on={Available On?:Unix timestamp}&Created={Created?:Unix timestamp}&currency={Currency?:ISO currency code}&source={Source ID?}",
+      "suffix": "/v1/balance_transactions?payout={Payout ID?}&type={Type?:charge|refund|...}&available_on={Available On?:Unix timestamp}&created={Created?:Unix timestamp}&currency={Currency?:ISO currency code}&source={Source ID?}",
       "responseSchema": {
         "data": [
           {
@@ -880,9 +880,7 @@
             "Bank Accounts",
             "Cards",
             "Customer Balance Transactions",
-            "Tax IDs",
-            "Upcoming Invoice",
-            "Upcoming Invoice Line Items"
+            "Tax IDs"
           ],
           "jsonPath": "$.data.[*]",
           "key": "id",
@@ -3877,18 +3875,6 @@
         "object": "string",
         "url": "string"
       }
-    },
-    {
-      "name": "Upcoming Invoice",
-      "paged": false,
-      "suffix": "/v1/invoices/upcoming?customer={Customer ID}&subscription={Subscription?}&coupon={Coupon?}",
-      "description": "A preview of the invoice a subscription will next generate, before it exists. REMOVED AS A READ: Stripe replaced this with an invoice preview that is a POST, so a read-only connector cannot reach it at all. The forward view of subscription revenue is therefore unavailable here; Subscriptions carries the current period end and the items being billed, which is the closest substitute."
-    },
-    {
-      "name": "Upcoming Invoice Line Items",
-      "paged": true,
-      "suffix": "/v1/invoices/upcoming/lines?customer={Customer ID}&subscription={Subscription?}&coupon={Coupon?}",
-      "description": "The line items of that preview. Removed for the same reason."
     },
     {
       "name": "Invoices",
@@ -6907,7 +6893,7 @@
       "name": "Transfers",
       "description": "Money moved from your Stripe balance to a connected account. Carries amount, amount_reversed, currency, the destination account, and the charge it originated from. Use for what was paid out to sellers or partners; payouts to your own bank are in Payouts.",
       "paged": true,
-      "suffix": "/v1/transfers?destination={Destination?}created={Created?:Unix timestamp}&transfer_group={Transfer Group}",
+      "suffix": "/v1/transfers?destination={Destination?}&created={Created?:Unix timestamp}&transfer_group={Transfer Group?}",
       "responseSchema": {
         "data": [
           {

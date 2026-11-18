@@ -147,6 +147,23 @@ public class RepositoryObjectService {
          }
       }
 
+      // Bug #77599, a dashboard (or folder of dashboards) a scheduled task uses is refused, checked
+      // for every node before deleting any, so a refused node doesn't leave the batch half done
+      for(TreeNodeInfo node : nodes) {
+         if(node.type() == RepositoryEntry.VIEWSHEET) {
+            RecycleUtils.checkScheduledTasks(new AssetEntry(
+               treeService.getAssetScope(node.path()), AssetEntry.Type.VIEWSHEET,
+               treeService.getUnscopedPath(node.path()), node.owner()));
+         }
+         else if(node.type() == RepositoryEntry.FOLDER ||
+            node.type() == (RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER))
+         {
+            if(!RecycleUtils.isInRecycleBin(node.path())) {
+               RecycleUtils.checkScheduledTasks(node.path(), node.owner());
+            }
+         }
+      }
+
       // Bug #77947, the owner of an auto-save file is in its name, not the client-supplied owner
       AutoSaveUtils.checkAutoSavePermission(
          autoSaveNodes.stream().map(TreeNodeInfo::path).toList(), principal);
@@ -207,7 +224,7 @@ public class RepositoryObjectService {
                AssetEntry asset = new AssetEntry(scope, type, path, node.owner());
 
                // make sure it's a viewsheet or snapshot
-               if(registryManager.getAssetEntry(asset.toIdentifier(), principal) == null) {
+               if(registryManager.getAssetEntry(asset.toIdentifier(), principal, false) == null) {
                   asset = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET_SNAPSHOT, path, node.owner());
                }
 
@@ -460,10 +477,26 @@ public class RepositoryObjectService {
                }
 
                libManagerProvider.getManager().save();
+               // Bug #80960, the style is already deleted, its permission must not be inherited
+               // by a style created later with the same name. A failed permission write must not
+               // stop the delete of the other selected nodes.
+               AbstractAssetEngine.removePermissionBestEffort(
+                  securityProvider, ResourceType.TABLE_STYLE, node.path());
                break;
             case RepositoryEntry.TABLE_STYLE | RepositoryEntry.FOLDER:
+               // the folder removal is recursive, so the permissions of the folder and of every
+               // style and folder under it have to be collected before they are removed
+               List<String> removedStyleResources =
+                  getTableStyleFolderResources(node.path(), libManagerProvider.getManager());
                AssetEventUtil.removeStyleFolder(node.path(), libManagerProvider.getManager());
                libManagerProvider.getManager().save();
+
+               // Bug #80960
+               for(String resource : removedStyleResources) {
+                  AbstractAssetEngine.removePermissionBestEffort(
+                     securityProvider, ResourceType.TABLE_STYLE, resource);
+               }
+
                break;
             case RepositoryEntry.FOLDER:
             case RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER:
@@ -1080,6 +1113,30 @@ public class RepositoryObjectService {
       }
    }
 
+   /**
+    * Gets the TABLE_STYLE resource names of a table style folder, of the styles in it and of all
+    * its subfolders and their styles.
+    */
+   private List<String> getTableStyleFolderResources(String folder, LibManager manager) {
+      List<String> resources = new ArrayList<>();
+      collectTableStyleFolderResources(folder, manager, resources);
+      return resources;
+   }
+
+   private void collectTableStyleFolderResources(String folder, LibManager manager,
+                                                 List<String> resources)
+   {
+      resources.add(folder);
+
+      for(XTableStyle style : manager.getTableStyles(folder)) {
+         resources.add(style.getName());
+      }
+
+      for(String subfolder : manager.getTableStyleFolders(folder)) {
+         collectTableStyleFolderResources(subfolder, manager, resources);
+      }
+   }
+
    private void removeQueryFolder(String folderName, String folderPath) throws Exception {
       String dataSourceName = null;
 
@@ -1656,13 +1713,22 @@ public class RepositoryObjectService {
          registryManager.checkPermission(src, src, resource.getType(), actions, true,
             principal);
       }
-      else if(type == (RepositoryEntry.LOGIC_MODEL | RepositoryEntry.FOLDER) ||
+      // Bug #81279, the plain (extended) forms need the data source check as well
+      else if(type == RepositoryEntry.LOGIC_MODEL || type == RepositoryEntry.PARTITION ||
+         type == (RepositoryEntry.LOGIC_MODEL | RepositoryEntry.FOLDER) ||
          type == (RepositoryEntry.PARTITION | RepositoryEntry.FOLDER))
       {
          registryManager.checkPermission(resource.getPath(), src, resource.getType(),
                                          actions, true, principal);
       }
       else if((type & RepositoryEntry.FOLDER) != 0) {
+         // Bug #81497, a per-user home node (My Dashboards / My Portal Dashboards of a user) has
+         // no permission resource and is not deleted here; say so instead of a permission denial
+         if(resource.getType() == null) {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "em.content.repository.userNodeNotDeletable", src));
+         }
+
          registryManager.checkPermission(src, src, resource.getType(),
             actions, true, principal);
       }
