@@ -45,7 +45,7 @@ public class ConfirmEventScriptable implements ScriptScope {
    @Override
    public void putMember(String name, Object value) {
       if("confirmed".equals(name)) {
-         confirmed = "true".equals(value.toString());
+         confirmed = "true".equals(String.valueOf(value));
       }
    }
 
