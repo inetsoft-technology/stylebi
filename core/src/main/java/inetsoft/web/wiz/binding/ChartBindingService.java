@@ -20,14 +20,17 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.XAggregateRef;
+import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartBindable;
@@ -153,6 +156,7 @@ public class ChartBindingService {
          try {
             requireCalculatorsResolved(requireChart(rvs, assemblyName).getVSChartInfo(), shelf,
                                        fields);
+            requireCalculatorShiftsLand(requireChart(rvs, assemblyName).getVSChartInfo());
          }
          catch(IllegalArgumentException e) {
             // The write is already committed here and mutate() does not undo a thrown mutation.
@@ -362,6 +366,85 @@ public class ChartBindingService {
          if(stored[i] instanceof ChartAggregateRef aggregate) {
             CalculatorColumnRefs.requireResolved(
                info, fields.get(i).calculateInfo(), aggregate.getCalculator());
+         }
+      }
+   }
+
+   /**
+    * Post-write check (bug #81687): a CHANGE/VALUE calculator with a Previous Year/Quarter/Week/
+    * Month shift looks the shifted date up among its dimension's own values, so a shift that is
+    * not a whole number of that dimension's date buckets (year with from 5/6/7, quarter with 6/7,
+    * month with 6) matches nothing and every cell renders blank. Run on the final chart info so
+    * the order the calculator and the level were written in does not matter; the same rule the
+    * crosstab enforces. Calculators with no named dimension, or whose dimension is not found, are
+    * never refused.
+    */
+   static void requireCalculatorShiftsLand(VSChartInfo info) {
+      if(info == null) {
+         return;
+      }
+
+      List<ChartAggregateRef> aggregates = new ArrayList<>();
+
+      for(ChartRef[] refs : new ChartRef[][] {info.getXFields(), info.getYFields()}) {
+         for(ChartRef ref : refs) {
+            if(ref instanceof ChartAggregateRef aggregate) {
+               aggregates.add(aggregate);
+            }
+         }
+      }
+
+      List<ChartAggregateRef> aesthetic = info.getAestheticAggregateRefs(false);
+
+      if(aesthetic != null) {
+         aggregates.addAll(aesthetic);
+      }
+
+      ChartBindable bound = info instanceof GanttVSChartInfo gantt &&
+         gantt.getStartField() instanceof ChartBindable start ? start : info;
+
+      for(AestheticRef channel : new AestheticRef[] {
+         bound.getColorField(), bound.getShapeField(), bound.getSizeField(),
+         bound.getTextField()})
+      {
+         if(channel != null && channel.getDataRef() instanceof ChartAggregateRef aggregate) {
+            aggregates.add(aggregate);
+         }
+      }
+
+      for(ChartAggregateRef aggregate : aggregates) {
+         if(!(aggregate.getCalculator() instanceof ValueOfCalc calc) ||
+            calc.getFrom() < ValueOfCalc.PREVIOUS_YEAR || calc.getFrom() > ValueOfCalc.PREVIOUS_MONTH)
+         {
+            continue;
+         }
+
+         String target = calc.getColumnName();
+
+         if(target == null || target.isBlank() || AbstractCalc.ROW_INNER.equals(target.trim()) ||
+            AbstractCalc.COLUMN_INNER.equals(target.trim()))
+         {
+            continue;
+         }
+
+         for(ChartRef[] refs : new ChartRef[][] {
+            info.getXFields(), info.getYFields(), info.getGroupFields()})
+         {
+            for(ChartRef ref : refs) {
+               if(ref instanceof XDimensionRef dim && ref instanceof VSDataRef data &&
+                  target.trim().equalsIgnoreCase(data.getFullName()) &&
+                  CalculatorShift.smallerThanBucket(dim.getDateLevel(), calc.getFrom()))
+               {
+                  throw new IllegalArgumentException(
+                     "calculateInfo.from " + calc.getFrom() + " (" +
+                     CalculatorShift.previousName(calc.getFrom()) + ") on " +
+                     aggregate.getFullName() + " cannot be computed: its calculator dimension '" +
+                     data.getFullName() + "' is bound at " +
+                     DateLevels.name(String.valueOf(dim.getDateLevel())) + ", a bucket the " +
+                     CalculatorShift.previousName(calc.getFrom()) + " shift does not land on, so " +
+                     "every cell would be blank. " + CalculatorShift.advice(calc.getFrom()));
+               }
+            }
          }
       }
    }

@@ -166,6 +166,7 @@ public class ChartAestheticAgentService {
 
          try {
             VSChartInfo written0 = requireChart(rvs, assemblyName).getVSChartInfo();
+            ChartBindingService.requireCalculatorShiftsLand(written0);
 
             if(writtenMeasures != null) {
                // Bug #80332: read back each written measure's own runtime field. The position in
