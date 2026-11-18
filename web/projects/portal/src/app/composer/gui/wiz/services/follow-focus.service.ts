@@ -142,7 +142,7 @@ export class FollowFocusService {
     * session to a pane send it through the same connection.
     */
    reportPaneState(runtimeId: string, socketConnection: ViewsheetClientService,
-                   editorContext: EditorContext, sql: boolean): void
+                   editorContext: EditorContext, sql: boolean, aggregate: boolean = false): void
    {
       if(!runtimeId || !socketConnection || !editorContext) {
          return;
@@ -150,7 +150,7 @@ export class FollowFocusService {
 
       socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
          conn.send("/events/wiz/pairing/pane-state", {},
-                   JSON.stringify({ runtimeId, editorContext, sql }));
+                   JSON.stringify({ runtimeId, editorContext, sql, aggregate }));
       });
    }
 

@@ -106,7 +106,8 @@ describe("FollowFocusService", () => {
 
          expect(mockStompConnection.send).toHaveBeenCalledWith(
             "/events/wiz/pairing/pane-state", {},
-            JSON.stringify({ runtimeId: "rt-1", editorContext: context, sql: true }));
+            JSON.stringify({ runtimeId: "rt-1", editorContext: context, sql: true,
+                            aggregate: false }));
       });
 
       it("is a no-op with no runtimeId, socket connection or editorContext", () => {

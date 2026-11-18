@@ -1258,7 +1258,8 @@ describe("ConnectToClaudeComponent", () => {
       it("reports the current switch right after the code is minted", () => {
          mint(calcField, true);
 
-         expect(paneStates()).toEqual([{ runtimeId: "vs-1", editorContext: calcField, sql: true }]);
+         expect(paneStates()).toEqual(
+            [{ runtimeId: "vs-1", editorContext: calcField, sql: true, aggregate: false }]);
       });
 
       it("reports every flip after the mint, in order, and can flip back", () => {
@@ -1276,6 +1277,21 @@ describe("ConnectToClaudeComponent", () => {
          flip(true);
 
          expect(paneStates().pop().editorContext).toEqual(calcField);
+      });
+
+      it("reports the Detail/Aggregate choice with the switch, and every flip of it (bug #81628)", () => {
+         mint(calcField, false);
+
+         component.aggregateMode = true;
+         component.ngOnChanges(
+            { aggregateMode: { currentValue: true, previousValue: false,
+                               firstChange: false, isFirstChange: () => false } } as any);
+         component.aggregateMode = false;
+         component.ngOnChanges(
+            { aggregateMode: { currentValue: false, previousValue: true,
+                               firstChange: false, isFirstChange: () => false } } as any);
+
+         expect(paneStates().map((s) => s.aggregate)).toEqual([false, true, false]);
       });
 
       it("reports nothing before a code exists, so a flip alone sends no message", () => {
