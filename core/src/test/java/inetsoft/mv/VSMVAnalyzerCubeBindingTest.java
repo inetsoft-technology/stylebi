@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.MessageException;
@@ -88,7 +89,7 @@ class VSMVAnalyzerCubeBindingTest {
       List<TransformationFault> faults =
          analyzer.getDescriptor().getFaults("Crosstab1");
       assertFalse(faults.isEmpty());
-      assertTrue(analyzer.getDescriptor().getNotHitMVHints().get("Crosstab1") == null);
+      assertNull(analyzer.getDescriptor().getNotHitMVHints().get("Crosstab1"));
    }
 
    @Test
@@ -113,6 +114,35 @@ class VSMVAnalyzerCubeBindingTest {
       MessageException ex = assertThrows(
          MessageException.class, () -> MVDef.getAggregateInfo(crosstab));
       assertTrue(ex.getMessage().contains("Crosstab1"), ex.getMessage());
+   }
+
+   @Test
+   void acceptedTableWithoutDefKeepsNotHitMvHint() throws Exception {
+      // an accepted table for which createMV creates no def must still get its hints
+      Worksheet ws = new Worksheet();
+      Viewsheet vs = viewsheet(ws);
+      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, "Crosstab1");
+      crosstab.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "T1"));
+      VSAggregateRef aggr = new VSAggregateRef();
+      aggr.setDataRef(new ColumnRef(new AttributeRef(null, "total")));
+      aggr.setFormula(AggregateFormula.MEDIAN);
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setRuntimeAggregates(new DataRef[] { aggr });
+      crosstab.setVSCrosstabInfo(cinfo);
+      vs.addAssembly(crosstab);
+
+      VSMVAnalyzer analyzer = new VSMVAnalyzer("1^128^__NULL__^vs", vs, null, null, false, null);
+      Method prepare = VSMVAnalyzer.class.getDeclaredMethod("prepare");
+      prepare.setAccessible(true);
+      prepare.invoke(analyzer);
+
+      Class<?> infoClass = Class.forName("inetsoft.mv.VSMVAnalyzer$TableInfo");
+      Method check = VSMVAnalyzer.class.getDeclaredMethod(
+         "checkCombinable", MVDef[].class, java.lang.reflect.Array.newInstance(infoClass, 0).getClass());
+      check.setAccessible(true);
+      check.invoke(analyzer, new MVDef[0], java.lang.reflect.Array.newInstance(infoClass, 0));
+
+      assertNotNull(analyzer.getDescriptor().getNotHitMVHints().get("Crosstab1"));
    }
 
    private static Viewsheet viewsheet(Worksheet ws) {

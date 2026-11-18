@@ -107,6 +107,7 @@ public final class VSMVAnalyzer implements MVAnalyzer {
       synchronized(vs) {
          // reset cache
          tmap.clear();
+         rejectedTables.clear();
          desc = null;
          prepare();
 
@@ -142,6 +143,7 @@ public final class VSMVAnalyzer implements MVAnalyzer {
 
                if(!isAcceptable(ws, info, desc)) {
                   // desc.clear(vassembly);
+                  rejectedTables.add(tname);
                   continue;
                }
 
@@ -1131,7 +1133,7 @@ public final class VSMVAnalyzer implements MVAnalyzer {
             }
          }
 
-         // bound to a table that was rejected by isAcceptable (e.g. cube), already reported
+         // bound to a table rejected by isAcceptable (e.g. cube), already reported
          if(def == null && isBoundToRejectedTable(name)) {
             continue;
          }
@@ -1145,8 +1147,10 @@ public final class VSMVAnalyzer implements MVAnalyzer {
    }
 
    private boolean isBoundToRejectedTable(String name) {
-      for(TableInfo info : tmap.values()) {
-         if(info.contains(name)) {
+      for(String table : rejectedTables) {
+         TableInfo info = tmap.get(table);
+
+         if(info != null && info.contains(name)) {
             return true;
          }
       }
@@ -1665,6 +1669,8 @@ public final class VSMVAnalyzer implements MVAnalyzer {
    private TransformationDescriptor desc;
 
    private final Map<String, TableInfo> tmap = new HashMap<>();
+   // tables rejected by isAcceptable, already reported through the transformation faults
+   private final Set<String> rejectedTables = new HashSet<>();
    private final Map<String, TableInfo> tmap2 = new HashMap<>();
    private final Vector<String> subqueries = new Vector<>();
    private final Catalog catalog = Catalog.getCatalog();
