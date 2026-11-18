@@ -36,11 +36,16 @@ $inet-primary-hover-mix: color-mix(in srgb, var(--inet-primary-color) 84%, white
 // (see $inet-on-fill below).
 $inet-on-orange: #202020;
 // Label colour that adapts to a fill, chosen from the fill's WCAG relative luminance Y (computed in
-// srgb-linear): white below Y .179, black just above it, ramping up to the #202020 gray (linear .0144) by
-// Y .25, so the label has >= 4.5:1 for any fill (the default orange, Y .30, gets #202020 as before).
-// Black/white alone would leave the default orange at 6.98, #202020 alone fails on mid-tone fills.
-$inet-on-hover-fill: color(from var(--inet-button-primary-hover-bg-color) srgb-linear clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1));
-$inet-on-fill: color(from var(--inet-button-primary-bg-color) srgb-linear clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1));
+// srgb-linear): white below Y .179, black from there up to Y .31, then ramping up to the #202020 gray
+// (linear .0144) by Y .38, so the label has >= 4.5:1 for any fill. The default orange (Y .29) gets black
+// (6.7:1); #202020 read muddy on it (5.2:1). Black/white alone would leave a light fill harsh.
+$inet-on-hover-fill: color(from var(--inet-button-primary-hover-bg-color) srgb-linear clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.31) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.31) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.31) * 0.2, 0.0144), 1));
+// Check mark / radio dot colour on the primary fill: white while white has >= 3:1 against it (relative
+// luminance Y <= .30), otherwise #202020 (linear .0144). A glyph needs 3:1, not the 4.5:1 of text, so it can
+// stay white where the button label cannot. A two-state switch, not a ramp, so a mid-tone theme primary
+// gets a crisp white or dark glyph. Y of the default #D97A1A is .29.
+$inet-check-mark-color: color(from var(--inet-primary-color) srgb-linear clamp(0, 0.0144 + clamp(0, (0.30 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) * 0.9856, 1) clamp(0, 0.0144 + clamp(0, (0.30 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) * 0.9856, 1) clamp(0, 0.0144 + clamp(0, (0.30 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) * 0.9856, 1));
+$inet-on-fill: color(from var(--inet-button-primary-bg-color) srgb-linear clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.31) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.31) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.31) * 0.2, 0.0144), 1));
 
 /***
  * Raw palette values
@@ -65,7 +70,7 @@ $shell-text-subtle: #99958C;
 $shell-selected-bg: #E7E2D8;
 
 // Primary family
-$shell-primary: #E58A2A;
+$shell-primary: #D97A1A;
 $shell-primary-hover: #C96F12;
 $shell-primary-soft: #F6E2C8;
 $shell-primary-text: #4A2500;
@@ -249,7 +254,7 @@ $form-floating-input-padding-t: $form-floating-padding-y;
 $form-floating-input-padding-b: $form-floating-padding-y;
 $form-floating-label-y: $form-floating-padding-y + .125rem;
 // The check mark / radio dot are no longer baked-in background images: they are drawn by a mask in
-// _bootstrap-override.scss (.form-check-input:checked::after) filled with --inet-button-primary-text-color,
+// _bootstrap-override.scss (.form-check-input:checked::after) filled with --inet-check-mark-color,
 // so they follow the theme. The shapes below are only the mask alpha (the stroke colour is irrelevant).
 $inet-check-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' width='16' height='16' fill='none' stroke='black' stroke-width='3'%3E%3Cpath d='M3 8 l3 3 L13 3' fill='none'/%3E%3C/svg%3E");
 $inet-radio-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' width='16' height='16' fill='none'%3E%3Ccircle cx='8' cy='8' r='7' stroke='black' stroke-width='3' /%3E%3C/svg%3E");
@@ -478,6 +483,8 @@ $sqrt2: 1.41421356;
   // --> primary
   --inet-button-primary-bg-color: var(--inet-primary-color);
   --inet-button-primary-text-color: #{$inet-on-orange};
+  // check mark / radio dot on a checked box, which is filled with --inet-primary-color
+  --inet-check-mark-color: #FFFFFF;
   --inet-button-primary-border-color: var(--inet-primary-color);
   --inet-button-primary-hover-bg-color: var(--inet-primary-color-hover);
   --inet-button-primary-hover-text-color: var(--inet-button-primary-text-color);
@@ -629,7 +636,7 @@ $sqrt2: 1.41421356;
 
   // focus
   --inet-focus-ring-width: 2px;
-  --inet-focus-ring-color: rgba(229, 138, 42, 0.28);
+  --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
   --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
   --inet-focus-ring-outline: none;
 
@@ -650,6 +657,7 @@ $sqrt2: 1.41421356;
 @supports (color: color(from red srgb-linear r g b)) {
   :root {
     --inet-button-primary-text-color: #{$inet-on-fill};
+    --inet-check-mark-color: #{$inet-check-mark-color};
     // the hover/focus fill is lighter, so pick its label from the hover fill itself
     --inet-button-primary-hover-text-color: #{$inet-on-hover-fill};
   }

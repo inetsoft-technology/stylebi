@@ -207,7 +207,7 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-overlay-subtle-bg-color: rgba(255, 255, 255, 0.03);
   --inet-overlay-hover-bg-color: rgba(255, 255, 255, 0.08);
   // focus indicators need 3:1 against the dark surfaces they sit on
-  --inet-focus-ring-color: rgba(229, 138, 42, 0.75);
+  --inet-focus-ring-color: rgba(217, 122, 26, 0.75);
 
   // Dark-only roles. Components write var(--inet-dark-<role>, <light literal>), so the light
   // shell keeps its literal and only a dark shell supplies a value. See $dark-only-tokens.
@@ -236,7 +236,7 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-dark-info-soft-color: var(--inet-info-color-light);
   // the halo around a checked tree checkbox, which is not a focus state: it keeps the dark
   // shell's earlier focus-ring strength
-  --inet-dark-check-halo-color: rgba(229, 138, 42, 0.45);
+  --inet-dark-check-halo-color: rgba(217, 122, 26, 0.45);
   // The ring a clickable card draws on hover, outside its orange hover border. Hover is not a focus
   // state. A light shell's faint ring blends into its light page as a glow, but on a dark page a
   // translucent orange turns brown and reads as a second edge, so a dark shell shows the border only.
@@ -321,7 +321,7 @@ $dark-ws-row-hover-bg: #302D27;
   --ck-color-focus-border: var(--inet-primary-color);
   // CKEditor draws its outer focus shadow 3px wide, also around the focused item of a list it
   // opens, so it keeps the dark shell's earlier focus-ring strength
-  --ck-color-focus-outer-shadow: rgba(229, 138, 42, 0.45);
+  --ck-color-focus-outer-shadow: rgba(217, 122, 26, 0.45);
   --ck-color-text: var(--inet-text-color);
   --ck-color-shadow-drop: rgba(0, 0, 0, 0.4);
   --ck-color-shadow-drop-active: rgba(0, 0, 0, 0.5);
