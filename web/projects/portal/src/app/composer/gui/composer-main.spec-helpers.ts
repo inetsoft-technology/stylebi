@@ -60,7 +60,7 @@ import { ComposerObjectService } from "./vs/composer-object.service";
 
 export function makeMocks() {
    return {
-      composerClient: { connect: vi.fn(), disconnect: vi.fn(), editAsset: EMPTY },
+      composerClient: { connect: vi.fn(), disconnect: vi.fn(), editAsset: EMPTY, focusSheet: EMPTY },
       clipboardService: {
          clipboardEmpty: false,
          sheetClosed: vi.fn(),

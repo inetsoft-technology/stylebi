@@ -103,6 +103,7 @@ import { ModelService } from "../../widget/services/model.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { VSScaleService } from "../../widget/services/scale/vs-scale.service";
 import { SplitPane } from "../../widget/split-pane/split-pane.component";
+import { FocusSheetCommand } from "../command/focus-sheet-command";
 import { OpenComposerAssetCommand } from "../command/open-composer-asset-command";
 import { LibraryAsset } from "../data/library-asset";
 import { OpenLibraryAssetEvent } from "../data/open-libraryAsset-event";
@@ -147,6 +148,7 @@ import { LineAnchorService } from "../services/line-anchor.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
+import { FollowFocusService } from "./wiz/services/follow-focus.service";
 import { WizService } from "./wiz/services/wiz.service";
 import { WizComponentsPane } from "./wiz/wiz-components-pane/wiz-components-pane.component";
 import {
@@ -380,6 +382,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    tabContentEleToChild: ElementRef;
    openedTabs: ComposerTabModel[] = [];
    private _focusedTab: ComposerTabModel;
+   // Follow Focus tab switching (Bug #80379): a burst of agent edits becomes one switch, and the
+   // user's own tab click wins over the agent for a short while
+   static readonly FOCUS_HINT_COALESCE_MS = 150;
+   static readonly FOCUS_HINT_SUPPRESS_AFTER_USER_TAB_MS = 2000;
+   private pendingFocusRuntimeId: string = null;
+   private focusHintTimer: any = null;
+   private lastUserTabSelectTime = 0;
    private propertyDialogModal: NgbModalRef;
    dashboardTabModel: DashboardTabModel | null = null;
 
@@ -404,7 +413,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       private aiAssistantService: AiAssistantService,
       private aiAssistantDialogService: AiAssistantDialogService,
       private dashboardTabService: DashboardTabService,
-      private wizService: WizService)
+      private wizService: WizService,
+      private followFocusService: FollowFocusService)
    {
       this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
@@ -647,6 +657,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.subscriptions.unsubscribe();
          this.subscriptions = null;
       }
+
+      if(this.focusHintTimer != null) {
+         clearTimeout(this.focusHintTimer);
+         this.focusHintTimer = null;
+      }
+
+      this.pendingFocusRuntimeId = null;
 
       if(this.composerClient) {
          this.composerClient.disconnect();
@@ -972,6 +989,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    onTabSelected(tab: ComposerTabModel): void {
+      // a user's tab click (the tab bar is the only caller): the agent's Follow Focus hints stand
+      // back for a moment so they do not pull the user away from what they just chose
+      this.lastUserTabSelectTime = Date.now();
+      this.selectTab(tab);
+   }
+
+   private selectTab(tab: ComposerTabModel): void {
       if(this.isSheet(tab.asset)) {
          this.scriptDisabled = true;
          this.regionsDisabled = true;
@@ -3038,8 +3062,71 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       this.resizeHandlerService.onVerticalResizeEnd();
    }
 
+   /**
+    * Bug #80379: an agent edited the sheet `command.runtimeId`; with Follow Focus ticked, switch
+    * to its tab as if the user had clicked it. Only a hint: it never opens a tab (opening stays
+    * with OpenComposerAssetCommand), and it is dropped unless {@link applyFocusHint}'s guards
+    * pass at the moment it would act.
+    */
+   private onFocusSheetHint(command: FocusSheetCommand): void {
+      if(!command?.runtimeId || !this.followFocusService.isFollowTabsEnabled()) {
+         return;
+      }
+
+      // the last sheet of a burst wins
+      this.pendingFocusRuntimeId = command.runtimeId;
+
+      if(this.focusHintTimer == null) {
+         this.focusHintTimer = setTimeout(() => {
+            this.focusHintTimer = null;
+            this.zone.run(() => this.applyFocusHint());
+         }, ComposerMainComponent.FOCUS_HINT_COALESCE_MS);
+      }
+   }
+
+   private applyFocusHint(): void {
+      const runtimeId = this.pendingFocusRuntimeId;
+      this.pendingFocusRuntimeId = null;
+
+      // every condition is read now, not when the hint arrived
+      if(!runtimeId || !this.followFocusService.isFollowTabsEnabled() ||
+         Date.now() - this.lastUserTabSelectTime <
+            ComposerMainComponent.FOCUS_HINT_SUPPRESS_AFTER_USER_TAB_MS ||
+         this.isModalOpen() || this.importDialogOpen)
+      {
+         return;
+      }
+
+      // do not pull the user out of binding edit, the wizard, a preview or a layout they are in
+      if(this.previewMode || this.layoutMode || this.wizardEditMode || this.wizVisualizationMode ||
+         this.focusedViewsheet?.bindingEditMode)
+      {
+         return;
+      }
+
+      // a preview tab shares its parent's runtime id until the server gives it its own, and a
+      // link-view tab is a view of another sheet: neither is "the sheet the agent edited"
+      const tab = this.openedTabs.find(t => {
+         const asset = t.asset as Sheet;
+         const vs = asset as Viewsheet;
+
+         return this.isSheet(t.asset) && asset.runtimeId === runtimeId &&
+            !(asset.type === "viewsheet" && (vs.preview || vs.linkview)) &&
+            asset.runtimeId.indexOf(AssetConstants.PREVIEW_VIEWSHEET) == -1;
+      });
+
+      // not open in this Composer (closed, or another window): never open it from a hint
+      if(!tab || tab === this.focusedTab || tab.asset === this.focusedSheet) {
+         return;
+      }
+
+      this.selectTab(tab);
+   }
+
    private initComposerClient(): void {
       this.composerClient.connect();
+      this.composerClient.focusSheet.subscribe(
+         (command: FocusSheetCommand) => this.onFocusSheetHint(command));
       this.composerClient.editAsset.subscribe((command: OpenComposerAssetCommand) => {
          this.zone.run(() => {
             if(command.viewsheet) {

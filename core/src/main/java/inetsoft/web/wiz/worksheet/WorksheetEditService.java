@@ -237,6 +237,7 @@ public class WorksheetEditService {
       editor.unrevalidatedNote = unrevalidatedNote(refreshAssemblies(rws));
 
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
+      broadcast.focusSheet(rws, session.runtimeId());
    }
 
    /**
@@ -277,6 +278,7 @@ public class WorksheetEditService {
       rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
       refreshAssemblies(rws);
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
+      broadcast.focusSheet(rws, session.runtimeId());
       return result;
    }
 

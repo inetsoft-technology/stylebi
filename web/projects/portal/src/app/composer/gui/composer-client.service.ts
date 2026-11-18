@@ -19,12 +19,14 @@ import { Injectable, NgZone } from "@angular/core";
 import { Observable ,  Subject } from "rxjs";
 import { StompClientService } from "../../common/viewsheet-client";
 import { StompClientConnection } from "../../../../../shared/stomp/stomp-client-connection";
+import { FocusSheetCommand } from "../command/focus-sheet-command";
 
 @Injectable()
 export class ComposerClientService {
    private connection: StompClientConnection;
    private connecting: boolean = false;
    private editComposerAssetSubject: Subject<any> = new Subject<any>();
+   private focusSheetSubject: Subject<FocusSheetCommand> = new Subject<FocusSheetCommand>();
 
    /**
     * Creates a new instance of <tt>ComposerClientService</tt>.
@@ -59,7 +61,15 @@ export class ComposerClientService {
       this.connection.subscribe("/user/composer-client", (message) => {
          this.zone.run(() => {
             let event: any = !!message.frame.body ? JSON.parse(message.frame.body) : null;
-            this.editComposerAssetSubject.next(event);
+
+            // the topic carries two kinds of command; a Follow Focus hint is not an open-asset
+            // command and must not reach that handler
+            if(event?.type === "focusSheet") {
+               this.focusSheetSubject.next(event);
+            }
+            else {
+               this.editComposerAssetSubject.next(event);
+            }
          });
       });
    }
@@ -77,6 +87,11 @@ export class ComposerClientService {
          this.editComposerAssetSubject = null;
       }
 
+      if(this.focusSheetSubject) {
+         this.focusSheetSubject.complete();
+         this.focusSheetSubject = null;
+      }
+
       if(this.connection) {
          this.unsubscribe();
          this.connection.disconnect();
@@ -89,5 +104,12 @@ export class ComposerClientService {
     */
    public get editAsset(): Observable<any> {
       return this.editComposerAssetSubject.asObservable();
+   }
+
+   /**
+    * The observable from which the Follow Focus hints ("an agent edited this sheet") are received.
+    */
+   public get focusSheet(): Observable<FocusSheetCommand> {
+      return this.focusSheetSubject.asObservable();
    }
 }

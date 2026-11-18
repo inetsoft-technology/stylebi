@@ -99,6 +99,7 @@ public class ScriptEditService {
       T result = mutation.apply(rvs);
 
       broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
+      broadcast.focusSheet(rvs, session.runtimeId());
       return result;
    }
 
@@ -127,6 +128,7 @@ public class ScriptEditService {
 
       if(shouldBroadcast.test(result)) {
          broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
+         broadcast.focusSheet(rvs, session.runtimeId());
       }
 
       return result;
@@ -161,6 +163,7 @@ public class ScriptEditService {
       rvs.bumpWriteRevision();
 
       broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
+      broadcast.focusSheet(rvs, session.runtimeId());
    }
 
    /** Sets the raw script text at {@code target}. */

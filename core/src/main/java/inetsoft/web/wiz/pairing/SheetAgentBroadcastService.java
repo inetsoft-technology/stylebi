@@ -33,6 +33,7 @@ import inetsoft.util.Catalog;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.command.RefreshBindingTreeCommand;
 import inetsoft.web.binding.service.VSBindingTreeService;
+import inetsoft.web.composer.command.FocusSheetCommand;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModel;
@@ -1017,6 +1018,40 @@ public class SheetAgentBroadcastService {
       commandDispatcherService.convertAndSendToUser(
          socketSessionId, ComposerClientService.COMMANDS_TOPIC, command,
          headers.getMessageHeaders());
+   }
+
+   /**
+    * Hints the Composer that owns {@code rs} that an agent just edited it, so a Composer with
+    * "Follow Focus" ticked can switch to that sheet's tab (Bug #80379).
+    *
+    * <p>Not part of {@link #broadcastRefresh}, which several non-edit callers use (the
+    * viewsheet reload that follows a worksheet save, undo/redo, a save acknowledgement) and
+    * which also runs after a failed mutation. A caller invokes this once, after an agent edit
+    * it knows succeeded, so only an edit of the paired sheet itself can move the user's tab.
+    *
+    * <p>Sent on the composer channel (see {@link #sendToComposer}), to the owning socket session
+    * only. Best effort and silent: nothing is sent when no browser session is recorded or the
+    * session is gone, and a failure never reaches the caller, because the edit already
+    * succeeded. Whether to act is the browser's decision.
+    */
+   public void focusSheet(RuntimeSheet rs, String runtimeId) {
+      String sessionId = rs == null ? null : rs.getSocketSessionId();
+
+      if(sessionId == null || runtimeId == null) {
+         return;
+      }
+
+      try {
+         if(!commandDispatcherService.isSessionLive(sessionId)) {
+            return;
+         }
+
+         sendToComposer(sessionId, FocusSheetCommand.builder().runtimeId(runtimeId).build());
+      }
+      catch(Exception e) {
+         LOG.warn("Follow Focus tab hint not sent (runtimeId={}, sessionId={})", runtimeId,
+                  sessionId, e);
+      }
    }
 
    /**

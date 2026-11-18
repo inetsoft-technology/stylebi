@@ -232,6 +232,9 @@ class WorksheetAgentControllerTest {
       userField.set(sheet, owner);
    }
 
+   /** The broadcast service the last {@code controller(..., renameTransformHandler)} call wired in. */
+   private static SheetAgentBroadcastService lastBroadcast;
+
    private static WorksheetAgentController controller(SheetAgentFeature feature,
                                                        SheetJoinService join,
                                                        SheetSessionService sessions,
@@ -253,7 +256,7 @@ class WorksheetAgentControllerTest {
    {
       return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
                                           mock(WorksheetPreviewService.class),
-                                          mock(SheetAgentBroadcastService.class),
+                                          lastBroadcast = mock(SheetAgentBroadcastService.class),
                                           mock(inetsoft.uql.XRepository.class),
                                           mock(inetsoft.uql.asset.AssetRepository.class),
                                           mock(inetsoft.web.wiz.service.MetadataApiService.class),
@@ -15508,6 +15511,22 @@ class WorksheetAgentControllerTest {
       verify(c.rvs).resetLayoutUndoRedo();
       verify(c.rvs).bumpWriteRevision();
       verify(c.ws).clearRenameDep("rt-vs-78662");
+   }
+
+   /**
+    * Bug #80379: an agent's worksheet save repaints every dependent viewsheet the user has open,
+    * but the agent edited none of them, so Follow Focus must not switch the Composer to any.
+    */
+   @Test
+   void worksheetSaveRepaintsDependentViewsheetsWithoutFocusingThem80379() throws Exception {
+      CascadeCase c = cascadeSave(savedVsEntry(), 2, 2, false,
+                                  rvs -> when(rvs.getSocketSessionId()).thenReturn("stomp-1"));
+
+      assertEquals(List.of("rt-vs-78662"), c.result.get("reloadedViewsheets"));
+      // the repaint really happened, so the "never" below is not vacuous
+      verify(lastBroadcast).broadcastRefresh(eq(c.rvs), eq(SheetType.VIEWSHEET),
+                                             eq("rt-vs-78662"), any());
+      verify(lastBroadcast, never()).focusSheet(any(), any());
    }
 
    /** A runtime with unsaved edits is kept as is and named as stale; the edits are not discarded. */
