@@ -61,7 +61,7 @@ import static org.mockito.Mockito.*;
  *   Location : ServerPathInfo.java:194 (equals)
  *   Actual   : equal instances can have different hashCode(); breaks HashSet/HashMap contract.
  *   UI risk  : None observed — ServerPathInfo is not used as a hash key in scheduler code paths.
- *   Status   : Deferred. Tracked in @Disabled KnownBugs test.
+ *   Status   : Deferred. Fixed (hashCode added); regression test in KnownBugs.
  *
  * [BUG-SPI-3] setUseCredential() / setSecretId() do not invoke checkFTP()
  *   Location : ServerPathInfo.java:78, 86 (setters)
@@ -654,7 +654,7 @@ class ServerPathInfoTest {
     * Known source bugs (deferred — no production fix in this phase).
     *
     * <p>BUG-SPI-1: sticky ftp/sftp flags after in-place path changes (see FtpDetectionTests).
-    * BUG-SPI-2: missing hashCode() alongside equals() — @Disabled failing spec below.
+    * BUG-SPI-2: missing hashCode() alongside equals() — fixed, regression spec below.
     * BUG-SPI-3: setUseCredential/setSecretId skip checkFTP() — not hit by EM/API save paths.
     */
    @Nested
@@ -663,8 +663,6 @@ class ServerPathInfoTest {
    class KnownBugs {
 
       @Test
-      @Disabled("BUG-SPI-2 (deferred): equal instances have different hashCode — ServerPathInfo:194; " +
-         "fix: override hashCode() consistent with equals()")
       @DisplayName("BUG-SPI-2: equal instances must have the same hashCode")
       void equalInstancesMustHaveSameHashCode() {
          ServerPathInfo info1 = new ServerPathInfo("/test/path", "user1", "pass1");

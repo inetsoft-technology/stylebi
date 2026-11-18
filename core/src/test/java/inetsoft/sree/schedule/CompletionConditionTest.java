@@ -304,18 +304,17 @@ public class CompletionConditionTest {
    }
 
    // ─────────────────────────────────────────────────────────────────────────
-   // Known source bugs (@Disabled until fixed)
+   // Known source bugs (fixed)
    // ─────────────────────────────────────────────────────────────────────────
 
    /**
-    * Known source bugs (@Disabled until fixed).
+    * Known source bugs (fixed).
     *
     * BUG-CC-1 | equals() by taskname but hashCode() uses Object identity
     * Location : CompletionCondition.java:128
     * Fix      : add hashCode() { return Objects.hashCode(taskname); }
     */
    @Nested
-   @Disabled("BUG-CC-1: equal conditions have different hashCode - CompletionCondition:128; Fix: add hashCode() { return Objects.hashCode(taskname); }")
    @Tag("known-bug")
    @DisplayName("Known source bugs")
    class KnownBugs {

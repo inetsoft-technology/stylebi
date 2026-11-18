@@ -130,6 +130,11 @@ public class CompletionCondition implements ScheduleCondition,
          Tool.equals(((CompletionCondition) val).getTaskName(), taskname);
    }
 
+   @Override
+   public int hashCode() {
+      return java.util.Objects.hashCode(taskname);
+   }
+
    /**
     * Encode non-ascii characters to unicode enclosed in '[]'.
     * @param source source string.
