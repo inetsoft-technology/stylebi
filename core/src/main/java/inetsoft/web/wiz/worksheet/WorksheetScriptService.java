@@ -686,16 +686,29 @@ public class WorksheetScriptService {
       Condition c = findCondition(t, target.name());
 
       if(c == null) {
-         return new ScriptInfo(target.toString(), "", true);
+         // Bug #81557: no condition exists yet, so the dialog's value is a draft only the user's
+         // browser holds. Same shape as a pending Create Expression read.
+         return new ScriptInfo(
+            target.toString(), "", true, Boolean.TRUE,
+            "NO condition exists yet on '" + t.getName() + "." + target.name() + "': the value " +
+            "lives only in the user's open dialog until they click OK, so there is no text to " +
+            "read. The empty text is NOT an empty expression. Create the condition first with " +
+            "edit_condition; this pane may then edit its single value.", null);
       }
 
       requireSingleValueOperator(c, target);
       Object v = c.getValueCount() > 0 ? c.getValue(0) : null;
       // Bug #81556: an Expression value reads back as its own text, what the dialog shows, not the
-      // display string "Expression[Javascript:...]".
-      String value = v == null ? ""
-         : v instanceof ExpressionValue ev ? String.valueOf(ev.getExpression()) : String.valueOf(v);
-      return new ScriptInfo(target.toString(), value, true);
+      // display string "Expression[Javascript:...]". Bug #81557: and says which kind it is, the
+      // dialog's Script/SQL switch.
+      if(v instanceof ExpressionValue ev) {
+         String type = ExpressionValue.SQL.equals(ev.getType()) ? "sql" : "script";
+         return new ScriptInfo(target.toString(), String.valueOf(ev.getExpression()), true, null,
+                               null, type);
+      }
+
+      return new ScriptInfo(target.toString(), v == null ? "" : String.valueOf(v), true, null, null,
+                            "literal");
    }
 
    /** The existing {@link Condition} on {@code field}, or {@code null} if none is set yet. */

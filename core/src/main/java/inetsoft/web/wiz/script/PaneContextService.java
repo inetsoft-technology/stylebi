@@ -66,14 +66,6 @@ public class PaneContextService {
 
    static final String SHEET_KIND = "sheet";
 
-   /**
-    * The note of the worksheet-side expression kinds. {@link #syntaxOf} is an exhaustive switch
-    * with no {@code default}, so a new {@link ScriptTarget.Kind} cannot be added without deciding
-    * its syntax here.
-    */
-   static final String WORKSHEET_NOT_SERVED =
-      "A worksheet-side expression: not served by this viewsheet context.";
-
    /** Always in scope as {@code parameter.<name>}: filled from the signed-in user. */
    static final List<String> STANDARD_PARAMETERS = List.of("_USER_", "_ROLES_", "_GROUPS_");
 
@@ -124,12 +116,19 @@ public class PaneContextService {
          parameters(rvs, notes), columns(session, grant, user, notes), functions, notes);
    }
 
+   /** The kinds whose dialog has the SQL/Script switch: a calc field, a worksheet expression
+    *  column and a worksheet condition's Expression value. */
+   private static final List<String> SWITCHABLE_KINDS = List.of(
+      ScriptTarget.Kind.CALC_FIELD.wireName(), ScriptTarget.Kind.WORKSHEET_EXPRESSION.wireName(),
+      ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE.wireName());
+
    /**
-    * Whether the pane is on SQL: only a calculated field formula has the SQL/Script switch, so a
-    * state reported for any other location is ignored.
+    * Whether the pane is on SQL: only a calculated field formula, a worksheet expression column and
+    * a worksheet condition value have the SQL/Script switch, so a state reported for any other
+    * location is ignored.
     */
    static boolean isSqlMode(EditorContext grant, PaneState state) {
-      return grant != null && ScriptTarget.Kind.CALC_FIELD.wireName().equals(grant.kind()) &&
+      return grant != null && SWITCHABLE_KINDS.contains(grant.kind()) &&
          state != null && state.sql();
    }
 
@@ -311,6 +310,26 @@ public class PaneContextService {
       return owner == null || owner.isBlank() ? null : owner;
    }
 
+   /** The syntax of a worksheet expression column or condition value on the SQL switch. */
+   static final String WORKSHEET_SQL_NOTE =
+      "A worksheet formula in SQL mode is a SQL value expression the data source evaluates per " +
+      "row, not JavaScript: write a column by its name as the data source knows it and a " +
+      "worksheet variable as $(<name>); the data source's own SQL functions and operators are " +
+      "what the dialog offers (this context does not list them). parameter.<name> and script " +
+      "functions are not available. A new Expression condition value starts on SQL.";
+
+   static final String WORKSHEET_EXPRESSION_SCRIPT_NOTE =
+      "A worksheet expression column in Script mode is JavaScript evaluated per row: read a " +
+      "column as field['<column>'] and a worksheet variable as parameter.<name>. No viewsheet " +
+      "component is in scope. The same dialog also has an SQL mode; the user can flip it after " +
+      "pairing, so call this again before writing if the dialog may have changed.";
+
+   static final String WORKSHEET_CONDITION_VALUE_SCRIPT_NOTE =
+      "A worksheet condition's Expression value in Script mode is a JavaScript expression " +
+      "evaluated against the table: read a column as field['<column>'] and a worksheet variable " +
+      "as parameter.<name>. The same dialog also has an SQL mode (the default for a new " +
+      "Expression value); the user can flip it after pairing, so call this again before writing.";
+
    /** The syntax of a calculated field formula whose SQL/Script switch is on SQL. */
    static final String CALC_FIELD_SQL_NOTE =
       "A calc field formula in SQL mode is a SQL value expression the data source evaluates per " +
@@ -379,8 +398,17 @@ public class PaneContextService {
             "with the user's own permissions; $(var) placeholders are not checked by the " +
             "server. This session is served by the worksheet editor tools, not by this " +
             "viewsheet context.");
-         case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE ->
-            new PaneContext.Syntax("javascript", WORKSHEET_NOT_SERVED);
+         // Bug #81557: the Create/Edit Expression dialog and an Expression condition value are
+         // either Script or SQL, the dialog's own switch.
+         case WORKSHEET_EXPRESSION -> sql ? new PaneContext.Syntax("sql", WORKSHEET_SQL_NOTE) :
+            new PaneContext.Syntax("javascript", WORKSHEET_EXPRESSION_SCRIPT_NOTE);
+         case WORKSHEET_CONDITION_VALUE -> sql ? new PaneContext.Syntax("sql", WORKSHEET_SQL_NOTE) :
+            new PaneContext.Syntax("javascript", WORKSHEET_CONDITION_VALUE_SCRIPT_NOTE);
+         case WORKSHEET_CONDITION -> new PaneContext.Syntax("javascript",
+            "A worksheet condition is written as an operator followed by its value(s) (for " +
+            "example '> 0', 'BETWEEN 1 AND 10', 'ONE_OF a,b,c'), not as a script. Only its " +
+            "single value can be an Expression, which is a separate location " +
+            "(worksheetConditionValue) with its own Script/SQL switch.");
       };
    }
 

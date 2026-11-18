@@ -1525,14 +1525,23 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    }
 
    /**
-    * The SQL/Script switch as the paired agent must see it: only a calculated field formula has
-    * the switch (the other locations this dialog serves are always script), so every other
-    * location reports nothing. The user can flip it after pairing, hence an input of its own
-    * rather than part of {@link #editorContext}, which the server matches for equality.
+    * The SQL/Script switch as the paired agent must see it: a calculated field formula, a
+    * worksheet expression column and a worksheet condition's Expression value have the switch
+    * (the other locations this dialog serves are always script), so every other location reports
+    * nothing. The user can flip it after pairing, hence an input of its own rather than part of
+    * {@link #editorContext}, which the server matches for equality. Bug #81557: the worksheet
+    * kinds report it too, so `get_pane_context` can tell a Script from a SQL value.
     */
    get paneSqlMode(): boolean | undefined {
-      return this.editorContext?.kind === "calcField" ? this.isSqlType() : undefined;
+      const kind = this.editorContext?.kind;
+
+      return kind != null && FormulaEditorDialog.SQL_SWITCH_KINDS.indexOf(kind) >= 0
+         ? this.isSqlType() : undefined;
    }
+
+   /** The pairing kinds whose dialog has the SQL/Script switch. */
+   private static readonly SQL_SWITCH_KINDS =
+      ["calcField", "worksheetExpression", "worksheetConditionValue"];
 
    isSqlType(): boolean {
       const formulaType = this.form.contains("formulaType") ?
