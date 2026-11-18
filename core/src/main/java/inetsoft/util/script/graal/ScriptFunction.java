@@ -154,6 +154,16 @@ public class ScriptFunction implements ProxyExecutable {
          return null;
       }
 
+      // A boolean parameter may receive a non-Boolean script value, e.g.
+      // Table1.setActionVisible('Edit', 1). Rhino's FunctionObject coerced it
+      // via ScriptRuntime.toBoolean (JS truthiness); without this, reflective
+      // invocation fails with an argument-type mismatch. A Boolean wrapper that
+      // receives null keeps null (handled above), only non-null values reach
+      // here. (Bug #81683)
+      if(ptype == boolean.class || ptype == Boolean.class) {
+         return toBooleanValue(value);
+      }
+
       // A String parameter may receive a non-String script value (a boolean or
       // number), e.g. bindingInfo.setGroupTotal("reseller", ROW_HEADER, true) on
       // the setGroupTotal(String, int, String) overload. Rhino's FunctionObject
@@ -201,6 +211,32 @@ public class ScriptFunction implements ProxyExecutable {
       }
 
       return value;
+   }
+
+   /**
+    * Convert a non-null script value to a boolean using JavaScript truthiness
+    * (mirroring Rhino's {@code ScriptRuntime.toBoolean}): a Boolean is kept; a
+    * number is true unless it is zero or NaN; a string is true unless empty, so
+    * the string {@code "false"} is true; any other non-null value (object, array,
+    * date, host object) is true. (Bug #81683)
+    */
+   // package-private: ScriptHostAccess reuses this for the equivalent coercion on
+   // direct host-object method calls, which do not go through ScriptFunction.
+   static boolean toBooleanValue(Object value) {
+      if(value instanceof Boolean b) {
+         return b;
+      }
+
+      if(value instanceof Number n) {
+         double d = n.doubleValue();
+         return d == d && d != 0;
+      }
+
+      if(value instanceof CharSequence cs) {
+         return cs.length() > 0;
+      }
+
+      return value != null;
    }
 
    /**

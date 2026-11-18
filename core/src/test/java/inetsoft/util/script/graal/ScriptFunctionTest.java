@@ -301,4 +301,73 @@ class ScriptFunctionTest {
 
       assertEquals("fine", fn.execute());
    }
+
+   /** Boolean-parameter targets for Bug #81683. */
+   public static final class BoolTarget {
+      public Boolean prim;
+      public Boolean wrapper = Boolean.TRUE; // non-default
+      public boolean called;
+
+      public void setPrim(boolean b) {
+         called = true;
+         prim = b;
+      }
+
+      public void setWrapper(Boolean b) {
+         called = true;
+         wrapper = b;
+      }
+   }
+
+   private BoolTarget callBool(String method, Class<?> ptype, String arg) throws Exception {
+      BoolTarget t = new BoolTarget();
+      ctx.getBindings("js").putMember(
+         "f", new ScriptFunction(t, BoolTarget.class, method, ptype));
+      ctx.eval("js", "f(" + arg + ")");
+      return t;
+   }
+
+   @Test
+   void booleanParamUsesJsTruthiness() throws Exception {
+      // Bug #81683: Table1.setActionVisible('Edit', 1) failed with "argument type
+      // mismatch"; Rhino coerced via ScriptRuntime.toBoolean. Note 'false' is true.
+      String[] truthy = {"1", "2.5", "-1", "'true'", "'false'", "'abc'", "{}", "[]",
+                         "new Date()", "true"};
+      String[] falsy = {"0", "''", "false", "NaN", "null", "undefined"};
+
+      for(String arg : truthy) {
+         assertTrue(callBool("setPrim", boolean.class, arg).prim, "primitive " + arg);
+         assertTrue(callBool("setWrapper", Boolean.class, arg).wrapper, "wrapper " + arg);
+      }
+
+      for(String arg : falsy) {
+         assertFalse(callBool("setPrim", boolean.class, arg).prim, "primitive " + arg);
+      }
+
+      for(String arg : new String[] {"0", "''", "false"}) {
+         assertFalse(callBool("setWrapper", Boolean.class, arg).wrapper, "wrapper " + arg);
+      }
+   }
+
+   @Test
+   void booleanWrapperNullStaysNull() throws Exception {
+      // unchanged: a Boolean wrapper receiving null/undefined keeps null
+      // ("unset"); only the primitive defaults to false (#75525)
+      assertNull(callBool("setWrapper", Boolean.class, "null").wrapper);
+      assertNull(callBool("setWrapper", Boolean.class, "undefined").wrapper);
+   }
+
+   @Test
+   void numericBooleanArgOnActionVisibleShape() {
+      // the reported call shape: (String, boolean) with a number
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setActionVisible",
+         new ScriptFunction(t, Target.class, "setActionVisible", String.class, boolean.class));
+
+      ctx.eval("js", "setActionVisible('Edit', 1)");
+      assertTrue(t.visible);
+      ctx.eval("js", "setActionVisible('Edit', 0)");
+      assertFalse(t.visible);
+   }
 }

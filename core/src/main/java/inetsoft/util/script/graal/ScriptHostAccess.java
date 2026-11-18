@@ -707,6 +707,48 @@ public final class ScriptHostAccess {
                                      b -> b != null,
                                      ScriptFunction::toStringValue,
                                      HostAccess.TargetMappingPrecedence.LOWEST)
+                  // Rhino parity: a script value bound to a boolean parameter was
+                  // coerced via ScriptRuntime.toBoolean (JS truthiness), so scripts
+                  // pass 1/0, a string or an object where a boolean is declared --
+                  // e.g. table.setActionVisible('Edit', 1). GraalJS accepts only a
+                  // JS boolean for a boolean parameter (primitive or Boolean
+                  // wrapper alike). ScriptFunction.coerce restores this for our own
+                  // scriptable dispatch, but a raw host object, host constructor and
+                  // HostBeanProxy setter go through GraalJS interop, so the same
+                  // coercion is declared here and shares
+                  // ScriptFunction.toBooleanValue. Rhino truthiness applies, so the
+                  // string 'false' is true. (Bug #81683)
+                  //
+                  // NON-null sources only, all at LOWEST (the last pass of overload
+                  // selection). Never LOW: that is the loose tier where the default
+                  // Object conversion lives, so a LOW mapping would re-target
+                  // foo(Object) calls to foo(boolean). There is deliberately no null
+                  // mapping either: it would turn a null/undefined bound to a Boolean
+                  // wrapper (null = "unset", e.g. IntervalElement.setVisualStacked)
+                  // into false. So null/undefined bound to a primitive boolean on
+                  // this path still throws, as before; the omitted-argument-is-false
+                  // behaviour (#75525) stays specific to ScriptFunction.
+                  //
+                  // Accepted consequence, same as the Double -> Integer mapping
+                  // below: a numeric argument to a type declaring both a boolean and
+                  // a String (or int, for a fractional number) overload of the same
+                  // arity now reports "Multiple applicable overloads" instead of
+                  // quietly binding to the String/int one, because the mappings
+                  // land on this same final tier and neither is more specific.
+                  .targetTypeMapping(Number.class, Boolean.class,
+                                     n -> n != null,
+                                     ScriptFunction::toBooleanValue,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Boolean.class,
+                                     str -> str != null,
+                                     ScriptFunction::toBooleanValue,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  // objects, arrays, dates and host values: always truthy
+                  .targetTypeMapping(Value.class, Boolean.class,
+                                     v -> v != null && !v.isNull() && !v.isBoolean()
+                                        && !v.isNumber() && !v.isString(),
+                                     v -> Boolean.TRUE,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
                   // Rhino parity: Rhino narrowed a JS number to whatever primitive
                   // the selected overload declared, so a script could build a Java
                   // object from a computed, non-integral value. GraalJS refuses
