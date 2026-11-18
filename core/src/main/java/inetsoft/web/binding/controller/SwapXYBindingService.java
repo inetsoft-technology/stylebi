@@ -123,6 +123,11 @@ public class SwapXYBindingService {
          coreLifecycleService.execute(rvs, name, linkUri, hint, dispatcher);
          assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
 
+         // only a draw sets the swapped chart's initial ratios
+         if(wresize || hresize) {
+            box.get().getVGraphPair(name);
+         }
+
          final VSChartInfo ncinfo = chart.getVSChartInfo();
          final double initialWidthRatio = ncinfo.getInitialWidthRatio();
          final double initialHeightRatio = ncinfo.getInitialHeightRatio();
