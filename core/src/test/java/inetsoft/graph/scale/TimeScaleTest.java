@@ -369,4 +369,100 @@ class TimeScaleTest {
       assertArrayEquals(plain.getTicks(), off.getTicks(), 0);
       assertTrue(plain.getTicks().length > 4);
    }
+
+   private static DefaultDataSet datesFrom(long start, long step, int count) {
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { "Date" });
+
+      for(int i = 0; i < count; i++) {
+         rows.add(new Object[] { new Date(start + i * step) });
+      }
+
+      return new DefaultDataSet(rows.toArray(new Object[0][]));
+   }
+
+   private static TimeScale fitted(DefaultDataSet data, double plot, double label) {
+      TimeScale scale = new TimeScale("Date");
+      scale.setLabelFit(plot, label);
+      scale.init(data);
+      return scale;
+   }
+
+   @Test
+   void quarterTicksSitOnQuarterStarts() {
+      long start = date(2026, Calendar.FEBRUARY, 16, 0, 0, 0);
+      TimeScale scale = fitted(datesFrom(start, DAY_MS, 400), 302, 49);
+
+      assertEquals(TimeScale.QUARTER, scale.getType(), "premise");
+      Calendar cal = Calendar.getInstance();
+
+      for(double tick : scale.getTicks()) {
+         cal.setTimeInMillis((long) tick);
+         assertEquals(1, cal.get(Calendar.DAY_OF_MONTH));
+         assertEquals(0, cal.get(Calendar.MONTH) % 3, new Date((long) tick).toString());
+      }
+
+      // the data's own start plus the half-quarter gap, not widened to the aligned tick
+      assertTrue(scale.getMin() > date(2026, Calendar.JANUARY, 1, 0, 0, 0));
+      assertEquals(date(2026, Calendar.APRIL, 1, 0, 0, 0), scale.getTicks()[0], 0);
+   }
+
+   @Test
+   void hourSixTicksSitOnSixHourMarks() {
+      long start = date(2026, Calendar.JANUARY, 5, 5, 0, 0);
+      TimeScale scale = fitted(datesFrom(start, HOUR_MS, 25), 300, 50);
+
+      assertEquals(TimeScale.HOUR, scale.getType());
+      assertEquals(6, scale.getFitStep());
+      Calendar cal = Calendar.getInstance();
+
+      for(double tick : scale.getTicks()) {
+         cal.setTimeInMillis((long) tick);
+         assertEquals(0, cal.get(Calendar.HOUR_OF_DAY) % 6);
+      }
+
+      assertEquals(start, scale.getMin(), HOUR_MS);
+   }
+
+   @Test
+   void yearFiveTicksSitOnMultiplesOfFive() {
+      long start = date(2013, Calendar.MARCH, 3, 0, 0, 0);
+      TimeScale scale = fitted(datesFrom(start, 30 * DAY_MS, 12 * 30), 300, 50);
+
+      assertEquals(TimeScale.YEAR, scale.getType());
+      assertTrue(scale.getFitStep() > 1, "premise: " + scale.getFitStep());
+      Calendar cal = Calendar.getInstance();
+
+      for(double tick : scale.getTicks()) {
+         cal.setTimeInMillis((long) tick);
+         assertEquals(0, cal.get(Calendar.YEAR) % scale.getFitStep());
+      }
+   }
+
+   @Test
+   void theFitUsesTheAuthorRange() {
+      long start = date(2024, Calendar.JANUARY, 1, 0, 0, 0);
+      TimeScale scale = new TimeScale("Date");
+      scale.setLabelFit(300, 50);
+      scale.setMin(new Date(date(2026, Calendar.MARCH, 1, 0, 0, 0)));
+      scale.setMax(new Date(date(2026, Calendar.MARCH, 31, 0, 0, 0)));
+      scale.init(datesFrom(start, DAY_MS, 730));
+
+      int budget = 6;
+      assertTrue(scale.getTicks().length >= 2, scale.getTicks().length + " ticks");
+      assertTrue(scale.getTicks().length <= budget, scale.getTicks().length + " ticks");
+   }
+
+   @Test
+   void theFitUsesTheAuthorMaximum() {
+      long start = date(2026, Calendar.NOVEMBER, 1, 0, 0, 0);
+      TimeScale scale = new TimeScale("Date");
+      scale.setLabelFit(300, 50);
+      scale.setMax(new Date(date(2026, Calendar.DECEMBER, 31, 0, 0, 0)));
+      scale.init(datesFrom(start, DAY_MS, 20));
+
+      assertTrue(scale.getTicks().length >= 2, scale.getTicks().length + " ticks");
+      assertTrue(scale.getTicks().length <= 6, scale.getTicks().length + " ticks "
+                 + scale.getType() + "x" + scale.getFitStep());
+   }
 }

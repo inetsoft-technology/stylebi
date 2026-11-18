@@ -34,6 +34,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.util.XSourceInfo;
+import inetsoft.uql.XFormatInfo;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
@@ -153,6 +154,21 @@ class ModernGanttTicksTest {
 
       assertTrue(time.getLabelFitPlotPx() > 0, "premise: the fit is on");
       assertEquals(TimeScale.HOUR, time.getType());
+   }
+
+   @Test
+   void anAuthorDateFormatKeepsTheClassicAxis() {
+      Gantt g = gantt(25, VizMark.MODERN_LIGHT, new Dimension(400, 240), false);
+      CompositeTextFormat fmt = new CompositeTextFormat();
+      fmt.setFormat(new XFormatInfo("DateFormat", "yyyy"));
+      g.start.getAxisDescriptor().setAxisLabelTextFormat(fmt);
+      GraphGenerator gen = GraphGenerator.getGenerator(g.info, null, g.gen.getData(),
+                                                       new VariableTable(), null,
+                                                       XSourceInfo.NONE, new Dimension(400, 240));
+      TimeScale time = (TimeScale) ((RectCoord) gen.createEGraph().getCoordinate()).getYScale();
+
+      assertEquals(0, time.getLabelFitPlotPx(), 0);
+      assertTrue(time.getAxisSpec().isLabelBetween());
    }
 
    @Test
