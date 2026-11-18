@@ -19,6 +19,8 @@ package inetsoft.util.script;
 
 import org.apache.commons.math3.linear.*;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -436,7 +438,7 @@ public class CalcMath {
          return arr[0][0];
       }
       else {
-         int determinant = 0;
+         double determinant = 0;
          //For every first rowth element
          for(int k = 0; k < arr[0].length; k++) {
             //new array for recursive call
@@ -541,13 +543,22 @@ public class CalcMath {
                                     "same signs");
       }
 
-      double roundup = 0;
-
-      if(Math.abs(number % multiple) >= Math.abs(multiple / 2)) {
-         roundup = multiple;
+      if(multiple == 0) {
+         return 0;
       }
 
-      return roundup + multiple * (int) (number / multiple);
+      if(Double.isNaN(number) || Double.isInfinite(number) ||
+         Double.isNaN(multiple) || Double.isInfinite(multiple))
+      {
+         return multiple * Math.round(number / multiple);
+      }
+
+      // use decimal arithmetic so that 1.3 / 0.2 is exactly 6.5 and the
+      // result carries no binary rounding noise; HALF_UP rounds away from zero
+      BigDecimal step = BigDecimal.valueOf(multiple);
+      BigDecimal count = BigDecimal.valueOf(number)
+         .divide(step, 0, RoundingMode.HALF_UP);
+      return count.multiply(step).doubleValue();
    }
 
    /**
