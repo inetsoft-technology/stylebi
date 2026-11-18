@@ -20,16 +20,18 @@
     <legend>_#(Lines)</legend>
     @if (model.gridLineVisible) {
       <div class="row shell-form-row--field">
-        <div class="col line-combo-container">
-          <div class="form-floating">
-            <grid-line-dropdown [(lineStyle)]="model.xGridLineStyle"
-                                [color]="model.xGridLineColor"
-                                data-test="x-grid-line">
-            </grid-line-dropdown>
-            <label>_#(X Grid)</label>
+        @if (model.xGridLineVisible !== false) {
+          <div class="col line-combo-container">
+            <div class="form-floating">
+              <grid-line-dropdown [(lineStyle)]="model.xGridLineStyle"
+                                  [color]="model.xGridLineColor"
+                                  data-test="x-grid-line">
+              </grid-line-dropdown>
+              <label>_#(X Grid)</label>
+            </div>
+            <color-editor class="color-item" [(color)]="model.xGridLineColor" data-test="x-grid-line-color"></color-editor>
           </div>
-          <color-editor class="color-item" [(color)]="model.xGridLineColor" data-test="x-grid-line-color"></color-editor>
-        </div>
+        }
         <div class="col line-combo-container">
           <div class="form-floating">
             <grid-line-dropdown [(lineStyle)]="model.yGridLineStyle"
