@@ -255,11 +255,11 @@ public class CellInfoHandler {
          info.getFormatInfo().setFormat(rowpath, runtimeRowFormat);
 
          if(info.getHyperlinkAttr() != null) {
-            info.getHyperlinkAttr().setHyperlink(path, rowHyperlink);
+            info.getHyperlinkAttr().setHyperlink(rowpath, rowHyperlink);
          }
 
          if(info.getHighlightAttr() != null) {
-            info.getHighlightAttr().setHighlight(path, rowHighlight);
+            info.getHighlightAttr().setHighlight(rowpath, rowHighlight);
          }
       }
 
