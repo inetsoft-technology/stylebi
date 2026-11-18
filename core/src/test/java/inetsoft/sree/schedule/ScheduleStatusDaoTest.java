@@ -323,7 +323,7 @@ public class ScheduleStatusDaoTest {
    }
 
    private static ScheduleStatusDao newDao(InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage) {
-      return new ScheduleStatusDao(storage);
+      return new ScheduleStatusDao(storage, new InMemoryKeyValueStorage<>());
    }
 
    private static void assertStatus(ScheduleStatusDao.Status actual, Scheduler.Status status,
