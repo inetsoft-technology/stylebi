@@ -66,6 +66,17 @@ public class PaneContextService {
 
    static final String SHEET_KIND = "sheet";
 
+   /**
+    * The functions the calculated field dialog offers while it is on SQL, as the dialog's own
+    * function tree lists them (formula-editor.service.ts, {@code sqlFunctions}), call syntax
+    * {@code NAME(<column>)}.
+    */
+   static final List<String> SQL_FUNCTIONS = List.of("SUM", "COUNT", "AVG", "MIN", "MAX");
+
+   /** The operators the dialog offers while it is on SQL ({@code sqlOperators} there). */
+   static final List<String> SQL_OPERATORS =
+      List.of("+", "-", "*", "/", "<", ">", "<=", ">=", "=", "<>");
+
    /** Always in scope as {@code parameter.<name>}: filled from the signed-in user. */
    static final List<String> STANDARD_PARAMETERS = List.of("_USER_", "_ROLES_", "_GROUPS_");
 
@@ -99,13 +110,13 @@ public class PaneContextService {
          .stream().map(a -> new PaneContext.Component(a.name(), a.type())).toList();
 
       List<String> functions;
+      List<String> operators = List.of();
 
       if(sql) {
-         // The dialog's SQL function and operator lists are the data source's own and live in the
-         // browser; the script function names must not be offered under a SQL syntax.
-         functions = List.of();
-         notes.add("The function list is empty in SQL mode: the dialog offers the SQL functions " +
-                   "and operators of the data source, which this context does not list.");
+         // The dialog's SQL lists are fixed (the aggregates and operators every data source
+         // evaluates); the script function names must not be offered under a SQL syntax.
+         functions = SQL_FUNCTIONS;
+         operators = SQL_OPERATORS;
       }
       else {
          functions = apiService.functionNames();
@@ -113,7 +124,7 @@ public class PaneContextService {
 
       return new PaneContext(
          grant == null ? SHEET_KIND : grant.kind(), grant, syntaxOf(grant, sql), components,
-         parameters(rvs, notes), columns(session, grant, user, notes), functions, notes);
+         parameters(rvs, notes), columns(session, grant, user, notes), functions, operators, notes);
    }
 
    /** The kinds whose dialog has the SQL/Script switch: a calc field, a worksheet expression

@@ -120,7 +120,7 @@ class PaneContextControllerTest {
       PaneContext sql = controller.paneContext("CF", agent);
 
       assertEquals("sql", sql.syntax().language());
-      assertTrue(sql.functions().isEmpty());
+      assertEquals(List.of("SUM", "COUNT", "AVG", "MIN", "MAX"), sql.functions());
 
       when(sessions.paneStateOf(calcField)).thenReturn(PaneState.DEFAULT);
       assertEquals("javascript", controller.paneContext("CF", agent).syntax().language(),
