@@ -5540,6 +5540,74 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // Feature #79557: date-range endpoints
+   // ---------------------------------------------------------------------------
+
+   private WorksheetAgentController dateRangeController(Worksheet ws) throws Exception {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-DR"), any())).thenReturn(session("TOK-DR"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+
+      return controller(featureOn(), mock(SheetJoinService.class), sessions,
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+   }
+
+   @Test
+   void addDateRangeEndpointCreatesTheRangeAndWarnsAboutTheEndDay() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = dateRangeController(ws);
+
+      WorksheetAgentController.DateRangeResponse r = ctrl.addDateRange("TOK-DR",
+         new WorksheetAgentController.DateRangeRequest("FY2025", "2024-07-01", "2025-06-30", null),
+         agent);
+
+      assertEquals("FY2025", r.name());
+      assertFalse(r.replaced());
+      assertTrue(r.warnings().get(0).contains("timestamp"));
+      assertInstanceOf(DateRangeAssembly.class, ws.getAssembly("FY2025"));
+
+      WorksheetAgentController.DateRangeResponse again = ctrl.addDateRange("TOK-DR",
+         new WorksheetAgentController.DateRangeRequest("fy2025", "2025-07-01", "2026-06-30", true),
+         agent);
+      assertTrue(again.replaced());
+      assertEquals("FY2025", again.name());
+
+      PairingException dup = assertThrows(PairingException.class, () -> ctrl.addDateRange(
+         "TOK-DR", new WorksheetAgentController.DateRangeRequest(
+            "FY2025", "2025-07-01", "2026-06-30", false), agent));
+      assertTrue(dup.getMessage().contains("replace"));
+   }
+
+   @Test
+   void dateRangeEndpointsRefuseABlankNameAndDeleteRemovesTheRange() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = dateRangeController(ws);
+
+      assertThrows(PairingException.class, () -> ctrl.addDateRange("TOK-DR",
+         new WorksheetAgentController.DateRangeRequest(" ", "2024-07-01", "2025-06-30", null),
+         agent));
+      assertThrows(PairingException.class, () -> ctrl.deleteDateRange("TOK-DR",
+         new WorksheetAgentController.DateRangeRequest("", null, null, null), agent));
+
+      ctrl.addDateRange("TOK-DR",
+         new WorksheetAgentController.DateRangeRequest("FY2025", "2024-07-01", "2025-06-30", null),
+         agent);
+      ctrl.deleteDateRange("TOK-DR",
+         new WorksheetAgentController.DateRangeRequest("FY2025", null, null, null), agent);
+      assertNull(ws.getAssembly("FY2025"));
+   }
+
+   // ---------------------------------------------------------------------------
    // add_mirror -- same-worksheet (source) and cross-worksheet (path/scope) forms
    // ---------------------------------------------------------------------------
 
