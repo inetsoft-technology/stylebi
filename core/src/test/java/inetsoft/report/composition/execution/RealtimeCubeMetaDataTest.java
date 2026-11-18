@@ -147,6 +147,11 @@ public class RealtimeCubeMetaDataTest {
 
    // 38 months Jul 2001 .. Aug 2004
    private RealtimeCubeMetaData createReal() throws Exception {
+      return createReal(false, true);
+   }
+
+   // alphabetical: rows sorted by caption (the cube table sort fallback); keyed: members have keys
+   private RealtimeCubeMetaData createReal(boolean alphabetical, boolean keyed) throws Exception {
       List<int[]> months = new ArrayList<>();
 
       for(int y = 2001; y <= 2004; y++) {
@@ -157,6 +162,10 @@ public class RealtimeCubeMetaDataTest {
          }
       }
 
+      if(alphabetical) {
+         months.sort(Comparator.comparing(m -> MONTHS[m[1] - 1] + " " + m[0]));
+      }
+
       DefaultTableLens table = new DefaultTableLens(months.size() + 1, 2);
       table.setObject(0, 0, CAL + ".Calendar Year");
       table.setObject(0, 1, CAL + ".Month");
@@ -165,8 +174,10 @@ public class RealtimeCubeMetaDataTest {
       for(int r = 0; r < months.size(); r++) {
          int y = months.get(r)[0];
          int m = months.get(r)[1];
-         table.setObject(r + 1, 0, captioned("[Date].[Calendar].[Calendar Year].&[" + y + "]", "CY " + y));
-         table.setObject(r + 1, 1, captioned("[Date].[Calendar].[Month].&[" + y + "]&[" + m + "]",
+         table.setObject(r + 1, 0, captioned(keyed ? "[Date].[Calendar].[Calendar Year].&[" + y + "]" :
+                                          "[Date].[Calendar].[Calendar Year].[CY " + y + "]", "CY " + y));
+         table.setObject(r + 1, 1, captioned(keyed ? "[Date].[Calendar].[Month].&[" + y + "]&[" + m + "]" :
+                                          "[Date].[Calendar].[Month].[" + MONTHS[m - 1] + " " + y + "]",
                                           MONTHS[m - 1] + " " + y));
       }
 
@@ -237,7 +248,32 @@ public class RealtimeCubeMetaDataTest {
                                       new Object[] { "November 2002" },
                                       new Object[] { "December 2003" });
       String key = SelectionVSAssembly.RANGE + "[Date].[Calendar].Month";
-      Assertions.assertEquals(14, values(createReal(), key, cond, "Month").size());
+      RealtimeCubeMetaData md = createReal();
+      Assertions.assertEquals(14, values(md, key, cond, "Month").size());
+      Assertions.assertEquals(Set.of("CY 2002", "CY 2003"), values(md, key, cond, "Calendar Year"));
+   }
+
+   @Test
+   void alphabeticalMetadataOrderStillGivesHierarchyRange() throws Exception {
+      RangeCondition cond = realRange(new String[] { "Calendar Year", "Month" },
+                                      new Object[] { "CY 2002", "November 2002" },
+                                      new Object[] { "CY 2003", "December 2003" });
+      String key = SelectionVSAssembly.RANGE + "[Date].[Calendar].Calendar Year^/^[Date].[Calendar].Month";
+      RealtimeCubeMetaData md = createReal(true, true);
+      Set<String> months = values(md, key, cond, "Month");
+      Assertions.assertEquals(14, months.size(), months.toString());
+      Assertions.assertTrue(months.contains("November 2002") && months.contains("December 2003"));
+      Assertions.assertFalse(months.contains("March 2002") || months.contains("January 2004"));
+      Assertions.assertEquals(Set.of("CY 2002", "CY 2003"), values(md, key, cond, "Calendar Year"));
+   }
+
+   @Test
+   void membersWithoutKeysDoNotApplyRange() throws Exception {
+      RangeCondition cond = realRange(new String[] { "Month" },
+                                      new Object[] { "November 2002" },
+                                      new Object[] { "December 2003" });
+      String key = SelectionVSAssembly.RANGE + "[Date].[Calendar].Month";
+      Assertions.assertEquals(38, values(createReal(true, false), key, cond, "Month").size());
    }
 
    @Test

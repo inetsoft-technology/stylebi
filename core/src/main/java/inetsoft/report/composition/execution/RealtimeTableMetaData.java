@@ -575,7 +575,6 @@ public class RealtimeTableMetaData extends TableMetaData {
       return appliedMaxRow;
    }
 
-   @Serial
    /**
     * Convert the range conditions of a cube slider to position based ranges.
     * @return the converted ranges, or null if any bound can not be resolved to a member (the
@@ -599,10 +598,14 @@ public class RealtimeTableMetaData extends TableMetaData {
    }
 
    /**
-    * A range on cube members. The bounds are resolved to member positions in the column
-    * metadata and compared by position. This assumes the member order in the metadata is the
-    * hierarchy order of the cube (the order the members are returned by the cube query), since
-    * neither the unique name nor the caption of a member sorts chronologically.
+    * A range on cube members. The bounds and the row members are mapped to a rank derived from
+    * the member keys in the unique name (the "&[2002]&[11]" part), compared numerically where
+    * both parts are numbers and as strings otherwise, and the ranks are compared. Neither the
+    * order of the metadata rows (it is the cube table sort, which falls back to the display
+    * text when the level cache is missing) nor the caption/unique name text sorts
+    * hierarchically, so they are not used. This relies on the member keys of the level being
+    * in hierarchy order (true for time levels such as calendar year/month). If any member has
+    * no key, the range is not applied.
     */
    private static final class CubeRange {
       static CubeRange create(RangeCondition cond, ColumnMetaData[] keyMetas,
@@ -618,6 +621,7 @@ public class RealtimeTableMetaData extends TableMetaData {
          range.metas = new ColumnMetaData[refs.length];
          range.mins = new int[refs.length];
          range.maxes = new int[refs.length];
+         range.ranks = new int[refs.length][];
 
          for(int i = 0; i < refs.length; i++) {
             ColumnMetaData meta = colmap.get(refs[i].getName());
@@ -635,15 +639,96 @@ public class RealtimeTableMetaData extends TableMetaData {
             }
 
             range.metas[i] = meta;
-            range.mins[i] = indexOf(meta, mins[i]);
-            range.maxes[i] = indexOf(meta, maxes[i]);
+            range.ranks[i] = rank(meta);
 
-            if(range.mins[i] < 0 || range.maxes[i] < 0) {
+            if(range.ranks[i] == null) {
                return null;
             }
+
+            int min = indexOf(meta, mins[i]);
+            int max = indexOf(meta, maxes[i]);
+
+            if(min < 0 || max < 0) {
+               return null;
+            }
+
+            range.mins[i] = range.ranks[i][min];
+            range.maxes[i] = range.ranks[i][max];
          }
 
          return range;
+      }
+
+      private static final java.util.regex.Pattern KEY =
+         java.util.regex.Pattern.compile("&\\[([^\\]]*)\\]");
+
+      /**
+       * Get the rank of each member (by value index) from the member keys.
+       * @return the ranks, or null if a member has no key.
+       */
+      private static int[] rank(ColumnMetaData meta) {
+         List<Object> values = meta.getValues();
+         List<String[]> keys = new ArrayList<>();
+
+         for(Object val : values) {
+            if(!(val instanceof MemberObject) || ((MemberObject) val).getUName() == null) {
+               return null;
+            }
+
+            String uname = ((MemberObject) val).getUName();
+            int pos = uname.indexOf(".&[");
+
+            if(pos < 0) {
+               return null;
+            }
+
+            java.util.regex.Matcher m = KEY.matcher(uname.substring(pos));
+            List<String> parts = new ArrayList<>();
+
+            while(m.find()) {
+               parts.add(m.group(1));
+            }
+
+            if(parts.isEmpty()) {
+               return null;
+            }
+
+            keys.add(parts.toArray(new String[0]));
+         }
+
+         Integer[] order = new Integer[values.size()];
+
+         for(int i = 0; i < order.length; i++) {
+            order[i] = i;
+         }
+
+         Arrays.sort(order, (x, y) -> compareKeys(keys.get(x), keys.get(y)));
+         int[] ranks = new int[order.length];
+
+         for(int i = 0; i < order.length; i++) {
+            ranks[order[i]] = i;
+         }
+
+         return ranks;
+      }
+
+      private static int compareKeys(String[] a, String[] b) {
+         for(int i = 0; i < Math.min(a.length, b.length); i++) {
+            int c;
+
+            try {
+               c = new java.math.BigDecimal(a[i]).compareTo(new java.math.BigDecimal(b[i]));
+            }
+            catch(NumberFormatException ex) {
+               c = a[i].compareTo(b[i]);
+            }
+
+            if(c != 0) {
+               return c;
+            }
+         }
+
+         return Integer.compare(a.length, b.length);
       }
 
       private static int indexOf(ColumnMetaData meta, Object bound) {
@@ -681,7 +766,7 @@ public class RealtimeTableMetaData extends TableMetaData {
          int[] vals = new int[metas.length];
 
          for(int i = 0; i < vals.length; i++) {
-            vals[i] = tuple[metas[i].getIndex()];
+            vals[i] = ranks[i][tuple[metas[i].getIndex()]];
          }
 
          int cmin = compare(vals, mins);
@@ -704,10 +789,12 @@ public class RealtimeTableMetaData extends TableMetaData {
       private ColumnMetaData[] metas;
       private int[] mins;
       private int[] maxes;
+      private int[][] ranks;
       private boolean lowerInclusive;
       private boolean upperInclusive;
    }
 
+   @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
       in.defaultReadObject();
       lock = new ReentrantReadWriteLock();
