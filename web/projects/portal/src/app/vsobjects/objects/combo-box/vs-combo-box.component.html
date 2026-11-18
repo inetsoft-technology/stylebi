@@ -130,7 +130,8 @@
           </div>
         </ng-template>
         <ng-template #dropdownCalendar>
-          <div class="dropdown-datepicker">
+          <div class="dropdown-datepicker"
+               [class.viz-modern]="model.vizModern" [class.viz-dark]="model.vizDark">
             <ngb-datepicker #dp defaultFocus [autoSelect]="false"
               [minDate]="minDate" [maxDate]="maxDate" [firstDayOfWeek]="firstDayOfWeek"
               [startDate]="selectedDate"

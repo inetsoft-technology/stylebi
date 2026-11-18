@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="dropdown-datepicker">
+<div class="dropdown-datepicker" [class.viz-modern]="vizModern" [class.viz-dark]="vizDark">
   <ngb-datepicker [ngModel]="date" [startDate]="date"
                   [minDate]="minDate" [maxDate]="maxDate" [firstDayOfWeek]="firstDayOfWeek"
                   (dateSelect)="dateChanged($event)"

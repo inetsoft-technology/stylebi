@@ -27,11 +27,12 @@ $dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly
 // color-scheme). Other BI apps' dark modes do the same: chrome only, a report's controls follow the
 // report (Power BI and Tableau dark mode docs, Power BI slicer dropdown theme colors). App command
 // menus attached to body (context menus, the mini-toolbar More menu) and tooltips stay shell chrome.
-// A dark-marked assembly keeps the light popup it gets in a light shell today: the calendar carries
-// no mark from its assembly and draws from the shell's dropdown tokens. Hanging it off the
-// assembly's mark, so a dark-marked dashboard gets a dark calendar, is separate viz work, since it
-// also changes the light shell.
+// A dark-marked assembly's calendar is the exception: it follows its assembly's mark in both shells
+// (the .dropdown-datepicker.viz-dark block at the end). The combo box list stays light when marked.
 $content-popup: ".vs-combo-box__list, .dropdown-datepicker";
+// The popups the shell resets to light: a dark-marked calendar is left out, it follows its mark (see
+// the .dropdown-datepicker.viz-dark block at the end of this file). Same specificity as the others.
+$content-popup-light: ".vs-combo-box__list, .dropdown-datepicker:not(.viz-dark)";
 // Matches an element outside dashboard content without adding specificity, for dark rules that
 // would otherwise also reach the content.
 $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))";
@@ -41,7 +42,7 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
  *
  * The server writes the shell-dark class on <html> when the portal and composer shell is dark
  * (inetsoft.web.portal.ShellDarkMode). Every rule here is scoped under that class, so with the
- * class absent this file changes nothing.
+ * class absent this file changes nothing, except the .dropdown-datepicker.viz-dark block at the end.
  *
  * Shell only: dashboard content follows its own VizMark through .viz-dark / .viz-shell-dark.
  * See docs/superpowers/specs/lookfeel/dark-mode.md, "Shell dark".
@@ -533,7 +534,7 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
 // left alone; an annotation fill set by the author is not carried over (Bug #81352).
 $annotation-tooltip: ".hidden__annotation-tooltip:not(.widget__tooltip--dark), .vs-annotation__tooltip:not(.widget__tooltip--dark)";
 
-:root.shell-dark :is(#{$dashboard-content}, #{$annotation-tooltip}, #{$content-popup}) {
+:root.shell-dark :is(#{$dashboard-content}, #{$annotation-tooltip}, #{$content-popup-light}) {
   color-scheme: light;
   // content inherits the body's text color, computed from the dark token before this point
   color: var(--inet-text-color);
@@ -595,12 +596,12 @@ $annotation-tooltip: ".hidden__annotation-tooltip:not(.widget__tooltip--dark), .
 // the content root or any ancestor already declares its own (.viz-shell / .viz-shell-dark on body
 // for the org, .viz-modern / .viz-dark on a marked assembly such as the chart editor preview).
 $viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-theme=\"v2\"]";
-:root.shell-dark :is(#{$dashboard-content}, #{$content-popup}):not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *) {
+:root.shell-dark :is(#{$dashboard-content}, #{$content-popup-light}):not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *) {
   @include inet-viz-legacy-state-tokens;
 }
 
 // the rules above whose dark value is not a token
-:where(.shell-dark) :where(#{$dashboard-content}, #{$content-popup}) {
+:where(.shell-dark) :where(#{$dashboard-content}, #{$content-popup-light}) {
   .form-select {
     --bs-form-select-bg-img: #{escape-svg($form-select-indicator)};
   }
@@ -677,5 +678,45 @@ $viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-the
   .ck-editor__editable {
     --inet-link-color: #{$link-color};
     --inet-link-hover-color: #{$link-hover-color};
+  }
+}
+
+// A dark-marked assembly's date calendar (combo box, text input, table cell). Written for a light shell
+// too, so it sits outside :root.shell-dark. In a dark shell it is excluded from the light reset above
+// ($content-popup-light), so these re-declarations restate the shell values rather than change them.
+// The derived tokens (dropdown/toolbar/input/button-light bg) are declared directly: they resolve at
+// :root and do not follow a base-token override on a descendant.
+.dropdown-datepicker.viz-dark {
+  color-scheme: dark;
+  color: var(--inet-viz-text-dark);
+  --inet-text-color: var(--inet-viz-text-dark);
+  --inet-text-muted-color: #{$dark-text-muted};
+  --inet-dropdown-bg-color: var(--inet-viz-surface-dark);
+  --inet-toolbar-bg-color: #{$dark-surface-subtle};
+  --inet-input-bg-color: var(--inet-viz-surface-dark);
+  --inet-input-focus-bg-color: var(--inet-viz-surface-dark);
+  --inet-default-border-color: #{$dark-border-default};
+  --inet-border-color: #{$dark-border-default};
+  --inet-dropdown-toggle-color: #{$dark-text-strong};
+  --inet-button-default-text-color: var(--inet-viz-text-dark);
+  --inet-button-default-bg-color: transparent;
+  --inet-button-default-hover-text-color: var(--inet-viz-text-emphasis-dark);
+  --inet-button-default-hover-bg-color: var(--inet-viz-hover-bg-dark);
+  --inet-button-default-hover-border-color: #{$dark-border-default};
+  // the day cells are div.btn-light (_bootstrap-override.scss), so a light shell needs these too
+  --inet-button-light-text-color: var(--inet-viz-text-dark);
+  --inet-button-light-bg-color: transparent;
+  --inet-button-light-border-color: transparent;
+  --inet-button-light-hover-text-color: var(--inet-viz-text-emphasis-dark);
+  --inet-button-light-hover-bg-color: var(--inet-viz-hover-bg-dark);
+  --inet-button-light-hover-border-color: var(--inet-viz-hover-bg-dark);
+  --bs-body-color: var(--inet-viz-text-dark);
+  --bs-secondary-color: #{$dark-text-muted};
+  --bs-tertiary-bg: var(--inet-viz-hover-bg-dark);
+  --bs-border-color: #{$dark-border-default};
+
+  ngb-datepicker .btn-light.bg-primary.text-white {
+    background-color: var(--inet-viz-selected-bg-dark) !important;
+    color: var(--inet-viz-selected-text-dark) !important;
   }
 }

@@ -29,6 +29,9 @@ import { FormsModule } from "@angular/forms";
 })
 export class VSTableCellCalendar implements OnInit {
    date: NgbDateStruct;
+   // the owning table's viz mark; the popup is attached to body, outside the assembly wrapper
+   vizModern = false;
+   vizDark = false;
    onDateChange = new EventEmitter<NgbDateStruct>();
    minDate: NgbDateStruct = {year: 1900, month: 1, day: 1};
    maxDate: NgbDateStruct = {year: 2050, month: 12, day: 31};
