@@ -1131,12 +1131,27 @@ public final class VSMVAnalyzer implements MVAnalyzer {
             }
          }
 
+         // bound to a table that was rejected by isAcceptable (e.g. cube), already reported
+         if(def == null && isBoundToRejectedTable(name)) {
+            continue;
+         }
+
          List<String> reasons = checkCombinable((VSAssembly) assembly, def);
 
          if(!reasons.isEmpty()) {
             desc.addNotHitMVHint(assembly.getName(), reasons.toArray(new String[0]));
          }
       }
+   }
+
+   private boolean isBoundToRejectedTable(String name) {
+      for(TableInfo info : tmap.values()) {
+         if(info.contains(name)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

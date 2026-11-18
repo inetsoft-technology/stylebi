@@ -41,6 +41,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.swap.XSwapUtil;
+import inetsoft.util.log.LogLevel;
 import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1443,6 +1444,12 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
             }
             else {
                aref = aggr.createAggregateRef(null);
+            }
+
+            if(aref == null || aref.getDataRef() == null) {
+               throw new MessageException(
+                  "Aggregate " + aggr.getName() + " of assembly " + assembly.getName() +
+                  " has an unresolved data binding", LogLevel.ERROR);
             }
 
             boolean aggc = VSUtil.isAggregateCalc(aref.getDataRef());
