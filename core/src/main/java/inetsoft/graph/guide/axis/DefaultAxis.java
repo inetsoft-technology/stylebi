@@ -732,7 +732,8 @@ public class DefaultAxis extends Axis {
    /**
     * Create the zero line from this axis to the other axis, replacing any earlier one.
     * @param axis the other axis to draw the line to.
-    * @param cross the scale of the cross axis, checked when the spec asks for crossing.
+    * @param cross the scale of the cross axis, checked when the spec asks for crossing and
+    * the cross axis is a value axis.
     * @return true if a zero line is created.
     */
    public boolean createZeroLine(DefaultAxis axis, Scale cross) {
@@ -744,7 +745,7 @@ public class DefaultAxis extends Axis {
       AxisSpec spec = getScale().getAxisSpec();
 
       if(spec.getZeroLineColor() == null || !crossesZero(getScale()) ||
-         spec.isZeroLineCrossing() && !crossesZero(cross))
+         spec.isZeroLineCrossing() && cross instanceof LinearScale && !crossesZero(cross))
       {
          return false;
       }

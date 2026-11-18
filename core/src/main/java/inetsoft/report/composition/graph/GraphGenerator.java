@@ -2980,9 +2980,24 @@ public abstract class GraphGenerator {
       }
 
       setupAxisSpec(spec, xdesc, flds, secondary, scale instanceof LinearScale);
+      ModernZeroLine.apply(spec, zeroLineType(flds), scale, x, secondary, vizContext);
       addHighlightToAxis(spec, flds);
 
       return spec;
+   }
+
+   // the chart type of the axis's own measure on a multi-style chart, else the chart's type
+   private int zeroLineType(String[] flds) {
+      if(info.isMultiStyles() && flds != null && flds.length > 0) {
+         ChartRef ref = info.getFieldByName(flds[0], true);
+         ref = ref == null ? info.getFieldByName(ElementVO.getBaseName(flds[0]), true) : ref;
+
+         if(ref instanceof ChartAggregateRef agg) {
+            return agg.getRTChartType();
+         }
+      }
+
+      return info.getRTChartType();
    }
 
    private CompositeTextFormat getAxisLabelFormat(AxisDescriptor desc,
