@@ -50,6 +50,7 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -264,9 +265,9 @@ public class SheetOpenService {
     *   <li>the open itself ({@code getSheet(permission=true)}) enforces per-asset READ.</li>
     * </ul>
     *
-    * <p>Every call opens a NEW runtime; it does not attach to a runtime already open on the same
-    * asset, so opening an asset the user already has in a Composer tab gives two independent
-    * copies.
+    * <p>An asset the browser already has open is attached to (see {@link #findOpenRuntime}); only
+    * an asset that is not open gets a new runtime. Two copies of one asset would be edited
+    * independently, with the Composer tab showing only one of them.
     *
     * @param fromSessionToken the already-paired session (worksheet or viewsheet) whose browser
     *                         connection the new session reuses
@@ -372,9 +373,15 @@ public class SheetOpenService {
       Principal browserUser = actingSheet == null ? user : actingSheet.getUser();
       String runtimeId;
       List<String> warnings = List.of();
+      // The Composer allows one tab per asset, so a second runtime of an asset the browser
+      // already holds would be edited out of sight while the tab switches to the first one.
+      String existingRuntimeId = findOpenRuntime(entry, isViewsheet, browserUser);
 
       try {
-         if(isViewsheet) {
+         if(existingRuntimeId != null) {
+            runtimeId = existingRuntimeId;
+         }
+         else if(isViewsheet) {
             runtimeId = viewsheetService.openViewsheet(entry, browserUser, false);
          }
          else {
@@ -414,13 +421,66 @@ public class SheetOpenService {
          .viewsheet(isViewsheet)
          .runtimeId(runtimeId)
          .agentActive(true)
-         .closeRuntimeOnTabClose(true)
+         // an attached runtime belongs to the user's tab: closing that tab must not be tied to
+         // the agent pairing, and a runtime this call created is closed with its tab as before
+         .closeRuntimeOnTabClose(existingRuntimeId == null)
          .agentOwnerLabel(PairingUtil.label(session.ownerIdentity()))
          .build();
 
       broadcast.sendToComposer(actingSession.socketSessionId(), command);
 
       return new OpenedSheet(session, warnings);
+   }
+
+   /**
+    * Finds the runtime of the same saved asset the browser principal already has open, so
+    * {@code open_viewsheet}/{@code open_worksheet} attach to it instead of minting a hidden
+    * second copy (Redmine #81753). A runtime no agent session is bound to is the user's own tab
+    * and wins over one an agent session already holds (for example the one orphaned by a page
+    * reload); among equals the most recently accessed is taken.
+    *
+    * @return the runtime id, or {@code null} when the asset is not open for this user.
+    */
+   private String findOpenRuntime(AssetEntry entry, boolean isViewsheet, Principal browserUser) {
+      RuntimeSheet[] open = isViewsheet ? viewsheetService.getRuntimeViewsheets(browserUser) :
+         worksheetService.getRuntimeSheets(browserUser);
+
+      if(open == null) {
+         return null;
+      }
+
+      String best = null;
+      boolean bestFree = false;
+      long bestAccess = Long.MIN_VALUE;
+
+      for(RuntimeSheet rs : open) {
+         if(rs == null || rs.getEntry() == null || rs.getID() == null ||
+            rs.getID().contains(ViewsheetService.PREVIEW_VIEWSHEET) ||
+            isViewsheet != (rs instanceof RuntimeViewsheet) ||
+            !isViewsheet && !(rs instanceof RuntimeWorksheet) ||
+            !isSameAsset(entry, rs.getEntry()))
+         {
+            continue;
+         }
+
+         boolean free = sheetSessions.findAllOnRuntime(rs.getID()).isEmpty();
+         long access = rs.getLastAccessed();
+
+         if(best == null || free && !bestFree || free == bestFree && access > bestAccess) {
+            best = rs.getID();
+            bestFree = free;
+            bestAccess = access;
+         }
+      }
+
+      return best;
+   }
+
+   private static boolean isSameAsset(AssetEntry wanted, AssetEntry candidate) {
+      return wanted.getType() == candidate.getType() && wanted.getScope() == candidate.getScope() &&
+         Objects.equals(wanted.getPath(), candidate.getPath()) &&
+         Objects.equals(wanted.getUser(), candidate.getUser()) &&
+         Objects.equals(wanted.getOrgID(), candidate.getOrgID());
    }
 
    /**
