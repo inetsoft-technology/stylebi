@@ -996,6 +996,16 @@ public class Scheduler {
    public void removeTask(String taskName) throws SchedulerException {
       if(scheduler != null) {
          JobKey key = new JobKey(taskName, GROUP_NAME);
+
+         // Bug #81647, a run in progress must not write the status of, or trigger the
+         // dependants of, a task of the same name created after this removal. Unlike an edit
+         // (addTask), a removal ends the task, so only it marks the run.
+         ClusterJobStore store = ClusterJobStore.forScheduler(scheduler);
+
+         if(store != null) {
+            store.markRunOrphaned(key);
+         }
+
          scheduler.deleteJob(key);
 
          ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
