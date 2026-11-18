@@ -258,7 +258,7 @@ public final class MVDefinitionKey {
    }
 
    /**
-    * Print the names, types and expressions of the columns, in an order that doesn't depend on
+    * Print the expression columns and the aliased columns, in an order that doesn't depend on
     * the column order or visibility. A calculate field is of the viewsheet, not of the table.
     */
    private static void printColumns(ColumnSelection cols, PrintWriter writer) {
@@ -276,13 +276,13 @@ public final class MVDefinitionKey {
          }
 
          StringBuilder key = new StringBuilder();
-         key.append(ref.getName()).append(':').append(ref.getDataType());
 
          if(ref instanceof ColumnRef) {
             ColumnRef col = (ColumnRef) ref;
             DataRef base = col.getDataRef();
 
             if(base instanceof ExpressionRef) {
+               key.append(ref.getName()).append(':').append(ref.getDataType());
                key.append(':').append(col.isSQL() ? "SQL" : "JS").append(':');
 
                try {
@@ -292,6 +292,20 @@ public final class MVDefinitionKey {
                   key.append(((ExpressionRef) base).getScriptExpression());
                }
             }
+            else if(col.getAlias() != null && !col.getAlias().isEmpty() && base != null) {
+               // an alias hides which column the data comes from
+               key.append(col.getAlias()).append("=>").append(base.getEntity()).append('.')
+                  .append(base.getAttribute());
+            }
+            else {
+               // a plain column is defined by the table's source, conditions and aggregates;
+               // its type and presence are re-derived when the worksheet is refreshed, so they
+               // would make a freshly built MV read stale
+               continue;
+            }
+         }
+         else {
+            continue;
          }
 
          keys.add(key.toString());

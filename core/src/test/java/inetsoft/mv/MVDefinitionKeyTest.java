@@ -303,6 +303,46 @@ class MVDefinitionKeyTest {
       assertTrue(mv.isDefinitionChanged(ws));
    }
 
+   @Test
+   void refreshedColumnSelectionReadsTheSameKey() {
+      String key = key(bound(new Worksheet(), "T", null));
+
+      // a refresh re-derives the type of a plain column and may add or remove columns
+      TableAssembly retyped = bound(new Worksheet(), "T", null);
+      ColumnSelection cols = (ColumnSelection) retyped.getColumnSelection(false).clone();
+      ((ColumnRef) cols.getAttribute(0)).setDataType(XSchema.INTEGER);
+      cols.addAttribute(column("EXTRA"));
+      cols.removeAttribute(1);
+      retyped.setColumnSelection(cols, false);
+      retyped.setColumnSelection(cols, true);
+      assertEquals(key, key(retyped));
+
+      // but a data-defining edit still changes it
+      TableAssembly filtered = bound(new Worksheet(), "T", "12100");
+      assertNotEquals(key, key(filtered));
+   }
+
+   @Test
+   void aliasedColumnReSourcedChangesTheKey() {
+      String total = key(aliased("TOTAL"));
+
+      assertEquals(total, key(aliased("TOTAL")));
+      assertNotEquals(total, key(aliased("TAX")));
+      assertNotEquals(total, key(bound(new Worksheet(), "T", null)));
+   }
+
+   private static TableAssembly aliased(String base) {
+      TableAssembly table = bound(new Worksheet(), "T", null);
+      ColumnRef col = new ColumnRef(new AttributeRef("ORDERS", base));
+      col.setAlias("Amount");
+      col.setDataType(XSchema.DOUBLE);
+      ColumnSelection cols = (ColumnSelection) table.getColumnSelection(false).clone();
+      cols.addAttribute(col);
+      table.setColumnSelection(cols, false);
+      table.setColumnSelection(cols, true);
+      return table;
+   }
+
    private static MVDef def(TableAssembly table, String otname) {
       MVDef mv = new MVDef();
       ReflectionTestUtils.setField(mv, "otname", otname);
