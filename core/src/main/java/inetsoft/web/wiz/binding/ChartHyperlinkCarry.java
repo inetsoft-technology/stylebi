@@ -161,7 +161,7 @@ final class ChartHyperlinkCarry {
 
       for(Saved dropped : pool) {
          if(dropped.hasHighlight() && sameColumn(dropped.ref(), now)) {
-            reported.add(fullName(dropped.ref()));
+            reported.add(identity(dropped.ref()));
             notes.add("The highlight on " + fullName(dropped.ref()) + " was removed: its field " +
                "stays on the " + shelf + " shelf under a different " +
                (dropped.ref() instanceof VSDimensionRef ? "date level" : "aggregate formula") +
@@ -184,6 +184,19 @@ final class ChartHyperlinkCarry {
       }
 
       return false;
+   }
+
+   /**
+    * What a field is, as opposed to what it is called: its kind, its column and its formula or date
+    * level, but not its calculator. A calculator renames a measure ({@code Sum(Total)} becomes
+    * {@code % of total: Sum(Total)}) while {@link #sameField} still carries its highlights over,
+    * so a highlight is tracked across a write by this and shown to the caller by
+    * {@link #fullName}. The kind tag keeps an aggregate-disabled measure, whose name is its bare
+    * column, from being taken for a dimension on the same column.
+    */
+   static String identity(ChartRef ref) {
+      return ref instanceof VSAggregateRef a ? "m:" + a.getFullName(false) :
+         ref instanceof VSDimensionRef d ? "d:" + d.getFullName() : "o:" + ref.getName();
    }
 
    static String fullName(ChartRef ref) {
