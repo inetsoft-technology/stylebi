@@ -426,6 +426,18 @@ $dark-ws-row-hover-bg: #302D27;
     background-color: var(--inet-graph-assembly-bg-color);
   }
 
+  // The worksheet details rows hover with --inet-viz-hover-bg, a viz-modern token that only goes
+  // dark with an org's dark dashboards (viz-shell-dark), so in a dark shell it stays the light
+  // #EEF4F6 under light text. The rows are shell chrome: they take the shell's neutral hover fill and
+  // keep their own text color. A highlighted row keeps its highlight while hovered.
+  .table-data__row:hover {
+    color: inherit;
+  }
+
+  .table-data__row:not(.highlighted):hover {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+  }
+
   .bg-white3 {
     background-color: var(--inet-shell-surface-subtle);
   }

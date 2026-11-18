@@ -657,11 +657,11 @@ div.loading-indicator.loading {
   stroke: rgba(255, 255, 255, 0.12);
 }
 
-/* The dark focus ring is strong enough to pass 3:1 on its own, as a button needs. A focused input
-   also turns its border orange, which passes by itself, so its glow keeps the dark shell's earlier
-   strength instead of drawing a second heavy ring. */
-:where(.shell-dark) .login-left .form-control:focus {
-  box-shadow: 0 0 0 3px rgba(229, 138, 42, 0.45);
+/* An input's hover tints it one step toward the page's alternate surface. The light rule mixes in
+   white, which on a dark input makes a light grey slab under light text; dark takes that step to the
+   alternate surface itself. */
+:where(.shell-dark) .login-left .form-control:hover {
+  background: var(--ln-bg-alt);
 }
 
 /* Primary buttons in a dark shell hover to the dark shell's lighter orange, as the portal's do.
