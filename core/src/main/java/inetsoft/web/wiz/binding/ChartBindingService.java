@@ -32,10 +32,12 @@ import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
+import inetsoft.uql.viewsheet.graph.CandleChartInfo;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartBindable;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.GanttChartInfo;
 import inetsoft.uql.viewsheet.graph.GanttVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
@@ -379,7 +381,7 @@ public class ChartBindingService {
     * crosstab enforces. Calculators with no named dimension, or whose dimension is not found, are
     * never refused.
     */
-   static void requireCalculatorShiftsLand(VSChartInfo info) {
+   public static void requireCalculatorShiftsLand(VSChartInfo info) {
       if(info == null) {
          return;
       }
@@ -387,7 +389,7 @@ public class ChartBindingService {
       List<ChartAggregateRef> aggregates = new ArrayList<>();
 
       for(ChartRef[] refs : new ChartRef[][] {info.getXFields(), info.getYFields()}) {
-         for(ChartRef ref : refs) {
+         for(ChartRef ref : refs == null ? new ChartRef[0] : refs) {
             if(ref instanceof ChartAggregateRef aggregate) {
                aggregates.add(aggregate);
             }
@@ -398,6 +400,25 @@ public class ChartBindingService {
 
       if(aesthetic != null) {
          aggregates.addAll(aesthetic);
+      }
+
+      List<ChartRef> single = new ArrayList<>();
+
+      if(info instanceof CandleChartInfo candle) {
+         single.addAll(java.util.Arrays.asList(
+            candle.getOpenField(), candle.getHighField(), candle.getLowField(),
+            candle.getCloseField()));
+      }
+
+      if(info instanceof GanttChartInfo gantt) {
+         single.addAll(java.util.Arrays.asList(
+            gantt.getStartField(), gantt.getEndField(), gantt.getMilestoneField()));
+      }
+
+      for(ChartRef ref : single) {
+         if(ref instanceof ChartAggregateRef aggregate) {
+            aggregates.add(aggregate);
+         }
       }
 
       ChartBindable bound = info instanceof GanttVSChartInfo gantt &&
@@ -427,23 +448,42 @@ public class ChartBindingService {
             continue;
          }
 
+         List<ChartRef> dims = new ArrayList<>();
+
          for(ChartRef[] refs : new ChartRef[][] {
             info.getXFields(), info.getYFields(), info.getGroupFields()})
          {
-            for(ChartRef ref : refs) {
-               if(ref instanceof XDimensionRef dim && ref instanceof VSDataRef data &&
-                  target.trim().equalsIgnoreCase(data.getFullName()) &&
-                  CalculatorShift.smallerThanBucket(dim.getDateLevel(), calc.getFrom()))
-               {
-                  throw new IllegalArgumentException(
-                     "calculateInfo.from " + calc.getFrom() + " (" +
-                     CalculatorShift.previousName(calc.getFrom()) + ") on " +
-                     aggregate.getFullName() + " cannot be computed: its calculator dimension '" +
-                     data.getFullName() + "' is bound at " +
-                     DateLevels.name(String.valueOf(dim.getDateLevel())) + ", a bucket the " +
-                     CalculatorShift.previousName(calc.getFrom()) + " shift does not land on, so " +
-                     "every cell would be blank. " + CalculatorShift.advice(calc.getFrom()));
+            for(ChartRef ref : refs == null ? new ChartRef[0] : refs) {
+               if(ref instanceof XDimensionRef && ref instanceof VSDataRef) {
+                  dims.add(ref);
                }
+            }
+         }
+
+         // The exact full name; a bare column name (a chart not yet fixed up by the runtime, as
+         // the create route builds it) only when it names one dimension.
+         List<ChartRef> named = dims.stream()
+            .filter(d -> target.trim().equalsIgnoreCase(((VSDataRef) d).getFullName())).toList();
+
+         if(named.isEmpty()) {
+            List<ChartRef> bare = dims.stream()
+               .filter(d -> target.trim().equalsIgnoreCase(((VSDataRef) d).getName())).toList();
+            named = bare.size() == 1 ? bare : List.of();
+         }
+
+         for(ChartRef ref : named) {
+            XDimensionRef dim = (XDimensionRef) ref;
+            VSDataRef data = (VSDataRef) ref;
+
+            if(CalculatorShift.smallerThanBucket(dim.getDateLevel(), calc.getFrom())) {
+               throw new IllegalArgumentException(
+                  "calculateInfo.from " + calc.getFrom() + " (" +
+                  CalculatorShift.previousName(calc.getFrom()) + ") on " +
+                  aggregate.getFullName() + " cannot be computed: its calculator dimension '" +
+                  data.getFullName() + "' is bound at " +
+                  DateLevels.name(String.valueOf(dim.getDateLevel())) + ", a bucket the " +
+                  CalculatorShift.previousName(calc.getFrom()) + " shift does not land on, so " +
+                  "every cell would be blank. " + CalculatorShift.advice(calc.getFrom()));
             }
          }
       }
@@ -1032,6 +1072,22 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+
+         try {
+            requireCalculatorShiftsLand(requireChart(rvs, assemblyName).getVSChartInfo());
+         }
+         catch(IllegalArgumentException e) {
+            boolean restored = false;
+
+            try {
+               restored = rvs.restoreCurrentCheckpoint();
+            }
+            catch(RuntimeException ignore) {
+            }
+
+            throw new IllegalArgumentException(refusalMessage(e.getMessage(), restored), e);
+         }
+
          Set<String> reported = new HashSet<>();
          notes.addAll(ChartHyperlinkCarry.reapply(
             requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links, reported));
