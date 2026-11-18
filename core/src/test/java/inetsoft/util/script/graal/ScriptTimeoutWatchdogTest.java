@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Testing #77123: the lock-free deadline watchdog that replaced the per-exec scheduler.
  */
-@Tag("core")
+@Tag("slow")
 class ScriptTimeoutWatchdogTest {
    /** A loop that ends on its own after 30 s, so a missed timeout fails instead of hanging. */
    private static final String LOOP = "var t = Date.now(); while(Date.now() - t < 30000) {} 1";

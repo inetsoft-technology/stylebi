@@ -36,6 +36,8 @@ class ConnectionTester {
          final Duration timeout = Duration.ofSeconds(5);
          final InetSocketAddress address = new InetSocketAddress(url.getHost(), port);
 
+         // connect-only reachability probe; no data is sent.
+         // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
          try(Socket socket = new Socket()) {
             socket.connect(address, (int) timeout.toMillis());
          }

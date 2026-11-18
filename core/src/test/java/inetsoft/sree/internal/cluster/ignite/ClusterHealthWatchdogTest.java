@@ -53,6 +53,7 @@ import static org.mockito.Mockito.*;
  * constructor argument exists specifically to make this decoupling possible.
  */
 @Tag("core")
+@Tag("cluster")
 class ClusterHealthWatchdogTest {
    @Test
    void neverHaltsWhileReady() throws InterruptedException {

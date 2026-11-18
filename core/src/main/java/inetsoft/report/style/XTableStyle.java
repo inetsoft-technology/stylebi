@@ -223,6 +223,18 @@ public class XTableStyle extends TableStyle {
    }
 
    /**
+    * Reverse the writer's encoding (HTML attribute escape, then byte encode) of an
+    * attribute value, so special characters such as & round-trip unchanged.
+    */
+   public static String decodeAttribute(String val) {
+      if(val == null) {
+         return null;
+      }
+
+      return org.apache.commons.text.StringEscapeUtils.unescapeHtml4(Tool.byteDecode(val));
+   }
+
+   /**
     * Get the created person.
     * @return the created person.
     */
@@ -645,8 +657,8 @@ public class XTableStyle extends TableStyle {
                XMLTokenStream.Tag tag = (XMLTokenStream.Tag) tok;
 
                if(tag.getName().equals("TABLE-STYLE")) {
-                  name = Tool.byteDecode(tag.get("NAME"));
-                  id = Tool.byteDecode(tag.get("ID"));
+                  name = decodeAttribute(tag.get("NAME"));
+                  id = decodeAttribute(tag.get("ID"));
                   continue;
                }
                else if(tag.getName().equals("/TABLE-STYLE")) {

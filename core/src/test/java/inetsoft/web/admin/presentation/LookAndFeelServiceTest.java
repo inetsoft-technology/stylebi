@@ -73,6 +73,11 @@ class LookAndFeelServiceTest {
    @BeforeEach
    void setUp() throws Exception {
       manager = mock(PortalThemesManager.class);
+      // the update runs its mutation against the manager, as the real one does
+      doAnswer(inv -> {
+         inv.<PortalThemesManager.Mutation>getArgument(0).apply(manager);
+         return null;
+      }).when(manager).updateChecked(any());
       dataSpace = mock(DataSpace.class);
       principal = mock(Principal.class);
 

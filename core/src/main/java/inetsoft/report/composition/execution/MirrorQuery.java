@@ -209,6 +209,15 @@ public class MirrorQuery extends AssetQuery {
    }
 
    /**
+    * The mirror sorts and truncates in memory when its base is a materialized view.
+    */
+   @Override
+   protected boolean isNullOrderMVBacked() {
+      return query instanceof inetsoft.mv.MVAssetQuery ||
+         query instanceof MirrorQuery && ((MirrorQuery) query).isNullOrderMVBacked();
+   }
+
+   /**
     * Get the post process base table.
     * @param vars the specified variable table.
     * @return the post process base table of the query.

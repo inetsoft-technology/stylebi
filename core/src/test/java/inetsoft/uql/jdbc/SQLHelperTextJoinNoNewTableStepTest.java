@@ -53,7 +53,8 @@ import static org.mockito.Mockito.mock;
                                  SQLHelperTextJoinNoNewTableStepTest.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
+@Tag("database")
 class SQLHelperTextJoinNoNewTableStepTest {
    // a data source with a real driver and URL needs the credential service, and the JDBC
    // driver types of Config to pick its SQL helper

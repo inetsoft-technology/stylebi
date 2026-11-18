@@ -64,6 +64,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * positive check of the transaction path.
  */
 @Tag("slow")
+@Tag("cluster")
 class IgniteTransactionNodeFailureTest {
    @AfterEach
    void stopNodes() {

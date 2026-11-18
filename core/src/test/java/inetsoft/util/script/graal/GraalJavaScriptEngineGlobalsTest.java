@@ -17,7 +17,12 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.test.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -26,6 +31,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * and constant objects (Feature #75423). Without these, every formula/expression
  * script fails with ReferenceError: isNull/dateAdd/datePart/formatDate not defined.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class GraalJavaScriptEngineGlobalsTest {
    private GraalJavaScriptEngine engine;
@@ -303,6 +312,36 @@ class GraalJavaScriptEngineGlobalsTest {
       Object result = engine.exec(
          engine.compile("'' + (typeof minDate) + ',' + minDate;"), root, null);
       assertEquals("number,5", result);
+   }
+
+   private static double num(Object value) {
+      return ((Number) value).doubleValue();
+   }
+
+   @Test
+   void toListSortedAscendingIsUsableInLoop() throws Exception {
+      Object result = eval("var l = toList([3,1,2,2], 'sort=asc'); var s = 0;"
+         + " for(var i = 0; i < l.length; i++) { s = s * 10 + l[i]; } s");
+      assertEquals(123.0, num(result));
+   }
+
+   @Test
+   void globalFunctionsComposeInsideScripts() throws Exception {
+      assertEquals(10.0, num(eval(
+         "function f(x) { return inArray([1,2,3], x) ? 1 : 0; } f(2) * 10 + f(5)")));
+      assertEquals("  ab|3", eval("rtrim('  ab \t') + '|' + split('a,b,c', ',').length"));
+      assertEquals("3", eval("formatNumber(parseFloat(rtrim('2.5 ')), '#', 'ROUND_HALF_UP')"));
+   }
+
+   @Test
+   void unionTreatsSameNumberValueAsOneElementInScript() throws Exception {
+      assertEquals(3.0, num(eval("var u = union([1,2,2], [2.0,3]); u.length")));
+   }
+
+   @Test
+   void unionOfEqualDatesIsOneElementInScript() throws Exception {
+      assertEquals(1.0, num(eval(
+         "var d = new Date(2024, 1, 29); union([d], [new Date(d.getTime())]).length")));
    }
 
    /** Minimal reusable, mutable {@link ScriptScope} for the cross-exec test above. */

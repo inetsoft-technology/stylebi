@@ -242,17 +242,24 @@ public class AssetFolder implements AssetObject, Binarylizable {
    private transient String entryPrefix; // If an entry prefix is present, truncate the paths from the child entries
    private transient HashMap<AssetEntry, AssetEntry> entryMap;
 
+   /**
+    * Writes a fixed set of binary fields no matter how many children the folder has. Ignite
+    * records every writeObject call as one entry of the object's schema, so writing one
+    * "entry" field per child registers a new schema for every distinct child count (bug #80463).
+    * The size field holds {@code -1 - n}; the negative value marks this layout, while a
+    * non-negative size is the legacy layout of size repeated "entry" fields.
+    */
    @Override
    public void writeBinary(BinaryWriter writer) throws BinaryObjectException {
       writer.writeObject("owner", owner);
+      List<AssetEntry> list;
 
       synchronized(entryMap) {
-         writer.writeInt("size", entryMap.size());
-
-         for(AssetEntry entry : entryMap.keySet()) {
-            writer.writeObject("entry", entry);
-         }
+         list = new ArrayList<>(entryMap.keySet());
       }
+
+      writer.writeInt("size", -1 - list.size());
+      writer.writeCollection("entries", list);
    }
 
    @Override
@@ -262,9 +269,22 @@ public class AssetFolder implements AssetObject, Binarylizable {
       int size = reader.readInt("size");
       entryMap = new HashMap<>();
 
-      for(int i = 0; i < size; i++) {
-         AssetEntry entry = reader.readObject("entry");
-         entryMap.put(entry, entry);
+      if(size < 0) {
+         Collection<AssetEntry> list = reader.readCollection("entries");
+
+         if(list != null) {
+            for(AssetEntry entry : list) {
+               entryMap.put(entry, entry);
+            }
+         }
+      }
+      else {
+         // legacy layout written by older nodes: do not probe for "entries" here, looking up
+         // a field that is absent disturbs the cursor of the repeated "entry" field
+         for(int i = 0; i < size; i++) {
+            AssetEntry entry = reader.readObject("entry");
+            entryMap.put(entry, entry);
+         }
       }
    }
 

@@ -232,6 +232,14 @@ public class FormulaFunctions2Test {
          FormulaContext.popTable();
       }
    }
+
+   @Test
+   void inArrayPinsCurrentStrictTypeMatchBetweenStringAndNumber() {
+      // pins current behavior: no string/number coercion, and a null value is not found
+      assertFalse(FormulaFunctions.inArray(new Object[] { 1, 2 }, "1"));
+      assertFalse(FormulaFunctions.inArray(new Object[] { "a" }, null));
+   }
+
    Object[][] objData = new Object[][]{
       {"name", "id", "date"},
       {"a", 1, new Date(2021 - 1900, 0, 1)},

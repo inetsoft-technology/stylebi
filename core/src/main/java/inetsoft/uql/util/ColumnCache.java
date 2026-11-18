@@ -670,6 +670,13 @@ public class ColumnCache {
       vars.put("__browsed__", "true");
       vars.put("__column__", column);
       XTable tbl = wsproc.execute(entry, vars, user);
+
+      // execute() returns null when the worksheet is missing (or its primary assembly is not a
+      // table); return before any column scan so nothing is cached and the caller gets an empty
+      // model
+      if(tbl == null) {
+         return null;
+      }
       int col = -1;
       int icol = -1; // identifier col
       int pcol = -1; // partial col

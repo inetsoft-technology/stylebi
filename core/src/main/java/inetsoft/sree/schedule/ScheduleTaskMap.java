@@ -20,6 +20,7 @@ package inetsoft.sree.schedule;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.OrgIdChangeGuard;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
@@ -335,7 +336,19 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
                return rootFolder;
             }
 
-            indexedStorage.putXMLSerializable(rootId, rootFolder);
+            try {
+               indexedStorage.putXMLSerializable(rootId, rootFolder);
+            }
+            catch(OrgIdChangeGuard.OrganizationChangingException e) {
+               // bug #81319, the id of the organization is being changed or was just changed, so
+               // the heal write is refused. A read must not fail for that: there is nothing to
+               // heal in a retired id. Like the not initialized case, return the empty root
+               // without caching it, so that a read after the guard lifts heals normally.
+               LOG.debug("Skipped healing the schedule task root of organization {}: {}",
+                         orgID, e.getMessage());
+               return rootFolder;
+            }
+
             ts = indexedStorage.lastModified(rootId, orgID);
          }
 

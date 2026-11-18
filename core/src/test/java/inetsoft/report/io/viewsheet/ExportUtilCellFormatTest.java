@@ -20,6 +20,8 @@ package inetsoft.report.io.viewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.execution.VSFormatTableLens;
+import inetsoft.report.internal.table.RuntimeCalcTableLens;
+import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -35,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Method;
 import java.text.Format;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
@@ -212,11 +215,102 @@ class ExportUtilCellFormatTest {
       assertEquals("007", ExportUtil.getObject(strLens, 1, 0, "@", true));
    }
 
+   // Bug #80103, the K/M/B pattern follows the unit the dashboard shows for each cell value
+   @Test
+   void extendedDecimalPatternFollowsDisplayedUnitPerCell() {
+      double[] values = { 500, 20250, 317062.69, 2300872.18 };
+      DefaultTableLens base = new DefaultTableLens(values.length + 1, 1) {
+         @Override
+         public Class<?> getColType(int col) {
+            return Double.class;
+         }
+
+         @Override
+         public Format getDefaultFormat(TableDataPath path) {
+            return path != null && path.getType() == TableDataPath.DETAIL ?
+               new inetsoft.util.ExtendedDecimalFormat("#,##0.#M",
+                  new java.text.DecimalFormatSymbols(java.util.Locale.US)) : null;
+         }
+      };
+      base.setHeaderRowCount(1);
+      base.setObject(0, 0, "h0");
+
+      for(int i = 0; i < values.length; i++) {
+         base.setObject(i + 1, 0, values[i]);
+      }
+
+      VSTableLens mlens =
+         new VSTableLens(new VSFormatTableLens(box("Table4"), "Table4", base, true));
+      assertEquals("#,##0.#", ExportUtil.getCellFormat(mlens, 1, 0, true, false));
+      assertEquals("#,##0,.#\"K\"", ExportUtil.getCellFormat(mlens, 2, 0, true, false));
+      assertEquals("#,##0,.#\"K\"", ExportUtil.getCellFormat(mlens, 3, 0, true, false));
+      assertEquals("#,##0,,.#\"M\"", ExportUtil.getCellFormat(mlens, 4, 0, true, false));
+      // the cell keeps the raw number
+      assertEquals(317062.69, (Double) ExportUtil.getObject(
+         mlens, 3, 0, ExportUtil.getCellFormat(mlens, 3, 0, true, false), true), 1e-9);
+   }
+
    @Test
    void headerRowStaysUnformatted() {
       for(int c = 0; c < 5; c++) {
          assertNull(pattern(0, c), "header cell column " + c);
          assertEquals("h" + c, value(0, c));
       }
+   }
+
+   /**
+    * A runtime calc table with a header row, two numeric rows and a total label row. Its own
+    * trailer row count is 0; the script table it was built from has {@code scriptTrailer}.
+    */
+   private static RuntimeCalcTableLens runtimeCalc(Integer scriptTrailer) {
+      CalcTableLens calc = new CalcTableLens(new Object[][] {
+         { "h" }, { 1 }, { 2 }, { "Total" } });
+      calc.setHeaderRowCount(1);
+
+      if(scriptTrailer != null) {
+         DefaultTableLens script = new DefaultTableLens(new Object[][] {
+            { "h" }, { 1 }, { 2 }, { "Total" } });
+         script.setHeaderRowCount(1);
+         script.setTrailerRowCount(scriptTrailer);
+         calc.setScriptTable(script);
+      }
+
+      return new RuntimeCalcTableLens(calc);
+   }
+
+   private static VSTableLens formatted(RuntimeCalcTableLens runtime, String name) {
+      return new VSTableLens(new VSFormatTableLens(box(name), name, runtime, true));
+   }
+
+   private static Class<?> colType(VSTableLens lens, int col) throws Exception {
+      Method method = ExportUtil.class.getDeclaredMethod("getColType",
+                                                         inetsoft.uql.XTable.class, int.class);
+      method.setAccessible(true);
+      return (Class<?>) method.invoke(null, lens, col);
+   }
+
+   @Test
+   void columnTypeOfARuntimeCalcTableIgnoresTheTotalLabelRowOfItsScriptTable() throws Exception {
+      RuntimeCalcTableLens runtime = runtimeCalc(1);
+
+      assertEquals(0, runtime.getTrailerRowCount());
+      // the data rows are numbers; the last row is the label of the total
+      assertEquals(Integer.class, colType(formatted(runtime, "Calc1"), 0));
+   }
+
+   @Test
+   void columnTypeLookupLeavesTheTrailerRowCountOfTheRuntimeTableUnchanged() throws Exception {
+      RuntimeCalcTableLens runtime = runtimeCalc(1);
+
+      colType(formatted(runtime, "Calc2"), 0);
+
+      assertEquals(0, runtime.getTrailerRowCount());
+   }
+
+   @Test
+   void columnTypeOfARuntimeCalcTableWithoutScriptTableIsTheTypeOfTheLens() throws Exception {
+      RuntimeCalcTableLens runtime = runtimeCalc(null);
+
+      assertEquals(runtime.getColType(0), colType(formatted(runtime, "Calc3"), 0));
    }
 }

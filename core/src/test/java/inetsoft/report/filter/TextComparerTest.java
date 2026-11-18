@@ -130,6 +130,45 @@ public class TextComparerTest {
    }
 
    @Test
+   void compareObject_chineseCollator_usesCollatorOrder() {
+      // chen U+9648 sorts before zhang U+5F20 under pinyin collation, though its code point is larger
+      TextComparer comp = new TextComparer(Collator.getInstance(Locale.CHINA));
+      assertTrue(comp.compare("陈", "张") < 0);
+      assertTrue(comp.compare("张", "陈") > 0);
+   }
+
+   @Test
+   void compareObject_frenchCollator_accentedBeforeZ() {
+      TextComparer comp = new TextComparer(Collator.getInstance(Locale.FRENCH));
+      assertTrue(comp.compare("é", "z") < 0);
+      assertTrue(comp.compare("z", "é") > 0);
+   }
+
+   @Test
+   void compareObject_mixedAsciiAndNonAscii_usesCollator() {
+      TextComparer comp = new TextComparer(Collator.getInstance(Locale.FRENCH));
+      assertTrue(comp.compare("é", "f") < 0);
+      assertTrue(comp.compare("f", "é") > 0);
+      assertTrue(comp.compare("a", "陈") < 0);
+   }
+
+   @Test
+   void compareObject_withCollator_asciiMatchesToolCompare() {
+      TextComparer comp = new TextComparer(Collator.getInstance(Locale.ENGLISH));
+      assertEquals(Integer.signum(Tool.compare("Apple", "apple", false, true)),
+                   Integer.signum(comp.compare("Apple", "apple")));
+      assertTrue(comp.compare("a", "b") < 0);
+   }
+
+   @Test
+   void compareObject_withCollator_emptyStrings() {
+      TextComparer comp = new TextComparer(Collator.getInstance(Locale.ENGLISH));
+      assertEquals(0, comp.compare("", ""));
+      assertTrue(comp.compare("", "a") < 0);
+      assertTrue(comp.compare("", "陈") < 0);
+   }
+
+   @Test
    void compareObject_withCollator_sameReference_returnsZero() {
       Collator collator = Collator.getInstance(Locale.ENGLISH);
       TextComparer comp = new TextComparer(collator);

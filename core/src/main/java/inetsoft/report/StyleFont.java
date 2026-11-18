@@ -473,7 +473,7 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
       else if(val.equals("DOUBLE_3D_RAISED")) {
          return StyleConstants.DOUBLE_3D_RAISED;
       }
-      else if(val.equals("DOUBLE_3D_LOWERE")) {
+      else if(val.equals("DOUBLE_3D_LOWERED")) {
          return StyleConstants.DOUBLE_3D_LOWERED;
       }
       else if(val.equals("DOT_LINE")) {

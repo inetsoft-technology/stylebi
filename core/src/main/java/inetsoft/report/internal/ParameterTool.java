@@ -23,6 +23,8 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.VariableTable;
 import inetsoft.util.*;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.text.NumberFormat;
 import java.util.*;
 
@@ -53,22 +55,59 @@ public class ParameterTool {
       }
 
       int start = text.indexOf(TEXT_PARAMETER_PREFIX);
-      int end = text.indexOf(TEXT_PARAMETER_END);
+      int end = text.indexOf(TEXT_PARAMETER_END, start);
 
       return end > start + 10;
    }
 
    /**
-    *  Parse parameter to right values.
+    *  Parse parameter to right values. The original text is scanned once from left
+    *  to right; the inserted values are never scanned again, so a value that contains
+    *  a placeholder (or is itself the placeholder) is inserted literally.
     */
    public String parseParameters(VariableTable table, String text) {
-      String ntext = text;
-
-      while(containsParameter(ntext)) {
-         ntext = parseParameter(table, ntext);
+      if(!containsParameter(text)) {
+         return text;
       }
 
-      return ntext;
+      StringBuilder buffer = new StringBuilder();
+      int pos = 0;
+
+      while(pos < text.length()) {
+         int start = text.indexOf(TEXT_PARAMETER_PREFIX, pos);
+
+         if(start < 0) {
+            break;
+         }
+
+         int end = text.indexOf(TEXT_PARAMETER_END, start);
+
+         if(end < 0) {
+            break;
+         }
+
+         int specIndex = text.indexOf("'", start);
+
+         // For example, if like this: {parameter.var, text, '{0}_aa'}.
+         if(specIndex > start && specIndex < end) {
+            int specEnd = text.indexOf("'}", start);
+
+            // unterminated quote, fall back to the first '}'
+            if(specEnd >= 0) {
+               end = specEnd + 1;
+            }
+         }
+
+         buffer.append(text, pos, start);
+         buffer.append(getParameterString(table, text.substring(start + 1, end)));
+         pos = end + 1;
+      }
+
+      if(pos < text.length()) {
+         buffer.append(text, pos, text.length());
+      }
+
+      return buffer.toString();
    }
 
    public List<String> getParameters(RuntimeViewsheet rvs) {
@@ -131,37 +170,6 @@ public class ParameterTool {
       return params;
    }
 
-   private String parseParameter(VariableTable table, String text) {
-      StringBuilder buffer = new StringBuilder();
-      int start = text.indexOf(TEXT_PARAMETER_PREFIX);
-
-      if(start < 0) {
-         return text;
-      }
-
-      buffer.append(text.substring(0, start));
-
-      int end = text.indexOf("}");
-      int specIndex = text.indexOf("'");
-
-      // For example, if like this: {parameter.var, text, '{0}_aa'}.
-      if(specIndex > start && specIndex < end) {
-         end = text.indexOf("'}") + 1;
-      }
-
-      if(end == -1) {
-         return text;
-      }
-
-      buffer.append(getParameterString(table, text.substring(start + 1, end)));
-
-      if(end < text.length() - 1) {
-         buffer.append(text.substring(end + 1));
-      }
-
-      return buffer.toString();
-   }
-
    private String getParameterString(VariableTable table, String text) {
       if(text == null || text.length() == 0) {
          return text;
@@ -174,7 +182,8 @@ public class ParameterTool {
       }
 
       String paraName = strs[0].trim();
-      paraName = paraName.replace(PARAMETER_PREFIX, "");
+      // strip only the leading prefix; the variable name itself may contain "parameter."
+      paraName = paraName.substring(PARAMETER_PREFIX.length());
       Object paraValue = null;
 
       try {
@@ -216,7 +225,7 @@ public class ParameterTool {
          buffer.append("[");
 
          for(int i = 0; i < values.length; i++) {
-            String val = values[i].toString();
+            String val = String.valueOf(values[i]);
 
             try {
                val = fmt == null ? val :
@@ -259,6 +268,13 @@ public class ParameterTool {
          }
       }
       else if(isNumberFormat(fmt)) {
+         // a value beyond what a double holds (e.g. a Long over 2^53) keeps its digits
+         String exact = formatExactValue(para, fmt, spec);
+
+         if(exact != null) {
+            return exact;
+         }
+
          double value = Double.NaN;
 
          try {
@@ -275,6 +291,91 @@ public class ParameterTool {
       }
 
       return valueString;
+   }
+
+   /**
+    * Format a Long/BigInteger/BigDecimal (or the decimal string of one) without converting it to
+    * double, when the double would not hold the same digits.
+    *
+    * @return the formatted value, or null if the double conversion is exact (the caller formats
+    * it as before), the value is not such a number, or the format needs the double path.
+    */
+   private String formatExactValue(Object para, String fmt, String spec) {
+      BigDecimal exact = toBigDecimal(para);
+
+      if(exact == null) {
+         return null;
+      }
+
+      // a huge exponent (e.g. a "1E+100000000" URL parameter) would print every digit; leave
+      // such values to the double path as before
+      if(exact.precision() - exact.scale() > MAX_EXACT_DIGITS ||
+         Math.abs(exact.scale()) > MAX_EXACT_DIGITS)
+      {
+         return null;
+      }
+
+      double value = exact.doubleValue();
+
+      // unchanged by the conversion: keep the double path (and its negative zero handling)
+      if(!Double.isInfinite(value) && new BigDecimal(Double.toString(value)).compareTo(exact) == 0) {
+         return null;
+      }
+
+      NumberFormat format;
+
+      if(PARAMETER_NUMBER_FORMAT.equals(fmt)) {
+         ExtendedDecimalFormat decimal = new ExtendedDecimalFormat(spec);
+         String[] symbols = decimal.getExtendedSymbols();
+
+         // a K/M/B or user suffix divides the number, which the plain decimal format does not do
+         if(!" ".equals(symbols[0]) || !symbols[1].isEmpty() ||
+            "MMW#".equals(decimal.getSimplePattern()))
+         {
+            return null;
+         }
+
+         // avoid "-0", as ExtendedDecimalFormat does for a double
+         if(exact.signum() < 0 &&
+            exact.negate().compareTo(BigDecimal.valueOf(1, decimal.getMaximumFractionDigits() + 2)) < 0)
+         {
+            exact = BigDecimal.ZERO;
+         }
+
+         format = decimal;
+      }
+      else if(PARAMETER_CURRENCY_FORMAT.equals(fmt)) {
+         format = NumberFormat.getCurrencyInstance();
+      }
+      else {
+         format = NumberFormat.getPercentInstance();
+      }
+
+      return format.format(exact);
+   }
+
+   private BigDecimal toBigDecimal(Object para) {
+      if(para instanceof BigDecimal) {
+         return (BigDecimal) para;
+      }
+      else if(para instanceof BigInteger) {
+         return new BigDecimal((BigInteger) para);
+      }
+      else if(para instanceof Long || para instanceof Integer || para instanceof Short ||
+         para instanceof Byte)
+      {
+         return BigDecimal.valueOf(((Number) para).longValue());
+      }
+      else if(para instanceof String) {
+         try {
+            return new BigDecimal(((String) para).trim());
+         }
+         catch(NumberFormatException ex) {
+            return null;
+         }
+      }
+
+      return null;
    }
 
    private boolean isNumberFormat(String fmt) {
@@ -298,6 +399,8 @@ public class ParameterTool {
       return format.format(value);
    }
 
+   // the most integer digits / fraction digits an exact value may have to skip the double path
+   private static final int MAX_EXACT_DIGITS = 40;
    private static final String TEXT_PARAMETER_PREFIX = "{parameter.";
    private static final String TEXT_PARAMETER_END = "}";
    private static final String PARAMETER_PREFIX = "parameter.";

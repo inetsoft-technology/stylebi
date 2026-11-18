@@ -17,6 +17,9 @@
  */
 package inetsoft.report.composition.execution;
 
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AbstractSheet;
@@ -260,5 +263,119 @@ class ApplyParameterToInputTest {
       invoke(assembly);
 
       assertArrayEquals(new Object[]{"designDefault"}, assembly.getSelectedObjects());
+   }
+
+   // ── hardening rows D10-D13: variable references resolved by the sandbox ───────────
+
+   @Nested
+   class HardeningRows {
+      private Viewsheet vs;
+      private ViewsheetSandbox box;
+
+      @BeforeEach
+      void setUpSandbox() {
+         vs = new Viewsheet();
+         box = new ViewsheetSandbox(vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false, null);
+      }
+
+      private CheckBoxVSAssembly checkBox(String name, Object... selected) {
+         CheckBoxVSAssembly cb = new CheckBoxVSAssembly();
+         cb.getVSAssemblyInfo().setName(name);
+         cb.setSelectedObjects(selected);
+         vs.addAssembly(cb);
+         return cb;
+      }
+
+      @DisplayName("D10 executeVariableValue of a check box with 0, 1 and 2 selected values")
+      @Test
+      void d10_checkBoxCardinality() {
+         checkBox("CB0");
+         checkBox("CB1", "a");
+         checkBox("CB2", "a", "b");
+
+         assertNull(box.executeVariableValue("$(CB0)"));
+         assertEquals("a", box.executeVariableValue("$(CB1)"));
+         assertArrayEquals(new Object[] { "a", "b" }, (Object[]) box.executeVariableValue("$(CB2)"));
+      }
+
+      @DisplayName("D10 executeVariableValue of a combo box")
+      @Test
+      void d10_comboBox() {
+         ComboBoxVSAssembly combo = new ComboBoxVSAssembly();
+         combo.getVSAssemblyInfo().setName("Combo");
+         combo.setSelectedObject("x");
+         vs.addAssembly(combo);
+
+         assertEquals("x", box.executeVariableValue("$(Combo)"));
+      }
+
+      @DisplayName("D11 executeVariableValue names: drillMember suffix, missing, non-input, empty")
+      @Test
+      void d11_names() {
+         checkBox("CB", "a");
+         ChartVSAssembly chart = new ChartVSAssembly();
+         chart.getVSAssemblyInfo().setName("Chart1");
+         vs.addAssembly(chart);
+
+         assertEquals("a", box.executeVariableValue("$(CB.drillMember)"));
+         assertNull(box.executeVariableValue("$(missing)"));
+         assertNull(box.executeVariableValue("$(Chart1)"));
+         assertDoesNotThrow(() -> box.executeVariableValue("$()"));
+         assertNull(box.executeVariableValue("$()"));
+      }
+
+      @DisplayName("D12 executeVariableValue of a selection tree is its drill data")
+      @Test
+      void d12_tree() {
+         SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly();
+         tree.getVSAssemblyInfo().setName("T");
+         vs.addAssembly(tree);
+
+         assertTrue(java.util.Objects.deepEquals(
+            inetsoft.report.script.viewsheet.SelectionTreeVSAScriptable.getDrillData(tree, "autodrill"),
+            box.executeVariableValue("$(T)")));
+      }
+
+      private Object formula(String dvalue, Object rvalue) throws Exception {
+         DynamicValue dv = new DynamicValue(dvalue);
+         dv.setRValue(rvalue);
+         box.executeDynamicValue(dv, null, "X", null);
+         return dv.getRValue();
+      }
+
+      @Disabled("mismatch D13 #81110")
+      @DisplayName("D13 a formula text keeps the runtime value of a multi-selection across refreshes")
+      @Test
+      void d13_formulaKeepsRuntimeValue() throws Exception {
+         checkBox("CB", "a", "b");
+
+         assertEquals("pre b post", formula("pre $(CB) post", "pre b post"));
+      }
+
+      @DisplayName("D13 a formula text without a runtime value takes the first selection; one selection wins")
+      @Test
+      void d13_formulaFirstAndSingle() throws Exception {
+         CheckBoxVSAssembly cb = checkBox("CB", "a", "b");
+
+         assertEquals("pre a post", formula("pre $(CB) post", null));
+
+         cb.setSelectedObjects(new Object[] { "a" });
+         assertEquals("pre a post", formula("pre $(CB) post", "pre b post"));
+      }
+
+      @Disabled("mismatch D13b #81110")
+      @DisplayName("D13b #79688 repro: a formula with prefix and suffix keeps the previous selection")
+      @Test
+      void d13b_issueRepro() throws Exception {
+         CheckBoxVSAssembly cb = checkBox("Check1", "B");
+
+         DynamicValue dv = new DynamicValue("Sum($(Check1))");
+         box.executeDynamicValue(dv, null, "Text1", null);
+         assertEquals("Sum(B)", dv.getRValue());
+
+         cb.setSelectedObjects(new Object[] { "A", "B" });
+         box.executeDynamicValue(dv, null, "Text1", null);
+         assertEquals("Sum(B)", dv.getRValue());
+      }
    }
 }

@@ -340,11 +340,11 @@ public class DashboardRegistry {
       }
 
       DataSpace space = DataSpace.getDataSpace();
-      String oldPath = getPath();
       dmgr.removeChangeListener(space, null, getPath(), changeListener);
       organizationId = orgId;
       addChangeListener(space, getPath());
-      space.delete(null, oldPath);
+      // Bug #79875, the old file is deleted by the caller after the registry is saved under the
+      // new id, a stop between the two must not lose the registry
    }
 
    /**

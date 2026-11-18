@@ -85,8 +85,8 @@ public class CovarianceFormula implements Formula2, java.io.Serializable {
          return;
       }
 
-      xs.addElement(v[1]);
-      ys.addElement(v[2]);
+      xs.addElement(v[0]);
+      ys.addElement(v[1]);
    }
 
    /**
@@ -136,6 +136,13 @@ public class CovarianceFormula implements Formula2, java.io.Serializable {
             NumberParserWrapper.getDouble(pair[0] + "");
          Number yV = (pair[1] instanceof Number) ? (Number) pair[1] :
             NumberParserWrapper.getDouble(pair[1] + "");
+
+         // a blank string parses to NaN, skip the whole pair
+         if((!(pair[0] instanceof Number) && Double.isNaN(xV.doubleValue())) ||
+            (!(pair[1] instanceof Number) && Double.isNaN(yV.doubleValue())))
+         {
+            return;
+         }
 
          xs.addElement(xV);
          ys.addElement(yV);

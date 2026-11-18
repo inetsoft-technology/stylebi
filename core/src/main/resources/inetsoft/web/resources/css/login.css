@@ -24,6 +24,7 @@
   --ln-text-subtle: var(--inet-text-subtle-color, #99958C);
   --ln-primary: var(--inet-primary-color, #ED711C);
   --ln-primary-dark: var(--inet-primary-color-dark, #D25F11);
+  --ln-primary-hover: var(--inet-primary-color-hover, color-mix(in srgb, var(--ln-primary) 84%, white));
   --ln-primary-soft: var(--inet-primary-soft-color, #F6E2C8);
   --ln-bg: var(--inet-main-panel-bg-color, #FFFFFF);
   --ln-bg-alt: var(--inet-portal-side-panel-bg-color, #F8F7F4);
@@ -41,7 +42,7 @@
   --ln-input-bg: var(--inet-input-bg-color, #FFFFFF);
   --ln-input-disabled-bg: var(--inet-input-disabled-bg-color, #F1EFEA);
   --ln-dialog-bg: var(--inet-dialog-bg-color, #FFFFFF);
-  --ln-button-primary-text: var(--inet-button-primary-text-color, #FFFFFF);
+  --ln-button-primary-text: var(--inet-button-primary-text-color, #202020);
   --ln-button-default-bg: var(--inet-button-default-bg-color, transparent);
   --ln-button-default-text: var(--inet-button-default-text-color, var(--ln-text-muted));
   --ln-button-default-border: var(--inet-button-default-border-color, var(--ln-border));
@@ -53,6 +54,16 @@
   --ln-shadow-medium: var(--inet-shadow-medium, 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 6px rgba(0, 0, 0, 0.05));
   --ln-focus: var(--inet-focus-ring-color, rgba(229, 138, 42, 0.28));
   --ln-nav-h: 56px;
+}
+
+/* Label colour on the primary fill (Bug #81490): dark by default, or, where relative color syntax is
+   supported, picked from the fill so a dark theme primary gets a light label even when the portal
+   stylesheet that defines --inet-button-primary-text-color is not loaded. */
+@supports (color: color(from red srgb-linear r g b)) {
+  :root {
+    --ln-button-primary-text: var(--inet-button-primary-text-color,
+      color(from var(--ln-primary) srgb-linear clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1) clamp(0, clamp(0, (0.179 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 10000000, 1) + clamp(0, ((0.2126 * r + 0.7152 * g + 0.0722 * b) - 0.179) * 0.2, 0.0144), 1)));
+  }
 }
 
 html,
@@ -366,8 +377,8 @@ body {
 .login-left .btn-primary:hover,
 .restricted-action-btn--primary:hover,
 #activeSession .modal-footer .btn-primary:hover {
-  background: var(--ln-primary-dark);
-  border-color: var(--ln-primary-dark);
+  background: var(--ln-primary-hover);
+  border-color: var(--ln-primary-hover);
   box-shadow: var(--ln-shadow-low);
 }
 

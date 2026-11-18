@@ -78,6 +78,8 @@ public class DestinationUserNameProviderPrincipal
    }
 
    public void setHttpSessionId(String httpSessionId) {
+      PermissionRequestScope.invalidate(this);
+
       // first time? copy from local to distributed
       if(this.httpSessionId == null) {
          this.httpSessionId = httpSessionId;
@@ -129,6 +131,7 @@ public class DestinationUserNameProviderPrincipal
     * only put back to its previous value if it still holds the value this principal wrote.
     */
    public void unbindHttpSession() {
+      PermissionRequestScope.invalidate(this);
       Map<String, BindWrite> writes = bindWrites;
       DistributedMap<String, Object> map = getSessionAttributeMap();
       bindWrites = null;
@@ -154,11 +157,13 @@ public class DestinationUserNameProviderPrincipal
    }
 
    private void putSessionAttribute(DistributedMap<String, Object> map, String key, Object value) {
+      PermissionRequestScope.invalidate(this);
       recordBindWrite(map, key, value);
       map.put(key, value);
    }
 
    private void removeSessionAttribute(DistributedMap<String, Object> map, String key) {
+      PermissionRequestScope.invalidate(this);
       recordBindWrite(map, key, null);
       map.remove(key);
    }
@@ -173,6 +178,7 @@ public class DestinationUserNameProviderPrincipal
 
    @Override
    public void setProperty(String name, String val) {
+      PermissionRequestScope.invalidate(this);
       super.setProperty(name, val);
 
       // store local only
@@ -204,13 +210,17 @@ public class DestinationUserNameProviderPrincipal
          return super.getProperty(name);
       }
 
-      DistributedMap<String, Object> map = getSessionAttributeMap();
+      // within a PermissionRequestScope the session attribute read is done once per property
+      Object value = PermissionRequestScope.memo(this, "property", name, () -> {
+         DistributedMap<String, Object> map = getSessionAttributeMap();
+         return map == null ? LOCAL_PROPERTY : map.get(PROP_PREFIX + name);
+      });
 
-      if(map == null) {
+      if(value == LOCAL_PROPERTY) {
          return super.getProperty(name);
       }
 
-      return (String) map.get(PROP_PREFIX + name);
+      return (String) value;
    }
 
    @Override
@@ -359,6 +369,7 @@ public class DestinationUserNameProviderPrincipal
       return "true".equals(prop.get(SUtil.EM_USER));
    }
 
+   private static final Object LOCAL_PROPERTY = new Object();
    private String httpSessionId;
    // what the first bind wrote to the session attribute map until it is committed or undone
    private Map<String, BindWrite> bindWrites;

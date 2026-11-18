@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.*;
                                   MVUpdateLastModifiedTimeTest.StorageConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class MVUpdateLastModifiedTimeTest {
    @Configuration
    static class StorageConfig {

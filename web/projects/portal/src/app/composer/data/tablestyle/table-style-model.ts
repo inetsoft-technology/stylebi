@@ -23,6 +23,8 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 export interface TableStyleModel extends LibraryAsset {
    styleName: string;
    styleId: string;
+   lastModified?: number;
+   overwrite?: boolean;
    styleFormat: TableStyleFormatModel;
    cssStyleFormat: CSSTableStyleModel;
    undoRedoList?: TableStyleFormatModel[];

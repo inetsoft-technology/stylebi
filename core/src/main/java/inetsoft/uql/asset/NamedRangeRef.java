@@ -341,7 +341,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
                sb.append(field);
                sb.append(" IS NULL ");
                sb.append("THEN ");
-               sb.append("'" + names[i] + "'");
+               sb.append(quoteSQL(names[i]));
             }
             else {
                for(int k = 0; k < condition.getValueCount(); k++) {
@@ -359,10 +359,16 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
                      list.add(value);
                   }
                   else {
-                     list.add("'" + value + "'");
+                     list.add(quoteSQL(value));
                   }
                }
             }
+         }
+
+         // a group whose only members are nulls has no value to list, and an empty IN () is a
+         // syntax error; the IS NULL branch above already covers the group
+         if(list.isEmpty()) {
+            continue;
          }
 
          sb.append(" WHEN ");
@@ -391,7 +397,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
          }
 
          sb.append("THEN ");
-         sb.append("'" + names[i] + "'");
+         sb.append(quoteSQL(names[i]));
       }
 
       if(isdate) {
@@ -404,6 +410,13 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
       sb.append(" END)");
 
       return sb.toString();
+   }
+
+   /**
+    * Wrap a value in single quotes for SQL, doubling any embedded quote.
+    */
+   private static String quoteSQL(Object val) {
+      return "'" + String.valueOf(val).replace("'", "''") + "'";
    }
 
    /**

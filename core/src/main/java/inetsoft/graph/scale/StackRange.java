@@ -314,6 +314,14 @@ public class StackRange extends AbstractScaleRange {
             minValue = Math.min(minValue, groupNegSum);
          }
 
+         // when negatives are not stacked separately, the running total of a group is not
+         // monotonic. the bars are drawn along the running total, so a peak or dip in the
+         // middle of a group may exceed the group's final total (81070). keep the 0 baseline.
+         if(!negGrp && gfield != null) {
+            maxValue = Math.max(maxValue, groupSum);
+            minValue = Math.min(minValue, Math.min(groupSum, 0));
+         }
+
          // accumulative negative total in the middle may become bigger later
          minValue = Math.min(minValue, maxValue);
       }

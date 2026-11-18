@@ -505,8 +505,12 @@ public class CalcTableVSAQuery extends DataVSAQuery {
    }
 
    /**
-    * Check if the layout has formula binding.
-    * @return true if layout has formula binding, else otherwise.
+    * Check if the layout needs the script environment and the post-processing
+    * (CalcTableLens.process()). A cell counts when it is a formula cell or has any value
+    * (a column binding or text). The method is deliberately true for the remaining case too:
+    * the layout then still has to be processed into the runtime table, and returning the raw
+    * lens instead is not equivalent (#81085).
+    * @return false only for a null layout; true for every other layout.
     */
    private boolean hasFormulaBinding(TableLayout layout) {
       if(layout == null) {

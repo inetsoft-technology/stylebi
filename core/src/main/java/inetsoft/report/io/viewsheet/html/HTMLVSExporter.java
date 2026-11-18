@@ -315,8 +315,9 @@ public class HTMLVSExporter extends AbstractVSExporter {
 
          Rectangle2D bounds = helper.getBounds(info);
          Hyperlink.Ref ref = info.getHyperlinkRef();
-         helper.writeText(writer, bounds, getTextFormat(info), txt, ref, autoSize,
-                          info.getPadding(), shadow, info.getZIndex());
+         // author-written text (Text assembly, chart title, warning text) is markup
+         helper.writeMarkupText(writer, bounds, getTextFormat(info), txt, ref, autoSize,
+                                info.getPadding(), shadow, info.getZIndex());
       }
    }
 
@@ -372,6 +373,8 @@ public class HTMLVSExporter extends AbstractVSExporter {
       VSCompositeFormat format = getCalendarTitleFormat(info);
       String txt = info.getDisplayValue();
       Rectangle2D bounds = helper.getBounds(info);
+      // deliberately escaped although the viewer renders it as html: it is a computed
+      // date range, i.e. a value, not an author-written title
       helper.writeText(writer, bounds, format, txt, null, false, null, false, info.getZIndex());
    }
 

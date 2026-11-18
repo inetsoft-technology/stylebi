@@ -554,22 +554,22 @@ class UniformSQLOracleAggregateColumnQuoteTest {
          snowflake,exasol | v,id | select t.id, sum(t.v) from a t group by t.id having sum(t.v) > 0 => select "t"."id", sum(t.v) from "a" t group by "t"."id" having sum("t"."v") > 0
          default,h2,h2-ansi,informix,access,db2,sql server,mysql | - | select max(s.x) from (select a.v x from a) s => select max(s.x) from ( select a.v as x from a) s
          postgresql | - | select max(s.x) from (select a.v x from a) s => select max(s."x") from ( select "a"."v" as "x" from "a") s
-         snowflake,exasol | - | select max(s.x) from (select a.v x from a) s => select max(s.x) from ( select "a"."v" as x from "a") s
+         snowflake,exasol | - | select max(s.x) from (select a.v x from a) s => select max(s."x") from ( select "a"."v" as "x" from "a") s
          h2,h2-ansi,informix,access,db2,sql server,mysql | V,ID | select max(s.x) from (select a.v x from a) s => select max(s.x) from ( select a.V as x from a) s
          postgresql | V,ID | select max(s.x) from (select a.v x from a) s => select max(s."x") from ( select "a"."V" as "x" from "a") s
-         snowflake,exasol | V,ID | select max(s.x) from (select a.v x from a) s => select max(s.x) from ( select "a".V as x from "a") s
+         snowflake,exasol | V,ID | select max(s.x) from (select a.v x from a) s => select max(s."x") from ( select "a".V as "x" from "a") s
          h2,h2-ansi,informix,access,db2,sql server,mysql | v,id | select max(s.x) from (select a.v x from a) s => select max(s.x) from ( select a.v as x from a) s
          postgresql | v,id | select max(s.x) from (select a.v x from a) s => select max(s."x") from ( select "a"."v" as "x" from "a") s
-         snowflake,exasol | v,id | select max(s.x) from (select a.v x from a) s => select max(s.x) from ( select "a".v as x from "a") s
+         snowflake,exasol | v,id | select max(s.x) from (select a.v x from a) s => select max(s."x") from ( select "a".v as "x" from "a") s
          default,h2,h2-ansi,informix,access,db2,sql server,mysql | - | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s.x) from ( select * from ( select a.v as x from a) i) s
          postgresql | - | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s."x") from ( select * from ( select "a"."v" as "x" from "a") i) s
-         snowflake,exasol | - | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s.x) from ( select * from ( select "a"."v" as x from "a") i) s
+         snowflake,exasol | - | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s."x") from ( select * from ( select "a"."v" as "x" from "a") i) s
          h2,h2-ansi,informix,access,db2,sql server,mysql | V,ID | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s.x) from ( select i.x from ( select a.V as x from a) i) s
          postgresql | V,ID | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s."x") from ( select i."x" from ( select "a"."V" as "x" from "a") i) s
-         snowflake,exasol | V,ID | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s.x) from ( select i.x from ( select "a".V as x from "a") i) s
+         snowflake,exasol | V,ID | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s."x") from ( select i."x" from ( select "a".V as "x" from "a") i) s
          h2,h2-ansi,informix,access,db2,sql server,mysql | v,id | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s.x) from ( select i.x from ( select a.v as x from a) i) s
          postgresql | v,id | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s."x") from ( select i."x" from ( select "a"."v" as "x" from "a") i) s
-         snowflake,exasol | v,id | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s.x) from ( select i.x from ( select "a".v as x from "a") i) s
+         snowflake,exasol | v,id | select max(s.x) from (select * from (select a.v x from a) i) s => select max(s."x") from ( select i."x" from ( select "a".v as "x" from "a") i) s
          default,h2,h2-ansi,informix,access,db2,sql server,mysql | - | select count(SA.ORDERS1.CUSTOMER_ID) from SA.ORDERS1 => select count(SA.ORDERS1.CUSTOMER_ID) from SA.ORDERS1
          postgresql,snowflake,exasol | - | select count(SA.ORDERS1.CUSTOMER_ID) from SA.ORDERS1 => select count("SA"."ORDERS1"."CUSTOMER_ID") from "SA"."ORDERS1"
          h2,h2-ansi,informix,access,db2,sql server,mysql | V,ID | select count(SA.ORDERS1.CUSTOMER_ID) from SA.ORDERS1 => select count(SA.ORDERS1.CUSTOMER_ID) from SA.ORDERS1
@@ -605,13 +605,13 @@ class UniformSQLOracleAggregateColumnQuoteTest {
          access,mysql | v,id | select max(a."v") from a => select max(a.`v`) from a
          default,h2,h2-ansi,informix,access,db2,sql server,mysql | - | select max(s.v) from (select a.v from a) s => select max(s.v) from ( select a.v from a) s
          postgresql | - | select max(s.v) from (select a.v from a) s => select max(s."v") from ( select "a"."v" from "a") s
-         snowflake,exasol | - | select max(s.v) from (select a.v from a) s => select max(s.v) from ( select "a"."v" from "a") s
+         snowflake,exasol | - | select max(s.v) from (select a.v from a) s => select max(s."v") from ( select "a"."v" from "a") s
          h2,h2-ansi,informix,access,db2,sql server,mysql | V,ID | select max(s.v) from (select a.v from a) s => select max(s.V) from ( select a.V from a) s
          postgresql | V,ID | select max(s.v) from (select a.v from a) s => select max(s."V") from ( select "a"."V" from "a") s
-         snowflake,exasol | V,ID | select max(s.v) from (select a.v from a) s => select max(s.V) from ( select "a".V from "a") s
+         snowflake,exasol | V,ID | select max(s.v) from (select a.v from a) s => select max(s."V") from ( select "a".V from "a") s
          h2,h2-ansi,informix,access,db2,sql server,mysql | v,id | select max(s.v) from (select a.v from a) s => select max(s.v) from ( select a.v from a) s
          postgresql | v,id | select max(s.v) from (select a.v from a) s => select max(s."v") from ( select "a"."v" from "a") s
-         snowflake,exasol | v,id | select max(s.v) from (select a.v from a) s => select max(s.v) from ( select "a".v from "a") s
+         snowflake,exasol | v,id | select max(s.v) from (select a.v from a) s => select max(s."v") from ( select "a".v from "a") s
       """;
 
    // the rows, with the values of each row sorted

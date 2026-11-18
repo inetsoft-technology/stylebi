@@ -32,6 +32,7 @@ import inetsoft.util.dep.*;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
+import java.util.Map;
 
 public interface DependencyHandler {
    static DependencyHandler getInstance() {
@@ -41,6 +42,20 @@ public interface DependencyHandler {
    void renameDependencies(AssetObject oentry, AssetObject nentry);
 
    boolean updateDependencies(AssetObject oentry, AssetObject nentry);
+
+   /**
+    * Replace several entries in the dependency lists at once. The keys of the map are the old
+    * entries and the values the new ones; the default implementation applies them one by one.
+    */
+   default boolean updateDependencies(Map<AssetObject, AssetObject> renames) {
+      boolean result = true;
+
+      for(Map.Entry<AssetObject, AssetObject> rename : renames.entrySet()) {
+         result &= updateDependencies(rename.getKey(), rename.getValue());
+      }
+
+      return result;
+   }
 
    RenameDependencyInfo getRenameDependencyInfo(AssetObject oentry, AssetObject nentry);
 

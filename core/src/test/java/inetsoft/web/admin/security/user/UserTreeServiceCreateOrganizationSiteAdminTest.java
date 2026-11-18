@@ -107,7 +107,12 @@ class UserTreeServiceCreateOrganizationSiteAdminTest {
       service = new UserTreeService(
          providerService, null, mock(IdentityService.class), localizationService, securityEngine,
          mock(IdentityThemeService.class), null, null, null, mock(LicenseManager.class), null, null,
-         mock(CustomThemesManager.class), null, null, null, null);
+         mock(CustomThemesManager.class), null, null, null, null) {
+         @Override
+         java.util.concurrent.locks.Lock createOrganizationLock() {
+            return new java.util.concurrent.locks.ReentrantLock();
+         }
+      };
    }
 
    @AfterEach

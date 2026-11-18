@@ -532,11 +532,19 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
             PoiExcelVSUtil.getExcelTitleHeight(info);
       }
 
-      for(int i = 0; i < rowHeights.size(); i++) {
-         newHeight += PoiExcelVSUtil.getSelectionCellHeight(rowHeights.get(i).intValue());
+      // the list and tree writers place rows by cumulative raw pixels
+      // (ExcelSelectionListHelper.mapRows), so the box needs the raw sum, not the sum of per-row
+      // rounded heights, which is smaller for cell heights that round down and would push the
+      // last rows out (#80207, #81339). Each row also needs at least one grid row (mapRows gives
+      // it one), so a row under one grid row counts as one, or Expand Selections would lose
+      // rows for cells < 20.
+      double raw = 0;
+
+      for(Double rowHeight : rowHeights) {
+         raw += Math.max(rowHeight, AssetUtil.defh);
       }
 
-      return newHeight;
+      return newHeight + PoiExcelVSUtil.ceilY((int) Math.ceil(raw));
    }
 
    /**

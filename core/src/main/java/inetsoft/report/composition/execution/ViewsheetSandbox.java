@@ -5517,8 +5517,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          List<DynamicValue> dvalues = assembly.getDynamicValues();
          executeDynamicValues(name, dvalues);
 
-         List<DynamicValue> vvalues = assembly.getViewDynamicValues(true);
-         executeDynamicValues(name, vvalues);
+         executeViewDynamicValues(name, assembly);
 
          List<DynamicValue> hvalues = assembly.getHyperlinkDynamicValues();
 
@@ -7028,6 +7027,50 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Execute the view dynamic values of an assembly. The cell format values of a table,
+    * crosstab or freehand table are evaluated here without a cell context, so a valid
+    * reference to a cell (e.g. $total) or a bad expression fails here although the
+    * rendering evaluates it per cell with a fallback (VSFormatTableLens). A failure of
+    * such a value is therefore ignored (a stopped script is still rethrown) and does not skip the other values. Any other
+    * value (object/title format, enabled, visible) still fails the call.
+    * @param name assembly name.
+    * @param assembly the assembly.
+    */
+   public void executeViewDynamicValues(String name, VSAssembly assembly) throws Exception {
+      List<DynamicValue> values = assembly.getViewDynamicValues(true);
+      List<DynamicValue> cellValues = assembly.getVSAssemblyInfo().getCellFormatDynamicValues();
+
+      if(cellValues.isEmpty()) {
+         executeDynamicValues(name, values);
+         return;
+      }
+
+      Set<DynamicValue> cells = Collections.newSetFromMap(new IdentityHashMap<>());
+      cells.addAll(cellValues);
+      List<DynamicValue> strict = new ArrayList<>();
+
+      for(DynamicValue value : values) {
+         if(!cells.contains(value)) {
+            strict.add(value);
+         }
+      }
+
+      for(DynamicValue value : cellValues) {
+         try {
+            executeDynamicValues(name, Collections.singletonList(value));
+         }
+         catch(ScriptException ex) {
+            // a stopped script (timeout/cancel) is not a failed expression
+            if(ScriptTimeoutGuard.isStop(ex)) {
+               ScriptTimeoutGuard.rethrowStop(ex);
+            }
+         }
+      }
+
+      executeDynamicValues(name, strict);
+   }
+
+   /**
     * Execute the dynamic values.
     * @param name assembly name.
     * @param values dynamic values.
@@ -7111,7 +7154,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          VSUtil.containsVariableFormula(dvalue) &&
          (matcher = VSUtil.matchVariableFormula(dvalue)).find())
       {
-         Object rColumn = getVariableFormulaCol(dval, executeVariableValue(matcher.group(2)));
+         Object rColumn = getVariableFormulaCol(dval, executeVariableValue(matcher.group(2)),
+                                           matcher.group(1), matcher.group(3));
          data = matcher.group(1) + rColumn + matcher.group(3);
       }
       else if(!normalColumn && VSUtil.isScriptValue(dvalue)) {
@@ -7138,7 +7182,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    /**
     * Get runtime value, return the RValue when executed value contains RValue.
     */
-   private Object getVariableFormulaCol(DynamicValue dval, Object executed) {
+   private Object getVariableFormulaCol(DynamicValue dval, Object executed, String prefix,
+                                        String suffix)
+   {
       if(executed != null && executed.getClass().isArray()) {
          if(Array.getLength(executed) == 0) {
             return null;
@@ -7153,10 +7199,26 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             return Array.get(executed, 0);
          }
 
+         // the previous runtime value is prefix + value + suffix, strip the surrounding
+         // text so it can be matched against the selected values (Bug #81110)
+         if(rvalue instanceof String) {
+            String str = (String) rvalue;
+
+            if(str.length() >= prefix.length() + suffix.length() && str.startsWith(prefix) &&
+               str.endsWith(suffix))
+            {
+               rvalue = str.substring(prefix.length(), str.length() - suffix.length());
+            }
+         }
+
          Object findValue = null;
 
          for(int i = 0; i < Array.getLength(executed); i++) {
-            if(rvalue.equals(Array.get(executed, i))) {
+            Object item = Array.get(executed, i);
+
+            if(rvalue.equals(item) ||
+               item != null && rvalue instanceof String && rvalue.equals(item.toString()))
+            {
                findValue = Array.get(executed, i);
                break;
             }

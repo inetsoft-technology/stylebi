@@ -662,6 +662,32 @@ public class BrowseDataController {
    }
 
    /**
+    * Remove null and duplicate values (first one wins), sort the rest and convert them
+    * to the form shown in the browse list.
+    */
+   static Object[] toSortedItems(Collection<?> values, String dtype) {
+      // a hash set keeps the duplicate check O(1) instead of a linear scan per value
+      Set<Object> distinct = new LinkedHashSet<>();
+
+      for(Object data : values) {
+         if(data != null) {
+            distinct.add(data);
+         }
+      }
+
+      Object[] arr = distinct.toArray();
+      Tool.qsort(arr, true);
+      Object[] items = new Object[arr.length];
+      boolean number = AssetUtil.isNumberType(dtype);
+
+      for(int i = 0; i < arr.length; i++) {
+         items[i] = number ? arr[i] : AbstractCondition.getValueString(arr[i], dtype);
+      }
+
+      return items;
+   }
+
+   /**
     * Get the data from the data source itself.
     */
    private BrowseDataModel executeByDataSource(Principal principal) {
@@ -678,35 +704,19 @@ public class BrowseDataController {
          Object session = service.bind(System.getProperty("user.name"));
          XNode result = XAgent.getAgent(xds).getQueryData(query, tableName, columnName,
                                                           vars, session, principal);
-         ArrayList<Object> dlist = new ArrayList<>();
+         List<Object> raw = new ArrayList<>();
 
          if(result instanceof XTableNode) {
             XTableNode table = (XTableNode) result;
 
             if(table.getColCount() > 0) {
                while(table.next()) {
-                  Object data = table.getObject(0);
-
-                  if(data != null && !dlist.contains(data)) {
-                     dlist.add(data);
-                  }
+                  raw.add(table.getObject(0));
                }
             }
          }
 
-         Object[] arr = dlist.toArray();
-         Tool.qsort(arr, true);
-         String dtype = column.getDataType();
-         Object[] items = new Object[arr.length];
-
-         for(int i = 0; i < arr.length; i++) {
-            if(AssetUtil.isNumberType(dtype)) {
-               items[i] = arr[i];
-            }
-            else {
-               items[i] = AbstractCondition.getValueString(arr[i], dtype);
-            }
-         }
+         Object[] items = toSortedItems(raw, column.getDataType());
 
          return BrowseDataModel.builder()
             .values(items)

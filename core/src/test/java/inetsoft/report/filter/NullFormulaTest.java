@@ -176,4 +176,28 @@ public class NullFormulaTest {
    void getName_returnsNone() {
       assertEquals("none", formula.getName());
    }
+
+   // -----------------------------------------------------------------------
+   // any value, and the unsupported double result
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.count#null-formula-always-null
+   @Test
+   void addValue_anyValues_resultStaysNullAndDoubleResultUnsupported() {
+      formula.addValue("text");
+      formula.addValue(Integer.valueOf(5));
+      formula.addValue(new java.util.Date(1_700_000_000_000L));
+      formula.addValue((Object) null);
+      formula.addValue(1.5);
+      formula.addValue(2.5f);
+      formula.addValue(3L);
+      formula.addValue(4);
+      formula.addValue((short) 5);
+      formula.addValue(new double[] { 6.5 });
+      assertNull(formula.getResult());
+      assertTrue(formula.isNull());
+
+      RuntimeException error = assertThrows(RuntimeException.class, formula::getDoubleResult);
+      assertEquals("Unsupported method called!", error.getMessage());
+   }
 }

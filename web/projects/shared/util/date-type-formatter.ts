@@ -54,8 +54,8 @@ export class DateTypeFormatter {
          // strict parsing with upper case AM/PM first
          date = dayjs(value, DateTypeFormatter.toUpperCaseAMPM(oldFormat), true);
 
-         // then try lower case
-         if(!date) {
+         // then try lower case (dayjs never returns null, an unparsed value is an invalid object)
+         if(!date.isValid()) {
             date = dayjs(value, DateTypeFormatter.toLowerCaseAMPM(oldFormat), true);
          }
       }

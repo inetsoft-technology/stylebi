@@ -352,6 +352,8 @@ public class BlobTransaction<T extends Serializable> implements Closeable {
          MessageDigest digest;
 
          try {
+            // content checksum of a blob, not a security use.
+            // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
             digest = MessageDigest.getInstance("MD5");
          }
          catch(NoSuchAlgorithmException e) {
@@ -373,6 +375,8 @@ public class BlobTransaction<T extends Serializable> implements Closeable {
 
    private static final class TransactionOutputStream extends DigestOutputStream {
       public TransactionOutputStream(OutputStream out) throws NoSuchAlgorithmException {
+         // content checksum of a blob, not a security use.
+         // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
          super(out, MessageDigest.getInstance("MD5"));
       }
 

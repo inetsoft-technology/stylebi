@@ -201,15 +201,52 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
             }
          }
 
-         if(options.init()) {
-            clear();
-         }
-
-         getNameToEntryMap().putAll(loadingMap);
+         applyLoadedEntries(loadingMap, options.init());
       }
       finally {
          lock.writeLock().unlock();
       }
+   }
+
+   /**
+    * Applies the entries read from storage to this library. On an initial (re)load the existing
+    * entries are replaced by the loaded ones, except that changes made on this node that have
+    * not been saved yet (the pending transactions) are kept: they are re-applied on top of the
+    * loaded entries and stay pending, so that a later save still persists them. Without this a
+    * reload that overlaps a put followed by a save silently drops the put (Bug #81057). Changes
+    * already saved are not pending, so they never mask what another node saved.
+    * <p>
+    * To be called from within the write lock.
+    *
+    * @param loadingMap the entries read from storage.
+    * @param init       {@code true} to replace the existing entries.
+    */
+   protected void applyLoadedEntries(Map<String, LogicalLibraryEntry<T>> loadingMap,
+                                     boolean init)
+   {
+      if(!init) {
+         getNameToEntryMap().putAll(loadingMap);
+         return;
+      }
+
+      final List<Transaction<LogicalLibraryEntry<T>>> pending = new ArrayList<>(transactions);
+
+      for(Transaction<LogicalLibraryEntry<T>> transaction : pending) {
+         // the in-memory state already reflects every pending change, take it as is
+         final String name = transaction.identifier();
+         final LogicalLibraryEntry<T> current = getNameToEntryMap().get(name);
+
+         if(current != null) {
+            loadingMap.put(name, current);
+         }
+         else {
+            loadingMap.remove(name);
+         }
+      }
+
+      clear();
+      getNameToEntryMap().putAll(loadingMap);
+      transactions.addAll(pending);
    }
 
    protected boolean shouldNotLoad(String name) {
@@ -492,18 +529,50 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    @Override
    public List<Transaction<LogicalLibraryEntry<T>>> flushTransactions() {
       ReadWriteLock lock = getLock();
-      lock.readLock().lock();
+      lock.writeLock().lock();
 
       try {
          final List<Transaction<LogicalLibraryEntry<T>>> transactionRecord =
             new ArrayList<>(transactions);
 
          transactions.clear();
+         flushedTransactions.addAll(transactionRecord);
 
          return transactionRecord;
       }
       finally {
-         lock.readLock().unlock();
+         lock.writeLock().unlock();
+      }
+   }
+
+   @Override
+   public void commitFlushedTransactions() {
+      ReadWriteLock lock = getLock();
+      lock.writeLock().lock();
+
+      try {
+         flushedTransactions.clear();
+      }
+      finally {
+         lock.writeLock().unlock();
+      }
+   }
+
+   @Override
+   public void restoreFlushedTransactions() {
+      ReadWriteLock lock = getLock();
+      lock.writeLock().lock();
+
+      try {
+         // put back at the head so that the transactions recorded since the flush stay after them
+         for(int i = flushedTransactions.size() - 1; i >= 0; i--) {
+            transactions.addFirst(flushedTransactions.get(i));
+         }
+
+         flushedTransactions.clear();
+      }
+      finally {
+         lock.writeLock().unlock();
       }
    }
 
@@ -554,6 +623,8 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    private final LibrarySecurity security;
    private final Map<String, LogicalLibraryEntry<T>> nameToEntryMap = new HashMap<>();
    protected final Deque<Transaction<LogicalLibraryEntry<T>>> transactions = new ArrayDeque<>();
+   // transactions flushed for a save that has not been committed yet, guarded by the write lock
+   private final List<Transaction<LogicalLibraryEntry<T>>> flushedTransactions = new ArrayList<>();
    private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());

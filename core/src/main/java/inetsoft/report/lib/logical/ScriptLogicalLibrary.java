@@ -28,6 +28,8 @@ import org.slf4j.LoggerFactory;
 import java.lang.invoke.MethodHandles;
 import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ScriptLogicalLibrary extends AbstractLogicalLibrary<ScriptEntry> {
    protected ScriptLogicalLibrary(LibrarySecurity security) {
@@ -58,7 +60,7 @@ public class ScriptLogicalLibrary extends AbstractLogicalLibrary<ScriptEntry> {
    {
       final ScriptEntry oldScript = oldEntry.asset();
       final String newSignature = Optional.ofNullable(oldScript.signature())
-         .map(sig -> sig.replaceFirst(oldName, newName))
+         .map(sig -> renameSignature(sig, oldName, newName))
          .orElse(null);
 
       final ScriptEntry newScript = ScriptEntry.builder()
@@ -71,6 +73,23 @@ public class ScriptLogicalLibrary extends AbstractLogicalLibrary<ScriptEntry> {
          .asset(newScript)
          .modified(System.currentTimeMillis())
          .build();
+   }
+
+   /**
+    * Replaces the script name in a signature using literal operations, without touching the
+    * "function" keyword that signatures saved by older versions may still start with.
+    */
+   private static String renameSignature(String sig, String oldName, String newName) {
+      int start = 0;
+      Matcher keyword = Pattern.compile("^function\\s+").matcher(sig);
+
+      if(keyword.find() && sig.startsWith(oldName, keyword.end())) {
+         start = keyword.end();
+      }
+
+      int idx = sig.startsWith(oldName, start) ? start : sig.indexOf(oldName);
+      return idx < 0 ? sig :
+         sig.substring(0, idx) + newName + sig.substring(idx + oldName.length());
    }
 
    @Override

@@ -315,4 +315,42 @@ public class DefaultFormulaTest {
    void getName_returnsNone() {
       assertEquals("none", formula.getName());
    }
+
+   // -----------------------------------------------------------------------
+   // ported from the 13.8 summary formula tests
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.common#default-formula-keeps-last-value
+   @Test
+   void isNull_afterAddShortOnly_returnsTrue() {
+      // a short only is returned when nothing else was added, but it does not set the double
+      formula.addValue((short) 7);
+      assertEquals((short) 7, formula.getResult());
+      assertTrue(formula.isNull());
+   }
+
+   // gap:report.summary-formulas.common#default-formula-keeps-last-value
+   @Test
+   void reset_afterDouble_doubleResultReturnsZero() {
+      formula.addValue(1.5);
+      assertEquals(1.5, formula.getDoubleResult());
+      formula.reset();
+      assertEquals(0.0, formula.getDoubleResult());
+   }
+
+   // gap:report.summary-formulas.common#result-type-defaults-to-input-type
+   @Test
+   void getResultType_returnsNull() {
+      // the result takes the type of the input
+      assertNull(formula.getResultType());
+
+      // a subclass that does not override it gets the default as well
+      Formula plain = new DefaultFormula() {
+         @Override
+         public String toString() {
+            return "plain";
+         }
+      };
+      assertNull(plain.getResultType());
+   }
 }

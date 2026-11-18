@@ -26,6 +26,8 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
@@ -165,5 +167,29 @@ public class RangeSliderVSAScriptableTest {
       rangeSliderVSAssemblyInfo.setTimeInfo(compositeTimeInfo);
       rangeSliderVSAScriptable.setFields(fields);
       assertArrayEquals(fields, rangeSliderVSAScriptable.getFields());
+   }
+
+   @Test
+   void scriptRangeSizeIsRevertedToDesignValueOnReset() {
+      rangeSliderVSAScriptable.setRangeSizeValue(28);
+      rangeSliderVSAScriptable.setRangeSize(15);
+      assertEquals(15, rangeSliderVSAScriptable.getRangeSize());
+
+      rangeSliderVSAssemblyInfo.resetRuntimeValues();
+      assertEquals(28, rangeSliderVSAScriptable.getRangeSize());
+   }
+
+   @ParameterizedTest
+   @ValueSource(doubles = { 2.5, 1e10 })
+   void rangeSizeKeepsFractionalAndLargeValues(double size) {
+      rangeSliderVSAScriptable.setRangeSize(size);
+      assertEquals(size, rangeSliderVSAScriptable.getRangeSize());
+   }
+
+   @Test
+   void rangeSizeAssignedThroughPropertyReadsBackAsDouble() {
+      rangeSliderVSAScriptable.addProperties();
+      rangeSliderVSAScriptable.putMember("rangeSize", 3);
+      assertEquals(3.0, rangeSliderVSAScriptable.getMember("rangeSize"));
    }
 }

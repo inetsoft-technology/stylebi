@@ -64,7 +64,8 @@ import static org.mockito.Mockito.*;
                                   DerivedTableWildcardColumnNameTest.JdbcConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
+@Tag("database")
 class DerivedTableWildcardColumnNameTest {
    private static final String DB = "memory:bug78409";
    private static final long RUN = System.nanoTime();

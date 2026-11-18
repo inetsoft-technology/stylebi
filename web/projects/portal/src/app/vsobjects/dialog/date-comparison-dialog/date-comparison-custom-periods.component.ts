@@ -30,6 +30,7 @@ import { DatePeriodModel } from "../../model/date-period-model";
 import { DynamicValueModel, ValueTypes } from "../../model/dynamic-value-model";
 import { DateComparisonService } from "../../util/date-comparison.service";
 import { DynamicValueEditorComponent } from "../../../widget/date-type-editor/dynamic-value-editor.component";
+import { DateComparisonUtil } from "./date-comparison-utill";
 
 
 @Component({
@@ -106,14 +107,8 @@ export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
    }
 
    isValidCustomPeriod(): boolean {
-      let dynamicValue: DynamicValueModel[] = [];
-
-      this.customPeriodPaneModel.datePeriods.forEach(datePeriod => {
-         dynamicValue.push(datePeriod.start);
-         dynamicValue.push(datePeriod.end);
-      });
-
-      return !dynamicValue.some(value => !this.dateComparisonService.isValidDate(value.value));
+      return DateComparisonUtil.isValidCustomPeriodDates(this.customPeriodPaneModel,
+                                                         this.dateComparisonService);
    }
 
    get isOverlapping(): boolean {
@@ -122,7 +117,8 @@ export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
    }
 
    private isValidAndNotOverlapping(): boolean {
-      return this.isValidCustomPeriod() && !this.isOverlapping;
+      return DateComparisonUtil.isValidCustomPeriod(this.customPeriodPaneModel,
+                                                    this.dateComparisonService);
    }
 
    onValueChange(): void {

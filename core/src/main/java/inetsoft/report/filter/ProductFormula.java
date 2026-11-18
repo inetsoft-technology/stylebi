@@ -50,8 +50,22 @@ public class ProductFormula implements PercentageFormula {
 
       try {
          cnt++;
-         product *= (v instanceof Number) ? ((Number) v).doubleValue() :
-            NumberParser.getDouble(v.toString());
+         double dval;
+
+         if(v instanceof Number) {
+            dval = ((Number) v).doubleValue();
+         }
+         else {
+            dval = NumberParser.getDouble(v.toString());
+
+            // a blank string parses to NaN without throwing, skip it like Sum
+            if(Double.isNaN(dval)) {
+               cnt--;
+               return;
+            }
+         }
+
+         product *= dval;
       }
       catch(NumberFormatException e) {
       }

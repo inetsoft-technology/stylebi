@@ -1268,6 +1268,8 @@ export class GuiTool {
          catch(ex) {
             // Cross-origin context, must use postMessage.
             scrollId = GuiTool.scrollIdentifier++;
+            // cross-origin parent can't be known; only a scroll counter is sent.
+            // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration
             window.parent.postMessage({message: "saveScroll", data: scrollId}, "*");
          }
 
@@ -1277,6 +1279,8 @@ export class GuiTool {
             restore = () => window.parent.scrollTo(windowX, windowY);
          }
          else {
+            // cross-origin parent can't be known; only a scroll counter is sent.
+            // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration
             restore = () => window.parent.postMessage({message: "restoreScroll", data: scrollId}, "*");
          }
 

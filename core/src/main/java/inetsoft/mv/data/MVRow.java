@@ -330,6 +330,20 @@ public class MVRow implements Cloneable, Serializable {
       }
    }
 
+   /**
+    * Map a group key that is the <code>Double.doubleToLongBits</code> of a value (the
+    * dimension value of a double/float/time/date/timestamp measure column, see
+    * <code>MVDecimalColumn.getDimValue</code>) to a long whose signed order is the numeric
+    * order of the double. The raw bits of negative doubles do not sort as signed longs
+    * (a larger magnitude means larger bits), so the magnitude bits of negative keys are
+    * flipped. Non-negative keys are unchanged. The null value (-Double.MAX_VALUE) sorts
+    * lowest, like <code>Tool.compare</code>. The mapping is only used for ordering; the
+    * key itself (equality, range lookups) is never changed.
+    */
+   public static long sortKey(long bits) {
+      return bits < 0 ? bits ^ Long.MAX_VALUE : bits;
+   }
+
    public static class Key implements Serializable {
       // for serialization
       public Key() {
@@ -398,7 +412,17 @@ public class MVRow implements Cloneable, Serializable {
       }
 
       public RowComparator(boolean[] orders) {
+         this(orders, null);
+      }
+
+      /**
+       * @param orders  the ascending flag of each group.
+       * @param bitKeys true for the groups that hold <code>Double.doubleToLongBits</code> keys
+       *                (see {@link MVRow#sortKey(long)}), may be null.
+       */
+      public RowComparator(boolean[] orders, boolean[] bitKeys) {
          this.orders = orders;
+         this.bitKeys = bitKeys;
       }
 
       @Override
@@ -407,8 +431,16 @@ public class MVRow implements Cloneable, Serializable {
 
          for(int i = 0; i < gcnt; i++) {
             if(row1.groups[i] != row2.groups[i]) {
+               long g1 = row1.groups[i];
+               long g2 = row2.groups[i];
+
+               if(bitKeys != null && i < bitKeys.length && bitKeys[i]) {
+                  g1 = sortKey(g1);
+                  g2 = sortKey(g2);
+               }
+
                // make sure the result is not out of integer bounds
-               int rc = row1.groups[i] > row2.groups[i] ? 1 : -1;
+               int rc = g1 > g2 ? 1 : -1;
                return orders[i] ? rc : -rc;
             }
          }
@@ -417,6 +449,7 @@ public class MVRow implements Cloneable, Serializable {
       }
 
       private boolean[] orders;
+      private boolean[] bitKeys;
    }
 
    protected long[] groups;

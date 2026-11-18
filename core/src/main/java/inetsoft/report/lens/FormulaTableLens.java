@@ -2252,7 +2252,7 @@ public class FormulaTableLens extends AbstractTableLens
    private transient boolean forceType = Drivers.getInstance().isDataCached();
    private transient String reportName;
 
-   private static final ScriptCache scriptCache = new ScriptCache(100, 60000);
+   private static final ScriptCache scriptCache = new ScriptCache(100, 60000, false, true);
    // publishes a row table only over the one a batch computed (bug #78133)
    private static final AtomicReferenceFieldUpdater<FormulaTableLens, XSwappableTable> ROWS =
       AtomicReferenceFieldUpdater.newUpdater(FormulaTableLens.class, XSwappableTable.class, "rows");

@@ -80,6 +80,14 @@ public interface ScriptEnv {
    }
 
    /**
+    * Compile a table formula run on a row scope, where a bare call of a global script function
+    * must not hit a same-named column (Bug #81047).
+    */
+   default Object compileCalleeFallback(String cmd) throws Exception {
+      return compile(cmd, true);
+   }
+
+   /**
     * Execute a script.
     * @param script script object.
     * @param scope scope this script should execute in.

@@ -157,6 +157,7 @@ public class ClockifyQuery extends EndpointJsonQuery<ClockifyEndpoint> {
          setRequestType("GET");
          setContentType(null);
          super.setRequestBody(null);
+         bodyTemplate = null;
       }
    }
 

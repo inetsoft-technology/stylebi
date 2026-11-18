@@ -161,8 +161,16 @@ public class LookAndFeelService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void setModel(LookAndFeelSettingsModel model, Principal principal, boolean globalSettings) throws Exception {
-      PortalThemesManager manager = portalThemesManager;
+      // read, modify and save atomically, see PortalThemesManager.update(); the logo, favicon
+      // and css helpers read and change the manager too, so they run inside the update
+      portalThemesManager.updateChecked(
+         manager -> applyModel(manager, model, principal, globalSettings));
+      SreeEnv.save();
+   }
 
+   private void applyModel(PortalThemesManager manager, LookAndFeelSettingsModel model,
+                           Principal principal, boolean globalSettings) throws Exception
+   {
       String sort = model.ascending() ? "Ascending" : "Descending";
       int repoTree = model.repositoryTree() ? 0 : 1;
 
@@ -248,9 +256,6 @@ public class LookAndFeelService {
             model.userFonts(), model.fontFaces(), model.deleteFontFaces(), model.newFontFaces(),
             model.defaultFont(), dataSpace, principal);
       }
-
-      manager.save();
-      SreeEnv.save();
    }
 
    /**
@@ -262,7 +267,13 @@ public class LookAndFeelService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void resetSettings(Principal principal, boolean globalSettings) throws Exception {
-      PortalThemesManager manager = portalThemesManager;
+      portalThemesManager.updateChecked(manager -> applyReset(manager, principal, globalSettings));
+      SreeEnv.save();
+   }
+
+   private void applyReset(PortalThemesManager manager, Principal principal,
+                           boolean globalSettings) throws Exception
+   {
       // setModel() writes the sort org-scoped for an org admin, so reset it in that scope too;
       // an org-scoped reset removes the org value so the org falls back to the global one
       SreeEnv.resetProperty("repository.tree.sort", !globalSettings);
@@ -295,9 +306,6 @@ public class LookAndFeelService {
       else {
          CSSDictionary.resetDictionaryCache();
       }
-
-      manager.save();
-      SreeEnv.save();
    }
 
    private void resetUserFormatFile() {

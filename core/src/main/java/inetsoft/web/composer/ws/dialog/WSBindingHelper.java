@@ -39,14 +39,16 @@ public class WSBindingHelper {
              + "::" + sourceInfo.getPrefix(), rws.getUser());
 
           if(lm != null) {
-             String name = ref.getName().replace(".", ":");
-             String[] names = name.split(":");
+             // use the ref's own entity/attribute; the display name may be an alias or
+             // contain '.'/':' and must not be re-parsed
+             String entityName = ref.getEntity();
+             String attrName = ref.getAttribute();
 
-             if(names.length == 2) {
-                XEntity entity = lm.getEntity(names[0]);
+             if(entityName != null && attrName != null) {
+                XEntity entity = lm.getEntity(entityName);
 
                 if(entity != null) {
-                      XAttribute attr = entity.getAttribute(names[1]);
+                   XAttribute attr = entity.getAttribute(attrName);
 
                    if(attr != null) {
                       String formula = attr.getDefaultFormula();

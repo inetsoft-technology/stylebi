@@ -89,6 +89,19 @@ public class IdentityThemeService {
    }
 
    public void removeTheme(String orgID) {
+      removeTheme(orgID, false);
+   }
+
+   /**
+    * Removes the themes of an organization.
+    *
+    * @param orgID         the organization.
+    * @param keepSelection <tt>true</tt> to leave the organization's selected-theme pointer as it
+    *                      is. The pointer is stored under the lower-cased organization ID, so on a
+    *                      rename that only changes the case of the ID it is the new ID's pointer,
+    *                      which has just been migrated (Bug #81320).
+    */
+   public void removeTheme(String orgID, boolean keepSelection) {
       customThemesManager.updateCustomThemes(themes -> {
          Iterator<CustomTheme> iterator = themes.iterator();
 
@@ -108,7 +121,9 @@ public class IdentityThemeService {
          return themes;
       });
 
-      customThemesManager.setOrgSelectedTheme("default", orgID);
+      if(!keepSelection) {
+         customThemesManager.setOrgSelectedTheme("default", orgID);
+      }
    }
 
    /**

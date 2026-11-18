@@ -261,16 +261,14 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
          if(left) {
             lcompleted = true;
 
+            // the left table is always the main table (its rows vary fastest), so the row
+            // order never depends on which base table finishes loading first (bug #81087)
             if(main == null) {
                main = new Main(true, count);
             }
          }
          else {
             rcompleted = true;
-
-            if(main == null) {
-               main = new Main(false, count);
-            }
          }
       }
 
@@ -1173,9 +1171,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    }
 
    /**
-    * The table that completed loading first and its row count, published as one immutable
-    * snapshot so a lock-free reader never pairs the table of one pass with the count of
-    * another (bug #77397).
+    * The main table and its row count, published as one immutable snapshot so a lock-free
+    * reader never pairs the table of one pass with the count of another (bug #77397). The
+    * main table is the left table by design, set once it completes loading: the row order
+    * must not depend on which base table finishes loading first (bug #81087).
     */
    private record Main(boolean left, int rows) implements Serializable {
    }
@@ -1187,7 +1186,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    private int hrows;              // header rows
    private int lrows;              // left table rows
    private int rrows;              // right table rows
-   private volatile Main main;     // main table and its rows
+   private volatile Main main;     // main (left) table and its rows, set when left completes
    private transient WaitingThread lthread;  // left table thread
    private transient WaitingThread rthread;  // right table thread
    private boolean lcompleted;     // left completed flag

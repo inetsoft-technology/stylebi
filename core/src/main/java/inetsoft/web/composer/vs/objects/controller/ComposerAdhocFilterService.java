@@ -280,10 +280,16 @@ public class ComposerAdhocFilterService {
       }
 
       final VSAssembly selection = (VSAssembly) assembly;
-      final List<CurrentSelectionVSAssembly> containers = findContainers(vs, selection);
+      // a container that does not allow users to add selections is not a target in the viewer
+      final List<CurrentSelectionVSAssembly> containers =
+         findContainers(vs, selection, rvs.isRuntime());
       CurrentSelectionVSAssembly container = containers.stream()
          .filter(c -> containerName == null || containerName.equals(c.getAbsoluteName()))
-         .findFirst().get();
+         .findFirst().orElse(null);
+
+      if(container == null) {
+         return null;
+      }
       restoreFormats(selection);
       groupingService.groupComponents(rvs, container, selection, true, linkUri, dispatcher, true);
 
@@ -463,6 +469,18 @@ public class ComposerAdhocFilterService {
     */
    public static List<CurrentSelectionVSAssembly> findContainers(Viewsheet vs, VSAssembly assembly)
    {
+      return findContainers(vs, assembly, false);
+   }
+
+   /**
+    * Find a container for the adhoc filter, if it exists.
+    *
+    * @param viewerOnly true to skip containers whose "Allow User to Add/Remove Selections"
+    *                   option is off, since the end user may not add filters to them.
+    */
+   public static List<CurrentSelectionVSAssembly> findContainers(Viewsheet vs, VSAssembly assembly,
+                                                                 boolean viewerOnly)
+   {
       boolean embedded = assembly.isEmbedded();
       List<CurrentSelectionVSAssembly> containers = new ArrayList<>();
       Assembly[] objects = vs.getAssemblies(true);
@@ -475,6 +493,12 @@ public class ComposerAdhocFilterService {
          }
 
          CurrentSelectionVSAssembly obj = (CurrentSelectionVSAssembly) object;
+
+         if(viewerOnly && obj.getVSAssemblyInfo() instanceof CurrentSelectionVSAssemblyInfo &&
+            !((CurrentSelectionVSAssemblyInfo) obj.getVSAssemblyInfo()).isAdhocEnabled())
+         {
+            continue;
+         }
 
          if(embedded && obj.isEmbedded() && Tool.equals(obj.getViewsheet(), assembly.getViewsheet())
             || !embedded && !obj.isEmbedded())
@@ -748,7 +772,7 @@ public class ComposerAdhocFilterService {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      List<CurrentSelectionVSAssembly> containers = findContainers(vs, assembly);
+      List<CurrentSelectionVSAssembly> containers = findContainers(vs, assembly, rvs.isRuntime());
       AssetEntry entry = vs.getRuntimeEntry();
 
       if(containers.isEmpty()) {

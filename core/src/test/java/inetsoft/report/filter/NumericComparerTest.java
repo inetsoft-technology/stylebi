@@ -137,4 +137,110 @@ class NumericComparerTest {
          }
       }
    }
+
+   /**
+    * Random lists per sort test. 13.8 runs 20000; StyleBI's NumberParser throws on non-numeric
+    * text, which makes 20000 take about 30 s per test, so the class would need @Tag("slow").
+    * 2000 lists of 2 to 150 values still reach TimSort's comparator contract check.
+    */
+   private static final int ITERATIONS = 2000;
+
+   /**
+    * The StyleBI NumericComparer of before Bug #80583 (13.8: #80539), the order every non-date
+    * list must keep. StyleBI parses with org.jnumbers.NumberParser, 13.8 with
+    * NumberParserWrapper, so blank and non-numeric strings rank differently between the two.
+    */
+   private static final Comparator<Object> BASE_ORDER = (v1, v2) -> {
+      double val1 = Double.NaN;
+      double val2 = Double.NaN;
+
+      try {
+         val1 = (v1 instanceof Number) ? ((Number) v1).doubleValue() :
+            org.jnumbers.NumberParser.getDouble(v1.toString());
+      }
+      catch(Exception ex) {
+         v1 = null;
+      }
+
+      try {
+         val2 = (v2 instanceof Number) ? ((Number) v2).doubleValue() :
+            org.jnumbers.NumberParser.getDouble(v2.toString());
+      }
+      catch(Exception ex) {
+         v2 = null;
+      }
+
+      if(v1 == null) {
+         return (v2 == null) ? 0 : -1;
+      }
+      else if(v2 == null) {
+         return 1;
+      }
+
+      return Double.compare(val1, val2);
+   };
+
+   private static Object randomValue(Random random, boolean dates) {
+      int kind = random.nextInt(dates ? 9 : 7);
+
+      switch(kind) {
+      case 0: return null;
+      case 1: return "";
+      case 2: return " ";
+      case 3: return "abc";
+      case 4: return Integer.toString(random.nextInt(20) - 5);
+      case 5: return random.nextInt(20) - 5;
+      case 6: return random.nextInt(8) / 2.0;
+      case 7: return new Date(random.nextInt(6) * 1_000_000L);
+      default: return new Timestamp(random.nextInt(6) * 1_000_000L);
+      }
+   }
+
+   // Bug #80539: a list mixing dates with other values (blank strings among them) sorts without
+   // an error
+   @Test
+   void sort_mixedDateListsWithBlanks_keepsComparatorContract() {
+      Random random = new Random(80539L);
+      int failures = 0;
+
+      for(int i = 0; i < ITERATIONS; i++) {
+         int size = 2 + random.nextInt(150);
+         List<Object> list = new ArrayList<>();
+
+         for(int j = 0; j < size; j++) {
+            list.add(randomValue(random, true));
+         }
+
+         try {
+            Object[] array = list.toArray();
+            Arrays.sort(array, comparer);
+            Collections.sort(list, comparer);
+         }
+         catch(IllegalArgumentException ex) {
+            failures++;
+         }
+      }
+
+      assertEquals(0, failures, "lists whose sort violated the comparator contract");
+   }
+
+   // Bug #80539: lists without dates keep the order of the comparer before the fix
+   @Test
+   void sort_nonDateLists_keepBaseOrder() {
+      Random random = new Random(80540L);
+
+      for(int i = 0; i < ITERATIONS; i++) {
+         int size = 2 + random.nextInt(150);
+         Object[] expected = new Object[size];
+
+         for(int j = 0; j < size; j++) {
+            expected[j] = randomValue(random, false);
+         }
+
+         Object[] actual = expected.clone();
+         Arrays.sort(expected, BASE_ORDER);
+         Arrays.sort(actual, comparer);
+         assertArrayEquals(expected, actual);
+      }
+   }
 }

@@ -24,6 +24,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.util.DefaultTable;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -31,11 +32,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.Locale;
@@ -239,6 +242,436 @@ public class FormulaFunctionsTest {
       assertArrayEquals(new Object[]{"a", "b", "c"}, (Object[]) res);
    }
 
+   private static Date dt(int y, int m, int d, int h, int mi, int s) {
+      return Date.from(LocalDateTime.of(y, m, d, h, mi, s).atZone(ZoneId.systemDefault())
+                          .toInstant());
+   }
+
+   private static Date dt(int y, int m, int d) {
+      return dt(y, m, d, 0, 0, 0);
+   }
+
+   // sort, distinct, nonull and maxrows options of toList on a plain array
+   private static Stream<Arguments> provideToListOptionTestCases() {
+      Object[] nums = { 3, 1, 2, 3 };
+      Object[] four = { 4, 1, 3, 2 };
+      Object[] strs = { "b", null, "a" };
+
+      return Stream.of(
+         // default is sort=asc, distinct=true
+         Arguments.of(nums, "", new Object[] { 1, 2, 3 }),
+         Arguments.of(nums, "sort=desc", new Object[] { 3, 2, 1 }),
+         Arguments.of(nums, "sort=false", new Object[] { 3, 1, 2 }),
+         Arguments.of(nums, "distinct=false", new Object[] { 1, 2, 3, 3 }),
+         Arguments.of(nums, "distinct=false,sort=false", new Object[] { 3, 1, 2, 3 }),
+         Arguments.of(nums, "distinct=false,sort=desc", new Object[] { 3, 3, 2, 1 }),
+         // an unknown sort value sorts ascending
+         Arguments.of(nums, "sort=bad", new Object[] { 1, 2, 3 }),
+         // null sorts first, nonull removes it
+         Arguments.of(strs, "sort=asc", new Object[] { null, "a", "b" }),
+         Arguments.of(strs, "sort=desc", new Object[] { "b", "a", null }),
+         Arguments.of(strs, "nonull=true", new Object[] { "a", "b" }),
+         // maxrows keeps the first n after sorting, a negative n keeps the last n
+         Arguments.of(four, "maxrows=2", new Object[] { 1, 2 }),
+         Arguments.of(four, "maxrows=-2", new Object[] { 3, 4 }),
+         Arguments.of(four, "maxrows=10", new Object[] { 1, 2, 3, 4 }),
+         Arguments.of(four, "maxrows=0", new Object[] { 1, 2, 3, 4 }),
+         // the kept rows are re-sorted in the sort direction when sort2 is not given
+         // (#81071), so sort=desc,maxrows=2 returns 4,3
+         Arguments.of(four, "sort=desc,maxrows=2", new Object[] { 4, 3 }),
+         Arguments.of(four, "sort=desc,sort2=desc,maxrows=2", new Object[] { 4, 3 })
+      );
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideToListOptionTestCases")
+   void testToListOptions(Object[] input, String options, Object[] expected) {
+      // toList sorts and converts the array it is given in place, so every case uses a copy
+      assertArrayEquals(expected, (Object[]) FormulaFunctions.toList(input.clone(), options));
+   }
+
+   // #81461: a fractional Double is not a duplicate of the Integer with the same integer part
+   @Test
+   void toListDistinctKeepsIntegerAndFractionalValues() {
+      assertArrayEquals(new Object[] { 1, 1.5 },
+                        (Object[]) FormulaFunctions.toList(new Object[] { 1, 1.5 }, ""));
+      assertEquals(4, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.5, 2, 2.5 }, "")).length);
+      assertEquals(4, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 2.5, 2, 1.5, 1 }, "")).length);
+      // the same value as a Double and as an Integer is still one value
+      assertEquals(1, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.0 }, "")).length);
+   }
+
+   // toList returns a new list; the array passed in is a script value and must stay as it was.
+   // Control: with the default distinct=true the input is left alone.
+   @Test
+   void toListLeavesTheInputArrayAloneForTheDefaultDistinct() {
+      Object[] distinct = { 3, 1, 2 };
+      FormulaFunctions.toList(distinct, "");
+      assertArrayEquals(new Object[] { 3, 1, 2 }, distinct);
+   }
+
+   @Test
+   void toListDateOptionLeavesTheInputArrayAlone() {
+      Date original = dt(2021, 3, 15);
+      Object[] dates = { original };
+      FormulaFunctions.toList(dates, "date=year");
+      assertSame(original, dates[0]);
+   }
+
+   @Test
+   void toListDistinctFalseLeavesTheInputArrayAlone() {
+      Object[] unsorted = { 3, 1, 2 };
+      FormulaFunctions.toList(unsorted, "distinct=false");
+      assertArrayEquals(new Object[] { 3, 1, 2 }, unsorted);
+   }
+
+   @Test
+   void toListRoundDateOptionLeavesTheInputArrayAlone() {
+      Object[] dates = { dt(2021, 3, 15), dt(2021, 7, 4) };
+      Object[] copy = dates.clone();
+      FormulaFunctions.toList(dates, "rounddate=month");
+      assertArrayEquals(copy, dates);
+   }
+
+   @Test
+   void mapListLeavesTheInputArrayAlone() {
+      Object[] input = { 4, 1, 3, 2 };
+      FormulaFunctions.mapList(input, new Object[] { 9, 9 }, "others=leaveothers");
+      assertArrayEquals(new Object[] { 4, 1, 3, 2 }, input);
+   }
+
+   @Test
+   void toListHourOptionReadsTheSameHourFromEveryDateSubtype() {
+      long ms = dt(2021, 3, 15, 13, 45, 10).getTime();
+      Object[] values = { new Date(ms), new java.sql.Date(ms), new java.sql.Timestamp(ms),
+                          new java.sql.Time(ms) };
+
+      for(Object value : values) {
+         assertArrayEquals(new Object[] { 13 },
+                           (Object[]) FormulaFunctions.toList(new Object[] { value }, "date=hour"),
+                           value.getClass().getName());
+      }
+   }
+
+   @Test
+   void toListDayAndRoundYearHandleALeapDay() {
+      Date leapDay = dt(2020, 2, 29);
+      assertArrayEquals(new Object[] { 29 },
+                        (Object[]) FormulaFunctions.toList(new Object[] { leapDay }, "date=day"));
+      Object[] rounded = (Object[]) FormulaFunctions.toList(new Object[] { leapDay },
+                                                            "rounddate=year");
+      assertEquals(1, rounded.length);
+      assertEquals(dt(2020, 1, 1).getTime(), ((Date) rounded[0]).getTime());
+   }
+
+   @Test
+   void toListRoundDateWithAnUnsupportedLevelChangesNoDate() {
+      Object[] dates = { dt(2021, 3, 15, 10, 30, 0), dt(2021, 7, 4, 8, 15, 0),
+                         dt(2022, 1, 9, 23, 59, 59) };
+      Object[] copy = dates.clone();
+      Object[] result = (Object[]) FormulaFunctions.toList(dates, "rounddate=weekday");
+      assertArrayEquals(copy, result);
+      assertArrayEquals(copy, dates);
+   }
+
+   // Run in a fresh thread so the thread-local DateTimeProcessor of DateRangeRef reads the
+   // current week.start and time zone.
+   private static void runInNewThread(Runnable action) {
+      Throwable[] error = { null };
+      Thread thread = new Thread(() -> {
+         try {
+            action.run();
+         }
+         catch(Throwable ex) {
+            error[0] = ex;
+         }
+      });
+
+      thread.start();
+
+      try {
+         thread.join();
+      }
+      catch(InterruptedException ex) {
+         Thread.currentThread().interrupt();
+         throw new AssertionError(ex);
+      }
+
+      if(error[0] != null) {
+         throw new AssertionError(error[0]);
+      }
+   }
+
+   private static void assertWeekMatchesCrosstab(LocalDate from, LocalDate to, ZoneId zone,
+                                                 String label)
+   {
+      for(LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
+         Date date = Date.from(day.atStartOfDay(zone).toInstant());
+         Object[] res = (Object[]) FormulaFunctions.toList(new Object[] { date }, "date=week");
+         assertEquals(DateRangeRef.getData(DateRangeRef.WEEK_OF_YEAR_PART, date), res[0],
+                      label + " " + day);
+      }
+   }
+
+   // the crosstab Week of Year group follows week.start, so date=week must as well
+   @Test
+   void dateWeekOptionFollowsTheWeekStartLikeTheCrosstab() {
+      WeekStartUtil.withWeekStart("monday", () -> runInNewThread(() ->
+         assertWeekMatchesCrosstab(LocalDate.of(2023, 1, 1), LocalDate.of(2023, 12, 31),
+                                   ZoneId.systemDefault(), "week.start=monday")));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "sunday", "tuesday", "wednesday", "thursday", "friday", "saturday" })
+   void dateWeekOptionFollowsEveryWeekStartLikeTheCrosstab(String weekStart) {
+      WeekStartUtil.withWeekStart(weekStart, () -> runInNewThread(() ->
+         assertWeekMatchesCrosstab(LocalDate.of(2023, 1, 1), LocalDate.of(2023, 12, 31),
+                                   ZoneId.systemDefault(), "week.start=" + weekStart)));
+   }
+
+   @Test
+   void dateWeekOptionUnderMondayWeekStartStartsWeekTwoOnTheFirstMonday() {
+      WeekStartUtil.withWeekStart("monday", () -> runInNewThread(() -> {
+         Object[] res = (Object[]) FormulaFunctions.toList(
+            new Object[] { dt(2023, 1, 1), dt(2023, 1, 2) }, "date=week");
+         assertArrayEquals(new Object[] { 1, 2 }, res);
+      }));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "Asia/Tokyo", "America/Los_Angeles" })
+   void dateWeekOptionMatchesCrosstabWeekOfYearAroundTheYearEndInAnyTimeZone(String zoneId) {
+      java.util.TimeZone old = java.util.TimeZone.getDefault();
+
+      try {
+         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zoneId));
+         ZoneId zone = ZoneId.of(zoneId);
+         runInNewThread(() -> {
+            assertWeekMatchesCrosstab(LocalDate.of(2020, 12, 20), LocalDate.of(2021, 1, 10), zone,
+                                      zoneId);
+            assertWeekMatchesCrosstab(LocalDate.of(2024, 12, 24), LocalDate.of(2025, 1, 7), zone,
+                                      zoneId);
+         });
+      }
+      finally {
+         java.util.TimeZone.setDefault(old);
+      }
+   }
+
+   // a scalar is returned as a scalar
+   @Test
+   void testToListWithScalar() {
+      assertEquals("x", FormulaFunctions.toList("x", "sort=asc"));
+   }
+
+   // A manual value that contains a special character must not change how the options after it
+   // are read. The result for such a value has to be the result for a plain value with the
+   // character put back, so the plain run is the expected value.
+   private static void assertManualValueKeepsLaterOptions(String special) {
+      String plain = "x";
+      Object[] expected = (Object[]) FormulaFunctions.toList(
+         new Object[] { "b", "a", "c" + plain },
+         "manualvalues=c" + plain + ";a,maxrows=2");
+      Object[] actual = (Object[]) FormulaFunctions.toList(
+         new Object[] { "b", "a", "c" + special },
+         "manualvalues=c" + special + ";a,maxrows=2");
+
+      assertEquals(expected.length, actual.length, java.util.Arrays.toString(actual));
+
+      for(int i = 0; i < expected.length; i++) {
+         assertEquals(expected[i].toString().replace(plain, special), actual[i].toString());
+      }
+   }
+
+   @Test
+   void testToListManualValueWithClosingParenthesisKeepsLaterOptions() {
+      assertManualValueKeepsLaterOptions(")");
+   }
+
+   // an unpaired quote or parenthesis in a manual value must not swallow the options after it
+   // (Redmine #81083)
+   @ParameterizedTest
+   @ValueSource(strings = { "'", "\"", "(", ")", "O'", "'Q", "Lee (US", "Say \"hi\"", "A (x)" })
+   void testToListManualValueWithQuoteKeepsLaterOptions(String special) {
+      assertManualValueKeepsLaterOptions(special);
+   }
+
+   private static DefaultTableLens customerTable(String special) {
+      return new DefaultTableLens(new Object[][] {
+         { "customer", "amount" },
+         { "Smith", 40 }, { special, 50 }, { "Jones", 30 }, { "Lee", 20 }
+      });
+   }
+
+   // field, sorton and maxrows after a manual value with a special character are still read
+   @ParameterizedTest
+   @ValueSource(strings = { "O'Brien", "\"Lee (US", "Lee (US", "a)", "Say \"hi\"" })
+   void testToListTableManualValueKeepsFieldSortonAndMaxrows(String special) {
+      String[] tails = {
+         ",field=customer,sorton=sum(amount),maxrows=2",
+         ",field=customer,sorton=correl(amount,amount),maxrows=2",
+         ",field=customer,sorton2=sum(amount),maxrows=2",
+         ",field=customer,maxrows=2,date=year",
+         ", remainder=Others, sortOthersLast=true,field=customer,maxrows=3"
+      };
+
+      for(String tail : tails) {
+         Object[] actual = (Object[]) FormulaFunctions.toList(
+            customerTable(special), "manualvalues=Lee;" + special + ";Jones;Smith" + tail);
+         Object[] expected = (Object[]) FormulaFunctions.toList(
+            customerTable("Z"), "manualvalues=Lee;Z;Jones;Smith" + tail);
+         assertEquals(expected.length, actual.length, tail + " " + java.util.Arrays.toString(actual));
+
+         for(int i = 0; i < expected.length; i++) {
+            assertEquals(expected[i].toString().replace("Z", special), actual[i].toString(), tail);
+         }
+      }
+   }
+
+   // mapList shares the same option parser
+   @Test
+   void testMapListManualValueWithQuoteKeepsLaterOptions() {
+      Object[] actual = (Object[]) FormulaFunctions.mapList(
+         new Object[] { "b", "a", "c'" }, new Object[] { new String[] { "a" }, "isA" },
+         "manualvalues=c';isA;b,maxrows=2");
+      Object[] expected = (Object[]) FormulaFunctions.mapList(
+         new Object[] { "b", "a", "cx" }, new Object[] { new String[] { "a" }, "isA" },
+         "manualvalues=cx;isA;b,maxrows=2");
+      assertEquals(expected.length, actual.length, java.util.Arrays.toString(actual));
+      assertEquals(2, actual.length);
+   }
+
+   // an escaped comma still stays inside the manual value
+   @Test
+   void testToListManualValueEscapedCommaStaysOneValue() {
+      Object[] result = (Object[]) FormulaFunctions.toList(
+         new Object[] { "x", "a,b", "c" }, "manualvalues=a\\,b;c,maxrows=2");
+      assertArrayEquals(new Object[] { "a,b", "c" }, result);
+   }
+
+   // a quote or parenthesis in a non free-text option still protects its commas
+   @Test
+   void testToListSortonParenthesisStillProtectsComma() {
+      Object[] result = (Object[]) FormulaFunctions.toList(
+         customerTable("O'Brien"),
+         "field=customer,sorton=correl(amount,amount),maxrows=2");
+      assertEquals(2, result.length);
+   }
+
+   // date option: the date part, as number or name
+   private static Stream<Arguments> provideToListDatePartTestCases() {
+      Object[] dates = { dt(2021, 3, 15, 10, 20, 30), dt(2021, 11, 2, 23, 59, 59),
+                         dt(2022, 1, 31, 0, 0, 0) };
+
+      return Stream.of(
+         Arguments.of(dates, "date=year", new Object[] { 2021, 2022 }),
+         Arguments.of(dates, "date=quarter", new Object[] { 1, 4 }),
+         Arguments.of(dates, "date=month", new Object[] { 1, 3, 11 }),
+         Arguments.of(dates, "date=day", new Object[] { 2, 15, 31 }),
+         Arguments.of(dates, "date=hour", new Object[] { 0, 10, 23 }),
+         Arguments.of(dates, "date=minute", new Object[] { 0, 20, 59 }),
+         Arguments.of(dates, "date=second", new Object[] { 0, 30, 59 }),
+         // an unknown date part falls back to year
+         Arguments.of(dates, "date=foo", new Object[] { 2021, 2022 }),
+         // year with an interval: 2021 and 2022 fall into the 2020 interval of 10
+         Arguments.of(dates, "date=year,interval=10", new Object[] { 2020 }),
+         Arguments.of(dates, "date=year,interval=2", new Object[] { 2020, 2022 }),
+         // an interval that is not a number counts as 1
+         Arguments.of(dates, "date=year,interval=abc", new Object[] { 2021, 2022 }),
+         // sort=desc applies to the date part
+         Arguments.of(dates, "date=year,sort=desc", new Object[] { 2022, 2021 })
+      );
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideToListDatePartTestCases")
+   void testToListDatePart(Object[] input, String options, Object[] expected) {
+      // toList sorts and converts the array it is given in place, so every case uses a copy
+      assertArrayEquals(expected, (Object[]) FormulaFunctions.toList(input.clone(), options));
+   }
+
+   // month and weekday names sort in calendar order, not alphabetically
+   @Test
+   void testToListMonthAndWeekdayNameOrder() {
+      Locale oldLocale = Locale.getDefault();
+
+      try {
+         Locale.setDefault(Locale.US);
+         Object[] months = { dt(2021, 12, 5), dt(2021, 2, 10), dt(2021, 1, 20) };
+         assertArrayEquals(new Object[] { "January", "February", "December" },
+                           (Object[]) FormulaFunctions.toList(months, "date=monthname"));
+         // 2021-03-14 is a Sunday, 2021-03-15 a Monday and 2021-03-20 a Saturday
+         Object[] days = { dt(2021, 3, 20), dt(2021, 3, 15), dt(2021, 3, 14) };
+         assertArrayEquals(new Object[] { "Sunday", "Monday", "Saturday" },
+                           (Object[]) FormulaFunctions.toList(days, "date=weekdayname"));
+      }
+      finally {
+         Locale.setDefault(oldLocale);
+      }
+   }
+
+   // rounddate option: dates are rounded down to the level, then made distinct and sorted
+   private static Stream<Arguments> provideToListRoundDateTestCases() {
+      Object[] dates = { dt(2021, 3, 15, 10, 20, 30), dt(2021, 11, 2, 23, 59, 59),
+                         dt(2022, 1, 31, 0, 0, 0) };
+      Object[] sameDay = { dt(2021, 3, 15, 10, 20, 30), dt(2021, 3, 15, 10, 45, 10),
+                           dt(2021, 3, 20, 8, 0, 0) };
+      Object[] months = { dt(2021, 1, 20), dt(2021, 2, 10), dt(2021, 3, 5), dt(2021, 4, 5) };
+      Object[] years = { dt(2021, 6, 1), dt(2022, 6, 1), dt(2023, 6, 1) };
+
+      return Stream.of(
+         Arguments.of(dates, "rounddate=year",
+                      new Object[] { dt(2021, 1, 1), dt(2022, 1, 1) }),
+         Arguments.of(dates, "rounddate=quarter",
+                      new Object[] { dt(2021, 1, 1), dt(2021, 10, 1), dt(2022, 1, 1) }),
+         Arguments.of(dates, "rounddate=month",
+                      new Object[] { dt(2021, 3, 1), dt(2021, 11, 1), dt(2022, 1, 1) }),
+         Arguments.of(dates, "rounddate=day",
+                      new Object[] { dt(2021, 3, 15), dt(2021, 11, 2), dt(2022, 1, 31) }),
+         Arguments.of(sameDay, "rounddate=hour",
+                      new Object[] { dt(2021, 3, 15, 10, 0, 0), dt(2021, 3, 20, 8, 0, 0) }),
+         Arguments.of(sameDay, "rounddate=minute",
+                      new Object[] { dt(2021, 3, 15, 10, 20, 0), dt(2021, 3, 15, 10, 45, 0),
+                                     dt(2021, 3, 20, 8, 0, 0) }),
+         Arguments.of(sameDay, "rounddate=second",
+                      new Object[] { dt(2021, 3, 15, 10, 20, 30), dt(2021, 3, 15, 10, 45, 10),
+                                     dt(2021, 3, 20, 8, 0, 0) }),
+         // intervals larger than 1: months in steps of 2 start at January
+         Arguments.of(months, "rounddate=month,interval=2",
+                      new Object[] { dt(2021, 1, 1), dt(2021, 3, 1) }),
+         Arguments.of(years, "rounddate=year,interval=2",
+                      new Object[] { dt(2020, 1, 1), dt(2022, 1, 1) }),
+         // an unknown level rounds to the day, none leaves the dates as they are
+         Arguments.of(dates, "rounddate=foo",
+                      new Object[] { dt(2021, 3, 15), dt(2021, 11, 2), dt(2022, 1, 31) }),
+         Arguments.of(dates, "rounddate=none", dates),
+         // a null date stays null and sorts first
+         Arguments.of(new Object[] { dt(2021, 6, 1), null }, "rounddate=year",
+                      new Object[] { null, dt(2021, 1, 1) }),
+         Arguments.of(dates, "rounddate=year,sort=desc",
+                      new Object[] { dt(2022, 1, 1), dt(2021, 1, 1) })
+      );
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideToListRoundDateTestCases")
+   void testToListRoundDate(Object[] input, String options, Object[] expected) {
+      // toList sorts and converts the array it is given in place, so every case uses a copy
+      assertArrayEquals(expected, (Object[]) FormulaFunctions.toList(input.clone(), options));
+   }
+
+   // timeseries fills the missing months between the first and the last date
+   @Test
+   void testToListTimeSeriesFillsMissingMonths() {
+      Object[] input = { dt(2021, 1, 15), dt(2021, 4, 20) };
+      Object[] res = (Object[]) FormulaFunctions.toList(input, "rounddate=month,timeseries=true");
+      assertArrayEquals(new Object[] { dt(2021, 1, 1), dt(2021, 2, 1), dt(2021, 3, 1),
+                                       dt(2021, 4, 1) }, res);
+   }
+
    /**
     * test union with array
     */
@@ -247,6 +680,130 @@ public class FormulaFunctionsTest {
    void testUnionArray(Object[] arr1, Object[] arr2, Object[] expected) {
       Object result = FormulaFunctions.union(arr1, arr2, null);
       assertArrayEquals(expected, (Object[]) result);
+   }
+
+   /**
+    * Bug #81164: numbers of different types with the same value are one element,
+    * consistent with intersect and inArray.
+    */
+   @Test
+   void testUnionMixedNumberTypes() {
+      Object[] result = (Object[]) FormulaFunctions.union(
+         new Object[]{1.0, 2.0, 3.0}, new Object[]{3, 4L, 2.0f, null, null}, null);
+      assertArrayEquals(new Object[]{1.0, 2.0, 3.0, 4L, null}, result);
+
+      result = (Object[]) FormulaFunctions.union(
+         new Object[]{3, 3.0}, new Object[]{new java.math.BigDecimal("3")}, null);
+      assertArrayEquals(new Object[]{3}, result);
+
+      // intersect and inArray already treat them as equal
+      assertEquals(1, ((Object[]) FormulaFunctions.intersect(
+         new Object[]{3.0}, new Object[]{3}, null)).length);
+      assertTrue(FormulaFunctions.inArray(new Object[]{3.0}, 3));
+   }
+
+   private static double[] numbers(Object result) {
+      Object[] arr = (Object[]) result;
+      double[] res = new double[arr.length];
+
+      for(int i = 0; i < arr.length; i++) {
+         res[i] = ((Number) arr[i]).doubleValue();
+      }
+
+      return res;
+   }
+
+   @Test
+   void unionMergesSameNumericValueOfDifferentNumberTypes() {
+      assertArrayEquals(new double[] { 1, 2, 3 },
+                        numbers(FormulaFunctions.union(new Object[] { 1, 2, 2 },
+                                                       new Object[] { 2.0, 3L, 3 }, null)));
+   }
+
+   @Test
+   void unionWithNullFirstArgumentEqualsUnionWithEmptyArray() {
+      Object[] dup = { 1, 1 };
+      assertArrayEquals((Object[]) FormulaFunctions.union(new Object[0], dup, null),
+                        (Object[]) FormulaFunctions.union(null, dup, null));
+      assertArrayEquals(new Object[] { 1 }, (Object[]) FormulaFunctions.union(null, dup, null));
+   }
+
+   @Test
+   void unionWithNullSecondArgumentEqualsUnionWithEmptyArray() {
+      Object[] dup = { 1, 1 };
+      assertArrayEquals((Object[]) FormulaFunctions.union(dup, new Object[0], null),
+                        (Object[]) FormulaFunctions.union(dup, null, null));
+      assertArrayEquals(new Object[] { 1 }, (Object[]) FormulaFunctions.union(dup, null, null));
+   }
+
+   @Test
+   void unionOfDegenerateInputsIsTheSet() {
+      assertArrayEquals(new Object[0], (Object[]) FormulaFunctions.union(null, null, null));
+      assertArrayEquals(new Object[0],
+                        (Object[]) FormulaFunctions.union(new Object[0], new Object[0], null));
+      assertArrayEquals(new Object[] { 5 },
+                        (Object[]) FormulaFunctions.union(new Object[] { 5 },
+                                                          new Object[] { 5 }, null));
+      assertArrayEquals(new Object[] { "a" }, (Object[]) FormulaFunctions.union("a", "a", null));
+   }
+
+   @Test
+   void unionDoesNotMatchAcrossTypesOrFoldCase() {
+      assertArrayEquals(new Object[] { 1, "1" },
+                        (Object[]) FormulaFunctions.union(new Object[] { 1, "1" },
+                                                          new Object[] { 1.0 }, null));
+      assertArrayEquals(new Object[] { "a", "A" },
+                        (Object[]) FormulaFunctions.union(new Object[] { "a", "A" },
+                                                          new Object[] { "a" }, null));
+   }
+
+   @Test
+   void timestampAndDateWithEqualMillisAreOneElementInBothOrders() {
+      long ms = 1700000000123L;
+      java.sql.Timestamp t = new java.sql.Timestamp(ms);
+      Date d = new Date(ms);
+
+      assertEquals(1, ((Object[]) FormulaFunctions.union(new Object[] { t },
+                                                         new Object[] { d }, null)).length);
+      assertEquals(1, ((Object[]) FormulaFunctions.union(new Object[] { d },
+                                                         new Object[] { t }, null)).length);
+      assertTrue(FormulaFunctions.inArray(new Object[] { t }, d));
+      assertTrue(FormulaFunctions.inArray(new Object[] { d }, t));
+   }
+
+   private static void permute(Object[] items, int k, java.util.List<Object[]> out) {
+      if(k == items.length) {
+         out.add(items.clone());
+         return;
+      }
+
+      for(int i = k; i < items.length; i++) {
+         Object tmp = items[k];
+         items[k] = items[i];
+         items[i] = tmp;
+         permute(items, k + 1, out);
+         tmp = items[k];
+         items[k] = items[i];
+         items[i] = tmp;
+      }
+   }
+
+   @Test
+   void toListCountIsIndependentOfInputOrder() {
+      java.util.List<Object[]> perms = new java.util.ArrayList<>();
+      permute(new Object[] { 1, 1.5, 2, 2.5 }, 0, perms);
+      assertEquals(24, perms.size());
+
+      for(Object[] perm : perms) {
+         assertEquals(4, ((Object[]) FormulaFunctions.toList(perm, null)).length,
+                      java.util.Arrays.toString(perm));
+      }
+   }
+
+   @Test
+   void toListTreatsSameValueOfDifferentNumberTypesAsOneElement() {
+      assertEquals(1, ((Object[]) FormulaFunctions.toList(
+         new Object[] { 1, 1.0, 1L, 1.0f }, null)).length);
    }
 
    private static Stream<Arguments> provideUnionArrayTestCases() {

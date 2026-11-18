@@ -686,7 +686,9 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
 
          if(context != null && !found) {
             for(int i = 0; i < locs.length; i++) {
-               if(context.equals(getCellContext(locs[i].y, locs[i].x))) {
+               CalcCellContext candidateCtx = getCellContext(locs[i].y, locs[i].x);
+
+               if(candidateCtx != null && candidateCtx.containedIn(context)) {
                   kvmap.put(name, getObject(locs[i].y, locs[i].x));
                   kvmap.put(StyleConstants.COLUMN,
                      getObject(locs[i].y, locs[i].x));

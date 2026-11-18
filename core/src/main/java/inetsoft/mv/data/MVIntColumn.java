@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
+import java.util.Arrays;
 
 /**
  *
@@ -171,9 +172,28 @@ public class MVIntColumn extends DictDimIndex implements MVMeasureColumn {
    @Override
    protected BitSet getRows(long[] vals, boolean not, boolean cnull) {
       long[] vals2 = new long[vals.length];
+      int cnt = 0;
 
       for(int i = 0; i < vals.length; i++) {
-         vals2[i] = getInternalValue(vals[i]);
+         long val = getInternalValue(vals[i]);
+
+         // a member outside the stored keys matches no row. It must be dropped, never narrowed
+         // to an int (which wraps onto another key) or clamped (which matches an edge row)
+         if(Double.longBitsToDouble(vals[i]) != Tool.NULL_DOUBLE && !isStoredKey(val)) {
+            continue;
+         }
+
+         vals2[cnt++] = val;
+      }
+
+      if(cnt == 0) {
+         // nothing can match, so 'not in' matches every non-null row (SQL drops null)
+         return not ? super.getRows(Integer.MIN_VALUE, true, Integer.MIN_VALUE, true, cnull) :
+            new BitSet();
+      }
+
+      if(cnt < vals2.length) {
+         vals2 = Arrays.copyOf(vals2, cnt);
       }
 
       // if hasMin, the 0 corresponds to null as in dictionary
@@ -181,17 +201,82 @@ public class MVIntColumn extends DictDimIndex implements MVMeasureColumn {
    }
 
    /**
-    * Get the bit set for the specified range.
+    * Get the bit set for the specified range. A bound outside the stored keys is resolved here
+    * by its side of the data, before any narrowing to an int: a lower bound above the data
+    * leaves no rows and one below it is unbounded, and the other way around for an upper bound.
+    * Null rows are never matched by such a bound.
     */
    @Override
    public BitSet getRows(long from, boolean fincluded, long to,
                          boolean tincluded, boolean cnull)
    {
-      from = (from == Integer.MIN_VALUE) ? (hasMin ? 1 : 0)
-         : (int) getInternalValue(from);
-      to = (to == Integer.MIN_VALUE) ? Integer.MAX_VALUE
-         : (int) getInternalValue(to);
+      long lowest = getLowestKey();
+      long highest = getHighestKey();
+
+      if(from == Integer.MIN_VALUE) {
+         from = hasMin ? 1 : 0;
+      }
+      else if(Double.longBitsToDouble(from) == Tool.NULL_DOUBLE) {
+         from = (int) getInternalValue(from);
+      }
+      else {
+         long b = getInternalValue(from);
+
+         if(b > highest) {
+            return new BitSet();
+         }
+         else if(b < lowest) {
+            from = lowest;
+            fincluded = true;
+         }
+         else {
+            from = b;
+         }
+      }
+
+      if(to == Integer.MIN_VALUE) {
+         to = Integer.MAX_VALUE;
+      }
+      else if(Double.longBitsToDouble(to) == Tool.NULL_DOUBLE) {
+         to = (int) getInternalValue(to);
+      }
+      else {
+         long b = getInternalValue(to);
+
+         if(b < lowest) {
+            return new BitSet();
+         }
+         else if(b > highest) {
+            to = Integer.MAX_VALUE;
+            tincluded = true;
+         }
+         else {
+            to = b;
+         }
+      }
+
       return super.getRows(from, fincluded, to, tincluded, cnull);
+   }
+
+   /**
+    * Get the smallest key that holds a value (not null).
+    */
+   private long getLowestKey() {
+      return hasMin ? 1 : Integer.MIN_VALUE + 1L;
+   }
+
+   /**
+    * Get the largest key that holds a value.
+    */
+   private long getHighestKey() {
+      return hasMin ? Math.max(1L, (long) max - min) : Integer.MAX_VALUE;
+   }
+
+   /**
+    * Check if a key can hold a (non-null) value of this column.
+    */
+   private boolean isStoredKey(long key) {
+      return key >= getLowestKey() && key <= getHighestKey();
    }
 
    /**

@@ -19,6 +19,7 @@
 package inetsoft.util.script;
 
 import inetsoft.test.*;
+import inetsoft.util.ThreadContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -194,6 +195,39 @@ public class CalcDateTimeTest {
       }
    }
 
+   /**
+    * Bug #80953: axis = sign of months x whether the shift wraps the year.
+    */
+   @Test
+   public void testEdateYearWrap() {
+      // positive, same year (unchanged)
+      assertEquals(toDate("2001-02-28T00:00"), CalcDateTime.edate(toDate("2001-01-31T00:00"), 1));
+      assertEquals(toDate("2000-02-29T00:00"), CalcDateTime.edate(toDate("2000-01-31T00:00"), 1));
+      assertEquals(toDate("2001-02-28T00:00"), CalcDateTime.edate(toDate("2001-03-31T00:00"), -1));
+      // positive, year wraps
+      assertEquals(toDate("2001-02-28T00:00"), CalcDateTime.edate(toDate("2000-12-31T00:00"), 2));
+      assertEquals(toDate("2002-02-28T00:00"), CalcDateTime.edate(toDate("2001-11-30T00:00"), 3));
+      assertEquals(toDate("2002-02-28T00:00"), CalcDateTime.edate(toDate("2001-10-31T00:00"), 4));
+      // negative, year wraps: the day must be kept, not forced to month end
+      assertEquals(toDate("2000-12-15T00:00"), CalcDateTime.edate(toDate("2001-01-15T00:00"), -1));
+      assertEquals(toDate("2000-01-15T00:00"), CalcDateTime.edate(toDate("2001-03-15T00:00"), -14));
+   }
+
+   @Test
+   public void testEdateMatchesCalendarMonthAdd() {
+      LocalDateTime d = LocalDateTime.of(1999, 1, 1, 13, 45, 10);
+
+      for(int i = 0; i < 1500; i += 7) {
+         LocalDateTime start = d.plusDays(i);
+         Date date = toDate(start.toString());
+
+         for(int m = -30; m <= 30; m += 1) {
+            assertEquals(toDate(start.plusMonths(m).toString()), CalcDateTime.edate(date, m),
+                         start + " " + m);
+         }
+      }
+   }
+
    @Test
    public void testEomonth() {
       // Test Case 1: Valid date, positive months
@@ -300,7 +334,7 @@ public class CalcDateTimeTest {
       assertEquals(4, CalcDateTime.quarter(validDate));
 
       // Test Case 2: Null date
-      assertEquals(1, CalcDateTime.quarter(null));
+      assertEquals(-1, CalcDateTime.quarter(null));
 
       // Test Case 3: java.sql.Date instance
       java.sql.Date sqlDate = new java.sql.Date(validDate.getTime());
@@ -1365,6 +1399,71 @@ public class CalcDateTimeTest {
       assertArrayEquals(results[0], results[1], tag + " vs en-US");
    }
 
+   private static Date dayStart(int y, int m, int d) {
+      return Date.from(LocalDate.of(y, m, d).atStartOfDay(ZoneId.systemDefault()).toInstant());
+   }
+
+   /**
+    * Run the call on a fresh thread (the formatters of monthname/weekdayname are ThreadLocal
+    * caches built with the default locale at first use) after setting the default locale; the
+    * default locale is restored on the calling thread.
+    */
+   private static String onFreshThread(Locale locale, java.util.function.Supplier<String> call)
+      throws Exception
+   {
+      Locale old = Locale.getDefault();
+      String[] result = new String[1];
+      Throwable[] error = { null };
+
+      try {
+         Locale.setDefault(locale);
+         Thread thread = new Thread(() -> {
+            try {
+               result[0] = call.get();
+            }
+            catch(Throwable ex) {
+               error[0] = ex;
+            }
+         });
+         thread.start();
+         thread.join();
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+
+      if(error[0] != null) {
+         throw new AssertionError(error[0]);
+      }
+
+      return result[0];
+   }
+
+   @ParameterizedTest(name = "{0}: {1}-{2}-{3} is {4}")
+   @org.junit.jupiter.params.provider.CsvSource({
+      "en-US,2024,3,5,March",
+      "de-DE,2024,3,5,März",
+      "en-US,2024,2,29,February",
+      "de-DE,2024,2,29,Februar"
+   })
+   void monthnameFollowsDefaultLocaleOnFreshThread(String tag, int y, int m, int d,
+                                                   String month)
+      throws Exception
+   {
+      Date date = dayStart(y, m, d);
+      assertEquals(month, onFreshThread(Locale.forLanguageTag(tag),
+                                        () -> CalcDateTime.monthname(date)));
+   }
+
+   @ParameterizedTest
+   @org.junit.jupiter.params.provider.CsvSource({
+      "2024,3,5,Tuesday", "2024,2,29,Thursday"
+   })
+   void weekdaynameUnderEnglishLocale(int y, int m, int d, String weekday) throws Exception {
+      Date date = dayStart(y, m, d);
+      assertEquals(weekday, onFreshThread(Locale.US, () -> CalcDateTime.weekdayname(date)));
+   }
+
    /**
     * Round every day from 2015-01-01 through 2030 to its week bucket via
     * CalcDateTime.date(..., WEEK_DATE_GROUP, 1), under the given JVM default locale. Must be
@@ -1383,5 +1482,24 @@ public class CalcDateTimeTest {
       }
 
       return millis.stream().mapToLong(Long::longValue).toArray();
+   }
+
+   // Bug #81466, monthname follows the thread locale when it changes on a thread
+   @Test
+   void monthNameFollowThreadLocaleChanges() {
+      Locale old = ThreadContext.getLocale();
+      Date d = CalcUtilTest.hybridDate(2024, 3, 5);
+
+      try {
+         ThreadContext.setLocale(Locale.FRENCH);
+         assertEquals("mars", CalcDateTime.monthname(d));
+         ThreadContext.setLocale(Locale.GERMAN);
+         assertEquals("März", CalcDateTime.monthname(d));
+         ThreadContext.setLocale(Locale.US);
+         assertEquals("March", CalcDateTime.monthname(d));
+      }
+      finally {
+         ThreadContext.setLocale(old);
+      }
    }
 }

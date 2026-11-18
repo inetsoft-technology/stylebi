@@ -48,6 +48,17 @@ public interface EditOrganizationPaneModel extends EntityModel {
       return "";
    }
 
+   /**
+    * Bug #79875, the id of the organization when the pane was loaded. The id above is the one the
+    * user wants, and the old name is a display name that resolves to whatever organization has it
+    * now, so a save of a pane that was loaded before the organization's id was changed (by
+    * another request, or by the recovery of an interrupted change) was taken for a save of the
+    * organization as it is now, with the members of the pane. Null in a model that does not
+    * carry it, which is not checked.
+    */
+   @Nullable
+   String oldId();
+
    @Value.Default
    default boolean currentUser() {
       return false;

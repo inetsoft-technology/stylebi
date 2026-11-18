@@ -119,13 +119,76 @@ class SubMVDeleteNullRowsTest {
 
    @Test
    void otherOperatorsUnchanged() throws Exception {
-      // plain equal, is (not) null, not in and ranges delete what a query returns
-      assertEquals(rows(2), delete(bitDim(), "=", "2", false));
+      // is (not) null and 'in' delete what a query returns (the array branch is not changed)
       assertEquals(query(bitDim(), "null", null, true), delete(bitDim(), "null", null, true));
       assertEquals(query(bitDim(), "null", null, false), delete(bitDim(), "null", null, false));
       assertEquals(rows(1, 4, 5), delete(bitDim(), "IN", new Object[] { "2" }, true));
-      assertEquals(rows(1, 5), delete(bitDim(), "<", "2", false));
-      assertEquals(rows(1, 5), delete(bitDim(), ">=", "2", true));
+   }
+
+   @Test
+   void comparisonDeletesNullRows() throws Exception {
+      // bug #81043: '<' and the other comparisons also delete the null rows
+      for(XDimIndex dim : new XDimIndex[] { bitDim(), dictDim() }) {
+         assertEquals(rows(0, 1, 3, 5), delete(dim, "<", "2", false));
+         assertEquals(rows(0, 1, 2, 3, 5), delete(dim, "<=", "2", false));
+         assertEquals(rows(0, 3, 4), delete(dim, ">", "2", false));
+         assertEquals(rows(0, 2, 3, 4), delete(dim, ">=", "2", false));
+         assertEquals(rows(0, 2, 3), delete(dim, "=", "2", false));
+         // negated forms are flipped by the index
+         assertEquals(rows(0, 2, 3, 4), delete(dim, "<", "2", true));
+      }
+
+      // null, 5, 0, null, 7, 0
+      assertEquals(rows(0, 2, 3, 5), delete(measure(), "<", "5", false));
+      assertEquals(rows(0, 3, 4), delete(measure(), ">=", "7", false));
+   }
+
+   @Test
+   void queryComparisonStillDropsNull() throws Exception {
+      assertEquals(rows(1, 5), sub(bitDim()).getRows(cond("<", "2", false, true)));
+      assertEquals(rows(1, 5), sub(dictDim()).getRows(cond("<", "2", false, true)));
+      assertEquals(rows(2, 5), sub(measure()).getRows(cond("<", "5", false, true)));
+      assertEquals(rows(2, 4), sub(bitDim()).getRows(cond(">=", "2", false, true)));
+   }
+
+   @Test
+   void comparisonToNullOrNullKeyDoesNotAddNullRows() throws Exception {
+      assertEquals(query(bitDim(), "<", "0", false), delete(bitDim(), "<", "0", false));
+      assertEquals(query(dictDim(), ">=", "0", false), delete(dictDim(), ">=", "0", false));
+      assertEquals(query(measure(), "<", null, false), delete(measure(), "<", null, false));
+   }
+
+   @Test
+   void isNullOperatorAddsNothing() throws Exception {
+      assertEquals(rows(0, 3), delete(bitDim(), "null", null, false));
+      assertEquals(rows(0, 3), delete(measure(), "null", null, false));
+   }
+
+   @Test
+   void betweenPairDeletesNullRows() throws Exception {
+      for(XDimIndex dim : new XDimIndex[] { bitDim(), dictDim() }) {
+         assertEquals(rows(0, 1, 2, 3, 5), sub(dim).getRows(betweenSet("1", "3"), true));
+         assertEquals(rows(1, 2, 5), sub(dim).getRows(betweenSet("1", "3")));
+      }
+
+      // null, 5, 0, null, 7, 0
+      assertEquals(rows(0, 1, 3, 4), sub(measure()).getRows(betweenSet("5", "8"), true));
+      assertEquals(rows(1, 4), sub(measure()).getRows(betweenSet("5", "8")));
+   }
+
+   @Test
+   void betweenPairWithNullKeyBoundAddsNothing() throws Exception {
+      for(XDimIndex dim : new XDimIndex[] { bitDim(), dictDim() }) {
+         assertEquals(sub(dim).getRows(betweenSet("0", "3")),
+                      sub(dim).getRows(betweenSet("0", "3"), true));
+      }
+   }
+
+   private static XSet betweenSet(String from, String to) {
+      XSet set = new XSet(XSet.AND);
+      set.addChild(cond(">=", from, false, true));
+      set.addChild(cond("<", to, false, true));
+      return set;
    }
 
    @Test

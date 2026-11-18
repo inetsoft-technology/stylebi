@@ -234,6 +234,14 @@ public final class GroupedTableBlock extends SubTableBlock {
    }
 
    /**
+    * Set which groups hold <code>Double.doubleToLongBits</code> keys (double, float, time,
+    * date and timestamp columns), so that they are sorted by numeric value.
+    */
+   public void setBitKeys(boolean[] bitKeys) {
+      this.bitKeys = bitKeys;
+   }
+
+   /**
     * Add a row to grouping.
     */
    @Override
@@ -301,10 +309,10 @@ public final class GroupedTableBlock extends SubTableBlock {
       if(list.size() > 0) {
          if(list.get(0) instanceof MVRow2) {
             cls = MVRow2.class;
-            Collections.sort(list, new MVRow2.RowComparator(orders));
+            Collections.sort(list, new MVRow2.RowComparator(orders, bitKeys));
          }
          else {
-            sortRows(list, orders);
+            sortRows(list, orders, bitKeys);
          }
       }
 
@@ -322,6 +330,14 @@ public final class GroupedTableBlock extends SubTableBlock {
     * does not fit in 62 bits, the comparator is used.
     */
    static void sortRows(List<MVRow> list, boolean[] orders) {
+      sortRows(list, orders, null);
+   }
+
+   /**
+    * @param bitKeys true for the groups that hold <code>Double.doubleToLongBits</code> keys,
+    *                which are ordered by their numeric value (see {@link MVRow#sortKey(long)}).
+    */
+   static void sortRows(List<MVRow> list, boolean[] orders, boolean[] bitKeys) {
       int n = list.size();
 
       if(n < 2) {
@@ -331,7 +347,7 @@ public final class GroupedTableBlock extends SubTableBlock {
       int d = list.get(0).getGroups().length;
 
       if(orders == null || orders.length < d) {
-         Collections.sort(list, new MVRow.RowComparator(orders));
+         Collections.sort(list, new MVRow.RowComparator(orders, bitKeys));
          return;
       }
 
@@ -344,8 +360,9 @@ public final class GroupedTableBlock extends SubTableBlock {
          long[] g = row.getGroups();
 
          for(int i = 0; i < d; i++) {
-            min[i] = Math.min(min[i], g[i]);
-            max[i] = Math.max(max[i], g[i]);
+            long v = key(g[i], i, bitKeys);
+            min[i] = Math.min(min[i], v);
+            max[i] = Math.max(max[i], v);
          }
       }
 
@@ -371,7 +388,7 @@ public final class GroupedTableBlock extends SubTableBlock {
       }
 
       if(used > 62) {
-         Collections.sort(list, new MVRow.RowComparator(orders));
+         Collections.sort(list, new MVRow.RowComparator(orders, bitKeys));
          return;
       }
 
@@ -382,7 +399,7 @@ public final class GroupedTableBlock extends SubTableBlock {
          long key = 0;
 
          for(int i = 0; i < d; i++) {
-            long v = g[i] - min[i];
+            long v = key(g[i], i, bitKeys) - min[i];
             v = orders[i] ? v : (max[i] - min[i]) - v;
             key = (key << bits[i]) | v;
          }
@@ -397,6 +414,10 @@ public final class GroupedTableBlock extends SubTableBlock {
       for(int r = 0; r < n; r++) {
          list.set(r, src[(int) (keys[r] & imask)]);
       }
+   }
+
+   private static long key(long group, int i, boolean[] bitKeys) {
+      return bitKeys != null && i < bitKeys.length && bitKeys[i] ? MVRow.sortKey(group) : group;
    }
 
    @Override
@@ -576,5 +597,6 @@ public final class GroupedTableBlock extends SubTableBlock {
    private RowMap map;
    private FormulaInfo[] infos;
    private boolean[] orders;
+   private boolean[] bitKeys;
    private boolean donly;
 }

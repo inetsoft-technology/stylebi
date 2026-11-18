@@ -32,6 +32,7 @@ import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
+import inetsoft.test.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
@@ -39,9 +40,12 @@ import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.security.user.EditOrganizationPaneModel;
 import inetsoft.web.admin.security.user.IdentityThemeService;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.slf4j.LoggerFactory;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.InvocationTargetException;
@@ -52,6 +56,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 /**
  * Bug #77147: an organization save must persist the status of the model, whether the id is kept

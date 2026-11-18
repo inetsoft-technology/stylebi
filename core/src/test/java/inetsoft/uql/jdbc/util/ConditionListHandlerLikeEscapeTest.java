@@ -72,6 +72,12 @@ class ConditionListHandlerLikeEscapeTest {
       "FY_2024", "FY12024", "a!b", "a!_b", "a[b]", "ab", "user_id", "userXid"
    };
 
+   // Bug #81114: a separate table for the LIKE wildcard comparison, so the rows of the
+   // contains / starting with tests above are not changed
+   private static final String[] WILDCARD_ROWS = {
+      "a?c", "a_c", "abc", "axc", "ac", "abbc", "a\\c", "100%", "a.c", "a+c", "x?y"
+   };
+
    private static Connection conn;
 
    @BeforeAll
@@ -81,6 +87,15 @@ class ConditionListHandlerLikeEscapeTest {
 
       for(String row : ROWS) {
          try(PreparedStatement ps = conn.prepareStatement("insert into t values(?)")) {
+            ps.setString(1, row);
+            ps.execute();
+         }
+      }
+
+      conn.createStatement().execute("create table w(v varchar(50))");
+
+      for(String row : WILDCARD_ROWS) {
+         try(PreparedStatement ps = conn.prepareStatement("insert into w values(?)")) {
             ps.setString(1, row);
             ps.execute();
          }
@@ -113,12 +128,18 @@ class ConditionListHandlerLikeEscapeTest {
     * JDBCHandler does it.
     */
    private static String generate(JDBCDataSource ds, int op, String value) throws Exception {
+      return generate(ds, "t", op, value);
+   }
+
+   private static String generate(JDBCDataSource ds, String table, int op, String value)
+      throws Exception
+   {
       UniformSQL sql = new UniformSQL();
       sql.setDataSource(ds);
       sql.setParseSQL(true);
 
       synchronized(sql) {
-         sql.setSQLString("select t.v from t");
+         sql.setSQLString("select " + table + ".v from " + table);
          sql.wait();
       }
 
@@ -126,7 +147,7 @@ class ConditionListHandlerLikeEscapeTest {
       cond.setOperation(op);
       cond.addValue(value);
       ConditionList list = new ConditionList();
-      list.append(new ConditionItem(new AttributeRef("t", "v"), cond, 0));
+      list.append(new ConditionItem(new AttributeRef(table, "v"), cond, 0));
       VariableTable vars = new VariableTable();
       XFilterNode node = new ConditionListHandler().createXFilterNode(list, sql, vars);
       sql.setWhere(node);
@@ -268,5 +289,70 @@ class ConditionListHandlerLikeEscapeTest {
       assertEquals("plain", helper.escapeLikeValue("plain"));
       assertNull(new SQLHelper().getLikeEscapeChar());
       assertEquals("a_b", new SQLHelper().escapeLikeValue("a_b"));
+   }
+
+   // ---- Bug #81114: LIKE wildcards are %, _ and ? on the SQL and the in-memory path ----------
+
+   private static List<String> wildcardInMemory(int op, String value) {
+      Condition cond = new Condition(XSchema.STRING);
+      cond.setOperation(op);
+      cond.addValue(value);
+      List<String> rows = new ArrayList<>();
+
+      for(String row : WILDCARD_ROWS) {
+         if(cond.evaluate(row)) {
+            rows.add(row);
+         }
+      }
+
+      return rows;
+   }
+
+   static Stream<Arguments> likePatterns() {
+      return Stream.of("a?c", "a_c", "a%c", "a??", "?bc", "a?c?", "a.c", "a+c", "a%_c", "x?y")
+         .map(Arguments::of);
+   }
+
+   @ParameterizedTest
+   @MethodSource("likePatterns")
+   void likeRowsMatchInMemory(String value) throws Exception {
+      List<String> db = query(generate(derby(), "w", XCondition.LIKE, value));
+      List<String> mem = wildcardInMemory(XCondition.LIKE, value);
+      Collections.sort(db);
+      Collections.sort(mem);
+      assertEquals(mem, db, "value=" + value);
+   }
+
+   @Test
+   void likeQuestionMarkAndUnderscoreSelectTheSameRows() throws Exception {
+      List<String> questionMark = query(generate(derby(), "w", XCondition.LIKE, "a?c"));
+      List<String> underscore = query(generate(derby(), "w", XCondition.LIKE, "a_c"));
+      Collections.sort(questionMark);
+      Collections.sort(underscore);
+      assertEquals(underscore, questionMark);
+      assertEquals(5 + 2, questionMark.size());
+      assertTrue(questionMark.containsAll(List.of("a?c", "a_c", "abc", "axc")));
+      assertFalse(questionMark.contains("ac"));
+      assertFalse(questionMark.contains("abbc"));
+   }
+
+   @Test
+   void likeQuestionMarkIsTranslatedToUnderscore() throws Exception {
+      String sql = generate(derby(), "w", XCondition.LIKE, "a?b%");
+      assertTrue(sql.endsWith("LIKE 'a_b%'"), sql);
+   }
+
+   @Test
+   void containsAndStartingWithKeepQuestionMarkAndUnderscoreLiteral() throws Exception {
+      assertTrue(generate(derby(), "w", XCondition.CONTAINS, "a?c")
+                    .endsWith("LIKE '%a?c%' ESCAPE '!'"));
+      assertTrue(generate(derby(), "w", XCondition.STARTING_WITH, "a?c")
+                    .endsWith("LIKE 'a?c%' ESCAPE '!'"));
+      assertEquals(List.of("a?c"),
+                   query(generate(derby(), "w", XCondition.CONTAINS, "a?c")));
+      assertEquals(List.of("a_c"),
+                   query(generate(derby(), "w", XCondition.CONTAINS, "a_c")));
+      assertEquals(List.of("a?c"),
+                   query(generate(derby(), "w", XCondition.STARTING_WITH, "a?c")));
    }
 }

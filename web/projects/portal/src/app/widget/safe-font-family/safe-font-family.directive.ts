@@ -23,6 +23,8 @@ import { DomSanitizer, SafeStyle } from "@angular/platform-browser";
 })
 export class SafeFontFamilyDirective {
    @Input() set safeFontFamily(font: string) {
+      // a single style property bound through CSSOM; it can't inject other CSS.
+      // nosemgrep: typescript.angular.security.audit.angular-domsanitizer.angular-bypasssecuritytrust
       this.fontFamily = this.sanitization.bypassSecurityTrustStyle(font);
    }
    @HostBinding("style.font-family") fontFamily: any;

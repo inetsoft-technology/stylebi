@@ -534,6 +534,8 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    /** Lower-case hex MD5, the encoding of the digest the blob storage keeps. */
    private static String toDigestString(byte[] bytes) {
       try {
+         // change-detection digest compared with the stored blob digest, not a security use.
+         // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
          byte[] digest = MessageDigest.getInstance("MD5").digest(bytes);
          StringBuilder buf = new StringBuilder();
 

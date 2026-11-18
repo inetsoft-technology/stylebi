@@ -51,7 +51,6 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.sql.*;
 import java.text.*;
-import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
@@ -4828,6 +4827,8 @@ public final class XUtil {
                "Transformer attribute {} not supported", XMLConstants.ACCESS_EXTERNAL_STYLESHEET);
          }
 
+         // debug pretty-printer of an in-memory DOM; external DTD/stylesheet access is cleared above.
+         // nosemgrep: java.lang.security.audit.xxe.transformerfactory-dtds-not-disabled.transformerfactory-dtds-not-disabled
          Transformer transformer = factory.newTransformer();
          transformer.setOutputProperty(OutputKeys.INDENT, "yes");
          transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
@@ -5731,6 +5732,38 @@ public final class XUtil {
    }
 
    /**
+    * Format a date variable value with the date format registered for the variable.
+    *
+    * @param obj      the value.
+    * @param format   the registered format, or null.
+    * @param fallback the text used when the value is not a date, there is no format or the
+    *                 format can not be applied.
+    */
+   private static String formatVariableValue(Object obj, String format, String fallback) {
+      if(format == null || !(obj instanceof Date)) {
+         return fallback;
+      }
+
+      try {
+         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
+         long time = ((Date) obj).getTime();
+
+         try {
+            // java.sql.Date.toLocalDate() reads the date as SimpleDateFormat
+            // does, java.time would shift dates before 1901 (bug #77450)
+            return new java.sql.Date(time).toLocalDate().format(formatter);
+         }
+         catch(java.time.temporal.UnsupportedTemporalTypeException ex) {
+            // the pattern has time fields (bug #81117)
+            return new java.sql.Timestamp(time).toLocalDateTime().format(formatter);
+         }
+      }
+      catch(Exception e) {
+         return fallback;
+      }
+   }
+
+   /**
     * Replace variable in a string with its value.
     */
    public static String replaceVariable(String str, VariableTable vars) {
@@ -5759,7 +5792,9 @@ public final class XUtil {
                         int len = Array.getLength(obj);
 
                         for(int i = 0; i < len; i++) {
-                           String s = Tool.toString(Array.get(obj, i));
+                           Object element = Array.get(obj, i);
+                           String s = formatVariableValue(
+                              element, vars.getFormat(varName), Tool.toString(element));
 
                            if(doEncode) {
                               s = Tool.encodeURL(s);
@@ -5769,23 +5804,7 @@ public final class XUtil {
                         }
                      }
                      else {
-                        varValue = obj.toString();
-                        String dateFormat = vars.getFormat(varName);
-
-                        try {
-                           if(dateFormat != null && obj instanceof Date) {
-                              DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateFormat);
-
-                              // java.sql.Date.toLocalDate() reads the date as SimpleDateFormat
-                              // does, java.time would shift dates before 1901 (bug #77450)
-                              LocalDate localDate =
-                                 new java.sql.Date(((Date) obj).getTime()).toLocalDate();
-                              varValue = localDate.format(formatter);
-                           }
-                        }
-                        catch(Exception e) {
-                           varValue = obj.toString();
-                        }
+                        varValue = formatVariableValue(obj, vars.getFormat(varName), obj.toString());
 
                         if(doEncode) {
                            varValue = Tool.encodeURL(varValue);

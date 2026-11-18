@@ -233,7 +233,9 @@ public abstract class VSObjectModel<T extends VSAssembly> {
       cubeType = VSUtil.getCubeType(assembly);
       wsCube = VSUtil.isWorksheetCube(assembly);
       genTime = System.currentTimeMillis();
-      adhocFilterEnabled = !ComposerAdhocFilterService.findContainers(vs, assembly).isEmpty();
+      // in the viewer, a container that does not allow users to add selections is not a target
+      adhocFilterEnabled = !ComposerAdhocFilterService.findContainers(
+         vs, assembly, rvs != null && rvs.isRuntime()).isEmpty();
 
       if(assemblyInfo instanceof DataVSAssemblyInfo) {
          SourceInfo sourceInfo = ((DataVSAssemblyInfo) assemblyInfo).getSourceInfo();

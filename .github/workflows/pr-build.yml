@@ -15,14 +15,14 @@ jobs:
   build:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -31,7 +31,7 @@ jobs:
           server-password: GITHUB_TOKEN
 
       - name: Cache local Maven repository
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
@@ -39,7 +39,7 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Cache NPM global cache
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('web/package-lock.json') }}
@@ -52,7 +52,66 @@ jobs:
       # one job, so a PR uses one runner. -T 2 builds web, which does not depend on core,
       # while core runs its tests; tests tagged slow, and the lockcycle suite with the pool off,
       # are left to the daily slow-tests.yml
+      #
+      # The web tests (vitest) run after the reactor, not beside the core tests (Bug #81520): the
+      # runner has 16 GB, the two core test JVMs and Maven take about 7 GB, and the TL suites take
+      # about 8 GB more (ng 3.9 GB, esbuild 1.8 GB, two workers), so together they reached 14.9 GB
+      # and runners died of memory exhaustion. The reactor still builds web and lints it; only
+      # its tests move. They run even when the reactor failed, as long as web's npm install ran.
+      #
+      # A hosted runner that dies mid-build (Bug #81520: the job log and the Build step just stop,
+      # and the job sits until the cap) leaves nothing in the log to say why. Every minute print
+      # the load, memory, biggest processes and the age of the newest core surefire report (one
+      # is written as each test class finishes). If these lines keep coming while the report age
+      # grows, it is a hang, and the threads of the surefire forks are dumped (at most every 10
+      # minutes) once no class has finished for 5 minutes, which is as long as one test may run
+      # (surefire.testTimeout). If the lines stop too, the runner died. Each fork is also dumped
+      # once when its own age reaches 35 minutes: the slowest healthy fork seen took 31.3 minutes,
+      # and the fork timeout in core/pom.xml (38 minutes) counts from the fork's start, not the
+      # step's, so a step-relative time would land on the kill.
       - name: Build with Maven
-        run: ./mvnw --batch-mode -T 2 clean install
+        run: |
+          # in the background and bounded, so a fork stuck in a long safepoint cannot stall the
+          # sampling loop; kill -3 makes the JVM print the dump to its own stdout instead
+          dump_fork() {
+            echo "[ci-monitor] thread dump of surefire fork $1 ($2)"
+            ( timeout 30 jcmd "$1" Thread.print || { echo "[ci-monitor] jcmd failed or timed out for $1, sending SIGQUIT"; kill -3 "$1"; } ) &
+          }
+          dump_forks() {
+            for pid in $(pgrep -f surefirebooter); do dump_fork "$pid" "$1"; done
+          }
+          (
+            last_dump=0
+            aged=" "
+            while sleep 60; do
+              now=$(date +%s)
+              newest=$(find core/target/surefire-reports -name '*.txt' -printf '%T@\n' 2>/dev/null | sort -n | tail -1)
+              age=-1
+              if [ -n "$newest" ]; then age=$((now - ${newest%.*})); fi
+              echo "[ci-monitor] $(date -u +%T) load=$(cut -d' ' -f1-3 /proc/loadavg) $(free -m | awk '/^Mem:/{print "used_mb="$3" avail_mb="$7}') last_report_age=${age}s top: $(ps -eo rss,comm --sort=-rss | awk 'NR>1 && NR<=7{printf "%s=%dMB ",$2,$1/1024}')"
+              if [ "$age" -gt 300 ] && [ $((now - last_dump)) -gt 600 ]; then
+                last_dump=$now
+                dump_forks "no test class finished for ${age}s"
+              fi
+              for pid in $(pgrep -f surefirebooter); do
+                case "$aged" in *" $pid "*) continue ;; esac
+                if [ "$(ps -o etimes= -p "$pid" | tr -d ' ')" -ge 2100 ] 2>/dev/null; then
+                  aged="$aged$pid "
+                  dump_fork "$pid" "fork is 35 minutes old"
+                fi
+              done
+            done
+          ) &
+          monitor=$!
+          trap 'kill $monitor 2>/dev/null || true' EXIT
+          status=0
+          ./mvnw --batch-mode -T 2 clean install -Dng.verify.script=lint || status=$?
+          if [ -d web/node_modules ]; then
+            ./mvnw --batch-mode -o -pl web com.inetsoft.stylebi.build:node-maven-plugin:2.1.0-SNAPSHOT:npm -Dfrontend.npm.arguments="run test" || status=$?
+          fi
+          exit $status
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Bug #81520: the Maven JVM grows to its default heap cap (a quarter of RAM), 3.9 GB, beside
+          # the two 2 GB core test JVMs; with this cap it stays at about 2.6 GB
+          MAVEN_OPTS: -Xmx2g

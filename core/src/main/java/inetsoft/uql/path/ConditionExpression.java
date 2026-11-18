@@ -20,6 +20,7 @@ package inetsoft.uql.path;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XNode;
 import inetsoft.uql.util.expr.ExprParser;
+import inetsoft.uql.util.expr.TokenMgrError;
 
 import java.io.StringReader;
 import java.text.ParseException;
@@ -67,7 +68,7 @@ public abstract class ConditionExpression implements java.io.Serializable {
 
          return parser.search_condition();
       }
-      catch(Exception ex) {
+      catch(Exception | TokenMgrError ex) {
          throw new ParseException(ex.toString(), 0);
       }
    }

@@ -120,6 +120,12 @@ public class NthLargestFormula implements Formula, java.io.Serializable {
     */
    @Override
    public void addValue(Object v) {
+      // a blank string parses to NaN, which sorts above every number, so
+      // skip it when number strings are compared numerically
+      if(parseNum && v instanceof String && ((String) v).trim().isEmpty()) {
+         return;
+      }
+
       try {
          for(int i = vs.size() - 1; i >= 0; i--) {
             Object iV = vs.elementAt(i);

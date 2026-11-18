@@ -49,8 +49,15 @@ export class LocalizationPane {
    }
 
    selectLocalized(event: MouseEvent, component: LocalizationComponent): void {
-      if(event.ctrlKey) {
-         this.selectedLocalized.push(component);
+      if(event.ctrlKey || event.metaKey) {
+         const placement: number = this.selectedLocalized.indexOf(component);
+
+         if(placement > -1) {
+            this.selectedLocalized.splice(placement, 1);
+         }
+         else {
+            this.selectedLocalized.push(component);
+         }
       }
       else if(event.shiftKey) {
          if(this.selectedLocalized.length > 0) {
@@ -59,11 +66,24 @@ export class LocalizationPane {
             let indexLast: number = this.model.localized.indexOf(lastSelected);
             let indexCurrent: number = this.model.localized.indexOf(component);
 
+            if(indexLast < 0 || indexCurrent < 0) {
+               if(this.selectedLocalized.indexOf(component) == -1) {
+                  this.selectedLocalized.push(component);
+               }
+
+               return;
+            }
+
             let smaller: number = indexLast < indexCurrent ? indexLast : indexCurrent;
             let larger: number = indexLast < indexCurrent ? indexCurrent : indexLast;
 
+            // never select a row twice
             for(let i = smaller; i <= larger; i++) {
-               this.selectedLocalized.push(this.model.localized[i]);
+               const item = this.model.localized[i];
+
+               if(this.selectedLocalized.indexOf(item) == -1) {
+                  this.selectedLocalized.push(item);
+               }
             }
          }
          else {
@@ -107,9 +127,11 @@ export class LocalizationPane {
    }
 
    remove(): void {
-      for(let locale of this.selectedLocalized) {
-         let index: number = this.model.localized.indexOf(locale);
-         this.model.localized.splice(index, 1);
+      // remove by membership; a selected row that is not in the model must never remove another
+      for(let i = this.model.localized.length - 1; i >= 0; i--) {
+         if(this.selectedLocalized.indexOf(this.model.localized[i]) != -1) {
+            this.model.localized.splice(i, 1);
+         }
       }
 
       this.selectedLocalized = [];

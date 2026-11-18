@@ -20,7 +20,6 @@ package inetsoft.report.io.viewsheet.excel;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.internal.Common;
 import inetsoft.report.io.viewsheet.*;
-import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
@@ -158,13 +157,8 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
       SelectionValue sv;
       VSCompositeFormat lastLineFormat = null;
       VSCompositeFormat format = null;
-      int cellHeight = info.getEffectiveCellHeight();
-      cellHeight = (int) Math.round((double) cellHeight / AssetUtil.defh) * AssetUtil.defh;
       int titleH = PoiExcelVSUtil.getExcelTitleHeight(info);
-      int sizeHeight = PoiExcelVSUtil.floorY(info.getPixelSize().height);
-      int infoRows = (int) Math.round((double) (sizeHeight - titleH) / cellHeight);
       int level;
-      int currRow = -1;
 
       List<Double> rowHeights = new ArrayList<>();
       Dimension size = info.getPixelSize();
@@ -179,46 +173,55 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
          rowHeights.add(cellHeight2);
       }
 
-      //Fixed bug#25366 that calculate correct rowIndex to
-      //avoid merger cell ,result in title missing.
-      int rowHeightSum = 0;
+      // Map the nodes cumulatively from raw pixels onto the grid rows the box owns (shared with
+      // the list writer). Never sum per-row rounded heights: the rounding error accumulates and
+      // drops the last nodes (#80207). Fit and drawing use this one mapping.
+      Point pos = info.getViewsheet().getPixelPosition(info);
+      int rawY = pos.y;
+      int top = PoiExcelVSUtil.ceilY(rawY);
+      int firstRow = exporter.getRowCol(pos.x, PoiExcelVSUtil.floorY(rawY), new Point()).y;
+      int dataRow = exporter.getRowCol(pos.x, top + titleH, new Point()).y;
+      // every grid row the box touches, as the anchor granted the tree before (the title may
+      // round up to the grid and take part of the first row)
+      int endRow = size.height > 0 ?
+         exporter.getRowCol(pos.x, Math.max(top, rawY + size.height - 1), new Point()).y + 1 :
+         firstRow;
+      endRow = Math.min(endRow, ExcelSelectionListHelper.getNeighborRow(
+         assembly, info, exporter, pos.x, firstRow));
+      boolean incs = assembly.getContainer() instanceof CurrentSelectionVSAssembly;
+      int rawTitle = info.isTitleVisible() || incs ? info.getTitleHeight() : 0;
+      int[] bounds = ExcelSelectionListHelper.mapRows(
+         exporter, pos.x, dataRow, endRow, rawY + rawTitle, rowHeights);
+      int nfit = bounds.length - 1;
+      // "More..." only when nodes really cannot fit; a single slot is never given to it
+      // because that would replace the one node that does fit
+      boolean showMore = nfit >= 2 && rowHeights.size() > nfit;
 
-      for(int i = 0; i < rowHeights.size(); i++) {
-         Point pos = info.getViewsheet().getPixelPosition(info);
-         pos.y = PoiExcelVSUtil.ceilY(pos.y);
-         int rowIndex = exporter.getRowCol(pos.x,
-            pos.y + titleH + rowHeightSum, new Point()).y;
-         rowHeightSum = rowHeightSum +
-            PoiExcelVSUtil.getSelectionCellHeight(rowHeights.get(i).intValue());
-
-         if(currRow < 0) {
-            currRow = rowIndex;
-         }
-         else {
-            rowIndex = Math.max(rowIndex, ++currRow);
-         }
-
+      for(int i = 0; i < nfit; i++) {
+         int rowIndex = bounds[i];
+         int row2 = bounds[i + 1] - 1;
+         boolean more = showMore && i == nfit - 1;
          row = PoiExcelVSUtil.getRow(rowIndex, sheet);
 
-         if(row == null || rowIndex >= anchor.getRow2()) {
+         if(row == null) {
             break; // out of display area
          }
 
          cell = PoiExcelVSUtil.getCell(columnStart, row);
          Font font = null;
 
-         if(i < dispList.size()) {
+         {
             StringBuilder sb = new StringBuilder();
             sv = dispList.get(i + 1);
-            level = sv.getLevel();
+            level = more ? 0 : sv.getLevel();
 
             for(int k = 0; k < level; k++) {
                sb.append(INDENT_STR);
             }
 
-            sb.append(sv.getLabel());
+            sb.append(more ? STR_MORE : sv.getLabel());
 
-            if(info.isShowText() && sv.getMeasureLabel() != null) {
+            if(!more && info.isShowText() && sv.getMeasureLabel() != null) {
                sb.append(" (").append(sv.getMeasureLabel()).append(")");
             }
 
@@ -228,7 +231,7 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
             format = ExcelSelectionListHelper.applyDarkOptOut(format, VizContext.of(info).dark);
             format = VSSelectionListHelper.getValueFormat(sv, format, hasSelected);
 
-            if(i == (dispList.size() - 1) && STR_MORE.equals(sv.getLabel())) {
+            if(more) {
                format = lastLineFormat;
             }
 
@@ -238,19 +241,18 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
             cell.setCellValue(hrText);
 
             try {
-               Point p1 = new Point(anchor.getCol1(), rowIndex);
-               Point p2 = new Point(anchor.getCol2() - 1, rowIndex);
-               PoiExcelVSUtil.writeBar(sv, p1, p2, exporter,
-                                       info.getCompositeSelectionValue().getSelectionList(),
-                                       info, book);
+               if(!more) {
+                  Point p1 = new Point(anchor.getCol1(), rowIndex);
+                  Point p2 = new Point(anchor.getCol2() - 1, rowIndex);
+                  PoiExcelVSUtil.writeBar(sv, p1, p2, exporter,
+                                          info.getCompositeSelectionValue().getSelectionList(),
+                                          info, book);
+               }
             }
             catch(Exception ex) {
                LOG.error("Failed to write measure bar", ex);
             }
          }
-
-         int row2 = exporter.getRowCol(
-            pos.x, pos.y + titleH + rowHeightSum, new Point()).y - 1;
 
          CellRangeAddress cellRange = new CellRangeAddress(rowIndex, Math.max(rowIndex, row2),
                                                            columnStart,
@@ -267,17 +269,16 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
                   PoiExcelVSUtil.getColorByAlpha(bg));
             }
          }
-         else if(format.getBackground() == null || i == dispList.size()) {
+         else if(format.getBackground() == null) {
             format.getUserDefinedFormat().setBackground(
                info.getFormat().getBackground());
          }
 
          PoiExcelVSUtil.addMergedRegion(sheet, cellRange);
 
-         int celltype = (i == infoRows) ?
-            ExcelVSUtil.CELL_TAIL :
-            ((i < dispList.size() || dispList.size() == 0) ?
-               ExcelVSUtil.CELL_CONTENT : ExcelVSUtil.CELL_HEADER);
+         // the tail border goes on the node that reaches the bottom of the box
+         int celltype = i == nfit - 1 && bounds[nfit] >= endRow ?
+            ExcelVSUtil.CELL_TAIL : ExcelVSUtil.CELL_CONTENT;
 
          PoiExcelVSUtil.setCellStyles(book, sheet, format, parentformat, cellRange,
                                       null, font, format.getFont(), format.getForeground(),

@@ -363,7 +363,7 @@ public class VSTableConverter extends TableConverter {
                nbinding.setMergeColGroup(nbinding.getCellName());
                nbinding.setBType(TableCellBinding.GROUP);
                nbinding.setOrderInfo(fixOrderInfo(refs[index], headers[index]));
-               nbinding.setTopN(fixTopN(refs[index], cinfo));
+               nbinding.setTopN(fixTopN(refs, index));
 
                if(ainfo != null && ainfo.getGroup(refs[index].getName()) == null) {
                   nbinding.setValue(VSLayoutTool.getOriginalColumn(nbinding.getValue(), refs[index]));
@@ -543,59 +543,26 @@ public class VSTableConverter extends TableConverter {
    }
 
    /**
-    * Fix TopN info.
+    * Fix TopN info. The Others group is only supported on the innermost dimension, so it is
+    * turned off for the other dimensions of the same axis.
+    *
+    * @param refs  the group refs of the axis (rows or columns), in the same runtime order
+    *              that the converted layout is generated from.
+    * @param index the index of the dimension in <tt>refs</tt>.
     */
-   private static TopNInfo fixTopN(GroupRef dim, VSCrosstabInfo info) {
-      TopNInfo topN = dim.getTopN();
+   private static TopNInfo fixTopN(GroupRef[] refs, int index) {
+      TopNInfo topN = refs[index].getTopN();
 
       if(topN != null) {
          topN = (TopNInfo) topN.clone();
 
-         if(isNotInnerDimRef(dim, info)) {
+         // use the runtime headers (not the design headers), which may have a different
+         // dimension set/order, e.g. after drill or date comparison
+         if(index != refs.length - 1) {
             topN.setOthers(false);
          }
       }
 
       return topN;
-   }
-
-   /**
-    * Judge whether the data type dimension is an outer dimension.
-    */
-   private static boolean isNotInnerDimRef(GroupRef dim, VSCrosstabInfo info) {
-      DataRef[] dims = info.getRowHeaders();
-      DataRef ref = null;
-
-      for(int i = 0; i < dims.length; i++) {
-         ref = dims[i];
-
-         if(!(ref instanceof VSDimensionRef)) {
-            break;
-         }
-
-         if(!((VSDimensionRef) ref).getFullName().equals(dim.getName())) {
-            continue;
-         }
-
-         return i != dims.length - 1;
-      }
-
-      dims = info.getColHeaders();
-
-      for(int i = 0; i < dims.length; i++) {
-         ref = dims[i];
-
-         if(!(ref instanceof VSDimensionRef)) {
-            break;
-         }
-
-         if(!((VSDimensionRef) ref).getFullName().equals(dim.getName())) {
-            continue;
-         }
-
-         return i != dims.length - 1;
-      }
-
-      return false;
    }
 }

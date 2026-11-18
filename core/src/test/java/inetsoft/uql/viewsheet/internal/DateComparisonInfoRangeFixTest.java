@@ -54,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DateComparisonInfoRangeFixTest {
    // -- finding 1: one-day Custom Period -----------------------------------------------------
 

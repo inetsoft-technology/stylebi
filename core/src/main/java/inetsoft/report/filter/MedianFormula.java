@@ -128,6 +128,11 @@ public class MedianFormula implements PercentageFormula {
          return;
       }
 
+      // a blank string cannot be ranked numerically, skip it like null
+      if(v instanceof String && ((String) v).trim().isEmpty()) {
+         return;
+      }
+
       vs.add(v);
    }
 

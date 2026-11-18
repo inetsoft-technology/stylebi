@@ -19,9 +19,13 @@ package inetsoft.uql.jdbc.util;
 
 import inetsoft.uql.table.XStringColumn;
 import inetsoft.uql.table.XTableColumnCreator;
+import inetsoft.util.CoreTool;
 
 import java.sql.CallableStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.sql.Types;
 
 /**
  * SQLTypes specialization that handles SQL Server databases.
@@ -39,6 +43,23 @@ public final class SQLServerSQLTypes extends SQLTypes {
    {
       if(type == SQLSERVER_STRING || type == SQLSERVER_STRING2) {
          return result.getString(idx);
+      }
+
+      if(type == SQLSERVER_DATETIMEOFFSET || type == Types.TIMESTAMP) {
+         try {
+            return super.getObject(result, idx, type);
+         }
+         catch(SQLException ex) {
+            // a datetimeoffset column read as a timestamp; fall back to the driver object
+            // (microsoft.sql.DateTimeOffset) converted to the instant it denotes
+            Timestamp ts = CoreTool.getTimeInstantData(result.getObject(idx));
+
+            if(ts == null) {
+               throw ex;
+            }
+
+            return ts;
+         }
       }
 
       return super.getObject(result, idx, type);

@@ -621,6 +621,18 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Check if this database sorts NULL above every other value, i.e. an ascending ORDER BY
+    * returns NULL last and a descending one returns it first. This is a capability flag in
+    * sqlhelper.xml (nullsorder=high). Dialects that do not declare it are treated as sorting
+    * NULL lowest, which is also how the in-memory sort (Tool.compare) orders NULL.
+    * @return true if NULL sorts high.
+    */
+   public boolean isNullsSortHigh() {
+      getHelperClass(getSQLHelperType());
+      return nullsHigh.contains(getSQLHelperType());
+   }
+
+   /**
     * Get the db product's version.
     */
    public String getProductVersion() {
@@ -1936,6 +1948,11 @@ public class SQLHelper implements KeywordProvider {
             // and on a case-sensitive helper the column may have been written quoted
             else if(!isCaseSensitive() && !(uniformSql.getTableName(table) instanceof UniformSQL)) {
                qcolumn = quoteAggregateColumn(column);
+            }
+            // a column of a physical table on a case-sensitive helper: it names a column, not an
+            // alias, so a helper may quote aliases differently (#80212)
+            else if(isCaseSensitive() && !(uniformSql.getTableName(table) instanceof UniformSQL)) {
+               qcolumn = quoteCaseSensitiveAggregateColumn(column);
             }
             else {
                qcolumn = quoteColumnAlias(column);
@@ -4894,6 +4911,25 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Quote the column of a physical table as the only argument of a function (sum(t.col)) on
+    * a case-sensitive helper. The column is not a select alias, so a helper that quotes every
+    * alias (see quoteColumnAlias) must not quote it by the alias rule: the column found
+    * ignoring case may be another one.
+    */
+   protected String quoteCaseSensitiveAggregateColumn(String column) {
+      return quoteColumnAlias(column);
+   }
+
+   /**
+    * The alias of a derived table column is the column part of table.alias, a reference to
+    * the select alias of the derived table (see quoteColumnAlias), not to a column of a
+    * physical table (see quoteColumnPartAlias).
+    */
+   protected String quoteAliasColumnPart(String alias) {
+      return quoteColumnPartAlias(alias);
+   }
+
+   /**
     * Quote the column of a physical table written unquoted as the only argument of a
     * function (sum(t.col)), only if needed.
     */
@@ -5480,7 +5516,7 @@ public class SQLHelper implements KeywordProvider {
                // oracle sql helper will quote any column alias when
                // calling the method quoteColumnAlias, which is not
                // allowed if is table.calias pattern
-               cpart = tpart == null ? quoteColumnAlias(cpart) : quoteColumnPartAlias(cpart);
+               cpart = tpart == null ? quoteColumnAlias(cpart) : quoteAliasColumnPart(cpart);
             }
             else {
                cpart = tpart == null ? XUtil.quoteName(cpart, this) :
@@ -5927,6 +5963,12 @@ public class SQLHelper implements KeywordProvider {
                      if(mnode != null) {
                         String str = Tool.getValue(mnode);
                         maxidentifier.put(type, Integer.valueOf(str));
+                     }
+
+                     Element nnode = Tool.getChildNodeByTagName(node2, "nullsorder");
+
+                     if(nnode != null && "high".equalsIgnoreCase(Tool.getValue(nnode))) {
+                        nullsHigh.add(type);
                      }
                   }
 
@@ -6757,6 +6799,8 @@ public class SQLHelper implements KeywordProvider {
    private static Set<String> keywords = new HashSet<>(); // keywords
    private static Hashtable<String, Integer> maxidentifier = new Hashtable<>(); // type -> id len
    private static Map<String, String> connectionTestQuery = new ConcurrentHashMap<>();
+   // helper types whose ascending ORDER BY puts NULL last (NULL sorts above every value)
+   private static final Set<String> nullsHigh = ConcurrentHashMap.newKeySet();
 
    static {
       keywords.add("absolute");

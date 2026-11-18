@@ -15,6 +15,11 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
+<ng-template #annotationTooltip>
+  <div class="widget__default-tooltip vs-annotation__tooltip"
+       [style.background-color]="tooltipFill"
+       [innerHTML]="content"></div>
+</ng-template>
 @if (model && model.visible && model.annotationRectangleModel) {
   @if (!model.hidden) {
     @if (isLineInContainer()) {
@@ -69,8 +74,7 @@
         <div class="vs-annotation__rectangle-content-padding-box"
           [style.padding.px]="contentPadding"
           [class.vs-annotation__rectangle-content--selected]="selected"
-          [wTooltip]="isOverflowing ? content : ''"
-          [tooltipCSS]="['widget__default-tooltip', 'vs-annotation__tooltip']">
+          [wTooltip]="isOverflowing ? annotationTooltip : ''">
           <div class="vs-annotation__rectangle-content">
             <p class="vs-annotation__rectangle-content-text" #annotationContent
               [innerHtml]="content">
@@ -97,8 +101,7 @@
         [style.left.px]="model.annotationRectangleModel.objectFormat.left">
         <button type="button" class="btn-sm annotition-button" aria-label="Toggle Annotations"
           (click)="toggleAnnotationStatus()"
-          [wTooltip]="content"
-          [tooltipCSS]="['widget__default-tooltip', 'vs-annotation__tooltip']">
+          [wTooltip]="annotationTooltip">
           <span class="annotation-icon" aria-hidden="true"></span>
         </button>
       </div>

@@ -164,6 +164,22 @@ public class SubmitVSAssemblyInfo extends ClickableOutputVSAssemblyInfo {
             }
          }
 
+         if(popOptionValue != null) {
+            info.popOptionValue = (DynamicValue2) popOptionValue.clone();
+         }
+
+         if(popLocationValue != null) {
+            info.popLocationValue = (DynamicValue) popLocationValue.clone();
+         }
+
+         if(popComponentValue != null) {
+            info.popComponentValue = (DynamicValue) popComponentValue.clone();
+         }
+
+         if(alphaValue != null) {
+            info.alphaValue = (DynamicValue) alphaValue.clone();
+         }
+
          return info;
       }
       catch(Exception ex) {

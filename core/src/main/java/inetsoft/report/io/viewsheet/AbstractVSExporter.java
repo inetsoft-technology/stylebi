@@ -202,8 +202,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                                      box.getSandbox(assembly.getName()));
          }
          else {
-            List<DynamicValue> dvalues = assembly.getViewDynamicValues(true);
-            box.executeDynamicValues(assembly.getName(), dvalues);
+            box.executeViewDynamicValues(assembly.getName(), assembly);
          }
       }
    }

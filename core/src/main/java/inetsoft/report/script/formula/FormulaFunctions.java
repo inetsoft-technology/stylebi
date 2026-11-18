@@ -76,6 +76,8 @@ public class FormulaFunctions {
     * rounddate - year, quarter, month, week, day, hour, minute, second
     * maxrows - number of items to keep in the list. If the value is negative,
     *           the last number of items are kept.
+    * sort2 - asc, desc, false. The display order of the rows kept by maxrows
+    *         (applied after the maxrows limit). Defaults to the sort option.
     * remainder - if specified and there are items ignored due to maxrows, return
     *          an extra item with the value specified by remainder.
     */
@@ -102,7 +104,7 @@ public class FormulaFunctions {
       }
       else {
          isArray = JavaScriptEngine.isArray(arrObj);
-         arr = isArray ? JavaScriptEngine.split(arrObj) : new Object[] {arrObj};
+         arr = isArray ? JavaScriptEngine.split(arrObj).clone() : new Object[] {arrObj};
          // @see comment in mapList
          // arr = (isArray || arrObj == null) ? JavaScriptEngine.split(arrObj) :
          //   new Object[] {arrObj};
@@ -342,28 +344,49 @@ public class FormulaFunctions {
       if(arr1 == null && arr2 == null) {
          return new Object[0];
       }
-      else if(arr1 == null) {
-         return arr2;
+      if(arr1 == null) {
+         arr1 = new Object[0];
       }
-      else if(arr2 == null) {
-         return arr1;
+
+      if(arr2 == null) {
+         arr2 = new Object[0];
       }
 
       List list = new ArrayList();
 
       for(int i = 0; i < arr1.length; i++) {
-         if(!list.contains(arr1[i])) {
+         if(!listContains(list, arr1[i])) {
             list.add(arr1[i]);
          }
       }
 
       for(int i = 0; i < arr2.length; i++) {
-         if(!list.contains(arr2[i])) {
+         if(!listContains(list, arr2[i])) {
             list.add(arr2[i]);
          }
       }
 
       return list.toArray();
+   }
+
+   /**
+    * Check if a list contains a value. Numbers and dates (Timestamp vs Date) are compared by value, as in
+    * intersect and inArray, so that Double 3.0 and Integer 3 are equal. All
+    * other values (including arrays) keep the List.contains (equals) semantics.
+    */
+   private static boolean listContains(List list, Object val) {
+      for(int i = 0; i < list.size(); i++) {
+         Object item = list.get(i);
+
+         if((item instanceof Number && val instanceof Number ||
+            item instanceof Date && val instanceof Date) ?
+            Tool.equals(item, val) : Objects.equals(item, val))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -618,7 +641,7 @@ public class FormulaFunctions {
 
    /**
     * Get the week of year for the date=week option. This matches the Week of Year date
-    * group of a crosstab under the default week.start (both force minimalDaysInFirstWeek
+    * group of a crosstab, including its week.start setting (both force minimalDaysInFirstWeek
     * to 1, the week containing January 1 is week 1), instead of the Excel numbering of
     * CALC.weeknum(). A bare GregorianCalendar otherwise inherits minimalDaysInFirstWeek
     * from the JVM default locale (1 for en_US/zh_CN, 4 for en_GB/de_DE), which would make
@@ -629,7 +652,7 @@ public class FormulaFunctions {
       Calendar cal = new GregorianCalendar();
       cal.setMinimalDaysInFirstWeek(1);
       cal.setTime((Date) date);
-      cal.setFirstDayOfWeek(Calendar.SUNDAY);
+      cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
       return cal.get(Calendar.WEEK_OF_YEAR);
    }
 
@@ -735,6 +758,8 @@ public class FormulaFunctions {
     * the following:<br>
     * others - may be: groupothers and leaveothers for grouping non-mapped
     * values into a single group or leave them as individual values.
+    * sort2 - asc, desc, false. The display order of the rows kept by maxrows
+    *         (applied after the maxrows limit). Defaults to the sort option.
     * remainder - if specified and there are items ignored due to maxrows, return
     *          an extra item with the value specified by remainder.
     * @return an array of mapped values, or a single mapped value if the
@@ -782,7 +807,7 @@ public class FormulaFunctions {
          // create a zero length array, it will cause the value be ignored,
          // function toArray, toList also have problem
          // fix bug1285489437478
-         arr = isArray ? JavaScriptEngine.split(arrObj) : new Object[] {arrObj};
+         arr = isArray ? JavaScriptEngine.split(arrObj).clone() : new Object[] {arrObj};
          // arr = (isArray || arrObj == null) ? JavaScriptEngine.split(arrObj) :
          //    new Object[] {arrObj};
       }
@@ -920,7 +945,8 @@ public class FormulaFunctions {
       }
       // not sort by value but exist ranking n
       else if(opt.getOption("maxrows", null) != null &&
-         opt.getString("manualvalues", null) == null)
+         opt.getString("manualvalues", null) == null &&
+         (opt.getString("sorton", null) == null || opt.getOption("sort2", null) != null))
       {
          sortList(arr, opt, null, true);
       }
@@ -1222,21 +1248,23 @@ public class FormulaFunctions {
                return true;
             }
 
+            // a narrower key only matches when the conversion is lossless, otherwise
+            // 1.5 would be taken as a duplicate of 1
             int ival = ((Number) val).intValue();
 
-            if(map.containsKey(ival)) {
+            if(ival == dval && map.containsKey(ival)) {
                return true;
             }
 
             float fval = ((Number) val).floatValue();
 
-            if(map.containsKey(fval)) {
+            if(fval == dval && map.containsKey(fval)) {
                return true;
             }
 
             long lval = ((Number) val).longValue();
 
-            if(map.containsKey(lval)) {
+            if(lval == dval && map.containsKey(lval)) {
                return true;
             }
          }
@@ -1507,7 +1535,11 @@ public class FormulaFunctions {
     * Sort a list according to option setting.
     */
    private static void sortList(Object[] arr, Options opt, Comparator comp0, boolean sort2) {
-      String sort = isTimeSeries(opt) ? "asc" : opt.getOption(sort2 ? "sort2" : "sort", "asc");
+      // the trailing pass (after maxrows) defaults to the sort option, so the kept rows
+      // are displayed in the direction they were ranked in (Bug #81071)
+      String sort = isTimeSeries(opt) ? "asc" :
+         opt.getOption(sort2 ? "sort2" : "sort",
+                       sort2 ? opt.getOption("sort", "asc") : "asc");
       boolean sortOthersLast = opt.getBoolean("sortotherslast", false);
 
       if(comp0 != null) {
@@ -1883,13 +1915,15 @@ public class FormulaFunctions {
             else {
                switch(c) {
                case '(':
-                  lookfor = ')';
-                  break;
                case '\'':
-                  lookfor = '\'';
-                  break;
                case '"':
-                  lookfor = '"';
+                  // the value of a free-text option (manualvalues, remainder) is data, not
+                  // an expression, and its commas are already escaped as '\,'. don't let an
+                  // unpaired quote/parenthesis in it swallow the options after it. (81083)
+                  if(!isFreeTextOption(str, start, i)) {
+                     lookfor = c == '(' ? ')' : c;
+                  }
+
                   break;
                }
             }
@@ -1917,6 +1951,21 @@ public class FormulaFunctions {
                optmap.put(name.toLowerCase(), value);
             }
          }
+      }
+
+      /**
+       * Check if the option that starts at start and the char at pos belongs to is inside the
+       * value of a free-text option, i.e. an option whose name is manualvalues or remainder.
+       */
+      private static boolean isFreeTextOption(String str, int start, int pos) {
+         int eq = str.indexOf('=', start);
+
+         if(eq < 0 || eq >= pos) {
+            return false;
+         }
+
+         String name = str.substring(start, eq).trim();
+         return name.equalsIgnoreCase("manualvalues") || name.equalsIgnoreCase("remainder");
       }
 
       /**

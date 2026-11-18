@@ -1416,8 +1416,7 @@ public class CoreTool {
                return Byte.valueOf(val);
             }
             catch(Exception ex) {
-               double dval = parseDouble(val);
-               return (byte) dval;
+               return (byte) parseIntegral(val, Byte.MIN_VALUE, Byte.MAX_VALUE);
             }
          case CODE_CHARACTER:
             return val.charAt(0);
@@ -1430,23 +1429,27 @@ public class CoreTool {
                return Integer.valueOf(val);
             }
             catch(Exception ex) {
-               double dval = parseDouble(val);
-               return (int) dval;
+               return (int) parseIntegral(val, Integer.MIN_VALUE, Integer.MAX_VALUE);
             }
          case CODE_LONG:
             try {
                return Long.valueOf(val);
             }
             catch(Exception ex) {
-               return parseDouble(val);
+               double dval = parseDouble(val);
+
+               if(!isLongRange(val, dval)) {
+                  throw new NumberFormatException("Value out of range for long: " + val);
+               }
+
+               return dval;
             }
          case CODE_SHORT:
             try {
                return Short.valueOf(val);
             }
             catch(Exception ex) {
-               double dval = parseDouble(val);
-               return (short) dval;
+               return (short) parseIntegral(val, Short.MIN_VALUE, Short.MAX_VALUE);
             }
          case CODE_DATE:
             Date date;
@@ -1533,6 +1536,51 @@ public class CoreTool {
       }
 
       return val;
+   }
+
+   /**
+    * Parse a decimal or out-of-int-syntax number for a narrower integral type. The fraction
+    * is truncated, but a value outside [min, max] (or NaN) is rejected instead of wrapped
+    * or saturated by the narrowing cast.
+    * @throws NumberFormatException if the value is not a number or is out of range.
+    */
+   private static double parseIntegral(String str, double min, double max) {
+      double dval = parseDouble(str);
+      double truncated = dval < 0 ? Math.ceil(dval) : Math.floor(dval);
+
+      if(!(truncated >= min && truncated <= max)) {
+         throw new NumberFormatException("Value out of range: " + str);
+      }
+
+      return dval;
+   }
+
+   /**
+    * Check if the numeric text (already parsed as dval) fits the range of long. Only values
+    * near +-2^63 need the exact decimal check, because a double cannot tell
+    * Long.MIN_VALUE - 1 from Long.MIN_VALUE. Everything else is decided in O(1) from dval,
+    * so BigDecimal.toBigInteger() is never applied to text like "1e-999999999".
+    */
+   private static boolean isLongRange(String str, double dval) {
+      double abs = Math.abs(dval);
+
+      if(abs < 0x1p62) {
+         return true;
+      }
+
+      if(!(abs < 0x1p64)) {
+         // too large, infinite or NaN
+         return false;
+      }
+
+      try {
+         // |value| is within [2^62, 2^64), so the integer part has at most 20 digits
+         return new java.math.BigDecimal(str.trim()).toBigInteger().bitLength() < Long.SIZE;
+      }
+      catch(NumberFormatException ignore) {
+         // e.g. a trailing percent sign, parsed by parseDouble
+         return dval >= -0x1p63 && dval < 0x1p63;
+      }
    }
 
    private static double parseDouble(String str) {
@@ -2118,6 +2166,7 @@ public class CoreTool {
          date.setHours(0);
          date.setMinutes(0);
          date.setSeconds(0);
+         date.setTime(date.getTime() - Math.floorMod(date.getTime(), 1000L));
          return new java.sql.Date(date.getTime());
       }
       else if(val instanceof Number) {
@@ -2565,7 +2614,8 @@ public class CoreTool {
     * @param email email address
     */
    public static boolean matchEmail(String email) {
-      String emailRegex = "^[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*@[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*$";
+      // an apostrophe is legal in the local part (o'brien@example.com), not in the domain
+      String emailRegex = "^[\\w\\d\\-\\+_']+(\\.[\\w\\d\\-\\+_']+)*@[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*$";
       return Pattern.compile(emailRegex).matcher(email.trim()).matches();
    }
 
@@ -3192,6 +3242,8 @@ public class CoreTool {
          // @by yuz, save resource about creating DocumentBuilder
          if(builder == null) {
             DocumentBuilderFactory bfactory = DocumentBuilderFactory.newInstance();
+            // only used for newDocument(); parsing goes through the hardened StAX path.
+            // nosemgrep: java.lang.security.audit.xxe.documentbuilderfactory-disallow-doctype-decl-missing.documentbuilderfactory-disallow-doctype-decl-missing
             builder = bfactory.newDocumentBuilder();
          }
          else {
@@ -3358,6 +3410,8 @@ public class CoreTool {
          }
       }
 
+      // the factory is hardened (doctype disallowed, external entities off) when it is created above.
+      // nosemgrep: java.lang.security.audit.xxe.saxparserfactory-disallow-doctype-decl-missing.saxparserfactory-disallow-doctype-decl-missing
       saxParserFactory.newSAXParser().parse(input, handler);
    }
 
@@ -3388,6 +3442,8 @@ public class CoreTool {
          }
       }
 
+      // the factory is hardened (doctype disallowed, external entities off) when it is created above.
+      // nosemgrep: java.lang.security.audit.xxe.documentbuilderfactory-disallow-doctype-decl-missing.documentbuilderfactory-disallow-doctype-decl-missing
       DocumentBuilder builder = docFactory.newDocumentBuilder();
       BufferedReader br = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
       return builder.parse(new InputSource(br));
@@ -4128,12 +4184,27 @@ public class CoreTool {
             msg.setAssemblyName(assemblyName);
          }
 
+         // counted before the duplicate check, so a message that is already pending is
+         // still seen as produced again (bug #81091)
+         if(msg.getLevel() == ConfirmException.ERROR) {
+            ERROR_MESSAGE_COUNT.set(ERROR_MESSAGE_COUNT.get() + 1);
+         }
+
          boolean found = existUserMessage(msg);
 
          if(!found) {
             USER_MESSAGE_LOCAL.get().add(msg);
          }
       }
+   }
+
+   /**
+    * Get the number of error level user messages added on this thread so far, including those
+    * dropped as duplicates of a pending message and those already read or cleared. Compare two
+    * readings to find out if the code between them produced an error message.
+    */
+   public static long getErrorMessageCount() {
+      return ERROR_MESSAGE_COUNT.get();
    }
 
    public static boolean existUserMessage(String msg) {
@@ -4441,6 +4512,7 @@ public class CoreTool {
 
    public static final String FAKE_NULL = "__null__";
    private final static ThreadLocal<List<UserMessage>> USER_MESSAGE_LOCAL = ThreadLocal.withInitial(ArrayList::new);
+   private final static ThreadLocal<Long> ERROR_MESSAGE_COUNT = ThreadLocal.withInitial(() -> 0L);
    private final static ThreadLocal<String> USER_MESSAGE_ASSEMBLY_NAME = ThreadLocal.withInitial(String::new);
    public final static ThreadLocal<Boolean> useDatetimeWithMillisFormat = ThreadLocal.withInitial(() -> false);
    private static String confirmMsg = null;

@@ -56,6 +56,12 @@ public class VarianceFormula implements PercentageFormula {
       try {
          double dval = (v instanceof Number) ? ((Number) v).doubleValue()
             : NumberParserWrapper.getDouble(v.toString());
+
+         // a blank string parses to NaN, it is no value (same as SumFormula)
+         if(!(v instanceof Number) && Double.isNaN(dval)) {
+            return;
+         }
+
          list.add(dval);
       }
       catch(NumberFormatException e) {

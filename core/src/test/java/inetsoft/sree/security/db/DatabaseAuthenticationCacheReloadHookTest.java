@@ -59,6 +59,7 @@ import static org.mockito.Mockito.*;
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("database")
 class DatabaseAuthenticationCacheReloadHookTest {
    @BeforeEach
    void setUp(TestInfo info) throws Exception {

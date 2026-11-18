@@ -22,6 +22,7 @@ import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVQueryBuilder;
 import inetsoft.mv.data.MVStorage;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.report.filter.AggregateNameMatcher;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.QueryTreeModel.QueryNode;
 import inetsoft.report.composition.execution.*;
@@ -303,6 +304,16 @@ public class MVAssetQuery extends AssetQuery {
       }
 
       return false;
+   }
+
+   @Override
+   protected boolean isNullOrderMVBacked() {
+      return true;
+   }
+
+   @Override
+   protected TableAssembly getNullOrderSourceTable() {
+      return getRuntimeTable();
    }
 
    /**
@@ -1181,12 +1192,14 @@ public class MVAssetQuery extends AssetQuery {
       List<String> matchNames = new ArrayList<>();
       List<AggregateRef> used = VSUtil.findAggregate(arefs, matchNames, expression);
 
+      List<String> replacements = new ArrayList<>();
+
       for(int i = 0; i < used.size(); i++) {
-         expression = expression.replace(matchNames.get(i),
-            "field['" + getRefName(used.get(i), arefs) + "']");
+         replacements.add("field['" + getRefName(used.get(i), arefs) + "']");
       }
 
-      eref.setExpression(expression);
+      // the exact spelling first, any other case for the rest (Bug #81202)
+      eref.setExpression(AggregateNameMatcher.replace(expression, matchNames, replacements));
    }
 
    /**

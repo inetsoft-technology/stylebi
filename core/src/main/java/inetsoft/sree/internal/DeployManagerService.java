@@ -241,67 +241,59 @@ public class DeployManagerService {
    /**
     * Sort the import files.
     *
-    * exported jar file already has correct order.
+    * The sort key is a total order: (asset type rank, position in the exported jar, entry
+    * name), so the result does not depend on the order {@code listFiles()} returned.
     */
-   private static void sortFiles(File[] files, final List<String> order, Map<String, String> names) {
-      List<String> fileOrders = Arrays.asList("XDATASOURCE_", "__WS_EMBEDDED_TABLE_", "XPARTITION_", "VPM_",
-         "XQUERY_", "XLOGICALMODEL_", "WORKSHEET_", "TABLESTYLE_", "VIEWSHEET_",
-         "__SUBREPORT_", "__TEMPLATE_", "REPLET_", "SCHEDULETASK_");
-
-      // exported jar file already has correct order
-      if(files.length > 0) {
-         Arrays.sort(files, (f1, f2) -> {
-            String name1 = getFileName(f1, names);
-            String name2 = getFileName(f2, names);
-            int sortIndex1 = getSortNameIndex(name1, fileOrders);
-            int sortIndex2 = getSortNameIndex(name2, fileOrders);
-
-            if(sortIndex1 != -1 && sortIndex2 != -1) {
-               if(sortIndex1 == sortIndex2) {
-                  if(order != null) {
-                     int idx1 = order.indexOf(f1.getName());
-                     int idx2 = order.indexOf(f2.getName());
-
-                     if(idx1 >= 0 && idx2 >= 0) {
-                        return Integer.compare(idx1, idx2);
-                     }
-                  }
-
-                  return 0;
-               }
-               else {
-                  return sortIndex1 > sortIndex2 ? 1 : -1;
-               }
-            }
-
-            if(order != null) {
-               int idx1 = order.indexOf(f1.getName());
-               int idx2 = order.indexOf(f2.getName());
-
-               if(idx1 >= 0 && idx2 >= 0) {
-                  return Integer.compare(idx1, idx2);
-               }
-            }
-
-            Long lastModified1 = f1.lastModified();
-            Long lastModified2 = f2.lastModified();
-            return lastModified1.compareTo(lastModified2);
-         });
-      }
-   }
-
-   private static int getSortNameIndex(String name, List<String> fileOrders) {
-      if(name == null) {
-         return -1;
+   static void sortFiles(File[] files, final List<String> order, Map<String, String> names) {
+      if(files.length == 0) {
+         return;
       }
 
-      for(int i = 0; i < fileOrders.size(); i++) {
-         if(name.startsWith(fileOrders.get(i))) {
-            return i;
+      Map<String, Integer> jarIndex = new HashMap<>();
+
+      if(order != null) {
+         for(int i = 0; i < order.size(); i++) {
+            jarIndex.putIfAbsent(order.get(i), i);
          }
       }
 
-      return -1;
+      Map<File, String> entryNames = new HashMap<>();
+      Map<File, Integer> ranks = new HashMap<>();
+
+      for(File file : files) {
+         String name = getFileName(file, names);
+         entryNames.put(file, name == null ? "" : name);
+         ranks.put(file, getSortNameIndex(name, IMPORT_FILE_ORDER));
+      }
+
+      Arrays.sort(files, Comparator
+         .<File>comparingInt(ranks::get)
+         .thenComparingInt(f -> jarIndex.getOrDefault(f.getName(), Integer.MAX_VALUE))
+         .thenComparing(entryNames::get)
+         .thenComparing(File::getName));
+   }
+
+   // Data model assets first (a data source before everything that needs its model), then the
+   // remaining types in the same dependency order as XAssetComparator.getTypePriority.
+   private static final List<String> IMPORT_FILE_ORDER = Arrays.asList(
+      "XDATASOURCE_", "__WS_EMBEDDED_TABLE_", "XPARTITION_", "VPM_", "XQUERY_",
+      "XLOGICALMODEL_", "WORKSHEET_", "SCRIPT_", "TABLESTYLE_", "DEVICE_", "VIEWSHEET_",
+      "DATACYCLE_", "EMBEDDEDDATA_", "VSSNAPSHOT_", "DASHBOARD_", "AUTOSAVEVS_",
+      "AUTOSAVEWS_", "__SUBREPORT_", "__TEMPLATE_", "REPLET_", "SCHEDULETASK_");
+
+   /**
+    * Get the rank of a file name, unknown names (e.g. JarFileInfo.xml) rank last.
+    */
+   private static int getSortNameIndex(String name, List<String> fileOrders) {
+      if(name != null) {
+         for(int i = 0; i < fileOrders.size(); i++) {
+            if(name.startsWith(fileOrders.get(i))) {
+               return i;
+            }
+         }
+      }
+
+      return fileOrders.size();
    }
 
    public void importAssets(boolean overwriting,
@@ -1209,6 +1201,15 @@ public class DeployManagerService {
 
       // templates or sub-reports or report files
       if(filename.startsWith("__")) {
+         // Bug #81246, these entries have no per-asset security resource, so they must not be
+         // written by an importer who has no administrator permission.
+         if(!isRawEntryImportAllowed(principal)) {
+            String msg = catalog.getString("em.import.file.failed.noPermission", filename);
+            failedList.add(msg);
+            LOG.warn(msg);
+            return false;
+         }
+
          String folder = null;
          String fname = null;
 
@@ -1709,6 +1710,20 @@ public class DeployManagerService {
       }
 
       return true;
+   }
+
+   /**
+    * Determines if the importer may write the template, sub-report and embedded table entries
+    * of an import package. Only an administrator may, as these entries are not covered by the
+    * per-asset deploy permission.
+    */
+   boolean isRawEntryImportAllowed(Principal principal) {
+      if(principal == null || !securityEngine.isSecurityEnabled()) {
+         return true;
+      }
+
+      OrganizationManager manager = OrganizationManager.getInstance();
+      return manager.isSiteAdmin(principal) || manager.isOrgAdmin(principal);
    }
 
    /**

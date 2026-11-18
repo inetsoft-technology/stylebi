@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.content.repository;
 
+import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.RepositoryEntry;
@@ -211,8 +212,16 @@ public class ResourcePermissionService {
          return getDataSourceResourceName(path, dataSourceRegistry);
       }
       else if(!tableStyleFolder && ResourceType.TABLE_STYLE == resourceType) {
-         XTableStyle tableStyle = libManagerProvider.getManager().getTableStyle(path);
-         return tableStyle == null ? path : tableStyle.getID();
+         // Bug #80959, a table style's permission is stored under its name, like the runtime,
+         // the composer and the permission write use it. Bug #81051, the path is a name (the
+         // repository tree path of a style is its name), so it is resolved by exact name only.
+         // Resolving through the ID is wrong, the ID does not change on a rename, so the old
+         // name of a renamed style would resolve to the renamed style and show or write its
+         // grants. When no style has that name the path stays the key.
+         LibManager manager = libManagerProvider.getManager();
+         XTableStyle tableStyle = manager.getTableStyleByName(path);
+
+         return tableStyle == null ? path : tableStyle.getName();
       }
 
       return path;

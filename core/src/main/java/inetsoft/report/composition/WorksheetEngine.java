@@ -31,6 +31,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.ServiceProxyContext;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.ignite.cache.affinity.AffinityKey;
 import org.slf4j.Logger;
@@ -73,6 +74,18 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       affinityExecutor = Executors.newFixedThreadPool(
          Runtime.getRuntime().availableProcessors(),
          r -> new GroupedThread(r, "WorksheetEngine"));
+
+      // register the recycle sweep and the max sheet count (Bug #81350, removed by #3763)
+      setServer(true);
+   }
+
+   /**
+    * Unregister the recycle sweep when the engine bean is destroyed. TimedQueue is JVM-static
+    * and would otherwise keep a task that references this engine and its closed cache.
+    */
+   @PreDestroy
+   private void removeRecycleTask() {
+      TimedQueue.remove(recycleTask);
    }
 
    /**
@@ -881,7 +894,8 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       this.amap.setApplyMaxCount(server);
 
       if(server) {
-         TimedQueue.addSingleton(new RecycleTask(3 * 60000));
+         recycleTask = new RecycleTask(3 * 60000);
+         TimedQueue.addSingleton(recycleTask);
       }
       else {
          TimedQueue.remove(RecycleTask.class);
@@ -1494,6 +1508,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
 
    private final boolean singlePreviewEnabled;
    private boolean server = false; // server flag
+   private RecycleTask recycleTask;
    private final Map<Object, List<RenameDependencyInfo>> renameInfoMap;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetEngine.class);
    private static final String NEXT_ID_NAME = "inetsoft.report.composition.WorksheetEngine.nextId";

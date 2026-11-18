@@ -34,7 +34,7 @@ public class CalcCellContext implements Serializable {
    }
 
    public CalcCellContext() {
-      groups = new Object2ObjectOpenHashMap<>();
+      groups = new Object2ObjectOpenHashMap<>(DEFAULT_EXPECTED_SIZE);
       valueidx = new DelayedMergeIntMap<>();
    }
 
@@ -126,6 +126,23 @@ public class CalcCellContext implements Serializable {
       catch(Exception ex) {
          return false;
       }
+   }
+
+   /**
+    * Check if all groups in this context are present and matching in the other context.
+    * This allows this context to have fewer groups than the other (subset match).
+    */
+   public boolean containedIn(CalcCellContext other) {
+      for(Map.Entry<String, Group> entry : groups.entrySet()) {
+         Group g1 = entry.getValue();
+         Group g2 = other.groups.get(entry.getKey());
+
+         if(g1 == null || !g1.equals(g2)) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
@@ -331,4 +348,10 @@ public class CalcCellContext implements Serializable {
    // name -> Group
    public Map<String, Group> groups;
    private DelayedMergeIntMap<String> valueidx; // name -> index in value arr
+
+   // fastutil's no-arg constructor sizes the backing table for 16 entries; one
+   // of these is allocated per expanded row/column of a calc table and typically
+   // holds only one or two groups, so that default multiplies into a lot of
+   // wasted heap on wide row expansions.
+   private static final int DEFAULT_EXPECTED_SIZE = 2;
 }

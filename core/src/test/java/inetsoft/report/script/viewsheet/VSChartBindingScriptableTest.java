@@ -29,6 +29,8 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
@@ -530,7 +532,7 @@ public class VSChartBindingScriptableTest {
       //test setTopNReverse on other fields
       vsChartBindingScriptable.setPathField(new Object[] { "city", ChartConstants.STRING });
       vsChartBindingScriptable.setTopNReverse("city", true, 0);
-      assertFalse(vsChartBindingScriptable.isTopNReverse("city", 0));
+      assertTrue(vsChartBindingScriptable.isTopNReverse("city", 0));
 
       //test setTopNReverse on BINDING_FIELD
       Object[] xField = { "state", ChartConstants.STRING } ;
@@ -575,6 +577,27 @@ public class VSChartBindingScriptableTest {
    }
 
    @Test
+   void testSetGroupOrderNoneDateGroup() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_LINE);
+      vsChartBindingScriptable = new VSChartBindingScriptable(chartVSAScriptable);
+
+      Object[] xField = { "date", ChartConstants.DATE };
+      vsChartBindingScriptable.setXFields(new Object[] { xField });
+      vsChartBindingScriptable.setGroupOrder("date", ChartConstants.MONTH_INTERVAL, ChartConstants.BINDING_FIELD);
+      assertEquals(ChartConstants.MONTH_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+      vsChartBindingScriptable.setGroupOrder("date", ChartConstants.NONE_DATE_GROUP, ChartConstants.BINDING_FIELD);
+      assertEquals(ChartConstants.NONE_DATE_GROUP, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+
+      VSAestheticRef ref1 = (VSAestheticRef) vsChartBindingScriptable
+         .createAestheticRef("date", ChartConstants.DATE);
+      vsChartBindingScriptable.setColorField(ref1, null, ChartConstants.DATE);
+      vsChartBindingScriptable.setGroupOrder("date", ChartConstants.WEEK_INTERVAL, ChartConstants.AESTHETIC_COLOR);
+      assertEquals(ChartConstants.WEEK_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.AESTHETIC_COLOR));
+      vsChartBindingScriptable.setGroupOrder("date", ChartConstants.NONE_DATE_GROUP, ChartConstants.AESTHETIC_COLOR);
+      assertEquals(ChartConstants.NONE_DATE_GROUP, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.AESTHETIC_COLOR));
+   }
+
+   @Test
    void testSetGetGroupOrder() {
       chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_LINE);
       vsChartBindingScriptable = new VSChartBindingScriptable(chartVSAScriptable);
@@ -582,7 +605,7 @@ public class VSChartBindingScriptableTest {
       //test setGroupOrder on other fields
       vsChartBindingScriptable.setPathField(new Object[] { "date", ChartConstants.DATE });
       vsChartBindingScriptable.setGroupOrder("date", ChartConstants.QUARTER_INTERVAL, 0);
-      assertEquals(ChartConstants.YEAR_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", 0));
+      assertEquals(ChartConstants.QUARTER_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", 0));
 
       //test setGroupOrder on BINDING_FIELD
       Object[] xField = { "date", ChartConstants.DATE } ;
@@ -642,4 +665,136 @@ public class VSChartBindingScriptableTest {
       vsChartBindingScriptable.setLineFrame(staticLineFrame);
       assertEquals(staticLineFrame, vsChartBindingScriptable.getLineFrame());
    }
- }
+
+   /** Binds an aggregate field and returns the name the field is addressed by in scripts. */
+   private String bindAggregateField(String name) {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+      vsChartBindingScriptable = new VSChartBindingScriptable(chartVSAScriptable);
+      vsChartBindingScriptable.setYFields(new Object[] { new Object[] { name, ChartConstants.NUMBER } });
+      return chartVSAScriptable.getChartInfo().getYFields()[0].getFullName();
+   }
+
+   private inetsoft.report.script.AbstractChartArray array(String property) {
+      return (inetsoft.report.script.AbstractChartArray) vsChartBindingScriptable.getMember(property);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "colors", "lines", "sizes" })
+   void frameAssignedByFieldNameIsTheFrameOfTheBoundField(String property) {
+      String field = bindAggregateField("id");
+      Object frame;
+      Object viaGetter;
+
+      switch(property) {
+      case "colors":
+         frame = new CategoricalColorFrame();
+         array(property).putMember(field, frame);
+         viaGetter = vsChartBindingScriptable.getColorFrame();
+         break;
+      case "lines":
+         frame = new StaticLineFrame();
+         array(property).putMember(field, frame);
+         viaGetter = vsChartBindingScriptable.getLineFrame();
+         break;
+      default:
+         frame = new StaticSizeFrame();
+         array(property).putMember(field, frame);
+         viaGetter = vsChartBindingScriptable.getSizeFrame();
+         break;
+      }
+
+      assertSame(frame, array(property).getMember(field));
+      assertEquals(frame, viaGetter);
+   }
+
+   @Test
+   void colorFrameAssignedByFieldNameIsSetOnDesignAndRuntimeRefs() {
+      String field = bindAggregateField("id");
+      AbstractChartInfo info = (AbstractChartInfo) chartVSAScriptable.getChartInfo();
+      // make the runtime ref a different object than the design ref
+      info.setRTYFields(new ChartRef[] { (ChartRef) ((ChartRef) info.getYFields()[0]).clone() });
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+
+      array("colors").putMember(field, frame);
+
+      ChartAggregateRef design = (ChartAggregateRef) info.getFieldByName(field, false);
+      ChartAggregateRef runtime = (ChartAggregateRef) info.getFieldByName(field, true);
+      assertNotSame(design, runtime);
+      assertSame(frame, design.getColorFrame());
+      assertSame(frame, runtime.getColorFrame());
+   }
+
+   @Test
+   void colorFrameAssignedUnderAnyKeyOnMultiStyleChartIsTheChartLevelFrame() {
+      chartVSAssemblyInfo.setVSChartInfo(new RadarVSChartInfo());
+      vsChartBindingScriptable = new VSChartBindingScriptable(chartVSAScriptable);
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+
+      array("colors").putMember("anyKey", frame);
+      assertSame(frame, ((AbstractChartInfo) chartVSAScriptable.getChartInfo()).getColorFrame());
+   }
+
+   @Test
+   void colorFrameAssignedUnderUnboundNamePinsCurrentLenientStorage() {
+      // pins current behavior: an unknown field name is not an error, the value is just stored
+      bindAggregateField("id");
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+
+      assertDoesNotThrow(() -> array("colors").putMember("noSuchField", frame));
+      assertSame(frame, array("colors").getMember("noSuchField"));
+   }
+
+   @Test
+   void unsetFieldGettersReturnDefaults() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+      vsChartBindingScriptable.setXFields(new Object[][] {
+         { "state", ChartConstants.STRING }, { "date", ChartConstants.DATE } });
+
+      assertEquals(0, vsChartBindingScriptable.getTopN("state", ChartConstants.BINDING_FIELD));
+      assertFalse(vsChartBindingScriptable.isTopNReverse("state", ChartConstants.BINDING_FIELD));
+      assertEquals(ChartConstants.YEAR_INTERVAL,
+                   vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+      assertEquals(ChartConstants.YEAR_INTERVAL,
+                   vsChartBindingScriptable.getGroupOrder("state", ChartConstants.BINDING_FIELD));
+   }
+
+   @Test
+   void literalDesignLevelWinsOverRuntimeLevel() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+      vsChartBindingScriptable.setXFields(new Object[][] { { "date", ChartConstants.DATE } });
+      VSDimensionRef dim = (VSDimensionRef) chartVSAScriptable.getChartInfo().getXFields()[0];
+      dim.setDateLevelValue("3");
+      dim.setDateLevel(4);
+
+      assertEquals(3, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+   }
+
+   @Test
+   void topNReverseAnyTypeResolvesLikeBindingField() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+      vsChartBindingScriptable.setXFields(new Object[][] {
+         { "State", ChartConstants.STRING }, { "date", ChartConstants.DATE } });
+      vsChartBindingScriptable.setTopN("State", 3, ChartConstants.BINDING_FIELD);
+      vsChartBindingScriptable.setTopNReverse("State", true, ChartConstants.BINDING_FIELD);
+
+      assertTrue(vsChartBindingScriptable.isTopNReverse("State", ChartConstants.BINDING_FIELD));
+      assertTrue(vsChartBindingScriptable.isTopNReverse("State", 0));
+      assertEquals(3, vsChartBindingScriptable.getTopN("State", 0));
+      assertFalse(vsChartBindingScriptable.isTopNReverse("date", 0));
+      assertFalse(vsChartBindingScriptable.isTopNReverse("MISSING", 0));
+   }
+
+   @Test
+   void groupOrderAnyTypeResolvesLikeBindingField() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+      vsChartBindingScriptable.setXFields(new Object[][] { { "date", ChartConstants.DATE } });
+      vsChartBindingScriptable.setGroupOrder("date", ChartConstants.MONTH_INTERVAL,
+                                             ChartConstants.BINDING_FIELD);
+
+      assertEquals(ChartConstants.MONTH_INTERVAL,
+                   vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+      assertEquals(ChartConstants.MONTH_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", 0));
+      assertEquals(ChartConstants.YEAR_INTERVAL,
+                   vsChartBindingScriptable.getGroupOrder("MISSING", 0));
+   }
+}

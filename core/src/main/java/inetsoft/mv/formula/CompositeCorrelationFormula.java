@@ -214,7 +214,9 @@ public class CompositeCorrelationFormula implements Formula2 {
    }
 
    /**
-    * Get the formula result.
+    * Get the formula result. No result (no rows, a single pair, a constant column, i.e. a zero
+    * correlation denominator) is null, never NaN; with the default result option only the
+    * no-row case returns 0, as before (Bug #81182).
     */
    @Override
    public Object getResult() {
@@ -222,61 +224,61 @@ public class CompositeCorrelationFormula implements Formula2 {
          return def ? Double.valueOf(0) : null;
       }
 
-      try {
-         double variancex = ((cntx * sumsqx) - (sumx * sumx)) /
-            (cntx * cntx);
-         double sdevx = Math.sqrt(variancex);
-         double variancey = ((cnty * sumsqy) - (sumy * sumy)) /
-            (cnty * cnty);
-         double sdevy = Math.sqrt(variancey);
-         double covar = (sumwt / cntx) - ((sumx * sumy) / (cntx * cntx));
-
-         if(sdevx == 0 || sdevy == 0) {
-            return null;
-         }
-
-         return Double.valueOf(covar / (sdevx * sdevy));
-      }
-      catch(Throwable e) {
-         return null;
-      }
+      double result = correlation();
+      return Double.isNaN(result) ? null : Double.valueOf(result);
    }
 
    /**
-    * Get the formula double result.
+    * Get the formula double result. 0 when there is no result, see {@link #isNull()}.
     */
    @Override
    public double getDoubleResult() {
-      if(cntx == 0 || cnty == 0) {
-         return 0;
-      }
-
-      try {
-         double variancex = ((cntx * sumsqx) - (sumx * sumx)) /
-            (cntx * cntx);
-         double sdevx = Math.sqrt(variancex);
-         double variancey = ((cnty * sumsqy) - (sumy * sumy)) /
-            (cnty * cnty);
-         double sdevy = Math.sqrt(variancey);
-         double covar = (sumwt / cntx) - ((sumx * sumy) / (cntx * cntx));
-
-         if(sdevx == 0 || sdevy == 0) {
-            return 0;
-         }
-
-         return covar / (sdevx * sdevy);
-      }
-      catch(Throwable e) {
-         return 0;
-      }
+      double result = correlation();
+      return Double.isNaN(result) ? 0 : result;
    }
 
    /**
-    * Check if the result is null.
+    * Check if the result is null, i.e. there is no correlation to report.
     */
    @Override
    public boolean isNull() {
-      return cntx == 0 || cnty == 0;
+      return cntx == 0 || cnty == 0 || Double.isNaN(correlation());
+   }
+
+   /**
+    * The single place the correlation is computed, shared by getResult(), getDoubleResult() and
+    * isNull() so they always agree.
+    *
+    * @return the correlation, or NaN when there is none (no rows, or a zero variance of x or y).
+    */
+   private double correlation() {
+      if(cntx == 0 || cnty == 0) {
+         return Double.NaN;
+      }
+
+      // n * sum(v^2) - sum(v)^2 is the variance times n^2. For a constant column of inexact
+      // doubles both terms are equal up to rounding, so the difference is noise of either sign
+      // (sqrt of it would be NaN or a spurious ~1e-9 correlation). A difference no larger than
+      // ZERO_VARIANCE_TOLERANCE of the term it is cancelled from carries no information
+      // (that is ~4500 ulps of the double precision) and is treated as zero variance.
+      // Data with a standard deviation above ~1e-6 of its mean is not affected.
+      double scalex = cntx * sumsqx;
+      double scaley = cnty * sumsqy;
+      double varnumx = scalex - (sumx * sumx);
+      double varnumy = scaley - (sumy * sumy);
+
+      if(!(varnumx > ZERO_VARIANCE_TOLERANCE * scalex) ||
+         !(varnumy > ZERO_VARIANCE_TOLERANCE * scaley))
+      {
+         return Double.NaN;
+      }
+
+      double sdevx = Math.sqrt(varnumx / ((double) cntx * cntx));
+      double sdevy = Math.sqrt(varnumy / ((double) cnty * cnty));
+      double covar = (sumwt / cntx) - ((sumx * sumy) / ((double) cntx * cntx));
+      double result = covar / (sdevx * sdevy);
+
+      return Double.isInfinite(result) ? Double.NaN : result;
    }
 
    @Override
@@ -320,4 +322,7 @@ public class CompositeCorrelationFormula implements Formula2 {
    private double sumsqy = 0;
 
    private boolean def = false;
+
+   // relative size below which n*sum(v^2) - sum(v)^2 is rounding noise, see correlation()
+   private static final double ZERO_VARIANCE_TOLERANCE = 1.0E-12;
 }

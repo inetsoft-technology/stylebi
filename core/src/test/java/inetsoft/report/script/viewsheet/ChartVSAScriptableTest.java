@@ -89,6 +89,16 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable = new ChartVSAScriptable(viewsheetSandbox);
       chartVSAScriptable.setAssembly("chart1");
    }
+
+   @Test
+   void tipAlphaScriptValueIsRevertedToDesignValueOnReset() {
+      chartVSAssemblyInfo.setAlphaValue("30");
+      chartVSAssemblyInfo.setAlpha("70");
+      assertEquals("70", chartVSAssemblyInfo.getAlpha());
+
+      chartVSAssemblyInfo.resetRuntimeValues();
+      assertEquals("30", chartVSAssemblyInfo.getAlpha());
+   }
    @Test
    void testAddProperties() throws Exception {
       // Call the addProperties method on the chartVSAScriptable object

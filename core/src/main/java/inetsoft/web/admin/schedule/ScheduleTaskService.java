@@ -1808,6 +1808,23 @@ public class ScheduleTaskService {
             "Unauthorized assignment of task owner \"%s\" by %s", owner, principal));
       }
 
+      // Bug #79863, changing the owner of an existing task also takes the task away from its
+      // current owner, so the caller must be that owner or administer it, even when the new
+      // owner is the caller itself.
+      if(owner != null && !owner.equals(task.getOwner()) &&
+         !identityChecker.isUnrestricted(principal))
+      {
+         IdentityID current = task.getOwner();
+
+         if(current == null || !current.equals(caller) &&
+            !securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                              current.convertToKey(), ResourceAction.ADMIN))
+         {
+            throw new SecurityException(String.format(
+               "Unauthorized change of task owner \"%s\" by %s", current, principal));
+         }
+      }
+
       // Bug #77281, clearing the execute-as identity, setting it to the owner or to a name that
       // doesn't resolve all store an identity that runs the task as its owner, which runs with
       // elevated roles (the org admin roles of its org since Bug #77452) when the owner doesn't

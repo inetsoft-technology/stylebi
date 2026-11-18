@@ -71,10 +71,21 @@ public class RepositoryTreeService {
                                       boolean isOnPortal)
       throws Exception
    {
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         return getRootFolder0(path, action, selector, detailType, principal, isOnPortal);
+      }
+   }
+
+   private TreeNodeModel getRootFolder0(String path, ResourceAction action, int selector,
+                                        String detailType, Principal principal,
+                                        boolean isOnPortal)
+      throws Exception
+   {
       RepositoryEntry parentEntry = new RepositoryEntry(path, RepositoryEntry.FOLDER);
       RepositoryEntry[] entries = VSEventUtil.getRepositoryEntries(
          analyticRepository.unwrap(AnalyticEngine.class), principal, action, selector, detailType,
          null, false);
+      SupportedOperationsContext ctx = new SupportedOperationsContext(principal);
       List<TreeNodeModel> folderNodes = new ArrayList<>();
       List<TreeNodeModel> fileNodes = new ArrayList<>();
 
@@ -91,7 +102,7 @@ public class RepositoryTreeService {
 
          RepositoryEntryModel entryModel = repositoryEntryModelFactoryService
             .createModel(entry);
-         entryModel.setOp(getSupportedOperations(entry, principal));
+         entryModel.setOp(getSupportedOperations(entry, principal, ctx));
 
          TreeNodeModel node = TreeNodeModel.builder()
             .label(getEntryLabel(entry, principal))
@@ -157,6 +168,23 @@ public class RepositoryTreeService {
                                                                      Principal principal)
       throws Exception
    {
+      return getSupportedOperations(entry, principal, null);
+   }
+
+   /**
+    * Gets the operations the principal may perform on an entry. The two checks that do not depend
+    * on the entry are answered once per {@code ctx} instead of once per entry.
+    *
+    * @param ctx the context shared by one listing for one principal, or {@code null}.
+    */
+   public final EnumSet<RepositoryTreeAction> getSupportedOperations(
+      RepositoryEntry entry, Principal principal, SupportedOperationsContext ctx)
+      throws Exception
+   {
+      if(ctx != null && ctx.principal != principal) {
+         ctx = null;
+      }
+
       EnumSet<RepositoryTreeAction> op = EnumSet.noneOf(RepositoryTreeAction.class);
 
       boolean hasDelete = analyticRepository.checkPermission(
@@ -171,15 +199,17 @@ public class RepositoryTreeService {
             hasWrite = true;
          }
 
-         boolean canMaterialize = securityProvider.checkPermission(
-            principal, ResourceType.MATERIALIZATION, "*", ResourceAction.ACCESS);
+         boolean canMaterialize = ctx != null ? ctx.canMaterialize() :
+            securityProvider.checkPermission(
+               principal, ResourceType.MATERIALIZATION, "*", ResourceAction.ACCESS);
 
          if(hasWrite && canMaterialize) {
             op.add(RepositoryTreeAction.MATERIALIZE);
          }
 
-         boolean composer = securityProvider.checkPermission(
-            principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS);
+         boolean composer = ctx != null ? ctx.canUseComposer() :
+            securityProvider.checkPermission(
+               principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS);
 
          if(composer) {
             op.add(RepositoryTreeAction.EDIT);
@@ -320,4 +350,37 @@ public class RepositoryTreeService {
    private final RepositoryEntryModelFactoryService repositoryEntryModelFactoryService;
    private final RepletRegistryManager repletRegistryManager;
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryTreeController.class);
+
+   /**
+    * The answers to the checks of {@code getSupportedOperations} that do not depend on the entry,
+    * for one principal. Create one per listing and pass it for every entry of that listing; each
+    * check runs at most once, and only when a viewsheet entry needs it.
+    */
+   public final class SupportedOperationsContext {
+      public SupportedOperationsContext(Principal principal) {
+         this.principal = principal;
+      }
+
+      private boolean canMaterialize() {
+         if(canMaterialize == null) {
+            canMaterialize = securityProvider.checkPermission(
+               principal, ResourceType.MATERIALIZATION, "*", ResourceAction.ACCESS);
+         }
+
+         return canMaterialize;
+      }
+
+      private boolean canUseComposer() {
+         if(canUseComposer == null) {
+            canUseComposer = securityProvider.checkPermission(
+               principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS);
+         }
+
+         return canUseComposer;
+      }
+
+      private final Principal principal;
+      private Boolean canMaterialize;
+      private Boolean canUseComposer;
+   }
 }

@@ -66,6 +66,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("cluster")
 class ClusterHealthServiceStuckExchangeTest {
    @TempDir
    static Path clusterDir;

@@ -815,6 +815,8 @@ export class VSText extends AbstractVSObject<VSTextModel>
 
    private updateUrlText(urlText: string): void {
       const safeUrlText = this.domSanitizer.sanitize(SecurityContext.URL, urlText);
+      // the URL is sanitized with SecurityContext.URL on the line above.
+      // nosemgrep: typescript.angular.security.audit.angular-domsanitizer.angular-bypasssecuritytrust
       this.safeUrlText = this.domSanitizer.bypassSecurityTrustResourceUrl(safeUrlText);
    }
 

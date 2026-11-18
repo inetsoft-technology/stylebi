@@ -111,6 +111,8 @@ public abstract class AbstractXMLStreamTransformer implements InputTransformer {
          }
          catch(IllegalArgumentException ignored) {}
 
+         // ACCESS_EXTERNAL_DTD and ACCESS_EXTERNAL_STYLESHEET are cleared above.
+         // nosemgrep: java.lang.security.audit.xxe.transformerfactory-dtds-not-disabled.transformerfactory-dtds-not-disabled
          final Transformer xsltTransformer = xsltTransformerFactory.newTransformer(source);
          xsltTransformer.setParameter("parser", parser);
          setXSLTObjectParameters(xsltTransformer);

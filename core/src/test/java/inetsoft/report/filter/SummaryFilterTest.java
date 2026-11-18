@@ -748,4 +748,326 @@ public class SummaryFilterTest {
 
       return data;
    }
+
+   // -----------------------------------------------------------------------
+   // Summary formulas through a table summary (ported from the 13.8
+   // SummaryFormulas*FeatureTest classes; the direct formula API is tested in
+   // the test class of each formula)
+   // -----------------------------------------------------------------------
+
+   private static final double EPS = 1e-12;
+
+   private static void pairs(Formula formula, Object[]... pairs) {
+      for(Object[] pair : pairs) {
+         formula.addValue(pair);
+      }
+   }
+
+   private static Object[] p(Object x, Object y) {
+      return new Object[] { x, y };
+   }
+
+   /**
+    * Summarize {g, x, y} rows by g: group rows 1.., then the grand total row.
+    */
+   private static SummaryFilter summarize(Formula formula, Object[][] rows) {
+      Object[][] cells = new Object[rows.length + 1][];
+      cells[0] = new Object[] { "g", "x", "y" };
+      System.arraycopy(rows, 0, cells, 1, rows.length);
+      DefaultTableLens data = new DefaultTableLens(cells);
+      SummaryFilter summary = new SummaryFilter(
+         data, new int[] { 0 }, new int[] { 1 }, formula, formula);
+      summary.moreRows(Integer.MAX_VALUE);
+      return summary;
+   }
+
+   private static double asDouble(Object result) {
+      Assertions.assertInstanceOf(Double.class, result);
+      return (Double) result;
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-coefficient
+   @Test
+   public void correlationInATableSummaryUsesTheSecondColumn() {
+      Object[][] rows = {
+         { "a", 1, 2 }, { "a", 2, 4 }, { "a", 3, 6 },
+         { "b", 1, 6 }, { "b", 2, 4 }, { "b", 3, 2 }
+      };
+      SummaryFilter summary = summarize(new CorrelationFormula(2), rows);
+
+      // one row for each group, then the grand total over all six pairs
+      Assertions.assertEquals(4, summary.getRowCount());
+      Assertions.assertEquals("a", summary.getObject(1, 0));
+      Assertions.assertEquals(1.0, (Double) summary.getObject(1, 1), EPS);
+      Assertions.assertEquals("b", summary.getObject(2, 0));
+      Assertions.assertEquals(-1.0, (Double) summary.getObject(2, 1), EPS);
+      // x = 1,2,3,1,2,3 and y = 2,4,6,6,4,2: sxy = 2+8+18+6+8+6 = 48, sx = 12, sy = 24,
+      // sxx = 28, syy = 112: r = (6*48 - 12*24) / sqrt((6*28 - 144) * (6*112 - 576)) = 0
+      Assertions.assertEquals(0.0, (Double) summary.getObject(3, 1), EPS);
+   }
+
+   // gap:report.summary-formulas.bivariate#covariance-value
+   @Test
+   public void covarianceInATableSummaryUsesTheSecondColumn() {
+      Object[][] rows = {
+         { "a", 1, 2 }, { "a", 2, 4 }, { "a", 3, 6 }, { "b", 1, 6 }, { "b", 3, 2 }
+      };
+      SummaryFilter summary = summarize(new CovarianceFormula(2), rows);
+
+      Assertions.assertEquals(4, summary.getRowCount());
+      Assertions.assertEquals(4.0 / 3, (Double) summary.getObject(1, 1), EPS);
+      // (1,6),(3,2): means 2 and 4, (-1)(2) + (1)(-2) = -4, over n = 2
+      Assertions.assertEquals(-2.0, (Double) summary.getObject(2, 1), EPS);
+      // all five pairs: sx = 10, sy = 20, sxy = 2+8+18+6+6 = 40, so 40/5 - 2*4 = 0
+      Assertions.assertEquals(0.0, (Double) summary.getObject(3, 1), EPS);
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-no-numeric-input-null
+   @Test
+   public void correlationGroupOfOnlyNullPairsHasNoResult() {
+      // a table group whose pairs are all null shows no result, the next group still computes
+      SummaryFilter summary = summarize(new CorrelationFormula(2), new Object[][] {
+         { "a", null, null }, { "a", null, null },
+         { "b", 1, 1 }, { "b", 2, 2 }, { "b", 3, 3 }
+      });
+      Assertions.assertEquals(4, summary.getRowCount());
+      Assertions.assertNull(summary.getObject(1, 1));
+      Assertions.assertEquals(1.0, (Double) summary.getObject(2, 1), EPS);
+   }
+
+   // gap:report.summary-formulas.bivariate#covariance-no-numeric-input-null
+   @Test
+   public void covarianceGroupOfOnlyNullPairsHasNoResult() {
+      SummaryFilter summary = summarize(new CovarianceFormula(2), new Object[][] {
+         { "a", null, null }, { "a", null, null }, { "b", 1, 2 }, { "b", 2, 4 }, { "b", 3, 6 }
+      });
+      Assertions.assertEquals(4, summary.getRowCount());
+      Assertions.assertNull(summary.getObject(1, 1));
+      Assertions.assertEquals(4.0 / 3, (Double) summary.getObject(2, 1), EPS);
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-skips-incomplete-pairs
+   @Test
+   public void correlationInATableSummarySkipsIncompletePairs() {
+      CorrelationFormula whole = new CorrelationFormula(2);
+      pairs(whole, p(1, 2), p(2, 7), p(3, 4), p(4, 5));
+      Double expected = (Double) whole.getResult();
+
+      // a table summary skips pairs with a null or text member, in the group and in the
+      // grand total
+      SummaryFilter summary = summarize(new CorrelationFormula(2), new Object[][] {
+         { "a", 1, 2 }, { "a", null, 9 }, { "a", 2, 7 }, { "a", "x", 5 },
+         { "a", 3, 4 }, { "a", 4, null }, { "a", 4, 5 }
+      });
+      Assertions.assertEquals(3, summary.getRowCount());
+      Assertions.assertEquals(expected, summary.getObject(1, 1));
+      Assertions.assertEquals(expected, summary.getObject(2, 1));
+   }
+
+   // gap:report.summary-formulas.bivariate#covariance-skips-incomplete-pairs
+   @Test
+   public void covarianceInATableSummarySkipsIncompletePairs() {
+      CovarianceFormula whole = new CovarianceFormula(2);
+      pairs(whole, p(1, 2), p(2, 4), p(3, 6));
+      Double expected = (Double) whole.getResult();
+
+      // a table summary skips them the same way
+      SummaryFilter summary = summarize(new CovarianceFormula(2), new Object[][] {
+         { "a", 1, 2 }, { "a", null, 9 }, { "a", 2, 4 }, { "a", "x", 5 },
+         { "a", 3, 6 }, { "a", 6, null }
+      });
+      Assertions.assertEquals(3, summary.getRowCount());
+      Assertions.assertEquals(expected, summary.getObject(1, 1));
+      Assertions.assertEquals(expected, summary.getObject(2, 1));
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-zero-variance
+   @Test
+   public void correlationInATableSummaryZeroVarianceHasNoValue() {
+      // a table group of one pair shows no value, and a constant group too
+      SummaryFilter summary = summarize(new CorrelationFormula(2), new Object[][] {
+         { "a", 1, 5 }, { "b", 1, 5 }, { "b", 2, 5 }, { "b", 3, 5 }
+      });
+      Assertions.assertEquals(4, summary.getRowCount());
+      Assertions.assertNull(summary.getObject(1, 1));
+      Assertions.assertNull(summary.getObject(2, 1));
+      Assertions.assertNull(summary.getObject(3, 1));
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-skips-incomplete-pairs
+   @Test
+   public void correlationInATableSummarySkipsABlankTextPair() {
+      CorrelationFormula whole = new CorrelationFormula(2);
+      pairs(whole, p(1, 2), p(2, 7), p(3, 4), p(4, 5));
+
+      SummaryFilter summary = summarize(new CorrelationFormula(2), new Object[][] {
+         { "a", 1, 2 }, { "a", "", "" }, { "a", 2, 7 }, { "a", 3, 4 }, { "a", 4, 5 }
+      });
+      Assertions.assertEquals(whole.getResult(), summary.getObject(1, 1));
+   }
+
+   // gap:report.summary-formulas.bivariate#covariance-skips-incomplete-pairs
+   @Test
+   public void covarianceInATableSummarySkipsABlankTextPair() {
+      CovarianceFormula whole = new CovarianceFormula(2);
+      pairs(whole, p(1, 2), p(2, 4), p(3, 6));
+
+      SummaryFilter summary = summarize(new CovarianceFormula(2), new Object[][] {
+         { "a", 1, 2 }, { "a", "", "" }, { "a", 2, 4 }, { "a", 3, 6 }
+      });
+      Assertions.assertEquals(whole.getResult(), summary.getObject(1, 1));
+   }
+
+   // gap:report.summary-formulas.common#pair-formula-fed-secondary-column-values
+   @Test
+   public void weightedAverageFedSecondaryColumnValues() {
+      // a group by column 0, the weighted average of column 1 by the weights of column 2
+      DefaultTableLens table = new DefaultTableLens(new Object[][] {
+         {"g", "x", "w"},
+         {"a", 10, 2},
+         {"a", 30, 3},
+         {"b", 5, 2}
+      });
+      SummaryFilter filter = new SummaryFilter(
+         table, new int[] {0}, new int[] {1}, new WeightedAverageFormula(2), null);
+      filter.moreRows(Integer.MAX_VALUE);
+      Assertions.assertEquals(3, filter.getRowCount());
+      Assertions.assertEquals("a", filter.getObject(1, 0));
+      Assertions.assertEquals(22.0, ((Number) filter.getObject(1, 1)).doubleValue(), 1e-9);
+      Assertions.assertEquals("b", filter.getObject(2, 0));
+      Assertions.assertEquals(5.0, ((Number) filter.getObject(2, 1)).doubleValue(), 1e-9);
+
+      // a row with no weight is left out (13.8 also checked this through the report-only
+      // RunningTotal, which StyleBI does not have)
+      DefaultTableLens gap = new DefaultTableLens(new Object[][] {
+         {"g", "x", "w"}, {"a", 10, 1}, {"a", 99, null}, {"a", 30, 3}
+      });
+      SummaryFilter skipping = new SummaryFilter(
+         gap, new int[] {0}, new int[] {1}, new WeightedAverageFormula(2), null);
+      skipping.moreRows(Integer.MAX_VALUE);
+      Assertions.assertEquals(25.0, ((Number) skipping.getObject(1, 1)).doubleValue(), 1e-9);
+   }
+
+   // Bug #80738: a table summary of numeric text with blank cells ranks the numbers
+   @Test
+   public void maxAndNthBlankStringsInATableSummary() {
+      DefaultTableLens data = new DefaultTableLens(new Object[][] {
+         { "g", "v" }, { "a", "1" }, { "a", "" }, { "a", "3" }, { "b", "" }, { "b", "5" },
+         { "c", "" }
+      });
+      Formula[] formulas = {
+         new MaxFormula(), new NthLargestFormula(1), new NthLargestFormula(2),
+         new NthSmallestFormula(2)
+      };
+      // rows: group a, group b, group c (only a blank), then the grand total
+      Object[][] expected = {
+         { "3", "3", "1", "3" }, { "5", "5", null, null }, { null, null, null, null },
+         { "5", "5", "3", "3" }
+      };
+
+      for(int f = 0; f < formulas.length; f++) {
+         SummaryFilter summary = new SummaryFilter(
+            data, new int[] { 0 }, new int[] { 1 }, (Formula) formulas[f].clone(),
+            (Formula) formulas[f].clone());
+         summary.moreRows(Integer.MAX_VALUE);
+         Assertions.assertEquals(5, summary.getRowCount());
+
+         for(int g = 0; g < 4; g++) {
+            Object actual = summary.getObject(g + 1, 1);
+            String msg = formulas[f].getName() + " row " + (g + 1);
+
+            if(expected[g][f] == null) {
+               // no value to calculate: nothing, not a blank ranked as the largest
+               Assertions.assertTrue(actual == null || "".equals(actual), msg + " " + actual);
+            }
+            else {
+               Assertions.assertEquals(expected[g][f], actual, msg);
+            }
+         }
+      }
+   }
+
+   // Bug #80868: a table summary of numeric text with a blank cell has a variance
+   @Test
+   public void blankStringsInAVarianceTableSummary() {
+      DefaultTableLens data = new DefaultTableLens(new Object[][] {
+         { "g", "v" }, { "a", "2" }, { "a", "" }, { "a", "4" }, { "a", "6" }, { "b", "" },
+         { "b", "7" }
+      });
+      Formula[] formulas = {
+         new VarianceFormula(), new StandardDeviationFormula(), new PopulationVarianceFormula(),
+         new PopulationStandardDeviationFormula()
+      };
+      double[] a = { 4.0, 2.0, 8.0 / 3, Math.sqrt(8.0 / 3) };
+      // the grand total of 2, 4, 6, 7
+      double mean = 19.0 / 4;
+      double sumSq = (2 - mean) * (2 - mean) + (4 - mean) * (4 - mean) + (6 - mean) * (6 - mean)
+         + (7 - mean) * (7 - mean);
+      double[] total = { sumSq / 3, Math.sqrt(sumSq / 3), sumSq / 4, Math.sqrt(sumSq / 4) };
+
+      for(int f = 0; f < formulas.length; f++) {
+         SummaryFilter summary = new SummaryFilter(
+            data, new int[] { 0 }, new int[] { 1 }, (Formula) formulas[f].clone(),
+            (Formula) formulas[f].clone());
+         summary.moreRows(Integer.MAX_VALUE);
+
+         Assertions.assertEquals(a[f], asDouble(summary.getObject(1, 1)), 1e-9,
+                                 formulas[f].getName() + " group a");
+         Assertions.assertEquals(total[f], asDouble(summary.getObject(3, 1)), 1e-9,
+                                 formulas[f].getName() + " total");
+      }
+   }
+
+   // gap:report.summary-formulas.text#concat-comma-separated
+   @Test
+   public void concatInATableSummaryJoinsEachGroup() {
+      DefaultTableLens data = new DefaultTableLens(new Object[][] {
+         { "g", "v" },
+         { "a", "x" }, { "a", "y" }, { "a", "z" }, { "b", "p" }, { "b", "q" }
+      });
+      SummaryFilter summary = new SummaryFilter(
+         data, new int[] { 0 }, new int[] { 1 }, new ConcatFormula(), new ConcatFormula());
+      summary.moreRows(Integer.MAX_VALUE);
+
+      // one row for each group, then the grand total
+      Assertions.assertEquals(4, summary.getRowCount());
+      Assertions.assertEquals("a", summary.getObject(1, 0));
+      Assertions.assertEquals("x,y,z", summary.getObject(1, 1));
+      Assertions.assertEquals("b", summary.getObject(2, 0));
+      Assertions.assertEquals("p,q", summary.getObject(2, 1));
+      Assertions.assertEquals("x,y,z,p,q", summary.getObject(3, 1));
+   }
+
+   // gap:report.summary-formulas.text#concat-no-values-empty-string
+   @Test
+   public void concatGroupOfOnlyNullsShowsEmptyString() {
+      // a table summary of a group whose values are all null shows the empty string
+      DefaultTableLens data = new DefaultTableLens(new Object[][] {
+         { "g", "v" }, { "a", null }, { "a", null }, { "b", "k" }
+      });
+      SummaryFilter summary = new SummaryFilter(
+         data, new int[] { 0 }, new int[] { 1 }, new ConcatFormula(), null);
+      summary.moreRows(Integer.MAX_VALUE);
+      Assertions.assertEquals(3, summary.getRowCount());
+      Assertions.assertEquals("a", summary.getObject(1, 0));
+      Assertions.assertEquals("", summary.getObject(1, 1));
+      Assertions.assertEquals("k", summary.getObject(2, 1));
+   }
+
+   // Bug #80621: a table summary keeps a group's leading blank string
+   @Test
+   public void concatInATableSummaryKeepsALeadingBlankString() {
+      DefaultTableLens data = new DefaultTableLens(new Object[][] {
+         { "g", "v" }, { "a", "" }, { "a", "x" }, { "b", "p" }, { "b", "" }, { "c", "" }
+      });
+      SummaryFilter summary = new SummaryFilter(
+         data, new int[] { 0 }, new int[] { 1 }, new ConcatFormula(), new ConcatFormula());
+      summary.moreRows(Integer.MAX_VALUE);
+
+      Assertions.assertEquals(5, summary.getRowCount());
+      Assertions.assertEquals(",x", summary.getObject(1, 1));
+      Assertions.assertEquals("p,", summary.getObject(2, 1));
+      Assertions.assertEquals("", summary.getObject(3, 1));
+      Assertions.assertEquals(",x,p,,", summary.getObject(4, 1));
+   }
 }

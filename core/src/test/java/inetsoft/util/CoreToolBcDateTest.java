@@ -43,10 +43,24 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome()
 @Tag("core")
 class CoreToolBcDateTest {
+   // The thread local formats keep the default zone of their first use on this thread, so a
+   // class that ran earlier in the same JVM under another default zone leaves them in that zone
+   // while the static caches are in the build zone. Rebuild them under the current default.
+   @BeforeEach
+   void resetThreadLocalFormats() {
+      resetFormats();
+   }
+
    @AfterEach
    void restore() {
       CoreTool.useDatetimeWithMillisFormat.set(false);
       TimeZone.setDefault(defaultZone);
+      resetFormats();
+   }
+
+   private static void resetFormats() {
+      CoreTool.dateFmt.remove();
+      CoreTool.timeInstantFmt.remove();
    }
 
    // BC dates are created through the ERA field, the hybrid Julian/Gregorian calendar the

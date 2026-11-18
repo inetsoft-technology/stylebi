@@ -34,7 +34,18 @@ public class ScriptCache {
     *                     {@link ScriptEnv#compileDeclaredVars} (Bug #78247).
     */
    public ScriptCache(int max, long timeout, boolean declaredVars) {
+      this(max, timeout, declaredVars, false);
+   }
+
+   /**
+    * @param calleeFallback whether the scripts are table formulas run on a row scope, compiled
+    *                       by {@link ScriptEnv#compileCalleeFallback} (Bug #81047). The cache
+    *                       is keyed by the formula text, so such scripts need a cache of their
+    *                       own, apart from the plain compiles of the same text.
+    */
+   public ScriptCache(int max, long timeout, boolean declaredVars, boolean calleeFallback) {
       this.declaredVars = declaredVars;
+      this.calleeFallback = calleeFallback;
       cache = new ResourceCache(max, timeout) {
          @Override
          protected Object create(Object key) throws Exception {
@@ -66,6 +77,10 @@ public class ScriptCache {
       ScriptEnv senv = this.senv.get();
 
       try {
+         if(calleeFallback) {
+            return senv.compileCalleeFallback(script);
+         }
+
          return declaredVars ? senv.compileDeclaredVars(script) : senv.compile(script, true);
       }
       catch(Exception ex) {
@@ -76,6 +91,7 @@ public class ScriptCache {
 
    private ResourceCache cache;
    private final boolean declaredVars;
+   private final boolean calleeFallback;
    private static final ThreadLocal<ScriptEnv> senv = new ThreadLocal<>();
    private static final ThreadLocal<Consumer<Exception>> handler = new ThreadLocal<>();
 }

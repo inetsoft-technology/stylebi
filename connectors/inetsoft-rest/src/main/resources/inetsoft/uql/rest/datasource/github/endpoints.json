@@ -387,21 +387,6 @@
       "suffix": "/orgs/{Organization Name}/migrations/{Migration ID}/repositories"
     },
     {
-      "paged": "false",
-      "name": "Source Import Progress",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/import"
-    },
-    {
-      "paged": "true",
-      "name": "Source Import Authors",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/import/authors?since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
-    },
-    {
-      "paged": "true",
-      "name": "Source Import Large Files",
-      "suffix": "/repos/{Repository Owner}/{Repository Name}/import/large_files"
-    },
-    {
       "paged": "true",
       "name": "User Migrations",
       "suffix": "/user/migrations"

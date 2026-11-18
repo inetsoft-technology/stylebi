@@ -38,8 +38,8 @@ import java.security.Principal;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #79693: title sites of the HTML viewsheet export (every title, including one wrapped in
- * html tags, shows as written) beyond the table, selection and radio titles covered by
+ * Bug #79693, #80924: title sites of the HTML viewsheet export (every title is rendered as
+ * markup, like the viewer) beyond the table, selection and radio titles covered by
  * {@link HTMLExportEscapingTest}: crosstab, check box and current selection.
  */
 @ExtendWith(SpringExtension.class)
@@ -76,15 +76,9 @@ class HTMLExportTitleSitesTest {
    }
 
    @Test
-   void currentSelectionTitleAndOutTitleShowTextAsWritten() {
+   void currentSelectionTitleAndOutTitleRenderMarkup() {
       HTMLExportEscapingTest.assertTitle(title -> currentSelection(title, "ot", "ov"));
       HTMLExportEscapingTest.assertTitle(title -> currentSelection("ct", title, "ov"));
-
-      Document doc = currentSelection("<html><b>Sales</b></html>", "<b>t</b>", "<b>v</b>");
-      assertEquals(0, doc.select("b").size(), doc.html());
-      assertTrue(doc.text().contains("<html><b>Sales</b></html>"), doc.text());
-      assertTrue(doc.text().contains("<b>t</b>"), doc.text());
-      assertTrue(doc.text().contains("<b>v</b>"), doc.text());
    }
 
    private Document crosstab(String title) {

@@ -50,6 +50,7 @@ import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 import { InteractableDirective } from "../../../widget/interact/interactable.directive";
 import { VSLine } from "../shape/vs-line.component";
+import { annotationTooltipFill } from "./annotation-tooltip-style";
 
 
 @Component({
@@ -70,6 +71,8 @@ export class VSAnnotation extends AbstractVSObject<VSAnnotationModel> implements
       if(model.annotationRectangleModel != null) {
          this.contentPadding = this.getContentPadding(model.annotationRectangleModel);
       }
+
+      this.tooltipFill = annotationTooltipFill(model);
 
       this._model = model;
    }
@@ -136,6 +139,8 @@ export class VSAnnotation extends AbstractVSObject<VSAnnotationModel> implements
    // used to determine if the tooltip should show
    @ViewChild("annotationContent") public contentContainer: ElementRef;
    public content: SafeHtml;
+   // the tooltip card shows the content on the annotation's own fill
+   public tooltipFill: string = "#ffffff";
    public isOverflowing: boolean = false;
    public contentPadding: number = 3;
    private scaleSubscription = Subscription.EMPTY;

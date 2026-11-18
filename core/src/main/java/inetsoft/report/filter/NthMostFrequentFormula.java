@@ -51,6 +51,7 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
 
    // Needed to avoid Kyro error "Class cannot be created (missing no-arg constructor):"
    public NthMostFrequentFormula() {
+      this(1);
    }
 
    /**
@@ -66,8 +67,9 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
     */
    @Override
    public void addValue(double v) {
-      Double val = v == Tool.NULL_DOUBLE ? null : v;
-      addValue(val);
+      if(v != Tool.NULL_DOUBLE) {
+         addValue((Double) v);
+      }
    }
 
    /**
@@ -75,8 +77,7 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
     */
    @Override
    public void addValue(double[] v) {
-      Double val = v[0] == Tool.NULL_DOUBLE ? null : v[0];
-      addValue(val);
+      addValue(v[0]);
    }
 
    /**
@@ -84,8 +85,9 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
     */
    @Override
    public void addValue(float v) {
-      Float val = v == Tool.NULL_FLOAT ? null : v;
-      addValue(val);
+      if(v != Tool.NULL_FLOAT) {
+         addValue((Float) v);
+      }
    }
 
    /**
@@ -93,8 +95,9 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
     */
    @Override
    public void addValue(long v) {
-      Long val = v == Tool.NULL_LONG ? null : v;
-      addValue(val);
+      if(v != Tool.NULL_LONG) {
+         addValue((Long) v);
+      }
    }
 
    /**
@@ -102,8 +105,9 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
     */
    @Override
    public void addValue(int v) {
-      Integer val = v == Tool.NULL_INTEGER ? null : v;
-      addValue(val);
+      if(v != Tool.NULL_INTEGER) {
+         addValue((Integer) v);
+      }
    }
 
    /**
@@ -111,8 +115,9 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
     */
    @Override
    public void addValue(short v) {
-      Short val = v == Tool.NULL_SHORT ? null : v;
-      addValue(val);
+      if(v != Tool.NULL_SHORT) {
+         addValue((Short) v);
+      }
    }
 
    /**
@@ -120,8 +125,9 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
     */
    @Override
    public void addValue(Object v) {
+      // null is ignored like Count/DistinctCount/Sum (Bug #81181)
       if(v == null) {
-         v = __NULL__;
+         return;
       }
 
       int freq = map.getInt(v);
@@ -175,7 +181,12 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
          return ((Number) obj).doubleValue();
       }
       else if(obj instanceof String) {
-         return Double.valueOf((String) obj);
+         try {
+            return Double.parseDouble(((String) obj).trim());
+         }
+         catch(NumberFormatException ex) {
+            return 0;
+         }
       }
 
       return 0;
@@ -207,8 +218,7 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
       });
 
       if(values.size() >= n) {
-         Object val = values.get(n - 1);
-         return (val == __NULL__) ? null : val;
+         return values.get(n - 1);
       }
 
       return null;
@@ -219,11 +229,18 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
     */
    @Override
    public Object clone() {
-      NthMostFrequentFormula nmf = new NthMostFrequentFormula(n);
-      nmf.def = def;
-      nmf.map = new Object2IntOpenHashMap<>(map);
+      try {
+         NthMostFrequentFormula nmf = (NthMostFrequentFormula) super.clone();
+         nmf.def = def;
+         nmf.map = new Object2IntOpenHashMap<>(map);
 
-      return nmf;
+         return nmf;
+      }
+      catch(CloneNotSupportedException e) {
+         LOG.error("Failed to clone object", e);
+      }
+
+      return null;
    }
 
    /**

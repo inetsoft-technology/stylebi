@@ -39,6 +39,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ScheduleCycleService {
@@ -334,9 +335,22 @@ public class ScheduleCycleService {
                                           Principal principal)
       throws Exception
    {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+      for(DataCycleInfo info : dataCycleInfoList) {
+         String name = info.getName();
+
+         if(name != null && !securityEngine.checkPermission(
+            principal, ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(name, orgId),
+            ResourceAction.ACCESS))
+         {
+            throw new SecurityException(catalog.getString("em.scheduler.cycle.unauthorized", name));
+         }
+      }
+
       String errmsg = dataCycleInfoList.stream().map(DataCycleInfo::getName)
          .filter(dataCycleManager::hasPregeneratedDependency)
-         .reduce("", String::concat);
+         .collect(Collectors.joining(", "));
 
       if(errmsg.length() > 0) {
          throw new Exception(catalog.getString("em.scheduler.deleteCyclesError", errmsg));

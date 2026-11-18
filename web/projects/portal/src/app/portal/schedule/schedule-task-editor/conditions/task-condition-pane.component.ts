@@ -830,7 +830,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message).then(
          (result: string) => {
             if(result === "ok") {
-               const conditions: number[] = Tool.clone(this.selectedConditions);
+               // dedupe so a repeated index can never remove the following row
+               const conditions: number[] = Array.from(new Set<number>(this.selectedConditions));
                // Bug #77973, sort the indexes as numbers, not as strings
                conditions.sort((a, b) => a - b);
                conditions.reverse();

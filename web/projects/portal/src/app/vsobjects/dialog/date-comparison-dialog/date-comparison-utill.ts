@@ -16,6 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
+import { Tool } from "../../../../../../shared/util/tool";
+import { CustomPeriodPaneModel } from "../../model/custom-period-pane-model";
+import { DateComparisonPaneModel } from "../../model/date-comparison-pane-model";
+import { DynamicValueModel, ValueTypes } from "../../model/dynamic-value-model";
+import { IntervalLevel, IntervalPaneModel } from "../../model/interval-pane-model";
+import { StandardPeriodPaneModel } from "../../model/standard-period-pane-model";
+import { DateComparisonService } from "../../util/date-comparison.service";
 import dayjs from "dayjs";
 import dayOfYear from "dayjs/plugin/dayOfYear";
 import weekday from "dayjs/plugin/weekday";
@@ -90,5 +97,79 @@ export namespace DateComparisonUtil {
         let ord = n < 21 ? (n < 4 ? suffix[n] : suffix[0]) : (n % 10 > 4 ? suffix[0] : suffix[n % 10]);
 
         return n + ord;
+    }
+
+    // Validity rules of the date comparison panes. They read only the model, so the
+    // dialog footer can evaluate them on any change detection pass (Bug #80818), and the
+    // panes use the same rules for their own error messages.
+
+    export function isInvalidStandardPeriodPreCount(model: StandardPeriodPaneModel): boolean {
+        return parseInt(model.preCount.value, 10) < 0 && !Tool.isDynamic(model.preCount.value);
+    }
+
+    export function isValidStandardPeriodEndDay(model: StandardPeriodPaneModel,
+                                                service: DateComparisonService): boolean
+    {
+        return model.toDayAsEndDay || service.isValidDate(model.endDay.value);
+    }
+
+    export function isValidStandardPeriod(model: StandardPeriodPaneModel,
+                                          service: DateComparisonService): boolean
+    {
+        return !isInvalidStandardPeriodPreCount(model) && isValidStandardPeriodEndDay(model, service);
+    }
+
+    export function isValidCustomPeriodDates(model: CustomPeriodPaneModel,
+                                             service: DateComparisonService): boolean
+    {
+        let dynamicValue: DynamicValueModel[] = [];
+
+        model.datePeriods.forEach(datePeriod => {
+            dynamicValue.push(datePeriod.start);
+            dynamicValue.push(datePeriod.end);
+        });
+
+        return !dynamicValue.some(value => !service.isValidDate(value.value));
+    }
+
+    export function isValidCustomPeriod(model: CustomPeriodPaneModel,
+                                        service: DateComparisonService): boolean
+    {
+        return isValidCustomPeriodDates(model, service) &&
+           !service.hasOverlappingFixedPeriods(model.datePeriods);
+    }
+
+    export function showIntervalEndDate(model: IntervalPaneModel, customPeriod: boolean): boolean {
+        return !customPeriod && (model.level.type != ValueTypes.VALUE ||
+           (Number(model.level.value) > IntervalLevel.TO_DATE ||
+           model.level.type != ValueTypes.VALUE));
+    }
+
+    export function isValidInterval(model: IntervalPaneModel, customPeriod: boolean,
+                                    service: DateComparisonService): boolean
+    {
+        return !showIntervalEndDate(model, customPeriod) || model.endDayAsToDate ||
+           service.isValidDate(model.intervalEndDate.value);
+    }
+
+    export function isValidDateComparison(model: DateComparisonPaneModel,
+                                          service: DateComparisonService): boolean
+    {
+        const periodPaneModel = model.periodPaneModel;
+        const custom = periodPaneModel.custom;
+        let validPeriod: boolean;
+
+        if(custom) {
+            const customModel = periodPaneModel.customPeriodPaneModel;
+            // the custom periods pane adds two blank (invalid) periods on init when there are
+            // none, so an empty list is treated as invalid instead of vacuously valid.
+            validPeriod = !!customModel?.datePeriods?.length &&
+               isValidCustomPeriod(customModel, service);
+        }
+        else {
+            validPeriod = isValidStandardPeriod(periodPaneModel.standardPeriodPaneModel, service);
+        }
+
+        return validPeriod && isValidInterval(model.intervalPaneModel, custom, service);
     }
 }

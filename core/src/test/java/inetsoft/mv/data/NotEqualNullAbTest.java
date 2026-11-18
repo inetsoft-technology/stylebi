@@ -39,13 +39,15 @@ import java.sql.*;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Bug #79870: a 'not equal to' data condition returns the same rows with and without MV.
  * The no-MV sides are the data condition group (embedded / in-memory table) and a real SQL
  * query (database table, where the condition is pushed into SQL). The MV side is the real
- * dictionary, index and SubMV. The MV stores null and the empty string as the same value.
+ * dictionary, index and SubMV. The MV stores null and the empty string as the same value, so
+ * memory and MV agree only when the column has no empty string; memory follows SQL and keeps ''.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -60,9 +62,34 @@ class NotEqualNullAbTest {
    void embeddedNullAndBlank() throws Exception {
       for(String[] col : new String[][] { NULLS_ONLY, WITH_BLANKS }) {
          for(String val : new String[] { "v03", "v01", "zz9" }) {
-            assertEquals(mv(col, val), dataGroup(col, val), Arrays.toString(col) + " <> " + val);
+            BitSet data = dataGroup(col, val);
+            String msg = Arrays.toString(col) + " <> " + val;
+
+            if(col == NULLS_ONLY) {
+               assertEquals(mv(col, val), data, msg);
+            }
+            else {
+               // '' is kept in memory as in SQL; the MV folds it into null (known limit)
+               assertEquals(sql(col, val), data, msg);
+            }
          }
       }
+
+      assertEquals(rows(0, 2, 4, 5), dataGroup(WITH_BLANKS, "v03"));
+      assertNotEquals(mv(WITH_BLANKS, "v03"), dataGroup(WITH_BLANKS, "v03"));
+   }
+
+   /**
+    * The MV side of the limit through the real dictionary: addValue("") is folded into null.
+    */
+   @Test
+   void dictionaryFoldsBlankIntoNull() throws Exception {
+      XDimDictionary dict = new XDimDictionary();
+      dict.setDataType(String.class);
+      dict.addValue("v01");
+      dict.addValue("");
+      dict.complete();
+      assertEquals(dict.indexOf(null, 0), dict.indexOf("", 0));
    }
 
    @Test
@@ -73,7 +100,8 @@ class NotEqualNullAbTest {
    }
 
    /**
-    * Known limit: the MV cannot tell '' from null, SQL keeps ''.
+    * Known limit: the MV cannot tell '' from null, SQL keeps '' and so does the in-memory data
+    * condition group; the MV is the odd one out.
     */
    @Test
    void databaseBlankIsKnownLimit() throws Exception {

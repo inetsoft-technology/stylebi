@@ -142,6 +142,13 @@ public class WeightedAverageFormula implements Formula2, java.io.Serializable {
          Number yV = (pair[1] instanceof Number) ? (Number) pair[1]
             : NumberParserWrapper.getDouble(pair[1] + "");
 
+         // a blank string parses to NaN without throwing, skip the pair
+         if((!(pair[0] instanceof Number) && Double.isNaN(xV.doubleValue())) ||
+            (!(pair[1] instanceof Number) && Double.isNaN(yV.doubleValue())))
+         {
+            return;
+         }
+
          cnt++;
          n += yV.doubleValue();
          total += xV.doubleValue() * yV.doubleValue();
@@ -193,11 +200,12 @@ public class WeightedAverageFormula implements Formula2, java.io.Serializable {
     */
    @Override
    public double getDoubleResult() {
-      if(cnt == 0) {
+      // no result (no pairs or a zero weight sum) is reported as 0 plus isNull() (Bug #81182)
+      if(isNull()) {
          return 0;
       }
 
-      return n != 0 ? total / n : 0;
+      return total / n;
    }
 
    /**
@@ -205,7 +213,8 @@ public class WeightedAverageFormula implements Formula2, java.io.Serializable {
     */
    @Override
    public boolean isNull() {
-      return cnt == 0;
+      // a zero weight sum has no weighted average, same as getResult()
+      return cnt == 0 || n == 0;
    }
 
    @Override

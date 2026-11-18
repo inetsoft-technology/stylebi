@@ -43,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("database")
 class DatabaseAuthenticationCacheReloadTimingTest {
    @BeforeEach
    void setUp() throws Exception {

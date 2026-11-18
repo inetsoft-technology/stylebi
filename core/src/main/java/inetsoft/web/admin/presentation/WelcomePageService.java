@@ -59,30 +59,31 @@ public class WelcomePageService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void setModel(WelcomePageSettingsModel model, boolean globalSettings) {
-      PortalThemesManager manager = portalThemesManager;
+      String orgId = globalSettings ? null :
+         OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(globalSettings) {
-         if(manager.getWelcomePage() == null) {
-            manager.setWelcomePage(new PortalWelcomePage(model.type(), model.source()));
+      // read, modify and save atomically, see PortalThemesManager.update()
+      portalThemesManager.update(manager -> {
+         if(globalSettings) {
+            if(manager.getWelcomePage() == null) {
+               manager.setWelcomePage(new PortalWelcomePage(model.type(), model.source()));
+            }
+            else {
+               manager.getWelcomePage().setType(model.type());
+               manager.getWelcomePage().setData(model.source());
+            }
          }
          else {
-            manager.getWelcomePage().setType(model.type());
-            manager.getWelcomePage().setData(model.source());
+            if(manager.getWelcomePage(orgId) == null) {
+               manager.setWelcomePage(orgId,
+                                      new PortalWelcomePage(model.type(), model.source()));
+            }
+            else {
+               manager.getWelcomePage(orgId).setType(model.type());
+               manager.getWelcomePage(orgId).setData(model.source());
+            }
          }
-      }
-      else {
-         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-
-         if(manager.getWelcomePage(orgId) == null) {
-            manager.setWelcomePage(orgId, new PortalWelcomePage(model.type(), model.source()));
-         }
-         else {
-            manager.getWelcomePage(orgId).setType(model.type());
-            manager.getWelcomePage(orgId).setData(model.source());
-         }
-      }
-
-      manager.save();
+      });
    }
 
    @Audited(
@@ -91,15 +92,16 @@ public class WelcomePageService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void resetSettings(boolean globalSettings) {
-      PortalThemesManager manager = portalThemesManager;
+      String orgId = globalSettings ? null :
+         OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(globalSettings) {
-         manager.setWelcomePage(new PortalWelcomePage(0, ""));
-      }
-      else {
-         manager.removeWelcomePage(OrganizationManager.getInstance().getCurrentOrgID());
-      }
-
-      manager.save();
+      portalThemesManager.update(manager -> {
+         if(globalSettings) {
+            manager.setWelcomePage(new PortalWelcomePage(0, ""));
+         }
+         else {
+            manager.removeWelcomePage(orgId);
+         }
+      });
    }
 }

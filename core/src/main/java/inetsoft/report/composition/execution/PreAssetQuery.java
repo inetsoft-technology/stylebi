@@ -370,10 +370,12 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
       //Only separates the condition list if it has no OR junctions
       if(onlyAndJunction) {
+         SQLHelper sqlHelper = getSQLHelper(getUniformSQL());
+
          for(int i = 0; i < conds.getSize(); i += 2) {
             ConditionItem item = conds.getConditionItem(i);
 
-            if(!isConditionItemMergeable(item)) {
+            if(!isConditionItemMergeable(item, sqlHelper)) {
                conds.remove(i);
 
                if(i >= 0) {
@@ -451,7 +453,19 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       return mergeSuccess;
    }
 
-   private boolean isConditionItemMergeable(ConditionItem item) throws Exception {
+   /**
+    * Check if the condition is a "one of" that the data source can not execute (Mongo).
+    * Shared by the per-item and the whole-list mergeable checks so they stay in step.
+    */
+   private static boolean isOneOfUnsupported(XCondition xcond, SQLHelper sqlHelper) {
+      return xcond != null && sqlHelper != null &&
+         "mongo".equals(sqlHelper.getSQLHelperType()) &&
+         xcond.getOperation() == XCondition.ONE_OF;
+   }
+
+   private boolean isConditionItemMergeable(ConditionItem item, SQLHelper sqlHelper)
+      throws Exception
+   {
       DataRef ref = item.getAttribute();
       ref = findColumn(ref);
 
@@ -460,6 +474,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       XCondition xcond = item.getXCondition();
+
+      if(isOneOfUnsupported(xcond, sqlHelper)) {
+         return false;
+      }
 
       if((xcond instanceof DateCondition) && !(xcond instanceof DateRange)) {
          return true;
@@ -1772,6 +1790,16 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
     * @return the contained attributes.
     */
    protected List<AttributeRef> getContainedAttributes(DataRef attr, boolean vonly) {
+      return getContainedAttributes(attr, vonly, Collections.newSetFromMap(new IdentityHashMap<>()));
+   }
+
+   /**
+    * @param visiting the expressions being resolved, used to stop expressions that refer to
+    *                 each other from recursing forever (Bug #81206).
+    */
+   private List<AttributeRef> getContainedAttributes(DataRef attr, boolean vonly,
+                                                     Set<DataRef> visiting)
+   {
       ColumnRef column = attr instanceof ColumnRef ? (ColumnRef) attr : null;
       attr = getBaseAttribute(attr);
       List<AttributeRef> list = null;
@@ -1784,7 +1812,17 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          }
 
          if(list == null) {
-            list = getExprAttributes(attr, vonly, column);
+            if(!visiting.add(attr)) {
+               // circular reference between expressions, nothing more to contribute
+               return new ArrayList<>();
+            }
+
+            try {
+               list = getExprAttributes(attr, vonly, column, visiting);
+            }
+            finally {
+               visiting.remove(attr);
+            }
          }
 
          if(expr != null) {
@@ -1799,7 +1837,9 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       return list;
    }
 
-   private List<AttributeRef> getExprAttributes(DataRef attr, boolean vonly, ColumnRef column) {
+   private List<AttributeRef> getExprAttributes(DataRef attr, boolean vonly, ColumnRef column,
+                                                 Set<DataRef> visiting)
+   {
       List<AttributeRef> list = new ArrayList<>();
       Enumeration iter = column != null ? column.getExpAttributes() : attr.getAttributes();
 
@@ -1807,7 +1847,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          DataRef ref = (DataRef) iter.nextElement();
 
          if(ref instanceof ExpressionRef) {
-            list.addAll(getContainedAttributes(ref, vonly));
+            list.addAll(getContainedAttributes(ref, vonly, visiting));
             continue;
          }
 
@@ -1820,7 +1860,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          ref = convertAttributeInExpression(attr2, attr);
 
          if(ref instanceof ExpressionRef && ref != attr) {
-            list.addAll(getContainedAttributes(ref, vonly));
+            list.addAll(getContainedAttributes(ref, vonly, visiting));
             continue;
          }
 
@@ -3115,10 +3155,8 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
          XCondition xcond = item.getXCondition();
 
-         if(xcond != null && sqlHelper != null && "mongo".equals(sqlHelper.getSQLHelperType())) {
-            if(xcond.getOperation() == XCondition.ONE_OF) {
-               return false;
-            }
+         if(isOneOfUnsupported(xcond, sqlHelper)) {
+            return false;
          }
 
          if((xcond instanceof DateCondition) && !(xcond instanceof DateRange)) {

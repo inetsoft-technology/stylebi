@@ -216,7 +216,7 @@ public class TextVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
          }
 
          if(popLocationValue != null) {
-            info.popLocationValue = popLocationValue;
+            info.popLocationValue = (DynamicValue) popLocationValue.clone();
          }
 
          if(popComponentValue != null) {
@@ -606,6 +606,7 @@ public class TextVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
       popOptionValue.setRValue(null);
       popComponentValue.setRValue(null);
       popLocationValue.setRValue(null);
+      alphaValue.setRValue(null);
 
       if(getBindingInfo() == null || getBindingInfo().isEmpty()) {
          setValue(null);

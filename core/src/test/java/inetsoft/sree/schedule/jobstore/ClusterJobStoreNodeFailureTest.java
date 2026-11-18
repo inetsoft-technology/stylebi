@@ -71,6 +71,7 @@ import static org.mockito.Mockito.*;
  * to the backup C are held while A fails, then released. Takes about 30 s.
  */
 @Tag("slow")
+@Tag("cluster")
 class ClusterJobStoreNodeFailureTest {
    @BeforeEach
    void startNodes() {

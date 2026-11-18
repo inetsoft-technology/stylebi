@@ -123,4 +123,56 @@ public class GaugeVSAScriptableTest {
    void testGetSuffix(String propertyName, String expectedValue) {
       assertEquals(expectedValue, gaugeVSAScriptable.getSuffix(propertyName));
    }
+
+   @Test
+   void numericRangePropertiesAcceptStringsAndReadBackAsDoubles() {
+      gaugeVSAScriptable.addProperties();
+      gaugeVSAScriptable.putMember("min", "-5.5");
+      gaugeVSAScriptable.putMember("max", "50");
+      gaugeVSAScriptable.putMember("majorInc", "10");
+      gaugeVSAScriptable.putMember("minorInc", "2.5");
+
+      assertEquals(-5.5, (Double) gaugeVSAScriptable.getMember("min"));
+      assertEquals(50.0, (Double) gaugeVSAScriptable.getMember("max"));
+      assertEquals(10.0, (Double) gaugeVSAScriptable.getMember("majorInc"));
+      assertEquals(2.5, (Double) gaugeVSAScriptable.getMember("minorInc"));
+   }
+
+   @Test
+   void rangeGradientScriptValueOverridesDesignValueUntilReset() {
+      gaugeVSAScriptable.addProperties();
+      gaugeVSAssemblyInfo.setRangeGradientValue(true);
+
+      gaugeVSAScriptable.putMember("rangeGradient", false);
+      assertEquals(false, gaugeVSAScriptable.getMember("rangeGradient"));
+
+      gaugeVSAssemblyInfo.resetRuntimeValues();
+      assertEquals(true, gaugeVSAScriptable.getMember("rangeGradient"));
+   }
+
+   @Test
+   void rangesAreReplacedByLaterWritesAndNullIsIgnored() {
+      gaugeVSAScriptable.addProperties();
+      gaugeVSAScriptable.putMember("ranges", new String[] { "10", "20", "30" });
+      assertArrayEquals(new double[] { 10, 20, 30 },
+                        (double[]) gaugeVSAScriptable.getMember("ranges"));
+
+      gaugeVSAScriptable.putMember("ranges", new String[] { "5" });
+      assertArrayEquals(new double[] { 5 }, (double[]) gaugeVSAScriptable.getMember("ranges"));
+
+      gaugeVSAScriptable.putMember("ranges", null);
+      assertArrayEquals(new double[] { 5 }, (double[]) gaugeVSAScriptable.getMember("ranges"));
+   }
+
+   @Test
+   void rangeColorsAreKeptWhenNullIsAssigned() {
+      gaugeVSAScriptable.addProperties();
+      java.awt.Color[] colors = { java.awt.Color.RED, java.awt.Color.BLUE };
+      gaugeVSAScriptable.putMember("ranges", new String[] { "10", "20" });
+      gaugeVSAScriptable.putMember("rangeColors", colors);
+      assertArrayEquals(colors, (java.awt.Color[]) gaugeVSAScriptable.getMember("rangeColors"));
+
+      gaugeVSAScriptable.putMember("rangeColors", null);
+      assertArrayEquals(colors, (java.awt.Color[]) gaugeVSAScriptable.getMember("rangeColors"));
+   }
 }
