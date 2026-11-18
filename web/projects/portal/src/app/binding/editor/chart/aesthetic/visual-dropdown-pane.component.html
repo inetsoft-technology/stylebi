@@ -44,7 +44,7 @@
       <combined-shape-pane></combined-shape-pane>
     </div>
     <div *ngSwitchCase="'CategoricalShape'">
-      <categorical-shape-pane [(frameModel)]="frameModels[0]"
+      <categorical-shape-pane [(frameModel)]="frameModels[0]" [bindingModel]="bindingModel"
         (apply)="applyClick($event)">
       </categorical-shape-pane>
     </div>
