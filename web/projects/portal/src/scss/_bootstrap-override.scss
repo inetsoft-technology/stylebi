@@ -317,6 +317,15 @@ fieldset.float-title {
     border-color: var(--inet-primary-color);
     box-shadow: var(--inet-focus-ring);
   }
+
+  // checked border == fill, so :focus alone is invisible; add a two-colour ring (checkbox, radio,
+  // switch). Bug #81489 put this here; the main->epic merge had moved it into the .form-switch block,
+  // so checked checkboxes and radios had lost it. The inner ring is the surface the control sits on:
+  // white in a light shell and in dashboard content, the dark surface in a dark shell.
+  &:checked:focus-visible {
+    box-shadow: 0 0 0 2px var(--inet-dark-surface-color, #fff), 0 0 0 4px var(--inet-text-color);
+    box-shadow: 0 0 0 2px var(--inet-dark-surface-color, #fff), 0 0 0 4px color-mix(in srgb, var(--inet-text-color) 70%, white);
+  }
 }
 
 input[type="checkbox"]:not(.form-check-input),
@@ -342,12 +351,6 @@ input[type="radio"]:not(.form-check-input) {
     border-color: var(--inet-primary-color);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3E%3Ccircle r='3' fill='%23ffffff'/%3E%3C/svg%3E");
     background-position: right center;
-  }
-
-  // checked border == fill, so :focus alone is invisible; add a two-colour ring (checkbox, radio, switch)
-  &:checked:focus-visible {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--inet-text-color);
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, var(--inet-text-color) 70%, white);
   }
 }
 
