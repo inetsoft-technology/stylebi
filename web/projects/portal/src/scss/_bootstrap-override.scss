@@ -1396,7 +1396,11 @@ ngb-datepicker .btn-light.bg-primary.text-white {
   background-color: var(--inet-ui-neutral-hover-bg-color);
   // the day is a .btn-light, whose hover draws a 1px border
   border-color: transparent;
-  outline: none;
+
+  // ng-bootstrap's outline is also the keyboard-focused (.active) day's only focus mark: keep it there
+  &:not(.active) {
+    outline: none;
+  }
 }
 
 .custom-select {
