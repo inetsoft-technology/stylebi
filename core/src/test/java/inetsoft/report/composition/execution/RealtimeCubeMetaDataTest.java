@@ -268,6 +268,25 @@ public class RealtimeCubeMetaDataTest {
    }
 
    @Test
+   void nonNumericMemberKeysDoNotApplyRange() throws Exception {
+      String[] names = { "November", "December", "January" };
+      DefaultTableLens table = new DefaultTableLens(names.length + 1, 1);
+      table.setObject(0, 0, CAL + ".Month");
+      table.setHeaderRowCount(1);
+
+      for(int r = 0; r < names.length; r++) {
+         table.setObject(r + 1, 0, captioned("[Date].[Calendar].[Month].&[" + names[r] + "]", names[r]));
+      }
+
+      RealtimeCubeMetaData md = new RealtimeCubeMetaData(
+         "cube", table, new String[] { CAL + ".Month" }, new ArrayList<>());
+      RangeCondition cond = realRange(new String[] { "Month" }, new Object[] { "November" },
+                                      new Object[] { "December" });
+      String key = SelectionVSAssembly.RANGE + "[Date].[Calendar].Month";
+      Assertions.assertEquals(3, values(md, key, cond, "Month").size());
+   }
+
+   @Test
    void membersWithoutKeysDoNotApplyRange() throws Exception {
       RangeCondition cond = realRange(new String[] { "Month" },
                                       new Object[] { "November 2002" },

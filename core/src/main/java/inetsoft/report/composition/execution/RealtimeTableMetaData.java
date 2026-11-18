@@ -599,13 +599,12 @@ public class RealtimeTableMetaData extends TableMetaData {
 
    /**
     * A range on cube members. The bounds and the row members are mapped to a rank derived from
-    * the member keys in the unique name (the "&[2002]&[11]" part), compared numerically where
-    * both parts are numbers and as strings otherwise, and the ranks are compared. Neither the
+    * the member keys in the unique name (the "&[2002]&[11]" part), compared numerically, and the ranks are compared. Neither the
     * order of the metadata rows (it is the cube table sort, which falls back to the display
     * text when the level cache is missing) nor the caption/unique name text sorts
     * hierarchically, so they are not used. This relies on the member keys of the level being
     * in hierarchy order (true for time levels such as calendar year/month). If any member has
-    * no key, the range is not applied.
+    * no key or a non-numeric key, the range is not applied.
     */
    private static final class CubeRange {
       static CubeRange create(RangeCondition cond, ColumnMetaData[] keyMetas,
@@ -668,7 +667,7 @@ public class RealtimeTableMetaData extends TableMetaData {
        */
       private static int[] rank(ColumnMetaData meta) {
          List<Object> values = meta.getValues();
-         List<String[]> keys = new ArrayList<>();
+         List<java.math.BigDecimal[]> keys = new ArrayList<>();
 
          for(Object val : values) {
             if(!(val instanceof MemberObject) || ((MemberObject) val).getUName() == null) {
@@ -683,17 +682,23 @@ public class RealtimeTableMetaData extends TableMetaData {
             }
 
             java.util.regex.Matcher m = KEY.matcher(uname.substring(pos));
-            List<String> parts = new ArrayList<>();
+            List<java.math.BigDecimal> parts = new ArrayList<>();
 
             while(m.find()) {
-               parts.add(m.group(1));
+               try {
+                  parts.add(new java.math.BigDecimal(m.group(1)));
+               }
+               catch(NumberFormatException ex) {
+                  LOG.debug("Non-numeric member key, range not applied: {}", uname);
+                  return null;
+               }
             }
 
             if(parts.isEmpty()) {
                return null;
             }
 
-            keys.add(parts.toArray(new String[0]));
+            keys.add(parts.toArray(new java.math.BigDecimal[0]));
          }
 
          Integer[] order = new Integer[values.size()];
@@ -712,16 +717,9 @@ public class RealtimeTableMetaData extends TableMetaData {
          return ranks;
       }
 
-      private static int compareKeys(String[] a, String[] b) {
+      private static int compareKeys(java.math.BigDecimal[] a, java.math.BigDecimal[] b) {
          for(int i = 0; i < Math.min(a.length, b.length); i++) {
-            int c;
-
-            try {
-               c = new java.math.BigDecimal(a[i]).compareTo(new java.math.BigDecimal(b[i]));
-            }
-            catch(NumberFormatException ex) {
-               c = a[i].compareTo(b[i]);
-            }
+            int c = a[i].compareTo(b[i]);
 
             if(c != 0) {
                return c;
