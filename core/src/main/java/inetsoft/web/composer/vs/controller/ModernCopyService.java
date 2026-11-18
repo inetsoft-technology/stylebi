@@ -34,6 +34,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.AutoSaveUtils;
+import inetsoft.web.binding.handler.ChartSourceOrder;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.ModernizeDialogService;
 import inetsoft.web.composer.vs.dialog.SaveViewsheetDialogService;
@@ -146,7 +147,9 @@ public class ModernCopyService {
       try {
          // the save copies the saver's bookmarks of the original
          assetRepository.clearVSBookmark(copy);
-         VizModernizeUtil.resetToModern(vs);
+         VizModernizeUtil.resetToModern(
+            vs, info -> new ChartSourceOrder(rvs.getViewsheetSandbox().orElse(null),
+                                             info.getSourceInfo()));
          vs.getViewsheetInfo().setModernCopyOf(original.toIdentifier());
          // the save comes before any composer draw, so the counts the reset asked for go first
          countLegends(rvs, vs);
