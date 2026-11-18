@@ -591,7 +591,6 @@ class VSCalcFieldQueryTest {
       assertEquals(Arrays.asList(18.0, 20.0, 8.0), numbers(column(body(lens, 1), 0)));
    }
 
-   @Disabled("Not filed (fixture only): an unused failing detail calc in a freehand table must not replace the result with the sample row")
    @Test
    @DisplayName("An unused failing calc field is not executed in a freehand table")
    void unusedFailingCalcInFreehand() throws Exception {
