@@ -582,6 +582,9 @@ public class CallableStatementScriptable implements ScriptScope {
                (String) parameter2);
          }
       }
+      else {
+         throw invalidParameter("registerOutParameter");
+      }
    }
 
    public void setBigDecimal(Object parameter, Object x) throws Throwable
@@ -597,6 +600,9 @@ public class CallableStatementScriptable implements ScriptScope {
          String val = numberToString(x);
          cstmt.setBigDecimal((String) parameter, new BigDecimal(val));
       }
+      else {
+         throw invalidParameter("setBigDecimal");
+      }
    }
 
    public void setBoolean(Object parameter, boolean x) throws Throwable {
@@ -607,6 +613,9 @@ public class CallableStatementScriptable implements ScriptScope {
       }
       else if(parameter instanceof String) {
          cstmt.setBoolean((String) parameter, x);
+      }
+      else {
+         throw invalidParameter("setBoolean");
       }
    }
 
@@ -621,6 +630,9 @@ public class CallableStatementScriptable implements ScriptScope {
          String val = numberToString(x);
          cstmt.setByte((String) parameter, Byte.parseByte(val));
       }
+      else {
+         throw invalidParameter("setByte");
+      }
    }
 
    public void setDate(Object parameter, Object x) throws Throwable {
@@ -632,6 +644,9 @@ public class CallableStatementScriptable implements ScriptScope {
       else if(parameter instanceof String) {
          cstmt.setDate((String) parameter, getDateFromObj(x));
       }
+      else {
+         throw invalidParameter("setDate");
+      }
    }
 
    public void setDouble(Object parameter, double x) throws Throwable {
@@ -642,6 +657,9 @@ public class CallableStatementScriptable implements ScriptScope {
       }
       else if(parameter instanceof String) {
          cstmt.setDouble((String) parameter, x);
+      }
+      else {
+         throw invalidParameter("setDouble");
       }
    }
 
@@ -657,6 +675,9 @@ public class CallableStatementScriptable implements ScriptScope {
          String val = numberToString(x);
          cstmt.setFloat((String) parameter, Float.parseFloat(val));
       }
+      else {
+         throw invalidParameter("setFloat");
+      }
    }
 
    public void setInt(Object parameter, int x) throws Throwable {
@@ -667,6 +688,9 @@ public class CallableStatementScriptable implements ScriptScope {
       }
       else if(parameter instanceof String) {
          cstmt.setInt((String) parameter, x);
+      }
+      else {
+         throw invalidParameter("setInt");
       }
    }
 
@@ -681,6 +705,9 @@ public class CallableStatementScriptable implements ScriptScope {
          String val = numberToString(x);
          cstmt.setLong((String) parameter, Long.parseLong(val));
       }
+      else {
+         throw invalidParameter("setLong");
+      }
    }
 
    public void setNull(Object parameter, int sqlType) throws Throwable {
@@ -691,6 +718,9 @@ public class CallableStatementScriptable implements ScriptScope {
       }
       else if(parameter instanceof String) {
          cstmt.setNull((String) parameter, sqlType);
+      }
+      else {
+         throw invalidParameter("setNull");
       }
    }
 
@@ -705,6 +735,9 @@ public class CallableStatementScriptable implements ScriptScope {
       else if(parameter instanceof String) {
          cstmt.setNull((String) parameter, sqlType, typeName);
       }
+      else {
+         throw invalidParameter("setNull");
+      }
    }
 
    public void setObject(Object parameter, Object x) throws Throwable {
@@ -716,6 +749,9 @@ public class CallableStatementScriptable implements ScriptScope {
       }
       else if(parameter instanceof String) {
          cstmt.setObject((String) parameter, JavaScriptEngine.unwrap(x));
+      }
+      else {
+         throw invalidParameter("setObject");
       }
    }
 
@@ -732,6 +768,9 @@ public class CallableStatementScriptable implements ScriptScope {
          cstmt.setObject((String) parameter, JavaScriptEngine.unwrap(x),
             targetSqlType);
       }
+      else {
+         throw invalidParameter("setObject");
+      }
    }
 
    public void setObject(Object parameter, Object x, int targetSqlType,
@@ -747,6 +786,9 @@ public class CallableStatementScriptable implements ScriptScope {
          cstmt.setObject((String) parameter, JavaScriptEngine.unwrap(x),
             targetSqlType, scale);
       }
+      else {
+         throw invalidParameter("setObject");
+      }
    }
 
    public void setShort(Object parameter, Object x) throws Throwable {
@@ -761,6 +803,9 @@ public class CallableStatementScriptable implements ScriptScope {
          String val = numberToString(x);
          cstmt.setShort((String) parameter, Short.parseShort(val));
       }
+      else {
+         throw invalidParameter("setShort");
+      }
    }
 
    public void setString(Object parameter, String x) throws Throwable {
@@ -771,6 +816,9 @@ public class CallableStatementScriptable implements ScriptScope {
       }
       else if(parameter instanceof String) {
          cstmt.setString((String) parameter, x);
+      }
+      else {
+         throw invalidParameter("setString");
       }
    }
 
@@ -785,6 +833,9 @@ public class CallableStatementScriptable implements ScriptScope {
          cstmt.setTime((String) parameter,
             new Time(getDateFromObj(x).getTime()));
       }
+      else {
+         throw invalidParameter("setTime");
+      }
    }
 
    public void setTimestamp(Object parameter, Object x) throws Throwable {
@@ -798,10 +849,18 @@ public class CallableStatementScriptable implements ScriptScope {
          cstmt.setTimestamp((String) parameter,
             new Timestamp(getDateFromObj(x).getTime()));
       }
+      else {
+         throw invalidParameter("setTimestamp");
+      }
    }
 
    public boolean wasNull() throws Throwable {
       return cstmt.wasNull();
+   }
+
+   private RuntimeException invalidParameter(String method) {
+      return new RuntimeException("First parameter of " + method +
+                                  " must be of class String or Num.");
    }
 
    private String numberToString(Object x) throws Exception {
