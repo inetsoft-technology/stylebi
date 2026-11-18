@@ -236,7 +236,7 @@ class AssemblyPropertyServiceTest {
          .filter(p -> "primary".equals(p.get("name")))
          .findFirst()
          .orElseThrow(() -> new AssertionError("gauge should list a 'primary' entry"));
-      assertEquals("Visible in External Viewsheets", primary.get("label"));
+      assertEquals("Visible in External Dashboards", primary.get("label"));
 
       Map<String, Object> visible = properties.stream()
          .filter(p -> "visible".equals(p.get("name")))
@@ -3759,6 +3759,35 @@ class AssemblyPropertyServiceTest {
 
       assertEquals(Map.of("list", 0, "dropdown", 1), list);
       assertEquals(Map.of("calendar", 1, "dropdown", 2), calendar);
+   }
+
+   /** Option label of a listed property's option {@code value}. */
+   @SuppressWarnings("unchecked")
+   private static String optionLabelOf(AssemblyPropertyService service, String assembly,
+                                       String alias, String value) throws Exception
+   {
+      List<Map<String, Object>> properties =
+         (List<Map<String, Object>>) service.list("tok", principal(), assembly).get("properties");
+      Map<String, Object> property = properties.stream()
+         .filter(p -> alias.equals(p.get("name"))).findFirst().orElseThrow();
+
+      return ((List<Map<String, Object>>) property.get("options")).stream()
+         .filter(o -> value.equals(o.get("value"))).map(o -> (String) o.get("label"))
+         .findFirst().orElseThrow();
+   }
+
+   /** Bug #81681: option labels use the Composer's words (Hide Others, Simple View, Range). */
+   @Test
+   void optionLabelsUseTheComposerCaptions() throws Exception {
+      AssemblyPropertyService selection = serviceWithSelectionList(
+         mock(SelectionListVSAssembly.class), new SelectionListPropertyDialogModel());
+      AssemblyPropertyService calendar = serviceWithCalendar(
+         mock(CalendarVSAssembly.class), new CalendarPropertyDialogModel());
+
+      assertEquals("Hide Others", optionLabelOf(selection, "Selection1", "sortType", "specific"));
+      assertEquals("Asc", optionLabelOf(selection, "Selection1", "sortType", "asc"));
+      assertEquals("Simple View", optionLabelOf(calendar, "Calendar1", "viewMode", "single"));
+      assertEquals("Range", optionLabelOf(calendar, "Calendar1", "viewMode", "double"));
    }
 
    @Test

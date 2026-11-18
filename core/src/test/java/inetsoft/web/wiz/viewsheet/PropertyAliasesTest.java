@@ -1136,7 +1136,7 @@ class PropertyAliasesTest {
     */
    @Test
    void primaryHasTheComposerUiLabel() {
-      assertEquals("Visible in External Viewsheets", PropertyAliases.labelFor("primary"));
+      assertEquals("Visible in External Dashboards", PropertyAliases.labelFor("primary"));
    }
 
    /** An alias with no better caption than its own name must not fabricate one. */
@@ -2777,6 +2777,28 @@ class PropertyAliasesTest {
       // the group container names its background image alpha "alpha" (bug #81420)
       assertEquals("groupContainerGeneralPane.staticImagePane.imagePreviewPaneModel.alpha",
                    PropertyAliases.resolveForWrite("groupcontainer", "alpha"));
+   }
+
+   /** Bug #81681: the Advanced tab options of table, crosstab and calc table carry their captions. */
+   @Test
+   void advancedTabOptionsCarryTheirComposerCaptions() {
+      assertEquals("Compute Trend and Comparison for Totals", PropertyAliases.labelFor("calculateTotal"));
+      assertEquals("Enable Ad Hoc Editing", PropertyAliases.labelFor("enableAdhoc"));
+      assertEquals("Fill Blank Cell With Zero", PropertyAliases.labelFor("fillBlankWithZero"));
+      assertEquals("Summary Cells Side By Side", PropertyAliases.labelFor("summarySideBySide"));
+      assertEquals("Shrink To Fit", PropertyAliases.labelFor("shrink"));
+      assertEquals("Merge Expanded Cells", PropertyAliases.labelFor("mergeSpan"));
+      assertEquals("Enable Table Editing", PropertyAliases.labelFor("form"));
+      assertEquals("Header Rows", PropertyAliases.labelFor("headerRowCount"));
+
+      // every Advanced option a crosstab registers is captioned, none left null
+      for(String name : List.of("calculateTotal", "enableAdhoc", "fillBlankWithZero",
+                                "summarySideBySide", "shrink", "mergeSpan", "sortOthersLast",
+                                "drillEnabled", "dateComparisonEnabled"))
+      {
+         assertTrue(PropertyAliases.forType("crosstab").aliases().containsKey(name), name);
+         assertNotNull(PropertyAliases.labelFor(name), name);
+      }
    }
 
    @Test
