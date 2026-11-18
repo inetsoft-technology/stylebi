@@ -5224,17 +5224,21 @@ public class WorksheetEditService {
       // -----------------------------------------------------------------------
 
       /**
-       * Feature #79557: the end day of an absolute date range is included only up to its own
-       * 00:00:00. {@link PeriodCondition} truncates both ends to the start of the day and the SQL
-       * form is {@code BETWEEN from AND to}, so a DATE column keeps the whole end day, but a
-       * TIMESTAMP column loses every row on the end day after midnight. The range cannot be built
-       * any other way (its {@code to} is truncated, and adding a day would wrongly include the
-       * next day on a DATE column), so the limit is stated to the caller.
+       * Feature #79557: the boundary days of an absolute date range are exact for a DATE column
+       * only. {@link PeriodCondition#getFrom()}/{@code getTo()} return local STANDARD-time
+       * midnight (stored minus the raw zone offset), which is 01:00 local while daylight saving
+       * is in force, and the SQL form is {@code BETWEEN from AND to}. A TIMESTAMP column
+       * therefore matches from 00:00:00 (01:00:00 in daylight saving) of the first day through
+       * that same instant of the last day, so the last day after it, and the first hour of the
+       * first day in daylight saving, are outside. The range cannot be built any other way, so
+       * the limit is stated to the caller.
        */
       public static final String DATE_RANGE_END_DAY_WARNING =
-         "The end date is inclusive for date columns. For a timestamp (date-time) column only " +
-         "00:00:00 of the end date matches, so rows later on the end date are NOT included; " +
-         "to include them, end the range on the following day.";
+         "The end date is inclusive for date columns. For a timestamp (date-time) column a row " +
+         "matches from 00:00:00 of the start date (01:00:00 while daylight saving is in force in " +
+         "the server time zone) through the same time of the end date, so rows later on the end " +
+         "date, and in that first hour of the start date, are NOT included; to include the end " +
+         "date, end the range on the following day.";
 
       /**
        * Creates, or with {@code replace} edits, a named absolute date range assembly: the
@@ -5345,7 +5349,17 @@ public class WorksheetEditService {
        * @throws PairingException if no date range assembly named {@code name} exists
        */
       public void deleteDateRange(String name) throws PairingException {
-         Assembly a = name == null ? null : ws.getAssembly(name.trim());
+         String trimmed = name == null ? null : name.trim();
+         Assembly a = trimmed == null ? null : ws.getAssembly(trimmed);
+
+         if(a == null && trimmed != null) {
+            for(Assembly c : ws.getAssemblies()) {
+               if(c.getName().equalsIgnoreCase(trimmed)) {
+                  a = c;
+                  break;
+               }
+            }
+         }
 
          if(a == null) {
             throw new PairingException("Date range not found: " + name);

@@ -10604,8 +10604,8 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(resolved.evaluate(noon(2025, 6, 29)));
       assertFalse(resolved.evaluate(noon(2024, 6, 30)));
       assertFalse(resolved.evaluate(noon(2025, 7, 1)));
-      // The documented limit: the end day matches only up to 00:00:00, so a timestamp later on
-      // 2025-06-30 is outside. A DATE column's value is its day's midnight and is inside.
+      // The documented limit: the end day matches only up to its boundary instant (00:00:00, or
+      // 01:00:00 in daylight saving), so a timestamp later on 2025-06-30 is outside. A DATE column's value is its day's midnight and is inside.
       assertFalse(resolved.evaluate(noon(2025, 6, 30)));
 
       Condition between = resolved.toSqlCondition(false);
@@ -10614,6 +10614,50 @@ class WorksheetEditServiceMutatorsTest {
                    localDay((java.util.Date) between.getValue(0)));
       assertEquals(java.time.LocalDate.of(2025, 6, 30),
                    localDay((java.util.Date) between.getValue(1)));
+   }
+
+   @Test
+   void dateRangeBetweenBoundsAreLocalStandardMidnightSoDaylightSavingShiftsThemAnHour()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      addRange(svc, agent, "FY2025", "2024-07-01", "2025-06-30", false);
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "FY2025"));
+      PeriodCondition resolved = assertInstanceOf(PeriodCondition.class, firstXCondition(t));
+      Condition between = resolved.toSqlCondition(true);
+
+      java.util.TimeZone zone = java.util.TimeZone.getDefault();
+
+      for(int i = 0; i < 2; i++) {
+         java.time.LocalDate day = i == 0 ? java.time.LocalDate.of(2024, 7, 1)
+            : java.time.LocalDate.of(2025, 6, 30);
+         java.util.Date noon = java.util.Date.from(
+            day.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant());
+         // standard-time midnight: 00:00 local, or 01:00 local while daylight saving is in force
+         int expectedHour = zone.inDaylightTime(noon) ? 1 : 0;
+         java.time.LocalDateTime bound = java.time.LocalDateTime.ofInstant(
+            java.time.Instant.ofEpochMilli(((java.util.Date) between.getValue(i)).getTime()), java.time.ZoneId.systemDefault());
+         assertEquals(day, bound.toLocalDate());
+         assertEquals(expectedHour, bound.getHour());
+         assertEquals(0, bound.getMinute());
+      }
+   }
+
+   @Test
+   void deleteDateRangeFindsTheAssemblyCaseInsensitively() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      addRange(svc, agent, "FY2025", "2024-07-01", "2025-06-30", false);
+      assertNotNull(ws.getAssembly("FY2025"));
+
+      svc.apply("TOK", agent, ed -> ed.deleteDateRange("fy2025"));
+
+      assertNull(ws.getAssembly("FY2025"));
    }
 
    @Test
