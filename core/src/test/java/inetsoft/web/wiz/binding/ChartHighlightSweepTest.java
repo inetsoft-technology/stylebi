@@ -19,6 +19,9 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.filter.TextHighlight;
+import inetsoft.report.composition.graph.calc.ChangeCalc;
+import inetsoft.report.composition.graph.calc.PercentCalc;
+import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -29,6 +32,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
@@ -135,8 +139,6 @@ class ChartHighlightSweepTest {
    }
 
    private Notes rewrite(VSChartInfo info, String shelf, FieldRef... fields) {
-      List<ChartHyperlinkCarry.Saved> saved = ChartHyperlinkCarry.snapshot(info, shelf);
-      ChartHighlightSweep.Snapshot highlights = ChartHighlightSweep.snapshot(info);
       List<ChartRef> fresh = new ArrayList<>();
 
       for(FieldRef field : fields) {
@@ -144,18 +146,44 @@ class ChartHighlightSweepTest {
          fresh.add(refService.pasteChartRef(info, model));
       }
 
-      if(shelf.equals("y")) {
-         info.removeYFields();
-         fresh.forEach(info::addYField);
-      }
-      else {
-         info.removeXFields();
-         fresh.forEach(info::addXField);
-      }
+      return rewrite(info, shelf, fresh);
+   }
 
+   /** As above, writing the given refs (for example ones that carry a calculator). */
+   private static Notes rewrite(VSChartInfo info, String shelf, List<ChartRef> fresh) {
+      return rewrite(info, shelf, () -> {
+         if(shelf.equals("y")) {
+            info.removeYFields();
+            fresh.forEach(info::addYField);
+         }
+         else {
+            info.removeXFields();
+            fresh.forEach(info::addXField);
+         }
+      });
+   }
+
+   /** The same snapshot, write, reapply and sweep sequence, with the write left to the caller. */
+   private static Notes rewrite(VSChartInfo info, String shelf, Runnable write) {
+      List<ChartHyperlinkCarry.Saved> saved = ChartHyperlinkCarry.snapshot(info, shelf);
+      ChartHighlightSweep.Snapshot highlights = ChartHighlightSweep.snapshot(info);
+      write.run();
       Set<String> reported = new HashSet<>();
       List<String> carried = ChartHyperlinkCarry.reapply(info, shelf, saved, reported);
       return new Notes(carried, ChartHighlightSweep.sweep(info, highlights, reported));
+   }
+
+   private static VSChartAggregateRef measure(String column, String formula, Calculator calc) {
+      VSChartAggregateRef ref = measure(column, formula);
+      ref.setCalculator(calc);
+      return ref;
+   }
+
+   private static ChangeCalc changeFromPrevious(String dimension) {
+      ChangeCalc calc = new ChangeCalc();
+      calc.setFrom(ValueOfCalc.PREVIOUS);
+      calc.setColumnName(dimension);
+      return calc;
    }
 
    private static VSChartAggregateRef y(VSChartInfo info, int i) {
@@ -309,6 +337,115 @@ class ChartHighlightSweepTest {
       Notes notes = rewrite(info, "x", dim("CATEGORY_NAME", null));
 
       assertTrue(notes.all().isEmpty(), notes.all().toString());
+   }
+
+   @Test
+   void aCalculatorAddedToAMeasureKeepsItsHighlightAndSaysNothing() {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartAggregateRef revenue = measure("REVENUE", "Sum");
+      revenue.setHighlightGroup(group("HiRegion", "REGION"));
+      info.addXField(dimension("REGION", XConstants.NONE_DATE_GROUP));
+      info.addYField(revenue);
+
+      Notes notes = rewrite(info, "y", List.of(measure("REVENUE", "Sum", new PercentCalc())));
+
+      assertTrue(notes.all().isEmpty(), notes.all().toString());
+      assertNotNull(y(info, 0).getHighlightGroup().getHighlight("HiRegion"));
+      assertNotEquals("Sum(REVENUE)", ChartHyperlinkCarry.fullName(y(info, 0)),
+                      "the calculator renamed the measure");
+   }
+
+   @Test
+   void aCalculatorRemovedFromAMeasureKeepsItsHighlightAndSaysNothing() {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartAggregateRef revenue = measure("REVENUE", "Sum", new PercentCalc());
+      revenue.setHighlightGroup(group("HiRegion", "REGION"));
+      info.addXField(dimension("REGION", XConstants.NONE_DATE_GROUP));
+      info.addYField(revenue);
+
+      Notes notes = rewrite(info, "y", List.of(measure("REVENUE", "Sum")));
+
+      assertTrue(notes.all().isEmpty(), notes.all().toString());
+      assertNotNull(y(info, 0).getHighlightGroup().getHighlight("HiRegion"));
+   }
+
+   @Test
+   void aRenamedMeasureWhoseConditionDimensionLeftGetsOnlyTheNoLongerBoundNote() {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartAggregateRef revenue = measure("REVENUE", "Sum", changeFromPrevious("Year(ORDER_DATE)"));
+      revenue.setHighlightGroup(group("HiYear", "Year(ORDER_DATE)"));
+      info.addXField(dimension("REGION", XConstants.NONE_DATE_GROUP));
+      info.addXField(dimension("ORDER_DATE", XConstants.YEAR_DATE_GROUP));
+      info.addYField(revenue);
+
+      // the x write drops the date, which also renames the Change measure ("from previous")
+      Notes notes = rewrite(info, "x", () -> {
+         info.removeXFields();
+         info.addXField(dimension("REGION", XConstants.NONE_DATE_GROUP));
+         y(info, 0).setCalculator(changeFromPrevious(null));
+      });
+
+      assertEquals(1, notes.all().size(), notes.all().toString());
+      String note = notes.all().get(0);
+      assertTrue(note.contains("'HiYear' on Change from previous") &&
+                    note.contains("has a condition on Year(ORDER_DATE), which is no longer bound"),
+                 note);
+      assertFalse(note.contains("was removed"), note);
+      assertNotNull(y(info, 0).getHighlightGroup().getHighlight("HiYear"));
+   }
+
+   @Test
+   void aConditionOnTheMeasuresOwnNameGoesStaleWhenACalculatorRenamesIt() {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartAggregateRef revenue = measure("REVENUE", "Sum");
+      revenue.setHighlightGroup(group("Big", "Sum(REVENUE)"));
+      info.addYField(revenue);
+
+      Notes notes = rewrite(info, "y", List.of(measure("REVENUE", "Sum", new PercentCalc())));
+
+      assertEquals(1, notes.all().size(), notes.all().toString());
+      assertTrue(notes.all().get(0).contains("has a condition on Sum(REVENUE), which is no " +
+         "longer bound"), notes.all().get(0));
+      assertFalse(notes.all().get(0).contains("was removed"), notes.all().get(0));
+   }
+
+   @Test
+   void twoMeasuresOfOneFieldUnderDifferentCalculatorsAreNotCollapsed() {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartAggregateRef plain = measure("REVENUE", "Sum");
+      plain.setHighlightGroup(group("Hi", null));
+      VSChartAggregateRef percent = measure("REVENUE", "Sum", new PercentCalc());
+      percent.setHighlightGroup(group("Hi", null));
+      info.addYField(plain);
+      info.addYField(percent);
+      ChartHighlightSweep.Snapshot before = ChartHighlightSweep.snapshot(info);
+
+      // one of the two goes away, with no reapply to cover for it
+      info.removeYFields();
+      info.addYField(plain);
+
+      List<String> notes = ChartHighlightSweep.sweep(info, before, new HashSet<>());
+
+      assertEquals(1, notes.size(), notes.toString());
+      assertTrue(notes.get(0).contains("'Hi' on ") && notes.get(0).contains("was removed"),
+                 notes.get(0));
+   }
+
+   @Test
+   void aTextHighlightOnADimensionIsNotTakenForOneOnAnUnaggregatedMeasureOfTheSameColumn() {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartDimensionRef dimension = dimension("REVENUE", XConstants.NONE_DATE_GROUP);
+      dimension.setTextHighlightGroup(group("T", null));
+      VSChartAggregateRef measure = measure("REVENUE", "None");
+      measure.setTextHighlightGroup(group("T", null));
+      info.addXField(dimension);
+      info.addYField(measure);
+
+      Notes notes = rewrite(info, "x");
+
+      assertEquals(1, notes.swept().size(), notes.swept().toString());
+      assertTrue(notes.swept().get(0).contains("'T' on REVENUE (text)") &&
+                    notes.swept().get(0).contains("on the x shelf"), notes.swept().get(0));
    }
 
    @Test
