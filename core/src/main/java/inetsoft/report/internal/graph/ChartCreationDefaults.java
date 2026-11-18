@@ -255,4 +255,149 @@ public final class ChartCreationDefaults {
       info.addYField((ChartRef) color.getDataRef());
       info.setColorField(null);
    }
+
+   /** Applies the rule of each family the chart enters when its type changes. */
+   public static void afterTypeChange(ChartInfo info, int oldType, int newType, VizContext ctx,
+                                      SourceOrder order)
+   {
+      if(!ctx.modern) {
+         return;
+      }
+
+      if(!GraphTypes.isPie(oldType) && GraphTypes.isPie(newType)) {
+         applyPieOrder(info, ctx);
+      }
+
+      if(!GraphTypes.isWaterfall(oldType) && GraphTypes.isWaterfall(newType)) {
+         applyWaterfallOrder(info, ctx, order);
+      }
+
+      if(!GraphTypes.isTreemap(oldType) && GraphTypes.isTreemap(newType)) {
+         applyTopLevelColor(info, ctx);
+      }
+
+      if(!GraphTypes.isMekko(oldType) && GraphTypes.isMekko(newType)) {
+         applyBreakByColor(info, ctx);
+      }
+
+      if(!GraphTypes.isCandle(oldType) && GraphTypes.isCandle(newType)) {
+         moveColorDimensionToPanels(info, ctx);
+      }
+   }
+
+   /** Applies the rules a drop triggers, by the shelf the fields landed on. */
+   public static void afterDrop(ChartInfo info, int dropRegion, List<? extends DataRef> landed,
+                                VizContext ctx, SourceOrder order)
+   {
+      if(!ctx.modern || landed == null || landed.isEmpty()) {
+         return;
+      }
+
+      boolean dimension = false;
+      boolean measure = false;
+      DataRef firstDimension = null;
+
+      for(DataRef ref : landed) {
+         if(GraphUtil.isDimension(ref)) {
+            dimension = true;
+
+            if(firstDimension == null) {
+               firstDimension = ref;
+            }
+         }
+         else {
+            measure = true;
+         }
+      }
+
+      boolean aesthetic = dropRegion == ChartConstants.DROP_REGION_COLOR ||
+         dropRegion == ChartConstants.DROP_REGION_SHAPE ||
+         dropRegion == ChartConstants.DROP_REGION_SIZE;
+
+      if(hasPie(info) && (dimension && aesthetic || measure)) {
+         applyPieOrder(info, ctx);
+      }
+
+      if(dimension && GraphTypes.isWaterfall(info.getChartType())) {
+         boolean category = dropRegion == ChartConstants.DROP_REGION_X ||
+            dropRegion == ChartConstants.DROP_REGION_X2 ||
+            info.isInvertedGraph() && (dropRegion == ChartConstants.DROP_REGION_Y ||
+                                       dropRegion == ChartConstants.DROP_REGION_Y2);
+
+         if(category) {
+            applyWaterfallOrder(info, ctx, order);
+         }
+      }
+
+      if(dimension && dropRegion == ChartConstants.DROP_REGION_GROUP) {
+         if(GraphTypes.isTreemap(info.getChartType()) && isFirstGroup(info, landed)) {
+            applyTopLevelColor(info, ctx);
+         }
+         else if(GraphTypes.isMekko(info.getChartType())) {
+            applyBreakByColor(info, ctx);
+         }
+      }
+   }
+
+   /** Applies the rules the wizard's new chart does not already get. */
+   public static void afterWizard(ChartInfo info, VizContext ctx, SourceOrder order) {
+      applyPieOrder(info, ctx);
+      applyWaterfallOrder(info, ctx, order);
+   }
+
+   /** Applies the rules to the copy a reset gives a chart that gets the mark. */
+   public static void forResetCopy(ChartInfo info, VizContext ctx, SourceOrder order) {
+      if(!ctx.modern) {
+         return;
+      }
+
+      info.setChartType(stackedCounterpart(info.getChartType()));
+
+      if(info.isMultiStyles()) {
+         for(VSDataRef ref : info.getAggregateRefs()) {
+            if(ref instanceof ChartAggregateRef) {
+               ChartAggregateRef aggr = (ChartAggregateRef) ref;
+               aggr.setChartType(stackedCounterpart(aggr.getChartType()));
+            }
+         }
+      }
+
+      applyPieOrder(info, ctx);
+      applyWaterfallOrder(info, ctx, order);
+      applyTopLevelColor(info, ctx);
+      applyBreakByColor(info, ctx);
+      moveColorDimensionToPanels(info, ctx);
+   }
+
+   private static boolean hasPie(ChartInfo info) {
+      if(!info.isMultiStyles()) {
+         return GraphTypes.isPie(info.getChartType());
+      }
+
+      for(VSDataRef ref : info.getAggregateRefs()) {
+         if(ref instanceof ChartAggregateRef &&
+            GraphTypes.isPie(((ChartAggregateRef) ref).getChartType()))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean isFirstGroup(ChartInfo info, List<? extends DataRef> landed) {
+      if(info.getGroupFieldCount() == 0) {
+         return false;
+      }
+
+      String first = info.getGroupFields()[0].getName();
+
+      for(DataRef ref : landed) {
+         if(GraphUtil.isDimension(ref) && first != null && first.equals(ref.getName())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
 }
