@@ -324,10 +324,74 @@ public class ExpressionDialogService extends WorksheetControllerService {
 
                builder.invalidExpression(Catalog.getCatalog().getString(message, (Object[]) params));
             }
+
+            if(!column.isSQL() && builder.build().invalidExpression() == null) {
+               String warning = checkReferences(columns, model, exp.getExpression());
+
+               if(warning != null) {
+                  builder.invalidExpression(warning);
+               }
+            }
          }
       }
 
       return builder.build();
+   }
+
+   /**
+    * Check the field['name'] references of the expression for a missing column, a self
+    * reference or a cycle with another calculated column.
+    *
+    * @return the warning message, or null if the references are fine.
+    */
+   private String checkReferences(ColumnSelection columns, ExpressionDialogModel model,
+                                  String expression)
+   {
+      Set<String> names = new HashSet<>();
+      Map<String, String> scripts = new HashMap<>();
+      String own = model.newName();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         ColumnRef col = (ColumnRef) columns.getAttribute(i);
+         String name = col.getName();
+
+         if(name == null || name.equals(own) || name.equals(model.oldName())) {
+            continue;
+         }
+
+         names.add(name);
+
+         if(col.getAttribute() != null) {
+            names.add(col.getAttribute());
+         }
+
+         if(col.getAlias() != null) {
+            names.add(col.getAlias());
+         }
+
+         if(col.getDataRef() instanceof ExpressionRef && !col.isSQL()) {
+            scripts.put(name, ((ExpressionRef) col.getDataRef()).getExpression());
+         }
+      }
+
+      ExpressionReferenceChecker.Problem problem =
+         ExpressionReferenceChecker.check(own, expression, names, scripts);
+
+      if(problem == null) {
+         return null;
+      }
+
+      Catalog catalog = Catalog.getCatalog();
+
+      switch(problem.kind()) {
+      case SELF:
+         return catalog.getString("composer.ws.expression.selfReference", problem.first());
+      case CYCLE:
+         return catalog.getString("composer.ws.expression.circularReference", problem.first(),
+                                  problem.second());
+      default:
+         return catalog.getString("composer.ws.expression.missingColumn", problem.first());
+      }
    }
 
    @ClusterWriteMethod
