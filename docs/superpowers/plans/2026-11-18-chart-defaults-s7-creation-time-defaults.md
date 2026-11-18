@@ -46,7 +46,7 @@ These defaults apply whether the author picks the style first or drops the field
 - **The waterfall read (D127).**
   - **Table:** the chart's worksheet table (`SourceInfo.getSource()`), read in `AssetQuerySandbox.RUNTIME_MODE` from a copy of it in a `WorksheetWrapper`. The worksheet's own conditions and row security still apply, so no value from a hidden row is saved. The copy's pre and post runtime condition lists are cleared, so dashboard selections do not apply and the order does not depend on what a viewer had selected. The copy's `AssetQuery` runs directly, so neither the worksheet nor the sandbox's cached results change.
   - **Limits:** the query is limited to `ChartSourceOrder.MAX_ROWS = 10_000` rows: the copy gets `setMaxRows(MAX_ROWS)`, or keeps the worksheet's own limit when that is smaller. More than `ChartCreationDefaults.MAX_ORDERED_VALUES = 100` distinct values means no order.
-  - **No order** for a cube field, a named group or a column that is not in the table (a calc field). A date is excluded by the rule (D123).
+  - **No order** for a cube field, a named group or a column that is not in the table. A date is excluded by the rule (D123). A detail calc field is in the table, because the query adds it to the runtime worksheet table, so it is read and ordered like any column (D127, owner ruling after the live checks).
   - **Stored values:** `Tool.getDataString(value)`, with nulls skipped.
 - **The wizard's date fallback** is month on a marked chart, whatever the shelf. The wizard has not placed the field when it creates it, and it puts dates on X.
 - **The pie measure** is the `getFullName()` of the first aggregate on Y, else on X. With multiple styles, it is each pie aggregate's own name, sorting that aggregate's own slice dimension.
