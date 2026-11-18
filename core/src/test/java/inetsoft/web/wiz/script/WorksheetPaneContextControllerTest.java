@@ -116,7 +116,7 @@ class WorksheetPaneContextControllerTest {
    }
 
    @Test
-   void theSqlSwitchTheDialogReportedEmptiesTheFunctionsAndChangesTheSyntax() throws Exception {
+   void theSqlSwitchTheDialogReportedServesTheSqlListsAndChangesTheSyntax() throws Exception {
       for(String kind : new String[] {"worksheetExpression", "worksheetConditionValue"}) {
          EditorContext grant = new EditorContext(kind, "Orders", "price", null);
          JoinSession s = session("T-" + kind, grant);
@@ -128,8 +128,10 @@ class WorksheetPaneContextControllerTest {
          PaneContext sql = controller.paneContext("T-" + kind, agent);
 
          assertEquals("sql", sql.syntax().language(), kind);
-         assertTrue(sql.functions().isEmpty(), kind);
-         assertTrue(sql.notes().stream().anyMatch(n -> n.contains("SQL mode")), kind);
+         assertEquals(List.of("SUM", "COUNT", "AVG", "MIN", "MAX"), sql.functions(), kind);
+         assertEquals(List.of("+", "-", "*", "/", "<", ">", "<=", ">=", "=", "<>"),
+                      sql.operators(), kind);
+         assertTrue(sql.notes().stream().noneMatch(n -> n.contains("SQL mode")), kind);
          // The columns are the same in either mode.
          assertEquals(List.of("price", "cost"),
                       sql.columns().get(0).fields().stream().map(PaneContext.Field::column).toList());
