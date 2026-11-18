@@ -730,6 +730,37 @@ public class DefaultAxis extends Axis {
    }
 
    /**
+    * Create grid lines from this axis to the other axis at fractions of the axis length.
+    * @param axis the other axis to draw grid lines to.
+    * @param fractions the positions, each a fraction of the axis length.
+    * @return true if grid lines are created.
+    */
+   public boolean createGridLinesAt(DefaultAxis axis, double[] fractions) {
+      AxisSpec spec = getScale().getAxisSpec();
+      int zindex = spec.isGridOnTop() ? GDefaults.GRIDLINE_TOP_Z_INDEX : GDefaults.GRIDLINE_Z_INDEX;
+
+      removeAllGridLines();
+
+      if(spec.getGridStyle() == GraphConstants.NONE) {
+         return false;
+      }
+
+      for(double fraction : fractions) {
+         double pos = fraction * getLength();
+         Point2D loc = getScreenTransform().transform(new Point2D.Double(pos, 0), null);
+         Point2D loc2 = axis.getScreenTransform().transform(new Point2D.Double(pos, 0), null);
+
+         addGridLine(new GridLine(new Line2D.Double(loc, loc2), this, zindex, true));
+
+         if(vgraph != null && vgraph.isCancelled()) {
+            break;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Create the zero line from this axis to the other axis, replacing any earlier one.
     * @param axis the other axis to draw the line to.
     * @param cross the scale of the cross axis, checked when the spec asks for crossing and
