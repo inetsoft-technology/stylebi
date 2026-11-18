@@ -154,6 +154,32 @@ class ChartGeoShelfTest {
    }
 
    @Test
+   void matchedFiguresCoverEveryValueWhenTheLayerFitsTheColumn() throws Exception {
+      Detected d = ChartGeoShelf.apply(
+         rvs, chart, handler, List.of(new Field("State", "State"))).get(0);
+
+      assertEquals(4, d.distinctCount());
+      assertEquals(4, d.matchedCount());
+      assertEquals(0, d.unmatchedTotal());
+      assertTrue(d.unmatched().isEmpty());
+   }
+
+   @Test
+   void aColumnOnTheWrongLayerReportsItsUnmatchedValues() throws Exception {
+      // Bug #81665: a value no layer matches used to vanish from the map with the write saying only ok.
+      Detected d = ChartGeoShelf.apply(
+         rvs, chart, handler, List.of(new Field("City", "State"))).get(0);
+
+      assertEquals(4, d.distinctCount());
+      assertEquals(4, d.matchedCount() + d.unmatchedTotal());
+      // Detection re-settles the layer, so only the value no layer knows stays unmatched.
+      assertEquals(List.of("New York City"), d.unmatched());
+      assertEquals(1, d.unmatchedTotal());
+      assertEquals(3, d.matchedCount());
+      assertTrue(d.unmatched().size() <= ChartGeoShelf.MAX_UNMATCHED_LISTED);
+   }
+
+   @Test
    void layerChangeOnAChartWithEntriesTakesEffect() throws Exception {
       ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", "State")));
       assertEquals(2, info.getRTGeoColumns().getAttribute("State") instanceof VSChartGeoRef g

@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.graph.data.DataSet;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.report.internal.graph.MapData;
@@ -61,8 +62,23 @@ public final class ChartGeoShelf {
    /** One requested geo field: the column and its layer name (Country, State, Province, City, Zip). */
    public record Field(String column, String layer) {}
 
-   /** What was registered for one field: the layer and map type detection settled on. */
-   public record Detected(String column, String layer, String mapType) {}
+   /** Most unmatched values listed per field, so a high-cardinality column cannot flood a reply. */
+   public static final int MAX_UNMATCHED_LISTED = 20;
+
+   /**
+    * What was registered for one field: the layer and map type detection settled on, and how many
+    * of the column's distinct values that layer matched ({@code matchedCount} of
+    * {@code distinctCount}; both {@code null} when not measured). {@code unmatched} lists up to
+    * {@link #MAX_UNMATCHED_LISTED} values that matched no feature, and {@code unmatchedTotal}
+    * counts them all.
+    */
+   public record Detected(String column, String layer, String mapType, Integer matchedCount,
+                          Integer distinctCount, List<String> unmatched, Integer unmatchedTotal)
+   {
+      public Detected(String column, String layer, String mapType) {
+         this(column, layer, mapType, null, null, null, null);
+      }
+   }
 
    /**
     * Refuses what does not depend on the data: an unknown layer name, a repeated column, and
@@ -311,7 +327,36 @@ public final class ChartGeoShelf {
       handler.copyGeoColumns(info);
       box.updateAssembly(chart.getAbsoluteName());
 
-      return check(info, fields);
+      return withMatchStats(check(info, fields), info, source);
+   }
+
+   /**
+    * Adds the matched/unmatched figures to each detected field, measured against the chart's own
+    * data with the mapping and layer detection just settled on, as the Composer's geographic
+    * dialog does for its check/X marks.
+    */
+   static List<Detected> withMatchStats(List<Detected> detected, VSMapInfo info, DataSet source) {
+      List<Detected> result = new ArrayList<>();
+
+      for(Detected d : detected) {
+         int colIndex = GraphUtil.indexOfHeader(source, d.column());
+         VSChartGeoRef col = (VSChartGeoRef) info.getGeoColumns().getAttribute(d.column());
+
+         if(colIndex < 0 || col == null) {
+            result.add(d);
+            continue;
+         }
+
+         Set<String> unmatched = new LinkedHashSet<>(MapHelper.getUnMatchedValues(
+            source, colIndex, col.getGeographicOption().getMapping(), info).keySet());
+         int distinct = MapHelper.distinctValueCount(source, colIndex);
+         List<String> listed = unmatched.stream().limit(MAX_UNMATCHED_LISTED).toList();
+         result.add(new Detected(d.column(), d.layer(), d.mapType(),
+                                 Math.max(0, distinct - unmatched.size()), distinct, listed,
+                                 unmatched.size()));
+      }
+
+      return result;
    }
 
    /**
