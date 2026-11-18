@@ -398,11 +398,11 @@ class ViewsheetFormatServiceReadTest {
       String message = refused(service, "Chart1", "field", "Sum(Total)").getMessage();
       assertTrue(message.contains("'field'") && message.contains("plotLabel"), message);
 
-      for(String target : new String[]{ "data", "header", "cell", "measureText", "measureBar",
-                                        "measureBarNegative" }) {
+      // Bug #81733: data/header/cell/measure* are readable now, so a chart is refused by kind.
+      for(String target : new String[]{ "data", "header" }) {
          message = refused(service, "Chart1", target, null).getMessage();
-         assertTrue(message.contains("'" + target + "'") && message.contains("cannot be read"),
-                    message);
+         assertTrue(message.contains("'" + target + "'") &&
+                    message.contains("only applies to a Crosstab or Table"), message);
       }
 
       message = refused(service, "Chart1", "bogus", null).getMessage();
@@ -418,7 +418,8 @@ class ViewsheetFormatServiceReadTest {
       assertTrue(refused(service, null, "object", null).getMessage()
                     .contains("requires 'assembly'"));
       assertTrue(refused(service, "Chart1", "object", "Sum(Total)").getMessage()
-                    .contains("'field' only applies to targets 'plotLabel' and 'text'"));
+                    .contains("'field' only applies to targets 'plotLabel', 'text', 'data' and " +
+                              "'header'"));
    }
 
    @Test

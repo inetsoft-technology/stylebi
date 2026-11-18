@@ -4128,9 +4128,16 @@ public class ViewsheetFormatService {
     *                 {@code activeTab}, {@code calendarHeader}, {@code calendarGrid},
     *                 {@code optionText}, {@code inputLabel}, {@code plotLabel} or {@code text}
     * @param field    the chart column for {@code plotLabel} (a bound measure; optional when the
-    *                 chart has exactly one) and {@code text} (required)
+    *                 chart has exactly one) and {@code text} (required); for {@code data} and
+    *                 {@code header} the Table column / Crosstab aggregate to narrow to, as in
+    *                 {@code set_format}
+    * @param level    the 0-based Selection Tree level for {@code cell}, {@code measureText},
+    *                 {@code measureBar} and {@code measureBarNegative}; null reads every level
     */
-   public record FormatReadRequest(String assembly, String target, String field) {
+   public record FormatReadRequest(String assembly, String target, String field, Integer level) {
+      public FormatReadRequest(String assembly, String target, String field) {
+         this(assembly, target, field, null);
+      }
    }
 
    /**
@@ -4149,10 +4156,15 @@ public class ViewsheetFormatService {
     * corner -- a text region has none); {@code plotLabel} reads the measure's show-value format
     * and {@code text} the text-aesthetic field's.
     *
+    * <p>A Table/Crosstab's {@code data}/{@code header} and a Selection List/Tree's {@code cell}/
+    * {@code measureText}/{@code measureBar}/{@code measureBarNegative} store one format per cell
+    * or region path, so they answer {@code regions}: the same distinct {@link TableDataPath}s
+    * {@code set_format} writes to (same {@code field}/{@code level} scoping), each with its own
+    * stored format. {@code format} is present only when every region agrees on it.
+    *
     * <p>Targets with no single place to read are refused by name, never answered with a default:
-    * {@code field} (writes several places), {@code data}/{@code header}/{@code cell}/
-    * {@code measureText}/{@code measureBar}/{@code measureBarNegative} (per-cell or per-region
-    * paths) and the chart axis/legend targets, which {@code get_chart_region_format} reads.
+    * {@code field} (writes several places) and the chart axis/legend targets, which
+    * {@code get_chart_region_format} reads.
     */
    public Map<String, Object> getFormat(String sessionToken, Principal user,
                                         FormatReadRequest request)
@@ -4161,6 +4173,8 @@ public class ViewsheetFormatService {
       String target = requireReadTarget(request.target());
       boolean sheet = VIEWSHEET.equals(target);
       boolean chartLabel = PLOT_LABEL.equals(target) || "text".equals(target);
+      boolean tableRegion = "data".equals(target) || "header".equals(target);
+      boolean regionRead = tableRegion || isSelectionRegionTarget(target);
       String assembly = request.assembly() == null || request.assembly().isBlank() ? null :
          request.assembly();
       String field = request.field() == null || request.field().isBlank() ? null :
@@ -4178,15 +4192,17 @@ public class ViewsheetFormatService {
             "'viewsheet'.");
       }
 
-      if(field != null && !chartLabel) {
+      if(field != null && !chartLabel && !tableRegion) {
          throw new IllegalArgumentException(
-            "get_format: 'field' only applies to targets 'plotLabel' and 'text'; target '" +
-            request.target() + "' reads one format per assembly. Omit 'field'.");
+            "get_format: 'field' only applies to targets 'plotLabel', 'text', 'data' and " +
+            "'header'; target '" + request.target() + "' reads one format per assembly. Omit " +
+            "'field'.");
       }
 
       try {
          return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
             Viewsheet viewsheet = rvs.getViewsheet();
+            requireLevelTarget(target, request.level());
 
             if(!sheet && viewsheet.getAssembly(assembly) == null) {
                throw new IllegalArgumentException(
@@ -4217,6 +4233,28 @@ public class ViewsheetFormatService {
                }
 
                out.put("format", toChartTextWireFormat(model));
+               return out;
+            }
+
+            if(regionRead) {
+               // The same distinct paths set_format writes this target to, so a write is readable.
+               TableDataPath[] paths = switch(target) {
+                  case "data" -> requireReadPaths(
+                     computeDataRegionPaths(rvs, assembly, field, null), assembly, "body");
+                  case "header" -> requireReadPaths(
+                     computeHeaderRegionPaths(rvs, assembly, field), assembly, "header");
+                  default -> computeSelectionRegionPaths(rvs, assembly, target, request.level());
+               };
+
+               if(field != null) {
+                  out.put("field", field);
+               }
+
+               if(request.level() != null) {
+                  out.put("level", request.level());
+               }
+
+               readRegions(rvs, runtimeId, dispatcher, user, assembly, paths, out);
                return out;
             }
 
@@ -4278,7 +4316,8 @@ public class ViewsheetFormatService {
 
       if(OBJECT.equals(name) || "title".equals(name) || "text".equals(name) ||
          VIEWSHEET.equals(name) || ACTIVE_TAB.equals(name) || isCalendarTarget(name) ||
-         PLOT_LABEL.equals(name) || OPTION_TEXT.equals(name) || INPUT_LABEL_TARGET.equals(name))
+         PLOT_LABEL.equals(name) || OPTION_TEXT.equals(name) || INPUT_LABEL_TARGET.equals(name) ||
+         "data".equals(name) || "header".equals(name) || isSelectionRegionTarget(name))
       {
          return name;
       }
@@ -4300,18 +4339,108 @@ public class ViewsheetFormatService {
             "get_chart_region_format for its axis labels or legend.");
       }
 
-      if("data".equals(name) || "header".equals(name) || isSelectionRegionTarget(name)) {
-         throw new IllegalArgumentException(
-            "get_format: target '" + target.trim() + "' cannot be read yet -- its format is " +
-            "stored per cell or per region path, so there is no single format to return. " +
-            "Supported targets: object, title, viewsheet, activeTab, calendarHeader, " +
-            "calendarGrid, optionText, inputLabel, plotLabel, text.");
-      }
-
       throw new IllegalArgumentException(
          "get_format 'target' must be 'object', 'title', 'viewsheet', 'activeTab', " +
-         "'calendarHeader', 'calendarGrid', 'optionText', 'inputLabel', 'plotLabel' or 'text', " +
-         "got '" + target + "'.");
+         "'calendarHeader', 'calendarGrid', 'optionText', 'inputLabel', 'plotLabel', 'text', " +
+         "'data', 'header', 'cell', 'measureText', 'measureBar' or 'measureBarNegative', got '" +
+         target + "'.");
+   }
+
+   /**
+    * Bug #81733: a {@code data}/{@code header} read that found no cells is refused, the read
+    * counterpart of {@link #requirePaths}: answering an empty region list would look like "no
+    * format stored" when nothing was actually looked at.
+    */
+   private static TableDataPath[] requireReadPaths(TableDataPath[] paths, String name,
+                                                   String region)
+   {
+      if(paths == null || paths.length == 0) {
+         throw new IllegalArgumentException(
+            "get_format: could not find any " + region + " cells on '" + name + "' to read (it " +
+            "has no rendered rows, or its data could not be computed). Render or refresh the " +
+            "viewsheet and try again.");
+      }
+
+      return paths;
+   }
+
+   /**
+    * Bug #81733: reads the stored format of each distinct region path into {@code out}'s
+    * {@code regions} -- {@code [{type, path, format}]}, {@code format} null when that path has no
+    * format of its own -- plus a top-level {@code format} when every region agrees on it (also
+    * null when none has one). Per path this is exactly the single-target read: the stored entry
+    * decides which keys are reported, the painter only supplies their wire shape.
+    */
+   private void readRegions(RuntimeViewsheet rvs, String runtimeId,
+                            CapturingCommandDispatcher dispatcher, Principal user,
+                            String assembly, TableDataPath[] paths, Map<String, Object> out)
+      throws Exception
+   {
+      List<Map<String, Object>> regions = new ArrayList<>();
+      Set<Map<String, Object>> distinct = new LinkedHashSet<>();
+
+      for(TableDataPath path : paths) {
+         Map<String, Object> format = null;
+         VSCompositeFormat own = storedFormat(rvs, assembly, path);
+
+         if(own != null && (own.isDefined() || own.getCSSFormat().getCSSClass() != null ||
+                            own.getCSSFormat().getCSSID() != null))
+         {
+            int seen = dispatcher.getCapturedCommands().size();
+            GetVSObjectFormatEvent event = new GetVSObjectFormatEvent();
+            event.setName(assembly);
+            event.setDataPath(path);
+            painter.getFormat(runtimeId, event, user, dispatcher);
+            VSObjectFormatInfoModel model = null;
+            List<CapturingCommandDispatcher.Command> commands = dispatcher.getCapturedCommands();
+
+            for(int i = seen; i < commands.size() && model == null; i++) {
+               if(commands.get(i).getCommand() instanceof SetCurrentFormatCommand current) {
+                  model = current.getModel();
+               }
+            }
+
+            if(model == null) {
+               throw new IllegalArgumentException(
+                  "get_format: no format came back for " + describePath(path) + " of '" +
+                  assembly + "'.");
+            }
+
+            format = toStoredWireFormat(model, own);
+         }
+
+         Map<String, Object> region = new LinkedHashMap<>();
+         region.put("type", pathTypeName(path.getType()));
+         region.put("path", path.getPath() == null ? List.of() : Arrays.asList(path.getPath()));
+         region.put("format", format);
+         regions.add(region);
+         distinct.add(format == null ? Map.of() : format);
+      }
+
+      out.put("regions", regions);
+
+      if(distinct.size() == 1) {
+         Map<String, Object> common = distinct.iterator().next();
+         out.put("format", common.isEmpty() ? null : common);
+      }
+   }
+
+   private static String describePath(TableDataPath path) {
+      return pathTypeName(path.getType()) + " " +
+         (path.getPath() == null ? "[]" : Arrays.toString(path.getPath()));
+   }
+
+   /** The wire name of a {@link TableDataPath} type, for the region paths a read reports. */
+   private static String pathTypeName(int type) {
+      return switch(type) {
+         case TableDataPath.HEADER -> "header";
+         case TableDataPath.DETAIL -> "detail";
+         case TableDataPath.GROUP_HEADER -> "groupHeader";
+         case TableDataPath.SUMMARY -> "summary";
+         case TableDataPath.SUMMARY_HEADER -> "summaryHeader";
+         case TableDataPath.GRAND_TOTAL -> "grandTotal";
+         default -> "type" + type;
+      };
    }
 
    /** The {@code camelCase} name a caller wrote for a normalised, supported read target. */
@@ -4323,6 +4452,9 @@ public class ViewsheetFormatService {
          case OPTION_TEXT -> "optionText";
          case INPUT_LABEL_TARGET -> "inputLabel";
          case PLOT_LABEL -> "plotLabel";
+         case "measuretext" -> "measureText";
+         case "measurebar" -> "measureBar";
+         case MEASURE_BAR_NEGATIVE -> "measureBarNegative";
          default -> target;
       };
    }
