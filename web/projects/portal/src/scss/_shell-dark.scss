@@ -715,7 +715,6 @@ $viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-the
   --bs-tertiary-bg: var(--inet-viz-hover-bg-dark);
   --bs-border-color: #{$dark-border-default};
 
-  // design call: selected day follows the viz selected tokens like the dark combo list; delete for the primary accent
   ngb-datepicker .btn-light.bg-primary.text-white {
     background-color: var(--inet-viz-selected-bg-dark) !important;
     color: var(--inet-viz-selected-text-dark) !important;

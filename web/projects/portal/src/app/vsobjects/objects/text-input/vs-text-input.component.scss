@@ -67,7 +67,8 @@ input {
 }
 
 .dropdown-datepicker {
-  // follows the popup's tokens: dark under .viz-dark, light otherwise (was a literal white)
+  // follows the popup's tokens, so it matches the ngb-datepicker surface (was a literal white); a
+  // dark-marked wrapper is made transparent by .viz-dark and the datepicker paints its own dark surface
   background: var(--inet-dropdown-bg-color);
 }
 
