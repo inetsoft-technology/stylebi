@@ -218,6 +218,16 @@ class UtilCreateFormulaTest {
                    Util.createFormula(null, "NthMostFrequent(-1)").getClass());
       assertEquals(NthLargestFormula.class,
                    Util.createFormula(null, "NthLargest(-1)").getClass());
+
+      // the result must rank like n = 1, not like an empty n = 0
+      for(String name : new String[] { "NthLargest(-7)", "NthSmallest(-7)" }) {
+         Formula f = Util.createFormula(null, name);
+         f.addValue(1.0);
+         f.addValue(5.0);
+         f.addValue(3.0);
+         assertEquals(name.startsWith("NthLargest") ? 5.0 : 1.0,
+                      ((Number) f.getResult()).doubleValue(), name);
+      }
    }
 
    /**
