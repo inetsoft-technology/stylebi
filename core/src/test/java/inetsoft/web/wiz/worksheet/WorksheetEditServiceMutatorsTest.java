@@ -10553,6 +10553,215 @@ class WorksheetEditServiceMutatorsTest {
          "the refusal must name the bad value");
    }
 
+   // =========================================================================
+   // Feature #79557: add_date_range / delete_date_range
+   // =========================================================================
+
+   private static java.time.LocalDate localDay(java.util.Date d) {
+      return java.time.Instant.ofEpochMilli(d.getTime()).atZone(java.time.ZoneId.systemDefault())
+         .toLocalDate();
+   }
+
+   private static java.util.Date noon(int y, int m, int d) {
+      return java.util.Date.from(java.time.LocalDate.of(y, m, d).atTime(12, 0)
+         .atZone(java.time.ZoneId.systemDefault()).toInstant());
+   }
+
+   private String addRange(WorksheetEditService svc, Principal agent, String name, String from,
+                           String to, boolean replace) throws Exception
+   {
+      String[] out = new String[1];
+      svc.apply("TOK", agent, ed -> out[0] = ed.addDateRange(name, from, to, replace));
+      return out[0];
+   }
+
+   @Test
+   void addDateRangeCreatesAnAbsolutePeriodThatDateInResolves() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertEquals("FY2025", addRange(svc, agent, "  FY2025 ", "2024-07-01", "2025-06-30", false));
+
+      assertInstanceOf(DefaultDateRangeAssembly.class, ws.getAssembly("FY2025"));
+      PeriodCondition stored =
+         (PeriodCondition) ((DateRangeAssembly) ws.getAssembly("FY2025")).getDateRange();
+      assertTrue(stored.isValid());
+      // The day must not shift in any zone or DST state (run also with -Duser.timezone=...).
+      assertEquals(java.time.LocalDate.of(2024, 7, 1), localDay(stored.getFrom()));
+      assertEquals(java.time.LocalDate.of(2025, 6, 30), localDay(stored.getTo()));
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "FY2025"));
+      XCondition xc = firstXCondition(t);
+      PeriodCondition resolved = assertInstanceOf(PeriodCondition.class, xc);
+      assertNotSame(stored, resolved, "the filter must hold a clone of the range");
+      assertEquals(stored.getFrom(), resolved.getFrom());
+      assertEquals(stored.getTo(), resolved.getTo());
+
+      assertTrue(resolved.evaluate(noon(2024, 7, 1)));
+      assertTrue(resolved.evaluate(noon(2025, 6, 29)));
+      assertFalse(resolved.evaluate(noon(2024, 6, 30)));
+      assertFalse(resolved.evaluate(noon(2025, 7, 1)));
+      // The documented limit: the end day matches only up to 00:00:00, so a timestamp later on
+      // 2025-06-30 is outside. A DATE column's value is its day's midnight and is inside.
+      assertFalse(resolved.evaluate(noon(2025, 6, 30)));
+
+      Condition between = resolved.toSqlCondition(false);
+      assertEquals(XCondition.BETWEEN, between.getOperation());
+      assertEquals(java.time.LocalDate.of(2024, 7, 1),
+                   localDay((java.util.Date) between.getValue(0)));
+      assertEquals(java.time.LocalDate.of(2025, 6, 30),
+                   localDay((java.util.Date) between.getValue(1)));
+   }
+
+   @Test
+   void addDateRangeSurvivesAWorksheetXmlRoundTripAndStillResolves() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      addRange(svc, agent, "FY2025", "2024-07-01", "2025-06-30", false);
+
+      java.io.StringWriter sw = new java.io.StringWriter();
+      java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+      ws.writeXML(pw);
+      pw.flush();
+      Worksheet reopened = new Worksheet();
+      reopened.parseXML(inetsoft.util.Tool.parseXML(new java.io.StringReader(sw.toString()))
+                           .getDocumentElement());
+
+      assertInstanceOf(DefaultDateRangeAssembly.class, reopened.getAssembly("FY2025"));
+      PeriodCondition back =
+         (PeriodCondition) ((DateRangeAssembly) reopened.getAssembly("FY2025")).getDateRange();
+      assertTrue(back.isValid());
+      assertEquals(java.time.LocalDate.of(2024, 7, 1), localDay(back.getFrom()));
+      assertEquals(java.time.LocalDate.of(2025, 6, 30), localDay(back.getTo()));
+
+      TableAssembly t2 = (TableAssembly) reopened.getAssembly("T");
+      WorksheetEditService svc2 = service(rws(reopened), "Worksheet/ws1", agent, "TOK");
+      svc2.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "fy2025"));
+      assertInstanceOf(PeriodCondition.class, firstXCondition(t2));
+   }
+
+   @Test
+   void addDateRangeRefusesBadInputNamingTheField() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      String[][] bad = {
+         {" ", "2024-07-01", "2025-06-30", "name"},
+         {"R", null, "2025-06-30", "from"},
+         {"R", "2024-07-01", "", "to"},
+         {"R", "2024-7-1", "2025-06-30", "from"},
+         {"R", "2024-07-01", "30/06/2025", "to"},
+         {"R", "2025-02-30", "2025-06-30", "from"},
+         {"R", "2025-06-30", "2025-06-30", "from"},
+         {"R", "2025-06-30", "2024-07-01", "from"},
+      };
+
+      for(String[] b : bad) {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> addRange(svc, agent, b[0], b[1], b[2], false), String.join("|", String.valueOf(b[0]), String.valueOf(b[1]), String.valueOf(b[2])));
+         assertTrue(ex.getMessage().toLowerCase().contains(b[3]), ex.getMessage());
+      }
+
+      assertNull(ws.getAssembly("R"), "nothing may be created by a refused call");
+   }
+
+   @Test
+   void addDateRangeRefusesBuiltInNamesAndAssemblyCollisions() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      for(String name : new String[] {"Last month", "LAST MONTH"}) {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> addRange(svc, agent, name, "2024-07-01", "2025-06-30", true));
+         assertTrue(ex.getMessage().contains("built-in"), ex.getMessage());
+      }
+
+      PairingException table = assertThrows(PairingException.class,
+         () -> addRange(svc, agent, "t", "2024-07-01", "2025-06-30", true));
+      assertTrue(table.getMessage().contains("already exists"), table.getMessage());
+      assertInstanceOf(TableAssembly.class, ws.getAssembly("T"));
+
+      addRange(svc, agent, "FY2025", "2024-07-01", "2025-06-30", false);
+      PairingException dup = assertThrows(PairingException.class,
+         () -> addRange(svc, agent, "fy2025", "2024-07-01", "2025-06-30", false));
+      assertTrue(dup.getMessage().contains("replace"), dup.getMessage());
+   }
+
+   @Test
+   void addDateRangeReplaceEditsThePeriodButNotFiltersAlreadyBuilt() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      addRange(svc, agent, "FY", "2024-07-01", "2025-06-30", false);
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "FY"));
+
+      assertEquals("FY", addRange(svc, agent, "fy", "2025-07-01", "2026-06-30", true));
+
+      PeriodCondition range = (PeriodCondition) ((DateRangeAssembly) ws.getAssembly("FY"))
+         .getDateRange();
+      assertEquals(java.time.LocalDate.of(2025, 7, 1), localDay(range.getFrom()));
+      assertEquals(1, java.util.Arrays.stream(ws.getAssemblies())
+         .filter(a -> a instanceof DateRangeAssembly).count());
+      assertEquals(java.time.LocalDate.of(2024, 7, 1),
+                   localDay(((PeriodCondition) firstXCondition(t)).getFrom()),
+                   "a filter built earlier keeps its own clone of the old period");
+   }
+
+   @Test
+   void deleteDateRangeRemovesOnlyDateRangesAndLaterDateInIsRefused() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      addRange(svc, agent, "FY2025", "2024-07-01", "2025-06-30", false);
+
+      PairingException notRange = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.deleteDateRange("T")));
+      assertTrue(notRange.getMessage().contains("not a date range"), notRange.getMessage());
+      assertNotNull(ws.getAssembly("T"));
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.deleteDateRange("nope")));
+
+      svc.apply("TOK", agent, ed -> ed.deleteDateRange("FY2025"));
+      assertNull(ws.getAssembly("FY2025"));
+
+      IllegalArgumentException gone = assertThrows(IllegalArgumentException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "date_in", "FY2025")));
+      assertTrue(gone.getMessage().contains("not a known date range"), gone.getMessage());
+   }
+
+   @Test
+   void hasDateRangeMatchesCaseInsensitivelyAndOnlyDateRanges() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      addRange(svc, agent, "FY2025", "2024-07-01", "2025-06-30", false);
+
+      boolean[] r = new boolean[3];
+      svc.apply("TOK", agent, ed -> {
+         r[0] = ed.hasDateRange(" fy2025");
+         r[1] = ed.hasDateRange("T");
+         r[2] = ed.hasDateRange(null);
+      });
+      assertTrue(r[0]);
+      assertFalse(r[1]);
+      assertFalse(r[2]);
+   }
+
    private static Object firstConditionOrNull(TableAssembly t) {
       ConditionListWrapper w = t.getPreConditionList();
       return w == null || w.isEmpty() ? null : firstCondition(t);

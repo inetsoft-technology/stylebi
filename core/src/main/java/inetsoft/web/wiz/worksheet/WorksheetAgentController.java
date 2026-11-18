@@ -6780,6 +6780,76 @@ public class WorksheetAgentController {
    }
 
    // ---------------------------------------------------------------------------
+   // Date range endpoints (Feature #79557)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * @param name    the range name
+    * @param from    first day, {@code yyyy-MM-dd}
+    * @param to      last day, {@code yyyy-MM-dd}, after {@code from}
+    * @param replace change the period of an existing date range of that name
+    */
+   public record DateRangeRequest(String name, String from, String to, Boolean replace) {}
+
+   /**
+    * @param name     the range name as stored
+    * @param from     first day as stored
+    * @param to       last day as stored
+    * @param replaced true when an existing range's period was replaced
+    * @param warnings caveats about what the range matches (see
+    *                 {@link WorksheetEditService.Editor#DATE_RANGE_END_DAY_WARNING})
+    */
+   public record DateRangeResponse(String name, String from, String to, boolean replaced,
+                                   List<String> warnings) {}
+
+   /**
+    * Create (or, with {@code replace}, edit) a named absolute date range assembly so that
+    * {@code date_in "<name>"} resolves in this worksheet.
+    */
+   @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/date-range")
+   public DateRangeResponse addDateRange(@PathVariable String sessionToken,
+                                         @RequestBody DateRangeRequest body,
+                                         Principal user) throws Exception
+   {
+      requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
+
+      if(body.name() == null || body.name().isBlank()) {
+         throw new PairingException("Date range name is required.");
+      }
+
+      boolean replace = Boolean.TRUE.equals(body.replace());
+      String[] stored = new String[1];
+      boolean[] replaced = new boolean[1];
+
+      editService.apply(sessionToken, user, editor -> {
+         replaced[0] = replace && editor.hasDateRange(body.name());
+         stored[0] = editor.addDateRange(body.name(), body.from(), body.to(), replace);
+      });
+
+      return new DateRangeResponse(stored[0], body.from().trim(), body.to().trim(), replaced[0],
+         List.of(WorksheetEditService.Editor.DATE_RANGE_END_DAY_WARNING));
+   }
+
+   /**
+    * Delete a date range assembly. Filters already built from it are unaffected.
+    */
+   @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/date-range/delete")
+   public void deleteDateRange(@PathVariable String sessionToken,
+                               @RequestBody DateRangeRequest body,
+                               Principal user) throws Exception
+   {
+      requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
+
+      if(body.name() == null || body.name().isBlank()) {
+         throw new PairingException("Date range name is required.");
+      }
+
+      editService.apply(sessionToken, user, editor -> editor.deleteDateRange(body.name()));
+   }
+
+   // ---------------------------------------------------------------------------
    // SQL query table endpoint
    // ---------------------------------------------------------------------------
 

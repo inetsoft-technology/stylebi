@@ -5220,6 +5220,174 @@ public class WorksheetEditService {
       }
 
       // -----------------------------------------------------------------------
+      // Date range (absolute, named period for date_in)
+      // -----------------------------------------------------------------------
+
+      /**
+       * Feature #79557: the end day of an absolute date range is included only up to its own
+       * 00:00:00. {@link PeriodCondition} truncates both ends to the start of the day and the SQL
+       * form is {@code BETWEEN from AND to}, so a DATE column keeps the whole end day, but a
+       * TIMESTAMP column loses every row on the end day after midnight. The range cannot be built
+       * any other way (its {@code to} is truncated, and adding a day would wrongly include the
+       * next day on a DATE column), so the limit is stated to the caller.
+       */
+      public static final String DATE_RANGE_END_DAY_WARNING =
+         "The end date is inclusive for date columns. For a timestamp (date-time) column only " +
+         "00:00:00 of the end date matches, so rows later on the end date are NOT included; " +
+         "to include them, end the range on the following day.";
+
+      /**
+       * Creates, or with {@code replace} edits, a named absolute date range assembly: the
+       * worksheet-level source a {@code date_in} filter resolves a custom range name from. A
+       * filter built from the range keeps its own clone, so editing or deleting the range later
+       * does not change filters already created.
+       *
+       * @param name    the range name (not an existing assembly, and not a built-in range name,
+       *                compared case-insensitively)
+       * @param from    first day, {@code yyyy-MM-dd}
+       * @param to      last day, {@code yyyy-MM-dd}; must be after {@code from}
+       * @param replace when true and {@code name} is an existing date range assembly of this
+       *                worksheet, its period is replaced instead of refusing the collision
+       * @return the name of the range as stored
+       */
+      public String addDateRange(String name, String from, String to, boolean replace)
+         throws PairingException
+      {
+         if(name == null || name.isBlank()) {
+            throw new PairingException("name is required for a date range.");
+         }
+
+         name = name.trim();
+         requireStorableName(name, "A date range name");
+
+         for(DateCondition builtin : DateCondition.getBuiltinDateConditions()) {
+            if(builtin.getName().equalsIgnoreCase(name)) {
+               throw new PairingException(
+                  "'" + name + "' is a built-in date range name and cannot be used for a " +
+                  "custom range (a built-in always wins when date_in resolves a name). Choose " +
+                  "another name; list_condition_date_ranges lists the built-in names.");
+            }
+         }
+
+         java.time.LocalDate fromDay = parseRangeDay("from", from);
+         java.time.LocalDate toDay = parseRangeDay("to", to);
+
+         if(!fromDay.isBefore(toDay)) {
+            throw new PairingException(
+               "'from' (" + fromDay + ") must be before 'to' (" + toDay + "). A date range " +
+               "needs at least two different days; for a single day end the range on the " +
+               "following day, or use a between filter.");
+         }
+
+         PeriodCondition period = new PeriodCondition();
+         period.setFrom(rangeDay(fromDay));
+         period.setTo(rangeDay(toDay));
+
+         Assembly existing = ws.getAssembly(name);
+
+         if(existing == null) {
+            for(Assembly a : ws.getAssemblies()) {
+               if(a.getName().equalsIgnoreCase(name)) {
+                  existing = a;
+                  break;
+               }
+            }
+         }
+
+         if(existing != null) {
+            refuseMirrorOrHiddenCopy(existing, existing.getName(),
+                                     "Delete it with delete_table instead.");
+
+            if(!(existing instanceof DefaultDateRangeAssembly range)) {
+               throw new PairingException(
+                  "An assembly named '" + existing.getName() + "' already exists in this " +
+                  "worksheet (a " + kindOf(existing) + "); names are case-insensitive. Choose " +
+                  "another name.");
+            }
+
+            if(!replace) {
+               throw new PairingException(
+                  "A date range named '" + existing.getName() + "' already exists. Pass " +
+                  "replace:true to change its period.");
+            }
+
+            range.setDateRange(period);
+            return range.getName();
+         }
+
+         DefaultDateRangeAssembly range = new DefaultDateRangeAssembly(ws, name);
+         range.setDateRange(period);
+         range.setPixelOffset(new Point(25, 25));
+         AssetEventUtil.adjustAssemblyPosition(range, ws);
+         ws.addAssembly(range);
+         return name;
+      }
+
+      /** True when {@code name} (case-insensitive, trimmed) is an existing date range assembly. */
+      public boolean hasDateRange(String name) {
+         if(name == null) {
+            return false;
+         }
+
+         for(Assembly a : ws.getAssemblies()) {
+            if(a instanceof DefaultDateRangeAssembly && a.getName().equalsIgnoreCase(name.trim())) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      /**
+       * Removes a date range assembly. Filters already built from it keep their own copy of the
+       * period and are not changed.
+       *
+       * @throws PairingException if no date range assembly named {@code name} exists
+       */
+      public void deleteDateRange(String name) throws PairingException {
+         Assembly a = name == null ? null : ws.getAssembly(name.trim());
+
+         if(a == null) {
+            throw new PairingException("Date range not found: " + name);
+         }
+
+         refuseMirrorOrHiddenCopy(a, name, "Delete it with delete_table instead.");
+
+         if(!(a instanceof DateRangeAssembly)) {
+            throw new PairingException(
+               "'" + name + "' is a " + kindOf(a) + ", not a date range. Use delete_table.");
+         }
+
+         deleteTable(a.getName());
+      }
+
+      private static java.time.LocalDate parseRangeDay(String field, String value)
+         throws PairingException
+      {
+         if(value == null || value.isBlank()) {
+            throw new PairingException("'" + field + "' is required, as a yyyy-MM-dd date.");
+         }
+
+         try {
+            return java.time.LocalDate.parse(value.trim());
+         }
+         catch(java.time.format.DateTimeParseException ex) {
+            throw new PairingException(
+               "'" + field + "' must be a valid yyyy-MM-dd date, got '" + value + "'.");
+         }
+      }
+
+      /**
+       * A Date that {@link PeriodCondition} floors to {@code day}. It adds the zone's raw (standard)
+       * offset to the instant and floors to a multiple of 24h, so local midnight lands on the
+       * previous day whenever DST is in force; local noon is safe in every zone.
+       */
+      private static java.util.Date rangeDay(java.time.LocalDate day) {
+         return java.util.Date.from(
+            day.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant());
+      }
+
+      // -----------------------------------------------------------------------
       // Edit named group
       // -----------------------------------------------------------------------
 
