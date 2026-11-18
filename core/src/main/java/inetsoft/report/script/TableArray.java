@@ -316,7 +316,7 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
 
          return row;
       }
-      else {
+      else if(lens != null) {
          if(LOG.isDebugEnabled()) {
             LOG.warn(
                "Row[{}] not found in: {} {} rows", index, lens.getClass(), lens.getRowCount(),
