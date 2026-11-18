@@ -198,8 +198,7 @@ public final class TabularEndpointBindingSupport {
       // template and the values just set. A null means one of the silent paths above fired after
       // all -- the endpoint name resolved to no template, or a parameter never made it onto the
       // bean.
-      PropertyMeta suffixProp = pmap.get("suffix");
-      Object suffix = suffixProp == null ? null : suffixProp.getValue(query);
+      Object suffix = readDerivedSuffix(query, pmap);
 
       if(!(suffix instanceof String s) || s.isBlank()) {
          throw new IllegalStateException(
@@ -208,6 +207,41 @@ public final class TabularEndpointBindingSupport {
       }
 
       return s;
+   }
+
+   /**
+    * Read the URL suffix a named connector derived from its endpoint and parameter values.
+    *
+    * <p>Through the {@code suffix} property when the connector exposes it. A connector that
+    * overrides {@code getSuffix()} (QuickBooks Reports, Salesforce Reports and Firebase patch the
+    * template that way) without repeating {@code @Property} on the override does not expose it:
+    * {@code PropertyMeta} reads the annotation from the declaring method only, so the property
+    * drops out of the map even though the superclass getter carries it. Treating that as "no
+    * suffix" refused every endpoint of those connectors with an unexpected server error, so the
+    * public getter is called directly when the property is absent.</p>
+    */
+   private static Object readDerivedSuffix(TabularQuery query, Map<String, PropertyMeta> pmap) {
+      PropertyMeta suffixProp = pmap.get("suffix");
+
+      if(suffixProp != null) {
+         return suffixProp.getValue(query);
+      }
+
+      try {
+         return query.getClass().getMethod("getSuffix").invoke(query);
+      }
+      catch(NoSuchMethodException ex) {
+         return null;
+      }
+      catch(java.lang.reflect.InvocationTargetException ex) {
+         throw new IllegalStateException(
+            "Could not build the URL suffix for " + query.getClass().getSimpleName() + ": " +
+            ex.getCause(), ex.getCause());
+      }
+      catch(ReflectiveOperationException ex) {
+         throw new IllegalStateException(
+            "Could not read the URL suffix of " + query.getClass().getSimpleName() + ".", ex);
+      }
    }
 
    /**

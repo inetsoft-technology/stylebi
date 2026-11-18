@@ -60,6 +60,19 @@ class TabularEndpointBindingSupportTest {
    }
 
    @Test
+   void applyEndpointContractBuildsSuffixWhenTheGetterOverrideDropsTheProperty() throws Exception {
+      FakeUnannotatedSuffixEndpointQuery query = new FakeUnannotatedSuffixEndpointQuery();
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      assertNull(pmap.get("suffix"), "the override must hide the property for this test to bite");
+
+      String suffix = TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", null, null, null, null, "myds");
+
+      assertEquals("/Repos", suffix);
+      assertEquals("Repos", query.getEndpoint());
+   }
+
+   @Test
    void applyEndpointContractSubstitutesSuppliedParameterValues() throws Exception {
       FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       RestParameter idParam = new RestParameter();
