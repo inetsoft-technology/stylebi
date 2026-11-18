@@ -1381,6 +1381,16 @@ ngb-datepicker .btn-light.bg-primary.text-white {
   color: var(--inet-button-primary-text-color, #{$inet-on-orange}) !important;
 }
 
+// A calendar day hovers with the neutral fill like other shell lists, instead of ng-bootstrap's
+// tertiary grey (#F8F9FA, a cool grey off the warm palette) and its outline box. Shell calendars
+// only: a dashboard control's calendar (.dropdown-datepicker) is content and keeps its look.
+.ngb-dp-day#{$outside-content} [ngbDatepickerDayView]:hover:not(.bg-primary) {
+  background-color: var(--inet-ui-neutral-hover-bg-color);
+  // the day is a .btn-light, whose hover draws a 1px border
+  border-color: transparent;
+  outline: none;
+}
+
 .custom-select {
   transition: none;
   color: var(--inet-input-text-color);

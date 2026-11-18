@@ -190,6 +190,7 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-overlay-scrim-bg-color: rgba(0, 0, 0, 0.55);
   --inet-overlay-subtle-bg-color: rgba(255, 255, 255, 0.03);
   --inet-overlay-hover-bg-color: rgba(255, 255, 255, 0.08);
+  --inet-collapse-handle-hover-bg-color: var(--inet-overlay-hover-bg-color);
   // focus indicators need 3:1 against the dark surfaces they sit on
   --inet-focus-ring-color: rgba(217, 122, 26, 0.75);
 

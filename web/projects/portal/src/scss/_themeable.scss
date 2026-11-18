@@ -818,16 +818,14 @@ schema-column, edit-join-table-column {
   border: 1px solid transparent;
   border-right: 4px double transparent;
 
+  // hover shows only the resize grip (the double line on the right), in the icon colour: soft
+  // primary is for selection, and a full border box on hover read the same as a selected header
   &:hover {
-    border: 1px solid var(--inet-primary-color-light);
-    border-right: 4px double var(--inet-primary-color-light);
+    border-right-color: var(--inet-icon-color);
   }
 }
 
-.ws-header--selected {
-  border: 1px solid var(--inet-primary-color-light);
-  border-right: 4px double var(--inet-primary-color-light);
-}
+// the selected header's frame (.ws-header--selected) lives in ws-header-cell.component.scss
 
 .ws-header-primary-bg-color {
   background-color: var(--inet-ws-header-primary-bg-color);
@@ -1457,8 +1455,11 @@ wizard-binding-tree .bg-node-selected {
 .collapse-pane-button {
   background-color: var(--inet-overlay-subtle-bg-color);
 
+  // a translucent overlay, so the hover shows on any panel surface (the opaque neutral hover is
+  // nearly invisible on the subtle panels these handles sit on); Schedule's handle uses it too
   &:hover {
-    background-color: var(--inet-overlay-hover-bg-color);
+    color: var(--inet-text-color);
+    background-color: var(--inet-collapse-handle-hover-bg-color);
   }
 }
 

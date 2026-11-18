@@ -655,6 +655,9 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   --inet-overlay-scrim-bg-color: rgba(0, 0, 0, 0.3);
   --inet-overlay-subtle-bg-color: rgba(0, 0, 0, 0.02);
   --inet-overlay-hover-bg-color: rgba(0, 0, 0, 0.1);
+  // the collapse-pane handles' hover: the shared overlay's .1 black reads as a heavy cool grey on
+  // the warm panels the handles sit on, so the light shell's handles take a lighter one
+  --inet-collapse-handle-hover-bg-color: rgba(0, 0, 0, 0.06);
 
   // focus
   --inet-focus-ring-width: 2px;
