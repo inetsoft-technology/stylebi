@@ -21,6 +21,7 @@ import inetsoft.graph.internal.GTool;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.graph.ChartCreationDefaults;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -31,6 +32,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.RecommendSequentialContext;
@@ -334,12 +336,18 @@ public final class WizardRecommenderUtil {
     * Set the default date level from dimension ref.
     */
    public static void setDefaultDateLevel(VSDimensionRef dim, AssetEntry entry) {
+      setDefaultDateLevel(dim, entry, VizContext.LEGACY);
+   }
+
+   /**
+    * Set the default date level from dimension ref; the fallback follows the chart's mark.
+    */
+   public static void setDefaultDateLevel(VSDimensionRef dim, AssetEntry entry, VizContext ctx) {
       Optional<String> interval = Optional.ofNullable(entry.getProperty("interval"));
       String none = String.valueOf(DateRangeRef.NONE_INTERVAL);
 
       if(none.equals(interval.orElse(none))) {
-         int level = (XSchema.TIME.equals(dim.getDataType()) ?
-            DateRangeRef.HOUR_INTERVAL : DateRangeRef.YEAR_INTERVAL);
+         int level = ChartCreationDefaults.newDateLevel(dim.getDataType(), true, ctx);
          dim.setDateLevelValue(String.valueOf(level));
       }
       else {
