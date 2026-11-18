@@ -223,7 +223,7 @@ body {
 
 .login-left .form-control:focus {
   border-color: var(--ln-primary);
-  box-shadow: 0 0 0 3px var(--ln-focus);
+  box-shadow: 0 0 0 2px var(--ln-focus);
   outline: none;
 }
 
@@ -426,7 +426,7 @@ body {
 .btn-default:focus-visible,
 .restricted-action-btn:not(.restricted-action-btn--primary):focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--ln-focus);
+  box-shadow: 0 0 0 2px var(--ln-focus);
 }
 
 .social-login-div {

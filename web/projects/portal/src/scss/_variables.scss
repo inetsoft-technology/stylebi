@@ -242,6 +242,10 @@ $table-hover-bg: $shell-surface-hover;
 $table-active-bg: $shell-selected-bg;
 $input-btn-focus-width: 1px;
 $input-btn-focus-color: $primary;
+// nav links (navbar tabs, tree toolbar icons, dialog tabs) take the shell's 2px focus ring
+// (shell-design-spec.md "Focus") instead of Bootstrap's 0.25rem ring. Only this variable: the
+// shared $focus-ring-width also feeds form checks, which dashboard content uses.
+$nav-link-focus-box-shadow: var(--inet-focus-ring);
 $input-disabled-bg: $inet-gray1;
 $input-border-color: $inet-gray1;
 $dropdown-link-hover-bg: $shell-surface-hover;
