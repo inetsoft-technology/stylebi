@@ -815,7 +815,7 @@ Amended 2026-11-17, after the owner reviewed S6 against the S5 head (`bug-80455-
 
 ### S7. Creation-time defaults
 
-Amended 2026-11-18, after the owner reviewed S7 against `epic-74519` at `fe589c28a9` (S0 to S5 merged). The owner's rulings are D116 to D118 and D127, and the design calls made with them are D119 to D126 (§10). Lines in this section are at `fe589c28a9`. The rows start at D116 because S6's amendment (D94 to D115) is on its own branches and not yet merged.
+Amended 2026-11-18, after the owner reviewed S7 against `epic-74519` at `fe589c28a9` (S0 to S5 merged). The owner's rulings are D116 to D118 and D127, and the design calls made with them are D119 to D126, and D128 came from the build (§10). Lines in this section are at `fe589c28a9`. The rows start at D116 because S6's amendment (D94 to D115) is on its own branches and not yet merged.
 
 These defaults apply on a marked chart when it is created, when it changes type, and on the binding change that forms them (M6, D116). Modernize ("Keep my formatting") and Revert never apply them. The reset copy applies all of them except S7-1 (D5).
 
@@ -1008,7 +1008,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 
 ## 10. Decisions
 
-"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, on 2026-11-16 from D69 on, on 2026-11-17 from D94 on, or on 2026-11-18 from D116 on. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, while amending S5 for D83 to D85 and D87 to D90, while amending S6 for D100 to D107, or while amending S7 for D119 to D126.
+"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, on 2026-11-16 from D69 on, on 2026-11-17 from D94 on, or on 2026-11-18 from D116 on. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, while amending S5 for D83 to D85 and D87 to D90, while amending S6 for D100 to D107, or while amending S7 for D119 to D126, and D128 from its build.
 
 | # | Decision | Who |
 |---|---|---|
@@ -1142,6 +1142,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D125 | For the treemap family and the marimekko, a field the type change already puts on Color stays: `copyToTreemap`'s second measure or `copyToMekko`'s third dimension. The top level or the Break By goes on Color only when Color is otherwise empty. A cleared Color stays cleared until the author places a new top level or Break By while Color is empty (S7-5, S7-6, D116) | Design |
 | D126 | The type-change rules run from `ChangeChartTypeService`, after `ChangeChartTypeProcessor.process()` returns, not inside it. A script that sets `chartStyle` on a marked chart goes through `process()` too, and §8 keeps script behaviour unchanged, so a script never re-colours, re-sorts or moves fields at run time (S7) | Design, from the builder check |
 | D127 | A waterfall's data order is saved as a manual order listing the category's values in the order they first appear in the source rows, read once when the rule fires. `SORT_NONE` is sorted ascending by the query of an aggregated chart (issue 56590), and lifting that sort would leave the order to the grouping step or the database, which can change between runs. Values that first appear later go after the list, ascending. Revises D19 (S7-4) | Owner, 2026-11-18, after the builder check |
+| D128 | On a marked chart, a stacked area or step area with a single stack layer keeps the area's own fill alpha (0.8), so it draws exactly as the plain area and picking Area changes nothing until a series arrives (D121). A single layer means no dimension on its Color, Shape, Size or group shelf (the series test AUTO uses for bar, now `AbstractChartInfo.hasSeriesDimension`) and not several measures stacked into one element. Classic charts, and stacked areas with a series or with stacked measures, stay opaque as today. An area that gains series only at run time, from a date comparison, keeps 0.8 (S7-2) | Design, from the S7 build |
 
 ## 11. Testing
 
