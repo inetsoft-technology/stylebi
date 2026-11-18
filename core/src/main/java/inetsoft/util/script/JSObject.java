@@ -211,6 +211,12 @@ public class JSObject {
             }
          }
          else if(type == boolean.class || type == Boolean.class) {
+            if(val instanceof Number) {
+               // follow the JavaScript rule: 0 and NaN are false, any other number is true
+               double num = ((Number) val).doubleValue();
+               return !(num == 0 || Double.isNaN(num));
+            }
+
             return Boolean.valueOf(val.toString());
          }
          else if(type == double[].class) {
