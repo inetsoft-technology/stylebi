@@ -282,7 +282,8 @@ public final class MVDefinitionKey {
             DataRef base = col.getDataRef();
 
             if(base instanceof ExpressionRef) {
-               key.append(ref.getName()).append(':').append(ref.getDataType());
+               // no data type: the refresh retypes every column from sampled data
+               key.append(ref.getName());
                key.append(':').append(col.isSQL() ? "SQL" : "JS").append(':');
 
                try {
@@ -292,7 +293,7 @@ public final class MVDefinitionKey {
                   key.append(((ExpressionRef) base).getScriptExpression());
                }
             }
-            else if(col.getAlias() != null && !col.getAlias().isEmpty() && base != null) {
+            else if(isUserAlias(col, base)) {
                // an alias hides which column the data comes from
                key.append(col.getAlias()).append("=>").append(base.getEntity()).append('.')
                   .append(base.getAttribute());
@@ -313,6 +314,23 @@ public final class MVDefinitionKey {
 
       Collections.sort(keys);
       writer.print("COLS" + keys);
+   }
+
+   /**
+    * An alias the user chose. AssetUtil.fixAlias gives a duplicate-named column the alias
+    * <attribute>_<n> at refresh time, so that form is not keyed (a user alias that happens to
+    * look like it only loses detection of the column being re-sourced).
+    */
+   private static boolean isUserAlias(ColumnRef col, DataRef base) {
+      String alias = col.getAlias();
+
+      if(alias == null || alias.isEmpty() || base == null) {
+         return false;
+      }
+
+      String attr = base.getAttribute();
+      return attr == null || !alias.matches("(?i)" + java.util.regex.Pattern.quote(attr) +
+                                            "(_\\d+)+");
    }
 
    private static boolean isCalculate(DataRef ref) {

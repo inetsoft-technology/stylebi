@@ -323,6 +323,41 @@ class MVDefinitionKeyTest {
    }
 
    @Test
+   void retypedExpressionColumnReadsTheSameKey() {
+      String one = key(withExpression("1", false));
+      TableAssembly retyped = withExpression("1", false);
+      ColumnSelection cols = (ColumnSelection) retyped.getColumnSelection(false).clone();
+      ((ColumnRef) cols.getAttribute(cols.getAttributeCount() - 1)).setDataType(XSchema.DOUBLE);
+      retyped.setColumnSelection(cols, false);
+      retyped.setColumnSelection(cols, true);
+
+      assertEquals(one, key(retyped));
+      assertNotEquals(one, key(withExpression("2", false)));
+      assertNotEquals(one, key(withExpression("1", true)));
+   }
+
+   @Test
+   void generatedDuplicateAliasReadsTheSameKey() {
+      // a join of two tables sharing a column name: the refresh adds the alias ID_1
+      TableAssembly plain = bound(new Worksheet(), "T", null);
+      ColumnSelection cols = (ColumnSelection) plain.getColumnSelection(false).clone();
+      cols.addAttribute(new ColumnRef(new AttributeRef("T2", "ID")));
+      plain.setColumnSelection(cols, false);
+      plain.setColumnSelection(cols, true);
+      String before = key(plain);
+
+      TableAssembly refreshed = bound(new Worksheet(), "T", null);
+      ColumnSelection cols2 = (ColumnSelection) refreshed.getColumnSelection(false).clone();
+      ColumnRef dup = new ColumnRef(new AttributeRef("T2", "ID"));
+      dup.setAlias("ID_1");
+      cols2.addAttribute(dup);
+      refreshed.setColumnSelection(cols2, false);
+      refreshed.setColumnSelection(cols2, true);
+
+      assertEquals(before, key(refreshed));
+   }
+
+   @Test
    void aliasedColumnReSourcedChangesTheKey() {
       String total = key(aliased("TOTAL"));
 
