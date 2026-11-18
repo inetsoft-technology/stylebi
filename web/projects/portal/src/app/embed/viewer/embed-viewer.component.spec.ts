@@ -123,7 +123,7 @@ describe("EmbedViewerComponent", () => {
             [false, false], ["false", false], ["no", false]] as [any, boolean][])
          {
             fixture.componentRef.setInput(name, value);
-            expect((component as any)[name]).toBe(expected);
+            expect((component as any)[name], `${name} = ${JSON.stringify(value)}`).toBe(expected);
          }
       });
    });
@@ -176,12 +176,16 @@ describe("EmbedViewerComponent", () => {
    // result.posParams without a null check on result, so it throws a TypeError. The chart
    // component has the same line.
    describe("url without a path", () => {
-      ["?region=east", "/", "/?region=east"].forEach((url) => it.skip(`does not fail for the url '${url}'`, () => {
-         create({ url });
+      const urls = ["?region=east", "/", "/?region=east"];
 
-         expect(() => fixture.detectChanges()).not.toThrow();
-         expect(component.assetId).toBeUndefined();
-      }));
+      urls.forEach((url) => {
+         it.skip(`does not fail for the url '${url}'`, () => {
+            create({ url });
+
+            expect(() => fixture.detectChanges()).not.toThrow();
+            expect(component.assetId).toBeUndefined();
+         });
+      });
    });
 
    describe("connection", () => {
@@ -314,16 +318,24 @@ describe("EmbedViewerComponent", () => {
       });
 
       it("keeps the indicator until the last object has finished, debouncing the hide", () => {
+         // the first start shows the indicator immediately, nothing is debounced
          component.onLoadingStateChanged({ name: "chart1", loading: true });
+         expect(component.loading).toBe(true);
+         expect(debounceService.debounce).toHaveBeenCalledTimes(0);
+
+         // the indicator is already showing, so every later event goes through the debounce
          component.onLoadingStateChanged({ name: "table1", loading: true });
+         expect(debounceService.debounce).toHaveBeenCalledTimes(1);
 
          component.onLoadingStateChanged({ name: "chart1", loading: false });
+         expect(debounceService.debounce).toHaveBeenCalledTimes(2);
          expect(debounceService.debounce).toHaveBeenLastCalledWith(
             "embed-viewer-loading", expect.any(Function), 500, []);
          debounceCallbacks[debounceCallbacks.length - 1]();
          expect(component.loading).toBe(true);
 
          component.onLoadingStateChanged({ name: "table1", loading: false });
+         expect(debounceService.debounce).toHaveBeenCalledTimes(3);
          debounceCallbacks[debounceCallbacks.length - 1]();
          expect(component.loading).toBe(false);
       });
