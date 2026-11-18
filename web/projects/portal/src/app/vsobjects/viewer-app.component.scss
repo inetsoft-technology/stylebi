@@ -193,6 +193,13 @@ main {
   width: 32px;
 }
 
+// The toolbar is the beige shell surface, on which the neutral hover fill is barely visible
+// (#ECE9E2 on #F1EFEA). Its buttons hover with the translucent overlay the collapse handles use on
+// the same surfaces (black .06 light, white .08 dark), which darkens whatever the toolbar colour is.
+.viewer-toolbar-btn.icon-hover-bg:not([disabled]):hover {
+  background-color: var(--inet-collapse-handle-hover-bg-color);
+}
+
 .mobile {
   height: 66px !important;
 }
