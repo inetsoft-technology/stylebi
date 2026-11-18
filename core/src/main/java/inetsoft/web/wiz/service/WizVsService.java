@@ -70,6 +70,7 @@ import inetsoft.web.vswizard.handler.SyncInfoHandler;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
+import inetsoft.web.wiz.binding.ChartBindingService;
 import inetsoft.web.wiz.BindingFieldSettings;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
@@ -4382,6 +4383,7 @@ public class WizVsService {
 
       if(config != null && config.getBindingInfo() instanceof ChartBinding binding) {
          applyChartBinding(chartInfo, binding, chartType);
+         ChartBindingService.requireCalculatorShiftsLand(chartInfo);
 
          try(CategoricalColorFrameContext.Scope scope = CategoricalColorFrameContext.bind(vs)) {
             GraphUtil.fixVisualFrames(chartInfo);

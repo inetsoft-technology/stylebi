@@ -52,6 +52,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.web.binding.model.graph.CalculateInfo;
+import inetsoft.web.wiz.binding.ChartBindingService;
 import inetsoft.web.wiz.BindingFieldSettings;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
@@ -339,6 +340,7 @@ public class WizAutoBindingService {
                   }
 
                   applyFieldConfigs(chartAsm.getVSChartInfo(), configMap);
+                  ChartBindingService.requireCalculatorShiftsLand(chartAsm.getVSChartInfo());
                   applyAxisTitlesFromFieldConfigs(chartAsm, configMap);
                   // Strictly after both passes above: each looks its config up by the ref's current
                   // column value, which this rewrites back to the "$(ComponentName)" literal so the

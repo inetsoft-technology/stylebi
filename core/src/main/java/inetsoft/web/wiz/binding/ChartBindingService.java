@@ -20,19 +20,24 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.XAggregateRef;
+import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
+import inetsoft.uql.viewsheet.graph.CandleChartInfo;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartBindable;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.GanttChartInfo;
 import inetsoft.uql.viewsheet.graph.GanttVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
@@ -153,6 +158,7 @@ public class ChartBindingService {
          try {
             requireCalculatorsResolved(requireChart(rvs, assemblyName).getVSChartInfo(), shelf,
                                        fields);
+            requireCalculatorShiftsLand(requireChart(rvs, assemblyName).getVSChartInfo());
          }
          catch(IllegalArgumentException e) {
             // The write is already committed here and mutate() does not undo a thrown mutation.
@@ -362,6 +368,123 @@ public class ChartBindingService {
          if(stored[i] instanceof ChartAggregateRef aggregate) {
             CalculatorColumnRefs.requireResolved(
                info, fields.get(i).calculateInfo(), aggregate.getCalculator());
+         }
+      }
+   }
+
+   /**
+    * Post-write check (bug #81687): a CHANGE/VALUE calculator with a Previous Year/Quarter/Week/
+    * Month shift looks the shifted date up among its dimension's own values, so a shift that is
+    * not a whole number of that dimension's date buckets (year with from 5/6/7, quarter with 6/7,
+    * month with 6) matches nothing and every cell renders blank. Run on the final chart info so
+    * the order the calculator and the level were written in does not matter; the same rule the
+    * crosstab enforces. Calculators with no named dimension, or whose dimension is not found, are
+    * never refused.
+    */
+   public static void requireCalculatorShiftsLand(VSChartInfo info) {
+      if(info == null) {
+         return;
+      }
+
+      List<ChartAggregateRef> aggregates = new ArrayList<>();
+
+      for(ChartRef[] refs : new ChartRef[][] {info.getXFields(), info.getYFields()}) {
+         for(ChartRef ref : refs == null ? new ChartRef[0] : refs) {
+            if(ref instanceof ChartAggregateRef aggregate) {
+               aggregates.add(aggregate);
+            }
+         }
+      }
+
+      List<ChartAggregateRef> aesthetic = info.getAestheticAggregateRefs(false);
+
+      if(aesthetic != null) {
+         aggregates.addAll(aesthetic);
+      }
+
+      List<ChartRef> single = new ArrayList<>();
+
+      if(info instanceof CandleChartInfo candle) {
+         single.addAll(java.util.Arrays.asList(
+            candle.getOpenField(), candle.getHighField(), candle.getLowField(),
+            candle.getCloseField()));
+      }
+
+      if(info instanceof GanttChartInfo gantt) {
+         single.addAll(java.util.Arrays.asList(
+            gantt.getStartField(), gantt.getEndField(), gantt.getMilestoneField()));
+      }
+
+      for(ChartRef ref : single) {
+         if(ref instanceof ChartAggregateRef aggregate) {
+            aggregates.add(aggregate);
+         }
+      }
+
+      ChartBindable bound = info instanceof GanttVSChartInfo gantt &&
+         gantt.getStartField() instanceof ChartBindable start ? start : info;
+
+      for(AestheticRef channel : new AestheticRef[] {
+         bound.getColorField(), bound.getShapeField(), bound.getSizeField(),
+         bound.getTextField()})
+      {
+         if(channel != null && channel.getDataRef() instanceof ChartAggregateRef aggregate) {
+            aggregates.add(aggregate);
+         }
+      }
+
+      for(ChartAggregateRef aggregate : aggregates) {
+         if(!(aggregate.getCalculator() instanceof ValueOfCalc calc) ||
+            calc.getFrom() < ValueOfCalc.PREVIOUS_YEAR || calc.getFrom() > ValueOfCalc.PREVIOUS_MONTH)
+         {
+            continue;
+         }
+
+         String target = calc.getColumnName();
+
+         if(target == null || target.isBlank() || AbstractCalc.ROW_INNER.equals(target.trim()) ||
+            AbstractCalc.COLUMN_INNER.equals(target.trim()))
+         {
+            continue;
+         }
+
+         List<ChartRef> dims = new ArrayList<>();
+
+         for(ChartRef[] refs : new ChartRef[][] {
+            info.getXFields(), info.getYFields(), info.getGroupFields()})
+         {
+            for(ChartRef ref : refs == null ? new ChartRef[0] : refs) {
+               if(ref instanceof XDimensionRef && ref instanceof VSDataRef) {
+                  dims.add(ref);
+               }
+            }
+         }
+
+         // The exact full name; a bare column name (a chart not yet fixed up by the runtime, as
+         // the create route builds it) only when it names one dimension.
+         List<ChartRef> named = dims.stream()
+            .filter(d -> target.trim().equalsIgnoreCase(((VSDataRef) d).getFullName())).toList();
+
+         if(named.isEmpty()) {
+            List<ChartRef> bare = dims.stream()
+               .filter(d -> target.trim().equalsIgnoreCase(((VSDataRef) d).getName())).toList();
+            named = bare.size() == 1 ? bare : List.of();
+         }
+
+         for(ChartRef ref : named) {
+            XDimensionRef dim = (XDimensionRef) ref;
+            VSDataRef data = (VSDataRef) ref;
+
+            if(CalculatorShift.smallerThanBucket(dim.getDateLevel(), calc.getFrom())) {
+               throw new IllegalArgumentException(
+                  "calculateInfo.from " + calc.getFrom() + " (" +
+                  CalculatorShift.previousName(calc.getFrom()) + ") on " +
+                  aggregate.getFullName() + " cannot be computed: its calculator dimension '" +
+                  data.getFullName() + "' is bound at " +
+                  DateLevels.name(String.valueOf(dim.getDateLevel())) + ", a bucket the " +
+                  CalculatorShift.previousName(calc.getFrom()) + " shift does not land on, so " +
+                  "every cell would be blank. " + CalculatorShift.advice(calc.getFrom()));
+            }
          }
       }
    }
@@ -949,6 +1072,22 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+
+         try {
+            requireCalculatorShiftsLand(requireChart(rvs, assemblyName).getVSChartInfo());
+         }
+         catch(IllegalArgumentException e) {
+            boolean restored = false;
+
+            try {
+               restored = rvs.restoreCurrentCheckpoint();
+            }
+            catch(RuntimeException ignore) {
+            }
+
+            throw new IllegalArgumentException(refusalMessage(e.getMessage(), restored), e);
+         }
+
          Set<String> reported = new HashSet<>();
          notes.addAll(ChartHyperlinkCarry.reapply(
             requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links, reported));
