@@ -3008,7 +3008,7 @@ public abstract class GraphGenerator {
       return info.getRTChartType();
    }
 
-   private CompositeTextFormat getAxisLabelFormat(AxisDescriptor desc,
+   CompositeTextFormat getAxisLabelFormat(AxisDescriptor desc,
                                                   String[] fields, boolean secondary)
    {
       if(fields == null || fields.length == 0 || secondary) {

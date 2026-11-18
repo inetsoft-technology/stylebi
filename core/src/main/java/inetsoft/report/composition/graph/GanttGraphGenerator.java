@@ -161,17 +161,20 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
             double plot = width - padding.left - padding.right - tasks;
             time.setEndPadRatio(endPadRatio(padding.right, plot));
 
-            // an author increment keeps the classic ticks
-            if(time.getIncrement() == null) {
+            CompositeTextFormat format = getAxisLabelFormat(
+               getAxisDescriptor(time, "y"), time.getFields(), false);
+
+            // an author increment or date format keeps the classic ticks
+            if(time.getIncrement() == null && !CompactDateRule.hasAuthorFormat(format)) {
                Font font = time.getAxisSpec().getTextSpec().getFont();
                // widest label plus the flat gap
                double label = GTool.stringWidth(new String[] { "Sep 2026" }, font) + 4;
                time.setLabelFit(plot, label);
-               fit = true;
+               fit = plot > 0 && label > 0;
             }
          }
 
-         // centre month labels between their boundary ticks on the time axis.
+         // labels between ticks unless the fit puts them on ticks
          yScale.getAxisSpec().setLabelBetween(!fit);
       }
 

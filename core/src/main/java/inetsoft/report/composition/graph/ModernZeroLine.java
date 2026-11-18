@@ -34,7 +34,8 @@ final class ModernZeroLine {
     * Whether a chart type draws a zero line.
     */
    static boolean appliesTo(int type) {
-      return GraphTypes.isBar(type) && !GraphTypes.is3DBar(type) || GraphTypes.isInterval(type) || GraphTypes.isLine(type) ||
+      return (GraphTypes.isBar(type) && !GraphTypes.is3DBar(type)) ||
+         GraphTypes.isInterval(type) || GraphTypes.isLine(type) ||
          GraphTypes.isStep(type) || GraphTypes.isArea(type) || GraphTypes.isStepArea(type) ||
          GraphTypes.isPoint(type) || GraphTypes.isScatteredContour(type) ||
          GraphTypes.isWaterfall(type) || GraphTypes.isPareto(type) ||

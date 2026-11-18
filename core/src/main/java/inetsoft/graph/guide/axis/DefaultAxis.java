@@ -734,6 +734,7 @@ public class DefaultAxis extends Axis {
     * @param axis the other axis to draw grid lines to.
     * @param fractions the positions, each a fraction of the axis length.
     * @return true if grid lines are created.
+    * @hidden
     */
    public boolean createGridLinesAt(DefaultAxis axis, double[] fractions) {
       AxisSpec spec = getScale().getAxisSpec();
@@ -766,6 +767,7 @@ public class DefaultAxis extends Axis {
     * @param cross the scale of the cross axis, checked when the spec asks for crossing and
     * the cross axis is a value axis.
     * @return true if a zero line is created.
+    * @hidden
     */
    public boolean createZeroLine(DefaultAxis axis, Scale cross) {
       if(zeroLine != null && vgraph != null) {

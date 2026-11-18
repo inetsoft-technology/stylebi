@@ -249,7 +249,7 @@ public class TimeScale extends Scale {
          !nodata)
       {
          int budget = Math.max(2, (int) Math.floor(labelFitPlotPx / labelFitLabelPx));
-         int[] fit = chooseFitUnit(cmax - cmin, getIncLength(type), budget);
+         int[] fit = chooseFitUnit((long) (getMax0() - getMin0()), getIncLength(type), budget);
          type = fit[0];
          fitStep = fit[1];
          cacheSpec = null;
@@ -626,10 +626,16 @@ public class TimeScale extends Scale {
          }
 
          cal.setTime(new Date(min));
+         long alignFloor = -1;
 
          // set the first tick, or use min if it's explicitly set
          if(this.umin == null) {
             truncate(cal, type);
+
+            if(fitStep > 0) {
+               alignFloor = cal.getTimeInMillis();
+               alignToStep(cal, type, fitStep);
+            }
          }
 
          // add null value
@@ -669,6 +675,14 @@ public class TimeScale extends Scale {
                }
             }
 
+            // ticks aligned before the unaligned start would widen the range, keep them only
+            // when nothing else remains
+            final long floor = alignFloor;
+
+            if(floor >= 0 && !nullValue && dates.stream().anyMatch(d -> d.getTime() >= floor)) {
+               dates.removeIf(d -> d.getTime() < floor);
+            }
+
             // enforce maxTicks for hasDup in case the format interval steps are uneven
             while(hasDup && dates.size() > maxTicks) {
                for(int i = 1; i < dates.size(); i++) {
@@ -677,7 +691,9 @@ public class TimeScale extends Scale {
             }
 
             // make sure last date is on scale if the increment changed due to maxTicks. (53670)
-            if(fitStep == 0 && n > 1 && (increment == null || n != increment.intValue()) && dates.size() > 0) {
+            if(fitStep == 0 && n > 1 && (increment == null || n != increment.intValue()) &&
+               dates.size() > 0)
+            {
                Date last = dates.get(dates.size() - 1);
 
                if(last.getTime() < max && (!hasDup || fmt == null ||
@@ -770,6 +786,19 @@ public class TimeScale extends Scale {
          }
 
          cal.set(INC_FIELD[i][0], INC_FIELD[i][1]);
+      }
+   }
+
+   /**
+    * Move the field of the type down to a multiple of the step, so ticks sit on round marks.
+    */
+   private static void alignToStep(Calendar cal, int type, int step) {
+      if(type == QUARTER) {
+         int months = 3 * step;
+         cal.set(Calendar.MONTH, cal.get(Calendar.MONTH) / months * months);
+      }
+      else if(type == HOUR || type == MINUTE || type == YEAR) {
+         cal.set(type, cal.get(type) / step * step);
       }
    }
 
