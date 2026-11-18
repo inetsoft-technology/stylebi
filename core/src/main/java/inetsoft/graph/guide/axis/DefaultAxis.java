@@ -676,6 +676,12 @@ public class DefaultAxis extends Axis {
       Double offset = 0.1;
 
       for(int i = between ? 1 : 0; i < cnt; i++) {
+         if(zeroGridLineHidden && svals.length == ticks.length && svals[i] instanceof Number &&
+            ((Number) svals[i]).doubleValue() == 0 && getScale() instanceof LinearScale)
+         {
+            continue;
+         }
+
          double pos1 = between ? (ticks[i - 1] + ticks[i]) / 2 : ticks[i];
          double pos2 = between ? (ticks2[i - 1] + ticks2[i]) / 2 : ticks2[i];
          Point2D loc = new Point2D.Double(pos1, 0);
@@ -721,6 +727,72 @@ public class DefaultAxis extends Axis {
       }
 
       return true;
+   }
+
+   /**
+    * Create the zero line from this axis to the other axis, replacing any earlier one.
+    * @param axis the other axis to draw the line to.
+    * @param cross the scale of the cross axis, checked when the spec asks for crossing.
+    * @return true if a zero line is created.
+    */
+   public boolean createZeroLine(DefaultAxis axis, Scale cross) {
+      if(zeroLine != null && vgraph != null) {
+         vgraph.removeVisual(zeroLine);
+      }
+
+      zeroLine = null;
+      AxisSpec spec = getScale().getAxisSpec();
+
+      if(spec.getZeroLineColor() == null || !crossesZero(getScale()) ||
+         spec.isZeroLineCrossing() && !crossesZero(cross))
+      {
+         return false;
+      }
+
+      double pos = getTickLocations(new double[] { getScale().map(0) })[0];
+      Point2D loc = getScreenTransform().transform(new Point2D.Double(pos, 0), null);
+      Point2D loc2 = axis.getScreenTransform().transform(new Point2D.Double(pos, 0), null);
+
+      zeroLine = new GridLine(new Line2D.Double(loc, loc2), this, GDefaults.AXIS_Z_INDEX, true);
+      zeroLine.setColor(spec.getZeroLineColor());
+      zeroLine.setStyle(GraphConstants.THIN_LINE);
+
+      if(vgraph != null) {
+         vgraph.addVisual(zeroLine);
+      }
+
+      return true;
+   }
+
+   /**
+    * Check whether a linear scale has zero strictly inside its range.
+    */
+   private static boolean crossesZero(Scale scale) {
+      if(!(scale instanceof LinearScale) || scale instanceof LogScale) {
+         return false;
+      }
+
+      double min = scale.getMin();
+      double max = scale.getMax();
+      double zero = scale.map(0);
+
+      return !Double.isNaN(zero) && zero > Math.min(min, max) && zero < Math.max(min, max);
+   }
+
+   /**
+    * Get the zero line of this axis.
+    * @hidden
+    */
+   public GridLine getZeroLine() {
+      return zeroLine;
+   }
+
+   /**
+    * Set whether the grid line at value 0 is left out, because a zero line replaces it.
+    * @hidden
+    */
+   public void setZeroGridLineHidden(boolean zeroGridLineHidden) {
+      this.zeroGridLineHidden = zeroGridLineHidden;
    }
 
    /**
@@ -3194,6 +3266,8 @@ public class DefaultAxis extends Axis {
    }
 
    private double length;
+   private GridLine zeroLine;
+   private boolean zeroGridLineHidden = false;
    private double size;
    private AxisLine line;
    private VDimensionLabel[] vlabels;
