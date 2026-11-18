@@ -1096,6 +1096,14 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
          }
       }
 
+      return hasSeriesDimension(this, bindable);
+   }
+
+   /**
+    * Whether a dimension on the bindable's Color, Shape or Size, or on the group shelf, splits
+    * its measure into series.
+    */
+   public static boolean hasSeriesDimension(ChartInfo info, ChartBindable bindable) {
       boolean aesthetic = bindable.getColorField() != null &&
          !bindable.getColorField().isMeasure() ||
          bindable.getShapeField() != null &&
@@ -1104,8 +1112,8 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
             !bindable.getSizeField().isMeasure();
       boolean dimgroup = false;
 
-      if(supportsGroupFields()) {
-         for(ChartRef ref : getGroupFields()) {
+      if(info.supportsGroupFields()) {
+         for(ChartRef ref : info.getGroupFields()) {
             if(!ref.isMeasure()) {
                dimgroup = true;
                break;

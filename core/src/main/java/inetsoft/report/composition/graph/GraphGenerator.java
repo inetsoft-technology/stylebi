@@ -1685,10 +1685,27 @@ public abstract class GraphGenerator {
       else if(elem instanceof AreaElement) {
          // if areas are stacked, shoulding see through the area to the area behind since the
          // value behind the front area is not 'real'.
-         if((elem.getCollisionModifier() & GraphElement.MOVE_STACK) != 0) {
+         // a marked single stack layer keeps the plain area's fill
+         boolean plainFill = vizContext.modern && !hasSeriesDimension(elem) &&
+            !hasStackedMeasures(elem);
+
+         if((elem.getCollisionModifier() & GraphElement.MOVE_STACK) != 0 && !plainFill) {
             elem.setHint(GraphElement.HINT_ALPHA, null);
          }
       }
+   }
+
+   // the aggregate's own aesthetics on a multi-style chart, else the chart's
+   private boolean hasSeriesDimension(GraphElement elem) {
+      ChartBindable bindable = info;
+      ChartRef aggr = info.isMultiStyles() && elem.getVarCount() > 0 ?
+         getChartRef(elem.getVar(0)) : null;
+
+      if(aggr instanceof ChartBindable) {
+         bindable = (ChartBindable) aggr;
+      }
+
+      return AbstractChartInfo.hasSeriesDimension(info, bindable);
    }
 
    private void addDensityContour() {
