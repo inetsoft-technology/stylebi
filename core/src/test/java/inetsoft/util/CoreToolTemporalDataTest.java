@@ -59,7 +59,13 @@ class CoreToolTemporalDataTest {
    void dateAndTimeSiblings() {
       OffsetDateTime odt = OffsetDateTime.parse("2020-01-02T10:30:00+08:00");
       assertNotNull(CoreTool.getDateData(odt));
-      assertEquals(INSTANT.toEpochMilli(), CoreTool.getTimeData(odt).getTime());
+      // Bug #81682: a Time is a time of day on 1970-01-01, not the full instant
+      java.sql.Time time = CoreTool.getTimeData(odt);
+      assertEquals(Timestamp.from(INSTANT).toLocalDateTime().toLocalTime(),
+                   time.toLocalTime());
+      assertEquals(LocalDate.of(1970, 1, 1),
+                   Instant.ofEpochMilli(time.getTime()).atZone(ZoneId.systemDefault())
+                      .toLocalDate());
    }
 
    @Test
