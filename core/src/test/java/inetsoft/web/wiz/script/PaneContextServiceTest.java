@@ -475,9 +475,11 @@ class PaneContextServiceTest {
       assertTrue(sql.syntax().note().contains("field['<column>']"), sql.syntax().note());
       assertTrue(sql.syntax().note().contains("$(<name>)"), sql.syntax().note());
       assertFalse(sql.syntax().note().contains("evaluated per row: read"), sql.syntax().note());
-      // the script function names are not offered under a SQL syntax, and the answer says why
-      assertTrue(sql.functions().isEmpty(), sql.functions().toString());
-      assertTrue(sql.notes().stream().anyMatch(n -> n.contains("SQL mode")), sql.notes().toString());
+      // the dialog's own SQL function and operator lists are served, not the script functions
+      assertEquals(List.of("SUM", "COUNT", "AVG", "MIN", "MAX"), sql.functions());
+      assertEquals(List.of("+", "-", "*", "/", "<", ">", "<=", ">=", "=", "<>"), sql.operators());
+      assertTrue(sql.notes().stream().noneMatch(n -> n.contains("SQL mode")), sql.notes().toString());
+      assertTrue(js.operators().isEmpty(), js.operators().toString());
       // the location and the column scope are the same in both modes
       assertEquals(js.editorContext(), sql.editorContext());
       assertEquals(js.columns(), sql.columns());

@@ -84,11 +84,12 @@ public class WorksheetPaneContextService {
          .map(t -> new PaneContext.Component(t.name(), t.type())).toList();
 
       List<String> functions;
+      List<String> operators = List.of();
 
       if(sql) {
-         functions = List.of();
-         notes.add("The function list is empty in SQL mode: the dialog offers the SQL functions " +
-                   "and operators of the data source, which this context does not list.");
+         // The same fixed SQL lists the viewsheet calculated field context serves.
+         functions = PaneContextService.SQL_FUNCTIONS;
+         operators = PaneContextService.SQL_OPERATORS;
       }
       else {
          functions = apiService.functionNames();
@@ -102,7 +103,7 @@ public class WorksheetPaneContextService {
       return new PaneContext(
          grant == null ? PaneContextService.SHEET_KIND : grant.kind(), grant,
          syntaxOf(grant, sql), components, parameters(model), columns(tables, grant, notes),
-         functions, notes);
+         functions, operators, notes);
    }
 
    private static PaneContext.Syntax syntaxOf(EditorContext grant, boolean sql) {

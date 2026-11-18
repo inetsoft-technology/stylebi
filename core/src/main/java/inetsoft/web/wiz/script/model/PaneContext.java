@@ -38,11 +38,14 @@ import java.util.List;
  * @param columns       the table(s) whose columns the location can read, names and types only
  * @param functions     the callable global function names; {@code get_function_signature} gives
  *                      each one's signature
+ * @param operators     the operators the dialog offers when it lists them separately from
+ *                      functions (the SQL operators of a calculated field on SQL); empty otherwise
  * @param notes         what could not be listed and why, empty when everything was
  */
 public record PaneContext(String kind, EditorContext editorContext, Syntax syntax,
                           List<Component> components, List<String> parameters,
-                          List<Table> columns, List<String> functions, List<String> notes)
+                          List<Table> columns, List<String> functions,
+                          List<String> operators, List<String> notes)
 {
    /** @param language always {@code "javascript"} today; @param note how to write it here. */
    public record Syntax(String language, String note) {}
