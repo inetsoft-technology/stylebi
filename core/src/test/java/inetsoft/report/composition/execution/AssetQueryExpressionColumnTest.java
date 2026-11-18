@@ -25,6 +25,7 @@ import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.*;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.uql.erm.ExpressionRef;
@@ -173,34 +174,46 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("Two expressions that refer to each other fail with a handled error")
-   void circularReference_isAHandledFailure() throws Exception {
+   @DisplayName("Two expressions that refer to each other fail with a clear message")
+   void circularReference_failsWithMessage() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "a", "field['b'] + 1", XSchema.INTEGER, false, true);
       addExpression(ws, "b", "field['a'] + 1", XSchema.INTEGER, false, true);
-      // an exception or a sample table, never a StackOverflowError
-      try {
-         box(ws).getTableLens("T", RUNTIME);
-      }
-      catch(Exception expected) {
-         // handled failure
-      }
+      assertCircularFailure(ws);
    }
 
    @Test
-   @DisplayName("Two hidden expressions that refer to each other fail with a handled error")
-   void circularReference_hiddenColumns_isAHandledFailure() throws Exception {
+   @DisplayName("Two hidden expressions that refer to each other fail with a clear message")
+   void circularReference_hiddenColumns_failsWithMessage() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "a", "field['b'] + 1", XSchema.INTEGER, false, false);
       addExpression(ws, "b", "field['a'] + 1", XSchema.INTEGER, false, false);
       addExpression(ws, "v", "field['a'] + field['customer_id']", XSchema.INTEGER, false, true);
-      // an exception or a table, never a StackOverflowError (Bug #81206)
-      try {
-         box(ws).getTableLens("T", RUNTIME);
+      assertCircularFailure(ws);
+   }
+
+   @Test
+   @DisplayName("Expressions that only share a dependency (a diamond) are not a cycle")
+   void diamondReference_isNotACycle() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "base1", "field['customer_id'] + 1", XSchema.INTEGER, false, false);
+      addExpression(ws, "left", "field['base1'] + 10", XSchema.INTEGER, false, false);
+      addExpression(ws, "right", "field['base1'] + 100", XSchema.INTEGER, false, false);
+      addExpression(ws, "top", "field['left'] + field['right']", XSchema.INTEGER, false, true);
+      assertEquals(2, column(box(ws).getTableLens("T", RUNTIME), "top").size());
+   }
+
+   private void assertCircularFailure(Worksheet ws) {
+      // the whole table fails with a message, no StackOverflowError and no order dependent value
+      Throwable ex = assertThrows(Throwable.class, () -> box(ws).getTableLens("T", RUNTIME));
+      Throwable cause = ex;
+
+      while(cause != null && !(cause instanceof MessageException)) {
+         cause = cause.getCause();
       }
-      catch(Exception expected) {
-         // handled failure
-      }
+
+      assertNotNull(cause, "expected a MessageException but got " + ex);
+      assertTrue(cause.getMessage().contains("refers to itself"), cause.getMessage());
    }
 
    @Test
