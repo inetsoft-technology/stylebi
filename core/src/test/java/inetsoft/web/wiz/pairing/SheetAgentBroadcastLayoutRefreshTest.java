@@ -109,4 +109,36 @@ class SheetAgentBroadcastLayoutRefreshTest {
       assertDoesNotThrow(() -> svc.broadcastLayoutRefresh(master("stomp-1"), "Phone", AGENT));
       verifyNoInteractions(dispatcher);
    }
+
+   /** Bug #81732: a removed layout sends the paired browser back to Master. */
+   @Test
+   void switchToMasterResendsMasterWithTheRemovedLayoutAsCurrentAndForwardsTheNullLayoutCommand()
+      throws Exception
+   {
+      doAnswer(inv -> {
+         CommandDispatcher d = inv.getArgument(5);
+         d.sendCommand(new ChangeCurrentLayoutCommand(null));
+         return null;
+      }).when(layoutProxy).changeViewsheetLayout(any(), any(), any(), any(), any(), any());
+
+      svc.broadcastSwitchToMaster(master("stomp-1"), "Phone", AGENT);
+
+      String masterName = inetsoft.util.Catalog.getCatalog(AGENT).getString("Master");
+      verify(layoutProxy).changeViewsheetLayout(
+         eq("master-1"), eq("Phone"), eq(masterName), eq(AGENT), any(), any());
+
+      ArgumentCaptor<Object> payloads = ArgumentCaptor.forClass(Object.class);
+      verify(dispatcher, times(2)).convertAndSendToUser(
+         eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), payloads.capture(), any());
+      assertInstanceOf(ChangeCurrentLayoutCommand.class, payloads.getAllValues().get(0));
+      assertNull(((ChangeCurrentLayoutCommand) payloads.getAllValues().get(0)).getLayout());
+   }
+
+   @Test
+   void switchToMasterWithNoSocketSessionPushesNothing() throws Exception {
+      svc.broadcastSwitchToMaster(master(null), "Phone", AGENT);
+
+      verifyNoInteractions(layoutProxy);
+      verifyNoInteractions(dispatcher);
+   }
 }

@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
+import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -1006,6 +1007,53 @@ class PrintDeviceLayoutPropertyServiceTest {
       verify(h.layoutSessions, times(2)).evictLayout("tok", "Phone", h.rvs);
    }
 
+   @Test
+   void deletingADeviceLayoutSwitchesThePairedComposerBackToMaster() throws Exception {
+      VSDeviceLayoutDialogModel existing = new VSDeviceLayoutDialogModel();
+      existing.setName("Phone");
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.getDeviceLayouts().add(existing);
+      Harness h = new Harness(screensPane);
+      h.registerDevices("wiz-mobile");
+
+      h.service.manageDeviceLayout("tok", h.principal, "delete", Map.of("name", "Phone"), "");
+
+      verify(h.broadcast).broadcastSwitchToMaster(h.rvs, "Phone", h.principal);
+   }
+
+   @Test
+   void createAndUpdateDoNotSwitchThePairedComposerToMaster() throws Exception {
+      VSDeviceLayoutDialogModel existing = new VSDeviceLayoutDialogModel();
+      existing.setName("Phone");
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.getDeviceLayouts().add(existing);
+      Harness h = new Harness(screensPane);
+      h.registerDevices("wiz-mobile");
+
+      h.service.manageDeviceLayout("tok", h.principal, "update",
+                                   Map.of("name", "Phone", "mobileOnly", true), "");
+      h.service.manageDeviceLayout("tok", h.principal, "create",
+         Map.of("name", "Tablet", "selectedDevices", List.of("wiz-mobile")), "");
+
+      verify(h.broadcast, never()).broadcastSwitchToMaster(any(), any(), any());
+   }
+
+   @Test
+   void clearingThePrintLayoutSwitchesThePairedComposerBackToMasterButANoOpClearDoesNot()
+      throws Exception
+   {
+      Harness none = new Harness(screensPaneWithNoPrintLayout());
+      none.service.clearPrintLayout("tok", none.principal, false, "");
+      verify(none.broadcast, never()).broadcastSwitchToMaster(any(), any(), any());
+
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.setPrintLayout(existingPrintLayout());
+      Harness h = new Harness(screensPane);
+      h.service.clearPrintLayout("tok", h.principal, false, "");
+
+      verify(h.broadcast).broadcastSwitchToMaster(eq(h.rvs), anyString(), eq(h.principal));
+   }
+
    private static VSPrintLayoutDialogModel existingPrintLayout() {
       VSPrintLayoutDialogModel existing = new VSPrintLayoutDialogModel();
       existing.setScaleFont(1.0f);
@@ -1034,8 +1082,10 @@ class PrintDeviceLayoutPropertyServiceTest {
       final DeviceRegistry deviceRegistry = mock(DeviceRegistry.class);
       final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       final LayoutSessionService layoutSessions = mock(LayoutSessionService.class);
+      final SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
       final PrintDeviceLayoutPropertyService service =
-         new PrintDeviceLayoutPropertyService(sessions, dialog, deviceRegistry, layoutSessions);
+         new PrintDeviceLayoutPropertyService(sessions, dialog, deviceRegistry, layoutSessions,
+                                              broadcast);
 
       Harness(ScreensPaneModel screensPane) {
          try {

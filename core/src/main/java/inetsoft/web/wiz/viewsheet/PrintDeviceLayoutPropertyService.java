@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.PrintInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
+import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -69,16 +70,26 @@ import java.util.stream.Collectors;
  */
 @Service
 public class PrintDeviceLayoutPropertyService {
-   @Autowired
    public PrintDeviceLayoutPropertyService(ViewsheetSessionService sessions,
                                             ViewsheetPropertyDialogService dialogService,
                                             DeviceRegistry deviceRegistry,
                                             LayoutSessionService layoutSessions)
    {
+      this(sessions, dialogService, deviceRegistry, layoutSessions, null);
+   }
+
+   @Autowired
+   public PrintDeviceLayoutPropertyService(ViewsheetSessionService sessions,
+                                            ViewsheetPropertyDialogService dialogService,
+                                            DeviceRegistry deviceRegistry,
+                                            LayoutSessionService layoutSessions,
+                                            SheetAgentBroadcastService broadcast)
+   {
       this.sessions = sessions;
       this.dialogService = dialogService;
       this.deviceRegistry = deviceRegistry;
       this.layoutSessions = layoutSessions;
+      this.broadcast = broadcast;
    }
 
    /**
@@ -230,7 +241,20 @@ public class PrintDeviceLayoutPropertyService {
 
       layoutSessions.evictLayout(
          sessionToken, Catalog.getCatalog(user).getString("Print Layout"), rvs);
+      switchComposerToMaster(rvs, Catalog.getCatalog(user).getString("Print Layout"), user);
       return new ClearPrintLayoutResult(true, discarded, warnings);
+   }
+
+   /**
+    * Bug #81732: a removed layout may be the one the paired Composer is showing; send it back to
+    * Master so it is not left in layout mode on a layout that no longer exists.
+    */
+   private void switchComposerToMaster(RuntimeViewsheet master, String removedLayout,
+                                       Principal user)
+   {
+      if(broadcast != null) {
+         broadcast.broadcastSwitchToMaster(master, removedLayout, user);
+      }
    }
 
    private static int countPrintPlacements(RuntimeViewsheet rvs) {
@@ -480,7 +504,12 @@ public class PrintDeviceLayoutPropertyService {
       // After the mutation (the master is no longer mid-write). A delete drops the layout, and a
       // create may reuse a name whose old clone/undo stack must not leak into the new layout.
       if("create".equals(normalizedAction) || "delete".equals(normalizedAction)) {
-         layoutSessions.evictLayout(sessionToken, name, sessions.resolve(sessionToken, user));
+         RuntimeViewsheet master = sessions.resolve(sessionToken, user);
+         layoutSessions.evictLayout(sessionToken, name, master);
+
+         if("delete".equals(normalizedAction)) {
+            switchComposerToMaster(master, name, user);
+         }
       }
 
       return warnings;
@@ -760,4 +789,5 @@ public class PrintDeviceLayoutPropertyService {
    private final ViewsheetPropertyDialogService dialogService;
    private final DeviceRegistry deviceRegistry;
    private final LayoutSessionService layoutSessions;
+   private final SheetAgentBroadcastService broadcast;
 }

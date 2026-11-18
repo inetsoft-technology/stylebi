@@ -29,6 +29,7 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.util.Catalog;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.command.RefreshBindingTreeCommand;
 import inetsoft.web.binding.service.VSBindingTreeService;
@@ -674,7 +675,38 @@ public class SheetAgentBroadcastService {
    public void broadcastLayoutRefresh(RuntimeViewsheet master, String layoutName,
                                       Principal agent)
    {
-      if(master == null || layoutName == null || vsLayoutControllerService == null) {
+      if(layoutName == null) {
+         return;
+      }
+
+      pushLayoutChange(master, layoutName, layoutName, agent);
+   }
+
+   /**
+    * Switches the paired browser back to the Master view after the layout it may be showing was
+    * deleted or cleared through a wiz tool (Bug #81732).
+    *
+    * <p>The layout designer is bound to a separate temporary layout runtime, so without this the
+    * Composer stays in layout mode on a layout that no longer exists, with no layouts to switch
+    * to. This re-runs the native {@code changeViewsheetLayout} for Master, which sends
+    * {@code ChangeCurrentLayoutCommand(null)} and redraws the master. The server does not know
+    * which layout the browser currently shows, so a browser on another layout is also returned
+    * to Master. Best effort: any failure is logged and swallowed so it never fails the tool call
+    * whose mutation already succeeded.
+    *
+    * @param removedLayoutName the layout that was removed (the browser's presumed current layout)
+    */
+   public void broadcastSwitchToMaster(RuntimeViewsheet master, String removedLayoutName,
+                                       Principal agent)
+   {
+      pushLayoutChange(master, removedLayoutName,
+                       Catalog.getCatalog(agent).getString("Master"), agent);
+   }
+
+   private void pushLayoutChange(RuntimeViewsheet master, String currentLayout,
+                                 String targetLayout, Principal agent)
+   {
+      if(master == null || vsLayoutControllerService == null) {
          return;
       }
 
@@ -698,7 +730,7 @@ public class SheetAgentBroadcastService {
 
          CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
             vsLayoutControllerService.changeViewsheetLayout(
-               runtimeId, layoutName, layoutName, agent, null, dispatcher);
+               runtimeId, currentLayout, targetLayout, agent, null, dispatcher);
             captured.addAll(dispatcher.getCapturedCommands());
             return null;
          });
@@ -716,11 +748,11 @@ public class SheetAgentBroadcastService {
          sendCommand(user, sessionId, runtimeId, undoState);
 
          LOG.info("Pairing layout refresh sent (runtimeId={}, layout={}, commands={})",
-                  runtimeId, layoutName, captured.size());
+                  runtimeId, targetLayout, captured.size());
       }
       catch(Exception e) {
          LOG.warn("Failed to push the layout designer refresh (runtimeId={}, layout={})",
-                  master.getID(), layoutName, e);
+                  master.getID(), targetLayout, e);
       }
    }
 
