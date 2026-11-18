@@ -193,6 +193,7 @@ public class ViewsheetAssemblyAgentController {
       this.selectionService = selectionService;
       this.calendarService = calendarService;
       this.inputService = inputService;
+      this.outputValueService = new OutputValueService(sessions);
       this.maxModeService = maxModeService;
       this.selectionLayoutService = selectionLayoutService;
       this.formTableRowService = formTableRowService;
@@ -2562,6 +2563,22 @@ public class ViewsheetAssemblyAgentController {
    }
 
    /**
+    * {@code get_output_value}. Read-only: the computed value, formatted value and tooltip text of the
+    * named output assemblies (every data-bound output assembly when none is named). No checkpoint,
+    * no refresh: the value is as of the assembly's last refresh.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/output/value")
+   public Map<String, Object> getOutputValue(@PathVariable String sessionToken,
+                                             @RequestParam(required = false)
+                                             List<String> assembly,
+                                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return outputValueService.getValues(sessionToken, user, assembly);
+   }
+
+   /**
     * {@code set_assembly_maximized}. Toggles an assembly's runtime Maximize/Restore state --
     * the title-bar "Show Enlarged"/"Show Actual Size" button -- distinct from the assembly's
     * persisted design-time size ({@code edit(op:"resize")}).
@@ -4603,6 +4620,7 @@ public class ViewsheetAssemblyAgentController {
    private final SelectionRuntimeService selectionService;
    private final CalendarDisplayService calendarService;
    private final InputValueService inputService;
+   private final OutputValueService outputValueService;
    private final AssemblyMaxModeService maxModeService;
    private final SelectionLayoutService selectionLayoutService;
    private final FormTableRowService formTableRowService;
