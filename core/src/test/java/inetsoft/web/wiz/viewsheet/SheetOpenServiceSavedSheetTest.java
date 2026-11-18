@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeSheet;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
@@ -43,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -170,6 +172,82 @@ class SheetOpenServiceSavedSheetTest {
       assertTrue(command.getValue().viewsheet());
       assertEquals("vs-new", command.getValue().runtimeId());
       assertTrue(command.getValue().agentActive());
+      assertTrue(command.getValue().closeRuntimeOnTabClose());
+   }
+
+   private RuntimeViewsheet openViewsheet(String id, String path, long lastAccessed) {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn(id);
+      when(rvs.getLastAccessed()).thenReturn(lastAccessed);
+      when(rvs.getEntry()).thenReturn(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, path, null, "host-org"));
+      return rvs;
+   }
+
+   @Test
+   void attachesToTheRuntimeTheUserAlreadyHasOpenInsteadOfOpeningASecondCopy() throws Exception {
+      RuntimeViewsheet tab = openViewsheet("vs-tab", "Sales/Dashboard", 5L);
+      RuntimeViewsheet other = openViewsheet("vs-other", "Sales/Other", 9L);
+      when(viewsheetService.getRuntimeViewsheets(same(browser)))
+         .thenReturn(new RuntimeViewsheet[] { tab, other });
+      when(sheetSessions.findAllOnRuntime("vs-tab")).thenReturn(List.of());
+      JoinSession tabSession = session("tok-vs-tab", "vs-tab", SheetType.VIEWSHEET);
+      when(sheetSessions.open(eq("vs-tab"), eq(OWNER), eq(SheetType.VIEWSHEET), any(), any(),
+                              isNull()))
+         .thenReturn(tabSession);
+
+      JoinSession opened = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null, false).session();
+
+      assertEquals("tok-vs-tab", opened.sessionToken());
+      verify(viewsheetService, never()).openViewsheet(any(AssetEntry.class), any(Principal.class),
+                                                      anyBoolean());
+
+      ArgumentCaptor<OpenComposerAssetCommand> command =
+         ArgumentCaptor.forClass(OpenComposerAssetCommand.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      assertEquals("vs-tab", command.getValue().runtimeId());
+      assertFalse(command.getValue().closeRuntimeOnTabClose());
+   }
+
+   @Test
+   void prefersTheUsersOwnTabOverARuntimeAnAgentSessionAlreadyHolds() throws Exception {
+      // vs-orphan is what a page reload leaves behind: newer access, but bound to an agent session
+      RuntimeViewsheet orphan = openViewsheet("vs-orphan", "Sales/Dashboard", 99L);
+      RuntimeViewsheet tab = openViewsheet("vs-tab", "Sales/Dashboard", 5L);
+      when(viewsheetService.getRuntimeViewsheets(same(browser)))
+         .thenReturn(new RuntimeViewsheet[] { orphan, tab });
+      JoinSession held = session("tok-old", "vs-orphan", SheetType.VIEWSHEET);
+      when(sheetSessions.findAllOnRuntime("vs-orphan")).thenReturn(List.of(held));
+      when(sheetSessions.findAllOnRuntime("vs-tab")).thenReturn(List.of());
+      JoinSession tabSession = session("tok-vs-tab", "vs-tab", SheetType.VIEWSHEET);
+      when(sheetSessions.open(eq("vs-tab"), eq(OWNER), eq(SheetType.VIEWSHEET), any(), any(),
+                              isNull()))
+         .thenReturn(tabSession);
+
+      service.openSavedSheet("tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null,
+                             false);
+
+      verify(sheetSessions).open(eq("vs-tab"), eq(OWNER), eq(SheetType.VIEWSHEET), any(), any(),
+                                 isNull());
+      verify(viewsheetService, never()).openViewsheet(any(AssetEntry.class), any(Principal.class),
+                                                      anyBoolean());
+   }
+
+   @Test
+   void opensANewRuntimeWhenTheAssetIsNotOpenForTheUser() throws Exception {
+      RuntimeViewsheet other = openViewsheet("vs-other", "Sales/Other", 9L);
+      when(viewsheetService.getRuntimeViewsheets(same(browser)))
+         .thenReturn(new RuntimeViewsheet[] { other });
+
+      service.openSavedSheet("tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null,
+                             false);
+
+      openedViewsheetEntry();
+      ArgumentCaptor<OpenComposerAssetCommand> command =
+         ArgumentCaptor.forClass(OpenComposerAssetCommand.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      assertEquals("vs-new", command.getValue().runtimeId());
       assertTrue(command.getValue().closeRuntimeOnTabClose());
    }
 
