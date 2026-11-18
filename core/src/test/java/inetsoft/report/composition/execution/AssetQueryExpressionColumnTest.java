@@ -204,8 +204,8 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): an expression that refers to " +
-      "itself reads its own column as empty")
+   @DisplayName("PIN(current behavior, no validation yet, see Bug #81656): an expression " +
+      "that refers to itself reads its own column as empty")
    void pin_selfReference() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "a1", "field['a1'] + 1", XSchema.INTEGER, false, true);
@@ -215,9 +215,9 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a missing column gives null " +
+   @DisplayName("A missing column reads as undefined, so the expression gives null " +
       "values without a message")
-   void pin_missingColumn() throws Exception {
+   void missingColumn() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "bad", "field['nope'] + 1", XSchema.INTEGER, false, true);
       Tool.clearUserMessage();
@@ -227,9 +227,9 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): an expression named like an " +
-      "existing column is dropped")
-   void pin_expressionNamedLikeAColumn() throws Exception {
+   @DisplayName("An expression named like an existing column is dropped (the dialog " +
+      "rejects the name at design time)")
+   void expressionNamedLikeAColumn() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "city", "'X'", XSchema.STRING, false, true);
       TableLens t = box(ws).getTableLens("T", RUNTIME);

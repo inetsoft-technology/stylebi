@@ -445,9 +445,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a used failing calc field " +
-      "gives the sample row 999 and an 'expression failed' message")
-   void pin_usedFailingCalcGivesTheSampleRow() throws Exception {
+   @DisplayName("A used failing calc field gives the design sample row (999) and an " +
+      "'expression failed' message (Bug #71861)")
+   void usedFailingCalcGivesTheSampleRow() throws Exception {
       TableAssembly used = prunedTable("bad", BAD, OK);
       Tool.clearUserMessage();
       assertEquals(Arrays.asList(999), run(used));
@@ -612,7 +612,7 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): the declared type of an " +
+   @DisplayName("PIN(current behavior, open decision, Bug #81632): the declared type of an " +
       "aggregate calc field is ignored in a freehand cell")
    void pin_aggregateCalcDeclaredType() throws Exception {
       for(String type : new String[] { XSchema.INTEGER, XSchema.STRING }) {
@@ -658,7 +658,7 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): the declared type of an " +
+   @DisplayName("PIN(current behavior, open decision, Bug #81632): the declared type of an " +
       "aggregate calc field is ignored in a crosstab")
    void pin_declaredTypeIgnored() throws Exception {
       for(String type : new String[] { XSchema.INTEGER, XSchema.DOUBLE, XSchema.STRING }) {
@@ -690,7 +690,7 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a date aggregate calc field " +
+   @DisplayName("PIN(current behavior, open decision, Bug #81632): a date aggregate calc field " +
       "stays a Timestamp and a comparison stays a Boolean, whatever type is declared")
    void pin_dateAndBooleanDeclaredTypes() throws Exception {
       for(String type : new String[] { XSchema.DATE, XSchema.TIME_INSTANT, XSchema.STRING }) {

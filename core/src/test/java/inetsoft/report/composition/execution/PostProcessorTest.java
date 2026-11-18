@@ -420,7 +420,7 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): 'yes' declared Boolean is false")
+   @DisplayName("PIN(current behavior, open decision, Bug #81632): 'yes' declared Boolean is false")
    void pin_yesIsFalse() {
       assertEquals(false, first(onePrice(1.0), "'yes'", XSchema.BOOLEAN));
    }
@@ -616,12 +616,16 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): 'abc' declared Boolean is " +
-      "false and '12.5' declared Integer is 12")
-   void pin_booleanAndIntegerFromText() {
-      Object[][] data = onePrice(1.0);
-      assertEquals(false, first(data, "'abc'", XSchema.BOOLEAN));
-      assertEquals(12, first(data, "'12.5'", XSchema.INTEGER));
+   @DisplayName("PIN(current behavior, open decision, Bug #81632): 'abc' declared Boolean is " +
+      "false")
+   void pin_booleanFromText() {
+      assertEquals(false, first(onePrice(1.0), "'abc'", XSchema.BOOLEAN));
+   }
+
+   @Test
+   @DisplayName("A fractional text declared Integer is cut, '12.5' is 12 (Bug #81200)")
+   void integerFromFractionalText() {
+      assertEquals(12, first(onePrice(1.0), "'12.5'", XSchema.INTEGER));
    }
 
    @Test
@@ -634,9 +638,9 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a date declared String is " +
-      "the Timestamp text")
-   void pin_dateDeclaredString() {
+   @DisplayName("A date declared String is the Timestamp text (the generic converter's " +
+      "toString)")
+   void dateDeclaredString() {
       assertEquals("2001-08-15 00:00:00.0",
                    first(oneDate(ts("2001-08-15")), "field['orderdate']", XSchema.STRING));
    }
