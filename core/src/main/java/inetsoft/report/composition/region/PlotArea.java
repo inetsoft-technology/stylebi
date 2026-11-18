@@ -494,8 +494,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
     */
    public Point2D getScrollAnchor() {
       if(egraph == null || egraph.getElementCount() == 0 ||
-         !(egraph.getElement(0) instanceof RelationElement relation) ||
-         !relation.isPlotFit() || relation.getAlgorithm() != RelationElement.Algorithm.COMPACT_TREE)
+         !(egraph.getElement(0) instanceof RelationElement relation) || !relation.isPlotFit() ||
+         relation.getAlgorithm() != RelationElement.Algorithm.COMPACT_TREE)
       {
          return null;
       }

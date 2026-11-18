@@ -336,8 +336,16 @@ public class TimeScale extends Scale {
    @Override
    @TernMethod
    public double getMax() {
-      double pad = umax == null && endPadRatio > 0 ? Math.max(0, getMax0() - getMin0()) * endPadRatio : 0;
-      return getMax0() + getGap() + pad;
+      return getMax0() + getGap() + getEndPad();
+   }
+
+   // the pad past the last date, none when a maximum is set
+   private double getEndPad() {
+      if(umax == null && endPadRatio > 0) {
+         return Math.max(0, getMax0() - getMin0()) * endPadRatio;
+      }
+
+      return 0;
    }
 
    /**

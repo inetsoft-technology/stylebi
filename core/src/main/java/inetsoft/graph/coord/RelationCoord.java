@@ -320,23 +320,31 @@ public class RelationCoord extends Coordinate {
 
    // whether the first element lays out in the plot box and so never needs to scroll
    private boolean isPlotFitted() {
-      VGraph vg = getVGraph();
-      EGraph eg = vg != null ? vg.getEGraph() : null;
-      return getParentCoordinate() == null && eg != null && eg.getElementCount() > 0
-         && eg.getElement(0) instanceof RelationElement re
-         && re.isPlotFit() && (re.getAlgorithm() == RelationElement.Algorithm.CIRCLE ||
-            re.getAlgorithm() == RelationElement.Algorithm.ORGANIC);
+      RelationElement re = getPlotFitElement();
+      return re != null && re.isFittedAlgorithm() &&
+         re.getAlgorithm() != RelationElement.Algorithm.COMPACT_TREE;
    }
 
    // a tree laid out in the plot box, not faceted, or null
    private RelationElement getFittedTree() {
+      RelationElement re = getPlotFitElement();
+
+      if(re != null && re.getAlgorithm() == RelationElement.Algorithm.COMPACT_TREE &&
+         re.getLaidOutBox() != null)
+      {
+         return re;
+      }
+
+      return null;
+   }
+
+   // the first element if it is a plot-fit relation outside a facet, or null
+   private RelationElement getPlotFitElement() {
       VGraph vg = getVGraph();
       EGraph eg = vg != null ? vg.getEGraph() : null;
 
-      if(getParentCoordinate() == null && eg != null && eg.getElementCount() > 0
-         && eg.getElement(0) instanceof RelationElement re && re.isPlotFit()
-         && re.getAlgorithm() == RelationElement.Algorithm.COMPACT_TREE
-         && re.getLaidOutBox() != null)
+      if(getParentCoordinate() == null && eg != null && eg.getElementCount() > 0 &&
+         eg.getElement(0) instanceof RelationElement re && re.isPlotFit())
       {
          return re;
       }

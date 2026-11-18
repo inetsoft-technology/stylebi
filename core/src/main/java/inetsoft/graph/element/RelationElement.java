@@ -330,8 +330,11 @@ public class RelationElement extends GraphElement {
       return box != null ? box : new DimensionD(layoutSize.width, layoutSize.height);
    }
 
-   // algorithms that lay out inside the plot box under plotFit
-   private boolean isFittedAlgorithm() {
+   /**
+    * Check whether the algorithm lays out inside the plot box under plotFit.
+    * @hidden
+    */
+   public boolean isFittedAlgorithm() {
       return algorithm == Algorithm.CIRCLE || algorithm == Algorithm.ORGANIC ||
          algorithm == Algorithm.COMPACT_TREE;
    }
