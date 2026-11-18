@@ -28,7 +28,8 @@
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.logical-model-tree-node:hover:not(.logical-model-tree-node--selected) {
+// the template marks the selected node .bg-selected; a selected node keeps its selected fill on hover
+.logical-model-tree-node:hover:not(.bg-selected):not(.logical-model-tree-node--selected) {
   background: var(--inet-list-hover-bg-color);
 }
 

@@ -760,9 +760,14 @@ a:not([href]) {
     background-color: var(--inet-hover-primary-bg-color);
   }
 
-  // an item marked with the shell selected fill (the current bookmark) keeps it while hovered
+  // an item marked with the shell selected fill (the current bookmark) keeps it while hovered,
+  // focused or pressed
   &.bg-selected:hover,
-  &.bg-bold-selected:hover {
+  &.bg-selected:focus,
+  &.bg-selected:active,
+  &.bg-bold-selected:hover,
+  &.bg-bold-selected:focus,
+  &.bg-bold-selected:active {
     background-color: var(--inet-shell-selected-bg-color);
   }
 }
