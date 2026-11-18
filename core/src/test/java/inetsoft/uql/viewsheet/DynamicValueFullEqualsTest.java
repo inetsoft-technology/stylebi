@@ -17,12 +17,22 @@
  */
 package inetsoft.uql.viewsheet;
 
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class DynamicValueFullEqualsTest {
    @Test
@@ -143,5 +153,62 @@ class DynamicValueFullEqualsTest {
       five.setRValue(5L);
       six.setRValue(6L);
       assertFalse(five.fullEquals(six));
+   }
+
+   @Test
+   void readLiteralFullEqualsFreshLiteral() {
+      DynamicValue read = new DynamicValue("v");
+      DynamicValue fresh = new DynamicValue("v");
+      assertEquals("v", read.getRValue());
+
+      assertTrue(read.fullEquals(fresh));
+      assertTrue(fresh.fullEquals(read));
+      assertEquals(read.fullHashCode(), fresh.fullHashCode());
+   }
+
+   @Test
+   void fullEqualsAndHashCodeDoNotWriteRuntimeValue() {
+      DynamicValue a = new DynamicValue("v");
+      DynamicValue b = new DynamicValue("v");
+      b.getRValue();
+
+      a.fullEquals(b);
+      b.fullEquals(a);
+      a.fullHashCode();
+
+      assertNull(readRValueField(a));
+   }
+
+   private static Object readRValueField(DynamicValue val) {
+      try {
+         java.lang.reflect.Field field = DynamicValue.class.getDeclaredField("rvalue");
+         field.setAccessible(true);
+         return field.get(val);
+      }
+      catch(ReflectiveOperationException ex) {
+         throw new AssertionError(ex);
+      }
+   }
+
+   @Test
+   void unsetVariableOrScriptIsNotFullEqualToSetRuntimeValue() {
+      for(String expr : new String[] { "$(x)", "=x" }) {
+         DynamicValue unset = new DynamicValue(expr);
+         DynamicValue set = new DynamicValue(expr);
+         set.setRValue("v");
+
+         assertFalse(unset.fullEquals(set), expr);
+         assertFalse(set.fullEquals(unset), expr);
+      }
+   }
+
+   @Test
+   void freshLiteralIsNotFullEqualToDifferentRuntimeValue() {
+      DynamicValue fresh = new DynamicValue("v");
+      DynamicValue other = new DynamicValue("v");
+      other.setRValue("x");
+
+      assertFalse(fresh.fullEquals(other));
+      assertFalse(other.fullEquals(fresh));
    }
 }
