@@ -292,18 +292,29 @@ public class VGraphPair {
    static void applyResizePercent(VSChartInfo info, EGraph egraph, double initialWidthRatio,
                                   double initialHeightRatio)
    {
-      // a fitted relation chart is unresized, so a stored percent is stale
+      // a relation chart's percent is of the initial ratio 1 it reports, so its size holds
       if(egraph != null && egraph.getElementCount() > 0 &&
-         egraph.getElement(0) instanceof RelationElement relation && relation.isPlotFit())
+         egraph.getElement(0) instanceof RelationElement)
       {
-         return;
+         initialWidthRatio = 1;
+         initialHeightRatio = 1;
+
+         // the slider starts from the stored ratio, so an axis not resized keeps none
+         if(!info.isWidthResized()) {
+            info.setUnitWidthRatio(1);
+         }
+
+         if(!info.isHeightResized()) {
+            info.setUnitHeightRatio(1);
+         }
       }
 
-      if(info.getUnitWidthRatioPercent() >= 1) {
+      // a percent left behind by Reset Size applies to no axis
+      if(info.isWidthResized() && info.getUnitWidthRatioPercent() >= 1) {
          info.setUnitWidthRatio(initialWidthRatio * info.getUnitWidthRatioPercent());
       }
 
-      if(info.getUnitHeightRatioPercent() >= 1) {
+      if(info.isHeightResized() && info.getUnitHeightRatioPercent() >= 1) {
          info.setUnitHeightRatio(initialHeightRatio * info.getUnitHeightRatioPercent());
       }
    }

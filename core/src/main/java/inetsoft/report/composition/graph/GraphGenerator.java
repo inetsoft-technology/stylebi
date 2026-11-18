@@ -4008,8 +4008,13 @@ public abstract class GraphGenerator {
             break;
          }
 
-         elem.setWidthRatio(info.getUnitWidthRatio());
-         elem.setHeightRatio(info.getUnitHeightRatio());
+         AbstractChartInfo ainfo = info instanceof AbstractChartInfo a ? a : null;
+         elem.setWidthRatio(getRelationRatio(
+            info.isWidthResized(), info.getUnitWidthRatio(),
+            ainfo != null ? ainfo.getUnitWidthRatioPercent() : 0));
+         elem.setHeightRatio(getRelationRatio(
+            info.isHeightResized(), info.getUnitHeightRatio(),
+            ainfo != null ? ainfo.getUnitHeightRatioPercent() : 0));
          elements.add(elem);
       }
       else if(GraphTypes.isMekko(chartType)) {
@@ -5186,6 +5191,15 @@ public abstract class GraphGenerator {
 
       initElementTextID(elem, chartType);
       graph.addElement(elem);
+   }
+
+   /**
+    * Get the ratio a relation element draws an axis at. A resized axis takes the author's
+    * percent, as VGraphPair folds it against the initial ratio 1; an axis the author has not
+    * resized keeps no stale ratio.
+    */
+   private static double getRelationRatio(boolean resized, double ratio, double percent) {
+      return !resized ? 1 : percent >= 1 ? percent : ratio;
    }
 
    /**
