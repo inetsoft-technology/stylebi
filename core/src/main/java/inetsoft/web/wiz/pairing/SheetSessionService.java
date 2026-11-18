@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import inetsoft.web.wiz.script.PaneScopeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -280,21 +281,28 @@ public class SheetSessionService {
    }
 
    /**
-    * Ends the one pane-scoped session bound to both {@code socketSessionId} and
-    * {@code editorContext}, if any -- called explicitly when the script pane or formula editor
-    * that produced it is destroyed (its dialog closed or cancelled). Scoped to the exact
-    * {@code editorContext} match, not just the socket, so closing one pane does not end a
-    * session paired from a different pane/dialog still open on the same browser socket.
+    * Ends the pane-scoped session(s) bound to {@code socketSessionId} and to the dialog
+    * {@code editorContext} names, if any -- called explicitly when the script pane or formula
+    * editor that produced it is destroyed (its dialog closed or cancelled). Scoped to that
+    * location, not just the socket, so closing one pane does not end a session paired from a
+    * different pane/dialog still open on the same browser socket.
+    *
+    * <p>"That location" is the exact {@code editorContext} OR a dialog sibling of it
+    * ({@link PaneScopeService#areDialogSiblings}: Script/onClick of the same assembly, or
+    * onInit/onRefresh): the dialog detaches with the context it minted, and a session the user
+    * has since moved with {@link #switchWithinDialog} sits on the sibling. Matching only the
+    * minted context would leave that session live after its dialog closed (Bug #81676).
     *
     * <p>Distinct from {@link #socketClosed}, which reacts to the transport itself going away
     * (crash/network drop) rather than a deliberate, in-app close.
     */
    public void detach(String socketSessionId, EditorContext editorContext) {
       if(socketSessionId == null || editorContext == null) return;
-      paneStates.keySet().removeIf(k -> editorContext.equals(k.editorContext()) &&
+      paneStates.keySet().removeIf(k -> sameDialogLocation(editorContext, k.editorContext()) &&
                                         socketSessionId.equals(k.socketSessionId()));
       List<JoinSession> ended = removeSessionsIf(
-         s -> editorContext.equals(s.editorContext()) && socketSessionId.equals(s.socketSessionId()));
+         s -> sameDialogLocation(editorContext, s.editorContext()) &&
+              socketSessionId.equals(s.socketSessionId()));
       notifyAgentInactive(ended);
    }
 
@@ -488,6 +496,89 @@ public class SheetSessionService {
       JoinSession retargeted = withEditorContext(session, next);
       sessions.put(session.sessionToken(), retargeted);
       return retargeted;
+   }
+
+   /**
+    * Moves the pane-scoped session(s) that are bound to {@code from} on {@code (socketSessionId,
+    * runtimeId)} to {@code to}, when the user flips the radio of the dialog that hosts both
+    * scripts (Script/onClick, or onInit/onRefresh) -- the paired location follows what the user
+    * is looking at. The token, TTL and Follow Focus flag are kept; no focus-stack frame is
+    * pushed, because this is not a move onto another pane.
+    *
+    * <p>It does not widen what a session may touch and so needs no Follow Focus opt-in: the
+    * session is looked up by the browser socket (server-derived, never from a payload) AND its
+    * current location, so a whole-sheet session or one paired elsewhere is never moved, and
+    * {@code to} must be a dialog sibling of {@code from} on the SAME assembly
+    * ({@link PaneScopeService#areDialogSiblings}) -- both already inside the grant
+    * {@link PaneScopeService#matchesGrant} gives either of them. Moving to another assembly or
+    * kind family stays the opt-in {@link #retarget}. {@code to} is validated like a mint.
+    *
+    * <p>The reported pane state ({@link #setPaneState}) moves with the session.
+    *
+    * @return the sessions that moved, never empty
+    * @throws PairingException on a missing argument, a {@code to} that is not a dialog sibling,
+    *                          a location the runtime does not have, or when no live session is
+    *                          bound to {@code from}; nothing is changed on any of them
+    */
+   public List<JoinSession> switchWithinDialog(String socketSessionId, String runtimeId,
+                                               EditorContext from, EditorContext to)
+      throws PairingException
+   {
+      if(socketSessionId == null || runtimeId == null || from == null || to == null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "runtimeId, from and to are required");
+      }
+
+      if(!PaneScopeService.areDialogSiblings(from, to)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "A pane session can only follow the radio of its own dialog (Script/onClick of the " +
+            "same assembly, or onInit/onRefresh); it cannot move from " + from.kind() + " to " +
+            to.kind() + (java.util.Objects.equals(from.assembly(), to.assembly())
+               ? "" : " on another assembly") + ".");
+      }
+
+      long now = clock.getAsLong();
+      List<JoinSession> bound = new ArrayList<>();
+
+      for(JoinSession s : sessions.values()) {
+         if(!s.isExpired(now) && runtimeId.equals(s.runtimeId()) &&
+            socketSessionId.equals(s.socketSessionId()) && from.equals(s.editorContext()))
+         {
+            bound.add(s);
+         }
+      }
+
+      if(bound.isEmpty()) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+            "No live pane session on socket " + socketSessionId + " and runtime " + runtimeId +
+            " is bound to " + from.kind());
+      }
+
+      pairing.validateEditorContext(bound.get(0).sheetType(), runtimeId,
+                                    bound.get(0).ownerIdentity(), to);
+
+      List<JoinSession> moved = new ArrayList<>();
+
+      for(JoinSession s : bound) {
+         JoinSession switched = withEditorContext(s, to);
+
+         if(sessions.replace(s.sessionToken(), s, switched)) {
+            moved.add(switched);
+         }
+      }
+
+      PaneState state = paneStates.remove(new PaneKey(socketSessionId, runtimeId, from));
+
+      if(state != null) {
+         paneStates.put(new PaneKey(socketSessionId, runtimeId, to), state);
+      }
+
+      return moved;
+   }
+
+   /** The exact location, or the other script its dialog hosts behind a radio. */
+   private static boolean sameDialogLocation(EditorContext requested, EditorContext bound) {
+      return requested.equals(bound) || PaneScopeService.areDialogSiblings(requested, bound);
    }
 
    /**

@@ -217,4 +217,37 @@ describe("FollowFocusService", () => {
          expect(pushed).toBe(false);
       });
    });
+
+   describe("switchPane", () => {
+      const script = { kind: "assemblyMain", assembly: "Submit1" };
+      const onClick = { kind: "assemblyOnClick", assembly: "Submit1" };
+
+      it("sends the from and to locations over the pane-switch destination", () => {
+         service.switchPane("rt-1", mockSocketConnection, script, onClick);
+
+         expect(mockStompConnection.send).toHaveBeenCalledWith(
+            "/events/wiz/pairing/pane-switch", {},
+            JSON.stringify({ runtimeId: "rt-1", from: script, to: onClick }));
+      });
+
+      it("sends nothing without a runtime, a connection or both locations", () => {
+         service.switchPane("", mockSocketConnection, script, onClick);
+         service.switchPane("rt-1", null as any, script, onClick);
+         service.switchPane("rt-1", mockSocketConnection, null as any, onClick);
+
+         expect(mockStompConnection.send).not.toHaveBeenCalled();
+      });
+
+      it("rewrites the pushed Follow Focus frame so the close-time check still matches", () => {
+         const error = vi.spyOn(console, "error").mockImplementation(() => {});
+         service.setEnabled("rt-1", mockSocketConnection, true);
+         service.pushFocus("rt-1", mockSocketConnection, script);
+
+         service.switchPane("rt-1", mockSocketConnection, script, onClick);
+         service.popFocus("rt-1", mockSocketConnection, onClick);
+
+         expect(error).not.toHaveBeenCalled();
+         error.mockRestore();
+      });
+   });
 });

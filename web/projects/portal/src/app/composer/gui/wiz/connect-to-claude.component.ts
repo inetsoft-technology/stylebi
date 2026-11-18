@@ -23,7 +23,7 @@ import { Subscription } from "rxjs";
 import { filter, take } from "rxjs/operators";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
-import { draftTargetLabel, dynamicValueLabel, EditorContext } from "./editor-context";
+import { draftTargetLabel, dynamicValueLabel, EditorContext, isDialogRadioSwitch } from "./editor-context";
 import { FollowFocusService } from "./services/follow-focus.service";
 import { FormsModule } from "@angular/forms";
 
@@ -139,6 +139,15 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     * correct because with no minted code there is no session of ours to end.
     */
    private mintedEditorContext: EditorContext | null = null;
+
+   /**
+    * The location the agent's session is bound to now: {@link #mintedEditorContext} until the user
+    * flips the dialog's radio (Script/onClick, onInit/onRefresh), then the script the session was
+    * moved to with it (see {@link #followRadio}). What the pane state is reported against.
+    * `detach()` still sends the minted context -- the server ends the session of that dialog
+    * whichever of its two scripts it sits on.
+    */
+   private boundContext: EditorContext | null = null;
 
    /**
     * The session's LIVE target, tracked only on the whole-sheet (toolbar) instance --
@@ -266,10 +275,39 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          this.copied = false;
          this.connected = false;
          this.mintedEditorContext = null;
+         this.boundContext = null;
          this.hasMinted = false;
          this.currentTarget = null;
          this.cancelRequest();
       }
+
+      if(changes["editorContext"]) {
+         this.followRadio();
+      }
+   }
+
+   /**
+    * The host's `editorContext` follows the dialog's radio, but the session was bound to the
+    * location a code was minted for. When the user flips the radio of an agent-connected dialog
+    * (Script/onClick, onInit/onRefresh), tells the server to move the session along, so the
+    * paired location, `status` and the script tools' default target stay on the script being
+    * looked at (Bug #81676). Nothing to move before an agent has joined -- there is no session
+    * yet -- so a join notice runs this again. The host's getter hands out a new object on every
+    * change detection, hence the comparison by value in {@link isDialogRadioSwitch}.
+    */
+   private followRadio(): void {
+      const live = this.editorContext;
+
+      if(!this.connected || !this.hasMinted || this.mintedEditorContext === null ||
+         !this.socketConnection || !isDialogRadioSwitch(this.boundContext, live))
+      {
+         return;
+      }
+
+      this.followFocusService.switchPane(
+         this.runtimeId, this.socketConnection, this.boundContext, live);
+      this.boundContext = live;
+      this.reportPaneState();
    }
 
    /**
@@ -386,6 +424,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
                      if(body.code) {
                         this.code = body.code;
                         this.mintedEditorContext = requestedContext ?? null;
+                        this.boundContext = this.mintedEditorContext;
                         this.hasMinted = true;
                         this.reportPaneState();
                      }
@@ -468,6 +507,9 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          if(this.mintedEditorContext === null) {
             this.currentTarget = body.editorContext ?? null;
          }
+
+         // The user may have flipped the radio between minting and the agent joining.
+         this.followRadio();
       });
    }
 
@@ -539,7 +581,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     * mint, or when the host has no SQL/Script switch.
     */
    private reportPaneState(): void {
-      const context = this.mintedEditorContext;
+      const context = this.boundContext;
 
       if(this.sqlMode === undefined || !this.hasMinted || !context || !this.socketConnection) {
          return;

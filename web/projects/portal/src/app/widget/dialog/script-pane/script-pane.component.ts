@@ -35,7 +35,7 @@ import {
 } from "@angular/core";
 import { DataRef } from "../../../common/data/data-ref";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
-import { EditorContext } from "../../../composer/gui/wiz/editor-context";
+import { EditorContext, isDialogRadioSwitch } from "../../../composer/gui/wiz/editor-context";
 import { ConnectToClaudeComponent } from "../../../composer/gui/wiz/connect-to-claude.component";
 import { FollowFocusService } from "../../../composer/gui/wiz/services/follow-focus.service";
 import { FormulaFunctionAnalyzerService } from "./formula-function-analyzer.service";
@@ -283,6 +283,17 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    }
 
    ngOnChanges(changes: SimpleChanges): void {
+      // The radio of a dialog that hosts two scripts moved the pane's location: a session Follow
+      // Focus pushed here follows it, and the pane's own pop must match what it pushed now.
+      if(changes["editorContext"] && this.followFocusPushed &&
+         isDialogRadioSwitch(this.pushedEditorContext, this.editorContext))
+      {
+         const switchedTo = this.editorContext;
+         this.followFocusService.switchPane(
+            this.runtimeId, this.socketConnection, this.pushedEditorContext, switchedTo);
+         this.pushedEditorContext = switchedTo;
+      }
+
       if(this.columnTreeRoot && this.initialized) {
          this.needUseVirtualScroll = TreeTool.needUseVirtualScroll(this.columnTreeRoot);
       }
