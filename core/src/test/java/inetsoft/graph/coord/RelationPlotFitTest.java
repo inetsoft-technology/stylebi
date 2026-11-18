@@ -64,11 +64,12 @@ class RelationPlotFitTest {
    void aFittedCircleStaysInsideThePlot() {
       for(int n : new int[] { 8, 30, 120 }) {
          assertInside(circle(n, true, false, 376, 190), "plain, " + n + " nodes");
-      }
 
-      Circle legend = circle(30, true, true, 376, 190);
-      assertTrue(legend.vgraph().getPlotBounds().getWidth() < 376 - 20, "premise: a legend");
-      assertInside(legend, "with a legend");
+         Circle legend = circle(n, true, true, 376, 190);
+         assertTrue(legend.vgraph().getPlotBounds().getWidth() < 376 - 20,
+                    "premise: a legend, " + n + " nodes");
+         assertInside(legend, "with a legend, " + n + " nodes");
+      }
    }
 
    @Test

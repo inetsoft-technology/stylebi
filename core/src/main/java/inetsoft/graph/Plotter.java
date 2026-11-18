@@ -103,6 +103,11 @@ public class Plotter {
       // consider re-arrange the flow. (51700)
       if(graph.getCoordinate().requiresReplot()) {
          vgraph = plot(data);
+
+         if(vgraph == null) { // cancelled
+            return null;
+         }
+
          vgraph.layout(x, y, w, h);
       }
 

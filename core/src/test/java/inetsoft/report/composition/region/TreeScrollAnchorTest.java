@@ -21,6 +21,7 @@ import inetsoft.graph.EGraph;
 import inetsoft.graph.Plotter;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.aesthetic.StaticSizeFrame;
+import inetsoft.graph.coord.FacetCoord;
 import inetsoft.graph.coord.RelationCoord;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.RelationElement;
@@ -138,6 +139,23 @@ class TreeScrollAnchorTest {
    }
 
    @Test
+   void aFacetedTreeHasNoAnchor() {
+      Object[][] rows = {
+         { "Group", "Parent", "Child" },
+         { "G1", "R1", "A1" }, { "G1", "R1", "A2" }, { "G1", "R1", "A3" },
+         { "G2", "R2", "B1" }, { "G2", "R2", "B2" }, { "G2", "R2", "B3" } };
+      Plot plot = plot(rows, GraphTypes.CHART_TREE, VizMark.MODERN_LIGHT, null, 376, 190,
+                       "Group");
+
+      assertInstanceOf(FacetCoord.class, plot.graph().getCoordinate(),
+                       "premise: a faceted plot");
+      assertTrue(((RelationElement) plot.graph().getElement(0)).isPlotFit(),
+                 "premise: a marked, unresized tree");
+      assertFalse(plot.rootBounds().isEmpty(), "premise: root nodes drawn");
+      assertNull(plot.area().getScrollAnchor(), "faceted marked tree");
+   }
+
+   @Test
    void rootsAreTheSourceOnlyNodes() {
       assertEquals(List.of("R"), rootNames(new Object[][] {
          { "From", "To" }, { "R", "A" }, { "R", "B" }, { "A", "C" } }));
@@ -188,6 +206,12 @@ class TreeScrollAnchorTest {
    private static Plot plot(Object[][] rows, int chartType, VizMark mark, String layout,
                             int width, int height)
    {
+      return plot(rows, chartType, mark, layout, width, height, null);
+   }
+
+   private static Plot plot(Object[][] rows, int chartType, VizMark mark, String layout,
+                            int width, int height, String facetField)
+   {
       VSChartDimensionRef source = dim("Parent");
       VSChartDimensionRef target = dim("Child");
       RelationVSChartInfo cinfo = new RelationVSChartInfo();
@@ -197,6 +221,11 @@ class TreeScrollAnchorTest {
       cinfo.setTargetField(target);
       cinfo.setRTSourceField(source);
       cinfo.setRTTargetField(target);
+
+      if(facetField != null) {
+         cinfo.addXField(dim(facetField));
+      }
+
       cinfo.updateChartType(false);
 
       ChartDescriptor desc = new ChartDescriptor();
@@ -215,7 +244,7 @@ class TreeScrollAnchorTest {
       EGraph graph = gen.createEGraph();
       VGraph vgraph = Plotter.getPlotter(graph).plotAndLayout(gen.getData(), 0, 0, width, height);
       PlotArea area = new ChartArea(vgraph, graph, gen.getData(), null, cinfo).getPlotArea();
-      return new Plot(area);
+      return new Plot(area, graph);
    }
 
    private static VSChartDimensionRef dim(String name) {
@@ -224,7 +253,7 @@ class TreeScrollAnchorTest {
       return dim;
    }
 
-   private record Plot(PlotArea area) {
+   private record Plot(PlotArea area, EGraph graph) {
       Point2D anchor() {
          Point2D anchor = area.getScrollAnchor();
          assertNotNull(anchor, "premise: an anchor");

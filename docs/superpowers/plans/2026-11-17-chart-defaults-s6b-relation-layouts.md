@@ -335,7 +335,7 @@ Expected: the new anchor cases fail.
 Run: `./mvnw -q test -pl core "-Dtest=inetsoft.graph.**.*Test,inetsoft.report.composition.graph.**.*Test,inetsoft.report.composition.region.**.*Test" -Dsurefire.failIfNoSpecifiedTests=false`
 Expected: 0 failures. Report the counts from `core/target/surefire-reports`. Then run `VSChartRelationNodeLegendTest` with `-Dsurefire.groups=slow`.
 
-- [ ] **Step 2: Record the design calls in the spec.** Add rows D108 to D114 to §10 ("Design, from the S6b plan"), one for each of the seven design calls in this plan's list, plus any ruling made during execution. Add one line to the "S6b relation layouts" section citing them. Commit: `Chart defaults S6, record the S6b design calls`.
+- [ ] **Step 2: Record the design calls in the spec.** Add rows D109 to D115 (D108 is S6a's Gantt-pad ruling) to §10 ("Design, from the S6b plan"), one for each of the seven design calls in this plan's list, plus any ruling made during execution. Add one line to the "S6b relation layouts" section citing them. Commit: `Chart defaults S6, record the S6b design calls`.
 
 - [ ] **Step 3: Write the live-check handoff**, in the format of `E:/Temp/chart-defaults-s6a-checks-handoff.md`: base build `263f6be838`, head build this branch, and a Result column. Use the bundle's repro charts (`chart-defaults-design/repro/charts.md`, "Circular network", "Network", "Tree"). Rows:
   - **S6-4:** circular networks of 8, 30 and 120 nodes, and one with colour by cluster (a legend), at dense, compact and comfortable.

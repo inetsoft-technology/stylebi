@@ -500,6 +500,13 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          return null;
       }
 
+      // a faceted tree keeps today's layout
+      if(!(egraph.getCoordinate() instanceof RelationCoord coord) ||
+         coord.getParentCoordinate() != null)
+      {
+         return null;
+      }
+
       Rectangle2D union = null;
 
       for(DefaultArea child : getOriginalAreas()) {

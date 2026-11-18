@@ -287,6 +287,28 @@ public class VGraphPair {
    }
 
    /**
+    * Fold an author's stored resize percent into the unit ratios.
+    */
+   static void applyResizePercent(VSChartInfo info, EGraph egraph, double initialWidthRatio,
+                                  double initialHeightRatio)
+   {
+      // a fitted relation chart is unresized, so a stored percent is stale
+      if(egraph != null && egraph.getElementCount() > 0 &&
+         egraph.getElement(0) instanceof RelationElement relation && relation.isPlotFit())
+      {
+         return;
+      }
+
+      if(info.getUnitWidthRatioPercent() >= 1) {
+         info.setUnitWidthRatio(initialWidthRatio * info.getUnitWidthRatioPercent());
+      }
+
+      if(info.getUnitHeightRatioPercent() >= 1) {
+         info.setUnitHeightRatio(initialHeightRatio * info.getUnitHeightRatioPercent());
+      }
+   }
+
+   /**
     * Intialize visual graphs.
     */
    private void initGraph0(ViewsheetSandbox box, String cname, Dimension maxsize,
@@ -789,13 +811,7 @@ public class VGraphPair {
          }
       }
 
-      if(info.getUnitWidthRatioPercent() >= 1) {
-         info.setUnitWidthRatio(initialWidthRatio * info.getUnitWidthRatioPercent());
-      }
-
-      if(info.getUnitHeightRatioPercent() >= 1) {
-         info.setUnitHeightRatio(initialHeightRatio * info.getUnitHeightRatioPercent());
-      }
+      applyResizePercent(info, vgraph.getEGraph(), initialWidthRatio, initialHeightRatio);
 
       double widthRatio = info.getUnitWidthRatio();
       double heightRatio = info.getUnitHeightRatio();
