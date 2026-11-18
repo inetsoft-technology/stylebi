@@ -269,6 +269,16 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          storage.put(target, entry.getValue()).get(10L, TimeUnit.SECONDS);
       }
 
+      // the copies must be readable before the legacy key, which may be the only holder of the
+      // grants, is removed (Bug #81587)
+      for(String org : permissionMap.keySet()) {
+         if(!storage.contains(getResourceKey(type, path, getResourceOrgID(org)))) {
+            throw new IllegalStateException(
+               "The copy of the permission " + key + " for organization " + org +
+               " is missing, the legacy key is kept");
+         }
+      }
+
       storage.remove(key).get(10L, TimeUnit.SECONDS);
    }
 
@@ -293,7 +303,25 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          .anyMatch(o -> !"null".equals(o) && !o.equals(orgID));
 
       return otherOrg && !knownOrgs.computeIfAbsent(orgID, o ->
+         isOrgChanging(o) ||
          SecurityEngine.getSecurity().getSecurityProvider().getOrganization(o) != null);
+   }
+
+   /**
+    * Checks if the organization id is the old or the new id of a running organization id change
+    * or clone, on any node. Its keys are then already isolated, the organization is only not
+    * registered yet, so they are not legacy keys (Bug #81587). If the state can't be read the
+    * key is kept.
+    */
+   private boolean isOrgChanging(String orgID) {
+      try {
+         return OrgIdChangeGuard.isBlocked(orgID);
+      }
+      catch(RuntimeException e) {
+         LOG.warn("Failed to check whether the id of organization {} is changing, " +
+                  "keeping its permissions", orgID, e);
+         return true;
+      }
    }
 
    /**
