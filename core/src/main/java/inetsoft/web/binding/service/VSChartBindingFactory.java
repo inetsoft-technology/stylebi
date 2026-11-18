@@ -21,6 +21,7 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.ColorMapModel;
@@ -80,6 +81,7 @@ public class VSChartBindingFactory extends VSBindingFactory<ChartVSAssembly, Cha
       ChartBindingModel chartBinding = infoBuild.createChartBinding(
          vsChartInfo, plotDescriptor, wizard);
       chartBinding.setHasDateComparison(info.getDateComparisonRef() != null);
+      chartBinding.setVizModern(VizContext.of(info).modern);
       return applyColorsToFrame(chartBinding, assembly);
    }
 

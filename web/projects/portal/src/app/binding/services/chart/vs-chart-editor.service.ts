@@ -183,6 +183,10 @@ export class VSChartEditorService extends ChartEditorService {
 
       const chartType = chartType0 || binding.chartType;
 
+      if(binding.vizModern && GraphTypes.isCandle(chartType) && dropType == "color") {
+         return !isDimension;
+      }
+
       if(GraphTypes.isGeo(chartType) &&
          (dropType == "xfields" || dropType == "yfields"))
       {
