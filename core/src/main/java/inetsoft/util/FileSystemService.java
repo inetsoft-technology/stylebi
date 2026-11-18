@@ -499,20 +499,35 @@ public class FileSystemService {
    /**
     * Remove removable files.
     */
-   private synchronized void remove() {
-      for(int i = list.size() - 1; i >= 0; i--) {
-         FileEntry entry = list.get(i);
+   private void remove() {
+      List<FileEntry> removable = new ArrayList<>();
 
-         if(!entry.isRemovable()) {
-            break;
+      // Only detach the due entries while holding the monitor. Deleting may block on
+      // cluster/blob locks, and must not stall every other caller of this service.
+      synchronized(this) {
+         for(int i = list.size() - 1; i >= 0; i--) {
+            FileEntry entry = list.get(i);
+
+            if(!entry.isRemovable()) {
+               break;
+            }
+
+            removable.add(entry);
+            list.remove(i);
          }
 
-         entry.remove();
-         list.remove(i);
+         if(list.isEmpty()) {
+            TimedQueue.remove(runnable);
+         }
       }
 
-      if(list.isEmpty()) {
-         TimedQueue.remove(runnable);
+      for(FileEntry entry : removable) {
+         try {
+            entry.remove();
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to remove file: {}", entry, ex);
+         }
       }
    }
 

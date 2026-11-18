@@ -131,11 +131,15 @@ public class BinaryTransferService {
          return dataTransfer.getData();
       }
       else {
-         InputStream inputStream = getInputStream(dataTransfer);
-         byte[] fullData = inputStream.readAllBytes();
-         inputStream.close();
-         clearCacheFile(dataTransfer);
-         return fullData;
+         try {
+            // close the stream first (releases the blob read lock) even if the read fails
+            try(InputStream inputStream = getInputStream(dataTransfer)) {
+               return inputStream.readAllBytes();
+            }
+         }
+         finally {
+            clearCacheFile(dataTransfer);
+         }
       }
    }
 
@@ -159,10 +163,16 @@ public class BinaryTransferService {
     * Convenience method to open an input stream, write to an output stream, and clear cache afterward.
     */
    public void writeData(BinaryTransfer dataTransfer, OutputStream outputStream) throws IOException {
-      InputStream inputStream = getInputStream(dataTransfer);
-      IOUtils.copy(inputStream, outputStream);
-      inputStream.close();
-      clearCacheFile(dataTransfer);
+      try {
+         // close the stream first (releases the blob read lock) even if the copy fails,
+         // e.g. when the client aborts the download
+         try(InputStream inputStream = getInputStream(dataTransfer)) {
+            IOUtils.copy(inputStream, outputStream);
+         }
+      }
+      finally {
+         clearCacheFile(dataTransfer);
+      }
    }
 
    /**
