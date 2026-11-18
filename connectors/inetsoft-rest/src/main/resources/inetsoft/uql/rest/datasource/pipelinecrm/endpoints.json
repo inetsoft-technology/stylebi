@@ -4,13 +4,44 @@
       "name": "Profile",
       "paged": true,
       "suffix": "/v3/profile.json",
-      "description": "The account the credentials belong to, with its settings. One record, always the caller."
+      "description": "The account the credentials belong to, with its settings. One record, always the caller.",
+      "responseSchema": {
+        "id": "double",
+        "first_name": "string",
+        "last_name": "string",
+        "avatar_thumb_url": "string",
+        "api_key": "string",
+        "is_account_admin": "boolean"
+      }
     },
     {
       "name": "Searches",
       "paged": true,
       "suffix": "/v3/searches.json",
-      "description": "The SAVED SEARCHES defined on the account, each with its criteria and the record type it applies to. Most listing endpoints here accept a search_id, so these are reusable, organisation-approved definitions -- and reading their criteria is usually the fastest way to learn what a business term means here."
+      "description": "The SAVED SEARCHES defined on the account, each with its criteria and the record type it applies to. Most listing endpoints here accept a search_id, so these are reusable, organisation-approved definitions -- and reading their criteria is usually the fastest way to learn what a business term means here.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "search_type": "string",
+            "is_default": "boolean",
+            "is_starred": "boolean",
+            "is_shared": "boolean",
+            "user_id": "double",
+            "sort": "string",
+            "name": "string",
+            "columns": [
+              "string"
+            ]
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Notes",
@@ -24,67 +55,355 @@
           "parameterName": "Note ID"
         }
       ],
-      "description": "The notes recorded against deals, people and companies, filterable by any of them. The qualitative record beside the structured one, and where the reasoning behind a deal's outcome is usually written."
+      "description": "The notes recorded against deals, people and companies, filterable by any of them. The qualitative record beside the structured one, and where the reasoning behind a deal's outcome is usually written.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "account_id": "double",
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "is_sent_message": "boolean",
+            "primary_association_id": "double",
+            "primary_association_type": "string",
+            "user": {
+              "id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "avatar_thumb_url": "string"
+            },
+            "note_category": {
+              "id": "double",
+              "name": "string"
+            },
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "user_id": "double",
+            "title": "string",
+            "content": "string",
+            "deal_id": "double",
+            "company_id": "double",
+            "person_id": "double",
+            "milestone_id": "double",
+            "note_category_id": "double",
+            "notify_user_ids": [
+              "double"
+            ]
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Note",
       "paged": false,
       "suffix": "/v3/notes/{Note ID}.json",
-      "description": "One note by id."
+      "description": "One note by id.",
+      "responseSchema": {
+        "id": "double",
+        "account_id": "double",
+        "possible_notify_user_ids": [
+          "double"
+        ],
+        "is_sent_message": "boolean",
+        "primary_association_id": "double",
+        "primary_association_type": "string",
+        "user": {
+          "id": "double",
+          "first_name": "string",
+          "last_name": "string",
+          "avatar_thumb_url": "string"
+        },
+        "note_category": {
+          "id": "double",
+          "name": "string"
+        },
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "user_id": "double",
+        "title": "string",
+        "content": "string",
+        "deal_id": "double",
+        "company_id": "double",
+        "person_id": "double",
+        "milestone_id": "double",
+        "note_category_id": "double",
+        "notify_user_ids": [
+          "double"
+        ]
+      }
     },
     {
       "name": "Account Notifications",
       "paged": true,
       "suffix": "/v3/account_notifications.json?conditions[user_id]={User ID?}",
-      "description": "The notifications raised for users, filterable by user. The alert record rather than any CRM data."
+      "description": "The notifications raised for users, filterable by user. The alert record rather than any CRM data.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "user_id": "double",
+            "account_id": "double",
+            "text": "string",
+            "seen": "boolean",
+            "read_at": "timeInstant",
+            "hide_popup": "boolean"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Account Notification",
       "paged": false,
       "suffix": "/v3/account_notifications/{Account ID}.json",
-      "description": "One notification by id."
+      "description": "One notification by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "user_id": "double",
+        "account_id": "double",
+        "text": "string",
+        "seen": "boolean",
+        "read_at": "timeInstant",
+        "hide_popup": "boolean"
+      }
     },
     {
       "name": "Calendar Events",
       "paged": true,
       "suffix": "/v3/calendar_entries.json?search_id={Search ID?}&conditions[named]={Calendar Entry Name?}",
-      "description": "The scheduled meetings, calls and tasks, filterable by conditions or a saved search. Carries the type, times, attendees and the records each relates to. The activity table."
+      "description": "The scheduled meetings, calls and tasks, filterable by conditions or a saved search. Carries the type, times, attendees and the records each relates to. The activity table.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "owner_id": "double",
+            "completed_at": "timeInstant",
+            "base_entry_id": "double",
+            "google_calendar_id": "string",
+            "part_of_recurring_series": "boolean",
+            "recurrence_end": "date",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "type": "string",
+            "category_id": "double",
+            "name": "string",
+            "description": "string",
+            "start_time": "timeInstant",
+            "end_time": "timeInstant",
+            "all_day": "boolean",
+            "due_date": "date",
+            "complete": "boolean",
+            "association_id": "double",
+            "association_type": "string",
+            "active": "boolean",
+            "company_id": "double",
+            "rrule": "string",
+            "rdate": "string",
+            "exrule": "string",
+            "exdate": "string",
+            "calendar_entry_priority_id": "double",
+            "calendar_entry_status_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Calendar Event",
       "paged": false,
       "suffix": "/v3/calendar_entries/{Entry ID}.json",
-      "description": "One calendar event by id."
+      "description": "One calendar event by id.",
+      "responseSchema": {
+        "id": "double",
+        "owner_id": "double",
+        "completed_at": "timeInstant",
+        "base_entry_id": "double",
+        "google_calendar_id": "string",
+        "part_of_recurring_series": "boolean",
+        "recurrence_end": "date",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "type": "string",
+        "category_id": "double",
+        "name": "string",
+        "description": "string",
+        "start_time": "timeInstant",
+        "end_time": "timeInstant",
+        "all_day": "boolean",
+        "due_date": "date",
+        "complete": "boolean",
+        "association_id": "double",
+        "association_type": "string",
+        "active": "boolean",
+        "company_id": "double",
+        "rrule": "string",
+        "rdate": "string",
+        "exrule": "string",
+        "exdate": "string",
+        "calendar_entry_priority_id": "double",
+        "calendar_entry_status_id": "double"
+      }
     },
     {
       "name": "Comments",
       "paged": true,
       "suffix": "/v3/notes/{Note ID}/comments.json",
-      "description": "The comments on one note. Requires a note id. Notes carry discussion, so this is the thread beneath one."
+      "description": "The comments on one note. Requires a note id. Notes carry discussion, so this is the thread beneath one.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "user": {
+              "id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "avatar_thumb_url": "string"
+            },
+            "user_id": "double",
+            "comment": "string",
+            "edited_by_person_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Comment",
       "paged": false,
       "suffix": "/v3/notes/{Note ID}/comments/{Comment ID}.json",
-      "description": "One comment by id. Requires the note id."
+      "description": "One comment by id. Requires the note id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "user": {
+          "id": "double",
+          "first_name": "string",
+          "last_name": "string",
+          "avatar_thumb_url": "string"
+        },
+        "user_id": "double",
+        "comment": "string",
+        "edited_by_person_id": "double"
+      }
     },
     {
       "name": "Company Comments",
       "paged": true,
       "suffix": "/v3/companies/{Association ID}/notes/{Note ID}/comments.json",
-      "description": "The comments on one note attached to a company. Requires the company and note ids."
+      "description": "The comments on one note attached to a company. Requires the company and note ids.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "user": {
+              "id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "avatar_thumb_url": "string"
+            },
+            "user_id": "double",
+            "comment": "string",
+            "edited_by_person_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Deal Comments",
       "paged": true,
       "suffix": "/v3/deals/{Association ID}/notes/{Note ID}/comments.json",
-      "description": "The comments on one note attached to a deal. Requires the deal and note ids."
+      "description": "The comments on one note attached to a deal. Requires the deal and note ids.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "user": {
+              "id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "avatar_thumb_url": "string"
+            },
+            "user_id": "double",
+            "comment": "string",
+            "edited_by_person_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "People Comments",
       "paged": true,
       "suffix": "/v3/people/{Association ID}/notes/{Note ID}/comments.json",
-      "description": "The comments on one note attached to a contact. Requires the person and note ids."
+      "description": "The comments on one note attached to a contact. Requires the person and note ids.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "user": {
+              "id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "avatar_thumb_url": "string"
+            },
+            "user_id": "double",
+            "comment": "string",
+            "edited_by_person_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Company Notes",
@@ -98,7 +417,50 @@
           "parameterName": "Note ID"
         }
       ],
-      "description": "The notes on one company. Requires a company id."
+      "description": "The notes on one company. Requires a company id.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "account_id": "double",
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "is_sent_message": "boolean",
+            "primary_association_id": "double",
+            "primary_association_type": "string",
+            "user": {
+              "id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "avatar_thumb_url": "string"
+            },
+            "note_category": {
+              "id": "double",
+              "name": "string"
+            },
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "user_id": "double",
+            "title": "string",
+            "content": "string",
+            "deal_id": "double",
+            "company_id": "double",
+            "person_id": "double",
+            "milestone_id": "double",
+            "note_category_id": "double",
+            "notify_user_ids": [
+              "double"
+            ]
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Company People",
@@ -116,7 +478,93 @@
           "parameterName": "Person ID"
         }
       ],
-      "description": "The contacts at one company. Requires a company id."
+      "description": "The contacts at one company. Requires a company id.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "user": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "lead_status": {
+              "id": "double",
+              "name": "string"
+            },
+            "lead_source": {
+              "id": "double",
+              "name": "string"
+            },
+            "image_mobile_url": "string",
+            "predefined_contacts_tags": [
+              {
+                "id": "double",
+                "name": "string"
+              }
+            ],
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "next_task_name": "string",
+            "next_task_id": "double",
+            "next_task_due": "date",
+            "next_task_all_day": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "first_name": "string",
+            "last_name": "string",
+            "full_name": "string",
+            "summary": "string",
+            "phone": "string",
+            "home_phone": "string",
+            "mobile": "string",
+            "position": "string",
+            "website": "string",
+            "email": "string",
+            "email2": "string",
+            "home_email": "string",
+            "company_id": "double",
+            "company_name": "string",
+            "user_id": "double",
+            "lead_status_id": "double",
+            "lead_source_id": "double",
+            "image_thumb_url": "string",
+            "predefined_contacts_tag_ids": [
+              "double"
+            ],
+            "work_address_1": "string",
+            "work_address_2": "string",
+            "work_city": "string",
+            "work_state": "string",
+            "work_country": "string",
+            "work_postal_code": "string",
+            "home_address_1": "string",
+            "home_address_2": "string",
+            "home_city": "string",
+            "home_state": "string",
+            "home_country": "string",
+            "home_postal_code": "string",
+            "facebook_url": "string",
+            "linked_in_url": "string",
+            "twitter": "string",
+            "instant_message": "string",
+            "unsubscribed": "boolean",
+            "bounced": "boolean",
+            "last_emailed_at": "timeInstant",
+            "shared_user_ids": [
+              "double"
+            ],
+            "relationship": "string",
+            "is_key_contact": "boolean"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Company Deals",
@@ -134,13 +582,160 @@
           "parameterName": "Deal ID"
         }
       ],
-      "description": "The deals with one company. Requires a company id."
+      "description": "The deals with one company. Requires a company id.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "owner": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "import_id": "double",
+            "expected_close_date_event_id": "double",
+            "primary_contact": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "people": [
+              {
+                "id": "double",
+                "first_name": "string",
+                "last_name": "string"
+              }
+            ],
+            "collaborators": [
+              {
+                "id": "double",
+                "api_key": "string",
+                "first_name": "string",
+                "last_name": "string"
+              }
+            ],
+            "company": {
+              "id": "double",
+              "name": "string"
+            },
+            "currency": {
+              "code": "string",
+              "name": "string",
+              "symbol": "string"
+            },
+            "deal_stage": {
+              "id": "double",
+              "name": "string"
+            },
+            "deal_loss_reason": {
+              "id": "double",
+              "name": "string"
+            },
+            "source": {
+              "id": "double",
+              "name": "string"
+            },
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "next_task_name": "string",
+            "next_task_id": "double",
+            "next_task_due": "date",
+            "next_task_all_day": "boolean",
+            "tags": [
+              {
+                "id": "double",
+                "name": "string"
+              }
+            ],
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "summary": "string",
+            "user_id": "double",
+            "status": "double",
+            "expected_close_date": "date",
+            "closed_time": "date",
+            "is_archived": "boolean",
+            "value": "double",
+            "primary_contact_id": "double",
+            "person_ids": [
+              "double"
+            ],
+            "shared_user_ids": [
+              "double"
+            ],
+            "company_id": "double",
+            "company_name": "string",
+            "probability": "double",
+            "deal_stage_id": "double",
+            "deal_loss_reason_id": "double",
+            "deal_loss_reason_notes": "string",
+            "deal_won_reason_id": "double",
+            "deal_won_reason_notes": "string",
+            "deal_source": "double",
+            "tag_ids": [
+              "double"
+            ],
+            "address_1": "string",
+            "address_2": "string",
+            "city": "string",
+            "state": "string",
+            "postal_code": "string",
+            "country": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Company Calendar Entries",
       "paged": true,
       "suffix": "/v3/companies/{Company ID}/calendar_entries.json",
-      "description": "The calendar events involving one company. Requires a company id."
+      "description": "The calendar events involving one company. Requires a company id.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "owner_id": "double",
+            "completed_at": "timeInstant",
+            "base_entry_id": "double",
+            "google_calendar_id": "string",
+            "part_of_recurring_series": "boolean",
+            "recurrence_end": "date",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "type": "string",
+            "category_id": "double",
+            "name": "string",
+            "description": "string",
+            "start_time": "timeInstant",
+            "end_time": "timeInstant",
+            "all_day": "boolean",
+            "due_date": "date",
+            "complete": "boolean",
+            "association_id": "double",
+            "association_type": "string",
+            "active": "boolean",
+            "company_id": "double",
+            "rrule": "string",
+            "rdate": "string",
+            "exrule": "string",
+            "exdate": "string",
+            "calendar_entry_priority_id": "double",
+            "calendar_entry_status_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Companies",
@@ -159,13 +754,131 @@
           "parameterName": "Company ID"
         }
       ],
-      "description": "The organisations contacts and deals belong to, with name, address, website, owner, tags and custom fields. The account-level dimension."
+      "description": "The organisations contacts and deals belong to, with name, address, website, owner, tags and custom fields. The account-level dimension.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "description": "string",
+            "email": "string",
+            "web": "string",
+            "fax": "string",
+            "image_thumb_url": "string",
+            "address_1": "string",
+            "address_2": "string",
+            "city": "string",
+            "state": "string",
+            "postal_code": "string",
+            "country": "string",
+            "facebook_url": "string",
+            "linked_in_url": "string",
+            "twitter": "string",
+            "instant_message": "string",
+            "phone1": "string",
+            "phone2": "string",
+            "phone3": "string",
+            "phone4": "string",
+            "phone1_desc": "string",
+            "phone2_desc": "string",
+            "phone3_desc": "string",
+            "phone4_desc": "string",
+            "owner_id": "double",
+            "shared_user_ids": [
+              "double"
+            ],
+            "tag_ids": [
+              "double"
+            ],
+            "image_mobile_url": "string",
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "owner": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "next_task_name": "string",
+            "next_task_id": "double",
+            "next_task_due": "date",
+            "next_task_all_day": "boolean",
+            "tags": [
+              {
+                "id": "double",
+                "name": "string"
+              }
+            ]
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Company",
       "paged": false,
       "suffix": "/v3/companies/{Company ID}.json",
-      "description": "One company by id."
+      "description": "One company by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string",
+        "description": "string",
+        "email": "string",
+        "web": "string",
+        "fax": "string",
+        "image_thumb_url": "string",
+        "address_1": "string",
+        "address_2": "string",
+        "city": "string",
+        "state": "string",
+        "postal_code": "string",
+        "country": "string",
+        "facebook_url": "string",
+        "linked_in_url": "string",
+        "twitter": "string",
+        "instant_message": "string",
+        "phone1": "string",
+        "phone2": "string",
+        "phone3": "string",
+        "phone4": "string",
+        "phone1_desc": "string",
+        "phone2_desc": "string",
+        "phone3_desc": "string",
+        "phone4_desc": "string",
+        "owner_id": "double",
+        "shared_user_ids": [
+          "double"
+        ],
+        "tag_ids": [
+          "double"
+        ],
+        "image_mobile_url": "string",
+        "possible_notify_user_ids": [
+          "double"
+        ],
+        "owner": {
+          "id": "double",
+          "full_name": "string"
+        },
+        "next_task_name": "string",
+        "next_task_id": "double",
+        "next_task_due": "date",
+        "next_task_all_day": "boolean",
+        "tags": [
+          {
+            "id": "double",
+            "name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Deals",
@@ -183,13 +896,217 @@
           "parameterName": "Deal ID"
         }
       ],
-      "description": "The sales opportunities -- the central table. Carries the name, value, the company and primary contact, the stage, probability, expected close date, status, owner, source and custom fields. NOTE THE FILTERING MODEL, which is uniform across this connector: listings take conditions[field] parameters rather than a query language, and a search_id referencing a SAVED SEARCH. Those saved searches encode the segments the business already agreed on, which is usually faster than reconstructing a filter."
+      "description": "The sales opportunities -- the central table. Carries the name, value, the company and primary contact, the stage, probability, expected close date, status, owner, source and custom fields. NOTE THE FILTERING MODEL, which is uniform across this connector: listings take conditions[field] parameters rather than a query language, and a search_id referencing a SAVED SEARCH. Those saved searches encode the segments the business already agreed on, which is usually faster than reconstructing a filter.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "owner": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "import_id": "double",
+            "expected_close_date_event_id": "double",
+            "primary_contact": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "people": [
+              {
+                "id": "double",
+                "first_name": "string",
+                "last_name": "string"
+              }
+            ],
+            "collaborators": [
+              {
+                "id": "double",
+                "api_key": "string",
+                "first_name": "string",
+                "last_name": "string"
+              }
+            ],
+            "company": {
+              "id": "double",
+              "name": "string"
+            },
+            "currency": {
+              "code": "string",
+              "name": "string",
+              "symbol": "string"
+            },
+            "deal_stage": {
+              "id": "double",
+              "name": "string"
+            },
+            "deal_loss_reason": {
+              "id": "double",
+              "name": "string"
+            },
+            "source": {
+              "id": "double",
+              "name": "string"
+            },
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "next_task_name": "string",
+            "next_task_id": "double",
+            "next_task_due": "date",
+            "next_task_all_day": "boolean",
+            "tags": [
+              {
+                "id": "double",
+                "name": "string"
+              }
+            ],
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "summary": "string",
+            "user_id": "double",
+            "status": "double",
+            "expected_close_date": "date",
+            "closed_time": "date",
+            "is_archived": "boolean",
+            "value": "double",
+            "primary_contact_id": "double",
+            "person_ids": [
+              "double"
+            ],
+            "shared_user_ids": [
+              "double"
+            ],
+            "company_id": "double",
+            "company_name": "string",
+            "probability": "double",
+            "deal_stage_id": "double",
+            "deal_loss_reason_id": "double",
+            "deal_loss_reason_notes": "string",
+            "deal_won_reason_id": "double",
+            "deal_won_reason_notes": "string",
+            "deal_source": "double",
+            "tag_ids": [
+              "double"
+            ],
+            "address_1": "string",
+            "address_2": "string",
+            "city": "string",
+            "state": "string",
+            "postal_code": "string",
+            "country": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Deal",
       "paged": false,
       "suffix": "/v3/deals/{Deal ID}.json",
-      "description": "One deal by id."
+      "description": "One deal by id.",
+      "responseSchema": {
+        "id": "double",
+        "owner": {
+          "id": "double",
+          "full_name": "string"
+        },
+        "import_id": "double",
+        "expected_close_date_event_id": "double",
+        "primary_contact": {
+          "id": "double",
+          "full_name": "string"
+        },
+        "people": [
+          {
+            "id": "double",
+            "first_name": "string",
+            "last_name": "string"
+          }
+        ],
+        "collaborators": [
+          {
+            "id": "double",
+            "api_key": "string",
+            "first_name": "string",
+            "last_name": "string"
+          }
+        ],
+        "company": {
+          "id": "double",
+          "name": "string"
+        },
+        "currency": {
+          "code": "string",
+          "name": "string",
+          "symbol": "string"
+        },
+        "deal_stage": {
+          "id": "double",
+          "name": "string"
+        },
+        "deal_loss_reason": {
+          "id": "double",
+          "name": "string"
+        },
+        "source": {
+          "id": "double",
+          "name": "string"
+        },
+        "possible_notify_user_ids": [
+          "double"
+        ],
+        "next_task_name": "string",
+        "next_task_id": "double",
+        "next_task_due": "date",
+        "next_task_all_day": "boolean",
+        "tags": [
+          {
+            "id": "double",
+            "name": "string"
+          }
+        ],
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string",
+        "summary": "string",
+        "user_id": "double",
+        "status": "double",
+        "expected_close_date": "date",
+        "closed_time": "date",
+        "is_archived": "boolean",
+        "value": "double",
+        "primary_contact_id": "double",
+        "person_ids": [
+          "double"
+        ],
+        "shared_user_ids": [
+          "double"
+        ],
+        "company_id": "double",
+        "company_name": "string",
+        "probability": "double",
+        "deal_stage_id": "double",
+        "deal_loss_reason_id": "double",
+        "deal_loss_reason_notes": "string",
+        "deal_won_reason_id": "double",
+        "deal_won_reason_notes": "string",
+        "deal_source": "double",
+        "tag_ids": [
+          "double"
+        ],
+        "address_1": "string",
+        "address_2": "string",
+        "city": "string",
+        "state": "string",
+        "postal_code": "string",
+        "country": "string"
+      }
     },
     {
       "name": "Deal Notes",
@@ -203,7 +1120,50 @@
           "parameterName": "Note ID"
         }
       ],
-      "description": "The notes on one deal. Requires a deal id."
+      "description": "The notes on one deal. Requires a deal id.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "account_id": "double",
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "is_sent_message": "boolean",
+            "primary_association_id": "double",
+            "primary_association_type": "string",
+            "user": {
+              "id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "avatar_thumb_url": "string"
+            },
+            "note_category": {
+              "id": "double",
+              "name": "string"
+            },
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "user_id": "double",
+            "title": "string",
+            "content": "string",
+            "deal_id": "double",
+            "company_id": "double",
+            "person_id": "double",
+            "milestone_id": "double",
+            "note_category_id": "double",
+            "notify_user_ids": [
+              "double"
+            ]
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Deal People",
@@ -221,25 +1181,257 @@
           "parameterName": "Person ID"
         }
       ],
-      "description": "The people associated with one deal. Requires a deal id. A deal names one primary contact; this is everyone involved."
+      "description": "The people associated with one deal. Requires a deal id. A deal names one primary contact; this is everyone involved.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "user": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "lead_status": {
+              "id": "double",
+              "name": "string"
+            },
+            "lead_source": {
+              "id": "double",
+              "name": "string"
+            },
+            "image_mobile_url": "string",
+            "predefined_contacts_tags": [
+              {
+                "id": "double",
+                "name": "string"
+              }
+            ],
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "next_task_name": "string",
+            "next_task_id": "double",
+            "next_task_due": "date",
+            "next_task_all_day": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "first_name": "string",
+            "last_name": "string",
+            "full_name": "string",
+            "summary": "string",
+            "phone": "string",
+            "home_phone": "string",
+            "mobile": "string",
+            "position": "string",
+            "website": "string",
+            "email": "string",
+            "email2": "string",
+            "home_email": "string",
+            "company_id": "double",
+            "company_name": "string",
+            "user_id": "double",
+            "lead_status_id": "double",
+            "lead_source_id": "double",
+            "image_thumb_url": "string",
+            "predefined_contacts_tag_ids": [
+              "double"
+            ],
+            "work_address_1": "string",
+            "work_address_2": "string",
+            "work_city": "string",
+            "work_state": "string",
+            "work_country": "string",
+            "work_postal_code": "string",
+            "home_address_1": "string",
+            "home_address_2": "string",
+            "home_city": "string",
+            "home_state": "string",
+            "home_country": "string",
+            "home_postal_code": "string",
+            "facebook_url": "string",
+            "linked_in_url": "string",
+            "twitter": "string",
+            "instant_message": "string",
+            "unsubscribed": "boolean",
+            "bounced": "boolean",
+            "last_emailed_at": "timeInstant",
+            "shared_user_ids": [
+              "double"
+            ],
+            "relationship": "string",
+            "is_key_contact": "boolean"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Deal Calendar Entries",
       "paged": true,
       "suffix": "/v3/deals/{Deal ID}/calendar_entries.json",
-      "description": "The calendar events linked to one deal. Requires a deal id. The meeting history behind an opportunity."
+      "description": "The calendar events linked to one deal. Requires a deal id. The meeting history behind an opportunity.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "owner_id": "double",
+            "completed_at": "timeInstant",
+            "base_entry_id": "double",
+            "google_calendar_id": "string",
+            "part_of_recurring_series": "boolean",
+            "recurrence_end": "date",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "type": "string",
+            "category_id": "double",
+            "name": "string",
+            "description": "string",
+            "start_time": "timeInstant",
+            "end_time": "timeInstant",
+            "all_day": "boolean",
+            "due_date": "date",
+            "complete": "boolean",
+            "association_id": "double",
+            "association_type": "string",
+            "active": "boolean",
+            "company_id": "double",
+            "rrule": "string",
+            "rdate": "string",
+            "exrule": "string",
+            "exdate": "string",
+            "calendar_entry_priority_id": "double",
+            "calendar_entry_status_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Documents",
       "paged": true,
       "suffix": "/v3/documents.json?conditions[document_name]={Document Name?}&conditions[document_type]={Document Type?}&conditions[document_owner]={Document Owner?}",
-      "description": "The files stored, filterable by name. Metadata rather than content."
+      "description": "The files stored, filterable by name. Metadata rather than content.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "size_in_k": "double",
+            "owner": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "person": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "deal": {
+              "id": "double",
+              "name": "string"
+            },
+            "company": {
+              "id": "double",
+              "name": "string"
+            },
+            "calendar_entry": {
+              "id": "double",
+              "name": "string",
+              "type": "string"
+            },
+            "etag": "string",
+            "upload_status": "double",
+            "upload_status_error_message": "string",
+            "upload_state": "string",
+            "document_tag_ids": [
+              "double"
+            ],
+            "document_tags": {
+              "id": "double",
+              "name": "string"
+            },
+            "public_link": "string",
+            "updated_at": "timeInstant",
+            "title": "string",
+            "owner_id": "double",
+            "person_id": "double",
+            "deal_id": "double",
+            "company_id": "double",
+            "calendar_entry_id": "double",
+            "primary_association_id": "double",
+            "primary_association_type": "string",
+            "url": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Document",
       "paged": false,
       "suffix": "/v3/documents/{Document ID}.json",
-      "description": "One document by id."
+      "description": "One document by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "size_in_k": "double",
+        "owner": {
+          "id": "double",
+          "full_name": "string"
+        },
+        "person": {
+          "id": "double",
+          "full_name": "string"
+        },
+        "deal": {
+          "id": "double",
+          "name": "string"
+        },
+        "company": {
+          "id": "double",
+          "name": "string"
+        },
+        "calendar_entry": {
+          "id": "double",
+          "name": "string",
+          "type": "string"
+        },
+        "etag": "string",
+        "upload_status": "double",
+        "upload_status_error_message": "string",
+        "upload_state": "string",
+        "document_tag_ids": [
+          "double"
+        ],
+        "document_tags": {
+          "id": "double",
+          "name": "string"
+        },
+        "public_link": "string",
+        "updated_at": "timeInstant",
+        "title": "string",
+        "owner_id": "double",
+        "person_id": "double",
+        "deal_id": "double",
+        "company_id": "double",
+        "calendar_entry_id": "double",
+        "primary_association_id": "double",
+        "primary_association_type": "string",
+        "url": "string"
+      }
     },
     {
       "name": "Person Notes",
@@ -253,7 +1445,50 @@
           "parameterName": "Note ID"
         }
       ],
-      "description": "The notes on one contact. Requires a person id."
+      "description": "The notes on one contact. Requires a person id.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "account_id": "double",
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "is_sent_message": "boolean",
+            "primary_association_id": "double",
+            "primary_association_type": "string",
+            "user": {
+              "id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "avatar_thumb_url": "string"
+            },
+            "note_category": {
+              "id": "double",
+              "name": "string"
+            },
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "user_id": "double",
+            "title": "string",
+            "content": "string",
+            "deal_id": "double",
+            "company_id": "double",
+            "person_id": "double",
+            "milestone_id": "double",
+            "note_category_id": "double",
+            "notify_user_ids": [
+              "double"
+            ]
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Person Deals",
@@ -271,13 +1506,160 @@
           "parameterName": "Deal ID"
         }
       ],
-      "description": "The deals one contact is involved in. Requires a person id."
+      "description": "The deals one contact is involved in. Requires a person id.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "owner": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "import_id": "double",
+            "expected_close_date_event_id": "double",
+            "primary_contact": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "people": [
+              {
+                "id": "double",
+                "first_name": "string",
+                "last_name": "string"
+              }
+            ],
+            "collaborators": [
+              {
+                "id": "double",
+                "api_key": "string",
+                "first_name": "string",
+                "last_name": "string"
+              }
+            ],
+            "company": {
+              "id": "double",
+              "name": "string"
+            },
+            "currency": {
+              "code": "string",
+              "name": "string",
+              "symbol": "string"
+            },
+            "deal_stage": {
+              "id": "double",
+              "name": "string"
+            },
+            "deal_loss_reason": {
+              "id": "double",
+              "name": "string"
+            },
+            "source": {
+              "id": "double",
+              "name": "string"
+            },
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "next_task_name": "string",
+            "next_task_id": "double",
+            "next_task_due": "date",
+            "next_task_all_day": "boolean",
+            "tags": [
+              {
+                "id": "double",
+                "name": "string"
+              }
+            ],
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "summary": "string",
+            "user_id": "double",
+            "status": "double",
+            "expected_close_date": "date",
+            "closed_time": "date",
+            "is_archived": "boolean",
+            "value": "double",
+            "primary_contact_id": "double",
+            "person_ids": [
+              "double"
+            ],
+            "shared_user_ids": [
+              "double"
+            ],
+            "company_id": "double",
+            "company_name": "string",
+            "probability": "double",
+            "deal_stage_id": "double",
+            "deal_loss_reason_id": "double",
+            "deal_loss_reason_notes": "string",
+            "deal_won_reason_id": "double",
+            "deal_won_reason_notes": "string",
+            "deal_source": "double",
+            "tag_ids": [
+              "double"
+            ],
+            "address_1": "string",
+            "address_2": "string",
+            "city": "string",
+            "state": "string",
+            "postal_code": "string",
+            "country": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Person Calendar Entries",
       "paged": true,
       "suffix": "/v3/people/{Person ID}/calendar_entries.json",
-      "description": "The calendar events involving one contact. Requires a person id."
+      "description": "The calendar events involving one contact. Requires a person id.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "owner_id": "double",
+            "completed_at": "timeInstant",
+            "base_entry_id": "double",
+            "google_calendar_id": "string",
+            "part_of_recurring_series": "boolean",
+            "recurrence_end": "date",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "type": "string",
+            "category_id": "double",
+            "name": "string",
+            "description": "string",
+            "start_time": "timeInstant",
+            "end_time": "timeInstant",
+            "all_day": "boolean",
+            "due_date": "date",
+            "complete": "boolean",
+            "association_id": "double",
+            "association_type": "string",
+            "active": "boolean",
+            "company_id": "double",
+            "rrule": "string",
+            "rdate": "string",
+            "exrule": "string",
+            "exdate": "string",
+            "calendar_entry_priority_id": "double",
+            "calendar_entry_status_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "People",
@@ -295,253 +1677,1039 @@
           "parameterName": "Person ID"
         }
       ],
-      "description": "The contacts, with name, contact details, the company, owner, lead source and status, tags and custom fields. Filterable by conditions or a saved search."
+      "description": "The contacts, with name, contact details, the company, owner, lead source and status, tags and custom fields. Filterable by conditions or a saved search.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "user": {
+              "id": "double",
+              "full_name": "string"
+            },
+            "lead_status": {
+              "id": "double",
+              "name": "string"
+            },
+            "lead_source": {
+              "id": "double",
+              "name": "string"
+            },
+            "image_mobile_url": "string",
+            "predefined_contacts_tags": [
+              {
+                "id": "double",
+                "name": "string"
+              }
+            ],
+            "possible_notify_user_ids": [
+              "double"
+            ],
+            "next_task_name": "string",
+            "next_task_id": "double",
+            "next_task_due": "date",
+            "next_task_all_day": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "first_name": "string",
+            "last_name": "string",
+            "full_name": "string",
+            "summary": "string",
+            "phone": "string",
+            "home_phone": "string",
+            "mobile": "string",
+            "position": "string",
+            "website": "string",
+            "email": "string",
+            "email2": "string",
+            "home_email": "string",
+            "company_id": "double",
+            "company_name": "string",
+            "user_id": "double",
+            "lead_status_id": "double",
+            "lead_source_id": "double",
+            "image_thumb_url": "string",
+            "predefined_contacts_tag_ids": [
+              "double"
+            ],
+            "work_address_1": "string",
+            "work_address_2": "string",
+            "work_city": "string",
+            "work_state": "string",
+            "work_country": "string",
+            "work_postal_code": "string",
+            "home_address_1": "string",
+            "home_address_2": "string",
+            "home_city": "string",
+            "home_state": "string",
+            "home_country": "string",
+            "home_postal_code": "string",
+            "facebook_url": "string",
+            "linked_in_url": "string",
+            "twitter": "string",
+            "instant_message": "string",
+            "unsubscribed": "boolean",
+            "bounced": "boolean",
+            "last_emailed_at": "timeInstant",
+            "shared_user_ids": [
+              "double"
+            ],
+            "relationship": "string",
+            "is_key_contact": "boolean"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Person",
       "paged": false,
       "suffix": "/v3/people/{Person ID}.json",
-      "description": "One contact by id."
+      "description": "One contact by id.",
+      "responseSchema": {
+        "id": "double",
+        "user": {
+          "id": "double",
+          "full_name": "string"
+        },
+        "lead_status": {
+          "id": "double",
+          "name": "string"
+        },
+        "lead_source": {
+          "id": "double",
+          "name": "string"
+        },
+        "image_mobile_url": "string",
+        "predefined_contacts_tags": [
+          {
+            "id": "double",
+            "name": "string"
+          }
+        ],
+        "possible_notify_user_ids": [
+          "double"
+        ],
+        "next_task_name": "string",
+        "next_task_id": "double",
+        "next_task_due": "date",
+        "next_task_all_day": "boolean",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "first_name": "string",
+        "last_name": "string",
+        "full_name": "string",
+        "summary": "string",
+        "phone": "string",
+        "home_phone": "string",
+        "mobile": "string",
+        "position": "string",
+        "website": "string",
+        "email": "string",
+        "email2": "string",
+        "home_email": "string",
+        "company_id": "double",
+        "company_name": "string",
+        "user_id": "double",
+        "lead_status_id": "double",
+        "lead_source_id": "double",
+        "image_thumb_url": "string",
+        "predefined_contacts_tag_ids": [
+          "double"
+        ],
+        "work_address_1": "string",
+        "work_address_2": "string",
+        "work_city": "string",
+        "work_state": "string",
+        "work_country": "string",
+        "work_postal_code": "string",
+        "home_address_1": "string",
+        "home_address_2": "string",
+        "home_city": "string",
+        "home_state": "string",
+        "home_country": "string",
+        "home_postal_code": "string",
+        "facebook_url": "string",
+        "linked_in_url": "string",
+        "twitter": "string",
+        "instant_message": "string",
+        "unsubscribed": "boolean",
+        "bounced": "boolean",
+        "last_emailed_at": "timeInstant",
+        "shared_user_ids": [
+          "double"
+        ],
+        "relationship": "string",
+        "is_key_contact": "boolean"
+      }
     },
     {
       "name": "Company Custom Groups",
       "paged": true,
       "suffix": "/v3/admin/company_custom_field_groups.json?conditions[company_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The custom field groups defined for companies."
+      "description": "The custom field groups defined for companies.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "type": "string",
+            "name": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Company Custom Group",
       "paged": false,
       "suffix": "/v3/admin/company_custom_field_groups/{Group ID}.json",
-      "description": "One company custom field group by id."
+      "description": "One company custom field group by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "type": "string",
+        "name": "string"
+      }
     },
     {
       "name": "Company Custom Labels",
       "paged": true,
       "suffix": "/v3/admin/company_custom_field_labels.json?conditions[company_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The custom field definitions for companies. The decoder for custom values on a company."
+      "description": "The custom field definitions for companies. The decoder for custom values on a company.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "field_type": "string",
+            "name": "string",
+            "record_type": "string",
+            "is_required": "boolean"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Company Custom Label",
       "paged": false,
       "suffix": "/v3/admin/company_custom_field_labels/{Label ID}.json",
-      "description": "One company custom field by id."
+      "description": "One company custom field by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "field_type": "string",
+        "name": "string",
+        "record_type": "string",
+        "is_required": "boolean"
+      }
     },
     {
       "name": "Company Custom Label Entries",
       "paged": true,
       "suffix": "/v3/admin/custom_field_label_dropdown_entries.json?conditions[custom_field_label_dropdown_entry_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The dropdown options of custom fields, with their stored values and display text. THE SECOND HALF OF THE DECODER: a dropdown custom field stores an option id, and only this resolves it to something readable."
+      "description": "The dropdown options of custom fields, with their stored values and display text. THE SECOND HALF OF THE DECODER: a dropdown custom field stores an option id, and only this resolves it to something readable.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "custom_field_label_id": "double",
+            "name": "string",
+            "position": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Company Custom Label Entry",
       "paged": false,
       "suffix": "/v3/admin/custom_field_label_dropdown_entries/{Entry ID}.json",
-      "description": "One custom field dropdown option by id."
+      "description": "One custom field dropdown option by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "custom_field_label_id": "double",
+        "name": "string",
+        "position": "double"
+      }
     },
     {
       "name": "Deal Custom Groups",
       "paged": true,
       "suffix": "/v3/admin/deal_custom_field_groups.json?conditions[deal_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The custom field groups defined for deals. Fields are organised into groups, so this is the outer level of the custom-field schema."
+      "description": "The custom field groups defined for deals. Fields are organised into groups, so this is the outer level of the custom-field schema.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "type": "string",
+            "name": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Deal Custom Group",
       "paged": false,
       "suffix": "/v3/admin/deal_custom_field_groups/{Group ID}.json",
-      "description": "One deal custom field group by id."
+      "description": "One deal custom field group by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "type": "string",
+        "name": "string"
+      }
     },
     {
       "name": "Deal Custom Labels",
       "paged": false,
       "suffix": "/v3/admin/deal_custom_field_labels.json?conditions[deal_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The custom field definitions for deals, with their labels and types. THE DECODER for custom values on a deal, which arrive keyed by label id."
+      "description": "The custom field definitions for deals, with their labels and types. THE DECODER for custom values on a deal, which arrive keyed by label id.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "field_type": "string",
+            "name": "string",
+            "record_type": "string",
+            "is_required": "boolean"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Deal Custom Label",
       "paged": false,
       "suffix": "/v3/admin/deal_custom_field_labels/{Label ID}.json",
-      "description": "One deal custom field by id."
+      "description": "One deal custom field by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "field_type": "string",
+        "name": "string",
+        "record_type": "string",
+        "is_required": "boolean"
+      }
     },
     {
       "name": "Deal Loss Reasons",
       "paged": true,
       "suffix": "/v3/admin/deal_loss_reasons.json?conditions[deal_loss_reason_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The reasons configured for losing a deal. The structured explanation for revenue not won, which the deal's status alone does not give."
+      "description": "The reasons configured for losing a deal. The structured explanation for revenue not won, which the deal's status alone does not give.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "position": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Deal Loss Reason",
       "paged": true,
       "suffix": "/v3/admin/deal_loss_reasons/{Reason ID}.json",
-      "description": "One loss reason by id."
+      "description": "One loss reason by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string",
+        "position": "double"
+      }
     },
     {
       "name": "Deal Stages",
       "paged": true,
       "suffix": "/v3/admin/deal_stages.json?conditions[deal_stage_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The pipeline stages, with name, position and probability. The dimension a funnel breakdown joins to, and the decoder for a deal's stage id."
+      "description": "The pipeline stages, with name, position and probability. The dimension a funnel breakdown joins to, and the decoder for a deal's stage id.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "percent": "double",
+            "deal_pipeline_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Deal Stage",
       "paged": false,
       "suffix": "/v3/admin/deal_stages/{Stage ID}.json",
-      "description": "One deal stage by id."
+      "description": "One deal stage by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string",
+        "percent": "double",
+        "deal_pipeline_id": "double"
+      }
     },
     {
       "name": "Documents Tags",
       "paged": true,
       "suffix": "/v3/admin/document_tags.json?conditions[document_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The tags applied to documents. The classification of stored files."
+      "description": "The tags applied to documents. The classification of stored files.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Document Tag",
       "paged": false,
       "suffix": "/v3/admin/document_tags/{Tag ID}.json",
-      "description": "One document tag by id."
+      "description": "One document tag by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string"
+      }
     },
     {
       "name": "Event Categories",
       "paged": true,
       "suffix": "/v3/admin/event_categories.json?conditions[event_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The categories calendar events are classified under. The decoder for an event's category, and the dimension that turns activity volume into activity type."
+      "description": "The categories calendar events are classified under. The decoder for an event's category, and the dimension that turns activity volume into activity type.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Event Category",
       "paged": false,
       "suffix": "/v3/admin/event_categories/{Event Category ID}.json",
-      "description": "One event category by id."
+      "description": "One event category by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string"
+      }
     },
     {
       "name": "Lead Sources",
       "paged": true,
       "suffix": "/v3/admin/lead_sources.json?conditions[lead_source_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The lead source values configured. The attribution dimension -- where deals and contacts came from -- and account-specific."
+      "description": "The lead source values configured. The attribution dimension -- where deals and contacts came from -- and account-specific.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "cost_per_lead_in_cents": "double",
+            "flat_fee_in_cents": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Lead Source",
       "paged": false,
       "suffix": "/v3/admin/lead_sources/{Source ID}.json",
-      "description": "One lead source by id."
+      "description": "One lead source by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string",
+        "cost_per_lead_in_cents": "double",
+        "flat_fee_in_cents": "double"
+      }
     },
     {
       "name": "Lead Statuses",
       "paged": true,
       "suffix": "/v3/admin/lead_statuses.json?conditions[lead_status_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The lead status values configured. The decoder for a contact's status, and the stages before a deal exists."
+      "description": "The lead status values configured. The decoder for a contact's status, and the stages before a deal exists.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "hex_color": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Lead Status",
       "paged": false,
       "suffix": "/v3/admin/lead_statuses/{Status ID}.json",
-      "description": "One lead status by id."
+      "description": "One lead status by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string",
+        "hex_color": "string"
+      }
     },
     {
       "name": "Note Categories",
       "paged": true,
       "suffix": "/v3/admin/note_categories.json?conditions[note_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The categories notes are filed under. The decoder for a note's category, and the closest thing to a structured classification of what activity a note represents."
+      "description": "The categories notes are filed under. The decoder for a note's category, and the closest thing to a structured classification of what activity a note represents.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Note Category",
       "paged": false,
       "suffix": "/v3/admin/note_categories/{Note Category ID}.json",
-      "description": "One note category by id."
+      "description": "One note category by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string"
+      }
     },
     {
       "name": "Person Custom Groups",
       "paged": true,
       "suffix": "/v3/admin/person_custom_field_groups.json?conditions[person_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The custom field groups defined for contacts."
+      "description": "The custom field groups defined for contacts.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "type": "string",
+            "name": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Person Custom Group",
       "paged": false,
       "suffix": "/v3/admin/person_custom_field_groups/{Group ID}.json",
-      "description": "One person custom field group by id."
+      "description": "One person custom field group by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "type": "string",
+        "name": "string"
+      }
     },
     {
       "name": "Person Custom Labels",
       "paged": true,
       "suffix": "/v3/admin/person_custom_field_labels.json?conditions[person_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The custom field definitions for contacts. The decoder for custom values on a person."
+      "description": "The custom field definitions for contacts. The decoder for custom values on a person.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "field_type": "string",
+            "name": "string",
+            "record_type": "string",
+            "is_required": "boolean"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Person Custom Label",
       "paged": false,
       "suffix": "/v3/admin/person_custom_field_labels/{Label ID}.json",
-      "description": "One person custom field by id."
+      "description": "One person custom field by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "field_type": "string",
+        "name": "string",
+        "record_type": "string",
+        "is_required": "boolean"
+      }
     },
     {
       "name": "Predefined Contact Tags",
       "paged": true,
       "suffix": "/v3/admin/predefined_contacts_tags.json?conditions[predefined_contacts_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "The tag vocabulary available for contacts. Where tags are predefined rather than free text, this is the complete set."
+      "description": "The tag vocabulary available for contacts. Where tags are predefined rather than free text, this is the complete set.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "hex_color": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Predefined Contact Tag",
       "paged": false,
       "suffix": "/v3/admin/predefined_contacts_tags/{Tag ID}.json",
-      "description": "One predefined contact tag by id."
+      "description": "One predefined contact tag by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string",
+        "hex_color": "string"
+      }
     },
     {
       "name": "Teams",
       "paged": true,
       "suffix": "/v3/admin/teams.json",
-      "description": "The teams users belong to. The grouping above individuals for reporting."
+      "description": "The teams users belong to. The grouping above individuals for reporting.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "account_id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "parent_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Team",
       "paged": false,
       "suffix": "/v3/admin/teams/{Team ID}.json",
-      "description": "One team by id."
+      "description": "One team by id.",
+      "responseSchema": {
+        "id": "double",
+        "account_id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string",
+        "parent_id": "double"
+      }
     },
     {
       "name": "Todo Templates",
       "paged": true,
       "suffix": "/v3/admin/todo_templates.json",
-      "description": "The task list templates defined -- the standard sequences of work a deal or contact triggers. What a team considers its repeatable process."
+      "description": "The task list templates defined -- the standard sequences of work a deal or contact triggers. What a team considers its repeatable process.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "account_id": "double",
+            "todo_template_items": [
+              {
+                "description": "string",
+                "days": "double",
+                "event_category": {
+                  "id": "double",
+                  "name": "string"
+                }
+              }
+            ],
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "template_type": "string",
+            "todo_template_types_attributes": [
+              {
+                "account_id": "double",
+                "template_type": "string"
+              }
+            ],
+            "is_default": "boolean"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Todo Template",
       "paged": false,
       "suffix": "/v3/admin/todo_templates/{Template ID}.json",
-      "description": "One todo template by id."
+      "description": "One todo template by id.",
+      "responseSchema": {
+        "id": "double",
+        "account_id": "double",
+        "todo_template_items": [
+          {
+            "description": "string",
+            "days": "double",
+            "event_category": {
+              "id": "double",
+              "name": "string"
+            }
+          }
+        ],
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string",
+        "template_type": "string",
+        "todo_template_types_attributes": [
+          {
+            "account_id": "double",
+            "template_type": "string"
+          }
+        ],
+        "is_default": "boolean"
+      }
     },
     {
       "name": "Todo Template Items",
       "paged": true,
       "suffix": "/v3/admin/todo_template_items.json",
-      "description": "The individual steps within todo templates. The detail of the process."
+      "description": "The individual steps within todo templates. The detail of the process.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "account_id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "description": "string",
+            "due_date": "double",
+            "event_category_id": "double",
+            "calendar_entry_priority_id": "double"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Todo Template Item",
       "paged": true,
       "suffix": "/v3/admin/todo_template_items/{Template Item ID}.json",
-      "description": "One todo template item by id."
+      "description": "One todo template item by id.",
+      "responseSchema": {
+        "id": "double",
+        "account_id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "description": "string",
+        "due_date": "double",
+        "event_category_id": "double",
+        "calendar_entry_priority_id": "double"
+      }
     },
     {
       "name": "Users",
       "paged": true,
       "suffix": "/v3/users.json?conditions[email]={Email Address?}&conditions[admin]={Admin?:true|false}&conditions[including_inactive]={Including Inactive?:true|false}&conditions[user_level]={User Level?}",
-      "description": "The users of the account, filterable by email, admin flag and user level. Every record carries an owner, so this is the dimension per-person performance joins to. Inactive users are excluded unless explicitly included, and they still own their historical records."
+      "description": "The users of the account, filterable by email, admin flag and user level. Every record carries an owner, so this is the dimension per-person performance joins to. Inactive users are excluded unless explicitly included, and they still own their historical records.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "account_id": "double",
+            "full_name": "string",
+            "api_key": "string",
+            "last_seen_at": "timeInstant",
+            "deleted_at": "timeInstant",
+            "mfa_requested_at": "timeInstant",
+            "data_reassigned_at": "timeInstant",
+            "reassign_data_to_user_id": "double",
+            "w2lid": "string",
+            "other_emails": [
+              {
+                "id": "double",
+                "email": "string"
+              }
+            ],
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "manager_id": "double",
+            "team_id": "double",
+            "email": "string",
+            "level": "double",
+            "name": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "is_account_admin": "boolean",
+            "avatar_thumb_url": "string",
+            "mobile_number": "string",
+            "date_format": "string",
+            "time_format": "string",
+            "is_allowed_to_export": "boolean",
+            "is_allowed_to_delete": "boolean",
+            "is_allowed_to_send_campaigns": "boolean",
+            "is_allowed_to_merge_records": "boolean",
+            "is_google_apps_enabled": "boolean",
+            "read_only": "boolean",
+            "mfa_enabled": "boolean",
+            "currency": {
+              "id": "double",
+              "name": "string",
+              "code": "string",
+              "symbol": "string",
+              "decimal_places": "double"
+            },
+            "csv_column_separator": "string",
+            "csv_decimal_mark": "string",
+            "pipeline_email_client": "boolean",
+            "time_zone": "string"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "User",
       "paged": false,
       "suffix": "/v3/users/{User ID}.json",
-      "description": "One user by id."
+      "description": "One user by id.",
+      "responseSchema": {
+        "id": "double",
+        "account_id": "double",
+        "full_name": "string",
+        "api_key": "string",
+        "last_seen_at": "timeInstant",
+        "deleted_at": "timeInstant",
+        "mfa_requested_at": "timeInstant",
+        "data_reassigned_at": "timeInstant",
+        "reassign_data_to_user_id": "double",
+        "w2lid": "string",
+        "other_emails": [
+          {
+            "id": "double",
+            "email": "string"
+          }
+        ],
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "manager_id": "double",
+        "team_id": "double",
+        "email": "string",
+        "level": "double",
+        "name": "string",
+        "first_name": "string",
+        "last_name": "string",
+        "is_account_admin": "boolean",
+        "avatar_thumb_url": "string",
+        "mobile_number": "string",
+        "date_format": "string",
+        "time_format": "string",
+        "is_allowed_to_export": "boolean",
+        "is_allowed_to_delete": "boolean",
+        "is_allowed_to_send_campaigns": "boolean",
+        "is_allowed_to_merge_records": "boolean",
+        "is_google_apps_enabled": "boolean",
+        "read_only": "boolean",
+        "mfa_enabled": "boolean",
+        "currency": {
+          "id": "double",
+          "name": "string",
+          "code": "string",
+          "symbol": "string",
+          "decimal_places": "double"
+        },
+        "csv_column_separator": "string",
+        "csv_decimal_mark": "string",
+        "pipeline_email_client": "boolean",
+        "time_zone": "string"
+      }
     },
     {
       "name": "Revenue Types",
       "paged": true,
       "suffix": "/v3/admin/revenue_types.json",
-      "description": "The revenue types deals can be classified as -- one-off, recurring, and whatever else the business defined. The dimension that separates kinds of revenue, which the deal value alone conflates."
+      "description": "The revenue types deals can be classified as -- one-off, recurring, and whatever else the business defined. The dimension that separates kinds of revenue, which the deal value alone conflates.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "name": "string",
+            "position": "double",
+            "is_default": "boolean"
+          }
+        ],
+        "pagination": {
+          "page": "double",
+          "pages": "double",
+          "per_page": "double",
+          "total": "double"
+        }
+      }
     },
     {
       "name": "Revenue Type",
       "paged": false,
       "suffix": "/v3/admin/revenue_types/{Revenue Type}.json",
-      "description": "One revenue type by id."
+      "description": "One revenue type by id.",
+      "responseSchema": {
+        "id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "name": "string",
+        "position": "double",
+        "is_default": "boolean"
+      }
     }
   ]
 }

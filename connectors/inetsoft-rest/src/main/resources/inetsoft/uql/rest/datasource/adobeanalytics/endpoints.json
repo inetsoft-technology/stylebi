@@ -4,25 +4,151 @@
       "name": "Caluculated Metrics",
       "paged": false,
       "suffix": "/calculatedmetrics?expansion={Additional Fields?}&rsids={RSIDs?}&ownerId={Owner ID?}&filterByIds={IDs?}&locale={Locale?:en_US}&name={Name?}&tagNames={Tage Names?}&includeType={Include Type?:all|shared|templates}",
-      "description": "The calculated metrics defined on the account -- derived measures built from other metrics, such as revenue per visit or a custom conversion rate. Each carries its name, the report suites it applies to, its owner and its formula. THE FORMULA IS THE POINT: a calculated metric is where the business's own definition of a KPI is written down, and the name alone rarely conveys it."
+      "description": "The calculated metrics defined on the account -- derived measures built from other metrics, such as revenue per visit or a custom conversion rate. Each carries its name, the report suites it applies to, its owner and its formula. THE FORMULA IS THE POINT: a calculated metric is where the business's own definition of a KPI is written down, and the name alone rarely conveys it.",
+      "responseSchema": [
+        {
+          "id": "string",
+          "name": "string",
+          "description": "string",
+          "rsid": "string",
+          "reportSuiteName": "string",
+          "owner": {
+            "id": "double",
+            "name": "string",
+            "login": "string"
+          },
+          "polarity": "string",
+          "precision": "double",
+          "type": "string",
+          "categories": [
+            "string"
+          ],
+          "tags": [
+            {
+              "id": "double",
+              "name": "string",
+              "description": "string",
+              "components": [
+                {
+                  "componentType": "string",
+                  "componentId": "string"
+                }
+              ]
+            }
+          ],
+          "siteTitle": "string",
+          "modified": "timeInstant",
+          "created": "timeInstant"
+        }
+      ]
     },
     {
       "name": "Calculated Metric",
       "paged": false,
       "suffix": "/calculatedmetrics/{ID}?expansion={Additional Fields?}&locale={Locale?:en_US}",
-      "description": "One calculated metric by id, with its full definition."
+      "description": "One calculated metric by id, with its full definition.",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "rsid": "string",
+        "reportSuiteName": "string",
+        "owner": {
+          "id": "double",
+          "name": "string",
+          "login": "string"
+        },
+        "polarity": "string",
+        "precision": "double",
+        "type": "string",
+        "categories": [
+          "string"
+        ],
+        "tags": [
+          {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "components": [
+              {
+                "componentType": "string",
+                "componentId": "string"
+              }
+            ]
+          }
+        ],
+        "siteTitle": "string",
+        "modified": "timeInstant",
+        "created": "timeInstant"
+      }
     },
     {
       "name": "Calculated Metric Functions",
       "paged": false,
       "suffix": "/calculatedmetrics/functions?locale={Locale?:en_US}",
-      "description": "The functions available for building calculated metrics, with their parameters. Reference data for reading or constructing a formula."
+      "description": "The functions available for building calculated metrics, with their parameters. Reference data for reading or constructing a formula.",
+      "responseSchema": [
+        {
+          "id": "string",
+          "category": "string",
+          "persistable": "boolean",
+          "name": "string",
+          "namespace": "string",
+          "description": "string",
+          "exampleKey": "string",
+          "example": "string",
+          "definition": {
+            "func": "string",
+            "parameters": [
+              {
+                "func": "string",
+                "name": "string",
+                "type": "string",
+                "friendlyNameKey": "string",
+                "descKey": "string",
+                "friendlyName": "string",
+                "description": "string"
+              }
+            ],
+            "version": [
+              "double"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Calculated Metric Function",
       "paged": false,
       "suffix": "/calculatedmetrics/functions/{ID}?locale={Locale?:en_US}",
-      "description": "One calculated metric function by id."
+      "description": "One calculated metric function by id.",
+      "responseSchema": {
+        "id": "string",
+        "category": "string",
+        "persistable": "boolean",
+        "name": "string",
+        "namespace": "string",
+        "description": "string",
+        "exampleKey": "string",
+        "example": "string",
+        "definition": {
+          "func": "string",
+          "parameters": [
+            {
+              "func": "string",
+              "name": "string",
+              "type": "string",
+              "friendlyNameKey": "string",
+              "descKey": "string",
+              "friendlyName": "string",
+              "description": "string"
+            }
+          ],
+          "version": [
+            "double"
+          ]
+        }
+      }
     },
     {
       "name": "Report Suites",
@@ -34,7 +160,20 @@
       "name": "Report Suite",
       "paged": false,
       "suffix": "/collections/suites/{RSID}?expansion={Additional Fields?}",
-      "description": "One report suite by RSID, with its settings."
+      "description": "One report suite by RSID, with its settings.",
+      "responseSchema": {
+        "name": "string",
+        "timezoneZoneInfo": "string",
+        "parentRsid": "string",
+        "collectionItemType": "string",
+        "currency": "string",
+        "calendarType": {
+          "rsid": "string",
+          "type": "string",
+          "anchorDate": "timeInstant"
+        },
+        "rsid": "string"
+      }
     },
     {
       "name": "Dateranges",
@@ -46,19 +185,137 @@
       "name": "Daterange",
       "paged": false,
       "suffix": "/dateranges/{Daterange ID}?expansion={Additional Fields?}&locale={Locale?:en_US}",
-      "description": "One saved date range by id."
+      "description": "One saved date range by id.",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "modified": "timeInstant",
+        "companyId": "double",
+        "template": "boolean",
+        "createDate": "timeInstant",
+        "disabledDate": "timeInstant",
+        "alternateVariableNames": {
+          "name": "string",
+          "baseName": "string",
+          "curatedName": "string"
+        },
+        "curatedItem": "boolean",
+        "imsOrgId": "string",
+        "systemUserOwned": "boolean",
+        "approved": "boolean",
+        "favorite": "boolean"
+      }
     },
     {
       "name": "Dimensions",
       "paged": false,
       "suffix": "/dimensions?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}&segmentable={Segmentable?}&reportable={Reportable?}&classifiable={Classifiable?}",
-      "description": "The dimensions available in one report suite -- page, referrer, eVars, props, marketing channel and the rest -- each with its id, display name, type, category and whether it supports segmentation or pathing. Requires an RSID. THE DECODER FOR ADOBE'S FIELD IDS: a dimension is referenced in queries as something like variables/evar12, and this is the only place that resolves it to the name the business gave it. eVar and prop names are entirely account-specific, so this table is not optional."
+      "description": "The dimensions available in one report suite -- page, referrer, eVars, props, marketing channel and the rest -- each with its id, display name, type, category and whether it supports segmentation or pathing. Requires an RSID. THE DECODER FOR ADOBE'S FIELD IDS: a dimension is referenced in queries as something like variables/evar12, and this is the only place that resolves it to the name the business gave it. eVar and prop names are entirely account-specific, so this table is not optional.",
+      "responseSchema": [
+        {
+          "id": "string",
+          "title": "string",
+          "name": "string",
+          "type": "string",
+          "category": "string",
+          "categories": [
+            "string"
+          ],
+          "support": [
+            "string"
+          ],
+          "pathable": "boolean",
+          "parent": "string",
+          "extraTitleInfo": "string",
+          "segmentable": "boolean",
+          "reportable": [
+            "string"
+          ],
+          "description": "string",
+          "allowedForReporting": "boolean",
+          "allocationType": "string",
+          "expirationType": "string",
+          "expirationCustomDays": "double",
+          "dataType": "string",
+          "bindingEvents": [
+            "string"
+          ],
+          "merchandisingSyntax": "string",
+          "ecomAllocationType": "string",
+          "noneSettings": {
+            "includeNoneByDefault": "boolean",
+            "noneChangeable": "boolean"
+          },
+          "tags": [
+            {
+              "id": "double",
+              "name": "string",
+              "description": "string",
+              "components": [
+                {
+                  "componentType": "string",
+                  "componentId": "string"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Dimension",
       "paged": false,
       "suffix": "/dimensions/{Dimension ID}?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}",
-      "description": "One dimension by id. Requires the RSID."
+      "description": "One dimension by id. Requires the RSID.",
+      "responseSchema": {
+        "id": "string",
+        "title": "string",
+        "name": "string",
+        "type": "string",
+        "category": "string",
+        "categories": [
+          "string"
+        ],
+        "support": [
+          "string"
+        ],
+        "pathable": "boolean",
+        "parent": "string",
+        "extraTitleInfo": "string",
+        "segmentable": "boolean",
+        "reportable": [
+          "string"
+        ],
+        "description": "string",
+        "allowedForReporting": "boolean",
+        "allocationType": "string",
+        "expirationType": "string",
+        "expirationCustomDays": "double",
+        "dataType": "string",
+        "bindingEvents": [
+          "string"
+        ],
+        "merchandisingSyntax": "string",
+        "ecomAllocationType": "string",
+        "noneSettings": {
+          "includeNoneByDefault": "boolean",
+          "noneChangeable": "boolean"
+        },
+        "tags": [
+          {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "components": [
+              {
+                "componentType": "string",
+                "componentId": "string"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Metrics",
@@ -70,7 +327,42 @@
       "name": "Metric",
       "paged": false,
       "suffix": "/metrics/{ID}?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}",
-      "description": "One metric by id. Requires the RSID."
+      "description": "One metric by id. Requires the RSID.",
+      "responseSchema": {
+        "id": "string",
+        "title": "string",
+        "name": "string",
+        "type": "string",
+        "extraTitleInfo": "string",
+        "category": "string",
+        "categories": [
+          "string"
+        ],
+        "support": [
+          "string"
+        ],
+        "allocation": "boolean",
+        "precision": "double",
+        "calculated": "boolean",
+        "segmentable": "boolean",
+        "description": "string",
+        "polarity": "string",
+        "helpLink": "string",
+        "allowedForReporting": "boolean",
+        "tags": [
+          {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "components": [
+              {
+                "componentType": "string",
+                "componentId": "string"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Segments",
@@ -82,19 +374,120 @@
       "name": "Segment",
       "paged": false,
       "suffix": "/segments/{ID}?expansion={Additional Fields?}&locale={Locale?:en_US}",
-      "description": "One segment by id, with its full definition."
+      "description": "One segment by id, with its full definition.",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "rsid": "string",
+        "reportSuiteName": "string",
+        "owner": {
+          "id": "double",
+          "name": "string",
+          "login": "string"
+        },
+        "definition": {
+          "container": {
+            "context": "string",
+            "func": "string",
+            "pred": {
+              "val": {
+                "description": "string",
+                "name": "string",
+                "func": "string"
+              },
+              "str": "string",
+              "func": "string"
+            }
+          },
+          "func": "string",
+          "version": [
+            "double"
+          ]
+        },
+        "compatibility": {
+          "valid": "boolean",
+          "message": "string",
+          "validator_version": "string",
+          "supported_products": [
+            "string"
+          ],
+          "supported_schema": [
+            "string"
+          ],
+          "supported_features": [
+            "string"
+          ]
+        },
+        "definitionLastModified": "timeInstant",
+        "categories": [
+          "string"
+        ],
+        "siteTitle": "string",
+        "tags": [
+          {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "components": [
+              {
+                "componentType": "string",
+                "componentId": "string"
+              }
+            ]
+          }
+        ],
+        "modified": "timeInstant",
+        "created": "timeInstant"
+      }
     },
     {
       "name": "Users",
       "paged": false,
       "suffix": "/users",
-      "description": "The users of the Analytics account, with name, email and login. Administrative."
+      "description": "The users of the Analytics account, with name, email and login. Administrative.",
+      "responseSchema": [
+        {
+          "companyid": "double",
+          "loginId": "double",
+          "login": "string",
+          "changePassword": "boolean",
+          "createDate": "timeInstant",
+          "disabled": "boolean",
+          "email": "string",
+          "firstName": "string",
+          "fullName": "string",
+          "imsUserId": "string",
+          "lastName": "string",
+          "lastAccess": "timeInstant",
+          "phoneNumber": "string",
+          "tempLoginEnd": "timeInstant",
+          "title": "string"
+        }
+      ]
     },
     {
       "name": "Current User",
       "paged": false,
       "suffix": "/users/me",
-      "description": "The account the credentials belong to, with the report suites it can reach. One record, and the explanation for why a suite is missing from the list."
+      "description": "The account the credentials belong to, with the report suites it can reach. One record, and the explanation for why a suite is missing from the list.",
+      "responseSchema": {
+        "companyid": "double",
+        "loginId": "double",
+        "login": "string",
+        "changePassword": "boolean",
+        "createDate": "timeInstant",
+        "disabled": "boolean",
+        "email": "string",
+        "firstName": "string",
+        "fullName": "string",
+        "imsUserId": "string",
+        "lastName": "string",
+        "lastAccess": "timeInstant",
+        "phoneNumber": "string",
+        "tempLoginEnd": "timeInstant",
+        "title": "string"
+      }
     }
   ]
 }

@@ -4,13 +4,85 @@
       "name": "Clients",
       "paged": true,
       "suffix": "/v1/workspaces/{Workspace Id}/clients?archived={Archived?:true|false}&name={Name?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}",
-      "description": "The clients in one workspace, with name and archived state. Requires a workspace id. The top of the billing hierarchy: projects belong to clients, so this is the axis client-profitability questions group by."
+      "description": "The clients in one workspace, with name and archived state. Requires a workspace id. The top of the billing hierarchy: projects belong to clients, so this is the axis client-profitability questions group by.",
+      "responseSchema": [
+        {
+          "address": "string",
+          "archived": "boolean",
+          "ccEmails": [
+            "string"
+          ],
+          "currencyCode": "string",
+          "currencyId": "string",
+          "email": "string",
+          "id": "string",
+          "name": "string",
+          "note": "string",
+          "workspaceId": "string"
+        }
+      ]
     },
     {
       "name": "Projects",
       "paged": true,
       "suffix": "/v1/workspaces/{Workspace Id}/projects?archived={Archived?:true|false}&name={Name?}&billable={Billable?:true|false}&clients={Clients?}&contains-client={Contains Client?:true|false}&client-status={Client Status?:ACTIVE|ARCHIVED}&users={Users?}&contains-users={Contains Users?:true|false}&is-template={Is Template?:true|false}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}",
-      "description": "The projects in one workspace, with name, the client, colour, billable flag, hourly rate, estimate, and archived state. Requires a workspace id. The HOURLY RATE here is what turns recorded time into money -- a time entry carries duration and nothing else, so revenue is always a join. Archived projects are excluded by default, which quietly drops finished work from any historical total."
+      "description": "The projects in one workspace, with name, the client, colour, billable flag, hourly rate, estimate, and archived state. Requires a workspace id. The HOURLY RATE here is what turns recorded time into money -- a time entry carries duration and nothing else, so revenue is always a join. Archived projects are excluded by default, which quietly drops finished work from any historical total.",
+      "responseSchema": [
+        {
+          "archived": "boolean",
+          "billable": "boolean",
+          "budgetEstimate": {
+            "active": "boolean",
+            "estimate": "double",
+            "includeExpenses": "boolean",
+            "resetOption": "string",
+            "type": "string"
+          },
+          "color": "string",
+          "costRate": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "duration": "string",
+          "estimate": {
+            "estimate": "string",
+            "type": "string"
+          },
+          "hourlyRate": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "id": "string",
+          "memberships": [
+            {
+              "costRate": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "hourlyRate": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "membershipStatus": "string",
+              "membershipType": "string",
+              "targetId": "string",
+              "userId": "string"
+            }
+          ],
+          "name": "string",
+          "note": "string",
+          "public": "boolean",
+          "template": "boolean",
+          "timeEstimate": {
+            "active": "boolean",
+            "estimate": "string",
+            "includeNonBillable": "boolean",
+            "resetOption": "string",
+            "type": "string"
+          },
+          "workspaceId": "string"
+        }
+      ]
     },
     {
       "name": "Project",
@@ -22,37 +94,245 @@
       "name": "Tags",
       "paged": true,
       "suffix": "/v1/workspaces/{Workspace Id}/tags?archived={Archived?:true|false}&name={Name?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}",
-      "description": "The tags in one workspace. Requires a workspace id. Tags are the free-form cross-cutting label on time entries -- billable category, activity type, whatever the team chose -- and often the only dimension beyond project and task."
+      "description": "The tags in one workspace. Requires a workspace id. Tags are the free-form cross-cutting label on time entries -- billable category, activity type, whatever the team chose -- and often the only dimension beyond project and task.",
+      "responseSchema": [
+        {
+          "archived": "boolean",
+          "id": "string",
+          "name": "string",
+          "workspaceId": "string"
+        }
+      ]
     },
     {
       "name": "Tasks",
       "paged": true,
       "suffix": "/v1/workspaces/{Workspace Id}/projects/{Project Id}/tasks?is-active={Is Active?:true|false}&name={Name?}",
-      "description": "The tasks within one project, with name, status, estimate and assignees. Requires the workspace and project ids. The level below project that time is booked against."
+      "description": "The tasks within one project, with name, status, estimate and assignees. Requires the workspace and project ids. The level below project that time is booked against.",
+      "responseSchema": [
+        {
+          "assigneeId": "string",
+          "assigneeIds": [
+            "string"
+          ],
+          "billable": "boolean",
+          "budgetEstimate": "double",
+          "costRate": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "duration": "string",
+          "estimate": "string",
+          "hourlyRate": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "id": "string",
+          "name": "string",
+          "projectId": "string",
+          "status": "string",
+          "userGroupIds": [
+            "string"
+          ]
+        }
+      ]
     },
     {
       "name": "Task",
       "paged": false,
       "suffix": "/v1/workspaces/{Workspace Id}/projects/{Project Id}/tasks/{Task Id}",
-      "description": "One task by id. Requires the workspace and project ids."
+      "description": "One task by id. Requires the workspace and project ids.",
+      "responseSchema": {
+        "assigneeId": "string",
+        "assigneeIds": [
+          "string"
+        ],
+        "billable": "boolean",
+        "budgetEstimate": "double",
+        "costRate": {
+          "amount": "double",
+          "currency": "string"
+        },
+        "duration": "string",
+        "estimate": "string",
+        "hourlyRate": {
+          "amount": "double",
+          "currency": "string"
+        },
+        "id": "string",
+        "name": "string",
+        "projectId": "string",
+        "status": "string",
+        "userGroupIds": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Time Entries",
       "paged": true,
       "suffix": "/v1/workspaces/{Workspace Id}/user/{User Id}/time-entries?description={Description?}&start={Start?:yyyy-MM-ddTHH:mm:ss}&end={End?:yyyy-MM-ddTHH:mm:ss}&project={Project?}&task={Task?}&tags={Tags?}&project-required={Project Required?:true|false}&task-required={Task Required?:true|false}&consider-duration-format={Consider Duration Format?:true|false}&hydrated={Hydrated?:true|false}&in-project={In Progress?:true|false}",
-      "description": "The time entries of ONE USER. Requires the workspace and user ids. Carries the description, the project and task, tags, the billable flag, and a timeInterval holding start, end and duration. TWO THINGS. It is per user, so a workspace-wide extract is a loop over the member list. And DURATION IS AN ISO 8601 PERIOD STRING like PT1H30M, not a number -- it must be parsed before it can be summed, and a running entry has no end and no duration at all."
+      "description": "The time entries of ONE USER. Requires the workspace and user ids. Carries the description, the project and task, tags, the billable flag, and a timeInterval holding start, end and duration. TWO THINGS. It is per user, so a workspace-wide extract is a loop over the member list. And DURATION IS AN ISO 8601 PERIOD STRING like PT1H30M, not a number -- it must be parsed before it can be summed, and a running entry has no end and no duration at all.",
+      "responseSchema": [
+        {
+          "billable": "boolean",
+          "costRate": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "customFieldValues": [
+            {
+              "customFieldId": "string",
+              "name": "string",
+              "timeEntryId": "string",
+              "type": "string"
+            }
+          ],
+          "description": "string",
+          "hourlyRate": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "id": "string",
+          "isLocked": "boolean",
+          "kioskId": "string",
+          "projectId": "string",
+          "tagIds": [
+            "string"
+          ],
+          "taskId": "string",
+          "timeInterval": {
+            "duration": "string",
+            "end": "timeInstant",
+            "start": "timeInstant",
+            "timeZone": "string",
+            "zonedEnd": "timeInstant",
+            "zonedStart": "timeInstant"
+          },
+          "type": "string",
+          "userId": "string",
+          "workspaceId": "string"
+        }
+      ]
     },
     {
       "name": "Time Entry",
       "paged": false,
       "suffix": "/v1/workspaces/{Workspace Id}/time-entries/{Time Entry Id}",
-      "description": "One time entry by id. Requires the workspace id. Same ISO duration format."
+      "description": "One time entry by id. Requires the workspace id. Same ISO duration format.",
+      "responseSchema": {
+        "billable": "boolean",
+        "costRate": {
+          "amount": "double",
+          "currency": "string"
+        },
+        "customFieldValues": [
+          {
+            "customFieldId": "string",
+            "name": "string",
+            "timeEntryId": "string",
+            "type": "string"
+          }
+        ],
+        "description": "string",
+        "hourlyRate": {
+          "amount": "double",
+          "currency": "string"
+        },
+        "id": "string",
+        "isLocked": "boolean",
+        "kioskId": "string",
+        "projectId": "string",
+        "tagIds": [
+          "string"
+        ],
+        "taskId": "string",
+        "timeInterval": {
+          "duration": "string",
+          "end": "timeInstant",
+          "start": "timeInstant",
+          "timeZone": "string",
+          "zonedEnd": "timeInstant",
+          "zonedStart": "timeInstant"
+        },
+        "type": "string",
+        "userId": "string",
+        "workspaceId": "string"
+      }
     },
     {
       "name": "User",
       "paged": false,
       "suffix": "/v1/user",
-      "description": "The account the credentials belong to. One record, always the caller -- and the id needed by the time entry endpoints, which are addressed per user."
+      "description": "The account the credentials belong to. One record, always the caller -- and the id needed by the time entry endpoints, which are addressed per user.",
+      "responseSchema": {
+        "activeWorkspace": "string",
+        "customFields": [
+          {
+            "customFieldId": "string",
+            "customFieldName": "string",
+            "customFieldType": "string",
+            "userId": "string"
+          }
+        ],
+        "defaultWorkspace": "string",
+        "email": "string",
+        "id": "string",
+        "memberships": [
+          {
+            "costRate": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "hourlyRate": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "membershipStatus": "string",
+            "membershipType": "string",
+            "targetId": "string",
+            "userId": "string"
+          }
+        ],
+        "name": "string",
+        "profilePicture": "string",
+        "settings": {
+          "alerts": "boolean",
+          "approval": "boolean",
+          "collapseAllProjectLists": "boolean",
+          "dashboardPinToTop": "boolean",
+          "dashboardSelection": "string",
+          "dashboardViewType": "string",
+          "dateFormat": "string",
+          "groupSimilarEntriesDisabled": "boolean",
+          "invoiceReminders": "boolean",
+          "isCompactViewOn": "boolean",
+          "lang": "string",
+          "longRunning": "boolean",
+          "multiFactorEnabled": "boolean",
+          "myStartOfDay": "string",
+          "onboarding": "boolean",
+          "projectListCollapse": "double",
+          "projectPickerTaskFilter": "boolean",
+          "pto": "boolean",
+          "reminders": "boolean",
+          "scheduledReports": "boolean",
+          "scheduling": "boolean",
+          "sendNewsletter": "boolean",
+          "showOnlyWorkingDays": "boolean",
+          "summaryReportSettings": {
+            "group": "string",
+            "subgroup": "string"
+          },
+          "theme": "string",
+          "timeFormat": "string",
+          "timeTrackingManual": "boolean",
+          "timeZone": "string",
+          "weekStart": "string",
+          "weeklyUpdates": "boolean"
+        },
+        "status": "string"
+      }
     },
     {
       "name": "Users",
@@ -66,13 +346,99 @@
           "parameterName": "User Id"
         }
       ],
-      "description": "The members of one workspace, with name, email, status and their memberships. Requires a workspace id. Status separates active members from those deactivated, who still own their historical entries."
+      "description": "The members of one workspace, with name, email, status and their memberships. Requires a workspace id. Status separates active members from those deactivated, who still own their historical entries.",
+      "responseSchema": [
+        {
+          "activeWorkspace": "string",
+          "customFields": [
+            {
+              "customFieldId": "string",
+              "customFieldName": "string",
+              "customFieldType": "string",
+              "userId": "string"
+            }
+          ],
+          "defaultWorkspace": "string",
+          "email": "string",
+          "id": "string",
+          "memberships": [
+            {
+              "costRate": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "hourlyRate": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "membershipStatus": "string",
+              "membershipType": "string",
+              "targetId": "string",
+              "userId": "string"
+            }
+          ],
+          "name": "string",
+          "profilePicture": "string",
+          "settings": {
+            "alerts": "boolean",
+            "approval": "boolean",
+            "collapseAllProjectLists": "boolean",
+            "dashboardPinToTop": "boolean",
+            "dashboardSelection": "string",
+            "dashboardViewType": "string",
+            "dateFormat": "string",
+            "groupSimilarEntriesDisabled": "boolean",
+            "invoiceReminders": "boolean",
+            "isCompactViewOn": "boolean",
+            "lang": "string",
+            "longRunning": "boolean",
+            "multiFactorEnabled": "boolean",
+            "myStartOfDay": "string",
+            "onboarding": "boolean",
+            "projectListCollapse": "double",
+            "projectPickerTaskFilter": "boolean",
+            "pto": "boolean",
+            "reminders": "boolean",
+            "scheduledReports": "boolean",
+            "scheduling": "boolean",
+            "sendNewsletter": "boolean",
+            "showOnlyWorkingDays": "boolean",
+            "summaryReportSettings": {
+              "group": "string",
+              "subgroup": "string"
+            },
+            "theme": "string",
+            "timeFormat": "string",
+            "timeTrackingManual": "boolean",
+            "timeZone": "string",
+            "weekStart": "string",
+            "weeklyUpdates": "boolean"
+          },
+          "status": "string"
+        }
+      ]
     },
     {
       "name": "Groups",
       "paged": true,
       "suffix": "/v1/workspaces/{Workspace Id}/user-groups?name={Name?}&projectId={Project Id?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}",
-      "description": "The user groups in one workspace. Requires a workspace id. Groups are how permissions and project access are granted in bulk."
+      "description": "The user groups in one workspace. Requires a workspace id. Groups are how permissions and project access are granted in bulk.",
+      "responseSchema": [
+        {
+          "id": "string",
+          "name": "string",
+          "teamManagers": [
+            {
+              "id": "string",
+              "name": "string"
+            }
+          ],
+          "userIds": [
+            "string"
+          ],
+          "workspaceId": "string"
+        }
+      ]
     },
     {
       "name": "Workspaces",
@@ -93,7 +459,193 @@
           "parameterName": "Workspace Id"
         }
       ],
-      "description": "The workspaces the authenticated user belongs to, with name, and the settings that govern time tracking -- rounding, whether time can be entered for other users, and the default billable state. Every other endpoint needs a workspace id, so this is the first request. The ROUNDING SETTING is worth reading: where it is on, recorded durations are adjusted before they reach reports, so raw time entries and report totals legitimately disagree."
+      "description": "The workspaces the authenticated user belongs to, with name, and the settings that govern time tracking -- rounding, whether time can be entered for other users, and the default billable state. Every other endpoint needs a workspace id, so this is the first request. The ROUNDING SETTING is worth reading: where it is on, recorded durations are adjusted before they reach reports, so raw time entries and report totals legitimately disagree.",
+      "responseSchema": [
+        {
+          "cakeOrganizationId": "string",
+          "costRate": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "currencies": [
+            {
+              "code": "string",
+              "id": "string",
+              "isDefault": "boolean"
+            }
+          ],
+          "featureSubscriptionType": {
+            "addonSubscriptionPlan": "string",
+            "featurePermissions": [
+              "string"
+            ],
+            "legacy": "boolean",
+            "paidPlan": "boolean",
+            "regionalAllowed": "boolean",
+            "weight": "double"
+          },
+          "features": "string",
+          "hourlyRate": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "id": "string",
+          "imageUrl": "string",
+          "memberships": [
+            {
+              "costRate": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "hourlyRate": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "membershipStatus": "string",
+              "membershipType": "string",
+              "targetId": "string",
+              "userId": "string"
+            }
+          ],
+          "name": "string",
+          "subdomain": {
+            "enabled": "boolean",
+            "name": "string"
+          },
+          "workspaceSettings": {
+            "activeBillableHours": "boolean",
+            "adminOnlyPages": "string",
+            "approvalSettings": {
+              "approvalEnabled": "boolean",
+              "approvalPeriod": "string",
+              "approvalRoles": [
+                "string"
+              ]
+            },
+            "auditLogSettings": {
+              "auditEnabled": "boolean",
+              "clientAuditing": "boolean",
+              "clientStartedRecording": "timeInstant",
+              "expensesAuditing": "boolean",
+              "expensesStartedRecording": "timeInstant",
+              "projectAuditing": "boolean",
+              "projectStartedRecording": "timeInstant",
+              "tagAuditing": "boolean",
+              "tagStartedRecording": "timeInstant",
+              "timeEntryAuditing": "boolean",
+              "timeEntryStartedRecording": "timeInstant"
+            },
+            "automaticLock": {
+              "changeDay": "string",
+              "dayOfMonth": "double",
+              "firstDay": "string",
+              "olderThanPeriod": "string",
+              "olderThanValue": "double",
+              "type": "string"
+            },
+            "breakSettings": {
+              "breaksEnabled": "boolean",
+              "defaultBreakEntities": {
+                "projectId": "string",
+                "taskId": "string"
+              }
+            },
+            "canManagerEditUsersTime": "boolean",
+            "canManagerLaunchKiosk": "boolean",
+            "canSeeTimeSheet": "boolean",
+            "canSeeTracker": "boolean",
+            "companyAddress": "string",
+            "currencyFormat": "string",
+            "customLabels": {
+              "projectGroupingLabel": "string",
+              "projectLabel": "string",
+              "taskLabel": "string"
+            },
+            "decimalFormat": "boolean",
+            "defaultBillableProjects": "boolean",
+            "durationFormat": "string",
+            "entityCreationPermissions": {
+              "whoCanCreateProjectsAndClients": "string",
+              "whoCanCreateTags": "string",
+              "whoCanCreateTasks": "string"
+            },
+            "expenseApprovalSettings": {
+              "approvalEnabled": "boolean",
+              "approvalPeriod": "string",
+              "approvalRoles": [
+                "string"
+              ]
+            },
+            "expensesEnabled": "boolean",
+            "favoriteEntriesEnabled": "boolean",
+            "forceDescription": "boolean",
+            "forceProjects": "boolean",
+            "forceTags": "boolean",
+            "forceTasks": "boolean",
+            "highResolutionScreenshots": "boolean",
+            "invoicingEnabled": "boolean",
+            "isCostRateActive": "boolean",
+            "isProjectPublicByDefault": "boolean",
+            "kioskAuthType": "string",
+            "kioskAutologinEnabled": "boolean",
+            "kioskEnabled": "boolean",
+            "kioskPhotoCaptureEnabled": "boolean",
+            "kioskProjectsAndTasksEnabled": "boolean",
+            "locationsEnabled": "boolean",
+            "lockTimeEntries": "string",
+            "lockTimeZone": "string",
+            "multiFactorEnabled": "boolean",
+            "numberFormat": "string",
+            "onlyAdminsCanChangeBillableStatus": "boolean",
+            "onlyAdminsCreateProject": "boolean",
+            "onlyAdminsCreateTag": "boolean",
+            "onlyAdminsCreateTask": "boolean",
+            "onlyAdminsSeeAllTimeEntries": "boolean",
+            "onlyAdminsSeeBillableRates": "boolean",
+            "onlyAdminsSeeDashboard": "boolean",
+            "onlyAdminsSeeProjectStatus": "boolean",
+            "onlyAdminsSeePublicProjectsEntries": "boolean",
+            "overtimeCalculationPeriod": "string",
+            "projectFavorites": "boolean",
+            "projectGroupingLabel": "string",
+            "projectLabel": "string",
+            "projectPickerSpecialFilter": "boolean",
+            "round": {
+              "minutes": "string",
+              "round": "string"
+            },
+            "schedulingEnabled": "boolean",
+            "schedulingSettings": {
+              "canSeeBillableAndCostAmount": "boolean",
+              "enabled": "boolean",
+              "everyoneCanSeeAllAssignments": "boolean",
+              "whoCanCreateAssignments": "string"
+            },
+            "screenshotsEnabled": "boolean",
+            "taskBillableEnabled": "boolean",
+            "taskLabel": "string",
+            "taskRateEnabled": "boolean",
+            "timeApprovalEnabled": "boolean",
+            "timeOff": {
+              "active": "boolean",
+              "regularUserCanSeeOtherUsersTimeOff": "boolean",
+              "showDefaultPoliciesMessageToUsers": [
+                "string"
+              ]
+            },
+            "timeRoundingInReports": "boolean",
+            "timeTrackingMode": "string",
+            "timeViewMode": "string",
+            "trackTimeDownToSecond": "boolean",
+            "weekStart": "string",
+            "whitelistedForAggregateView": "boolean",
+            "workCapacity": "string",
+            "workingDays": [
+              "string"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Summary Report",
