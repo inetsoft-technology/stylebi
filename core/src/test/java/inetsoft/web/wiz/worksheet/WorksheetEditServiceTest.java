@@ -84,6 +84,45 @@ class WorksheetEditServiceTest {
    }
 
    /**
+    * Bug #80379: an agent edit of a worksheet hints the Composer to follow it to that tab; the
+    * undo/redo-style {@code applyOnRuntimeNoCheckpoint} (also used for the bookkeeping steps of an
+    * edit) does not.
+    */
+   @Test
+   void applyHintsTheComposerToFocusTheEditedWorksheet80379() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("Worksheet/foo-7"), eq(agent)))
+         .thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess, broadcast,
+         mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      svc.apply("TOK", agent, ed -> ed.removeColumn("T", "a"));
+      verify(broadcast, times(1)).focusSheet(rws, "Worksheet/foo-7");
+
+      svc.applyOnRuntime("TOK", agent, r -> null);
+      verify(broadcast, times(2)).focusSheet(rws, "Worksheet/foo-7");
+
+      svc.applyOnRuntimeNoCheckpoint("TOK", agent, r -> null);
+      verify(broadcast, times(2)).focusSheet(any(), any());
+   }
+
+   /**
     * Same regression as {@code ViewsheetSessionServiceTest}'s
     * {@code mutateNeverOvewritesTheRuntimesCurrentSocketSessionIdWithThisSessionsOwnFrozenValue}
     * -- see that test's doc comment. {@code apply} must NOT reapply this session's own

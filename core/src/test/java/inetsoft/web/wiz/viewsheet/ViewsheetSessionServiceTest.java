@@ -103,6 +103,65 @@ class ViewsheetSessionServiceTest {
    }
 
    /**
+    * Bug #80379: a successful agent edit hints the Composer to follow it to this sheet, once, and
+    * after the refresh that shows the edit.
+    */
+   @Test
+   void mutateHintsTheComposerToFocusTheEditedSheetOnSuccess80379() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(
+         sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
+      svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {});
+
+      org.mockito.InOrder order = inOrder(broadcast);
+      order.verify(broadcast).broadcastRefresh(eq(rvs), eq(SheetType.VIEWSHEET),
+                                               eq("Viewsheet/foo-7"), eq(agent), any());
+      order.verify(broadcast).focusSheet(rvs, "Viewsheet/foo-7");
+      verify(broadcast, times(1)).focusSheet(any(), any());
+   }
+
+   /** Bug #80379: a failed edit is repainted (see above) but must not move the user's tab. */
+   @Test
+   void mutateDoesNotHintTheComposerWhenTheMutationFails80379() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(
+         sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
+
+      assertThrows(RuntimeException.class, () -> svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {
+         throw new RuntimeException("partial failure mid-mutation");
+      }));
+
+      verify(broadcast).broadcastRefresh(any(), any(), any(), any(), any());
+      verify(broadcast, never()).focusSheet(any(), any());
+   }
+
+   /**
     * VBS-003 review round 1 (important, confidence 85): a caught post-write refresh failure
     * dispatches a {@code MessageCommand} of {@code Type.WARNING}, but {@code mutate} discarded
     * whatever the dispatcher captured -- so a wiz-agent call that hit one of those guarded

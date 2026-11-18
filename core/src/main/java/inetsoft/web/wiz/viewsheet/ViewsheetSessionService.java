@@ -359,6 +359,10 @@ public class ViewsheetSessionService {
                                                    agent, producedCommands);
       }
 
+      // Reached only when the mutation did not throw: a failed edit (the finally block above
+      // already refreshed the browser) must not move the user's tab (Bug #80379).
+      broadcast.focusSheet(rvs, session.runtimeId());
+
       if(notDelivered != null) {
          // the dispatcher's list may be immutable
          warnings = new ArrayList<>(warnings);

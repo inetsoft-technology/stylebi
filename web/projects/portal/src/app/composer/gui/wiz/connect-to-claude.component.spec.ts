@@ -20,6 +20,7 @@ import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { NEVER, of, ReplaySubject, Subject } from "rxjs";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ConnectToClaudeComponent } from "./connect-to-claude.component";
+import { FollowFocusService } from "./services/follow-focus.service";
 
 describe("ConnectToClaudeComponent", () => {
    let fixture: ComponentFixture<ConnectToClaudeComponent>;
@@ -1048,6 +1049,19 @@ describe("ConnectToClaudeComponent", () => {
          expect(mockStompConnection.send).toHaveBeenCalledWith(
             "/events/wiz/pairing/follow-focus", {},
             JSON.stringify({ runtimeId: "rt-1", enabled: true }));
+      });
+
+      // Bug #80379: one checkbox, Composer-wide for tab following, so it reads the same on
+      // whichever sheet is focused after the agent's edit switches the tab
+      it("shows the checkbox ticked on another sheet once it was ticked on a different one", () => {
+         connectAsToolbar();
+         const followFocus = TestBed.inject(FollowFocusService);
+         followFocus.setEnabled("rt-other", mockSocketConnection, true);
+
+         expect(component.runtimeId).toBe("rt-1");
+         expect(component.followFocusEnabled).toBe(true);
+         fixture.detectChanges();
+         expect(fixture.nativeElement.querySelector("#wiz-follow-focus-toggle")).toBeTruthy();
       });
 
       it("defaults the live target to Whole sheet on join", () => {

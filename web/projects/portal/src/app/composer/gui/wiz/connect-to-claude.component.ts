@@ -192,8 +192,13 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       return !this.editorContext;
    }
 
+   /**
+    * What the checkbox shows: the Composer-wide "follow the agent's tab" flag, so it reads the same
+    * on whichever sheet is focused (Bug #80379). The per-runtime pane-retarget flag is set by the
+    * same click (see FollowFocusService#setEnabled) but is not what this displays.
+    */
    get followFocusEnabled(): boolean {
-      return this.followFocusService.isEnabled(this.runtimeId);
+      return this.followFocusService.isFollowTabsEnabled();
    }
 
    toggleFollowFocus(event: Event): void {

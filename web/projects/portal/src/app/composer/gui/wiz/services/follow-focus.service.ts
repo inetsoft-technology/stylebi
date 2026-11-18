@@ -69,6 +69,7 @@ interface FollowFocusState {
 })
 export class FollowFocusService {
    private state = new Map<string, FollowFocusState>();
+   private followTabs = false;
    private errorSubject = new Subject<string>();
 
    /**
@@ -90,6 +91,20 @@ export class FollowFocusService {
    }
 
    /**
+    * Whether the Composer should switch to the tab of the sheet an agent just edited (Bug #80379).
+    *
+    * Composer-wide, unlike {@link isEnabled}: the checkbox is one control shown on whichever sheet
+    * is focused, so a per-sheet flag would follow the agent from sheet A to B and then stop,
+    * because B's own flag was never ticked. Set by the same checkbox as the per-runtime flag
+    * (see {@link setEnabled}); browser-side only, since moving the user's own tab widens nothing
+    * the agent is authorised to do, so the server need not know. Never persisted, like the rest
+    * of Follow Focus.
+    */
+   isFollowTabsEnabled(): boolean {
+      return this.followTabs;
+   }
+
+   /**
     * Turns Follow Focus on/off for this runtime and tells the server. Off is always safe to
     * request (a session that already has no pushed focus simply has nothing to pop later); on
     * only takes effect for the *next* pane opened -- an already-open pane does not retroactively
@@ -101,6 +116,8 @@ export class FollowFocusService {
       }
 
       this.stateFor(runtimeId).enabled = enabled;
+      // the same checkbox also turns tab following on/off for the whole Composer
+      this.followTabs = enabled;
 
       socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
          conn.send("/events/wiz/pairing/follow-focus", {},

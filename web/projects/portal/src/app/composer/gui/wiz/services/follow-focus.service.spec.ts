@@ -250,4 +250,39 @@ describe("FollowFocusService", () => {
          error.mockRestore();
       });
    });
+
+   // Bug #80379: the checkbox also turns tab following on for the whole Composer
+   describe("isFollowTabsEnabled", () => {
+      it("defaults to off", () => {
+         expect(service.isFollowTabsEnabled()).toBe(false);
+      });
+
+      it("is Composer-wide: ticking it on one runtime applies to every sheet", () => {
+         service.setEnabled("rt-1", mockSocketConnection, true);
+
+         expect(service.isFollowTabsEnabled()).toBe(true);
+         // the per-runtime pane-retarget flag is unchanged: only rt-1 has it
+         expect(service.isEnabled("rt-1")).toBe(true);
+         expect(service.isEnabled("rt-2")).toBe(false);
+      });
+
+      it("follows the checkbox when it is unticked from another sheet", () => {
+         service.setEnabled("rt-1", mockSocketConnection, true);
+         service.setEnabled("rt-2", mockSocketConnection, false);
+
+         expect(service.isFollowTabsEnabled()).toBe(false);
+      });
+
+      it("is not changed by a call that is refused for lack of a runtime or socket", () => {
+         service.setEnabled("", mockSocketConnection, true);
+         service.setEnabled("rt-1", null, true);
+
+         expect(service.isFollowTabsEnabled()).toBe(false);
+      });
+
+      it("sends nothing new to the server for tab following (protocol unchanged)", () => {
+         service.setEnabled("rt-1", mockSocketConnection, true);
+         expect(mockStompConnection.send).toHaveBeenCalledTimes(1);
+      });
+   });
 });

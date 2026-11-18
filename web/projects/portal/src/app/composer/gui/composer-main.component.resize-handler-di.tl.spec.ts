@@ -110,7 +110,7 @@ async function renderWithRealProvidersArray() {
    vi.spyOn(GuiTool, "isTouchDevice").mockResolvedValue(false);
 
    const mocks = {
-      composerClient: { connect: vi.fn(), disconnect: vi.fn(), editAsset: EMPTY_OBS },
+      composerClient: { connect: vi.fn(), disconnect: vi.fn(), editAsset: EMPTY_OBS, focusSheet: EMPTY_OBS },
       clipboardService: {
          clipboardEmpty: false,
          sheetClosed: vi.fn(),

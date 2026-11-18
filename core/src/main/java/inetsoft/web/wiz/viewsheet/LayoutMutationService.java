@@ -759,8 +759,9 @@ public class LayoutMutationService {
       }
 
       try {
-         broadcast.broadcastLayoutRefresh(viewsheetSessions.resolve(sessionToken, agent),
-                                          layoutName, agent);
+         RuntimeViewsheet master = viewsheetSessions.resolve(sessionToken, agent);
+         broadcast.broadcastLayoutRefresh(master, layoutName, agent);
+         broadcast.focusSheet(master, master.getID());
       }
       catch(Exception e) {
          LOG.warn("Layout designer refresh push failed (layout={})", layoutName, e);
