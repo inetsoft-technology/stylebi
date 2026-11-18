@@ -252,7 +252,16 @@ public class RealtimeTableMetaData extends TableMetaData {
                      idxs[i] = meta;
                   }
 
-                  if(idxs != null) {
+                  if(idxs != null && cube) {
+                     // cube members are not comparable with the slider bounds (captions)
+                     // as values, so compare by member position instead
+                     List<Object> cubeConds = toCubeRanges(conds, idxs);
+
+                     if(cubeConds != null) {
+                        ranges.put(idxs, cubeConds);
+                     }
+                  }
+                  else if(idxs != null) {
                      ranges.put(idxs, conds);
                   }
                }
@@ -566,6 +575,223 @@ public class RealtimeTableMetaData extends TableMetaData {
       return appliedMaxRow;
    }
 
+   /**
+    * Convert the range conditions of a cube slider to position based ranges.
+    * @return the converted ranges, or null if any bound can not be resolved to a member (the
+    * range is then not applied).
+    */
+   private List<Object> toCubeRanges(List<Object> conds, ColumnMetaData[] keyMetas) {
+      List<Object> result = new ArrayList<>();
+
+      for(Object obj : conds) {
+         CubeRange range = CubeRange.create((RangeCondition) obj, keyMetas, colmap);
+
+         if(range == null) {
+            LOG.debug("Unable to resolve the cube range bounds to members: {}", obj);
+            return null;
+         }
+
+         result.add(range);
+      }
+
+      return result;
+   }
+
+   /**
+    * A range on cube members. The bounds and the row members are mapped to a rank derived from
+    * the member keys in the unique name (the "&[2002]&[11]" part), compared numerically, and the ranks are compared. Neither the
+    * order of the metadata rows (it is the cube table sort, which falls back to the display
+    * text when the level cache is missing) nor the caption/unique name text sorts
+    * hierarchically, so they are not used. This relies on the member keys of the level being
+    * in hierarchy order (true for time levels such as calendar year/month). If any member has
+    * no key or a non-numeric key, the range is not applied.
+    */
+   private static final class CubeRange {
+      static CubeRange create(RangeCondition cond, ColumnMetaData[] keyMetas,
+                              Map<String, ColumnMetaData> colmap)
+      {
+         DataRef[] refs = cond.getRefs();
+         Object[] mins = cond.getMins();
+         Object[] maxes = cond.getMaxes();
+         CubeRange range = new CubeRange();
+         range.id = cond.getId();
+         range.lowerInclusive = cond.isLowerInclusive();
+         range.upperInclusive = cond.isUpperInclusive();
+         range.metas = new ColumnMetaData[refs.length];
+         range.mins = new int[refs.length];
+         range.maxes = new int[refs.length];
+         range.ranks = new int[refs.length][];
+
+         for(int i = 0; i < refs.length; i++) {
+            ColumnMetaData meta = colmap.get(refs[i].getName());
+
+            if(meta == null && refs[i] instanceof AttributeRef) {
+               meta = colmap.get(((AttributeRef) refs[i]).getAttribute());
+            }
+
+            if(meta == null && keyMetas.length == refs.length) {
+               meta = keyMetas[i];
+            }
+
+            if(meta == null) {
+               return null;
+            }
+
+            range.metas[i] = meta;
+            range.ranks[i] = rank(meta);
+
+            if(range.ranks[i] == null) {
+               return null;
+            }
+
+            int min = indexOf(meta, mins[i]);
+            int max = indexOf(meta, maxes[i]);
+
+            if(min < 0 || max < 0) {
+               return null;
+            }
+
+            range.mins[i] = range.ranks[i][min];
+            range.maxes[i] = range.ranks[i][max];
+         }
+
+         return range;
+      }
+
+      private static final java.util.regex.Pattern KEY =
+         java.util.regex.Pattern.compile("&\\[([^\\]]*)\\]");
+
+      /**
+       * Get the rank of each member (by value index) from the member keys.
+       * @return the ranks, or null if a member has no key.
+       */
+      private static int[] rank(ColumnMetaData meta) {
+         List<Object> values = meta.getValues();
+         List<java.math.BigDecimal[]> keys = new ArrayList<>();
+
+         for(Object val : values) {
+            if(!(val instanceof MemberObject) || ((MemberObject) val).getUName() == null) {
+               return null;
+            }
+
+            String uname = ((MemberObject) val).getUName();
+            int pos = uname.indexOf(".&[");
+
+            if(pos < 0) {
+               return null;
+            }
+
+            java.util.regex.Matcher m = KEY.matcher(uname.substring(pos));
+            List<java.math.BigDecimal> parts = new ArrayList<>();
+
+            while(m.find()) {
+               try {
+                  parts.add(new java.math.BigDecimal(m.group(1)));
+               }
+               catch(NumberFormatException ex) {
+                  LOG.debug("Non-numeric member key, range not applied: {}", uname);
+                  return null;
+               }
+            }
+
+            if(parts.isEmpty()) {
+               return null;
+            }
+
+            keys.add(parts.toArray(new java.math.BigDecimal[0]));
+         }
+
+         Integer[] order = new Integer[values.size()];
+
+         for(int i = 0; i < order.length; i++) {
+            order[i] = i;
+         }
+
+         Arrays.sort(order, (x, y) -> compareKeys(keys.get(x), keys.get(y)));
+         int[] ranks = new int[order.length];
+
+         for(int i = 0; i < order.length; i++) {
+            ranks[order[i]] = i;
+         }
+
+         return ranks;
+      }
+
+      private static int compareKeys(java.math.BigDecimal[] a, java.math.BigDecimal[] b) {
+         for(int i = 0; i < Math.min(a.length, b.length); i++) {
+            int c = a[i].compareTo(b[i]);
+
+            if(c != 0) {
+               return c;
+            }
+         }
+
+         return Integer.compare(a.length, b.length);
+      }
+
+      private static int indexOf(ColumnMetaData meta, Object bound) {
+         if(bound == null) {
+            return -1;
+         }
+
+         String str = bound.toString();
+         List<Object> values = meta.getValues();
+
+         for(int i = 0; i < values.size(); i++) {
+            if(values.get(i) instanceof MemberObject) {
+               MemberObject mobj = (MemberObject) values.get(i);
+
+               if(str.equals(mobj.getUName()) || str.equals(mobj.getCaption()) ||
+                  str.equals(mobj.toView()))
+               {
+                  return i;
+               }
+            }
+         }
+
+         for(int i = 0; i < values.size(); i++) {
+            if(values.get(i) instanceof MemberObject &&
+               XMLAUtil.isIdentity(str, (MemberObject) values.get(i)))
+            {
+               return i;
+            }
+         }
+
+         return -1;
+      }
+
+      boolean evaluate(int[] tuple) {
+         int[] vals = new int[metas.length];
+
+         for(int i = 0; i < vals.length; i++) {
+            vals[i] = ranks[i][tuple[metas[i].getIndex()]];
+         }
+
+         int cmin = compare(vals, mins);
+         int cmax = compare(vals, maxes);
+         return (cmin > 0 || cmin == 0 && lowerInclusive) &&
+            (cmax < 0 || cmax == 0 && upperInclusive);
+      }
+
+      private static int compare(int[] a, int[] b) {
+         for(int i = 0; i < a.length; i++) {
+            if(a[i] != b[i]) {
+               return a[i] < b[i] ? -1 : 1;
+            }
+         }
+
+         return 0;
+      }
+
+      private String id;
+      private ColumnMetaData[] metas;
+      private int[] mins;
+      private int[] maxes;
+      private int[][] ranks;
+      private boolean lowerInclusive;
+      private boolean upperInclusive;
+   }
+
    @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
       in.defaultReadObject();
@@ -674,13 +900,12 @@ public class RealtimeTableMetaData extends TableMetaData {
             }
 
             for(int i = 0; i < conds.size(); ) {
-               RangeCondition cond = (RangeCondition) conds.get(i);
-               String condId = cond.getId();
+               String condId = rangeId(conds.get(i));
                int end = i + 1;
 
                // find index of next group
                for(; end < conds.size(); end++) {
-                  if(!Objects.equals(condId, ((RangeCondition) conds.get(end)).getId())) {
+                  if(!Objects.equals(condId, rangeId(conds.get(end)))) {
                      break;
                   }
                }
@@ -689,9 +914,11 @@ public class RealtimeTableMetaData extends TableMetaData {
 
                // ranges in same group are OR conditions (calendar)
                for(; i < end; i++) {
-                  cond = (RangeCondition) conds.get(i);
+                  Object cond = conds.get(i);
 
-                  if(cond.evaluate(vals)) {
+                  if(cond instanceof CubeRange ? ((CubeRange) cond).evaluate(tuple) :
+                     ((RangeCondition) cond).evaluate(vals))
+                  {
                      ok = true;
                      break;
                   }
@@ -713,6 +940,10 @@ public class RealtimeTableMetaData extends TableMetaData {
          }
 
          return vidx;
+      }
+
+      private static String rangeId(Object cond) {
+         return cond instanceof CubeRange ? ((CubeRange) cond).id : ((RangeCondition) cond).getId();
       }
 
       /**
