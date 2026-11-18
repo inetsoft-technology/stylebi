@@ -903,6 +903,21 @@ public abstract class GraphElement extends Graphable {
    }
 
    /**
+    * Check if a value label that does not fit inside its mark is hidden.
+    */
+   public boolean isValueFitInside() {
+      return valueFitInside;
+   }
+
+   /**
+    * Set whether a value label that does not fit inside its mark is hidden. This is only
+    * supported by bar marks.
+    */
+   public void setValueFitInside(boolean valueFitInside) {
+      this.valueFitInside = valueFitInside;
+   }
+
+   /**
     * Set if the text color should be automatically calculated based on background
     * color for maximum contrast. This is only supported by certain graph types.
     */
@@ -1109,6 +1124,7 @@ public abstract class GraphElement extends Graphable {
          textPos == elem2.textPos &&
          autoTextColor == elem2.autoTextColor &&
          contrastInk == elem2.contrastInk &&
+         valueFitInside == elem2.valueFitInside &&
          Objects.equals(textSpec, elem2.textSpec) &&
          Objects.equals(textSpecMap, elem2.textSpecMap) &&
          Objects.equals(borderColor, elem2.borderColor) &&
@@ -1189,6 +1205,7 @@ public abstract class GraphElement extends Graphable {
    private transient DataSet vdata;
    private boolean autoTextColor = false;
    private boolean contrastInk = false;
+   private boolean valueFitInside = false;
    private Map<String, TextSpec> textSpecMap = new HashMap<>();
    private GraphtDataSelector selector;
    private Color borderColor;

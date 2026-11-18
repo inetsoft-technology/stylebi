@@ -1274,6 +1274,12 @@ public abstract class GraphGenerator {
             elem.getTextSpec().setFormat(null);
          }
 
+         if(isValueInsideMark(elem)) {
+            elem.setLabelPlacement(GraphConstants.CENTER);
+            elem.setValueFitInside(true);
+            elem.setAutoTextColor(!isTextColorSet(format, elem.getTextSpec()));
+         }
+
          if(format.getUserDefinedFormat().isColorDefined()) {
             elem.setAutoTextColor(false);
          }
@@ -1427,6 +1433,17 @@ public abstract class GraphGenerator {
             }
          }
       }
+   }
+
+   // a marked funnel or waterfall without a Text field centres its values inside the marks
+   private boolean isValueInsideMark(GraphElement elem) {
+      if(!vizContext.modern || info.getTextField() != null || !(elem instanceof IntervalElement)) {
+         return false;
+      }
+
+      return ((IntervalElement) elem).isWaterfall() ||
+         GraphTypes.isFunnel(info.getRTChartType()) &&
+            (elem.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0;
    }
 
    // modern: an author or stylesheet colour turns the automatic one off; classic: any non-default
