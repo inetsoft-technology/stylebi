@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.XConstants;
@@ -26,6 +27,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.XAggregateRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartBindable;
@@ -122,6 +124,7 @@ public class ChartBindingService {
             ChartHyperlinkCarry.snapshot(chart.getVSChartInfo(), shelf);
          ChartHighlightSweep.Snapshot highlights =
             ChartHighlightSweep.snapshot(chart.getVSChartInfo());
+         List<ChartAxisCarry.Saved> axes = ChartAxisCarry.snapshot(chart.getVSChartInfo(), shelf);
          ChartBindingMutator.setShelf(
             model, shelf, fields, rvs,
             BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
@@ -145,6 +148,7 @@ public class ChartBindingService {
             requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links, reported));
          notes.addAll(ChartHighlightSweep.sweep(
             requireChart(rvs, assemblyName).getVSChartInfo(), highlights, reported));
+         reapplyAxes(rvs, assemblyName, shelf, axes);
 
          try {
             requireCalculatorsResolved(requireChart(rvs, assemblyName).getVSChartInfo(), shelf,
@@ -262,6 +266,32 @@ public class ChartBindingService {
          {
             GraphUtil.fixStaticColorFrame(aggregate, info, null);
          }
+      }
+   }
+
+   /**
+    * Bug #81636: puts the axis descriptors the shelf write dropped back on the refs that stayed,
+    * then rebuilds the runtime refs and discards the cached graph, which was drawn from the
+    * default descriptors and would otherwise keep serving them.
+    */
+   private static void reapplyAxes(RuntimeViewsheet rvs, String assemblyName, String shelf,
+                                   List<ChartAxisCarry.Saved> saved)
+      throws Exception
+   {
+      ChartVSAssembly chart = requireChart(rvs, assemblyName);
+      VSChartInfo info = chart.getVSChartInfo();
+
+      if(!ChartAxisCarry.reapply(info, shelf, saved)) {
+         return;
+      }
+
+      ((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).resetRuntimeValues();
+      info.clearRuntime();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+      if(box != null) {
+         box.updateAssembly(chart.getAbsoluteName());
+         box.clearGraph(chart.getAbsoluteName());
       }
    }
 
