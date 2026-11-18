@@ -24,6 +24,7 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.*;
@@ -176,6 +177,7 @@ class CrosstabCalcFieldQueryViewTest {
       CalculateRef cref = new CalculateRef(false);
       ExpressionRef eref = new ExpressionRef(null, "calc");
       eref.setExpression(expression);
+      eref.setDataType(XSchema.DOUBLE);
       cref.setDataRef(eref);
       IAggregateRef aggregate = mock(IAggregateRef.class);
       doReturn(AggregateFormula.SUM).when(aggregate).getFormula();
