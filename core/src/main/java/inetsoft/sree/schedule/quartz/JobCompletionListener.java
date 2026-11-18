@@ -37,6 +37,7 @@ import java.io.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.locks.Lock;
 
 /**
  * Quartz job listener that updates the status table and handles triggering
@@ -217,8 +218,6 @@ public class JobCompletionListener extends JobListenerSupport {
             LOG.warn("Failed to notify cluster of task completion", e);
          }
 
-         Map<String, Long> statusCache = new HashMap<>();
-
          for(JobKey jobKey : context.getScheduler()
              .getJobKeys(GroupMatcher.jobGroupEquals(Scheduler.GROUP_NAME)))
          {
@@ -260,57 +259,7 @@ public class JobCompletionListener extends JobListenerSupport {
             }
 
             if(isDependant) {
-               // Bug #77582, compare the parents against the dependent's last start. The status
-               // of the just-finished task is its current run (the STARTED record is written in
-               // jobToBeExecuted), so it can't tell whether the other parents finished since.
-               ScheduleStatusDao.Status dependantStatus = dao.getStatus(task.getTaskId());
-               boolean triggerDependant = task.getConditionStream()
-                  .filter(cond -> cond instanceof CompletionCondition)
-                  .map(cond -> ((CompletionCondition) cond).getTaskName())
-                  .noneMatch(parentTaskName -> {
-                     Long parentEndTime = null;
-
-                     if(statusCache.containsKey(parentTaskName)) {
-                        parentEndTime = statusCache.get(parentTaskName);
-                     }
-                     else {
-                        ScheduleStatusDao.Status parentStatus = dao.getStatus(parentTaskName);
-
-                        if(parentStatus != null &&
-                           parentStatus.getStatus() == Scheduler.Status.FINISHED)
-                        {
-                           parentEndTime = parentStatus.getEndTime();
-                        }
-
-                        statusCache.put(parentTaskName, parentEndTime);
-                     }
-
-                     if(parentEndTime == null) {
-                        // failed or not finished
-                        return true;
-                     }
-
-                     // the task that just finished has obviously finished since the dependent's
-                     // last run, don't compare the times (which may come from different nodes)
-                     if(parentTaskName.equals(taskName)) {
-                        return false;
-                     }
-
-                     // hasn't run since the previous execution of the dependent
-                     return dependantStatus != null &&
-                        dependantStatus.getStartTime() > parentEndTime;
-                  });
-
-               if(triggerDependant) {
-                  try {
-                     context.getScheduler().triggerJob(
-                        new JobKey(task.getTaskId(), Scheduler.GROUP_NAME));
-                  }
-                  catch(SchedulerException e) {
-                     LOG.error("Failed to trigger dependent job '" +
-                        task.getTaskId() + "'", e);
-                  }
-               }
+               triggerDependantOnce(context, dao, task, taskName);
             }
          }
       }
@@ -354,6 +303,77 @@ public class JobCompletionListener extends JobListenerSupport {
          catch(Exception e) {
             LOG.warn("Failed to remove schedule job", e);
          }
+      }
+   }
+
+   /**
+    * Triggers a dependant task if every parent has finished since its last run. The check and the
+    * trigger are one step under a per-dependant cluster lock, and the parent end times that the
+    * trigger consumed are recorded, because a trigger that is only queued has no status yet
+    * (Bug #81706). Without it, parents that finish together each see the others finished and
+    * each trigger the dependant.
+    */
+   private void triggerDependantOnce(JobExecutionContext context, ScheduleStatusDao dao,
+                                     ScheduleTask task, String taskName)
+   {
+      String dependantId = task.getTaskId();
+      Lock lock = Cluster.getInstance().getLock(DEPENDANT_LOCK_PREFIX + dependantId);
+      lock.lock();
+
+      try {
+         // Bug #77582, compare the parents against the dependent's last start. The status
+         // of the just-finished task is its current run (the STARTED record is written in
+         // jobToBeExecuted), so it can't tell whether the other parents finished since.
+         ScheduleStatusDao.Status dependantStatus = dao.getStatus(dependantId);
+         Map<String, Long> parentEnds = new HashMap<>();
+         boolean triggerDependant = task.getConditionStream()
+            .filter(cond -> cond instanceof CompletionCondition)
+            .map(cond -> ((CompletionCondition) cond).getTaskName())
+            .noneMatch(parentTaskName -> {
+               ScheduleStatusDao.Status parentStatus = dao.getStatus(parentTaskName);
+               Long parentEndTime = null;
+
+               if(parentStatus != null && parentStatus.getStatus() == Scheduler.Status.FINISHED) {
+                  parentEndTime = parentStatus.getEndTime();
+               }
+
+               if(parentEndTime == null) {
+                  // failed or not finished
+                  return true;
+               }
+
+               parentEnds.put(parentTaskName, parentEndTime);
+
+               // the task that just finished has obviously finished since the dependent's
+               // last run, don't compare the times (which may come from different nodes)
+               if(parentTaskName.equals(taskName)) {
+                  return false;
+               }
+
+               // hasn't run since the previous execution of the dependent
+               return dependantStatus != null &&
+                  dependantStatus.getStartTime() > parentEndTime;
+            });
+
+         // already triggered for exactly these parent runs, by another parent's pass whose
+         // trigger has not started the dependant yet
+         if(triggerDependant && parentEnds.equals(dao.getDependantClaim(dependantId))) {
+            LOG.debug("Dependant {} was already triggered for these parent runs", dependantId);
+            triggerDependant = false;
+         }
+
+         if(triggerDependant) {
+            try {
+               context.getScheduler().triggerJob(new JobKey(dependantId, Scheduler.GROUP_NAME));
+               dao.setDependantClaim(dependantId, parentEnds);
+            }
+            catch(SchedulerException e) {
+               LOG.error("Failed to trigger dependent job '" + dependantId + "'", e);
+            }
+         }
+      }
+      finally {
+         lock.unlock();
       }
    }
 
@@ -467,6 +487,8 @@ public class JobCompletionListener extends JobListenerSupport {
       private final Principal principal;
    }
 
+   private static final String DEPENDANT_LOCK_PREFIX =
+      JobCompletionListener.class.getName() + ".dependant.";
    private final String name;
    private static final Logger LOG = LoggerFactory.getLogger(JobCompletionListener.class);
 }

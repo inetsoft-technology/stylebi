@@ -70,7 +70,7 @@ public class SchedulerTestHarness implements AutoCloseable {
    public SchedulerTestHarness(String jobStoreClass) throws Exception {
       // Real DAO backed by in-memory storage — package-private constructor accessible here
       InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
-      dao = new ScheduleStatusDao(storage);
+      dao = new ScheduleStatusDao(storage, new InMemoryKeyValueStorage<>());
 
       // Mock SecurityEngine for SUtil.getPrincipal() — needs non-null provider chain
       SecurityEngine mockEngine = mock(SecurityEngine.class);
@@ -87,6 +87,11 @@ public class SchedulerTestHarness implements AutoCloseable {
          clusterMessages.add(inv.getArgument(0));
          return null;
       }).when(mockCluster).sendMessage(any(java.io.Serializable.class));
+      // reentrant per-name locks, like the cluster lock (Bug #81706)
+      ConcurrentMap<String, java.util.concurrent.locks.Lock> locks = new ConcurrentHashMap<>();
+      when(mockCluster.getLock(anyString())).thenAnswer(
+         inv -> locks.computeIfAbsent(inv.getArgument(0),
+                                      k -> new java.util.concurrent.locks.ReentrantLock()));
 
       // SRPrincipal constructor calls XSessionService.getService() to create a session ID.
       // If not stubbed, applicationContext.getBean(XSessionService.class) returns null and
