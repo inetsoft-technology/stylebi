@@ -56,6 +56,11 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     *  `get_pane_context` describes. It is a separate input, not part of `editorContext`, because
     *  that value is matched for equality when the pane is detached. */
    @Input() sqlMode?: boolean;
+   /** Whether the pane's "Calculate Field From" choice is Aggregate rather than Detail. Reported
+    *  together with `sqlMode`, for the same reasons: the user can flip it after the code was
+    *  minted, and it decides whether `get_pane_context` describes a per-row or an aggregate
+    *  formula. Undefined (read as Detail) for a host with no such choice. */
+   @Input() aggregateMode?: boolean;
 
    code: string | null = null;
    loading = false;
@@ -248,7 +253,9 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    ngOnChanges(changes: SimpleChanges): void {
-      if(changes["sqlMode"] && !changes["sqlMode"].firstChange) {
+      if((changes["sqlMode"] && !changes["sqlMode"].firstChange) ||
+         (changes["aggregateMode"] && !changes["aggregateMode"].firstChange))
+      {
          this.reportPaneState();
       }
 
@@ -539,7 +546,8 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       }
 
       this.followFocusService.reportPaneState(
-         this.runtimeId, this.socketConnection, context, this.sqlMode);
+         this.runtimeId, this.socketConnection, context, this.sqlMode,
+         this.aggregateMode === true);
    }
 
    ngOnDestroy(): void {

@@ -309,8 +309,11 @@ public class SheetPairingController {
     * @param editorContext the pane's location exactly as it was minted (what the session is bound
     *                      to), not as the pane would derive it now
     * @param sql           whether the pane's SQL/Script switch is on SQL
+    * @param aggregate     whether the pane's Detail/Aggregate choice is Aggregate; absent from an
+    *                      older browser, which reads as Detail
     */
-   public record PaneStateRequest(String runtimeId, EditorContext editorContext, boolean sql) {}
+   public record PaneStateRequest(String runtimeId, EditorContext editorContext, boolean sql,
+                                  boolean aggregate) {}
 
    /**
     * STOMP pane-state -- sent by a pane whose value type the user can switch after pairing (the
@@ -327,7 +330,7 @@ public class SheetPairingController {
       }
 
       sessions.setPaneState(accessor.getSessionId(), req.runtimeId(), req.editorContext(),
-                            new PaneState(req.sql()));
+                            new PaneState(req.sql(), req.aggregate()));
    }
 
    /**

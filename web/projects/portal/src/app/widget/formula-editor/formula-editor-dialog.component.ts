@@ -533,7 +533,8 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
       if(this.pushedEditorContext && sql !== undefined) {
          this.followFocusService.reportPaneState(
-            this.runtimeId, this.socketConnection, this.pushedEditorContext, sql);
+            this.runtimeId, this.socketConnection, this.pushedEditorContext, sql,
+            this.paneAggregateMode === true);
       }
    }
 
@@ -600,6 +601,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
             this.calcType = value;
             this.form.get("dataType").setValue(this.calcType == "aggregate" ? "double" : "string");
             this.form.get("formulaType").setValue(FormulaType.SCRIPT);
+            this.reportPushedPaneState();
          }));
       }
    }
@@ -1542,6 +1544,15 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    /** The pairing kinds whose dialog has the SQL/Script switch. */
    private static readonly SQL_SWITCH_KINDS =
       ["calcField", "worksheetExpression", "worksheetConditionValue"];
+
+   /**
+    * The "Calculate Field From" choice as the paired agent must see it (Aggregate vs Detail): only
+    * a calculated field formula has it, so every other location reports nothing. An input of its
+    * own for the same reason as {@link #paneSqlMode}.
+    */
+   get paneAggregateMode(): boolean | undefined {
+      return this.editorContext?.kind === "calcField" ? this.calcType == "aggregate" : undefined;
+   }
 
    isSqlType(): boolean {
       const formulaType = this.form.contains("formulaType") ?

@@ -486,6 +486,46 @@ class PaneContextServiceTest {
    }
 
    @Test
+   void aCalcFieldOnAggregateIsDescribedAsAggregateNotPerRow() throws Exception {
+      EditorContext calcField = new EditorContext("calcField", "Orders", "Margin", null);
+
+      PaneContext detail = service.paneContext(rvs, session(calcField), user, PaneState.DEFAULT);
+      PaneContext aggregate =
+         service.paneContext(rvs, session(calcField), user, new PaneState(false, true));
+
+      assertEquals(PaneContextService.CALC_FIELD_AGGREGATE_NOTE, aggregate.syntax().note());
+      assertEquals("javascript", aggregate.syntax().language());
+      assertTrue(aggregate.syntax().note().contains("field['Sum(Product:Total)']"),
+                 aggregate.syntax().note());
+      assertTrue(aggregate.syntax().note().contains("not per row"), aggregate.syntax().note());
+      assertTrue(detail.syntax().note().contains("evaluated per row"), detail.syntax().note());
+      assertNotEquals(detail.syntax().note(), aggregate.syntax().note());
+      assertEquals(detail.editorContext(), aggregate.editorContext());
+   }
+
+   @Test
+   void theAggregateStateIsIgnoredForEveryKindWithoutTheChoice() throws Exception {
+      for(ScriptTarget.Kind kind : ScriptTarget.Kind.values()) {
+         if(kind == ScriptTarget.Kind.CALC_FIELD) {
+            continue;
+         }
+
+         EditorContext ctx = new EditorContext(kind.wireName(), "A", "n", null);
+
+         assertEquals(PaneContextService.syntaxOf(ctx, false),
+                      PaneContextService.syntaxOf(ctx, false, true), kind.wireName());
+         assertFalse(PaneContextService.isAggregateMode(ctx, new PaneState(false, true)),
+                     kind.wireName());
+      }
+
+      assertFalse(PaneContextService.isAggregateMode(null, new PaneState(false, true)));
+      assertFalse(PaneContextService.isAggregateMode(
+         new EditorContext("calcField", "A", "n", null), null));
+      assertTrue(PaneContextService.isAggregateMode(
+         new EditorContext("calcField", "A", "n", null), new PaneState(false, true)));
+   }
+
+   @Test
    void theSqlStateIsIgnoredForEveryKindWithoutTheSwitch() throws Exception {
       for(ScriptTarget.Kind kind : ScriptTarget.Kind.values()) {
          // Bug #81557: the worksheet expression and condition value have the switch too.

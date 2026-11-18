@@ -104,6 +104,7 @@ public class PaneContextService {
    {
       EditorContext grant = session.editorContext();
       boolean sql = isSqlMode(grant, state);
+      boolean aggregate = isAggregateMode(grant, state);
       List<String> notes = new ArrayList<>();
 
       List<PaneContext.Component> components = contextService.context(rvs, null).assemblies()
@@ -123,7 +124,7 @@ public class PaneContextService {
       }
 
       return new PaneContext(
-         grant == null ? SHEET_KIND : grant.kind(), grant, syntaxOf(grant, sql), components,
+         grant == null ? SHEET_KIND : grant.kind(), grant, syntaxOf(grant, sql, aggregate), components,
          parameters(rvs, notes), columns(session, grant, user, notes), functions, operators, notes);
    }
 
@@ -347,12 +348,38 @@ public class PaneContextService {
       "row, not JavaScript: read a column as field['<column>'] and a parameter as $(<name>), " +
       "never parameter.<name>. No component, thisViewsheet or script function is in scope.";
 
+   /** The syntax of a calculated field formula whose "Calculate Field From" is Aggregate. */
+   static final String CALC_FIELD_AGGREGATE_NOTE =
+      "A calc field formula in Aggregate mode is JavaScript evaluated on aggregate results, not " +
+      "per row: there is no per-row field object. Read an aggregate as field['<Aggregate>(" +
+      "<column>)'], e.g. field['Sum(Product:Total)'] / field['Count(Customer:Address)']; only " +
+      "such aggregate tags compute, a bare column field['<column>'] does not. Bind each " +
+      "aggregate the formula uses to the component that shows the field. Parameters are " +
+      "parameter.<name>. No component or thisViewsheet is in scope.";
+
+   /**
+    * Whether the pane is on Aggregate: only a calculated field formula has the Detail/Aggregate
+    * choice, so a state reported for any other location is ignored.
+    */
+   static boolean isAggregateMode(EditorContext grant, PaneState state) {
+      return grant != null && ScriptTarget.Kind.CALC_FIELD.wireName().equals(grant.kind()) &&
+         state != null && state.aggregate();
+   }
+
+   /** Syntax of a location that has no Detail/Aggregate choice, or is on Detail. */
+   static PaneContext.Syntax syntaxOf(EditorContext grant, boolean sql) {
+      return syntaxOf(grant, sql, false);
+   }
+
    /**
     * How to write the expression at this location.
     *
-    * @param sql whether the pane's SQL/Script switch is on SQL; read for a calculated field only
+    * @param sql       whether the pane's SQL/Script switch is on SQL; read for a calculated field
+    *                  only
+    * @param aggregate whether the pane's Detail/Aggregate choice is Aggregate; read for a
+    *                  calculated field only (the dialog has no SQL mode under Aggregate)
     */
-   static PaneContext.Syntax syntaxOf(EditorContext grant, boolean sql) {
+   static PaneContext.Syntax syntaxOf(EditorContext grant, boolean sql, boolean aggregate) {
       if(grant == null) {
          return new PaneContext.Syntax("javascript",
             "Whole-sheet session: no single location. Each script location is JavaScript; ask " +
@@ -387,7 +414,9 @@ public class PaneContextService {
             "'ReferenceError: $ is not defined'. Use parameter.<name> or a component's own " +
             "property (RadioButton1.selectedObject). In a highlight whose value type is SQL, " +
             "$(var) is SQL text, not JavaScript.");
-         case CALC_FIELD -> sql ? new PaneContext.Syntax("sql", CALC_FIELD_SQL_NOTE) :
+         case CALC_FIELD -> aggregate ?
+            new PaneContext.Syntax("javascript", CALC_FIELD_AGGREGATE_NOTE) : sql ?
+            new PaneContext.Syntax("sql", CALC_FIELD_SQL_NOTE) :
             new PaneContext.Syntax("javascript",
                "A calc field formula is JavaScript evaluated per row: read a column as " +
                "field['<column>'] and a parameter as parameter.<name>. No component or " +
