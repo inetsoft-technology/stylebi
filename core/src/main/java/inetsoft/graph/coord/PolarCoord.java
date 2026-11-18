@@ -599,7 +599,7 @@ public class PolarCoord extends Coordinate {
    /**
     * Check if two spokes have the same scale and draw the same label texts.
     */
-   private static boolean isSameScale(Axis a, Axis b) {
+   static boolean isSameScale(Axis a, Axis b) {
       Scale s1 = a.getScale();
       Scale s2 = b.getScale();
 
@@ -1268,7 +1268,8 @@ public class PolarCoord extends Coordinate {
              pieRatio == coord.pieRatio && pieCapRatio == coord.pieCapRatio &&
              clockwiseFromTop == coord.clockwiseFromTop &&
              webGrid == coord.webGrid &&
-             spokeLabelRule == coord.spokeLabelRule;
+             spokeLabelRule == coord.spokeLabelRule &&
+             sidesFromSpokes == coord.sidesFromSpokes;
    }
 
    /**
@@ -1301,7 +1302,26 @@ public class PolarCoord extends Coordinate {
       return webGrid;
    }
 
+   /**
+    * Set whether the polygon sides of a radar follow its spokes.
+    * @hidden
+    */
+   public void setSidesFromSpokes(boolean sidesFromSpokes) {
+      this.sidesFromSpokes = sidesFromSpokes;
+   }
+
+   /**
+    * @hidden
+    */
+   public boolean isSidesFromSpokes() {
+      return sidesFromSpokes;
+   }
+
    private int getSidesCount() {
+      if(sidesFromSpokes && coord instanceof AbstractParallelCoord) {
+         return ((AbstractParallelCoord) coord).getParallelScales().length;
+      }
+
       if(coord instanceof RectCoord) {
          Scale xscale = ((RectCoord) coord).getXScale();
 
@@ -1348,6 +1368,7 @@ public class PolarCoord extends Coordinate {
    private boolean clockwiseFromTop = false;
    private boolean webGrid = false;
    private boolean spokeLabelRule = false;
+   private boolean sidesFromSpokes = false;
    private boolean minApplied;
    private transient double rx0 = Double.NaN; // cached radio ratio x
    private transient double rc0 = Double.NaN; // cached radio ratio c
