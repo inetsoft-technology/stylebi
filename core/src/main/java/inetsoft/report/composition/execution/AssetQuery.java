@@ -3976,7 +3976,11 @@ public abstract class AssetQuery extends PreAssetQuery {
             ScriptEnv env = box.getScriptEnv();
             CalcFieldFormula cform = new CalcFieldFormula(expression, names, forms, cols, env,
                                         box.isScriptPoolMode() ? scope : box.getScope());
-            cform.setDeclaredType(eref.getDataType());
+            // only an explicitly declared type is applied, as for a row-level calc field
+            if(baseRef.isDataTypeSet()) {
+               cform.setDeclaredType(eref.getDataType());
+            }
+
             form = cform;
          }
          else {

@@ -661,6 +661,21 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
+   @DisplayName("Bug #81668: an aggregate calc field with no declared type keeps its Double result")
+   void undeclaredTypeKeepsDouble() throws Exception {
+      initCityAb();
+      CalculateRef calc = new CalculateRef(false);
+      ExpressionRef expr = new ExpressionRef(null, "ratio");
+      expr.setExpression("field['Sum([a])'] / field['Sum([b])']");
+      calc.setDataRef(expr);
+      vs.addCalcField("D", calc);
+      List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
+                                     aggregate("b", "Sum", XSchema.INTEGER),
+                                     aggregate("ratio", "None", XSchema.DOUBLE));
+      assertEquals(Arrays.asList(9.0, 6.0, 1.5, 1.0, 1.0, 1.0), values);
+   }
+
+   @Test
    @DisplayName("Bug #81668: the declared type of an " +
       "aggregate calc field is applied in a crosstab")
    void declaredTypeAppliedInCrosstab() throws Exception {
