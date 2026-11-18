@@ -412,6 +412,10 @@ public class IgniteSessionRepository
          if(SRPrincipal.isWizPrincipal(srp) &&
             !Objects.equals(srp.getUser().getSession(), session.getId()))
          {
+            // DEBUG, not INFO: a throwaway ends once per cookieless plugin request
+            LOG.debug("Ended throwaway wiz session {} (client session {}) of user {}; " +
+                      "login not deregistered", shortId(session.getId()),
+                      shortId(srp.getUser().getSession()), principal.getName());
             return;
          }
 
@@ -428,16 +432,42 @@ public class IgniteSessionRepository
             return;
          }
 
+         // Build the log arguments before logging out, so that nothing after the logout can
+         // throw and skip the callers' follow-up work.
+         String shortSessionId = shortId(sessionId);
+         String shortClientSessionId = shortId(srp.getUser().getSession());
+         String reason = logoffReason == null || logoffReason.isEmpty() ?
+            "unspecified" : logoffReason;
+         String userName = principal.getName();
+
          try {
             if(securityEngine.isActiveUser(principal)) {
                String remoteHost = srp.getUser().getIPAddress();
                authenticationService.logout(principal, remoteHost, logoffReason);
+               LOG.info("Session {} ended ({}); login deregistered for user {} (client " +
+                        "session {})", shortSessionId, reason, userName, shortClientSessionId);
+            }
+            else {
+               // DEBUG: deleteById() removes the session, and this node's own entryRemoved()/
+               // entryExpired() reaction to that removal reaches here again after the login was
+               // already deregistered, so one session end would otherwise log two INFO lines.
+               LOG.debug("Session {} ended ({}); login already not active for user {} " +
+                         "(client session {})", shortSessionId, reason, userName,
+                         shortClientSessionId);
             }
          }
          finally {
             loggingOutSessions.remove(sessionId);
          }
       }
+   }
+
+   /**
+    * Session ids are bearer-like, so INFO lines carry only a fixed-length prefix, which is still
+    * enough to match lines across logs.
+    */
+   private static String shortId(String id) {
+      return id == null ? null : id.length() <= 8 ? id : id.substring(0, 8);
    }
 
    @Override
