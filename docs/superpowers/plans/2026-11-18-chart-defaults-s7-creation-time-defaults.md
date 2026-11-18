@@ -44,8 +44,8 @@ These defaults apply whether the author picks the style first or drops the field
 - **Entering a family.** The type-change rules run only when the chart enters the family, as the processor's own `copyTo*` calls do: `!isPie(old) && isPie(new)`, and likewise for the waterfall, the treemap family, the marimekko and the candle. So pie → donut and treemap → sunburst leave the binding alone.
 - **Stacked style permission.** If the user has no permission for the stacked style, the plain area they asked for stays.
 - **The waterfall read (D127).**
-  - **Table:** the chart's worksheet table (`SourceInfo.getSource()`), read in `AssetQuerySandbox.RUNTIME_MODE`. The worksheet's conditions and row security apply, so no value from a hidden row is saved. Dashboard selections do not, so the order does not depend on what a viewer had selected.
-  - **Limits:** at most `ChartSourceOrder.MAX_ROWS = 10_000` rows are read. More than `ChartCreationDefaults.MAX_ORDERED_VALUES = 100` distinct values means no order.
+  - **Table:** the chart's worksheet table (`SourceInfo.getSource()`), read in `AssetQuerySandbox.RUNTIME_MODE` from a copy of it in a `WorksheetWrapper`. The worksheet's own conditions and row security still apply, so no value from a hidden row is saved. The copy's pre and post runtime condition lists are cleared, so dashboard selections do not apply and the order does not depend on what a viewer had selected. The copy's `AssetQuery` runs directly, so neither the worksheet nor the sandbox's cached results change.
+  - **Limits:** the query is limited to `ChartSourceOrder.MAX_ROWS = 10_000` rows: the copy gets `setMaxRows(MAX_ROWS)`, or keeps the worksheet's own limit when that is smaller. More than `ChartCreationDefaults.MAX_ORDERED_VALUES = 100` distinct values means no order.
   - **No order** for a cube field, a named group or a column that is not in the table (a calc field). A date is excluded by the rule (D123).
   - **Stored values:** `Tool.getDataString(value)`, with nulls skipped.
 - **The wizard's date fallback** is month on a marked chart, whatever the shelf. The wizard has not placed the field when it creates it, and it puts dates on X.
@@ -54,7 +54,7 @@ These defaults apply whether the author picks the style first or drops the field
 - **A removed pie measure** keeps today's value-sort fallback.
 
 **Known limitations:**
-- The waterfall read runs the worksheet table's query once when the rule fires. A large database table costs what a detail preview of it costs.
+- The waterfall read runs the worksheet table's query once when the rule fires, limited in the query to 10,000 rows. It ignores dashboard selections and keeps the worksheet's conditions and row security.
 - A value that first appears after the first 10,000 rows goes after the saved list, ascending.
 - An author's explicit Ascending is replaced: on a pie when its measure is rebound (D124), and on a pie or waterfall at a type change or on the reset copy (D122).
 - **Older builds** read these as ordinary bindings (M9). Charts marked before S7 change only at a later drop or type change (M8).
@@ -215,7 +215,7 @@ From `$WT`:
 - Consumes: `ChartCreationDefaults.SourceOrder`, `MAX_ORDERED_VALUES`.
 - Produces: `public final class ChartSourceOrder implements ChartCreationDefaults.SourceOrder`, with the constructor `ChartSourceOrder(ViewsheetSandbox box, SourceInfo source)` and `public static final int MAX_ROWS = 10_000`.
   - `valuesInSourceOrder` returns the distinct values of `dim.getGroupColumnValue()` in first-appearance order.
-  - It reads `box.getAssetQuerySandbox().getTableLens(source.getSource(), AssetQuerySandbox.RUNTIME_MODE)` row by row with `moreRows`, up to `MAX_ROWS` data rows.
+  - It copies the worksheet table (`source.getSource()`) into a `WorksheetWrapper`, clears the copy's pre and post runtime condition lists, and sets its max rows to `MAX_ROWS` (or the worksheet's smaller limit). It runs the copy's `AssetQuery` in `AssetQuerySandbox.RUNTIME_MODE` without the sandbox's cache, and reads the result row by row with `moreRows`, up to `MAX_ROWS` data rows.
   - It returns null for:
     - a null box, source or source name
     - `(dim.getRefType() & DataRef.CUBE) != 0`
@@ -224,12 +224,13 @@ From `$WT`:
     - more than `MAX_ORDERED_VALUES` distinct values
     - any exception, logged at debug
 
-- [ ] **Step 1: Write the failing tests.** Mock `ViewsheetSandbox` and `AssetQuerySandbox`. The table is a `DefaultTableLens` with the header row `Item, Amount`.
+- [ ] **Step 1: Write the failing tests.** Mock `ViewsheetSandbox` over a real `AssetQuerySandbox`. The table is the embedded worksheet table `Orders` with the columns `Item, Amount`.
   - `readsTheValuesInTheOrderTheyFirstAppear`: the rows of `waterfall_8.csv` (Revenue 520, Returns −35, Cost of goods −210, Gross profit adj 40, Salaries −120, Marketing −45, Other income 25, Taxes −38), with Revenue repeated at the end → the eight items in file order.
   - `stopsAtTheRowLimit`: a value that first appears at data row 10,001 → absent.
   - `aTooLongColumnReadsNothing`: 101 distinct values → null.
   - `aMissingColumnReadsNothing`, `aCubeFieldReadsNothing`, `aNamedGroupReadsNothing`, `noSandboxReadsNothing` → null.
-  - `aFailingQueryReadsNothing`: `getTableLens` throws → null, and no exception escapes.
+  - `aFailingQueryReadsNothing`: `AssetQuery.createAssetQuery` throws → null, and no exception escapes.
+  - `theQueryCarriesTheRowLimit`, `aSmallerWorksheetRowLimitStays`, `aSelectionOnTheTableDoesNotFilterTheRead`, `aWorksheetConditionStillApplies`, `theReadLeavesTheWorksheetAndTheSandboxAsTheyWere`, `aComposedTableIsReadWithoutChangingTheWorksheet`.
 - [ ] **Step 2: Run them and see them fail.**
 - [ ] **Step 3: Implement `ChartSourceOrder`.**
 - [ ] **Step 4: Run the tests and see them pass.**
@@ -264,7 +265,7 @@ From `$WT`:
   - `switchingAMarkedBarToPieSortsItsSlice`: X `Segment`, Y `Sum(Sales)` → the Color dimension `Segment` is `SORT_VALUE_DESC` by `Sum(Sales)`.
   - `switchingAMarkedBarToTreemapColoursByTheTopLevel`: X `Division`, `Department`, Y `Sum(Sales)` → Color `Division`.
   - `switchingAMarkedBarWithTickersToCandleMakesPanels`: Color `Ticker` → Y holds `Ticker`, Color null.
-  - `switchingToWaterfallSavesTheSourceOrder`: `chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Funnel"))`. The mocked sandbox's `getAssetQuerySandbox().getTableLens("Funnel", RUNTIME_MODE)` returns Task 3's table → `Item` is `SORT_SPECIFIC` in file order.
+  - `switchingToWaterfallSavesTheSourceOrder`: `chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Funnel"))`. The mocked sandbox's `getAssetQuerySandbox()` returns a real sandbox over a worksheet whose embedded table `Funnel` holds Task 3's rows → `Item` is `SORT_SPECIFIC` in file order.
   - `classicSwitchesApplyNoDefault`: the pie, treemap and candle cases unmarked → today's binding (slice `SORT_ASC`, Color null, Color still `Ticker`).
   - `aScriptChartStyleAppliesNoDefault`: a marked `ChartVSAssemblyInfo` whose X holds `Division` and `Department` and Y holds `Sum(Sales)`; `setChartStyle(CHART_TREEMAP)` → Color null (D126).
 - [ ] **Step 2: Run them and see them fail.**
@@ -360,7 +361,7 @@ From `$WT`:
 - Consumes: `forResetCopy`, `ChartSourceOrder`.
 - Changes:
   - **The new overload:** `public static int resetToModern(Viewsheet vs, Function<ChartVSAssemblyInfo, ChartCreationDefaults.SourceOrder> orders)`. The one-argument form delegates with `info -> ChartCreationDefaults.SourceOrder.NONE`.
-  - **In `resetChrome`, for a chart:** after `resetSlots(ChartChromeSlots.of(chart), …)`, call `ChartCreationDefaults.forResetCopy(chart.getVSChartInfo(), VizContext.of(mark), orders.apply(chart))`, then `chart.getVSChartInfo().clearRuntime()`. This runs before `seedAll`, so the per-type seeds see the new types.
+  - **In `resetChrome`, for a chart:** after `resetSlots(ChartChromeSlots.of(chart), …)`, call `ChartCreationDefaults.forResetCopy(chart.getVSChartInfo(), VizContext.of(mark), orders.apply(chart))`. This runs before `seedAll`, so the per-type seeds see the new types. The chart's runtime is not cleared: `ModernCopyService.countLegends` draws the sandbox's cached data with it before the copy is saved, and a cleared runtime has no Color legend to count.
   - **`ModernCopyService`:** passes `info -> new ChartSourceOrder(rvs.getViewsheetSandbox().orElse(null), info.getSourceInfo())`.
 
 - [ ] **Step 1: Write the failing tests:**

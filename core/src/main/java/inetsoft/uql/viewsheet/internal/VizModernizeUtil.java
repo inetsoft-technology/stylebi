@@ -173,10 +173,10 @@ public final class VizModernizeUtil {
          // after the object font, which the label defaults copy
          ChartFormatDefaults.fix(chart);
          resetSlots(ChartChromeSlots.of(chart), info, fresh);
-         // the new mark's creation-time binding, before the per-type seeds read it
+         // the new mark's creation-time binding, before the per-type seeds read it; the runtime
+         // stays for the legend count's draw of the cached data
          ChartCreationDefaults.forResetCopy(
             chart.getVSChartInfo(), VizContext.of(mark), orders.apply(chart));
-         chart.getVSChartInfo().clearRuntime();
       }
       else {
          resetSlots(info.chromeSlots(), info, fresh);

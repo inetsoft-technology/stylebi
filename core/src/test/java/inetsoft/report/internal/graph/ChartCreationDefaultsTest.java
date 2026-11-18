@@ -18,6 +18,7 @@
 package inetsoft.report.internal.graph;
 
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
@@ -346,6 +347,20 @@ class ChartCreationDefaultsTest {
    }
 
    @Test
+   void aCandleColourAlreadyOnYOnlyLeavesColour() {
+      ChartInfo info = new CandleVSChartInfo();
+      info.setChartType(GraphTypes.CHART_CANDLE);
+      info.addYField(dim("Ticker"));
+      info.setColorField(aesthetic(dim("Ticker")));
+
+      ChartCreationDefaults.moveColorDimensionToPanels(info, modern());
+
+      assertEquals(1, info.getYFieldCount(), () -> Arrays.toString(info.getYFields()));
+      assertEquals("Ticker", info.getYField(0).getName());
+      assertNull(info.getColorField());
+   }
+
+   @Test
    void enteringAPieSortsButPieToDonutDoesNot() {
       VSChartDimensionRef segment = dim("Segment");
       VSChartInfo info = pie(segment, true);
@@ -445,6 +460,21 @@ class ChartCreationDefaultsTest {
                                       Arrays.asList(sales), modern(), SO_NONE);
       assertEquals(XConstants.SORT_VALUE_DESC, segment.getOrder());
       assertEquals("Sum(Sales)", segment.getSortByColValue());
+   }
+
+   @Test
+   void aMeasureOffTheAxesLeavesAPieSlice() {
+      for(int region : new int[] { ChartConstants.DROP_REGION_TEXT,
+                                   ChartConstants.DROP_REGION_SIZE })
+      {
+         VSChartDimensionRef segment = dim("Segment");
+         VSChartInfo info = pie(segment, true);
+         VSChartAggregateRef margin = sum("Margin");
+
+         ChartCreationDefaults.afterDrop(info, region, Arrays.asList(margin), modern(), SO_NONE);
+
+         assertEquals(XConstants.SORT_ASC, segment.getOrder(), "region " + region);
+      }
    }
 
    @Test
@@ -658,6 +688,90 @@ class ChartCreationDefaultsTest {
          ChartCreationDefaults.forResetCopy(charts[i], VizContext.LEGACY, reader("a", "b"));
          assertEquals(before, xml(charts[i]), "chart " + i);
       }
+   }
+
+   // style first: drops onto an empty chart of the type; fields first: the bundle's fields
+   // where the processor leaves them on leaving a bar, then the type change from the bar
+   @Test
+   void bothBuildOrdersGiveTheSameBinding() {
+      ChartCreationDefaults.SourceOrder order = reader("Revenue", "Returns", "Taxes");
+      Object[][] bundles = {
+         { GraphTypes.CHART_PIE, new Object[] {
+            ChartConstants.DROP_REGION_COLOR, "Segment", ChartConstants.DROP_REGION_Y, "Sales" } },
+         { GraphTypes.CHART_TREEMAP, new Object[] {
+            ChartConstants.DROP_REGION_GROUP, "Division", ChartConstants.DROP_REGION_GROUP,
+            "Department", ChartConstants.DROP_REGION_SIZE, "Sales" } },
+         { GraphTypes.CHART_MEKKO, new Object[] {
+            ChartConstants.DROP_REGION_X, "Region", ChartConstants.DROP_REGION_Y, "Sales",
+            ChartConstants.DROP_REGION_GROUP, "Product" } },
+         { GraphTypes.CHART_WATERFALL, new Object[] {
+            ChartConstants.DROP_REGION_X, "Item", ChartConstants.DROP_REGION_Y, "Amount" } }
+      };
+
+      for(Object[] bundle : bundles) {
+         int type = (Integer) bundle[0];
+         Object[] drops = (Object[]) bundle[1];
+         VSChartInfo styleFirst = new DefaultVSChartInfo();
+         styleFirst.setChartType(type);
+         VSChartInfo fieldsFirst = new DefaultVSChartInfo();
+         fieldsFirst.setChartType(type);
+
+         // the binding editor fixes the frames after each change, as the type change does
+         for(int i = 0; i < drops.length; i += 2) {
+            int region = (Integer) drops[i];
+            String name = (String) drops[i + 1];
+            ChartRef ref = place(styleFirst, region, name);
+            GraphUtil.fixVisualFrames(styleFirst, modern());
+            ChartCreationDefaults.afterDrop(styleFirst, region, Arrays.asList(ref), modern(),
+                                            order);
+            place(fieldsFirst, region, name);
+         }
+
+         GraphUtil.fixVisualFrames(fieldsFirst, modern());
+         ChartCreationDefaults.afterTypeChange(fieldsFirst, GraphTypes.CHART_BAR, type, modern(),
+                                               order);
+
+         assertTrue(applied(fieldsFirst, type), "premise: the defaults apply to type " + type);
+         assertEquals(xml(fieldsFirst), xml(styleFirst), "type " + type);
+      }
+   }
+
+   // the slice sorted, the category ordered, or the colour bound
+   private static boolean applied(VSChartInfo info, int type) {
+      if(GraphTypes.isPie(type)) {
+         return ((VSChartDimensionRef) info.getColorField().getDataRef()).getOrder() ==
+            XConstants.SORT_VALUE_DESC;
+      }
+
+      if(GraphTypes.isWaterfall(type)) {
+         return ((VSChartDimensionRef) info.getXField(0)).getOrder() == XConstants.SORT_SPECIFIC;
+      }
+
+      return info.getColorField() != null;
+   }
+
+   // a measure when the name is Sales or Amount, else a dimension
+   private static ChartRef place(VSChartInfo info, int region, String name) {
+      ChartRef ref = "Sales".equals(name) || "Amount".equals(name) ? sum(name) : dim(name);
+
+      switch(region) {
+      case ChartConstants.DROP_REGION_X:
+         info.addXField(ref);
+         break;
+      case ChartConstants.DROP_REGION_Y:
+         info.addYField(ref);
+         break;
+      case ChartConstants.DROP_REGION_COLOR:
+         info.setColorField(aesthetic(ref));
+         break;
+      case ChartConstants.DROP_REGION_SIZE:
+         info.setSizeField(aesthetic(ref));
+         break;
+      default:
+         info.addGroupField(ref);
+      }
+
+      return ref;
    }
 
    private static String xml(ChartInfo info) {

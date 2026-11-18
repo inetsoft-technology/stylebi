@@ -184,7 +184,7 @@ class ModernCopyOriginalUnchangedTest {
       try(MockedStatic<VizModernizeUtil> util =
              mockStatic(VizModernizeUtil.class, CALLS_REAL_METHODS))
       {
-         util.when(() -> VizModernizeUtil.resetToModern(any()))
+         util.when(() -> VizModernizeUtil.resetToModern(any(), any()))
             .thenAnswer(i -> {
                created.add(runtime().getEntry());
                throw new IllegalStateException("forced");

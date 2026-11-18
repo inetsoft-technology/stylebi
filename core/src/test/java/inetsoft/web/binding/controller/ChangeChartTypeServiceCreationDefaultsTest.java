@@ -18,22 +18,29 @@
 package inetsoft.web.binding.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.mv.MVManager;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.DistributedTableCacheStore;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphTypeUtil;
-import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
+import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
@@ -59,6 +66,9 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -74,13 +84,32 @@ import static org.mockito.Mockito.*;
 /** The creation-time defaults the binding editor's type change applies to a marked chart. */
 @SreeHome
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                                  LibManagerTestConfiguration.class,
+                                  ChangeChartTypeServiceCreationDefaultsTest.TestConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @ExtendWith(MockitoExtension.class)
 // LENIENT: shared @BeforeEach stubs are not all exercised by every test path
 @MockitoSettings(strictness = Strictness.LENIENT)
 @Tag("core")
 class ChangeChartTypeServiceCreationDefaultsTest {
+   // the waterfall's source read runs a real worksheet query
+   @Configuration
+   static class TestConfig {
+      @Bean
+      @SuppressWarnings("unchecked")
+      public AssetDataCache assetDataCache() {
+         ObjectProvider<DistributedTableCacheStore> provider = mock(ObjectProvider.class);
+         when(provider.getObject()).thenReturn(mock(DistributedTableCacheStore.class));
+         return new AssetDataCache(mock(DataSourceRegistry.class), provider);
+      }
+
+      @Bean
+      public MVManager mvManager() {
+         return mock(MVManager.class);
+      }
+   }
+
    private static final String[] ITEMS = {
       "Revenue", "Returns", "Cost of goods", "Gross profit adj", "Salaries", "Marketing",
       "Other income", "Taxes"
@@ -190,11 +219,16 @@ class ChangeChartTypeServiceCreationDefaultsTest {
       VSChartInfo info = barInfo(dim("Item"));
       ChartVSAssembly chart = chart(info, true);
       chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Funnel"));
-      AssetQuerySandbox aq = mock(AssetQuerySandbox.class);
+      AssetDataCache.getCache().clearCache();
+      AssetQuerySandbox aq = new AssetQuerySandbox(funnel());
       when(viewsheetSandbox.getAssetQuerySandbox()).thenReturn(aq);
-      when(aq.getTableLens("Funnel", AssetQuerySandbox.RUNTIME_MODE)).thenReturn(funnel());
 
-      changeType(GraphTypes.CHART_WATERFALL);
+      try {
+         changeType(GraphTypes.CHART_WATERFALL);
+      }
+      finally {
+         aq.dispose();
+      }
 
       VSDimensionRef item = (VSDimensionRef) chart.getVSChartInfo().getXField(0);
       assertEquals("Item", item.getName());
@@ -293,7 +327,8 @@ class ChangeChartTypeServiceCreationDefaultsTest {
       return info;
    }
 
-   private static DefaultTableLens funnel() {
+   // the worksheet table Funnel: Item, Amount
+   private static Worksheet funnel() {
       double[] amounts = { 520, -35, -210, 40, -120, -45, 25, -38 };
       Object[][] data = new Object[ITEMS.length + 1][];
       data[0] = new Object[] { "Item", "Amount" };
@@ -302,7 +337,12 @@ class ChangeChartTypeServiceCreationDefaultsTest {
          data[i + 1] = new Object[] { ITEMS[i], amounts[i] };
       }
 
-      return new DefaultTableLens(data);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "Funnel");
+      table.setEmbeddedData(
+         new XEmbeddedTable(new String[] { XSchema.STRING, XSchema.DOUBLE }, data));
+      ws.addAssembly(table);
+      return ws;
    }
 
    private static VSChartDimensionRef dim(String name) {

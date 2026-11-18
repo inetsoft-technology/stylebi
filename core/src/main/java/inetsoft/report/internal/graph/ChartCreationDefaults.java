@@ -252,8 +252,24 @@ public final class ChartCreationDefaults {
          return;
       }
 
-      info.addYField((ChartRef) color.getDataRef());
+      ChartRef dim = (ChartRef) color.getDataRef();
+
+      // a dimension already on Y makes the panel
+      if(!containsDimension(info.getYFields(), dim.getName())) {
+         info.addYField(dim);
+      }
+
       info.setColorField(null);
+   }
+
+   private static boolean containsDimension(ChartRef[] fields, String name) {
+      for(ChartRef field : fields) {
+         if(GraphUtil.isDimension(field) && name != null && name.equals(field.getName())) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /** Applies the rule of each family the chart enters when its type changes. */
@@ -313,8 +329,13 @@ public final class ChartCreationDefaults {
       boolean aesthetic = dropRegion == ChartConstants.DROP_REGION_COLOR ||
          dropRegion == ChartConstants.DROP_REGION_SHAPE ||
          dropRegion == ChartConstants.DROP_REGION_SIZE;
+      boolean axis = dropRegion == ChartConstants.DROP_REGION_X ||
+         dropRegion == ChartConstants.DROP_REGION_X2 ||
+         dropRegion == ChartConstants.DROP_REGION_Y ||
+         dropRegion == ChartConstants.DROP_REGION_Y2;
 
-      if(hasPie(info) && (dimension && aesthetic || measure)) {
+      // the pie's measure is on an axis shelf
+      if(hasPie(info) && (dimension && aesthetic || measure && axis)) {
          applyPieOrder(info, ctx);
       }
 

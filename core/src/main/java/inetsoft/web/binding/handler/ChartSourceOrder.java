@@ -18,12 +18,22 @@
 package inetsoft.web.binding.handler;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.WorksheetWrapper;
+import inetsoft.report.composition.execution.AssetQuery;
+import inetsoft.report.composition.execution.AssetQueryCacheNormalizer;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.graph.ChartCreationDefaults;
+import inetsoft.uql.VariableTable;
+import inetsoft.uql.XPrincipal;
+import inetsoft.uql.XQuery;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,11 +64,17 @@ public final class ChartSourceOrder implements ChartCreationDefaults.SourceOrder
       try {
          AssetQuerySandbox sandbox = box.getAssetQuerySandbox();
 
-         if(sandbox == null) {
+         if(sandbox == null || sandbox.isDisposed()) {
             return null;
          }
 
-         TableLens lens = sandbox.getTableLens(source.getSource(), AssetQuerySandbox.RUNTIME_MODE);
+         TableAssembly table = copyTable(sandbox.getWorksheet(), source.getSource());
+
+         if(table == null) {
+            return null;
+         }
+
+         TableLens lens = read(sandbox, table);
 
          if(lens == null) {
             return null;
@@ -93,6 +109,56 @@ public final class ChartSourceOrder implements ChartCreationDefaults.SourceOrder
       }
    }
 
+   /**
+    * A copy of the worksheet table, in a wrapper so the worksheet does not change, without the
+    * dashboard's selections and with the row limit in its query.
+    */
+   private static TableAssembly copyTable(Worksheet ws, String name) {
+      if(ws == null) {
+         return null;
+      }
+
+      TableAssembly copy = null;
+
+      // selections change the table in place under the worksheet lock
+      synchronized(ws) {
+         Assembly table = ws.getAssembly(name);
+
+         if(table instanceof TableAssembly) {
+            copy = (TableAssembly) ((TableAssembly) table).copyAssembly(COPY_PREFIX + name);
+         }
+      }
+
+      if(copy == null) {
+         return null;
+      }
+
+      copy.setPreRuntimeConditionList(null);
+      copy.setPostRuntimeConditionList(null);
+      new WorksheetWrapper(ws).addAssembly(copy);
+      int max = copy.getMaxRows();
+      copy.setMaxRows(max > 0 ? Math.min(max, MAX_ROWS) : MAX_ROWS);
+      return copy;
+   }
+
+   /**
+    * Runs the copy's query as the sandbox runs a table's, without caching the result.
+    */
+   private static TableLens read(AssetQuerySandbox sandbox, TableAssembly table)
+      throws Exception
+   {
+      int mode = AssetQuerySandbox.RUNTIME_MODE;
+      AssetQueryCacheNormalizer normalizer = new AssetQueryCacheNormalizer(table, sandbox, mode);
+      AssetQuery query = AssetQuery.createAssetQuery(table, mode, sandbox, false, -1L, true, false);
+      VariableTable vars = sandbox.getVariableTable();
+      vars = vars == null ? new VariableTable() : vars.clone();
+      XUtil.copyDBCredentials((XPrincipal) sandbox.getUser(), vars);
+      vars.put(XQuery.HINT_PREVIEW, "false");
+      return normalizer.transformTableLens(query.getTableLens(vars));
+   }
+
+   // a name the worksheet's own tables and cached results do not use
+   private static final String COPY_PREFIX = "_source_order_";
    private final ViewsheetSandbox box;
    private final SourceInfo source;
    private static final Logger LOG = LoggerFactory.getLogger(ChartSourceOrder.class);
