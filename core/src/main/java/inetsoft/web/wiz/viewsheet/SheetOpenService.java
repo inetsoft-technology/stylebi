@@ -30,7 +30,10 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.web.composer.command.OpenComposerAssetCommand;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
@@ -45,6 +48,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Opens the base worksheet of the viewsheet already paired to a session, for the
@@ -272,7 +278,7 @@ public class SheetOpenService {
     * @throws IllegalArgumentException on every refusal, with a message naming the specific
     *                                  problem and, where there is one, the next tool to call.
     */
-   public JoinSession openSavedSheet(String fromSessionToken, Principal user, SheetType type,
+   public OpenedSheet openSavedSheet(String fromSessionToken, Principal user, SheetType type,
                                      String path, String scope, boolean force) throws Exception
    {
       if(type == null) {
@@ -365,10 +371,21 @@ public class SheetOpenService {
 
       Principal browserUser = actingSheet == null ? user : actingSheet.getUser();
       String runtimeId;
+      List<String> warnings = List.of();
 
       try {
-         runtimeId = isViewsheet ? viewsheetService.openViewsheet(entry, browserUser, false) :
-            worksheetService.openWorksheet(entry, browserUser);
+         if(isViewsheet) {
+            runtimeId = viewsheetService.openViewsheet(entry, browserUser, false);
+         }
+         else {
+            // Loading a worksheet records what it could not do (an outer mirror that cannot be
+            // refreshed, a worksheet locked by another user) as user messages on this thread,
+            // which the Composer shows in a dialog. Start from an empty list so nothing raised
+            // earlier in this request is reported as part of this open.
+            Tool.clearUserMessage();
+            runtimeId = worksheetService.openWorksheet(entry, browserUser);
+            warnings = drainOpenWarnings();
+         }
       }
       catch(Exception e) {
          // Missing asset, no READ permission and an asset of the other type all land here and are
@@ -403,8 +420,47 @@ public class SheetOpenService {
 
       broadcast.sendToComposer(actingSession.socketSessionId(), command);
 
-      return session;
+      return new OpenedSheet(session, warnings);
    }
+
+   /**
+    * Takes the warning and error user messages the worksheet load left on this thread, and clears
+    * the thread's messages so none outlives the open. Informational messages are dropped. A node
+    * that loads the worksheet on behalf of a remote caller does not hand its messages back, the
+    * same as the Composer's own open.
+    */
+   private static List<String> drainOpenWarnings() {
+      Set<String> texts = new LinkedHashSet<>();
+
+      try {
+         for(MessageCommand.Type level : List.of(MessageCommand.Type.WARNING,
+                                                 MessageCommand.Type.ERROR))
+         {
+            for(UserMessage message : Tool.getUserMessages(level)) {
+               String text = message.getMessage();
+
+               if(text != null && !text.isBlank()) {
+                  texts.add(text.trim());
+               }
+            }
+         }
+      }
+      finally {
+         Tool.clearUserMessage();
+      }
+
+      return List.copyOf(texts);
+   }
+
+   /**
+    * The outcome of {@link #openSavedSheet}: the new session plus what the load reported.
+    *
+    * @param session  the session paired to the opened sheet
+    * @param warnings warning and error messages raised while loading a worksheet, such as an
+    *                 outer mirror whose source could not be copied; empty for a clean open and
+    *                 always empty for a viewsheet
+    */
+   public record OpenedSheet(JoinSession session, List<String> warnings) {}
 
    /**
     * Trims the path, accepts either separator and a leading one, and refuses a {@code ..} segment,
