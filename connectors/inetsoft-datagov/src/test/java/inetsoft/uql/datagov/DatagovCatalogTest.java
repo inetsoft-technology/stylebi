@@ -207,20 +207,20 @@ class DatagovCatalogTest {
 
    @Test
    void listDatasets_fetchesAllPages() throws Exception {
-      // resultSetSize (10001) exceeds one page (10000), so a second request at offset=10000 is
+      // resultSetSize (501) exceeds one page (500), so a second request at offset=500 is
       // required to finish enumerating -- this replaces a retired "only one page is fetched"
       // expectation, which under-read TabularCatalogProvider's own "no limit and no paging"
       // contract.
       stubDiscovery(url -> url.contains("offset=0")
-         ? discoveryPage(10001, datasetEntry("erm2-nwe9"), datasetEntry("8wbx-tsch"))
-         : discoveryPage(10001, datasetEntry("w7w3-xahh")));
+         ? discoveryPage(501, datasetEntry("erm2-nwe9"), datasetEntry("8wbx-tsch"))
+         : discoveryPage(501, datasetEntry("w7w3-xahh")));
 
       TabularCatalog catalog = DatagovCatalog.listDatasets(ds());
 
       assertEquals(Set.of("erm2-nwe9", "8wbx-tsch", "w7w3-xahh"),
          Set.copyOf(catalog.datasets().stream().map(TabularDatasetRef::id).toList()));
       runtimeStatic.verify(() -> DatagovRuntime.getDiscoveryMetadata(contains("offset=0")));
-      runtimeStatic.verify(() -> DatagovRuntime.getDiscoveryMetadata(contains("offset=10000")));
+      runtimeStatic.verify(() -> DatagovRuntime.getDiscoveryMetadata(contains("offset=500")));
    }
 
    @Test
@@ -235,8 +235,8 @@ class DatagovCatalogTest {
 
       Exception thrown = assertThrows(Exception.class, () -> DatagovCatalog.listDatasets(ds()));
 
-      assertTrue(thrown.getMessage().contains("50 requests"), thrown.getMessage());
-      assertEquals(50, calls[0], "must stop AT the safety ceiling, not silently keep going");
+      assertTrue(thrown.getMessage().contains("1000 requests"), thrown.getMessage());
+      assertEquals(1000, calls[0], "must stop AT the safety ceiling, not silently keep going");
    }
 
    @Test

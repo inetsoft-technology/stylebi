@@ -382,17 +382,20 @@ final class DatagovCatalog {
       Pattern.compile("[a-z0-9]{4}-[a-z0-9]{4}", Pattern.CASE_INSENSITIVE);
 
    /**
-    * Confirmed live: {@code limit=10000} against a real, large Socrata site returned every
-    * dataset in one page, HTTP 200.
+    * Datasets per Discovery page. Bug #81826: one {@code limit=10000} request for a large site
+    * (NYC, 2412 datasets) is a ~19 MB body (~8 KB per dataset, mostly metadata this connector
+    * never reads) that a slow link cannot finish inside {@code CATALOG_HTTP_TIMEOUT}, and one
+    * dropped connection ruins the whole read. A page of this size is ~4 MB uncompressed (under
+    * 1 MB gzipped), so a cut stream costs one page and is retried alone.
     */
-   private static final int DISCOVERY_PAGE_SIZE = 10000;
+   private static final int DISCOVERY_PAGE_SIZE = 500;
 
    /**
     * A sanity ceiling (up to 500,000 datasets before refusing), not a real-world limit. Hitting it
     * throws rather than truncating, per {@link TabularCatalogProvider}'s own "no limit and no
     * paging" contract -- a loud refusal, never a silent partial catalog.
     */
-   private static final int MAX_DISCOVERY_REQUESTS = 50;
+   private static final int MAX_DISCOVERY_REQUESTS = 500_000 / DISCOVERY_PAGE_SIZE;
 
    private static final Logger LOG = LoggerFactory.getLogger(DatagovCatalog.class.getName());
 }
