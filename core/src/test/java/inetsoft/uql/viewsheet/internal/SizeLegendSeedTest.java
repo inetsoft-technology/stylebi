@@ -193,6 +193,7 @@ class SizeLegendSeedTest {
          scriptable.getRTChartDescriptor().getLegendsDescriptor().getSizeLegendDescriptor();
       assertTrue(rsize.isVisible());
       assertTrue(rsize.isUserVisible());
+      assertTrue(rsize.isMaxModeVisible());
    }
 
    @Test

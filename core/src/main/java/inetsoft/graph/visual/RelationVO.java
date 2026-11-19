@@ -18,6 +18,7 @@
 package inetsoft.graph.visual;
 
 import inetsoft.graph.GraphConstants;
+import inetsoft.graph.TextSpec;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.Coordinate;
@@ -66,7 +67,9 @@ public class RelationVO extends ElementVO {
 
             if(isTinted(elem, obj)) {
                if(elem.isLabelInside() && elem.getBoxInk() != null) {
-                  vtext.getTextSpec().setColor(elem.getBoxInk());
+                  TextSpec spec = vtext.getTextSpec().clone();
+                  spec.setColor(elem.getBoxInk());
+                  vtext.setTextSpec(spec);
                }
             }
             else if(elem.isAutoTextColor() && elem.isLabelInside()) {
@@ -99,6 +102,7 @@ public class RelationVO extends ElementVO {
    // whether a node box is a tint of its colour rather than a solid fill
    private boolean isTinted(RelationElement elem, RelationGeometry gobj) {
       return elem.getBoxTintAlpha() > 0 && elem.getBoxTintBackdrop() != null &&
+         elem.getFillColor() == null &&
          !isHighlighted(elem.getNodeColorFrame(), gobj);
    }
 
@@ -197,9 +201,10 @@ public class RelationVO extends ElementVO {
 
          if(tinted) {
             GTool.setRenderingHint(g2, true);
-            g2.setColor(blend(full, elem.getBoxTintAlpha(), elem.getBoxTintBackdrop()));
+            g2.setColor(applyAlpha(
+               blend(full, elem.getBoxTintAlpha(), elem.getBoxTintBackdrop())));
             g2.fill(shape);
-            borderColor = full;
+            borderColor = applyAlpha(borderColor != null ? borderColor : full);
             line = null;
          }
          // use node fill color to fill if color is not bound.

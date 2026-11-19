@@ -19,12 +19,14 @@ package inetsoft.graph.visual;
 
 import inetsoft.graph.EGraph;
 import inetsoft.graph.GraphConstants;
+import inetsoft.graph.TextSpec;
 import inetsoft.graph.Plotter;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.RelationCoord;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.element.RelationElement;
 import inetsoft.graph.geometry.RelationGeometry;
 import inetsoft.sree.SreeEnv;
@@ -161,6 +163,47 @@ class RelationVOTintTest {
 
       assertEquals(BLUE, p.fill);
       assertNull(p.outline);
+   }
+
+   @Test
+   void thePlotTransparencyAppliesToTheTint() {
+      RelationElement elem = element(new StaticColorFrame(BLUE), 0.15, BACKDROP, null);
+      elem.setHint(GraphElement.HINT_ALPHA, 0.5);
+      Painted p = paintAll(plot(elem)).get(0);
+
+      assertEquals(128, p.fill.getAlpha(), 2);
+      assertEquals(128, p.outline.getAlpha(), 2);
+   }
+
+   @Test
+   void aScriptBorderColourIsTheOutline() {
+      RelationElement elem = element(new StaticColorFrame(BLUE), 0.15, BACKDROP, null);
+      elem.setBorderColor(Color.RED);
+      Painted p = paintAll(plot(elem)).get(0);
+
+      assertColor(new Color(0xC9DDEC), p.fill, 2);
+      assertEquals(Color.RED, p.outline);
+   }
+
+   @Test
+   void aScriptFillColourIsNotTinted() {
+      RelationElement elem = element(new StaticColorFrame(BLUE), 0.15, BACKDROP, null);
+      elem.setFillColor(Color.GREEN);
+      Painted p = paintAll(plot(elem)).get(0);
+
+      assertEquals(Color.GREEN, p.fill);
+   }
+
+   @Test
+   void theInkIsNotWrittenToTheSharedSpec() {
+      RelationElement elem = element(new StaticColorFrame(BLUE), 0.15, BACKDROP, INK);
+      elem.setTextFrame(new DefaultTextFrame("To"));
+      elem.setLabelPlacement(GraphConstants.CENTER);
+      TextSpec shared = elem.getTextSpec();
+      Color before = shared.getColor();
+      plot(elem);
+
+      assertEquals(before, shared.getColor());
    }
 
    // the opaque result of a colour at an alpha over a backdrop

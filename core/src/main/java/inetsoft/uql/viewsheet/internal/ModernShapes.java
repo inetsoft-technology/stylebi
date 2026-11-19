@@ -103,6 +103,13 @@ public final class ModernShapes {
          return false;
       }
 
+      // every default of a side starts with the same marker, so most frames end here
+      GShape first = modern ? GShape.CIRCLE : GShape.FILLED_CIRCLE;
+
+      if(frame.getShapeCount() == 0 || !Tool.equals(frame.getShape(0), first)) {
+         return false;
+      }
+
       GShape[] from = modern ? classicDefault() : modernDefault();
       GShape[] to = modern ? modernDefault() : classicDefault();
 
