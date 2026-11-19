@@ -44,6 +44,21 @@
   }
 }
 
+// The default button's focus ring (.btn-default:focus and the press rule, box-shadow
+// var(--inet-focus-ring)) is a 2px ring outside the focused half, which doubles the group's outline
+// (a box bolted onto a box), and being on :focus it also shows on every mouse press. In the group a
+// half shows no ring on mouse focus, and on keyboard focus (:focus-visible) draws the same ring
+// inset, inside its own edges. !important for the same reason as above.
+.input-group > .btn.btn-default:is(.input-group-btn, .input-group-btn-addon):not(:disabled) {
+  &:focus {
+    box-shadow: none !important;
+  }
+
+  &:focus-visible {
+    box-shadow: inset 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color) !important;
+  }
+}
+
 .input-group > .btn.btn-default.input-group-btn:not(:disabled) {
   &:hover, &:active, &:focus {
     border-right: 1px dashed !important;
