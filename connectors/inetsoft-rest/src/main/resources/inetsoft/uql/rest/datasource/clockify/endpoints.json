@@ -88,7 +88,61 @@
       "name": "Project",
       "paged": false,
       "suffix": "/v1/workspaces/{Workspace Id}/{Project Id}",
-      "description": "One project by id. Requires the workspace id."
+      "description": "One project by id. Requires the workspace id.",
+      "responseSchema": {
+        "archived": "boolean",
+        "billable": "boolean",
+        "budgetEstimate": {
+          "active": "boolean",
+          "estimate": "double",
+          "includeExpenses": "boolean",
+          "resetOption": "string",
+          "type": "string"
+        },
+        "color": "string",
+        "costRate": {
+          "amount": "double",
+          "currency": "string"
+        },
+        "duration": "string",
+        "estimate": {
+          "estimate": "string",
+          "type": "string"
+        },
+        "hourlyRate": {
+          "amount": "double",
+          "currency": "string"
+        },
+        "id": "string",
+        "memberships": [
+          {
+            "costRate": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "hourlyRate": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "membershipStatus": "string",
+            "membershipType": "string",
+            "targetId": "string",
+            "userId": "string"
+          }
+        ],
+        "name": "string",
+        "note": "string",
+        "public": "boolean",
+        "template": "boolean",
+        "timeEstimate": {
+          "active": "boolean",
+          "estimate": "string",
+          "includeNonBillable": "boolean",
+          "resetOption": "string",
+          "type": "string"
+        },
+        "workspaceId": "string"
+      }
     },
     {
       "name": "Tags",
@@ -654,7 +708,83 @@
       "suffix": "/v1/workspaces/{Workspace Id}/reports/summary",
       "url": "https://reports.api.clockify.me",
       "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\",\n \"summaryFilter\": {\n \"groups\": [\n \"USER\",\n \"PROJECT\",\n \"TIMEENTRY\"\n ]\n }\n }\n",
-      "description": "Totals grouped by up to three levels -- project, client, user, tag, date -- for a date range. Sent as a POST with the grouping and filters in the body, against Clockify's separate reports host. THE RIGHT ENDPOINT FOR ANY AGGREGATE: it applies the workspace's rounding and rates, which summing raw time entries does not, so its totals are the ones that match what the business bills."
+      "description": "Totals grouped by up to three levels -- project, client, user, tag, date -- for a date range. Sent as a POST with the grouping and filters in the body, against Clockify's separate reports host. THE RIGHT ENDPOINT FOR ANY AGGREGATE: it applies the workspace's rounding and rates, which summing raw time entries does not, so its totals are the ones that match what the business bills.",
+      "responseSchema": {
+        "chart": [
+          {
+            "earned": "double",
+            "id": "string",
+            "totalAmount": "double",
+            "totalBillableTime": "double",
+            "totalTime": "double"
+          }
+        ],
+        "groupOne": [
+          {
+            "amount": "double",
+            "clientName": "string",
+            "days": [
+              {
+                "amount": "double",
+                "date": "string",
+                "duration": "double"
+              }
+            ],
+            "duration": "double",
+            "id": "string",
+            "name": "string",
+            "nameLowerCase": "string",
+            "children": [
+              {
+                "amount": "double",
+                "clientName": "string",
+                "days": [
+                  {
+                    "amount": "double",
+                    "date": "string",
+                    "duration": "double"
+                  }
+                ],
+                "duration": "double",
+                "id": "string",
+                "name": "string",
+                "nameLowerCase": "string",
+                "children": [
+                  {
+                    "amount": "double",
+                    "clientName": "string",
+                    "days": [
+                      {
+                        "amount": "double",
+                        "date": "string",
+                        "duration": "double"
+                      }
+                    ],
+                    "duration": "double",
+                    "id": "string",
+                    "name": "string",
+                    "nameLowerCase": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "totals": [
+          {
+            "amounts": [
+              {
+                "type": "string",
+                "value": "double"
+              }
+            ],
+            "entriesCount": "double",
+            "id": "string",
+            "totalBillableTime": "double",
+            "totalTime": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Detailed Report",
@@ -663,7 +793,53 @@
       "suffix": "/v1/workspaces/{Workspace Id}/reports/detailed",
       "url": "https://reports.api.clockify.me",
       "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\"\n}\n",
-      "description": "Every individual time entry matching the filters, with its project, task, user, tags and amount, for a date range. POST, same reports host. The row-level companion to the summary, and the practical way to extract a workspace's entries in one request rather than looping per user."
+      "description": "Every individual time entry matching the filters, with its project, task, user, tags and amount, for a date range. POST, same reports host. The row-level companion to the summary, and the practical way to extract a workspace's entries in one request rather than looping per user.",
+      "responseSchema": {
+        "timeEntries": [
+          {
+            "approvalRequestId": "string",
+            "billable": "boolean",
+            "clientId": "string",
+            "clientName": "string",
+            "description": "string",
+            "get_id": "string",
+            "locked": "boolean",
+            "projectColor": "string",
+            "projectId": "string",
+            "projectName": "string",
+            "tags": [
+              {
+                "id": "string",
+                "name": "string"
+              }
+            ],
+            "taskId": "string",
+            "taskName": "string",
+            "timeInterval": {
+              "duration": "string",
+              "end": "timeInstant",
+              "start": "timeInstant"
+            },
+            "userEmail": "string",
+            "userId": "string",
+            "userName": "string"
+          }
+        ],
+        "totals": [
+          {
+            "amounts": [
+              {
+                "type": "string",
+                "value": "double"
+              }
+            ],
+            "entriesCount": "double",
+            "id": "string",
+            "totalBillableTime": "double",
+            "totalTime": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Weekly Report",
@@ -672,7 +848,95 @@
       "suffix": "/v1/workspaces/{Workspace Id}/reports/weekly",
       "url": "https://reports.api.clockify.me",
       "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\",\n \"weeklyFilter\": {\n \"group\": \"USER\",\n \"subgroup\": \"TIME\"\n }\n }\n",
-      "description": "Time totals laid out by day of week for a range, per user or per project. POST, same reports host. Built for timesheet review rather than analysis."
+      "description": "Time totals laid out by day of week for a range, per user or per project. POST, same reports host. Built for timesheet review rather than analysis.",
+      "responseSchema": {
+        "decimalFormat": "boolean",
+        "groupOne": [
+          {
+            "amount": "double",
+            "clientName": "string",
+            "days": [
+              {
+                "amount": "double",
+                "date": "string",
+                "duration": "double"
+              }
+            ],
+            "duration": "double",
+            "id": "string",
+            "name": "string",
+            "nameLowerCase": "string",
+            "children": [
+              {
+                "amount": "double",
+                "clientName": "string",
+                "days": [
+                  {
+                    "amount": "double",
+                    "date": "string",
+                    "duration": "double"
+                  }
+                ],
+                "duration": "double",
+                "id": "string",
+                "name": "string",
+                "nameLowerCase": "string",
+                "children": [
+                  {
+                    "amount": "double",
+                    "clientName": "string",
+                    "days": [
+                      {
+                        "amount": "double",
+                        "date": "string",
+                        "duration": "double"
+                      }
+                    ],
+                    "duration": "double",
+                    "id": "string",
+                    "name": "string",
+                    "nameLowerCase": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "includeUsersWithoutTime": "boolean",
+        "totals": [
+          {
+            "amounts": [
+              {
+                "type": "string",
+                "value": "double"
+              }
+            ],
+            "entriesCount": "double",
+            "id": "string",
+            "totalBillableTime": "double",
+            "totalTime": "double"
+          }
+        ],
+        "totalsByDay": [
+          {
+            "amount": "double",
+            "date": "string",
+            "duration": "double"
+          }
+        ],
+        "trackTimeDownToSeconds": "boolean",
+        "usersWithoutTime": [
+          {
+            "dateFormat": "string",
+            "email": "string",
+            "id": "string",
+            "name": "string",
+            "timeFormat": "string",
+            "timeZone": "string",
+            "weekStart": "string"
+          }
+        ]
+      }
     }
   ]
 }

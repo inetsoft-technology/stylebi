@@ -5250,7 +5250,26 @@
       "name": "Subscription Item Period Summaries",
       "paged": true,
       "suffix": "/v1/subscription_items/{Subscription Item ID}/usage_record_summaries",
-      "description": "Aggregated metered usage per billing period for one subscription item. REMOVED: Stripe replaced usage records with the Billing Meters model, and the equivalent is now Billing Meter Event Summaries -- which is in this connector, and which groups by customer and time window rather than by subscription item."
+      "description": "Aggregated metered usage per billing period for one subscription item. REMOVED: Stripe replaced usage records with the Billing Meters model, and the equivalent is now Billing Meter Event Summaries -- which is in this connector, and which groups by customer and time window rather than by subscription item.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "invoice": "string",
+            "livemode": "boolean",
+            "object": "string",
+            "period": {
+              "end": "double",
+              "start": "double"
+            },
+            "subscription_item": "string",
+            "total_usage": "double"
+          }
+        ],
+        "has_more": "boolean",
+        "object": "string",
+        "url": "string"
+      }
     },
     {
       "name": "Billing Meters",
@@ -7336,7 +7355,102 @@
       "name": "Order",
       "paged": false,
       "suffix": "/v1/orders/{Order ID}",
-      "description": "One legacy order by id. Removed along with Orders."
+      "description": "One legacy order by id. Removed along with Orders.",
+      "responseSchema": {
+        "amount": "double",
+        "amount_returned": "double",
+        "application": "string",
+        "application_fee": "double",
+        "charge": "string",
+        "created": "double",
+        "currency": "string",
+        "customer": "string",
+        "email": "string",
+        "external_coupon_code": "string",
+        "id": "string",
+        "items": [
+          {
+            "amount": "double",
+            "currency": "string",
+            "description": "string",
+            "object": "string",
+            "parent": "string",
+            "quantity": "double",
+            "type": "string"
+          }
+        ],
+        "livemode": "boolean",
+        "metadata": {
+          "*": "string"
+        },
+        "object": "string",
+        "returns": {
+          "data": [
+            {
+              "amount": "double",
+              "created": "double",
+              "currency": "string",
+              "id": "string",
+              "items": [
+                {
+                  "amount": "double",
+                  "currency": "string",
+                  "description": "string",
+                  "object": "string",
+                  "parent": "string",
+                  "quantity": "double",
+                  "type": "string"
+                }
+              ],
+              "livemode": "boolean",
+              "object": "string",
+              "order": "string",
+              "refund": "string"
+            }
+          ],
+          "has_more": "boolean",
+          "object": "string",
+          "url": "string"
+        },
+        "selected_shipping_method": "string",
+        "shipping": {
+          "address": {
+            "city": "string",
+            "country": "string",
+            "line1": "string",
+            "line2": "string",
+            "postal_code": "string",
+            "state": "string"
+          },
+          "carrier": "string",
+          "name": "string",
+          "phone": "string",
+          "tracking_number": "string"
+        },
+        "shipping_methods": [
+          {
+            "amount": "double",
+            "currency": "string",
+            "delivery_estimate": {
+              "date": "string",
+              "earliest": "string",
+              "latest": "string",
+              "type": "string"
+            },
+            "description": "string",
+            "id": "string"
+          }
+        ],
+        "status": "string",
+        "status_transitions": {
+          "canceled": "double",
+          "fulfiled": "double",
+          "paid": "double",
+          "returned": "double"
+        },
+        "updated": "double",
+        "upstream_id": "string"
+      }
     },
     {
       "name": "Orders",
@@ -7350,31 +7464,247 @@
           "parameterName": "Order ID"
         }
       ],
-      "description": "The legacy Orders API. REMOVED: Stripe retired the v1 Orders and SKUs model and this path is absent from the current API description -- expect it to fail rather than return an empty list. What replaced it depends on how the account sells: Checkout Sessions and Payment Links for the purchase itself, and Products with Prices for the catalogue. Products is already in this connector; the order records themselves are not reachable."
+      "description": "The legacy Orders API. REMOVED: Stripe retired the v1 Orders and SKUs model and this path is absent from the current API description -- expect it to fail rather than return an empty list. What replaced it depends on how the account sells: Checkout Sessions and Payment Links for the purchase itself, and Products with Prices for the catalogue. Products is already in this connector; the order records themselves are not reachable.",
+      "responseSchema": {
+        "data": [
+          {
+            "amount": "double",
+            "amount_returned": "double",
+            "application": "string",
+            "application_fee": "double",
+            "charge": "string",
+            "created": "double",
+            "currency": "string",
+            "customer": "string",
+            "email": "string",
+            "external_coupon_code": "string",
+            "id": "string",
+            "items": [
+              {
+                "amount": "double",
+                "currency": "string",
+                "description": "string",
+                "object": "string",
+                "parent": "string",
+                "quantity": "double",
+                "type": "string"
+              }
+            ],
+            "livemode": "boolean",
+            "metadata": {
+              "*": "string"
+            },
+            "object": "string",
+            "returns": {
+              "data": [
+                {
+                  "amount": "double",
+                  "created": "double",
+                  "currency": "string",
+                  "id": "string",
+                  "items": [
+                    {
+                      "amount": "double",
+                      "currency": "string",
+                      "description": "string",
+                      "object": "string",
+                      "parent": "string",
+                      "quantity": "double",
+                      "type": "string"
+                    }
+                  ],
+                  "livemode": "boolean",
+                  "object": "string",
+                  "order": "string",
+                  "refund": "string"
+                }
+              ],
+              "has_more": "boolean",
+              "object": "string",
+              "url": "string"
+            },
+            "selected_shipping_method": "string",
+            "shipping": {
+              "address": {
+                "city": "string",
+                "country": "string",
+                "line1": "string",
+                "line2": "string",
+                "postal_code": "string",
+                "state": "string"
+              },
+              "carrier": "string",
+              "name": "string",
+              "phone": "string",
+              "tracking_number": "string"
+            },
+            "shipping_methods": [
+              {
+                "amount": "double",
+                "currency": "string",
+                "delivery_estimate": {
+                  "date": "string",
+                  "earliest": "string",
+                  "latest": "string",
+                  "type": "string"
+                },
+                "description": "string",
+                "id": "string"
+              }
+            ],
+            "status": "string",
+            "status_transitions": {
+              "canceled": "double",
+              "fulfiled": "double",
+              "paid": "double",
+              "returned": "double"
+            },
+            "updated": "double",
+            "upstream_id": "string"
+          }
+        ],
+        "has_more": "boolean",
+        "object": "string",
+        "url": "string"
+      }
     },
     {
       "name": "Order Return",
       "paged": false,
       "suffix": "/v1/order_returns/{Order Return ID}",
-      "description": "One legacy order return by id. Removed along with Order Returns."
+      "description": "One legacy order return by id. Removed along with Order Returns.",
+      "responseSchema": {
+        "amount": "double",
+        "created": "double",
+        "currency": "string",
+        "id": "string",
+        "items": [
+          {
+            "amount": "double",
+            "currency": "string",
+            "description": "string",
+            "object": "string",
+            "parent": "string",
+            "quantity": "double",
+            "type": "string"
+          }
+        ],
+        "livemode": "boolean",
+        "object": "string",
+        "order": "string",
+        "refund": "string"
+      }
     },
     {
       "name": "Order Returns",
       "paged": true,
       "suffix": "/v1/order_returns?order={Order ID}&created={Created?:Unix timestamp}",
-      "description": "Returns against legacy orders. REMOVED with the Orders API. Refunds against a payment are a different resource and remain available through the Refunds endpoints."
+      "description": "Returns against legacy orders. REMOVED with the Orders API. Refunds against a payment are a different resource and remain available through the Refunds endpoints.",
+      "responseSchema": {
+        "data": [
+          {
+            "amount": "double",
+            "created": "double",
+            "currency": "string",
+            "id": "string",
+            "items": [
+              {
+                "amount": "double",
+                "currency": "string",
+                "description": "string",
+                "object": "string",
+                "parent": "string",
+                "quantity": "double",
+                "type": "string"
+              }
+            ],
+            "livemode": "boolean",
+            "object": "string",
+            "order": "string",
+            "refund": "string"
+          }
+        ],
+        "has_more": "boolean",
+        "object": "string",
+        "url": "string"
+      }
     },
     {
       "name": "SKU",
       "paged": false,
       "suffix": "/v1/skus/{SKU ID}",
-      "description": "One legacy SKU by id. Removed along with SKUs."
+      "description": "One legacy SKU by id. Removed along with SKUs.",
+      "responseSchema": {
+        "active": "boolean",
+        "attributes": {
+          "*": "string"
+        },
+        "created": "double",
+        "currency": "string",
+        "id": "string",
+        "image": "string",
+        "inventory": {
+          "quantity": "double",
+          "type": "string",
+          "value": "string"
+        },
+        "livemode": "boolean",
+        "metadata": {
+          "*": "string"
+        },
+        "object": "string",
+        "package_dimensions": {
+          "height": "double",
+          "length": "double",
+          "weight": "double",
+          "width": "double"
+        },
+        "price": "double",
+        "product": "string",
+        "updated": "double"
+      }
     },
     {
       "name": "SKUs",
       "paged": true,
       "suffix": "/v1/skus?active={Active?:true|false}&product={Product ID?}&ids={SKU IDs?}&in_stock={In Stock?:true|false}",
-      "description": "The stock keeping units of the legacy Orders API, carrying inventory and price per product variant. REMOVED. Products and Prices replace them, though note the modern model has no inventory tracking at all -- Stripe stopped holding stock levels when SKUs went, so that data is not merely at a different path, it is gone."
+      "description": "The stock keeping units of the legacy Orders API, carrying inventory and price per product variant. REMOVED. Products and Prices replace them, though note the modern model has no inventory tracking at all -- Stripe stopped holding stock levels when SKUs went, so that data is not merely at a different path, it is gone.",
+      "responseSchema": {
+        "data": [
+          {
+            "active": "boolean",
+            "attributes": {
+              "*": "string"
+            },
+            "created": "double",
+            "currency": "string",
+            "id": "string",
+            "image": "string",
+            "inventory": {
+              "quantity": "double",
+              "type": "string",
+              "value": "string"
+            },
+            "livemode": "boolean",
+            "metadata": {
+              "*": "string"
+            },
+            "object": "string",
+            "package_dimensions": {
+              "height": "double",
+              "length": "double",
+              "weight": "double",
+              "width": "double"
+            },
+            "price": "double",
+            "product": "string",
+            "updated": "double"
+          }
+        ],
+        "has_more": "boolean",
+        "object": "string",
+        "url": "string"
+      }
     },
     {
       "name": "Scheduled Query Run",

@@ -4,13 +4,43 @@
       "name": "Changesets",
       "paged": false,
       "suffix": "/projects/{Project ID}/changesets.json",
-      "description": "The source-control commits linked to one project, with the revision, author, message and the tickets each references. Requires a project id. The bridge between issues and code, where a repository is connected."
+      "description": "The source-control commits linked to one project, with the revision, author, message and the tickets each references. Requires a project id. The bridge between issues and code, where a repository is connected.",
+      "responseSchema": {
+        "changesets": [
+          {
+            "changeset": {
+              "body": "string",
+              "body_html": "string",
+              "changed_at": "timeInstant",
+              "committer": "string",
+              "project_id": "double",
+              "revision": "string",
+              "ticket_id": "double",
+              "title": "string",
+              "user_id": "double"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Changeset",
       "paged": false,
       "suffix": "/projects/{Project ID}/changesets/{Revision Name}.json",
-      "description": "One changeset by revision. Requires the project id."
+      "description": "One changeset by revision. Requires the project id.",
+      "responseSchema": {
+        "changeset": {
+          "body": "string",
+          "body_html": "string",
+          "changed_at": "timeInstant",
+          "committer": "string",
+          "project_id": "double",
+          "revision": "string",
+          "ticket_id": "double",
+          "title": "string",
+          "user_id": "double"
+        }
+      }
     },
     {
       "name": "Projects",
@@ -31,97 +61,628 @@
           "parameterName": "Project ID"
         }
       ],
-      "description": "The projects in the account, each with name, description, open and closed ticket counts, and its default assignee and milestone. The container everything else belongs to; every other endpoint needs a project id."
+      "description": "The projects in the account, each with name, description, open and closed ticket counts, and its default assignee and milestone. The container everything else belongs to; every other endpoint needs a project id.",
+      "responseSchema": {
+        "projects": [
+          {
+            "project": {
+              "archived": "boolean",
+              "closed_states": "string",
+              "created_at": "timeInstant",
+              "default_assigned_user_id": "double",
+              "default_milestone_id": "double",
+              "default_ticket_text": "string",
+              "description": "string",
+              "description_html": "string",
+              "enable_points": "boolean",
+              "hidden": "boolean",
+              "id": "double",
+              "license": "string",
+              "name": "string",
+              "open_states": "string",
+              "open_tickets_count": "double",
+              "oss_readonly": "boolean",
+              "permalink": "string",
+              "points_scale": "string",
+              "public": "boolean",
+              "send_changesets_to_events": "boolean",
+              "todos_completed": {
+                "projects": "boolean",
+                "tickets": "boolean",
+                "milestones": "boolean"
+              },
+              "updated_at": "timeInstant"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Project",
       "paged": false,
       "suffix": "/projects/{Project ID}.json",
-      "description": "One project by id, with its counts and settings."
+      "description": "One project by id, with its counts and settings.",
+      "responseSchema": {
+        "project": {
+          "archived": "boolean",
+          "closed_states": "string",
+          "created_at": "timeInstant",
+          "default_assigned_user_id": "double",
+          "default_milestone_id": "double",
+          "default_ticket_text": "string",
+          "description": "string",
+          "description_html": "string",
+          "enable_points": "boolean",
+          "hidden": "boolean",
+          "id": "double",
+          "license": "string",
+          "name": "string",
+          "open_states": "string",
+          "open_tickets_count": "double",
+          "oss_readonly": "boolean",
+          "permalink": "string",
+          "points_scale": "string",
+          "public": "boolean",
+          "send_changesets_to_events": "boolean",
+          "todos_completed": {
+            "projects": "boolean",
+            "tickets": "boolean",
+            "milestones": "boolean"
+          },
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Initial Project State",
       "paged": false,
       "suffix": "/projects/new.json",
-      "description": "A blank project template returned for building a creation form. Form scaffolding, not data."
+      "description": "A blank project template returned for building a creation form. Form scaffolding, not data.",
+      "responseSchema": {
+        "project": {
+          "archived": "boolean",
+          "closed_states": "string",
+          "created_at": "timeInstant",
+          "default_assigned_user_id": "double",
+          "default_milestone_id": "double",
+          "default_ticket_text": "string",
+          "description": "string",
+          "description_html": "string",
+          "enable_points": "boolean",
+          "hidden": "boolean",
+          "id": "double",
+          "license": "string",
+          "name": "string",
+          "open_states": "string",
+          "open_tickets_count": "double",
+          "oss_readonly": "boolean",
+          "permalink": "string",
+          "points_scale": "string",
+          "public": "boolean",
+          "send_changesets_to_events": "boolean",
+          "todos_completed": {
+            "projects": "boolean",
+            "tickets": "boolean",
+            "milestones": "boolean"
+          },
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Tickets",
       "paged": true,
       "suffix": "/projects/{Project ID}/tickets.json",
-      "description": "The issues in one project, with title, state, the assigned user, the milestone, tags, and the created and updated times. Requires a project id. The central table. Note STATE IS FREE TEXT rather than a fixed enum in Lighthouse -- projects define their own state names -- so state values are account-specific and cannot be assumed to be open and closed."
+      "description": "The issues in one project, with title, state, the assigned user, the milestone, tags, and the created and updated times. Requires a project id. The central table. Note STATE IS FREE TEXT rather than a fixed enum in Lighthouse -- projects define their own state names -- so state values are account-specific and cannot be assumed to be open and closed.",
+      "responseSchema": {
+        "tickets": [
+          {
+            "ticket": {
+              "assigned_user_id": "double",
+              "attachments_count": "double",
+              "body": "string",
+              "body_html": "string",
+              "closed": "boolean",
+              "created_at": "timeInstant",
+              "creator_id": "double",
+              "importance": "double",
+              "milestone_id": "double",
+              "milestone_order": "double",
+              "number": "double",
+              "permalink": "string",
+              "project_id": "double",
+              "spam": "boolean",
+              "state": "string",
+              "tag": "string",
+              "title": "string",
+              "updated_at": "timeInstant",
+              "user_id": "double",
+              "version": "double",
+              "watchers_ids": [
+                "double"
+              ],
+              "user_name": "string",
+              "creator_name": "string",
+              "url": "string",
+              "priority": "double",
+              "state_color": "string",
+              "milestone_due_on": "timeInstant",
+              "assigned_user_name": "string",
+              "milestone_title": "string",
+              "importance_name": "string",
+              "original_body": "string",
+              "latest_body": "string",
+              "original_body_html": "string",
+              "tags": [
+                {
+                  "tag": {
+                    "id": "double",
+                    "name": "string"
+                  }
+                }
+              ],
+              "versions": [
+                {
+                  "assigned_user_id": "double",
+                  "attachments_count": "double",
+                  "body": "string",
+                  "body_html": "string",
+                  "closed": "boolean",
+                  "created_at": "timeInstant",
+                  "creator_id": "double",
+                  "importance": "double",
+                  "milestone_id": "double",
+                  "milestone_order": "double",
+                  "number": "double",
+                  "permalink": "string",
+                  "project_id": "double",
+                  "spam": "boolean",
+                  "state": "string",
+                  "tag": "string",
+                  "title": "string",
+                  "updated_at": "timeInstant",
+                  "user_id": "double",
+                  "version": "double",
+                  "watchers_ids": [
+                    "double"
+                  ],
+                  "user_name": "string",
+                  "creator_name": "string",
+                  "url": "string",
+                  "priority": "double",
+                  "state_color": "string"
+                }
+              ],
+              "attachments": [
+                {
+                  "attachment": {
+                    "attachment_file_processing": "boolean",
+                    "code": "string",
+                    "content_type": "string",
+                    "created_at": "timeInstant",
+                    "filename": "string",
+                    "height": "double",
+                    "id": "double",
+                    "project_id": "double",
+                    "size": "double",
+                    "uploader_id": "double",
+                    "width": "double",
+                    "url": "string"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Ticket",
       "paged": false,
       "suffix": "/projects/{Project ID}/tickets/{Ticket Number}.json",
-      "description": "One ticket by number, with its full body and comment history. Requires the project id. Note the ticket NUMBER is the per-project one shown in the interface, not a global id."
+      "description": "One ticket by number, with its full body and comment history. Requires the project id. Note the ticket NUMBER is the per-project one shown in the interface, not a global id.",
+      "responseSchema": {
+        "ticket": {
+          "assigned_user_id": "double",
+          "attachments_count": "double",
+          "body": "string",
+          "body_html": "string",
+          "closed": "boolean",
+          "created_at": "timeInstant",
+          "creator_id": "double",
+          "importance": "double",
+          "milestone_id": "double",
+          "milestone_order": "double",
+          "number": "double",
+          "permalink": "string",
+          "project_id": "double",
+          "spam": "boolean",
+          "state": "string",
+          "tag": "string",
+          "title": "string",
+          "updated_at": "timeInstant",
+          "user_id": "double",
+          "version": "double",
+          "watchers_ids": [
+            "double"
+          ],
+          "user_name": "string",
+          "creator_name": "string",
+          "url": "string",
+          "priority": "double",
+          "state_color": "string",
+          "milestone_due_on": "timeInstant",
+          "assigned_user_name": "string",
+          "milestone_title": "string",
+          "importance_name": "string",
+          "original_body": "string",
+          "latest_body": "string",
+          "original_body_html": "string",
+          "tags": [
+            {
+              "tag": {
+                "id": "double",
+                "name": "string"
+              }
+            }
+          ],
+          "versions": [
+            {
+              "assigned_user_id": "double",
+              "attachments_count": "double",
+              "body": "string",
+              "body_html": "string",
+              "closed": "boolean",
+              "created_at": "timeInstant",
+              "creator_id": "double",
+              "importance": "double",
+              "milestone_id": "double",
+              "milestone_order": "double",
+              "number": "double",
+              "permalink": "string",
+              "project_id": "double",
+              "spam": "boolean",
+              "state": "string",
+              "tag": "string",
+              "title": "string",
+              "updated_at": "timeInstant",
+              "user_id": "double",
+              "version": "double",
+              "watchers_ids": [
+                "double"
+              ],
+              "user_name": "string",
+              "creator_name": "string",
+              "url": "string",
+              "priority": "double",
+              "state_color": "string"
+            }
+          ],
+          "attachments": [
+            {
+              "attachment": {
+                "attachment_file_processing": "boolean",
+                "code": "string",
+                "content_type": "string",
+                "created_at": "timeInstant",
+                "filename": "string",
+                "height": "double",
+                "id": "double",
+                "project_id": "double",
+                "size": "double",
+                "uploader_id": "double",
+                "width": "double",
+                "url": "string"
+              }
+            }
+          ]
+        }
+      }
     },
     {
       "name": "Ticket Bins",
       "paged": false,
       "suffix": "/projects/{Project ID}/bins.json",
-      "description": "The saved ticket queries of one project -- Lighthouse's name for saved filters -- each with its query and current ticket count. Requires a project id. The counts are pre-computed, so a bin answers 'how many are in this state' without paging tickets, and the query text records how the team defines that state."
+      "description": "The saved ticket queries of one project -- Lighthouse's name for saved filters -- each with its query and current ticket count. Requires a project id. The counts are pre-computed, so a bin answers 'how many are in this state' without paging tickets, and the query text records how the team defines that state.",
+      "responseSchema": {
+        "ticket_bins": [
+          {
+            "ticket_bin": {
+              "default": "boolean",
+              "id": "double",
+              "name": "string",
+              "position": "double",
+              "project_id": "double",
+              "query": "string",
+              "shared": "boolean",
+              "tickets_count": "double",
+              "updated_at": "timeInstant",
+              "user_id": "double",
+              "global": "boolean"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Ticket Bin",
       "paged": false,
       "suffix": "/projects/{Project ID}/bins/{Bin ID}.json",
-      "description": "One ticket bin by id, with its query."
+      "description": "One ticket bin by id, with its query.",
+      "responseSchema": {
+        "ticket_bin": {
+          "default": "boolean",
+          "id": "double",
+          "name": "string",
+          "position": "double",
+          "project_id": "double",
+          "query": "string",
+          "shared": "boolean",
+          "tickets_count": "double",
+          "updated_at": "timeInstant",
+          "user_id": "double",
+          "global": "boolean"
+        }
+      }
     },
     {
       "name": "Milestones",
       "paged": false,
       "suffix": "/projects/{Project ID}/milestones.json",
-      "description": "The milestones of one project, with title, due date, and the counts of open and closed tickets. Requires a project id. The counts make release-readiness answerable without walking the tickets."
+      "description": "The milestones of one project, with title, due date, and the counts of open and closed tickets. Requires a project id. The counts make release-readiness answerable without walking the tickets.",
+      "responseSchema": {
+        "milestones": [
+          {
+            "milestone": {
+              "attachments_count": "double",
+              "completed_at": "timeInstant",
+              "created_at": "timeInstant",
+              "due_on": "timeInstant",
+              "goals": "string",
+              "goals_html": "string",
+              "id": "double",
+              "max_points": "double",
+              "open_tickets_count": "double",
+              "permalink": "string",
+              "points_closed": "double",
+              "points_open": "double",
+              "position": "double",
+              "project_id": "double",
+              "tickets_count": "double",
+              "title": "string",
+              "updated_at": "timeInstant",
+              "url": "string",
+              "user_name": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Milestone",
       "paged": false,
       "suffix": "/projects/{Project ID}/milestones/{Milestone ID}.json",
-      "description": "One milestone by id."
+      "description": "One milestone by id.",
+      "responseSchema": {
+        "milestone": {
+          "attachments_count": "double",
+          "completed_at": "timeInstant",
+          "created_at": "timeInstant",
+          "due_on": "timeInstant",
+          "goals": "string",
+          "goals_html": "string",
+          "id": "double",
+          "max_points": "double",
+          "open_tickets_count": "double",
+          "permalink": "string",
+          "points_closed": "double",
+          "points_open": "double",
+          "position": "double",
+          "project_id": "double",
+          "tickets_count": "double",
+          "title": "string",
+          "updated_at": "timeInstant",
+          "url": "string",
+          "user_name": "string"
+        }
+      }
     },
     {
       "name": "Messages",
       "paged": false,
       "suffix": "/projects/{Project ID}/messages.json",
-      "description": "The discussion threads of one project, separate from tickets. Requires a project id. Where design and planning conversation lives when it is not attached to an issue."
+      "description": "The discussion threads of one project, separate from tickets. Requires a project id. Where design and planning conversation lives when it is not attached to an issue.",
+      "responseSchema": {
+        "messages": [
+          {
+            "message": {
+              "all_attachments_count": "double",
+              "attachments_count": "double",
+              "body": "string",
+              "body_html": "string",
+              "comments_count": "double",
+              "created_at": "timeInstant",
+              "id": "double",
+              "milestone_id": "double",
+              "parent_id": "double",
+              "permalink": "string",
+              "project_id": "double",
+              "title": "string",
+              "token": "string",
+              "updated_at": "timeInstant",
+              "user_id": "double",
+              "user_name": "string",
+              "url": "string",
+              "comments": [
+                {
+                  "comment": {
+                    "all_attachments_count": "double",
+                    "attachments_count": "double",
+                    "body": "string",
+                    "body_html": "string",
+                    "comments_count": "double",
+                    "created_at": "timeInstant",
+                    "id": "double",
+                    "milestone_id": "double",
+                    "parent_id": "double",
+                    "permalink": "string",
+                    "project_id": "double",
+                    "title": "string",
+                    "token": "string",
+                    "updated_at": "timeInstant",
+                    "user_id": "double",
+                    "user_name": "string",
+                    "url": "string"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Message",
       "paged": false,
       "suffix": "/projects/{Project ID}/messages/{Message ID}.json",
-      "description": "One message by id, with its replies."
+      "description": "One message by id, with its replies.",
+      "responseSchema": {
+        "message": {
+          "all_attachments_count": "double",
+          "attachments_count": "double",
+          "body": "string",
+          "body_html": "string",
+          "comments_count": "double",
+          "created_at": "timeInstant",
+          "id": "double",
+          "milestone_id": "double",
+          "parent_id": "double",
+          "permalink": "string",
+          "project_id": "double",
+          "title": "string",
+          "token": "string",
+          "updated_at": "timeInstant",
+          "user_id": "double",
+          "user_name": "string",
+          "url": "string",
+          "comments": [
+            {
+              "comment": {
+                "all_attachments_count": "double",
+                "attachments_count": "double",
+                "body": "string",
+                "body_html": "string",
+                "comments_count": "double",
+                "created_at": "timeInstant",
+                "id": "double",
+                "milestone_id": "double",
+                "parent_id": "double",
+                "permalink": "string",
+                "project_id": "double",
+                "title": "string",
+                "token": "string",
+                "updated_at": "timeInstant",
+                "user_id": "double",
+                "user_name": "string",
+                "url": "string"
+              }
+            }
+          ]
+        }
+      }
     },
     {
       "name": "User",
       "paged": false,
       "suffix": "/users/{User ID}.json",
-      "description": "One user by id, with name and job description."
+      "description": "One user by id, with name and job description.",
+      "responseSchema": {
+        "user": {
+          "id": "double",
+          "job": "string",
+          "name": "string",
+          "website": "string",
+          "avatar_url": "string"
+        }
+      }
     },
     {
       "name": "Current User",
       "paged": false,
       "suffix": "/profile.json",
-      "description": "The account the credentials belong to, with its memberships. One record, always the caller."
+      "description": "The account the credentials belong to, with its memberships. One record, always the caller.",
+      "responseSchema": {
+        "user": {
+          "id": "double",
+          "job": "string",
+          "name": "string",
+          "website": "string"
+        }
+      }
     },
     {
       "name": "Memberships",
       "paged": false,
       "suffix": "/users/{User ID}/memberships.json",
-      "description": "The projects one user belongs to, with their role. Requires a user id."
+      "description": "The projects one user belongs to, with their role. Requires a user id.",
+      "responseSchema": {
+        "memberships": [
+          {
+            "membership": {
+              "id": "double",
+              "user_id": "double",
+              "user": {
+                "id": "double",
+                "job": "string",
+                "name": "string",
+                "website": "string",
+                "avatar_url": "string"
+              },
+              "account": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Project Memberships",
       "paged": false,
       "suffix": "/projects/{Project ID}/memberships.json",
-      "description": "The users on one project, with their roles. Requires a project id. The access list."
+      "description": "The users on one project, with their roles. Requires a project id. The access list.",
+      "responseSchema": {
+        "memberships": [
+          {
+            "membership": {
+              "id": "double",
+              "user_id": "double",
+              "user": {
+                "id": "double",
+                "job": "string",
+                "name": "string",
+                "website": "string",
+                "avatar_url": "string"
+              },
+              "account": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Token",
       "paged": false,
       "suffix": "/tokens/{Token}.json",
-      "description": "The details of one API token, including which user and project it is scoped to. Requires the token. Security metadata rather than project data."
+      "description": "The details of one API token, including which user and project it is scoped to. Requires the token. Security metadata rather than project data.",
+      "responseSchema": {
+        "token": {
+          "created_at": "timeInstant",
+          "note": "string",
+          "project_id": "double",
+          "read_only": "boolean",
+          "token": "string",
+          "user_id": "double"
+        }
+      }
     }
   ]
 }

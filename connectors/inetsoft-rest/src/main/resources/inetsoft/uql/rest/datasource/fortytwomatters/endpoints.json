@@ -9,7 +9,125 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "Everything 42matters knows about ONE Android app, by package name: title, developer, category, description, price, install-count band, rating and rating count, current version, release and update dates, permissions, and the SDKs it embeds. The core enrichment endpoint. NOTE THIS IS MARKET INTELLIGENCE, NOT ANALYTICS -- it describes any app in the Play Store as the store presents it, so figures such as installs are the coarse bands Google publishes rather than exact counts, and none of it is your own app's data."
+      "description": "Everything 42matters knows about ONE Android app, by package name: title, developer, category, description, price, install-count band, rating and rating count, current version, release and update dates, permissions, and the SDKs it embeds. The core enrichment endpoint. NOTE THIS IS MARKET INTELLIGENCE, NOT ANALYTICS -- it describes any app in the Play Store as the store presents it, so figures such as installs are the coarse bands Google publishes rather than exact counts, and none of it is your own app's data.",
+      "responseSchema": {
+        "app_availability": {
+          "available_in": [
+            "string"
+          ],
+          "not_available_in": [
+            "string"
+          ],
+          "availability_unknown": [
+            "string"
+          ],
+          "package_name": "string"
+        },
+        "badges": [
+          "string"
+        ],
+        "cat_int": "double",
+        "cat_key": "string",
+        "cat_keys": [
+          "string"
+        ],
+        "cat_type": "double",
+        "category": "string",
+        "content_rating": "string",
+        "created": "timeInstant",
+        "description": "string",
+        "downloads": "string",
+        "downloads_max": "double",
+        "downloads_min": "double",
+        "email": "string",
+        "from_developer": [
+          "string"
+        ],
+        "i18n_lang": [
+          "string"
+        ],
+        "iap": "boolean",
+        "interactive_elements": [
+          "string"
+        ],
+        "market_source": "string",
+        "market_update": "timeInstant",
+        "package_name": "string",
+        "permissions": [
+          {
+            "id": "string",
+            "source": "string",
+            "protection_level": "string"
+          }
+        ],
+        "price": "string",
+        "price_numeric": "double",
+        "promo_video": "string",
+        "rating": "double",
+        "ratings_1": "double",
+        "ratings_2": "double",
+        "ratings_3": "double",
+        "ratings_4": "double",
+        "ratings_5": "double",
+        "screenshots": [
+          "string"
+        ],
+        "short_desc": "string",
+        "similar": [
+          "string"
+        ],
+        "size": "double",
+        "title": "string",
+        "version": "string",
+        "website": "string",
+        "what_is_new": "string",
+        "contains_ads": "boolean",
+        "physical_address": "string",
+        "privacy_policy": "string",
+        "content_descriptors": [
+          "string"
+        ],
+        "lang": "string",
+        "preregister": "boolean",
+        "data_safety": {
+          "shared_data": [
+            {
+              "data": "string",
+              "optional": "boolean",
+              "purpose": "string",
+              "type": "string"
+            }
+          ],
+          "collected_data": [
+            {
+              "data": "string",
+              "optional": "boolean",
+              "purpose": "string",
+              "type": "string"
+            }
+          ],
+          "security_practices": [
+            {
+              "practice": "string",
+              "description": "string"
+            }
+          ],
+          "privacy_policy_url": "string"
+        },
+        "featured_graphic": "string",
+        "iap_max": "double",
+        "iap_min": "double",
+        "developer": "string",
+        "number_ratings": "double",
+        "app_country": "string",
+        "icon": "string",
+        "icon_72": "string",
+        "min_sdk": "string",
+        "testing": "boolean",
+        "market_status": "string",
+        "market_url": "string",
+        "deep_link": "string"
+      }
     },
     {
       "name": "Android Reviews",
@@ -20,7 +138,14 @@
       "freePageLimit": 5,
       "post": false,
       "bodyTemplate": null,
-      "description": "User reviews of one Android app, filterable by rating, date and language. Requires a package name. The qualitative side: ratings give a number, these give the reasons, and they are the only text explaining a score movement."
+      "description": "User reviews of one Android app, filterable by rating, date and language. Requires a package name. The qualitative side: ratings give a number, these give the reasons, and they are the only text explaining a score movement.",
+      "responseSchema": {
+        "results": [
+          {
+            "rating": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Android Review Analysis",
@@ -31,7 +156,10 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The topics 42matters extracted from one app's reviews, with sentiment. Requires a package name. Derived rather than reported: it saves reading thousands of reviews to learn what people complain about, at the cost of being a model's interpretation."
+      "description": "The topics 42matters extracted from one app's reviews, with sentiment. Requires a package name. Derived rather than reported: it saves reading thousands of reviews to learn what people complain about, at the cost of being a model's interpretation.",
+      "responseSchema": {
+        "package_name": "string"
+      }
     },
     {
       "name": "Android Country Availability",
@@ -42,7 +170,21 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "Which countries one Android app is published in, and its price in each. Requires a package name. Market coverage, and the explanation for an app that appears missing in one region."
+      "description": "Which countries one Android app is published in, and its price in each. Requires a package name. Market coverage, and the explanation for an app that appears missing in one region.",
+      "responseSchema": {
+        "app_availability": {
+          "available_in": [
+            "string"
+          ],
+          "not_available_in": [
+            "string"
+          ],
+          "availability_unknown": [
+            "string"
+          ],
+          "package_name": "string"
+        }
+      }
     },
     {
       "name": "Android IAB Category for Apps",
@@ -53,7 +195,10 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The IAB advertising category of one Android app. Requires a package name. The advertising industry's taxonomy rather than the store's own, which is what ad platforms actually target on."
+      "description": "The IAB advertising category of one Android app. Requires a package name. The advertising industry's taxonomy rather than the store's own, which is what ad platforms actually target on.",
+      "responseSchema": {
+        "package_name": "string"
+      }
     },
     {
       "name": "Android App-Ads txt for Apps",
@@ -64,7 +209,10 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The app-ads.txt entries declared for one Android app -- the authorised sellers of its advertising inventory. Requires a package name. Ad-fraud verification: inventory sold by anyone not listed here is unauthorised."
+      "description": "The app-ads.txt entries declared for one Android app -- the authorised sellers of its advertising inventory. Requires a package name. Ad-fraud verification: inventory sold by anyone not listed here is unauthorised.",
+      "responseSchema": {
+        "package_name": "string"
+      }
     },
     {
       "name": "Android Changelog History",
@@ -75,7 +223,10 @@
       "freePageLimit": 5,
       "post": false,
       "bodyTemplate": null,
-      "description": "The release notes of one Android app over time, with version numbers and dates. Requires a package name. THE RELEASE CADENCE OF A COMPETITOR, which no other table gives -- how often they ship and what they say they changed."
+      "description": "The release notes of one Android app over time, with version numbers and dates. Requires a package name. THE RELEASE CADENCE OF A COMPETITOR, which no other table gives -- how often they ship and what they say they changed.",
+      "responseSchema": {
+        "package_name": "string"
+      }
     },
     {
       "name": "Android App Matching",
@@ -86,7 +237,14 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "Resolves partial or fuzzy identifiers to a specific Play Store app. Requires a package name or search terms. The disambiguation step before enrichment, when the identifier in hand is not exact."
+      "description": "Resolves partial or fuzzy identifiers to a specific Play Store app. Requires a package name or search terms. The disambiguation step before enrichment, when the identifier in hand is not exact.",
+      "responseSchema": {
+        "results": [
+          {
+            "package_name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Android Search",
@@ -97,7 +255,77 @@
       "freePageLimit": 5,
       "post": false,
       "bodyTemplate": null,
-      "description": "Apps matching a search phrase in the Play Store, optionally including descriptions. Discovery when the package name is unknown."
+      "description": "Apps matching a search phrase in the Play Store, optionally including descriptions. Discovery when the package name is unknown.",
+      "responseSchema": {
+        "number_results": "double",
+        "results": [
+          {
+            "title": "string",
+            "package_name": "string",
+            "developer": "string",
+            "category": "string",
+            "cat_key": "string",
+            "cat_keys": [
+              "string"
+            ],
+            "cat_int": "double",
+            "cat_type": "double",
+            "rating": "double",
+            "number_ratings": "double",
+            "ratings_1": "double",
+            "ratings_2": "double",
+            "ratings_3": "double",
+            "ratings_4": "double",
+            "ratings_5": "double",
+            "downloads": "string",
+            "downloads_min": "double",
+            "downloads_max": "double",
+            "size": "double",
+            "version": "string",
+            "min_sdk": "string",
+            "content_rating": "string",
+            "content_descriptors": [
+              "string"
+            ],
+            "contains_ads": "boolean",
+            "iap": "boolean",
+            "iap_min": "double",
+            "iap_max": "double",
+            "price": "string",
+            "price_numeric": "double",
+            "app_country": "string",
+            "lang": "string",
+            "i18n_lang": [
+              "string"
+            ],
+            "market_source": "string",
+            "market_status": "string",
+            "market_url": "string",
+            "deep_link": "string",
+            "promo_video": "string",
+            "icon": "string",
+            "icon_72": "string",
+            "featured_graphic": "string",
+            "screenshots": [
+              "string"
+            ],
+            "short_desc": "string",
+            "description": "string",
+            "what_is_new": "string",
+            "privacy_policy": "string",
+            "from_developer": [
+              "string"
+            ],
+            "badges": [
+              "string"
+            ]
+          }
+        ],
+        "page": "double",
+        "limit": "double",
+        "num_pages": "double",
+        "has_next": "boolean"
+      }
     },
     {
       "name": "Android Advanced Query",
@@ -108,7 +336,134 @@
       "freePageLimit": 50,
       "post": true,
       "bodyTemplate": "{\n  \"query\": {\n    \"query_params\": {\n      \"see\": \"https://42matters.com/docs/app-market-data/android/apps/advanced-query-api\"\n    }\n  }\n}\n",
-      "description": "Play Store apps matching a structured query across many attributes at once -- category, rating, install band, price, SDKs, release date. The systematic way to build a market segment, where the plain search only matches text."
+      "description": "Play Store apps matching a structured query across many attributes at once -- category, rating, install band, price, SDKs, release date. The systematic way to build a market segment, where the plain search only matches text.",
+      "responseSchema": {
+        "number_results": "double",
+        "results": [
+          {
+            "app_availability": {
+              "available_in": [
+                "string"
+              ],
+              "not_available_in": [
+                "string"
+              ],
+              "availability_unknown": [
+                "string"
+              ],
+              "package_name": "string"
+            },
+            "badges": [
+              "string"
+            ],
+            "cat_int": "double",
+            "cat_key": "string",
+            "cat_keys": [
+              "string"
+            ],
+            "cat_type": "double",
+            "category": "string",
+            "content_rating": "string",
+            "created": "timeInstant",
+            "description": "string",
+            "downloads": "string",
+            "downloads_max": "double",
+            "downloads_min": "double",
+            "email": "string",
+            "from_developer": [
+              "string"
+            ],
+            "i18n_lang": [
+              "string"
+            ],
+            "iap": "boolean",
+            "interactive_elements": [
+              "string"
+            ],
+            "market_source": "string",
+            "market_update": "timeInstant",
+            "package_name": "string",
+            "permissions": [
+              {
+                "id": "string",
+                "source": "string",
+                "protection_level": "string"
+              }
+            ],
+            "price": "string",
+            "price_numeric": "double",
+            "promo_video": "string",
+            "rating": "double",
+            "ratings_1": "double",
+            "ratings_2": "double",
+            "ratings_3": "double",
+            "ratings_4": "double",
+            "ratings_5": "double",
+            "screenshots": [
+              "string"
+            ],
+            "short_desc": "string",
+            "similar": [
+              "string"
+            ],
+            "size": "double",
+            "title": "string",
+            "version": "string",
+            "website": "string",
+            "what_is_new": "string",
+            "contains_ads": "boolean",
+            "physical_address": "string",
+            "privacy_policy": "string",
+            "content_descriptors": [
+              "string"
+            ],
+            "lang": "string",
+            "preregister": "boolean",
+            "data_safety": {
+              "shared_data": [
+                {
+                  "data": "string",
+                  "optional": "boolean",
+                  "purpose": "string",
+                  "type": "string"
+                }
+              ],
+              "collected_data": [
+                {
+                  "data": "string",
+                  "optional": "boolean",
+                  "purpose": "string",
+                  "type": "string"
+                }
+              ],
+              "security_practices": [
+                {
+                  "practice": "string",
+                  "description": "string"
+                }
+              ],
+              "privacy_policy_url": "string"
+            },
+            "featured_graphic": "string",
+            "iap_max": "double",
+            "iap_min": "double",
+            "developer": "string",
+            "number_ratings": "double",
+            "app_country": "string",
+            "icon": "string",
+            "icon_72": "string",
+            "min_sdk": "string",
+            "testing": "boolean",
+            "market_status": "string",
+            "market_url": "string",
+            "deep_link": "string"
+          }
+        ],
+        "page": "double",
+        "limit": "double",
+        "num_pages": "double",
+        "has_next": "boolean"
+      }
     },
     {
       "name": "Android Integrated SDKs",
@@ -119,7 +474,10 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The third-party SDKs detected inside one Android app -- analytics, advertising, crash reporting, payments. Requires a package name. TECHNOLOGY INTELLIGENCE: it says what a competitor built with, and is the basis of any question about which vendors an app ecosystem uses."
+      "description": "The third-party SDKs detected inside one Android app -- analytics, advertising, crash reporting, payments. Requires a package name. TECHNOLOGY INTELLIGENCE: it says what a competitor built with, and is the basis of any question about which vendors an app ecosystem uses.",
+      "responseSchema": {
+        "package_name": "string"
+      }
     },
     {
       "name": "Android Search by SDKs",
@@ -130,7 +488,134 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "Apps that embed given SDKs. The reverse of the SDK lookup -- use it to size a vendor's install base or to build a prospect list of apps using a competing tool."
+      "description": "Apps that embed given SDKs. The reverse of the SDK lookup -- use it to size a vendor's install base or to build a prospect list of apps using a competing tool.",
+      "responseSchema": {
+        "number_results": "double",
+        "results": [
+          {
+            "app_availability": {
+              "available_in": [
+                "string"
+              ],
+              "not_available_in": [
+                "string"
+              ],
+              "availability_unknown": [
+                "string"
+              ],
+              "package_name": "string"
+            },
+            "badges": [
+              "string"
+            ],
+            "cat_int": "double",
+            "cat_key": "string",
+            "cat_keys": [
+              "string"
+            ],
+            "cat_type": "double",
+            "category": "string",
+            "content_rating": "string",
+            "created": "timeInstant",
+            "description": "string",
+            "downloads": "string",
+            "downloads_max": "double",
+            "downloads_min": "double",
+            "email": "string",
+            "from_developer": [
+              "string"
+            ],
+            "i18n_lang": [
+              "string"
+            ],
+            "iap": "boolean",
+            "interactive_elements": [
+              "string"
+            ],
+            "market_source": "string",
+            "market_update": "timeInstant",
+            "package_name": "string",
+            "permissions": [
+              {
+                "id": "string",
+                "source": "string",
+                "protection_level": "string"
+              }
+            ],
+            "price": "string",
+            "price_numeric": "double",
+            "promo_video": "string",
+            "rating": "double",
+            "ratings_1": "double",
+            "ratings_2": "double",
+            "ratings_3": "double",
+            "ratings_4": "double",
+            "ratings_5": "double",
+            "screenshots": [
+              "string"
+            ],
+            "short_desc": "string",
+            "similar": [
+              "string"
+            ],
+            "size": "double",
+            "title": "string",
+            "version": "string",
+            "website": "string",
+            "what_is_new": "string",
+            "contains_ads": "boolean",
+            "physical_address": "string",
+            "privacy_policy": "string",
+            "content_descriptors": [
+              "string"
+            ],
+            "lang": "string",
+            "preregister": "boolean",
+            "data_safety": {
+              "shared_data": [
+                {
+                  "data": "string",
+                  "optional": "boolean",
+                  "purpose": "string",
+                  "type": "string"
+                }
+              ],
+              "collected_data": [
+                {
+                  "data": "string",
+                  "optional": "boolean",
+                  "purpose": "string",
+                  "type": "string"
+                }
+              ],
+              "security_practices": [
+                {
+                  "practice": "string",
+                  "description": "string"
+                }
+              ],
+              "privacy_policy_url": "string"
+            },
+            "featured_graphic": "string",
+            "iap_max": "double",
+            "iap_min": "double",
+            "developer": "string",
+            "number_ratings": "double",
+            "app_country": "string",
+            "icon": "string",
+            "icon_72": "string",
+            "min_sdk": "string",
+            "testing": "boolean",
+            "market_status": "string",
+            "market_url": "string",
+            "deep_link": "string"
+          }
+        ],
+        "page": "double",
+        "limit": "double",
+        "num_pages": "double",
+        "has_next": "boolean"
+      }
     },
     {
       "name": "Android Search by Web Domain",
@@ -141,7 +626,134 @@
       "freePageLimit": 5,
       "post": false,
       "bodyTemplate": null,
-      "description": "Apps associated with a web domain. The link from a company's website to the apps it publishes, which the store listings do not make searchable."
+      "description": "Apps associated with a web domain. The link from a company's website to the apps it publishes, which the store listings do not make searchable.",
+      "responseSchema": {
+        "number_results": "double",
+        "results": [
+          {
+            "app_availability": {
+              "available_in": [
+                "string"
+              ],
+              "not_available_in": [
+                "string"
+              ],
+              "availability_unknown": [
+                "string"
+              ],
+              "package_name": "string"
+            },
+            "badges": [
+              "string"
+            ],
+            "cat_int": "double",
+            "cat_key": "string",
+            "cat_keys": [
+              "string"
+            ],
+            "cat_type": "double",
+            "category": "string",
+            "content_rating": "string",
+            "created": "timeInstant",
+            "description": "string",
+            "downloads": "string",
+            "downloads_max": "double",
+            "downloads_min": "double",
+            "email": "string",
+            "from_developer": [
+              "string"
+            ],
+            "i18n_lang": [
+              "string"
+            ],
+            "iap": "boolean",
+            "interactive_elements": [
+              "string"
+            ],
+            "market_source": "string",
+            "market_update": "timeInstant",
+            "package_name": "string",
+            "permissions": [
+              {
+                "id": "string",
+                "source": "string",
+                "protection_level": "string"
+              }
+            ],
+            "price": "string",
+            "price_numeric": "double",
+            "promo_video": "string",
+            "rating": "double",
+            "ratings_1": "double",
+            "ratings_2": "double",
+            "ratings_3": "double",
+            "ratings_4": "double",
+            "ratings_5": "double",
+            "screenshots": [
+              "string"
+            ],
+            "short_desc": "string",
+            "similar": [
+              "string"
+            ],
+            "size": "double",
+            "title": "string",
+            "version": "string",
+            "website": "string",
+            "what_is_new": "string",
+            "contains_ads": "boolean",
+            "physical_address": "string",
+            "privacy_policy": "string",
+            "content_descriptors": [
+              "string"
+            ],
+            "lang": "string",
+            "preregister": "boolean",
+            "data_safety": {
+              "shared_data": [
+                {
+                  "data": "string",
+                  "optional": "boolean",
+                  "purpose": "string",
+                  "type": "string"
+                }
+              ],
+              "collected_data": [
+                {
+                  "data": "string",
+                  "optional": "boolean",
+                  "purpose": "string",
+                  "type": "string"
+                }
+              ],
+              "security_practices": [
+                {
+                  "practice": "string",
+                  "description": "string"
+                }
+              ],
+              "privacy_policy_url": "string"
+            },
+            "featured_graphic": "string",
+            "iap_max": "double",
+            "iap_min": "double",
+            "developer": "string",
+            "number_ratings": "double",
+            "app_country": "string",
+            "icon": "string",
+            "icon_72": "string",
+            "min_sdk": "string",
+            "testing": "boolean",
+            "market_status": "string",
+            "market_url": "string",
+            "deep_link": "string"
+          }
+        ],
+        "page": "double",
+        "limit": "double",
+        "num_pages": "double",
+        "has_next": "boolean"
+      }
     },
     {
       "name": "Android Search by Permissions",
@@ -152,7 +764,134 @@
       "freePageLimit": 5,
       "post": false,
       "bodyTemplate": null,
-      "description": "Apps requesting given Android permissions. Privacy and capability analysis -- and Android-only, since iOS exposes no equivalent."
+      "description": "Apps requesting given Android permissions. Privacy and capability analysis -- and Android-only, since iOS exposes no equivalent.",
+      "responseSchema": {
+        "number_results": "double",
+        "results": [
+          {
+            "app_availability": {
+              "available_in": [
+                "string"
+              ],
+              "not_available_in": [
+                "string"
+              ],
+              "availability_unknown": [
+                "string"
+              ],
+              "package_name": "string"
+            },
+            "badges": [
+              "string"
+            ],
+            "cat_int": "double",
+            "cat_key": "string",
+            "cat_keys": [
+              "string"
+            ],
+            "cat_type": "double",
+            "category": "string",
+            "content_rating": "string",
+            "created": "timeInstant",
+            "description": "string",
+            "downloads": "string",
+            "downloads_max": "double",
+            "downloads_min": "double",
+            "email": "string",
+            "from_developer": [
+              "string"
+            ],
+            "i18n_lang": [
+              "string"
+            ],
+            "iap": "boolean",
+            "interactive_elements": [
+              "string"
+            ],
+            "market_source": "string",
+            "market_update": "timeInstant",
+            "package_name": "string",
+            "permissions": [
+              {
+                "id": "string",
+                "source": "string",
+                "protection_level": "string"
+              }
+            ],
+            "price": "string",
+            "price_numeric": "double",
+            "promo_video": "string",
+            "rating": "double",
+            "ratings_1": "double",
+            "ratings_2": "double",
+            "ratings_3": "double",
+            "ratings_4": "double",
+            "ratings_5": "double",
+            "screenshots": [
+              "string"
+            ],
+            "short_desc": "string",
+            "similar": [
+              "string"
+            ],
+            "size": "double",
+            "title": "string",
+            "version": "string",
+            "website": "string",
+            "what_is_new": "string",
+            "contains_ads": "boolean",
+            "physical_address": "string",
+            "privacy_policy": "string",
+            "content_descriptors": [
+              "string"
+            ],
+            "lang": "string",
+            "preregister": "boolean",
+            "data_safety": {
+              "shared_data": [
+                {
+                  "data": "string",
+                  "optional": "boolean",
+                  "purpose": "string",
+                  "type": "string"
+                }
+              ],
+              "collected_data": [
+                {
+                  "data": "string",
+                  "optional": "boolean",
+                  "purpose": "string",
+                  "type": "string"
+                }
+              ],
+              "security_practices": [
+                {
+                  "practice": "string",
+                  "description": "string"
+                }
+              ],
+              "privacy_policy_url": "string"
+            },
+            "featured_graphic": "string",
+            "iap_max": "double",
+            "iap_min": "double",
+            "developer": "string",
+            "number_ratings": "double",
+            "app_country": "string",
+            "icon": "string",
+            "icon_72": "string",
+            "min_sdk": "string",
+            "testing": "boolean",
+            "market_status": "string",
+            "market_url": "string",
+            "deep_link": "string"
+          }
+        ],
+        "page": "double",
+        "limit": "double",
+        "num_pages": "double",
+        "has_next": "boolean"
+      }
     },
     {
       "name": "Android Google Play Top Charts",
@@ -163,7 +902,14 @@
       "freePageLimit": 25,
       "post": false,
       "bodyTemplate": null,
-      "description": "The current Play Store rankings for a named chart, category and country. A snapshot of who is winning a category right now."
+      "description": "The current Play Store rankings for a named chart, category and country. A snapshot of who is winning a category right now.",
+      "responseSchema": {
+        "results": [
+          {
+            "package_name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Android Google Play App Rank History",
@@ -174,7 +920,10 @@
       "freePageLimit": 100,
       "post": false,
       "bodyTemplate": null,
-      "description": "How one app's Play Store rank moved over time, by chart and country. Requires a package name and dates. Rankings are a snapshot everywhere else here; this is the only historical series."
+      "description": "How one app's Play Store rank moved over time, by chart and country. Requires a package name and dates. Rankings are a snapshot everywhere else here; this is the only historical series.",
+      "responseSchema": {
+        "package_name": "string"
+      }
     },
     {
       "name": "iOS Lookup",
@@ -185,7 +934,168 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same for one iOS app, by App Store id or bundle id. Same distinction: this is what the App Store publishes about an app, not private analytics. Note Apple publishes no install counts at all, so the fields available differ from Android's."
+      "description": "The same for one iOS app, by App Store id or bundle id. Same distinction: this is what the App Store publishes about an app, not private analytics. Note Apple publishes no install counts at all, so the fields available differ from Android's.",
+      "responseSchema": {
+        "app_availability": {
+          "available_in": [
+            "string"
+          ],
+          "not_available_in": [
+            "string"
+          ],
+          "availability_unknown": [
+            "string"
+          ],
+          "trackId": "double",
+          "bundleId": "string"
+        },
+        "artistId": "double",
+        "artistName": "string",
+        "artistViewUrl": "string",
+        "artworkUrl100": "string",
+        "artworkUrl512": "string",
+        "artworkUrl60": "string",
+        "averageUserRating": "double",
+        "averageUserRatingForCurrentVersion": "double",
+        "bundleId": "string",
+        "contentAdvisoryRating": "string",
+        "currency": "string",
+        "currentVersionReleaseDate": "timeInstant",
+        "description": "string",
+        "features": [
+          "string"
+        ],
+        "fileSizeBytes": "string",
+        "fileSizeBytesNumeric": "double",
+        "formattedPrice": "string",
+        "genreIds": [
+          "string"
+        ],
+        "genres": [
+          "string"
+        ],
+        "i18n_lang": [
+          "string"
+        ],
+        "ipad": "boolean",
+        "ipadScreenshotUrls": [
+          "string"
+        ],
+        "iphone": "boolean",
+        "isGameCenterEnabled": "boolean",
+        "isVppDeviceBasedLicensingEnabled": "boolean",
+        "languageCodesISO2A": [
+          "string"
+        ],
+        "market_source": "string",
+        "minimumOsVersion": "string",
+        "price": "double",
+        "primaryGenreId": "double",
+        "primaryGenreName": "string",
+        "releaseDate": "timeInstant",
+        "releaseNotes": "string",
+        "screenshotUrls": [
+          "string"
+        ],
+        "sellerName": "string",
+        "sellerUrl": "string",
+        "supportedDevices": [
+          "string"
+        ],
+        "trackCensoredName": "string",
+        "trackContentRating": "string",
+        "trackId": "double",
+        "trackViewUrl": "string",
+        "userRatingCount": "double",
+        "userRatingCountForCurrentVersion": "double",
+        "version": "string",
+        "advisories": [
+          "string"
+        ],
+        "physical_address": "string",
+        "supportUrl": "string",
+        "email": "string",
+        "appletvScreenshotUrls": [
+          "string"
+        ],
+        "permissions": [
+          {
+            "id": "string"
+          }
+        ],
+        "customersAlsoBoughtApps": [
+          "double"
+        ],
+        "developerOtherApps": [
+          "double"
+        ],
+        "hasInAppPurchases": "boolean",
+        "isPreorder": "boolean",
+        "r1": "double",
+        "r2": "double",
+        "r3": "double",
+        "r4": "double",
+        "r5": "double",
+        "privacyPolicyUrl": "string",
+        "privacy": {
+          "managePrivacyChoicesUrl": "string",
+          "privacyTypes": [
+            {
+              "identifier": "string",
+              "privacyType": "string",
+              "description": "string",
+              "dataCategories": [
+                {
+                  "dataCategory": "string",
+                  "dataTypes": [
+                    "string"
+                  ],
+                  "identifier": "string"
+                }
+              ],
+              "purposes": [
+                {
+                  "identifier": "string",
+                  "purpose": "string",
+                  "dataCategories": [
+                    {
+                      "dataCategory": "string",
+                      "dataTypes": [
+                        "string"
+                      ],
+                      "identifier": "string"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "requiredCapabilities": [
+          "string"
+        ],
+        "screenshotUrlsHighRes": {
+          "ipad": [
+            "string"
+          ],
+          "ipadPro": [
+            "string"
+          ],
+          "ipadPro_2018": [
+            "string"
+          ],
+          "iphone_d73": [
+            "string"
+          ]
+        },
+        "subtitle": "string",
+        "lang": "string",
+        "app_country": "string",
+        "market_status": "string",
+        "downloads": "string",
+        "downloads_min": "double",
+        "downloads_max": "double"
+      }
     },
     {
       "name": "iOS Reviews",
@@ -196,7 +1106,14 @@
       "freePageLimit": 5,
       "post": false,
       "bodyTemplate": null,
-      "description": "User reviews of one iOS app, filterable by rating and date. Requires an app id. NOTE APPLE'S REVIEWS ARE PER STOREFRONT -- a review left in one country is not returned for another -- so a complete picture needs the country dimension considered."
+      "description": "User reviews of one iOS app, filterable by rating and date. Requires an app id. NOTE APPLE'S REVIEWS ARE PER STOREFRONT -- a review left in one country is not returned for another -- so a complete picture needs the country dimension considered.",
+      "responseSchema": {
+        "results": [
+          {
+            "rating": "double"
+          }
+        ]
+      }
     },
     {
       "name": "iOS Review Analysis",
@@ -207,7 +1124,10 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same topic and sentiment extraction for an iOS app."
+      "description": "The same topic and sentiment extraction for an iOS app.",
+      "responseSchema": {
+        "trackId": "double"
+      }
     },
     {
       "name": "iOS Country Availability",
@@ -218,7 +1138,22 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same storefront availability for an iOS app."
+      "description": "The same storefront availability for an iOS app.",
+      "responseSchema": {
+        "app_availability": {
+          "available_in": [
+            "string"
+          ],
+          "not_available_in": [
+            "string"
+          ],
+          "availability_unknown": [
+            "string"
+          ],
+          "trackId": "double",
+          "bundleId": "string"
+        }
+      }
     },
     {
       "name": "iOS IAB Category for Apps",
@@ -229,7 +1164,10 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The IAB advertising category of one iOS app."
+      "description": "The IAB advertising category of one iOS app.",
+      "responseSchema": {
+        "trackId": "double"
+      }
     },
     {
       "name": "iOS App-Ads.txt for Apps",
@@ -240,7 +1178,10 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same authorised-seller declarations for an iOS app."
+      "description": "The same authorised-seller declarations for an iOS app.",
+      "responseSchema": {
+        "trackId": "double"
+      }
     },
     {
       "name": "iOS Changelog History",
@@ -251,7 +1192,10 @@
       "freePageLimit": 5,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same version history for an iOS app."
+      "description": "The same version history for an iOS app.",
+      "responseSchema": {
+        "trackId": "double"
+      }
     },
     {
       "name": "iOS App Matching",
@@ -262,7 +1206,15 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same resolution for the App Store, by id or bundle id."
+      "description": "The same resolution for the App Store, by id or bundle id.",
+      "responseSchema": {
+        "results": [
+          {
+            "trackId": "double",
+            "bundleId": "string"
+          }
+        ]
+      }
     },
     {
       "name": "iOS Search",
@@ -273,7 +1225,177 @@
       "freePageLimit": 5,
       "post": false,
       "bodyTemplate": null,
-      "description": "Apps matching a search phrase in the App Store."
+      "description": "Apps matching a search phrase in the App Store.",
+      "responseSchema": {
+        "number_results": "double",
+        "results": [
+          {
+            "app_availability": {
+              "available_in": [
+                "string"
+              ],
+              "not_available_in": [
+                "string"
+              ],
+              "availability_unknown": [
+                "string"
+              ],
+              "trackId": "double",
+              "bundleId": "string"
+            },
+            "artistId": "double",
+            "artistName": "string",
+            "artistViewUrl": "string",
+            "artworkUrl100": "string",
+            "artworkUrl512": "string",
+            "artworkUrl60": "string",
+            "averageUserRating": "double",
+            "averageUserRatingForCurrentVersion": "double",
+            "bundleId": "string",
+            "contentAdvisoryRating": "string",
+            "currency": "string",
+            "currentVersionReleaseDate": "timeInstant",
+            "description": "string",
+            "features": [
+              "string"
+            ],
+            "fileSizeBytes": "string",
+            "fileSizeBytesNumeric": "double",
+            "formattedPrice": "string",
+            "genreIds": [
+              "string"
+            ],
+            "genres": [
+              "string"
+            ],
+            "i18n_lang": [
+              "string"
+            ],
+            "ipad": "boolean",
+            "ipadScreenshotUrls": [
+              "string"
+            ],
+            "iphone": "boolean",
+            "isGameCenterEnabled": "boolean",
+            "isVppDeviceBasedLicensingEnabled": "boolean",
+            "languageCodesISO2A": [
+              "string"
+            ],
+            "market_source": "string",
+            "minimumOsVersion": "string",
+            "price": "double",
+            "primaryGenreId": "double",
+            "primaryGenreName": "string",
+            "releaseDate": "timeInstant",
+            "releaseNotes": "string",
+            "screenshotUrls": [
+              "string"
+            ],
+            "sellerName": "string",
+            "sellerUrl": "string",
+            "supportedDevices": [
+              "string"
+            ],
+            "trackCensoredName": "string",
+            "trackContentRating": "string",
+            "trackId": "double",
+            "trackViewUrl": "string",
+            "userRatingCount": "double",
+            "userRatingCountForCurrentVersion": "double",
+            "version": "string",
+            "advisories": [
+              "string"
+            ],
+            "physical_address": "string",
+            "supportUrl": "string",
+            "email": "string",
+            "appletvScreenshotUrls": [
+              "string"
+            ],
+            "permissions": [
+              {
+                "id": "string"
+              }
+            ],
+            "customersAlsoBoughtApps": [
+              "double"
+            ],
+            "developerOtherApps": [
+              "double"
+            ],
+            "hasInAppPurchases": "boolean",
+            "isPreorder": "boolean",
+            "r1": "double",
+            "r2": "double",
+            "r3": "double",
+            "r4": "double",
+            "r5": "double",
+            "privacyPolicyUrl": "string",
+            "privacy": {
+              "managePrivacyChoicesUrl": "string",
+              "privacyTypes": [
+                {
+                  "identifier": "string",
+                  "privacyType": "string",
+                  "description": "string",
+                  "dataCategories": [
+                    {
+                      "dataCategory": "string",
+                      "dataTypes": [
+                        "string"
+                      ],
+                      "identifier": "string"
+                    }
+                  ],
+                  "purposes": [
+                    {
+                      "identifier": "string",
+                      "purpose": "string",
+                      "dataCategories": [
+                        {
+                          "dataCategory": "string",
+                          "dataTypes": [
+                            "string"
+                          ],
+                          "identifier": "string"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "requiredCapabilities": [
+              "string"
+            ],
+            "screenshotUrlsHighRes": {
+              "ipad": [
+                "string"
+              ],
+              "ipadPro": [
+                "string"
+              ],
+              "ipadPro_2018": [
+                "string"
+              ],
+              "iphone_d73": [
+                "string"
+              ]
+            },
+            "subtitle": "string",
+            "lang": "string",
+            "app_country": "string",
+            "market_status": "string",
+            "downloads": "string",
+            "downloads_min": "double",
+            "downloads_max": "double"
+          }
+        ],
+        "page": "double",
+        "limit": "double",
+        "num_pages": "double",
+        "has_next": "boolean"
+      }
     },
     {
       "name": "iOS Advanced Query",
@@ -284,7 +1406,177 @@
       "freePageLimit": 50,
       "post": true,
       "bodyTemplate": "{\n  \"query\": {\n    \"query_params\": {\n      \"see\": \"https://42matters.com/docs/app-market-data/ios/apps/advanced-query-api\"\n    }\n  }\n}\n",
-      "description": "The same structured query against the App Store."
+      "description": "The same structured query against the App Store.",
+      "responseSchema": {
+        "number_results": "double",
+        "results": [
+          {
+            "app_availability": {
+              "available_in": [
+                "string"
+              ],
+              "not_available_in": [
+                "string"
+              ],
+              "availability_unknown": [
+                "string"
+              ],
+              "trackId": "double",
+              "bundleId": "string"
+            },
+            "artistId": "double",
+            "artistName": "string",
+            "artistViewUrl": "string",
+            "artworkUrl100": "string",
+            "artworkUrl512": "string",
+            "artworkUrl60": "string",
+            "averageUserRating": "double",
+            "averageUserRatingForCurrentVersion": "double",
+            "bundleId": "string",
+            "contentAdvisoryRating": "string",
+            "currency": "string",
+            "currentVersionReleaseDate": "timeInstant",
+            "description": "string",
+            "features": [
+              "string"
+            ],
+            "fileSizeBytes": "string",
+            "fileSizeBytesNumeric": "double",
+            "formattedPrice": "string",
+            "genreIds": [
+              "string"
+            ],
+            "genres": [
+              "string"
+            ],
+            "i18n_lang": [
+              "string"
+            ],
+            "ipad": "boolean",
+            "ipadScreenshotUrls": [
+              "string"
+            ],
+            "iphone": "boolean",
+            "isGameCenterEnabled": "boolean",
+            "isVppDeviceBasedLicensingEnabled": "boolean",
+            "languageCodesISO2A": [
+              "string"
+            ],
+            "market_source": "string",
+            "minimumOsVersion": "string",
+            "price": "double",
+            "primaryGenreId": "double",
+            "primaryGenreName": "string",
+            "releaseDate": "timeInstant",
+            "releaseNotes": "string",
+            "screenshotUrls": [
+              "string"
+            ],
+            "sellerName": "string",
+            "sellerUrl": "string",
+            "supportedDevices": [
+              "string"
+            ],
+            "trackCensoredName": "string",
+            "trackContentRating": "string",
+            "trackId": "double",
+            "trackViewUrl": "string",
+            "userRatingCount": "double",
+            "userRatingCountForCurrentVersion": "double",
+            "version": "string",
+            "advisories": [
+              "string"
+            ],
+            "physical_address": "string",
+            "supportUrl": "string",
+            "email": "string",
+            "appletvScreenshotUrls": [
+              "string"
+            ],
+            "permissions": [
+              {
+                "id": "string"
+              }
+            ],
+            "customersAlsoBoughtApps": [
+              "double"
+            ],
+            "developerOtherApps": [
+              "double"
+            ],
+            "hasInAppPurchases": "boolean",
+            "isPreorder": "boolean",
+            "r1": "double",
+            "r2": "double",
+            "r3": "double",
+            "r4": "double",
+            "r5": "double",
+            "privacyPolicyUrl": "string",
+            "privacy": {
+              "managePrivacyChoicesUrl": "string",
+              "privacyTypes": [
+                {
+                  "identifier": "string",
+                  "privacyType": "string",
+                  "description": "string",
+                  "dataCategories": [
+                    {
+                      "dataCategory": "string",
+                      "dataTypes": [
+                        "string"
+                      ],
+                      "identifier": "string"
+                    }
+                  ],
+                  "purposes": [
+                    {
+                      "identifier": "string",
+                      "purpose": "string",
+                      "dataCategories": [
+                        {
+                          "dataCategory": "string",
+                          "dataTypes": [
+                            "string"
+                          ],
+                          "identifier": "string"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "requiredCapabilities": [
+              "string"
+            ],
+            "screenshotUrlsHighRes": {
+              "ipad": [
+                "string"
+              ],
+              "ipadPro": [
+                "string"
+              ],
+              "ipadPro_2018": [
+                "string"
+              ],
+              "iphone_d73": [
+                "string"
+              ]
+            },
+            "subtitle": "string",
+            "lang": "string",
+            "app_country": "string",
+            "market_status": "string",
+            "downloads": "string",
+            "downloads_min": "double",
+            "downloads_max": "double"
+          }
+        ],
+        "page": "double",
+        "limit": "double",
+        "num_pages": "double",
+        "has_next": "boolean"
+      }
     },
     {
       "name": "iOS Integrated SDKs",
@@ -295,7 +1587,10 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same SDK detection for an iOS app."
+      "description": "The same SDK detection for an iOS app.",
+      "responseSchema": {
+        "trackId": "double"
+      }
     },
     {
       "name": "iOS Search by SDKs",
@@ -306,7 +1601,177 @@
       "freePageLimit": 5,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same reverse SDK search for iOS."
+      "description": "The same reverse SDK search for iOS.",
+      "responseSchema": {
+        "number_results": "double",
+        "results": [
+          {
+            "app_availability": {
+              "available_in": [
+                "string"
+              ],
+              "not_available_in": [
+                "string"
+              ],
+              "availability_unknown": [
+                "string"
+              ],
+              "trackId": "double",
+              "bundleId": "string"
+            },
+            "artistId": "double",
+            "artistName": "string",
+            "artistViewUrl": "string",
+            "artworkUrl100": "string",
+            "artworkUrl512": "string",
+            "artworkUrl60": "string",
+            "averageUserRating": "double",
+            "averageUserRatingForCurrentVersion": "double",
+            "bundleId": "string",
+            "contentAdvisoryRating": "string",
+            "currency": "string",
+            "currentVersionReleaseDate": "timeInstant",
+            "description": "string",
+            "features": [
+              "string"
+            ],
+            "fileSizeBytes": "string",
+            "fileSizeBytesNumeric": "double",
+            "formattedPrice": "string",
+            "genreIds": [
+              "string"
+            ],
+            "genres": [
+              "string"
+            ],
+            "i18n_lang": [
+              "string"
+            ],
+            "ipad": "boolean",
+            "ipadScreenshotUrls": [
+              "string"
+            ],
+            "iphone": "boolean",
+            "isGameCenterEnabled": "boolean",
+            "isVppDeviceBasedLicensingEnabled": "boolean",
+            "languageCodesISO2A": [
+              "string"
+            ],
+            "market_source": "string",
+            "minimumOsVersion": "string",
+            "price": "double",
+            "primaryGenreId": "double",
+            "primaryGenreName": "string",
+            "releaseDate": "timeInstant",
+            "releaseNotes": "string",
+            "screenshotUrls": [
+              "string"
+            ],
+            "sellerName": "string",
+            "sellerUrl": "string",
+            "supportedDevices": [
+              "string"
+            ],
+            "trackCensoredName": "string",
+            "trackContentRating": "string",
+            "trackId": "double",
+            "trackViewUrl": "string",
+            "userRatingCount": "double",
+            "userRatingCountForCurrentVersion": "double",
+            "version": "string",
+            "advisories": [
+              "string"
+            ],
+            "physical_address": "string",
+            "supportUrl": "string",
+            "email": "string",
+            "appletvScreenshotUrls": [
+              "string"
+            ],
+            "permissions": [
+              {
+                "id": "string"
+              }
+            ],
+            "customersAlsoBoughtApps": [
+              "double"
+            ],
+            "developerOtherApps": [
+              "double"
+            ],
+            "hasInAppPurchases": "boolean",
+            "isPreorder": "boolean",
+            "r1": "double",
+            "r2": "double",
+            "r3": "double",
+            "r4": "double",
+            "r5": "double",
+            "privacyPolicyUrl": "string",
+            "privacy": {
+              "managePrivacyChoicesUrl": "string",
+              "privacyTypes": [
+                {
+                  "identifier": "string",
+                  "privacyType": "string",
+                  "description": "string",
+                  "dataCategories": [
+                    {
+                      "dataCategory": "string",
+                      "dataTypes": [
+                        "string"
+                      ],
+                      "identifier": "string"
+                    }
+                  ],
+                  "purposes": [
+                    {
+                      "identifier": "string",
+                      "purpose": "string",
+                      "dataCategories": [
+                        {
+                          "dataCategory": "string",
+                          "dataTypes": [
+                            "string"
+                          ],
+                          "identifier": "string"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "requiredCapabilities": [
+              "string"
+            ],
+            "screenshotUrlsHighRes": {
+              "ipad": [
+                "string"
+              ],
+              "ipadPro": [
+                "string"
+              ],
+              "ipadPro_2018": [
+                "string"
+              ],
+              "iphone_d73": [
+                "string"
+              ]
+            },
+            "subtitle": "string",
+            "lang": "string",
+            "app_country": "string",
+            "market_status": "string",
+            "downloads": "string",
+            "downloads_min": "double",
+            "downloads_max": "double"
+          }
+        ],
+        "page": "double",
+        "limit": "double",
+        "num_pages": "double",
+        "has_next": "boolean"
+      }
     },
     {
       "name": "iOS Search by Web Domain",
@@ -317,7 +1782,177 @@
       "freePageLimit": 5,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same domain search for iOS."
+      "description": "The same domain search for iOS.",
+      "responseSchema": {
+        "number_results": "double",
+        "results": [
+          {
+            "app_availability": {
+              "available_in": [
+                "string"
+              ],
+              "not_available_in": [
+                "string"
+              ],
+              "availability_unknown": [
+                "string"
+              ],
+              "trackId": "double",
+              "bundleId": "string"
+            },
+            "artistId": "double",
+            "artistName": "string",
+            "artistViewUrl": "string",
+            "artworkUrl100": "string",
+            "artworkUrl512": "string",
+            "artworkUrl60": "string",
+            "averageUserRating": "double",
+            "averageUserRatingForCurrentVersion": "double",
+            "bundleId": "string",
+            "contentAdvisoryRating": "string",
+            "currency": "string",
+            "currentVersionReleaseDate": "timeInstant",
+            "description": "string",
+            "features": [
+              "string"
+            ],
+            "fileSizeBytes": "string",
+            "fileSizeBytesNumeric": "double",
+            "formattedPrice": "string",
+            "genreIds": [
+              "string"
+            ],
+            "genres": [
+              "string"
+            ],
+            "i18n_lang": [
+              "string"
+            ],
+            "ipad": "boolean",
+            "ipadScreenshotUrls": [
+              "string"
+            ],
+            "iphone": "boolean",
+            "isGameCenterEnabled": "boolean",
+            "isVppDeviceBasedLicensingEnabled": "boolean",
+            "languageCodesISO2A": [
+              "string"
+            ],
+            "market_source": "string",
+            "minimumOsVersion": "string",
+            "price": "double",
+            "primaryGenreId": "double",
+            "primaryGenreName": "string",
+            "releaseDate": "timeInstant",
+            "releaseNotes": "string",
+            "screenshotUrls": [
+              "string"
+            ],
+            "sellerName": "string",
+            "sellerUrl": "string",
+            "supportedDevices": [
+              "string"
+            ],
+            "trackCensoredName": "string",
+            "trackContentRating": "string",
+            "trackId": "double",
+            "trackViewUrl": "string",
+            "userRatingCount": "double",
+            "userRatingCountForCurrentVersion": "double",
+            "version": "string",
+            "advisories": [
+              "string"
+            ],
+            "physical_address": "string",
+            "supportUrl": "string",
+            "email": "string",
+            "appletvScreenshotUrls": [
+              "string"
+            ],
+            "permissions": [
+              {
+                "id": "string"
+              }
+            ],
+            "customersAlsoBoughtApps": [
+              "double"
+            ],
+            "developerOtherApps": [
+              "double"
+            ],
+            "hasInAppPurchases": "boolean",
+            "isPreorder": "boolean",
+            "r1": "double",
+            "r2": "double",
+            "r3": "double",
+            "r4": "double",
+            "r5": "double",
+            "privacyPolicyUrl": "string",
+            "privacy": {
+              "managePrivacyChoicesUrl": "string",
+              "privacyTypes": [
+                {
+                  "identifier": "string",
+                  "privacyType": "string",
+                  "description": "string",
+                  "dataCategories": [
+                    {
+                      "dataCategory": "string",
+                      "dataTypes": [
+                        "string"
+                      ],
+                      "identifier": "string"
+                    }
+                  ],
+                  "purposes": [
+                    {
+                      "identifier": "string",
+                      "purpose": "string",
+                      "dataCategories": [
+                        {
+                          "dataCategory": "string",
+                          "dataTypes": [
+                            "string"
+                          ],
+                          "identifier": "string"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "requiredCapabilities": [
+              "string"
+            ],
+            "screenshotUrlsHighRes": {
+              "ipad": [
+                "string"
+              ],
+              "ipadPro": [
+                "string"
+              ],
+              "ipadPro_2018": [
+                "string"
+              ],
+              "iphone_d73": [
+                "string"
+              ]
+            },
+            "subtitle": "string",
+            "lang": "string",
+            "app_country": "string",
+            "market_status": "string",
+            "downloads": "string",
+            "downloads_min": "double",
+            "downloads_max": "double"
+          }
+        ],
+        "page": "double",
+        "limit": "double",
+        "num_pages": "double",
+        "has_next": "boolean"
+      }
     },
     {
       "name": "iOS App Store Top Charts",
@@ -328,7 +1963,15 @@
       "freePageLimit": 25,
       "post": false,
       "bodyTemplate": null,
-      "description": "The current App Store rankings for a named chart, category and country."
+      "description": "The current App Store rankings for a named chart, category and country.",
+      "responseSchema": {
+        "results": [
+          {
+            "trackId": "double",
+            "bundleId": "string"
+          }
+        ]
+      }
     },
     {
       "name": "iOS App Store Rank History",
@@ -339,7 +1982,10 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same rank history for an iOS app."
+      "description": "The same rank history for an iOS app.",
+      "responseSchema": {
+        "trackId": "double"
+      }
     },
     {
       "name": "Tencent Lookup",
@@ -350,7 +1996,11 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same lookup against the Tencent MyApp store, by package name. China's Android market is served by local stores rather than Google Play, so an app's Chinese presence is only visible through this and the Huawei endpoint."
+      "description": "The same lookup against the Tencent MyApp store, by package name. China's Android market is served by local stores rather than Google Play, so an app's Chinese presence is only visible through this and the Huawei endpoint.",
+      "responseSchema": {
+        "package_name": "string",
+        "title": "string"
+      }
     },
     {
       "name": "Tencent MyApp Top Charts",
@@ -361,7 +2011,14 @@
       "freePageLimit": 25,
       "post": false,
       "bodyTemplate": null,
-      "description": "The current Tencent MyApp rankings by category."
+      "description": "The current Tencent MyApp rankings by category.",
+      "responseSchema": {
+        "results": [
+          {
+            "package_name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Amazon Appstore Lookup",
@@ -372,7 +2029,11 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same lookup against the Amazon Appstore, by ASIN."
+      "description": "The same lookup against the Amazon Appstore, by ASIN.",
+      "responseSchema": {
+        "asin": "string",
+        "title": "string"
+      }
     },
     {
       "name": "Huawei AppGallery Lookup",
@@ -383,7 +2044,81 @@
       "freePageLimit": 0,
       "post": false,
       "bodyTemplate": null,
-      "description": "The same lookup against Huawei AppGallery, by app id."
+      "description": "The same lookup against Huawei AppGallery, by app id.",
+      "responseSchema": {
+        "appIntro": "string",
+        "app_availability": {
+          "available_in": [
+            "string"
+          ],
+          "not_available_in": [
+            "string"
+          ]
+        },
+        "appid": "string",
+        "cat_key": [
+          "string"
+        ],
+        "cat_key_name": [
+          "string"
+        ],
+        "commentCount": "double",
+        "default_store": "string",
+        "developer": "string",
+        "editorDescribe": "string",
+        "fromTheSameDeveloper": [
+          "string"
+        ],
+        "gradeCount": "double",
+        "gradeDesc": "string",
+        "gradeList": [
+          {
+            "rating": "double",
+            "ratingCounts": "double"
+          }
+        ],
+        "i18n_lang": [
+          "string"
+        ],
+        "icon": "string",
+        "images": [
+          "string"
+        ],
+        "labelNames": [
+          {
+            "name": "string",
+            "type": "double"
+          }
+        ],
+        "market_source": "string",
+        "minAge": "double",
+        "name": "string",
+        "package": "string",
+        "portalUrl": "string",
+        "price": "string",
+        "privacyPolicy": "string",
+        "releaseDate": "string",
+        "score": "string",
+        "size": "double",
+        "sizeDesc": "string",
+        "starDesc": "string",
+        "stars": "double",
+        "supportWatch": "boolean",
+        "tariffDesc": "string",
+        "version": "string",
+        "versionCode": "string",
+        "webSite": "string",
+        "permissions": [
+          {
+            "id": "string",
+            "source": "string",
+            "protection_level": "string"
+          }
+        ],
+        "lang": "string",
+        "app_country": "string",
+        "market_status": "string"
+      }
     }
   ]
 }

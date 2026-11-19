@@ -737,7 +737,29 @@
       "name": "Employees",
       "paged": false,
       "suffix": "/api.xro/2.0/Employees/{Employee ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}",
-      "description": "Employees for expense claim purposes. MOVED: Xero has taken employees out of the Accounting API and into the region-specific Payroll APIs, and this path is absent from the current Accounting description. Expect it to fail; employee data is not reachable through this connector."
+      "description": "Employees for expense claim purposes. MOVED: Xero has taken employees out of the Accounting API and into the region-specific Payroll APIs, and this path is absent from the current Accounting description. Expect it to fail; employee data is not reachable through this connector.",
+      "responseSchema": {
+        "Employees": [
+          {
+            "EmployeeID": "string",
+            "Status": "string",
+            "FirstName": "string",
+            "LastName": "string",
+            "ExternalLink": {
+              "LinkType": "string",
+              "Url": "string",
+              "Description": "string"
+            },
+            "UpdatedDateUTC": "string",
+            "StatusAttributeString": "string",
+            "ValidationErrors": [
+              {
+                "Message": "string"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Expense Claims",

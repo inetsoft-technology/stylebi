@@ -7223,7 +7223,21 @@
       "name": "Template Default Content",
       "suffix": "/3.0/templates/{Template ID}/default-content?fields={Fields?}&exclude_fields={Exclude Fields?}",
       "paged": "false",
-      "description": "The default content of one template, section by section. Requires a template id. What a campaign starts from before it is edited."
+      "description": "The default content of one template, section by section. Requires a template id. What a campaign starts from before it is edited.",
+      "responseSchema": {
+        "sections": {
+          "*": "string"
+        },
+        "_links": [
+          {
+            "rel": "string",
+            "href": "string",
+            "method": "string",
+            "targetSchema": "string",
+            "schema": "string"
+          }
+        ]
+      }
     },
     {
       "name": "All Sending Domains",

@@ -4,37 +4,185 @@
       "name": "Management Link",
       "suffix": "/portal/customers/{Customer ID}/management_link.json",
       "paged": false,
-      "description": "A self-service portal link for one customer. Requires a customer id. Operational, and short-lived."
+      "description": "A self-service portal link for one customer. Requires a customer id. Operational, and short-lived.",
+      "responseSchema": {
+        "url": "string",
+        "fetch_count": "double",
+        "created_at": "timeInstant",
+        "new_link_available_at": "timeInstant",
+        "expires_at": "timeInstant",
+        "last_invite_sent_at": "timeInstant"
+      }
     },
     {
       "name": "Component by Handle",
       "suffix": "/components/lookup.json?handle={Component Handle}",
       "paged": false,
-      "description": "One component by handle."
+      "description": "One component by handle.",
+      "responseSchema": {
+        "component": {
+          "id": "double",
+          "name": "string",
+          "pricing_scheme": "string",
+          "unit_name": "string",
+          "unit_price": "string",
+          "product_family_id": "double",
+          "price_per_unit_in_cents": "string",
+          "kind": "string",
+          "archived": "boolean",
+          "taxable": "boolean",
+          "description": "string",
+          "default_price_point_id": "double",
+          "price_point_count": "double",
+          "price_points_url": "string",
+          "tax_code": "string",
+          "recurring": "boolean",
+          "upgrade_charge": "string",
+          "downgrade_credit": "string",
+          "created_at": "timeInstant",
+          "default_price_point_name": "string",
+          "product_family_name": "string"
+        }
+      }
     },
     {
       "name": "Product Family Components",
       "suffix": "/product_families/{Product Family ID}/components.json?include_archived={Include Archived?:true/false}",
       "paged": false,
-      "description": "The components available within one family. Requires a family id."
+      "description": "The components available within one family. Requires a family id.",
+      "responseSchema": [
+        {
+          "component": {
+            "id": "double",
+            "name": "string",
+            "pricing_scheme": "string",
+            "unit_name": "string",
+            "unit_price": "string",
+            "product_family_id": "double",
+            "price_per_unit_in_cents": "string",
+            "kind": "string",
+            "archived": "boolean",
+            "taxable": "boolean",
+            "description": "string",
+            "default_price_point_id": "double",
+            "prices": [
+              {
+                "id": "double",
+                "component_id": "double",
+                "starting_quantity": "double",
+                "ending_quantity": "double",
+                "unit_price": "string",
+                "price_point_id": "double",
+                "formatted_unit_price": "string"
+              }
+            ],
+            "price_point_count": "double",
+            "price_points_url": "string",
+            "tax_code": "string",
+            "recurring": "boolean",
+            "upgrade_charge": "string",
+            "downgrade_credit": "string",
+            "created_at": "timeInstant",
+            "default_price_point_name": "string",
+            "product_family_name": "string",
+            "use_site_exchange_rate": "boolean"
+          }
+        }
+      ]
     },
     {
       "name": "Product Family Component",
       "suffix": "/product_families/{Product Family ID}/components/{Component ID}.json",
       "paged": false,
-      "description": "One component within a family."
+      "description": "One component within a family.",
+      "responseSchema": {
+        "component": {
+          "id": "double",
+          "name": "string",
+          "pricing_scheme": "string",
+          "unit_name": "string",
+          "unit_price": "string",
+          "product_family_id": "double",
+          "price_per_unit_in_cents": "string",
+          "kind": "string",
+          "archived": "boolean",
+          "taxable": "boolean",
+          "description": "string",
+          "default_price_point_id": "double",
+          "price_point_count": "double",
+          "price_points_url": "string",
+          "tax_code": "string",
+          "recurring": "boolean",
+          "upgrade_charge": "string",
+          "downgrade_credit": "string",
+          "created_at": "timeInstant",
+          "default_price_point_name": "string",
+          "product_family_name": "string",
+          "product_family_handle": "string"
+        }
+      }
     },
     {
       "name": "Product Family Component by Handle",
       "suffix": "/product_families/{Product Family ID}/components/handle:{Component Handle}.json",
       "paged": false,
-      "description": "One component within a family, by handle."
+      "description": "One component within a family, by handle.",
+      "responseSchema": {
+        "component": {
+          "id": "double",
+          "name": "string",
+          "pricing_scheme": "string",
+          "unit_name": "string",
+          "unit_price": "string",
+          "product_family_id": "double",
+          "price_per_unit_in_cents": "string",
+          "kind": "string",
+          "archived": "boolean",
+          "taxable": "boolean",
+          "description": "string",
+          "default_price_point_id": "double",
+          "price_point_count": "double",
+          "price_points_url": "string",
+          "tax_code": "string",
+          "recurring": "boolean",
+          "upgrade_charge": "string",
+          "downgrade_credit": "string",
+          "created_at": "timeInstant",
+          "default_price_point_name": "string",
+          "product_family_name": "string",
+          "product_family_handle": "string"
+        }
+      }
     },
     {
       "name": "Subscription Components",
       "suffix": "/subscriptions/{Subscription ID}/components.json",
       "paged": false,
-      "description": "The components attached to one subscription, with their allocated quantities and prices. Requires a subscription id. What a subscription actually consists of beyond its product."
+      "description": "The components attached to one subscription, with their allocated quantities and prices. Requires a subscription id. What a subscription actually consists of beyond its product.",
+      "responseSchema": [
+        {
+          "component": {
+            "component_id": "double",
+            "subscription_id": "double",
+            "allocated_quantity": "double",
+            "pricing_scheme": "string",
+            "name": "string",
+            "kind": "string",
+            "unit_name": "string",
+            "price_point_id": "double",
+            "price_point_handle": "string",
+            "price_point_type": "string",
+            "price_point_name": "string",
+            "enabled": "boolean",
+            "unit_balance": "double",
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "component_handle": "string",
+            "archived_at": "timeInstant"
+          }
+        }
+      ]
     },
     {
       "name": "Components",
@@ -50,217 +198,1870 @@
           "parameterName": "Component ID"
         }
       ],
-      "description": "The metered, quantity and on-off components that can be attached to subscriptions -- the usage-based part of a bill, as opposed to the flat product price."
+      "description": "The metered, quantity and on-off components that can be attached to subscriptions -- the usage-based part of a bill, as opposed to the flat product price.",
+      "responseSchema": [
+        {
+          "component": {
+            "id": "double",
+            "name": "string",
+            "pricing_scheme": "string",
+            "unit_name": "string",
+            "unit_price": "string",
+            "product_family_id": "double",
+            "price_per_unit_in_cents": "string",
+            "kind": "string",
+            "archived": "boolean",
+            "taxable": "boolean",
+            "description": "string",
+            "default_price_point_id": "double",
+            "prices": [
+              {
+                "id": "double",
+                "component_id": "double",
+                "starting_quantity": "double",
+                "ending_quantity": "double",
+                "unit_price": "string",
+                "price_point_id": "double",
+                "formatted_unit_price": "string"
+              }
+            ],
+            "price_point_count": "double",
+            "price_points_url": "string",
+            "tax_code": "string",
+            "recurring": "boolean",
+            "upgrade_charge": "string",
+            "downgrade_credit": "string",
+            "created_at": "timeInstant",
+            "default_price_point_name": "string",
+            "product_family_name": "string",
+            "product_family_handle": "string",
+            "use_site_exchange_rate": "boolean"
+          }
+        }
+      ]
     },
     {
       "name": "Subscription Component",
       "suffix": "/subscriptions/{Subscription ID}/components/{Component ID}.json",
       "paged": false,
-      "description": "One component on one subscription."
+      "description": "One component on one subscription.",
+      "responseSchema": {
+        "component": {
+          "component_id": "double",
+          "subscription_id": "double",
+          "allocated_quantity": "double",
+          "pricing_scheme": "string",
+          "name": "string",
+          "kind": "string",
+          "unit_name": "string",
+          "price_point_id": "double",
+          "price_point_handle": "string",
+          "enabled": "boolean"
+        }
+      }
     },
     {
       "name": "Subscription Component Usage",
       "suffix": "/subscriptions/{Subscription ID}/components/{Component ID}/usages.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
       "paged": true,
-      "description": "The metered usage recorded against one component on one subscription. Requires both ids. THE RAW CONSUMPTION that a usage-based charge is computed from -- the invoice shows the charge, this shows what drove it."
+      "description": "The metered usage recorded against one component on one subscription. Requires both ids. THE RAW CONSUMPTION that a usage-based charge is computed from -- the invoice shows the charge, this shows what drove it.",
+      "responseSchema": [
+        {
+          "usage": {
+            "id": "double",
+            "memo": "string",
+            "created_at": "timeInstant",
+            "price_point_id": "double",
+            "quantity": "string",
+            "component_id": "double",
+            "component_handle": "string",
+            "subscription_id": "double"
+          }
+        }
+      ]
     },
     {
       "name": "Subscription Component Allocations",
       "suffix": "/subscriptions/{Subscription ID}/components/{Component ID}/allocations.json",
       "paged": false,
-      "description": "The history of quantity changes for one component on one subscription. Requires both ids. Upgrades and downgrades within a term are recorded here rather than on the subscription, so seat-count changes are only traceable through this."
+      "description": "The history of quantity changes for one component on one subscription. Requires both ids. Upgrades and downgrades within a term are recorded here rather than on the subscription, so seat-count changes are only traceable through this.",
+      "responseSchema": [
+        {
+          "allocation": {
+            "allocation_id": "double",
+            "component_id": "double",
+            "subscription_id": "double",
+            "quantity": "double",
+            "previous_quantity": "double",
+            "memo": "string",
+            "timestamp": "timeInstant",
+            "proration_upgrade_scheme": "string",
+            "proration_downgrade_scheme": "string",
+            "price_point_id": "double",
+            "price_point_handle": "string",
+            "price_point_name": "string",
+            "previous_price_point_id": "double",
+            "component_handle": "string",
+            "accrue_charge": "boolean",
+            "upgrade_charge": "string",
+            "downgrade_credit": "string",
+            "created_at": "timeInstant",
+            "initiate_dunning": "boolean",
+            "expires_at": "timeInstant",
+            "used_quantity": "double",
+            "charge_id": "double"
+          }
+        }
+      ]
     },
     {
       "name": "Component Price Points",
       "suffix": "/components/{Component ID}/price_points.json",
       "paged": false,
-      "description": "The alternative price points of one component. Requires a component id."
+      "description": "The alternative price points of one component. Requires a component id.",
+      "responseSchema": {
+        "price_points": [
+          {
+            "id": "double",
+            "default": "boolean",
+            "name": "string",
+            "pricing_scheme": "string",
+            "component_id": "double",
+            "handle": "string",
+            "archived_at": "timeInstant",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "prices": [
+              {
+                "id": "double",
+                "component_id": "double",
+                "starting_quantity": "double",
+                "ending_quantity": "double",
+                "unit_price": "string"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Product Family Coupons",
       "suffix": "/product_families/{Product Family ID}/coupons.json",
       "paged": true,
-      "description": "The coupons within one family. Requires a family id. The gap between list price and realised price is explained here."
+      "description": "The coupons within one family. Requires a family id. The gap between list price and realised price is explained here.",
+      "responseSchema": [
+        {
+          "coupon": {
+            "id": "double",
+            "name": "string",
+            "code": "string",
+            "description": "string",
+            "amount_in_cents": "double",
+            "product_family_id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "start_date": "timeInstant",
+            "end_date": "timeInstant",
+            "percentage": "string",
+            "recurring": "boolean",
+            "duration_period_count": "double",
+            "duration_interval": "double",
+            "duration_interval_unit": "string",
+            "allow_negative_balance": "boolean",
+            "archived_at": "timeInstant",
+            "conversion_limit": "string",
+            "stackable": "boolean",
+            "compounding_strategy": "string",
+            "use_site_exchange_rate": "boolean",
+            "coupon_restrictions": [
+              {
+                "id": "double",
+                "item_type": "string",
+                "item_id": "double",
+                "name": "string",
+                "handle": "string"
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Product Family Coupon",
       "suffix": "/product_families/{Product Family ID}/coupons/{Coupon ID}.json",
       "paged": false,
-      "description": "One coupon within a family."
+      "description": "One coupon within a family.",
+      "responseSchema": {
+        "coupon": {
+          "id": "double",
+          "name": "string",
+          "code": "string",
+          "description": "string",
+          "amount_in_cents": "double",
+          "product_family_id": "double",
+          "product_family_name": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "start_date": "timeInstant",
+          "end_date": "timeInstant",
+          "percentage": "string",
+          "duration_period_count": "double",
+          "duration_interval": "double",
+          "duration_interval_unit": "string",
+          "allow_negative_balance": "boolean",
+          "archived_at": "timeInstant",
+          "conversion_limit": "string",
+          "stackable": "boolean",
+          "compounding_strategy": "string"
+        }
+      }
     },
     {
       "name": "Coupon Usage",
       "suffix": "/coupons/{Coupon ID}/usage.json",
       "paged": false,
-      "description": "How often one coupon has been redeemed, and against which products. Requires a coupon id. Campaign take-up, which the coupon definition does not carry."
+      "description": "How often one coupon has been redeemed, and against which products. Requires a coupon id. Campaign take-up, which the coupon definition does not carry.",
+      "responseSchema": [
+        {
+          "name": "string",
+          "id": "double",
+          "signups": "double",
+          "savings": "double",
+          "savings_in_cents": "double",
+          "revenue": "double",
+          "revenue_in_cents": "double"
+        }
+      ]
     },
     {
       "name": "Coupon Search",
       "suffix": "/coupons/find.json?product_family_id={Product Family ID?}&code={Coupon Code?}",
       "paged": false,
-      "description": "Coupons matching criteria across families. The lookup when the family is not known."
+      "description": "Coupons matching criteria across families. The lookup when the family is not known.",
+      "responseSchema": {
+        "coupon": {
+          "id": "double",
+          "name": "string",
+          "code": "string",
+          "description": "string",
+          "amount_in_cents": "double",
+          "product_family_id": "double",
+          "product_family_name": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "start_date": "timeInstant",
+          "end_date": "timeInstant",
+          "percentage": "string",
+          "duration_period_count": "double",
+          "duration_interval": "double",
+          "duration_interval_unit": "string",
+          "allow_negative_balance": "boolean",
+          "archived_at": "timeInstant",
+          "conversion_limit": "string",
+          "stackable": "boolean",
+          "compounding_strategy": "string"
+        }
+      }
     },
     {
       "name": "Default Product Family Coupons",
       "suffix": "/coupons.json",
       "paged": true,
-      "description": "The coupons of the default product family."
+      "description": "The coupons of the default product family.",
+      "responseSchema": [
+        {
+          "coupon": {
+            "id": "double",
+            "name": "string",
+            "code": "string",
+            "description": "string",
+            "amount": "double",
+            "amount_in_cents": "double",
+            "product_family_id": "double",
+            "product_family_name": "string",
+            "start_date": "timeInstant",
+            "end_date": "timeInstant",
+            "percentage": "string",
+            "recurring": "boolean",
+            "recurring_scheme": "string",
+            "duration_period_count": "double",
+            "duration_interval": "double",
+            "duration_interval_unit": "string",
+            "duration_interval_span": "string",
+            "allow_negative_balance": "boolean",
+            "archived_at": "timeInstant",
+            "conversion_limit": "string",
+            "stackable": "boolean",
+            "compounding_strategy": "string",
+            "use_site_exchange_rate": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "discount_type": "string",
+            "exclude_mid_period_allocations": "boolean",
+            "apply_on_cancel_at_end_of_period": "boolean",
+            "coupon_restrictions": [
+              {
+                "id": "double",
+                "item_type": "string",
+                "item_id": "double",
+                "name": "string",
+                "handle": "string"
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Coupon Subcodes",
       "suffix": "/coupons/{Coupon ID}/codes.json",
       "paged": false,
-      "description": "The individual codes issued under one coupon. Requires a coupon id. Where a campaign issues unique codes per recipient, redemption is tracked at this level."
+      "description": "The individual codes issued under one coupon. Requires a coupon id. Where a campaign issues unique codes per recipient, redemption is tracked at this level.",
+      "responseSchema": {
+        "codes": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Customers",
       "suffix": "/customers.json",
       "paged": true,
-      "description": "The customers, with name, email, organisation, address, the reference from the source system, and their created and updated dates."
+      "description": "The customers, with name, email, organisation, address, the reference from the source system, and their created and updated dates.",
+      "responseSchema": [
+        {
+          "customer": {
+            "first_name": "string",
+            "last_name": "string",
+            "email": "string",
+            "cc_emails": "string",
+            "organization": "string",
+            "reference": "string",
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "address": "string",
+            "address_2": "string",
+            "city": "string",
+            "state": "string",
+            "state_name": "string",
+            "zip": "string",
+            "country": "string",
+            "country_name": "string",
+            "phone": "string",
+            "verified": "boolean",
+            "portal_customer_created_at": "timeInstant",
+            "portal_invite_last_sent_at": "timeInstant",
+            "portal_invite_last_accepted_at": "timeInstant",
+            "tax_exempt": "boolean",
+            "surcharging": "boolean",
+            "vat_number": "string",
+            "parent_id": "double",
+            "locale": "string",
+            "salesforce_id": "string",
+            "default_auto_renewal_profile_id": "double"
+          }
+        }
+      ]
     },
     {
       "name": "Customer",
       "suffix": "/customers/{Customer ID}.json",
       "paged": false,
-      "description": "One customer by id."
+      "description": "One customer by id.",
+      "responseSchema": {
+        "customer": {
+          "first_name": "string",
+          "last_name": "string",
+          "email": "string",
+          "cc_emails": "string",
+          "organization": "string",
+          "reference": "string",
+          "id": "double",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "address": "string",
+          "address_2": "string",
+          "city": "string",
+          "state": "string",
+          "state_name": "string",
+          "zip": "string",
+          "country": "string",
+          "country_name": "string",
+          "phone": "string",
+          "verified": "boolean",
+          "portal_customer_created_at": "timeInstant",
+          "portal_invite_last_sent_at": "timeInstant",
+          "portal_invite_last_accepted_at": "timeInstant",
+          "tax_exempt": "boolean",
+          "surcharging": "boolean",
+          "vat_number": "string",
+          "parent_id": "double",
+          "locale": "string",
+          "salesforce_id": "string",
+          "default_auto_renewal_profile_id": "double"
+        }
+      }
     },
     {
       "name": "Customer by Reference",
       "suffix": "/customers/lookup.json?reference={Reference ID}",
       "paged": false,
-      "description": "One customer by the external reference. The lookup from a source-system id."
+      "description": "One customer by the external reference. The lookup from a source-system id.",
+      "responseSchema": {
+        "customer": {
+          "first_name": "string",
+          "last_name": "string",
+          "email": "string",
+          "cc_emails": "string",
+          "organization": "string",
+          "reference": "string",
+          "id": "double",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "address": "string",
+          "address_2": "string",
+          "city": "string",
+          "state": "string",
+          "state_name": "string",
+          "zip": "string",
+          "country": "string",
+          "country_name": "string",
+          "phone": "string",
+          "verified": "boolean",
+          "portal_customer_created_at": "timeInstant",
+          "portal_invite_last_sent_at": "timeInstant",
+          "portal_invite_last_accepted_at": "timeInstant",
+          "tax_exempt": "boolean",
+          "surcharging": "boolean",
+          "vat_number": "string",
+          "parent_id": "double",
+          "locale": "string",
+          "salesforce_id": "string",
+          "default_auto_renewal_profile_id": "double"
+        }
+      }
     },
     {
       "name": "Customer Subscriptions",
       "suffix": "/customers/{Customer ID}/subscriptions.json",
       "paged": false,
-      "description": "The subscriptions of one customer. Requires a customer id. One customer can hold several."
+      "description": "The subscriptions of one customer. Requires a customer id. One customer can hold several.",
+      "responseSchema": [
+        {
+          "subscription": {
+            "id": "double",
+            "state": "string",
+            "balance_in_cents": "double",
+            "total_revenue_in_cents": "double",
+            "product_price_in_cents": "double",
+            "product_version_number": "double",
+            "current_period_ends_at": "timeInstant",
+            "next_assessment_at": "timeInstant",
+            "trial_started_at": "timeInstant",
+            "trial_ended_at": "timeInstant",
+            "activated_at": "timeInstant",
+            "expires_at": "timeInstant",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "cancellation_message": "string",
+            "cancellation_method": "string",
+            "cancel_at_end_of_period": "boolean",
+            "canceled_at": "timeInstant",
+            "current_period_started_at": "timeInstant",
+            "previous_state": "string",
+            "signup_payment_id": "double",
+            "signup_revenue": "string",
+            "delayed_cancel_at": "timeInstant",
+            "coupon_code": "string",
+            "payment_collection_method": "string",
+            "snap_day": "string",
+            "reason_code": "string",
+            "receives_invoice_emails": "boolean",
+            "net_terms": "double",
+            "customer": {
+              "first_name": "string",
+              "last_name": "string",
+              "email": "string",
+              "cc_emails": "string",
+              "organization": "string",
+              "reference": "string",
+              "id": "double",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "address": "string",
+              "address_2": "string",
+              "city": "string",
+              "state": "string",
+              "zip": "string",
+              "country": "string",
+              "phone": "string",
+              "verified": "boolean",
+              "portal_customer_created_at": "timeInstant",
+              "portal_invite_last_sent_at": "timeInstant",
+              "portal_invite_last_accepted_at": "timeInstant",
+              "tax_exempt": "boolean",
+              "vat_number": "string"
+            },
+            "product": {
+              "id": "double",
+              "name": "string",
+              "handle": "string",
+              "description": "string",
+              "accounting_code": "string",
+              "price_in_cents": "double",
+              "interval": "double",
+              "interval_unit": "string",
+              "initial_charge_in_cents": "double",
+              "expiration_interval": "double",
+              "expiration_interval_unit": "string",
+              "trial_price_in_cents": "double",
+              "trial_interval": "double",
+              "trial_interval_unit": "string",
+              "initial_charge_after_trial": "boolean",
+              "return_params": "string",
+              "request_credit_card": "boolean",
+              "require_credit_card": "boolean",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "archived_at": "timeInstant",
+              "update_return_url": "string",
+              "update_return_params": "string",
+              "product_family": {
+                "id": "double",
+                "name": "string",
+                "handle": "string",
+                "accounting_code": "string",
+                "description": "string"
+              },
+              "public_signup_pages": [
+                {
+                  "id": "double",
+                  "url": "string"
+                }
+              ],
+              "taxable": "boolean",
+              "version_number": "double",
+              "product_price_point_name": "string"
+            },
+            "credit_card": {
+              "id": "double",
+              "payment_type": "string",
+              "first_name": "string",
+              "last_name": "string",
+              "masked_card_number": "string",
+              "card_type": "string",
+              "expiration_month": "double",
+              "expiration_year": "double",
+              "billing_address": "string",
+              "billing_address_2": "string",
+              "billing_city": "string",
+              "billing_state": "string",
+              "billing_country": "string",
+              "billing_zip": "string",
+              "current_vault": "string",
+              "vault_token": "string",
+              "customer_vault_token": "string",
+              "customer_id": "double"
+            },
+            "payment_type": "string",
+            "referral_code": "string",
+            "next_product_id": "double",
+            "coupon_use_count": "double",
+            "coupon_uses_allowed": "double",
+            "stored_credential_transaction_id": "double",
+            "on_hold_at": "timeInstant",
+            "scheduled_cancellation_at": "timeInstant"
+          }
+        }
+      ]
     },
     {
       "name": "Customer Search",
       "suffix": "/customers.json?q={Search Term?:email,ID,reference,organization}",
       "paged": false,
-      "description": "Customers matching a term across email, id, reference and organisation. The general lookup."
+      "description": "Customers matching a term across email, id, reference and organisation. The general lookup.",
+      "responseSchema": [
+        {
+          "customer": {
+            "first_name": "string",
+            "last_name": "string",
+            "email": "string",
+            "cc_emails": "string",
+            "organization": "string",
+            "reference": "string",
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "address": "string",
+            "address_2": "string",
+            "city": "string",
+            "state": "string",
+            "state_name": "string",
+            "zip": "string",
+            "country": "string",
+            "country_name": "string",
+            "phone": "string",
+            "verified": "boolean",
+            "portal_customer_created_at": "timeInstant",
+            "portal_invite_last_sent_at": "timeInstant",
+            "portal_invite_last_accepted_at": "timeInstant",
+            "tax_exempt": "boolean",
+            "surcharging": "boolean",
+            "vat_number": "string",
+            "parent_id": "double",
+            "locale": "string",
+            "salesforce_id": "string",
+            "default_auto_renewal_profile_id": "double"
+          }
+        }
+      ]
     },
     {
       "name": "Subscription Events",
       "suffix": "/subscriptions/{Subscription ID}/events.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&filter={Filter?}",
       "paged": true,
-      "description": "The event history of one subscription since a given id. Requires a subscription id. The per-account lifecycle, and the source for churn timing."
+      "description": "The event history of one subscription since a given id. Requires a subscription id. The per-account lifecycle, and the source for churn timing.",
+      "responseSchema": [
+        {
+          "event": {
+            "id": "double",
+            "key": "string",
+            "message": "string",
+            "subscription_id": "double",
+            "customer_id": "double",
+            "created_at": "timeInstant",
+            "event_specific_data": {
+              "*": "string"
+            }
+          }
+        }
+      ]
     },
     {
       "name": "Events",
       "suffix": "/events.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&filter={Filter?}",
       "paged": true,
-      "description": "Everything that has happened on the site since a given id -- subscription state changes, payments, renewals, component allocations. THE AUDIT TRAIL AND THE INCREMENTAL-SYNC MECHANISM: entity tables carry current state only, so when a subscription changed and what it changed from is answerable here alone."
+      "description": "Everything that has happened on the site since a given id -- subscription state changes, payments, renewals, component allocations. THE AUDIT TRAIL AND THE INCREMENTAL-SYNC MECHANISM: entity tables carry current state only, so when a subscription changed and what it changed from is answerable here alone.",
+      "responseSchema": [
+        {
+          "event": {
+            "id": "double",
+            "key": "string",
+            "message": "string",
+            "subscription_id": "double",
+            "customer_id": "double",
+            "created_at": "timeInstant",
+            "event_specific_data": {
+              "*": "string"
+            }
+          }
+        }
+      ]
     },
     {
       "name": "Event Count",
       "suffix": "/events/count.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&filter={Filter?}",
       "paged": false,
-      "description": "The number of events matching the filters. The size check before a sync."
+      "description": "The number of events matching the filters. The size check before a sync.",
+      "responseSchema": {
+        "count": "double"
+      }
     },
     {
       "name": "Invoices",
       "suffix": "/invoices.json?subscription_id={Subscription ID?}&start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}&status={Status?:draft|open|paid|pending|voided}&line_items={Include Line Items?:true|false}&discounts={Include Discounts?:true|false}&taxes={Include Taxes Data?:true|false}&credits={Include Credits Data?:true|false}&payments={Include Payments Data?:true|false}&custom_fields={Include Custom Fields?:true|false}",
       "paged": true,
-      "description": "The invoices raised, filterable by subscription and date. Carries the customer, subscription, number, status, totals and line items."
+      "description": "The invoices raised, filterable by subscription and date. Carries the customer, subscription, number, status, totals and line items.",
+      "responseSchema": {
+        "invoices": [
+          {
+            "uid": "string",
+            "site_id": "double",
+            "customer_id": "double",
+            "subscription_id": "double",
+            "number": "string",
+            "sequence_number": "double",
+            "issue_date": "string",
+            "due_date": "string",
+            "paid_date": "string",
+            "status": "string",
+            "collection_method": "string",
+            "payment_instructions": "string",
+            "currency": "string",
+            "consolidation_level": "string",
+            "parent_invoice_uid": "string",
+            "parent_invoice_number": "double",
+            "group_primary_subscription_id": "double",
+            "product_name": "string",
+            "product_family_name": "string",
+            "seller": {
+              "name": "string",
+              "address": {
+                "street": "string",
+                "line2": "string",
+                "city": "string",
+                "state": "string",
+                "zip": "string",
+                "country": "string"
+              },
+              "phone": "string"
+            },
+            "customer": {
+              "chargify_id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "organization": "string",
+              "email": "string"
+            },
+            "memo": "string",
+            "billing_address": {
+              "street": "string",
+              "line2": "string",
+              "city": "string",
+              "state": "string",
+              "zip": "string",
+              "country": "string"
+            },
+            "shipping_address": {
+              "street": "string",
+              "line2": "string",
+              "city": "string",
+              "state": "string",
+              "zip": "string",
+              "country": "string"
+            },
+            "subtotal_amount": "string",
+            "discount_amount": "string",
+            "tax_amount": "string",
+            "total_amount": "string",
+            "credit_amount": "string",
+            "paid_amount": "string",
+            "refund_amount": "string",
+            "due_amount": "string",
+            "public_url": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Invoice",
       "suffix": "/invoices/{Invoice ID}.json?start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}",
       "paged": false,
-      "description": "One invoice by id, with its line items and payments."
+      "description": "One invoice by id, with its line items and payments.",
+      "responseSchema": {
+        "uid": "string",
+        "site_id": "double",
+        "customer_id": "double",
+        "subscription_id": "double",
+        "number": "string",
+        "sequence_number": "double",
+        "issue_date": "string",
+        "due_date": "string",
+        "paid_date": "string",
+        "status": "string",
+        "collection_method": "string",
+        "payment_instructions": "string",
+        "currency": "string",
+        "consolidation_level": "string",
+        "parent_invoice_uid": "string",
+        "parent_invoice_number": "double",
+        "group_primary_subscription_id": "double",
+        "product_name": "string",
+        "product_family_name": "string",
+        "seller": {
+          "name": "string",
+          "address": {
+            "street": "string",
+            "line2": "string",
+            "city": "string",
+            "state": "string",
+            "zip": "string",
+            "country": "string"
+          },
+          "phone": "string"
+        },
+        "customer": {
+          "chargify_id": "double",
+          "first_name": "string",
+          "last_name": "string",
+          "organization": "string",
+          "email": "string"
+        },
+        "memo": "string",
+        "billing_address": {
+          "street": "string",
+          "line2": "string",
+          "city": "string",
+          "state": "string",
+          "zip": "string",
+          "country": "string"
+        },
+        "shipping_address": {
+          "street": "string",
+          "line2": "string",
+          "city": "string",
+          "state": "string",
+          "zip": "string",
+          "country": "string"
+        },
+        "subtotal_amount": "string",
+        "discount_amount": "string",
+        "tax_amount": "string",
+        "total_amount": "string",
+        "credit_amount": "string",
+        "paid_amount": "string",
+        "refund_amount": "string",
+        "due_amount": "string",
+        "line_items": [
+          {
+            "uid": "string",
+            "title": "string",
+            "description": "string",
+            "quantity": "string",
+            "unit_price": "string",
+            "subtotal_amount": "string",
+            "discount_amount": "string",
+            "tax_amount": "string",
+            "tax_included": "boolean",
+            "total_amount": "string",
+            "tiered_unit_price": "boolean",
+            "period_range_start": "string",
+            "period_range_end": "string",
+            "product_id": "double",
+            "product_version": "double",
+            "component_id": "double",
+            "price_point_id": "double"
+          }
+        ],
+        "payments": [
+          {
+            "transaction_time": "timeInstant",
+            "memo": "string",
+            "original_amount": "string",
+            "applied_amount": "string",
+            "payment_method": {
+              "card_brand": "string",
+              "card_expiration": "string",
+              "last_four": "string",
+              "masked_card_number": "string",
+              "type": "string"
+            },
+            "transaction_id": "double",
+            "prepayment": "boolean",
+            "received_on": "string"
+          }
+        ],
+        "public_url": "string"
+      }
     },
     {
       "name": "Invoice Payments",
       "suffix": "/invoices/{Invoice ID}/payments.json?start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}",
       "paged": false,
-      "description": "The payments applied to one invoice. Requires an invoice id. The invoice carries a balance; this says when money arrived."
+      "description": "The payments applied to one invoice. Requires an invoice id. The invoice carries a balance; this says when money arrived.",
+      "responseSchema": {
+        "payments": [
+          {
+            "transaction_time": "timeInstant",
+            "memo": "string",
+            "original_amount": "string",
+            "applied_amount": "string",
+            "payment_method": {
+              "card_brand": "string",
+              "card_expiration": "string",
+              "last_four": "string",
+              "masked_card_number": "string",
+              "type": "string"
+            },
+            "transaction_id": "double",
+            "prepayment": "boolean",
+            "received_on": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Invoice Events",
       "suffix": "/invoices/events.json?since_id={IDs Greater Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&invoice_uid={Invoice ID?}",
       "paged": true,
-      "description": "The events on invoices since a given id -- issued, applied, voided, refunded. The change log for billing documents, and the incremental-sync route for them."
+      "description": "The events on invoices since a given id -- issued, applied, voided, refunded. The change log for billing documents, and the incremental-sync route for them.",
+      "responseSchema": {
+        "events": [
+          {
+            "id": "double",
+            "event_type": "string",
+            "event_data": {
+              "memo": "string",
+              "original_amount": "string",
+              "applied_amount": "string",
+              "transaction_time": "timeInstant",
+              "payment_method": {
+                "card_brand": "string",
+                "card_expiration": "string",
+                "last_four": "string",
+                "masked_card_number": "string",
+                "type": "string"
+              },
+              "consolidation_level": "string"
+            },
+            "timestamp": "timeInstant",
+            "invoice": {
+              "id": "double",
+              "uid": "string",
+              "site_id": "double",
+              "customer_id": "double",
+              "subscription_id": "double",
+              "number": "string",
+              "sequence_number": "double",
+              "transaction_time": "timeInstant",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "issue_date": "string",
+              "due_date": "string",
+              "paid_date": "string",
+              "status": "string",
+              "role": "string",
+              "collection_method": "string",
+              "payment_instructions": "string",
+              "currency": "string",
+              "consolidation_level": "string",
+              "parent_invoice_id": "double",
+              "subscription_group_id": "double",
+              "parent_invoice_number": "double",
+              "product_name": "string",
+              "product_family_name": "string",
+              "seller": {
+                "name": "string",
+                "address": {
+                  "street": "string",
+                  "line2": "string",
+                  "city": "string",
+                  "state": "string",
+                  "zip": "string",
+                  "country": "string"
+                },
+                "phone": "string",
+                "logo_url": "string"
+              },
+              "customer": {
+                "chargify_id": "double",
+                "first_name": "string",
+                "last_name": "string",
+                "organization": "string",
+                "email": "string"
+              },
+              "payer": {
+                "chargify_id": "double",
+                "first_name": "string",
+                "last_name": "string",
+                "organization": "string",
+                "email": "string"
+              },
+              "net_terms": "double",
+              "memo": "string",
+              "billing_address": {
+                "street": "string",
+                "line2": "string",
+                "city": "string",
+                "state": "string",
+                "zip": "string",
+                "country": "string"
+              },
+              "shipping_address": {
+                "street": "string",
+                "line2": "string",
+                "city": "string",
+                "state": "string",
+                "zip": "string",
+                "country": "string"
+              },
+              "line_items": [
+                {
+                  "uid": "string",
+                  "title": "string",
+                  "description": "string",
+                  "quantity": "string",
+                  "unit_price": "string",
+                  "subtotal_amount": "string",
+                  "discount_amount": "string",
+                  "tax_amount": "string",
+                  "tax_included": "boolean",
+                  "total_amount": "string",
+                  "tiered_unit_price": "boolean",
+                  "period_range_start": "string",
+                  "period_range_end": "string",
+                  "transaction_id": "double",
+                  "product_id": "double",
+                  "product_version": "double",
+                  "component_id": "double",
+                  "price_point_id": "double",
+                  "hide": "boolean",
+                  "component_cost_data": {
+                    "rates": [
+                      {
+                        "component_code_id": "double",
+                        "price_point_id": "double",
+                        "product_id": "double",
+                        "quantity": "string",
+                        "amount": "string",
+                        "pricing_scheme": "string",
+                        "tiers": [
+                          {
+                            "starting_quantity": "double",
+                            "ending_quantity": "double",
+                            "quantity": "string",
+                            "unit_price": "string",
+                            "amount": "string"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ],
+              "subtotal_amount": "string",
+              "discount_amount": "string",
+              "discounts": [
+                {
+                  "uid": "string",
+                  "title": "string",
+                  "description": "string",
+                  "code": "string",
+                  "source_type": "string",
+                  "source_id": "double",
+                  "discount_type": "string",
+                  "percentage": "string",
+                  "eligible_amount": "string",
+                  "discount_amount": "string",
+                  "transaction_id": "double",
+                  "line_item_breakouts": [
+                    {
+                      "uid": "string",
+                      "eligible_amount": "string",
+                      "discount_amount": "string"
+                    }
+                  ]
+                }
+              ],
+              "tax_amount": "string",
+              "taxes": [
+                {
+                  "uid": "string",
+                  "title": "string",
+                  "description": "string",
+                  "source_type": "string",
+                  "source_id": "double",
+                  "percentage": "string",
+                  "taxable_amount": "string",
+                  "tax_amount": "string",
+                  "transaction_id": "double",
+                  "line_item_breakouts": [
+                    {
+                      "uid": "string",
+                      "taxable_amount": "string",
+                      "tax_amount": "string"
+                    }
+                  ],
+                  "tax_component_breakouts": [
+                    {
+                      "tax_rule_id": "double",
+                      "percentage": "string",
+                      "country_code": "string",
+                      "subdivision_code": "string",
+                      "tax_amount": "string",
+                      "taxable_amount": "string",
+                      "tax_exempt_amount": "string",
+                      "non_taxable_amount": "string",
+                      "tax_name": "string",
+                      "tax_type": "string",
+                      "rate_type": "string",
+                      "tax_authority_type": "double",
+                      "state_assigned_no": "string",
+                      "tax_sub_type": "string"
+                    }
+                  ],
+                  "eu_vat": "boolean",
+                  "type": "string",
+                  "tax_exempt_amount": "string"
+                }
+              ],
+              "credit_amount": "string",
+              "refund_amount": "string",
+              "total_amount": "string",
+              "paid_amount": "string",
+              "due_amount": "string",
+              "payments": [
+                {
+                  "memo": "string",
+                  "original_amount": "string",
+                  "applied_amount": "string",
+                  "transaction_time": "timeInstant",
+                  "payment_method": {
+                    "card_brand": "string",
+                    "card_expiration": "string",
+                    "last_four": "string",
+                    "masked_card_number": "string",
+                    "type": "string"
+                  },
+                  "transaction_id": "double",
+                  "prepayment": "boolean"
+                }
+              ],
+              "display_settings": {
+                "hide_zero_subtotal_lines": "boolean",
+                "include_discounts_on_lines": "boolean"
+              }
+            }
+          }
+        ],
+        "page": "double",
+        "per_page": "double",
+        "total_pages": "double"
+      }
     },
     {
       "name": "Credit Notes",
       "suffix": "/credit_notes.json?subscription_id={Subscription ID?}&line_items={Include Line Items?:true|false}&discounts={Include Discounts?:true|false}&taxes={Include Taxes Data?:true|false}&refunds={Include Credits Data?:true|false}&applications={Include Payments Data?:true|false}",
       "paged": false,
-      "description": "Credits issued against invoices, filterable by subscription. Revenue net of credits requires this; invoice totals alone overstate it."
+      "description": "Credits issued against invoices, filterable by subscription. Revenue net of credits requires this; invoice totals alone overstate it.",
+      "responseSchema": {
+        "credit_notes": [
+          {
+            "uid": "string",
+            "site_id": "double",
+            "customer_id": "double",
+            "subscription_id": "double",
+            "number": "string",
+            "sequence_number": "double",
+            "issue_date": "string",
+            "applied_date": "string",
+            "status": "string",
+            "currency": "string",
+            "memo": "string",
+            "seller": {
+              "name": "string",
+              "address": {
+                "street": "string",
+                "line2": "string",
+                "city": "string",
+                "state": "string",
+                "zip": "string",
+                "country": "string"
+              },
+              "phone": "string"
+            },
+            "customer": {
+              "chargify_id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "organization": "string",
+              "email": "string",
+              "reference": "string"
+            },
+            "billing_address": {
+              "street": "string",
+              "line2": "string",
+              "city": "string",
+              "state": "string",
+              "zip": "string",
+              "country": "string"
+            },
+            "shipping_address": {
+              "street": "string",
+              "line2": "string",
+              "city": "string",
+              "state": "string",
+              "zip": "string",
+              "country": "string"
+            },
+            "subtotal_amount": "string",
+            "discount_amount": "string",
+            "tax_amount": "string",
+            "total_amount": "string",
+            "applied_amount": "string",
+            "remaining_amount": "string",
+            "line_items": [
+              {
+                "uid": "string",
+                "title": "string",
+                "description": "string",
+                "quantity": "string",
+                "unit_price": "string",
+                "subtotal_amount": "string",
+                "discount_amount": "string",
+                "tax_amount": "string",
+                "tax_included": "boolean",
+                "total_amount": "string",
+                "tiered_unit_price": "boolean",
+                "period_range_start": "string",
+                "period_range_end": "string",
+                "product_id": "double",
+                "product_version": "double",
+                "component_id": "double",
+                "price_point_id": "double"
+              }
+            ],
+            "discounts": [
+              {
+                "uid": "string",
+                "title": "string",
+                "code": "string",
+                "source_type": "string",
+                "source_id": "double",
+                "discount_type": "string",
+                "percentage": "string",
+                "eligible_amount": "string",
+                "discount_amount": "string",
+                "line_item_breakouts": [
+                  {
+                    "uid": "string",
+                    "eligible_amount": "string",
+                    "discount_amount": "string"
+                  }
+                ]
+              }
+            ],
+            "taxes": [
+              {
+                "uid": "string",
+                "title": "string",
+                "source_type": "string",
+                "source_id": "double",
+                "percentage": "string",
+                "taxable_amount": "string",
+                "tax_amount": "string",
+                "line_item_breakouts": [
+                  {
+                    "uid": "string",
+                    "taxable_amount": "string",
+                    "tax_amount": "string"
+                  }
+                ],
+                "tax_component_breakouts": [
+                  {
+                    "tax_rule_id": "double",
+                    "percentage": "string",
+                    "country_code": "string",
+                    "subdivision_code": "string",
+                    "tax_amount": "string",
+                    "taxable_amount": "string",
+                    "tax_exempt_amount": "string",
+                    "non_taxable_amount": "string",
+                    "tax_name": "string",
+                    "tax_type": "string",
+                    "rate_type": "string",
+                    "tax_authority_type": "double",
+                    "state_assigned_no": "string",
+                    "tax_sub_type": "string"
+                  }
+                ],
+                "eu_vat": "boolean",
+                "type": "string",
+                "tax_exempt_amount": "string"
+              }
+            ],
+            "applications": [
+              {
+                "uid": "string",
+                "transaction_time": "timeInstant",
+                "invoice_uid": "string",
+                "memo": "string",
+                "applied_amount": "string"
+              }
+            ],
+            "refunds": [
+              {
+                "transaction_id": "double",
+                "payment_id": "double",
+                "memo": "string",
+                "original_amount": "string",
+                "applied_amount": "string"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Credit Note",
       "suffix": "/credit_notes/{Credit Note ID}",
       "paged": false,
-      "description": "One credit note by id."
+      "description": "One credit note by id.",
+      "responseSchema": {
+        "uid": "string",
+        "site_id": "double",
+        "customer_id": "double",
+        "subscription_id": "double",
+        "number": "string",
+        "sequence_number": "double",
+        "issue_date": "string",
+        "applied_date": "string",
+        "status": "string",
+        "currency": "string",
+        "memo": "string",
+        "seller": {
+          "name": "string",
+          "address": {
+            "street": "string",
+            "line2": "string",
+            "city": "string",
+            "state": "string",
+            "zip": "string",
+            "country": "string"
+          },
+          "phone": "string"
+        },
+        "customer": {
+          "chargify_id": "double",
+          "first_name": "string",
+          "last_name": "string",
+          "organization": "string",
+          "email": "string",
+          "reference": "string"
+        },
+        "billing_address": {
+          "street": "string",
+          "line2": "string",
+          "city": "string",
+          "state": "string",
+          "zip": "string",
+          "country": "string"
+        },
+        "shipping_address": {
+          "street": "string",
+          "line2": "string",
+          "city": "string",
+          "state": "string",
+          "zip": "string",
+          "country": "string"
+        },
+        "subtotal_amount": "string",
+        "discount_amount": "string",
+        "tax_amount": "string",
+        "total_amount": "string",
+        "applied_amount": "string",
+        "remaining_amount": "string",
+        "line_items": [
+          {
+            "uid": "string",
+            "title": "string",
+            "description": "string",
+            "quantity": "string",
+            "unit_price": "string",
+            "subtotal_amount": "string",
+            "discount_amount": "string",
+            "tax_amount": "string",
+            "tax_included": "boolean",
+            "total_amount": "string",
+            "tiered_unit_price": "boolean",
+            "period_range_start": "string",
+            "period_range_end": "string",
+            "product_id": "double",
+            "product_version": "double",
+            "component_id": "double",
+            "price_point_id": "double",
+            "billing_schedule_item_id": "double",
+            "custom_item": "boolean"
+          }
+        ],
+        "discounts": [
+          {
+            "uid": "string",
+            "title": "string",
+            "code": "string",
+            "source_type": "string",
+            "source_id": "double",
+            "discount_type": "string",
+            "percentage": "string",
+            "eligible_amount": "string",
+            "discount_amount": "string",
+            "line_item_breakouts": [
+              {
+                "uid": "string",
+                "eligible_amount": "string",
+                "discount_amount": "string"
+              }
+            ]
+          }
+        ],
+        "taxes": [
+          {
+            "uid": "string",
+            "title": "string",
+            "source_type": "string",
+            "source_id": "double",
+            "percentage": "string",
+            "taxable_amount": "string",
+            "tax_amount": "string",
+            "line_item_breakouts": [
+              {
+                "uid": "string",
+                "taxable_amount": "string",
+                "tax_amount": "string"
+              }
+            ],
+            "tax_component_breakouts": [
+              {
+                "tax_rule_id": "double",
+                "percentage": "string",
+                "country_code": "string",
+                "subdivision_code": "string",
+                "tax_amount": "string",
+                "taxable_amount": "string",
+                "tax_exempt_amount": "string",
+                "non_taxable_amount": "string",
+                "tax_name": "string",
+                "tax_type": "string",
+                "rate_type": "string",
+                "tax_authority_type": "double",
+                "state_assigned_no": "string",
+                "tax_sub_type": "string"
+              }
+            ],
+            "eu_vat": "boolean",
+            "type": "string",
+            "tax_exempt_amount": "string"
+          }
+        ],
+        "applications": [
+          {
+            "uid": "string",
+            "transaction_time": "timeInstant",
+            "invoice_uid": "string",
+            "memo": "string",
+            "applied_amount": "string"
+          }
+        ],
+        "refunds": [
+          {
+            "transaction_id": "double",
+            "payment_id": "double",
+            "memo": "string",
+            "original_amount": "string",
+            "applied_amount": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Notes",
       "suffix": "/subscriptions/{Subscription ID}/notes.json",
       "paged": true,
-      "description": "Internal notes on one subscription. Requires a subscription id. Where a human explanation of an unusual account is recorded."
+      "description": "Internal notes on one subscription. Requires a subscription id. Where a human explanation of an unusual account is recorded.",
+      "responseSchema": [
+        {
+          "note": {
+            "body": "string",
+            "created_at": "timeInstant",
+            "id": "double",
+            "sticky": "boolean",
+            "subscription_id": "double",
+            "updated_at": "timeInstant"
+          }
+        }
+      ]
     },
     {
       "name": "Note",
       "suffix": "/subscriptions/{Subscription ID}/notes/{Note ID}.json",
       "paged": false,
-      "description": "One note by id."
+      "description": "One note by id.",
+      "responseSchema": {
+        "note": {
+          "body": "string",
+          "created_at": "timeInstant",
+          "id": "double",
+          "sticky": "boolean",
+          "subscription_id": "double",
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Offers",
       "suffix": "/offers.json",
       "paged": false,
-      "description": "The bundled offers defined -- a product plus components and coupons sold as one package. What is actually presented for sale, as opposed to its constituent parts."
+      "description": "The bundled offers defined -- a product plus components and coupons sold as one package. What is actually presented for sale, as opposed to its constituent parts.",
+      "responseSchema": {
+        "offers": [
+          {
+            "id": "double",
+            "site_id": "double",
+            "product_family_id": "double",
+            "product_family_name": "string",
+            "product_id": "double",
+            "product_name": "string",
+            "product_price_in_cents": "double",
+            "product_revisable_number": "double",
+            "product_price_point_id": "double",
+            "product_price_point_name": "string",
+            "name": "string",
+            "handle": "string",
+            "description": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "archived_at": "timeInstant",
+            "offer_items": [
+              {
+                "component_id": "double",
+                "component_name": "string",
+                "component_unit_price": "string",
+                "price_point_id": "double",
+                "price_point_name": "string",
+                "starting_quantity": "string",
+                "editable": "boolean"
+              }
+            ],
+            "offer_discounts": [
+              {
+                "coupon_id": "double",
+                "coupon_code": "string",
+                "coupon_name": "string"
+              }
+            ],
+            "offer_signup_pages": [
+              {
+                "id": "double",
+                "nickname": "string",
+                "enabled": "boolean",
+                "return_url": "string",
+                "return_params": "string",
+                "url": "string"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Offer",
       "suffix": "/offers/{Offer ID}.json",
       "paged": false,
-      "description": "One offer by id, with its components."
+      "description": "One offer by id, with its components.",
+      "responseSchema": {
+        "offer": {
+          "id": "double",
+          "site_id": "double",
+          "product_family_id": "double",
+          "product_family_name": "string",
+          "product_id": "double",
+          "product_name": "string",
+          "product_price_in_cents": "double",
+          "product_revisable_number": "double",
+          "product_price_point_id": "double",
+          "product_price_point_name": "string",
+          "name": "string",
+          "handle": "string",
+          "description": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "archived_at": "timeInstant",
+          "offer_items": [
+            {
+              "component_id": "double",
+              "component_name": "string",
+              "component_unit_price": "string",
+              "price_point_id": "double",
+              "price_point_name": "string",
+              "starting_quantity": "string",
+              "editable": "boolean"
+            }
+          ],
+          "offer_discounts": [
+            {
+              "coupon_id": "double",
+              "coupon_code": "string",
+              "coupon_name": "string"
+            }
+          ],
+          "offer_signup_pages": [
+            {
+              "id": "double",
+              "nickname": "string",
+              "enabled": "boolean",
+              "return_url": "string",
+              "return_params": "string",
+              "url": "string"
+            }
+          ]
+        }
+      }
     },
     {
       "name": "Payment Profiles",
       "suffix": "/payment_profiles.json?customer_id={Customer ID?}",
       "paged": true,
-      "description": "The stored payment methods, optionally for one customer. Carries the type, the card's expiry and last four digits, and the gateway. AN EXPIRING CARD IS THE COMMONEST CAUSE OF INVOLUNTARY CHURN and the expiry here is the only place it can be anticipated."
+      "description": "The stored payment methods, optionally for one customer. Carries the type, the card's expiry and last four digits, and the gateway. AN EXPIRING CARD IS THE COMMONEST CAUSE OF INVOLUNTARY CHURN and the expiry here is the only place it can be anticipated.",
+      "responseSchema": [
+        {
+          "payment_profile": {
+            "id": "double",
+            "first_name": "string",
+            "last_name": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "customer_id": "double",
+            "current_vault": "string",
+            "vault_token": "string",
+            "billing_address": "string",
+            "billing_city": "string",
+            "billing_state": "string",
+            "billing_zip": "string",
+            "billing_country": "string",
+            "customer_vault_token": "string",
+            "billing_address_2": "string",
+            "bank_name": "string",
+            "masked_bank_routing_number": "string",
+            "masked_bank_account_number": "string",
+            "bank_account_type": "string",
+            "bank_account_holder_type": "string",
+            "payment_type": "string",
+            "verified": "boolean",
+            "site_gateway_setting_id": "double",
+            "gateway_handle": "string"
+          }
+        }
+      ]
     },
     {
       "name": "Payment Profile",
       "suffix": "/payment_profiles/{Payment Profile ID}.json",
       "paged": false,
-      "description": "One payment profile by id."
+      "description": "One payment profile by id.",
+      "responseSchema": {
+        "payment_profile": {
+          "id": "double",
+          "first_name": "string",
+          "last_name": "string",
+          "masked_card_number": "string",
+          "card_type": "string",
+          "expiration_month": "double",
+          "expiration_year": "double",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "customer_id": "double",
+          "current_vault": "string",
+          "vault_token": "string",
+          "billing_address": "string",
+          "billing_city": "string",
+          "billing_state": "string",
+          "billing_zip": "string",
+          "billing_country": "string",
+          "customer_vault_token": "string",
+          "billing_address_2": "string",
+          "payment_type": "string",
+          "site_gateway_setting_id": "double",
+          "gateway_handle": "string"
+        }
+      }
     },
     {
       "name": "Products",
       "suffix": "/product_families/{Product Family ID}/products.json?include_archived={Include Archived?:true|false}",
       "paged": false,
-      "description": "The products within one family, with their price, billing period, trial and setup charges. Requires a family id. What subscriptions are sold on."
+      "description": "The products within one family, with their price, billing period, trial and setup charges. Requires a family id. What subscriptions are sold on.",
+      "responseSchema": [
+        {
+          "product": {
+            "id": "double",
+            "name": "string",
+            "handle": "string",
+            "description": "string",
+            "accounting_code": "string",
+            "request_credit_card": "boolean",
+            "expiration_interval": "double",
+            "expiration_interval_unit": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "price_in_cents": "double",
+            "interval": "double",
+            "interval_unit": "string",
+            "initial_charge_in_cents": "double",
+            "trial_price_in_cents": "double",
+            "trial_interval": "double",
+            "trial_interval_unit": "string",
+            "archived_at": "timeInstant",
+            "require_credit_card": "boolean",
+            "return_params": "string",
+            "taxable": "boolean",
+            "update_return_url": "string",
+            "initial_charge_after_trial": "boolean",
+            "version_number": "double",
+            "update_return_params": "string",
+            "product_family": {
+              "id": "double",
+              "name": "string",
+              "description": "string",
+              "handle": "string",
+              "accounting_code": "string"
+            },
+            "public_signup_pages": [
+              {
+                "id": "double",
+                "return_url": "string",
+                "return_params": "string",
+                "url": "string"
+              }
+            ],
+            "product_price_point_name": "string",
+            "use_site_exchange_rate": "boolean"
+          }
+        }
+      ]
     },
     {
       "name": "Product",
       "suffix": "/products/{Product ID}.json",
       "paged": false,
-      "description": "One product by id."
+      "description": "One product by id.",
+      "responseSchema": {
+        "product": {
+          "id": "double",
+          "name": "string",
+          "handle": "string",
+          "description": "string",
+          "accounting_code": "string",
+          "request_credit_card": "boolean",
+          "expiration_interval": "double",
+          "expiration_interval_unit": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "price_in_cents": "double",
+          "interval": "double",
+          "interval_unit": "string",
+          "initial_charge_in_cents": "double",
+          "trial_price_in_cents": "double",
+          "trial_interval": "double",
+          "trial_interval_unit": "string",
+          "archived_at": "timeInstant",
+          "require_credit_card": "boolean",
+          "return_params": "string",
+          "taxable": "boolean",
+          "update_return_url": "string",
+          "tax_code": "string",
+          "initial_charge_after_trial": "boolean",
+          "version_number": "double",
+          "update_return_params": "string",
+          "product_family": {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "handle": "string",
+            "accounting_code": "string"
+          },
+          "product_price_point_name": "string"
+        }
+      }
     },
     {
       "name": "Product by Handle",
       "suffix": "/products/handle/{Product Handle}.json",
       "paged": false,
-      "description": "One product by its handle -- the human-readable identifier, more stable than the numeric id across environments."
+      "description": "One product by its handle -- the human-readable identifier, more stable than the numeric id across environments.",
+      "responseSchema": {
+        "product": {
+          "id": "double",
+          "name": "string",
+          "handle": "string",
+          "description": "string",
+          "accounting_code": "string",
+          "request_credit_card": "boolean",
+          "expiration_interval": "double",
+          "expiration_interval_unit": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "price_in_cents": "double",
+          "interval": "double",
+          "interval_unit": "string",
+          "initial_charge_in_cents": "double",
+          "trial_price_in_cents": "double",
+          "trial_interval": "double",
+          "trial_interval_unit": "string",
+          "archived_at": "timeInstant",
+          "require_credit_card": "boolean",
+          "return_params": "string",
+          "taxable": "boolean",
+          "update_return_url": "string",
+          "initial_charge_after_trial": "boolean",
+          "version_number": "double",
+          "update_return_params": "string",
+          "product_family": {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "handle": "string",
+            "accounting_code": "string"
+          },
+          "public_signup_pages": [
+            {
+              "id": "double",
+              "return_url": "string",
+              "return_params": "string",
+              "url": "string"
+            }
+          ],
+          "product_price_point_name": "string"
+        }
+      }
     },
     {
       "name": "Product Price Points",
       "suffix": "/products/{Product ID}/price_points.json",
       "paged": false,
-      "description": "The alternative price points of one product. Requires a product id. A product can be sold at several prices, so the product's headline price is not necessarily what a given subscription pays."
+      "description": "The alternative price points of one product. Requires a product id. A product can be sold at several prices, so the product's headline price is not necessarily what a given subscription pays.",
+      "responseSchema": {
+        "price_points": [
+          {
+            "id": "double",
+            "name": "string",
+            "handle": "string",
+            "price_in_cents": "double",
+            "interval": "double",
+            "interval_unit": "string",
+            "trial_price_in_cents": "double",
+            "trial_interval": "double",
+            "trial_interval_unit": "string",
+            "trial_type": "string",
+            "initial_charge_in_cents": "double",
+            "initial_charge_after_trial": "boolean",
+            "expiration_interval": "double",
+            "expiration_interval_unit": "string",
+            "product_id": "double",
+            "archived_at": "timeInstant",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ]
+      }
     },
     {
       "name": "Product Price Point",
       "suffix": "/products/{Product ID}/price_points/{Price Point ID}.json",
       "paged": false,
-      "description": "One product price point by id."
+      "description": "One product price point by id.",
+      "responseSchema": {
+        "price_point": {
+          "id": "double",
+          "name": "string",
+          "handle": "string",
+          "price_in_cents": "double",
+          "interval": "double",
+          "interval_unit": "string",
+          "trial_price_in_cents": "double",
+          "trial_interval": "double",
+          "trial_interval_unit": "string",
+          "trial_type": "string",
+          "initial_charge_in_cents": "double",
+          "initial_charge_after_trial": "boolean",
+          "expiration_interval": "double",
+          "expiration_interval_unit": "string",
+          "product_id": "double",
+          "archived_at": "timeInstant",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Product Families",
@@ -279,73 +2080,390 @@
           "parameterName": "Product Family ID"
         }
       ],
-      "description": "The product families -- the top-level grouping products, components and coupons belong to. NEARLY EVERYTHING IN CHARGIFY IS SCOPED TO A FAMILY, so this is the first request and a figure taken without regard to family may span unrelated product lines."
+      "description": "The product families -- the top-level grouping products, components and coupons belong to. NEARLY EVERYTHING IN CHARGIFY IS SCOPED TO A FAMILY, so this is the first request and a figure taken without regard to family may span unrelated product lines.",
+      "responseSchema": [
+        {
+          "product_family": {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "handle": "string",
+            "accounting_code": "string",
+            "surcharging": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "archived_at": "timeInstant"
+          }
+        }
+      ]
     },
     {
       "name": "Product Family",
       "suffix": "/product_families/{Product Family ID}.json",
       "paged": false,
-      "description": "One product family by id."
+      "description": "One product family by id.",
+      "responseSchema": {
+        "product_family": {
+          "id": "double",
+          "name": "string",
+          "description": "string",
+          "handle": "string",
+          "accounting_code": "string",
+          "surcharging": "boolean",
+          "archived_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Reason Codes",
       "suffix": "/reason_codes.json",
       "paged": true,
-      "description": "The cancellation reason codes configured. THE STRUCTURED ANSWER TO WHY CUSTOMERS LEAVE, which the cancellation message alone does not give in analysable form."
+      "description": "The cancellation reason codes configured. THE STRUCTURED ANSWER TO WHY CUSTOMERS LEAVE, which the cancellation message alone does not give in analysable form.",
+      "responseSchema": [
+        {
+          "reason_code": {
+            "id": "double",
+            "site_id": "double",
+            "code": "string",
+            "description": "string",
+            "position": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        }
+      ]
     },
     {
       "name": "Reason Code",
       "suffix": "/reason_codes/{Reason Code ID}.json",
       "paged": false,
-      "description": "One reason code by id."
+      "description": "One reason code by id.",
+      "responseSchema": {
+        "reason_code": {
+          "id": "double",
+          "site_id": "double",
+          "code": "string",
+          "description": "string",
+          "position": "double",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Validate Referral Code",
       "suffix": "/referral_codes/validate.json?code={Referral Code}",
       "paged": false,
-      "description": "Checks whether a referral code is valid. A validation call rather than data."
+      "description": "Checks whether a referral code is valid. A validation call rather than data.",
+      "responseSchema": {
+        "referral_code": {
+          "id": "double",
+          "site_id": "double",
+          "subscription_id": "double",
+          "code": "string"
+        }
+      }
     },
     {
       "name": "Subscription Statement IDs",
       "suffix": "/subscriptions/{Subscription ID}/statements/ids.json?settled_since={Settled Since?:UNIX timestamp}",
       "paged": false,
-      "description": "The statement ids of one subscription, filterable by settlement date."
+      "description": "The statement ids of one subscription, filterable by settlement date.",
+      "responseSchema": {
+        "statement_ids": [
+          "double"
+        ]
+      }
     },
     {
       "name": "Statement IDs",
       "suffix": "/statements/ids.json?settled_since={Settled Since?:UNIX timestamp}",
       "paged": false,
-      "description": "The ids of statements settled since a date. The cheap way to find what to fetch rather than paging statements themselves."
+      "description": "The ids of statements settled since a date. The cheap way to find what to fetch rather than paging statements themselves.",
+      "responseSchema": {
+        "statement_ids": [
+          "double"
+        ]
+      }
     },
     {
       "name": "Subscription Statements",
       "suffix": "/subscriptions/{Subscription ID}/statements.json",
       "paged": true,
-      "description": "The statements of one subscription. Requires a subscription id."
+      "description": "The statements of one subscription. Requires a subscription id.",
+      "responseSchema": [
+        {
+          "statement": {
+            "id": "double",
+            "subscription_id": "double",
+            "opened_at": "timeInstant",
+            "closed_at": "timeInstant",
+            "settled_at": "timeInstant",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "text_view": "string",
+            "basic_html_view": "string",
+            "html_view": "string",
+            "future_payments": [
+              {
+                "amount_in_cents": "double",
+                "memo": "string",
+                "payment_date": "string"
+              }
+            ],
+            "starting_balance_in_cents": "double",
+            "ending_balance_in_cents": "double",
+            "customer_id": "double",
+            "transactions": [
+              {
+                "id": "double",
+                "transaction_type": "string",
+                "kind": "string",
+                "amount_in_cents": "double",
+                "memo": "string",
+                "created_at": "timeInstant",
+                "success": "boolean"
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Statements",
       "suffix": "/statements.json",
       "paged": false,
-      "description": "The billing statements produced. A statement is the period summary sent to a customer, as distinct from an invoice."
+      "description": "The billing statements produced. A statement is the period summary sent to a customer, as distinct from an invoice.",
+      "responseSchema": [
+        {
+          "statement": {
+            "id": "double",
+            "subscription_id": "double",
+            "opened_at": "timeInstant",
+            "closed_at": "timeInstant",
+            "settled_at": "timeInstant",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "text_view": "string",
+            "basic_html_view": "string",
+            "html_view": "string",
+            "future_payments": [
+              {
+                "amount_in_cents": "double",
+                "memo": "string",
+                "payment_date": "string"
+              }
+            ],
+            "starting_balance_in_cents": "double",
+            "ending_balance_in_cents": "double",
+            "customer_id": "double",
+            "transactions": [
+              {
+                "id": "double",
+                "transaction_type": "string",
+                "kind": "string",
+                "amount_in_cents": "double",
+                "memo": "string",
+                "created_at": "timeInstant",
+                "success": "boolean"
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Statement",
       "suffix": "/statements/{Statement ID}.json",
       "paged": false,
-      "description": "One statement by id."
+      "description": "One statement by id.",
+      "responseSchema": {
+        "statement": {
+          "id": "double",
+          "subscription_id": "double",
+          "opened_at": "timeInstant",
+          "closed_at": "timeInstant",
+          "settled_at": "timeInstant",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "text_view": "string",
+          "basic_html_view": "string",
+          "html_view": "string",
+          "future_payments": [
+            {
+              "amount_in_cents": "double",
+              "memo": "string",
+              "payment_date": "string"
+            }
+          ],
+          "starting_balance_in_cents": "double",
+          "ending_balance_in_cents": "double",
+          "customer_id": "double",
+          "transactions": [
+            {
+              "id": "double",
+              "transaction_type": "string",
+              "kind": "string",
+              "amount_in_cents": "double",
+              "memo": "string",
+              "created_at": "timeInstant",
+              "success": "boolean"
+            }
+          ]
+        }
+      }
     },
     {
       "name": "Stats",
       "suffix": "/stats.json",
       "paged": false,
-      "description": "The site's headline figures -- subscription counts by state, revenue this month, and similar. One record of totals, and the cheapest sanity check on any figure derived the long way."
+      "description": "The site's headline figures -- subscription counts by state, revenue this month, and similar. One record of totals, and the cheapest sanity check on any figure derived the long way.",
+      "responseSchema": {
+        "seller_name": "string",
+        "site_name": "string",
+        "site_id": "double",
+        "site_currency": "string",
+        "stats": {
+          "total_subscriptions": "double",
+          "subscriptions_today": "double",
+          "total_revenue": "string",
+          "revenue_today": "string",
+          "revenue_this_month": "string",
+          "revenue_this_year": "string"
+        }
+      }
     },
     {
       "name": "Subscription",
       "suffix": "/subscriptions/{Subscription ID}.json",
       "paged": false,
-      "description": "One subscription by id, with its full state and product detail."
+      "description": "One subscription by id, with its full state and product detail.",
+      "responseSchema": {
+        "subscription": {
+          "id": "double",
+          "state": "string",
+          "balance_in_cents": "double",
+          "total_revenue_in_cents": "double",
+          "product_price_in_cents": "double",
+          "product_version_number": "double",
+          "current_period_ends_at": "timeInstant",
+          "next_assessment_at": "timeInstant",
+          "trial_started_at": "timeInstant",
+          "trial_ended_at": "timeInstant",
+          "activated_at": "timeInstant",
+          "expires_at": "timeInstant",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "cancellation_message": "string",
+          "cancellation_method": "string",
+          "cancel_at_end_of_period": "boolean",
+          "canceled_at": "timeInstant",
+          "current_period_started_at": "timeInstant",
+          "previous_state": "string",
+          "signup_payment_id": "double",
+          "signup_revenue": "string",
+          "delayed_cancel_at": "timeInstant",
+          "coupon_code": "string",
+          "payment_collection_method": "string",
+          "snap_day": "string",
+          "reason_code": "string",
+          "receives_invoice_emails": "boolean",
+          "net_terms": "double",
+          "customer": {
+            "first_name": "string",
+            "last_name": "string",
+            "email": "string",
+            "cc_emails": "string",
+            "organization": "string",
+            "reference": "string",
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "address": "string",
+            "address_2": "string",
+            "city": "string",
+            "state": "string",
+            "zip": "string",
+            "country": "string",
+            "phone": "string",
+            "verified": "boolean",
+            "portal_customer_created_at": "timeInstant",
+            "portal_invite_last_sent_at": "timeInstant",
+            "portal_invite_last_accepted_at": "timeInstant",
+            "tax_exempt": "boolean",
+            "vat_number": "string"
+          },
+          "product": {
+            "id": "double",
+            "name": "string",
+            "handle": "string",
+            "description": "string",
+            "accounting_code": "string",
+            "price_in_cents": "double",
+            "interval": "double",
+            "interval_unit": "string",
+            "initial_charge_in_cents": "double",
+            "expiration_interval": "double",
+            "expiration_interval_unit": "string",
+            "trial_price_in_cents": "double",
+            "trial_interval": "double",
+            "trial_interval_unit": "string",
+            "initial_charge_after_trial": "boolean",
+            "return_params": "string",
+            "request_credit_card": "boolean",
+            "require_credit_card": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "archived_at": "timeInstant",
+            "update_return_url": "string",
+            "update_return_params": "string",
+            "product_family": {
+              "id": "double",
+              "name": "string",
+              "handle": "string",
+              "accounting_code": "string",
+              "description": "string"
+            },
+            "public_signup_pages": [
+              {
+                "id": "double",
+                "url": "string"
+              }
+            ],
+            "taxable": "boolean",
+            "version_number": "double",
+            "product_price_point_name": "string"
+          },
+          "credit_card": {
+            "id": "double",
+            "payment_type": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "masked_card_number": "string",
+            "card_type": "string",
+            "expiration_month": "double",
+            "expiration_year": "double",
+            "billing_address": "string",
+            "billing_address_2": "string",
+            "billing_city": "string",
+            "billing_state": "string",
+            "billing_country": "string",
+            "billing_zip": "string",
+            "current_vault": "string",
+            "vault_token": "string",
+            "customer_vault_token": "string",
+            "customer_id": "double"
+          },
+          "payment_type": "string",
+          "referral_code": "string",
+          "next_product_id": "double",
+          "coupon_use_count": "double",
+          "coupon_uses_allowed": "double",
+          "stored_credential_transaction_id": "double",
+          "on_hold_at": "timeInstant",
+          "scheduled_cancellation_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Subscriptions",
@@ -364,43 +2482,394 @@
           "parameterName": "Subscription ID"
         }
       ],
-      "description": "The subscriptions on the site, one row each -- the central table. Carries the customer, product, the STATE, current period start and end, activated_at, cancelled_at and the cancellation message, the balance, and any coupon applied. Filterable by state. STATE IS THE FILTER EVERYTHING DEPENDS ON, and Chargify's set is unusually fine: trialing, assessing, active, soft_failure, past_due, canceled, expired, unpaid, on_hold and pending_cancellation. PAST_DUE AND SOFT_FAILURE ARE STILL ACTIVE SUBSCRIPTIONS whose payment failed -- they are the involuntary-churn pipeline, and reading state as a simple active-or-cancelled misses them entirely."
+      "description": "The subscriptions on the site, one row each -- the central table. Carries the customer, product, the STATE, current period start and end, activated_at, cancelled_at and the cancellation message, the balance, and any coupon applied. Filterable by state. STATE IS THE FILTER EVERYTHING DEPENDS ON, and Chargify's set is unusually fine: trialing, assessing, active, soft_failure, past_due, canceled, expired, unpaid, on_hold and pending_cancellation. PAST_DUE AND SOFT_FAILURE ARE STILL ACTIVE SUBSCRIPTIONS whose payment failed -- they are the involuntary-churn pipeline, and reading state as a simple active-or-cancelled misses them entirely.",
+      "responseSchema": [
+        {
+          "subscription": {
+            "id": "double",
+            "state": "string",
+            "balance_in_cents": "double",
+            "total_revenue_in_cents": "double",
+            "product_price_in_cents": "double",
+            "product_version_number": "double",
+            "current_period_ends_at": "timeInstant",
+            "next_assessment_at": "timeInstant",
+            "trial_started_at": "timeInstant",
+            "trial_ended_at": "timeInstant",
+            "activated_at": "timeInstant",
+            "expires_at": "timeInstant",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "cancellation_message": "string",
+            "cancellation_method": "string",
+            "cancel_at_end_of_period": "boolean",
+            "canceled_at": "timeInstant",
+            "current_period_started_at": "timeInstant",
+            "previous_state": "string",
+            "signup_payment_id": "double",
+            "signup_revenue": "string",
+            "delayed_cancel_at": "timeInstant",
+            "coupon_code": "string",
+            "payment_collection_method": "string",
+            "snap_day": "string",
+            "reason_code": "string",
+            "receives_invoice_emails": "boolean",
+            "net_terms": "double",
+            "customer": {
+              "first_name": "string",
+              "last_name": "string",
+              "email": "string",
+              "cc_emails": "string",
+              "organization": "string",
+              "reference": "string",
+              "id": "double",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "address": "string",
+              "address_2": "string",
+              "city": "string",
+              "state": "string",
+              "zip": "string",
+              "country": "string",
+              "phone": "string",
+              "verified": "boolean",
+              "portal_customer_created_at": "timeInstant",
+              "portal_invite_last_sent_at": "timeInstant",
+              "portal_invite_last_accepted_at": "timeInstant",
+              "tax_exempt": "boolean",
+              "vat_number": "string"
+            },
+            "product": {
+              "id": "double",
+              "name": "string",
+              "handle": "string",
+              "description": "string",
+              "accounting_code": "string",
+              "price_in_cents": "double",
+              "interval": "double",
+              "interval_unit": "string",
+              "initial_charge_in_cents": "double",
+              "expiration_interval": "double",
+              "expiration_interval_unit": "string",
+              "trial_price_in_cents": "double",
+              "trial_interval": "double",
+              "trial_interval_unit": "string",
+              "initial_charge_after_trial": "boolean",
+              "return_params": "string",
+              "request_credit_card": "boolean",
+              "require_credit_card": "boolean",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "archived_at": "timeInstant",
+              "update_return_url": "string",
+              "update_return_params": "string",
+              "product_family": {
+                "id": "double",
+                "name": "string",
+                "handle": "string",
+                "accounting_code": "string",
+                "description": "string"
+              },
+              "public_signup_pages": [
+                {
+                  "id": "double",
+                  "url": "string"
+                }
+              ],
+              "taxable": "boolean",
+              "version_number": "double",
+              "product_price_point_name": "string"
+            },
+            "credit_card": {
+              "id": "double",
+              "payment_type": "string",
+              "first_name": "string",
+              "last_name": "string",
+              "masked_card_number": "string",
+              "card_type": "string",
+              "expiration_month": "double",
+              "expiration_year": "double",
+              "billing_address": "string",
+              "billing_address_2": "string",
+              "billing_city": "string",
+              "billing_state": "string",
+              "billing_country": "string",
+              "billing_zip": "string",
+              "current_vault": "string",
+              "vault_token": "string",
+              "customer_vault_token": "string",
+              "customer_id": "double"
+            },
+            "payment_type": "string",
+            "referral_code": "string",
+            "next_product_id": "double",
+            "coupon_use_count": "double",
+            "coupon_uses_allowed": "double",
+            "stored_credential_transaction_id": "double",
+            "on_hold_at": "timeInstant",
+            "scheduled_cancellation_at": "timeInstant"
+          }
+        }
+      ]
     },
     {
       "name": "Subscription by Reference",
       "suffix": "/subscriptions/lookup.json?reference={Reference}",
       "paged": false,
-      "description": "One subscription looked up by the reference the source system assigned. The bridge from an external identifier to Chargify's own."
+      "description": "One subscription looked up by the reference the source system assigned. The bridge from an external identifier to Chargify's own.",
+      "responseSchema": {
+        "subscription": {
+          "id": "double",
+          "state": "string",
+          "balance_in_cents": "double",
+          "total_revenue_in_cents": "double",
+          "product_price_in_cents": "double",
+          "product_version_number": "double",
+          "current_period_ends_at": "timeInstant",
+          "next_assessment_at": "timeInstant",
+          "trial_started_at": "timeInstant",
+          "trial_ended_at": "timeInstant",
+          "activated_at": "timeInstant",
+          "expires_at": "timeInstant",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "cancellation_message": "string",
+          "cancellation_method": "string",
+          "cancel_at_end_of_period": "boolean",
+          "canceled_at": "timeInstant",
+          "current_period_started_at": "timeInstant",
+          "previous_state": "string",
+          "signup_payment_id": "double",
+          "signup_revenue": "string",
+          "delayed_cancel_at": "timeInstant",
+          "coupon_code": "string",
+          "payment_collection_method": "string",
+          "snap_day": "string",
+          "reason_code": "string",
+          "receives_invoice_emails": "boolean",
+          "net_terms": "double",
+          "customer": {
+            "first_name": "string",
+            "last_name": "string",
+            "email": "string",
+            "cc_emails": "string",
+            "organization": "string",
+            "reference": "string",
+            "id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "address": "string",
+            "address_2": "string",
+            "city": "string",
+            "state": "string",
+            "zip": "string",
+            "country": "string",
+            "phone": "string",
+            "verified": "boolean",
+            "portal_customer_created_at": "timeInstant",
+            "portal_invite_last_sent_at": "timeInstant",
+            "portal_invite_last_accepted_at": "timeInstant",
+            "tax_exempt": "boolean",
+            "vat_number": "string"
+          },
+          "product": {
+            "id": "double",
+            "name": "string",
+            "handle": "string",
+            "description": "string",
+            "accounting_code": "string",
+            "price_in_cents": "double",
+            "interval": "double",
+            "interval_unit": "string",
+            "initial_charge_in_cents": "double",
+            "expiration_interval": "double",
+            "expiration_interval_unit": "string",
+            "trial_price_in_cents": "double",
+            "trial_interval": "double",
+            "trial_interval_unit": "string",
+            "initial_charge_after_trial": "boolean",
+            "return_params": "string",
+            "request_credit_card": "boolean",
+            "require_credit_card": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "archived_at": "timeInstant",
+            "update_return_url": "string",
+            "update_return_params": "string",
+            "product_family": {
+              "id": "double",
+              "name": "string",
+              "handle": "string",
+              "accounting_code": "string",
+              "description": "string"
+            },
+            "public_signup_pages": [
+              {
+                "id": "double",
+                "url": "string"
+              }
+            ],
+            "taxable": "boolean",
+            "version_number": "double",
+            "product_price_point_name": "string"
+          },
+          "credit_card": {
+            "id": "double",
+            "payment_type": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "masked_card_number": "string",
+            "card_type": "string",
+            "expiration_month": "double",
+            "expiration_year": "double",
+            "billing_address": "string",
+            "billing_address_2": "string",
+            "billing_city": "string",
+            "billing_state": "string",
+            "billing_country": "string",
+            "billing_zip": "string",
+            "current_vault": "string",
+            "vault_token": "string",
+            "customer_vault_token": "string",
+            "customer_id": "double"
+          },
+          "payment_type": "string",
+          "referral_code": "string",
+          "next_product_id": "double",
+          "coupon_use_count": "double",
+          "coupon_uses_allowed": "double",
+          "stored_credential_transaction_id": "double",
+          "on_hold_at": "timeInstant",
+          "scheduled_cancellation_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Transactions",
       "suffix": "/transactions.json?kinds[]={Transactions Types?,:charge,payment,credit,...}&since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
       "paged": true,
-      "description": "Payment attempts and their outcomes, filterable by kind. Carries the type, amount, success flag, the gateway response and the subscription. FAILED PAYMENTS EXIST HERE AND NOWHERE ELSE, which is where involuntary churn is diagnosed."
+      "description": "Payment attempts and their outcomes, filterable by kind. Carries the type, amount, success flag, the gateway response and the subscription. FAILED PAYMENTS EXIST HERE AND NOWHERE ELSE, which is where involuntary churn is diagnosed.",
+      "responseSchema": [
+        {
+          "transaction": {
+            "id": "double",
+            "transaction_type": "string",
+            "kind": "string",
+            "amount_in_cents": "double",
+            "memo": "string",
+            "created_at": "timeInstant",
+            "starting_balance_in_cents": "double",
+            "ending_balance_in_cents": "double",
+            "success": "boolean",
+            "subscription_id": "double",
+            "product_id": "double",
+            "customer_id": "double",
+            "payment_id": "double",
+            "gateway_transaction_id": "string",
+            "gateway_order_id": "string",
+            "gateway_used": "string",
+            "card_number": "string",
+            "card_expiration": "string",
+            "card_type": "string",
+            "refunded_amount_in_cents": "double"
+          }
+        }
+      ]
     },
     {
       "name": "Transaction",
       "suffix": "/transactions/{Transaction ID}.json",
       "paged": false,
-      "description": "One transaction by id."
+      "description": "One transaction by id.",
+      "responseSchema": {
+        "transaction": {
+          "id": "double",
+          "transaction_type": "string",
+          "kind": "string",
+          "amount_in_cents": "double",
+          "memo": "string",
+          "created_at": "timeInstant",
+          "starting_balance_in_cents": "double",
+          "ending_balance_in_cents": "double",
+          "success": "boolean",
+          "subscription_id": "double",
+          "product_id": "double",
+          "customer_id": "double",
+          "payment_id": "double",
+          "gateway_transaction_id": "string",
+          "gateway_order_id": "string",
+          "gateway_used": "string",
+          "card_number": "string",
+          "card_expiration": "string",
+          "card_type": "string",
+          "refunded_amount_in_cents": "double"
+        }
+      }
     },
     {
       "name": "Subscription Transactions",
       "suffix": "/subscriptions/{Subscription ID}/transactions.json?kinds[]={Transactions Types?,:charge,payment,credit,...}&since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
       "paged": true,
-      "description": "The transactions of one subscription, filterable by kind. Requires a subscription id. The per-account payment history."
+      "description": "The transactions of one subscription, filterable by kind. Requires a subscription id. The per-account payment history.",
+      "responseSchema": [
+        {
+          "transaction": {
+            "id": "double",
+            "transaction_type": "string",
+            "kind": "string",
+            "amount_in_cents": "double",
+            "memo": "string",
+            "created_at": "timeInstant",
+            "starting_balance_in_cents": "double",
+            "ending_balance_in_cents": "double",
+            "success": "boolean",
+            "subscription_id": "double",
+            "product_id": "double",
+            "customer_id": "double",
+            "payment_id": "double",
+            "gateway_transaction_id": "string",
+            "gateway_order_id": "string",
+            "gateway_used": "string",
+            "card_number": "string",
+            "card_expiration": "string",
+            "card_type": "string",
+            "refunded_amount_in_cents": "double"
+          }
+        }
+      ]
     },
     {
       "name": "Transaction Count",
       "suffix": "/transactions/count.json",
       "paged": false,
-      "description": "The number of transactions matching the filters, without returning them. The cheap size check before an extract."
+      "description": "The number of transactions matching the filters, without returning them. The cheap size check before an extract.",
+      "responseSchema": {
+        "count": "double"
+      }
     },
     {
       "name": "Webhooks",
       "suffix": "/webhooks.json?since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
       "paged": true,
-      "description": "The webhook deliveries attempted, filterable by date and status. NOT configuration: this is the delivery log, so a silently broken integration is visible here."
+      "description": "The webhook deliveries attempted, filterable by date and status. NOT configuration: this is the delivery log, so a silently broken integration is visible here.",
+      "responseSchema": [
+        {
+          "webhook": {
+            "event": "string",
+            "id": "double",
+            "created_at": "timeInstant",
+            "last_error": "string",
+            "last_error_at": "timeInstant",
+            "accepted_at": "timeInstant",
+            "last_sent_at": "timeInstant",
+            "last_sent_url": "string",
+            "successful": "boolean",
+            "body": "string",
+            "signature": "string",
+            "signature_hmac_sha_256": "string"
+          }
+        }
+      ]
     }
   ]
 }

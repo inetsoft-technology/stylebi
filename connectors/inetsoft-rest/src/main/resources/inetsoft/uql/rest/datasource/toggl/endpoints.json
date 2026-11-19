@@ -4,13 +4,47 @@
       "name": "Client",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/clients/{Client ID}",
-      "description": "One client by id. Requires the workspace id."
+      "description": "One client by id. Requires the workspace id.",
+      "responseSchema": {
+        "archived": "boolean",
+        "at": "timeInstant",
+        "creator_id": "double",
+        "external_reference": "string",
+        "id": "double",
+        "integration_ext_id": "string",
+        "integration_ext_type": "string",
+        "name": "string",
+        "notes": "string",
+        "permissions": [
+          "string"
+        ],
+        "total_count": "double",
+        "wid": "double"
+      }
     },
     {
       "name": "Clients",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/clients",
-      "description": "The clients in one workspace. Requires a workspace id. The billing entity projects belong to. NOTE this is the same endpoint as Workspace Clients under a second name -- the two are identical and either will do."
+      "description": "The clients in one workspace. Requires a workspace id. The billing entity projects belong to. NOTE this is the same endpoint as Workspace Clients under a second name -- the two are identical and either will do.",
+      "responseSchema": [
+        {
+          "archived": "boolean",
+          "at": "timeInstant",
+          "creator_id": "double",
+          "external_reference": "string",
+          "id": "double",
+          "integration_ext_id": "string",
+          "integration_ext_type": "string",
+          "name": "string",
+          "notes": "string",
+          "permissions": [
+            "string"
+          ],
+          "total_count": "double",
+          "wid": "double"
+        }
+      ]
     },
     {
       "name": "Workspace Projects",
@@ -27,55 +61,601 @@
           "parameterName": "Workspace ID"
         }
       ],
-      "description": "The projects in one workspace, with name, client, active state, billable flag, the hourly rate, colour, and estimated hours. Requires a workspace id. The rate is what turns tracked time into money. Filter with active, which defaults to returning only live projects and so omits completed work from historical totals."
+      "description": "The projects in one workspace, with name, client, active state, billable flag, the hourly rate, colour, and estimated hours. Requires a workspace id. The rate is what turns tracked time into money. Filter with active, which defaults to returning only live projects and so omits completed work from historical totals.",
+      "responseSchema": [
+        {
+          "active": "boolean",
+          "actual_hours": "double",
+          "actual_seconds": "double",
+          "at": "timeInstant",
+          "auto_estimates": "boolean",
+          "billable": "boolean",
+          "can_track_time": "boolean",
+          "cid": "double",
+          "client_id": "double",
+          "client_name": "string",
+          "color": "string",
+          "created_at": "timeInstant",
+          "currency": "string",
+          "end_date": "string",
+          "estimated_hours": "double",
+          "estimated_seconds": "double",
+          "external_reference": "string",
+          "fixed_fee": "double",
+          "id": "double",
+          "integration_ext_id": "string",
+          "integration_ext_type": "string",
+          "is_private": "boolean",
+          "name": "string",
+          "permissions": [
+            "string"
+          ],
+          "pinned": "boolean",
+          "rate": "double",
+          "rate_last_updated": "timeInstant",
+          "recurring": "boolean",
+          "recurring_parameters": [
+            {
+              "custom_period": "double",
+              "estimated_seconds": "double",
+              "parameter_end_date": "string",
+              "parameter_start_date": "string",
+              "period": "string",
+              "project_start_date": "string"
+            }
+          ],
+          "start_date": "string",
+          "template": "boolean",
+          "template_id": "double",
+          "total_count": "double",
+          "wid": "double",
+          "workspace_id": "double"
+        }
+      ]
     },
     {
       "name": "Workspace Project",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}",
-      "description": "One project by id. Requires the workspace id."
+      "description": "One project by id. Requires the workspace id.",
+      "responseSchema": {
+        "active": "boolean",
+        "actual_hours": "double",
+        "actual_seconds": "double",
+        "at": "timeInstant",
+        "auto_estimates": "boolean",
+        "billable": "boolean",
+        "can_track_time": "boolean",
+        "cid": "double",
+        "client_id": "double",
+        "client_name": "string",
+        "color": "string",
+        "created_at": "timeInstant",
+        "currency": "string",
+        "end_date": "string",
+        "estimated_hours": "double",
+        "estimated_seconds": "double",
+        "external_reference": "string",
+        "fixed_fee": "double",
+        "id": "double",
+        "integration_ext_id": "string",
+        "integration_ext_type": "string",
+        "is_private": "boolean",
+        "name": "string",
+        "permissions": [
+          "string"
+        ],
+        "pinned": "boolean",
+        "rate": "double",
+        "rate_last_updated": "timeInstant",
+        "recurring": "boolean",
+        "recurring_parameters": [
+          {
+            "custom_period": "double",
+            "estimated_seconds": "double",
+            "parameter_end_date": "string",
+            "parameter_start_date": "string",
+            "period": "string",
+            "project_start_date": "string"
+          }
+        ],
+        "start_date": "string",
+        "template": "boolean",
+        "template_id": "double",
+        "total_count": "double",
+        "wid": "double",
+        "workspace_id": "double"
+      }
     },
     {
       "name": "Workspace Project Users",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/project_users",
-      "description": "Who is assigned to which project, with each assignment's own hourly rate. Requires a workspace id. THE PER-PERSON RATE OVERRIDES THE PROJECT RATE, so billing a project at its headline rate overstates or understates it wherever these exist."
+      "description": "Who is assigned to which project, with each assignment's own hourly rate. Requires a workspace id. THE PER-PERSON RATE OVERRIDES THE PROJECT RATE, so billing a project at its headline rate overstates or understates it wherever these exist.",
+      "responseSchema": [
+        {
+          "at": "timeInstant",
+          "gid": "double",
+          "group_id": "double",
+          "id": "double",
+          "labor_cost": "double",
+          "labor_cost_last_updated": "timeInstant",
+          "manager": "boolean",
+          "project_id": "double",
+          "rate": "double",
+          "rate_last_updated": "timeInstant",
+          "user_id": "double",
+          "workspace_id": "double"
+        }
+      ]
     },
     {
       "name": "Workspace Project Tasks",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}/tasks/",
-      "description": "The tasks within one project, with name, estimated seconds and active state. Requires the workspace and project ids."
+      "description": "The tasks within one project, with name, estimated seconds and active state. Requires the workspace and project ids.",
+      "responseSchema": [
+        {
+          "active": "boolean",
+          "at": "timeInstant",
+          "avatar_url": "string",
+          "client_id": "double",
+          "client_name": "string",
+          "estimated_seconds": "double",
+          "external_reference": "string",
+          "id": "double",
+          "integration_ext_id": "string",
+          "integration_ext_type": "string",
+          "name": "string",
+          "permissions": [
+            "string"
+          ],
+          "project_billable": "boolean",
+          "project_color": "string",
+          "project_id": "double",
+          "project_is_private": "boolean",
+          "project_name": "string",
+          "rate": "double",
+          "rate_last_updated": "timeInstant",
+          "recurring": "boolean",
+          "toggl_accounts_id": "string",
+          "tracked_seconds": "double",
+          "user_id": "double",
+          "user_name": "string",
+          "workspace_id": "double"
+        }
+      ]
     },
     {
       "name": "Workspace Task",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}/tasks/{Task ID}",
-      "description": "One task by id. Requires the workspace and project ids."
+      "description": "One task by id. Requires the workspace and project ids.",
+      "responseSchema": {
+        "active": "boolean",
+        "at": "timeInstant",
+        "avatar_url": "string",
+        "client_id": "double",
+        "client_name": "string",
+        "estimated_seconds": "double",
+        "external_reference": "string",
+        "id": "double",
+        "integration_ext_id": "string",
+        "integration_ext_type": "string",
+        "name": "string",
+        "permissions": [
+          "string"
+        ],
+        "project_billable": "boolean",
+        "project_color": "string",
+        "project_id": "double",
+        "project_is_private": "boolean",
+        "project_name": "string",
+        "rate": "double",
+        "rate_last_updated": "timeInstant",
+        "recurring": "boolean",
+        "toggl_accounts_id": "string",
+        "tracked_seconds": "double",
+        "user_id": "double",
+        "user_name": "string",
+        "workspace_id": "double"
+      }
     },
     {
       "name": "Time Entry",
       "paged": false,
       "suffix": "/api/v9/me/time_entries/{Time Entry ID}",
-      "description": "One time entry by id. Same negative-duration convention for a running entry."
+      "description": "One time entry by id. Same negative-duration convention for a running entry.",
+      "responseSchema": {
+        "at": "timeInstant",
+        "billable": "boolean",
+        "client_id": "double",
+        "client_name": "string",
+        "description": "string",
+        "duration": "double",
+        "duronly": "boolean",
+        "expense_ids": [
+          "double"
+        ],
+        "id": "double",
+        "integration_ext_id": "string",
+        "integration_ext_type": "string",
+        "permissions": [
+          "string"
+        ],
+        "pid": "double",
+        "project_active": "boolean",
+        "project_billable": "boolean",
+        "project_color": "string",
+        "project_id": "double",
+        "project_name": "string",
+        "shared_with": [
+          {
+            "accepted": "boolean",
+            "user_id": "double",
+            "user_name": "string"
+          }
+        ],
+        "start": "timeInstant",
+        "stop": "timeInstant",
+        "tag_ids": [
+          "double"
+        ],
+        "tags": [
+          "string"
+        ],
+        "task_id": "double",
+        "task_name": "string",
+        "tid": "double",
+        "uid": "double",
+        "user_avatar_url": "string",
+        "user_id": "double",
+        "user_name": "string",
+        "wid": "double",
+        "workspace_id": "double"
+      }
     },
     {
       "name": "Current Time Entry",
       "paged": false,
       "suffix": "/api/v9/me/time_entries/current",
-      "description": "The entry the caller is running right now, or nothing if the clock is stopped. A live check rather than data."
+      "description": "The entry the caller is running right now, or nothing if the clock is stopped. A live check rather than data.",
+      "responseSchema": {
+        "at": "timeInstant",
+        "billable": "boolean",
+        "client_id": "double",
+        "client_name": "string",
+        "description": "string",
+        "duration": "double",
+        "duronly": "boolean",
+        "expense_ids": [
+          "double"
+        ],
+        "id": "double",
+        "integration_ext_id": "string",
+        "integration_ext_type": "string",
+        "permissions": [
+          "string"
+        ],
+        "pid": "double",
+        "project_active": "boolean",
+        "project_billable": "boolean",
+        "project_color": "string",
+        "project_id": "double",
+        "project_name": "string",
+        "shared_with": [
+          {
+            "accepted": "boolean",
+            "user_id": "double",
+            "user_name": "string"
+          }
+        ],
+        "start": "timeInstant",
+        "stop": "timeInstant",
+        "tag_ids": [
+          "double"
+        ],
+        "tags": [
+          "string"
+        ],
+        "task_id": "double",
+        "task_name": "string",
+        "tid": "double",
+        "uid": "double",
+        "user_avatar_url": "string",
+        "user_id": "double",
+        "user_name": "string",
+        "wid": "double",
+        "workspace_id": "double"
+      }
     },
     {
       "name": "Time Entries",
       "paged": false,
       "suffix": "/api/v9/me/time_entries?start_date={Start Date?:yyyy-MM-ddTHH:mm:ssZ}&end_date={End Date?:yyyy-MM-ddTHH:mm:ssZ}",
-      "description": "The time entries of the AUTHENTICATED USER, filtered by a date range. Carries description, project, task, tags, billable flag, start and stop, and DURATION IN SECONDS. Two things: it is the caller's own entries only, so a workspace-wide extract is not possible through this endpoint; and a RUNNING ENTRY HAS A NEGATIVE DURATION -- Toggl encodes the start time as a negative number until the entry stops, so summing without filtering those out corrupts the total."
+      "description": "The time entries of the AUTHENTICATED USER, filtered by a date range. Carries description, project, task, tags, billable flag, start and stop, and DURATION IN SECONDS. Two things: it is the caller's own entries only, so a workspace-wide extract is not possible through this endpoint; and a RUNNING ENTRY HAS A NEGATIVE DURATION -- Toggl encodes the start time as a negative number until the entry stops, so summing without filtering those out corrupts the total.",
+      "responseSchema": [
+        {
+          "at": "timeInstant",
+          "billable": "boolean",
+          "client_id": "double",
+          "client_name": "string",
+          "description": "string",
+          "duration": "double",
+          "duronly": "boolean",
+          "expense_ids": [
+            "double"
+          ],
+          "id": "double",
+          "integration_ext_id": "string",
+          "integration_ext_type": "string",
+          "permissions": [
+            "string"
+          ],
+          "pid": "double",
+          "project_active": "boolean",
+          "project_billable": "boolean",
+          "project_color": "string",
+          "project_id": "double",
+          "project_name": "string",
+          "shared_with": [
+            {
+              "accepted": "boolean",
+              "user_id": "double",
+              "user_name": "string"
+            }
+          ],
+          "start": "timeInstant",
+          "stop": "timeInstant",
+          "tag_ids": [
+            "double"
+          ],
+          "tags": [
+            "string"
+          ],
+          "task_id": "double",
+          "task_name": "string",
+          "tid": "double",
+          "uid": "double",
+          "user_avatar_url": "string",
+          "user_id": "double",
+          "user_name": "string",
+          "wid": "double",
+          "workspace_id": "double"
+        }
+      ]
     },
     {
       "name": "Current User",
       "paged": false,
       "suffix": "/api/v9/me?with_related_data={With Related Data?:true|false}",
-      "description": "The account the credentials belong to. One record. Pass with_related_data to have workspaces, clients, projects and tags returned alongside, which saves several requests when bootstrapping."
+      "description": "The account the credentials belong to. One record. Pass with_related_data to have workspaces, clients, projects and tags returned alongside, which saves several requests when bootstrapping.",
+      "responseSchema": {
+        "2fa_enabled": "boolean",
+        "api_token": "string",
+        "at": "timeInstant",
+        "authorization_updated_at": "timeInstant",
+        "beginning_of_week": "double",
+        "clients": [
+          {
+            "archived": "boolean",
+            "at": "timeInstant",
+            "creator_id": "double",
+            "external_reference": "string",
+            "id": "double",
+            "integration_ext_id": "string",
+            "integration_ext_type": "string",
+            "name": "string",
+            "notes": "string",
+            "permissions": [
+              "string"
+            ],
+            "total_count": "double",
+            "wid": "double"
+          }
+        ],
+        "country_id": "double",
+        "created_at": "timeInstant",
+        "default_workspace_id": "double",
+        "email": "string",
+        "fullname": "string",
+        "has_password": "boolean",
+        "id": "double",
+        "image_url": "string",
+        "intercom_hash": "string",
+        "oauth_providers": [
+          "string"
+        ],
+        "openid_email": "string",
+        "openid_enabled": "boolean",
+        "projects": [
+          {
+            "active": "boolean",
+            "actual_hours": "double",
+            "actual_seconds": "double",
+            "at": "timeInstant",
+            "auto_estimates": "boolean",
+            "billable": "boolean",
+            "can_track_time": "boolean",
+            "cid": "double",
+            "client_id": "double",
+            "client_name": "string",
+            "color": "string",
+            "created_at": "timeInstant",
+            "currency": "string",
+            "end_date": "string",
+            "estimated_hours": "double",
+            "estimated_seconds": "double",
+            "external_reference": "string",
+            "fixed_fee": "double",
+            "id": "double",
+            "integration_ext_id": "string",
+            "integration_ext_type": "string",
+            "is_private": "boolean",
+            "name": "string",
+            "permissions": [
+              "string"
+            ],
+            "pinned": "boolean",
+            "rate": "double",
+            "rate_last_updated": "timeInstant",
+            "recurring": "boolean",
+            "recurring_parameters": [
+              {
+                "custom_period": "double",
+                "estimated_seconds": "double",
+                "parameter_end_date": "string",
+                "parameter_start_date": "string",
+                "period": "string",
+                "project_start_date": "string"
+              }
+            ],
+            "start_date": "string",
+            "template": "boolean",
+            "template_id": "double",
+            "total_count": "double",
+            "wid": "double",
+            "workspace_id": "double"
+          }
+        ],
+        "tags": [
+          {
+            "at": "timeInstant",
+            "creator_id": "double",
+            "deleted_at": "timeInstant",
+            "id": "double",
+            "integration_ext_id": "string",
+            "integration_ext_type": "string",
+            "name": "string",
+            "permissions": [
+              "string"
+            ],
+            "workspace_id": "double"
+          }
+        ],
+        "tasks": [
+          {
+            "active": "boolean",
+            "at": "timeInstant",
+            "avatar_url": "string",
+            "client_id": "double",
+            "client_name": "string",
+            "estimated_seconds": "double",
+            "external_reference": "string",
+            "id": "double",
+            "integration_ext_id": "string",
+            "integration_ext_type": "string",
+            "name": "string",
+            "permissions": [
+              "string"
+            ],
+            "project_billable": "boolean",
+            "project_color": "string",
+            "project_id": "double",
+            "project_is_private": "boolean",
+            "project_name": "string",
+            "rate": "double",
+            "rate_last_updated": "timeInstant",
+            "recurring": "boolean",
+            "toggl_accounts_id": "string",
+            "tracked_seconds": "double",
+            "user_id": "double",
+            "user_name": "string",
+            "workspace_id": "double"
+          }
+        ],
+        "time_entries": [
+          {
+            "at": "timeInstant",
+            "billable": "boolean",
+            "client_id": "double",
+            "client_name": "string",
+            "description": "string",
+            "duration": "double",
+            "duronly": "boolean",
+            "expense_ids": [
+              "double"
+            ],
+            "id": "double",
+            "integration_ext_id": "string",
+            "integration_ext_type": "string",
+            "permissions": [
+              "string"
+            ],
+            "pid": "double",
+            "project_active": "boolean",
+            "project_billable": "boolean",
+            "project_color": "string",
+            "project_id": "double",
+            "project_name": "string",
+            "shared_with": [
+              {
+                "accepted": "boolean",
+                "user_id": "double",
+                "user_name": "string"
+              }
+            ],
+            "start": "timeInstant",
+            "stop": "timeInstant",
+            "tag_ids": [
+              "double"
+            ],
+            "tags": [
+              "string"
+            ],
+            "task_id": "double",
+            "task_name": "string",
+            "tid": "double",
+            "uid": "double",
+            "user_avatar_url": "string",
+            "user_id": "double",
+            "user_name": "string",
+            "wid": "double",
+            "workspace_id": "double"
+          }
+        ],
+        "timezone": "string",
+        "updated_at": "timeInstant",
+        "workspaces": [
+          {
+            "admin": "boolean",
+            "api_token": "string",
+            "at": "timeInstant",
+            "business_ws": "boolean",
+            "default_currency": "string",
+            "default_hourly_rate": "double",
+            "disable_approvals": "boolean",
+            "disable_expenses": "boolean",
+            "disable_timesheet_view": "boolean",
+            "hide_start_end_times": "boolean",
+            "ical_enabled": "boolean",
+            "ical_url": "string",
+            "id": "double",
+            "last_modified": "timeInstant",
+            "limit_public_project_data": "boolean",
+            "logo_url": "string",
+            "name": "string",
+            "only_admins_may_create_projects": "boolean",
+            "only_admins_may_create_tags": "boolean",
+            "only_admins_see_team_dashboard": "boolean",
+            "organization_id": "double",
+            "permissions": [
+              "string"
+            ],
+            "premium": "boolean",
+            "projects_billable_by_default": "boolean",
+            "projects_enforce_billable": "boolean",
+            "projects_private_by_default": "boolean",
+            "rate_last_updated": "timeInstant",
+            "reports_collapse": "boolean",
+            "role": "string",
+            "rounding": "double",
+            "rounding_minutes": "double",
+            "suspended_at": "timeInstant",
+            "working_hours_in_minutes": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Workspaces",
@@ -97,49 +677,255 @@
           "parameterName": "Workspace ID"
         }
       ],
-      "description": "The workspaces the authenticated user belongs to, with name, the default hourly rate and currency, and the rounding settings. Every other endpoint needs a workspace id. As with any time tracker, ROUNDING MEANS RAW ENTRY DURATIONS AND REPORTED TOTALS CAN LEGITIMATELY DIFFER."
+      "description": "The workspaces the authenticated user belongs to, with name, the default hourly rate and currency, and the rounding settings. Every other endpoint needs a workspace id. As with any time tracker, ROUNDING MEANS RAW ENTRY DURATIONS AND REPORTED TOTALS CAN LEGITIMATELY DIFFER.",
+      "responseSchema": [
+        {
+          "active_project_count": "double",
+          "admin": "boolean",
+          "api_token": "string",
+          "at": "timeInstant",
+          "business_ws": "boolean",
+          "default_currency": "string",
+          "default_hourly_rate": "double",
+          "disable_approvals": "boolean",
+          "disable_expenses": "boolean",
+          "disable_timesheet_view": "boolean",
+          "hide_start_end_times": "boolean",
+          "ical_enabled": "boolean",
+          "ical_url": "string",
+          "id": "double",
+          "last_modified": "timeInstant",
+          "limit_public_project_data": "boolean",
+          "logo_url": "string",
+          "name": "string",
+          "only_admins_may_create_projects": "boolean",
+          "only_admins_may_create_tags": "boolean",
+          "only_admins_see_team_dashboard": "boolean",
+          "organization_id": "double",
+          "permissions": [
+            "string"
+          ],
+          "premium": "boolean",
+          "projects_billable_by_default": "boolean",
+          "projects_enforce_billable": "boolean",
+          "projects_private_by_default": "boolean",
+          "rate_last_updated": "timeInstant",
+          "reports_collapse": "boolean",
+          "role": "string",
+          "rounding": "double",
+          "rounding_minutes": "double",
+          "suspended_at": "timeInstant",
+          "working_hours_in_minutes": "double"
+        }
+      ]
     },
     {
       "name": "Workspace",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}",
-      "description": "One workspace by id, with its settings."
+      "description": "One workspace by id, with its settings.",
+      "responseSchema": {
+        "admin": "boolean",
+        "api_token": "string",
+        "at": "timeInstant",
+        "business_ws": "boolean",
+        "default_currency": "string",
+        "default_hourly_rate": "double",
+        "disable_approvals": "boolean",
+        "disable_expenses": "boolean",
+        "disable_timesheet_view": "boolean",
+        "hide_start_end_times": "boolean",
+        "ical_enabled": "boolean",
+        "ical_url": "string",
+        "id": "double",
+        "last_modified": "timeInstant",
+        "limit_public_project_data": "boolean",
+        "logo_url": "string",
+        "name": "string",
+        "only_admins_may_create_projects": "boolean",
+        "only_admins_may_create_tags": "boolean",
+        "only_admins_see_team_dashboard": "boolean",
+        "organization_id": "double",
+        "permissions": [
+          "string"
+        ],
+        "premium": "boolean",
+        "projects_billable_by_default": "boolean",
+        "projects_enforce_billable": "boolean",
+        "projects_private_by_default": "boolean",
+        "rate_last_updated": "timeInstant",
+        "reports_collapse": "boolean",
+        "role": "string",
+        "rounding": "double",
+        "rounding_minutes": "double",
+        "suspended_at": "timeInstant",
+        "working_hours_in_minutes": "double"
+      }
     },
     {
       "name": "All Users",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/users",
-      "description": "The users in one workspace, as user records with name and email. Requires a workspace id."
+      "description": "The users in one workspace, as user records with name and email. Requires a workspace id.",
+      "responseSchema": [
+        {
+          "email": "string",
+          "fullname": "string",
+          "id": "double",
+          "inactive": "boolean",
+          "is_active": "boolean",
+          "is_admin": "boolean",
+          "role": "string"
+        }
+      ]
     },
     {
       "name": "Workspace Clients",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/clients",
-      "description": "The clients in one workspace. Identical to Clients; the connector carries the same endpoint under both names."
+      "description": "The clients in one workspace. Identical to Clients; the connector carries the same endpoint under both names.",
+      "responseSchema": [
+        {
+          "archived": "boolean",
+          "at": "timeInstant",
+          "creator_id": "double",
+          "external_reference": "string",
+          "id": "double",
+          "integration_ext_id": "string",
+          "integration_ext_type": "string",
+          "name": "string",
+          "notes": "string",
+          "permissions": [
+            "string"
+          ],
+          "total_count": "double",
+          "wid": "double"
+        }
+      ]
     },
     {
       "name": "Workspace Project Groups",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/groups",
-      "description": "The group-level project assignments in one workspace. Requires a workspace id."
+      "description": "The group-level project assignments in one workspace. Requires a workspace id.",
+      "responseSchema": [
+        {
+          "at": "timeInstant",
+          "has_users": "boolean",
+          "id": "double",
+          "name": "string",
+          "permissions": [
+            "string"
+          ],
+          "workspace_id": "double"
+        }
+      ]
     },
     {
       "name": "Workspace Tasks",
       "paged": true,
       "suffix": "/api/v9/workspaces/{Workspace ID}/tasks?active={Active?:true|false|both}",
-      "description": "Every task across the workspace rather than per project. Requires a workspace id. The efficient way to inventory tasks without walking projects."
+      "description": "Every task across the workspace rather than per project. Requires a workspace id. The efficient way to inventory tasks without walking projects.",
+      "responseSchema": {
+        "data": [
+          {
+            "active": "boolean",
+            "at": "timeInstant",
+            "avatar_url": "string",
+            "client_id": "double",
+            "client_name": "string",
+            "estimated_seconds": "double",
+            "external_reference": "string",
+            "id": "double",
+            "integration_ext_id": "string",
+            "integration_ext_type": "string",
+            "name": "string",
+            "permissions": [
+              "string"
+            ],
+            "project_billable": "boolean",
+            "project_color": "string",
+            "project_id": "double",
+            "project_is_private": "boolean",
+            "project_name": "string",
+            "rate": "double",
+            "rate_last_updated": "timeInstant",
+            "recurring": "boolean",
+            "toggl_accounts_id": "string",
+            "tracked_seconds": "double",
+            "user_id": "double",
+            "user_name": "string",
+            "workspace_id": "double"
+          }
+        ],
+        "page": "double",
+        "per_page": "double",
+        "sort_field": "string",
+        "sort_order": "string",
+        "total_count": "double"
+      }
     },
     {
       "name": "Workspace Tags",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/tags",
-      "description": "The tags in one workspace. Requires a workspace id. The free-form dimension on time entries beyond project and task."
+      "description": "The tags in one workspace. Requires a workspace id. The free-form dimension on time entries beyond project and task.",
+      "responseSchema": [
+        {
+          "at": "timeInstant",
+          "creator_id": "double",
+          "deleted_at": "timeInstant",
+          "id": "double",
+          "integration_ext_id": "string",
+          "integration_ext_type": "string",
+          "name": "string",
+          "permissions": [
+            "string"
+          ],
+          "workspace_id": "double"
+        }
+      ]
     },
     {
       "name": "Workspace Users",
       "paged": false,
       "suffix": "/api/v9/workspaces/{Workspace ID}/workspace_users",
-      "description": "The workspace MEMBERSHIP records rather than the users themselves -- carrying each person's role, whether they are active, and their labour cost. Requires a workspace id. The cost field is here and not on the user, so any cost-of-time calculation joins through this table."
+      "description": "The workspace MEMBERSHIP records rather than the users themselves -- carrying each person's role, whether they are active, and their labour cost. Requires a workspace id. The cost field is here and not on the user, so any cost-of-time calculation joins through this table.",
+      "responseSchema": [
+        {
+          "2fa_enabled": "boolean",
+          "active": "boolean",
+          "admin": "boolean",
+          "at": "timeInstant",
+          "avatar_file_name": "string",
+          "email": "string",
+          "group_ids": [
+            "double"
+          ],
+          "id": "double",
+          "inactive": "boolean",
+          "invitation_code": "string",
+          "invite_url": "string",
+          "is_direct": "boolean",
+          "labor_cost": "double",
+          "labor_cost_last_updated": "timeInstant",
+          "name": "string",
+          "organization_admin": "boolean",
+          "rate": "double",
+          "rate_last_updated": "timeInstant",
+          "role": "string",
+          "role_id": "double",
+          "timezone": "string",
+          "uid": "double",
+          "user_id": "double",
+          "view_edit_billable_rates": "boolean",
+          "view_edit_labor_costs": "boolean",
+          "wid": "double",
+          "working_hours_in_minutes": "double",
+          "workspace_admin": "boolean",
+          "workspace_id": "double"
+        }
+      ]
     }
   ]
 }

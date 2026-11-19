@@ -96,49 +96,368 @@
           "parameterName": "Customer ID"
         }
       ],
-      "description": "The customers on the account, filterable with Fusebill's query syntax. Carries the company or personal name, reference, status, currency, the primary contact and addresses. THE QUERY PARAMETER IS THE FILTERING MODEL throughout this connector -- a field:value expression rather than named parameters -- so most questions are shaped by what that syntax supports."
+      "description": "The customers on the account, filterable with Fusebill's query syntax. Carries the company or personal name, reference, status, currency, the primary contact and addresses. THE QUERY PARAMETER IS THE FILTERING MODEL throughout this connector -- a field:value expression rather than named parameters -- so most questions are shaped by what that syntax supports.",
+      "responseSchema": [
+        {
+          "firstName": "string",
+          "middleName": "string",
+          "lastName": "string",
+          "companyName": "string",
+          "suffix": "string",
+          "primaryEmail": "string",
+          "primaryPhone": "string",
+          "secondaryEmail": "string",
+          "secondaryPhone": "string",
+          "title": "string",
+          "reference": "string",
+          "status": "string",
+          "customerAccountStatus": "string",
+          "currency": "string",
+          "salesforceId": "string",
+          "salesforceAccountType": "string",
+          "salesforceSynchStatus": "string",
+          "netsuiteId": "string",
+          "netsuiteSynchStatus": "string",
+          "netsuiteCustomerType": "string",
+          "portalUserName": "string",
+          "quickBooksLatchType": "string",
+          "geotabId": "string",
+          "uri": "string",
+          "monthlyRecurringRevenue": "double",
+          "netMonthlyRecurringRevenue": "double",
+          "parentId": "double",
+          "quickBooksId": "double",
+          "hubSpotId": "double",
+          "hubSpotCompanyId": "double",
+          "id": "double",
+          "modifiedTimestamp": "timeInstant",
+          "createdTimestamp": "timeInstant",
+          "customerReference": {
+            "reference1": "string",
+            "reference2": "string",
+            "reference3": "string",
+            "uri": "string",
+            "id": "double",
+            "salesTrackingCodes": [
+              {
+                "type": "string",
+                "code": "string",
+                "name": "string",
+                "uri": "string",
+                "id": "double"
+              }
+            ]
+          },
+          "customerAcquisition": {
+            "adContent": "string",
+            "campaign": "string",
+            "keyword": "string",
+            "landingPage": "string",
+            "medium": "string",
+            "source": "string",
+            "uri": "string",
+            "id": "double"
+          }
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Customer Overview",
       "suffix": "/v1/customers/{Customer ID}/overview",
-      "description": "One customer's headline figures in a single call -- balances, subscription counts and recent activity. Requires a customer id. The efficient summary, as opposed to assembling it from the subscription, invoice and payment tables separately."
+      "description": "One customer's headline figures in a single call -- balances, subscription counts and recent activity. Requires a customer id. The efficient summary, as opposed to assembling it from the subscription, invoice and payment tables separately.",
+      "responseSchema": {
+        "title": "string",
+        "firstName": "string",
+        "middleName": "string",
+        "lastName": "string",
+        "suffix": "string",
+        "primaryEmail": "string",
+        "primaryPhone": "string",
+        "companyName": "string",
+        "reference": "string",
+        "uri": "string",
+        "status": "string",
+        "customerAccountStatus": "string",
+        "currency": "string",
+        "geotabId": "string",
+        "salesforceSynchStatus": "string",
+        "parentName": "string",
+        "salesforceId": "string",
+        "netsuiteId": "string",
+        "id": "double",
+        "pendingCharges": "double",
+        "arBalance": "double",
+        "unallocatedPayments": "double",
+        "unallocatedCredits": "double",
+        "unallocatedOpeningBalance": "double",
+        "daysUntilSuspension": "double",
+        "daysUntilCancellation": "double",
+        "lifetimeValue": "double",
+        "monthlyRecurringRevenue": "double",
+        "netMonthlyRecurringRevenue": "double",
+        "hubSpotId": "double",
+        "hubSpotCompanyId": "double",
+        "parentId": "double",
+        "unknownPaymentActivityId": "double",
+        "quickbooksId": "double",
+        "isParent": "boolean",
+        "statusTimestamp": "timeInstant",
+        "customerAccountStatusTimestamp": "timeInstant",
+        "createdTimestamp": "timeInstant",
+        "nextBillingDate": "timeInstant"
+      }
     },
     {
       "paged": "false",
       "name": "Customer",
       "suffix": "/v1/customers/{Customer ID}",
-      "description": "One customer by id."
+      "description": "One customer by id.",
+      "responseSchema": {
+        "firstName": "string",
+        "middleName": "string",
+        "lastName": "string",
+        "companyName": "string",
+        "suffix": "string",
+        "primaryEmail": "string",
+        "primaryPhone": "string",
+        "secondaryEmail": "string",
+        "secondaryPhone": "string",
+        "title": "string",
+        "reference": "string",
+        "status": "string",
+        "customerAccountStatus": "string",
+        "currency": "string",
+        "salesforceId": "string",
+        "salesforceAccountType": "string",
+        "salesforceSynchStatus": "string",
+        "netsuiteId": "string",
+        "netsuiteSynchStatus": "string",
+        "netsuiteCustomerType": "string",
+        "portalUserName": "string",
+        "quickBooksLatchType": "string",
+        "geotabId": "string",
+        "uri": "string",
+        "monthlyRecurringRevenue": "double",
+        "netMonthlyRecurringRevenue": "double",
+        "parentId": "double",
+        "quickBooksId": "double",
+        "hubSpotId": "double",
+        "hubSpotCompanyId": "double",
+        "id": "double",
+        "modifiedTimestamp": "timeInstant",
+        "createdTimestamp": "timeInstant",
+        "customerReference": {
+          "reference1": "string",
+          "reference2": "string",
+          "reference3": "string",
+          "uri": "string",
+          "id": "double",
+          "salesTrackingCodes": [
+            {
+              "type": "string",
+              "code": "string",
+              "name": "string",
+              "uri": "string",
+              "id": "double"
+            }
+          ]
+        },
+        "customerAcquisition": {
+          "adContent": "string",
+          "campaign": "string",
+          "keyword": "string",
+          "landingPage": "string",
+          "medium": "string",
+          "source": "string",
+          "uri": "string",
+          "id": "double"
+        }
+      }
     },
     {
       "paged": "false",
       "name": "Customer Email Preferences",
       "suffix": "/v1/customers/{Customer ID}/CustomerEmailPreferences",
-      "description": "Which billing emails one customer receives. Requires a customer id."
+      "description": "Which billing emails one customer receives. Requires a customer id.",
+      "responseSchema": {
+        "customerId": "double",
+        "preferences": [
+          {
+            "enabled": "string",
+            "accountDefault": "boolean",
+            "emailType": "string",
+            "emailCategory": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Customer Billing Settings",
       "suffix": "/v1/customerbillingsetting/{Customer ID}",
-      "description": "One customer's billing configuration -- payment terms, currency, tax settings and collection behaviour. Requires a customer id. Collection behaviour is what explains an invoice sitting unpaid by design rather than through failure."
+      "description": "One customer's billing configuration -- payment terms, currency, tax settings and collection behaviour. Requires a customer id. Collection behaviour is what explains an invoice sitting unpaid by design rather than through failure.",
+      "responseSchema": {
+        "term": "string",
+        "interval": "string",
+        "autoCollectSettingType": "string",
+        "rechargeType": "string",
+        "defaultCancelOption": "string",
+        "standingPoNumber": "string",
+        "taxExemptCode": "string",
+        "avalaraUsageType": "string",
+        "customerServiceStartOption": "string",
+        "pdfInvoiceEmailAttachmentOption": "string",
+        "id": "string",
+        "uri": "string",
+        "invoiceDay": "double",
+        "rechargeThresholdAmount": "double",
+        "rechargeTargetAmount": "double",
+        "customerGracePeriod": "double",
+        "gracePeriodExtension": "double",
+        "customerAutoCancel": "double",
+        "acquisitionCost": "double",
+        "vatIdentificationNumber": "double",
+        "defaultPaymentMethodId": "double",
+        "autoCollect": "boolean",
+        "dunningExempt": "boolean",
+        "statusOnThreshold": "boolean",
+        "autoPostDraftInvoice": "boolean",
+        "hasPaymentMethod": "boolean",
+        "showZeroDollarCharges": "boolean",
+        "taxExempt": "boolean",
+        "useCustomerBillingAddress": "boolean",
+        "rollUpTaxes": "boolean",
+        "rollUpDiscounts": "boolean",
+        "rollUpPdfsByPlanProduct": "boolean",
+        "rollUpPdfsDisplayName": "boolean",
+        "rollUpPdfsDisplayDescription": "boolean",
+        "rollUpPdfsDisplayAllUnitPrices": "boolean",
+        "postReadyChargesOnRenew": "boolean",
+        "autoAllocateToOverdueInvoices": "boolean",
+        "selfServicePortalCreditCard": "boolean",
+        "selfServicePortalACH": "boolean",
+        "billingPeriodConfigurations": [
+          {
+            "type": "string",
+            "rule": "string",
+            "interval": "string",
+            "day": "double",
+            "month": "double"
+          }
+        ],
+        "trackedItemDisplay": {
+          "trackedItemDisplayFormat": "string",
+          "showTrackedItemName": "boolean",
+          "showTrackedItemReference": "boolean",
+          "showTrackedItemDescription": "boolean",
+          "showTrackedItemCreatedDate": "boolean"
+        },
+        "customerBillingStatementSetting": {
+          "option": "string",
+          "type": "string",
+          "interval": "string",
+          "statementActivityType": "string",
+          "day": "double",
+          "month": "double",
+          "trackedItemDisplay": {
+            "trackedItemDisplayFormat": "string",
+            "showTrackedItemName": "boolean",
+            "showTrackedItemReference": "boolean",
+            "showTrackedItemDescription": "boolean",
+            "showTrackedItemCreatedDate": "boolean"
+          }
+        }
+      }
     },
     {
       "paged": "false",
       "name": "Customer Address Preferences",
       "suffix": "/v1/customerAddressPreferences/{Customer ID}",
-      "description": "The address configuration of one customer -- which address is used for billing, shipping and tax. Requires a customer id. Tax is computed against one of these, so it matters for reconciling a tax figure."
+      "description": "The address configuration of one customer -- which address is used for billing, shipping and tax. Requires a customer id. Tax is computed against one of these, so it matters for reconciling a tax figure.",
+      "responseSchema": {
+        "contactName": "string",
+        "shippingInstructions": "string",
+        "uri": "string",
+        "id": "double",
+        "useBillingAddressAsShippingAddress": "boolean",
+        "billingAddress": {
+          "companyName": "string",
+          "line1": "string",
+          "line2": "string",
+          "country": "string",
+          "state": "string",
+          "city": "string",
+          "postalZip": "string",
+          "addressType": "string",
+          "uri": "string",
+          "customerAddressPreferenceId": "double",
+          "countryId": "double",
+          "stateId": "double",
+          "id": "double",
+          "valid": "boolean"
+        },
+        "shippingAddress": {
+          "companyName": "string",
+          "line1": "string",
+          "line2": "string",
+          "country": "string",
+          "state": "string",
+          "city": "string",
+          "postalZip": "string",
+          "addressType": "string",
+          "uri": "string",
+          "customerAddressPreferenceId": "double",
+          "countryId": "double",
+          "stateId": "double",
+          "id": "double",
+          "valid": "boolean"
+        }
+      }
     },
     {
       "paged": "false",
       "name": "Customer Ship/Bill Address",
       "suffix": "/v1/Addresses/{Address ID}",
-      "description": "One address by id, with its full detail."
+      "description": "One address by id, with its full detail.",
+      "responseSchema": {
+        "companyName": "string",
+        "line1": "string",
+        "line2": "string",
+        "country": "string",
+        "state": "string",
+        "city": "string",
+        "postalZip": "string",
+        "addressType": "string",
+        "uri": "string",
+        "customerAddressPreferenceId": "double",
+        "countryId": "double",
+        "stateId": "double",
+        "id": "double",
+        "valid": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Countries",
       "suffix": "/v1/Countries",
-      "description": "The countries and their subdivisions Fusebill recognises. Reference data, and relevant because tax rules are keyed on them."
+      "description": "The countries and their subdivisions Fusebill recognises. Reference data, and relevant because tax rules are keyed on them.",
+      "responseSchema": [
+        {
+          "id": "double",
+          "name": "string",
+          "iso": "string",
+          "iso3": "string",
+          "states": [
+            {
+              "id": "double",
+              "name": "string",
+              "subdivisionIsoCode": "string",
+              "combinedIsoCode": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -164,265 +483,2458 @@
           "parameterName": "Subscription ID"
         }
       ],
-      "description": "Every subscription on the account, filterable by query. Carries the customer, status, activation and cancellation dates, the billing period, and the products attached. The recurring-revenue backbone."
+      "description": "Every subscription on the account, filterable by query. Carries the customer, status, activation and cancellation dates, the billing period, and the products attached. The recurring-revenue backbone.",
+      "responseSchema": [
+        {
+          "planCode": "string",
+          "planName": "string",
+          "planDescription": "string",
+          "planReference": "string",
+          "status": "string",
+          "reference": "string",
+          "salesforceId": "string",
+          "invoiceOwner": "string",
+          "uri": "string",
+          "customerId": "double",
+          "remainingInterval": "double",
+          "remainingIntervalPushOut": "double",
+          "monthlyRecurringRevenue": "double",
+          "netMonthlyRecurringRevenue": "double",
+          "amount": "double",
+          "invoiceDay": "double",
+          "invoiceMonth": "double",
+          "billingPeriodDefinitionId": "double",
+          "id": "double",
+          "invoiceOwnerId": "double",
+          "hasPostedInvoice": "boolean",
+          "planAutoApplyChanges": "boolean",
+          "autoApplyCatalogChanges": "boolean",
+          "canMigrate": "boolean",
+          "subscriptionHasRecurringEndOfPeriodCharge": "boolean",
+          "createdTimestamp": "timeInstant",
+          "activatedTimestamp": "timeInstant",
+          "provisionedTimestamp": "timeInstant",
+          "nextPeriodStartDate": "timeInstant",
+          "lastPeriodStartDate": "timeInstant",
+          "scheduledActivationTimestamp": "timeInstant",
+          "openSubscriptionPeriodEndDate": "timeInstant",
+          "contractStartTimestamp": "timeInstant",
+          "contractEndTimestamp": "timeInstant",
+          "expiredTimestamp": "timeInstant",
+          "cancellationTimestamp": "timeInstant",
+          "modifiedTimestamp": "timeInstant",
+          "migrationDate": "timeInstant",
+          "scheduledMigrationDate": "timeInstant",
+          "nextRechargeDate": "timeInstant",
+          "planFrequency": {
+            "interval": "string",
+            "status": "string",
+            "prorationGranularity": "string",
+            "salesforceId": "string",
+            "uri": "string",
+            "planRevisionId": "double",
+            "numberOfIntervals": "double",
+            "numberOfSubscriptions": "double",
+            "planFrequencyUniqueId": "double",
+            "remainingInterval": "double",
+            "id": "double",
+            "isProrated": "boolean"
+          },
+          "subscriptionOverride": {
+            "name": "string",
+            "description": "string",
+            "uri": "string",
+            "id": "double"
+          },
+          "migrations": {
+            "sourceRelationshipMigrationType": "string",
+            "destinationRelationshipMigrationType": "string",
+            "sourceSubscriptionId": "double",
+            "sourceRelationshipId": "double",
+            "destinationSubscriptionId": "double",
+            "destinationRelationshipId": "double"
+          },
+          "geotabDeviceCodes": [
+            "string"
+          ],
+          "subscriptionProducts": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "coupons": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "customFields": [
+            {
+              "name": "string",
+              "value": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Subscription Summaries",
       "suffix": "/v1/subscriptionSummary?query={Query?:field:queryString}",
-      "description": "A condensed view of subscriptions, filterable by query. Cheaper than the full records when only status and value are wanted."
+      "description": "A condensed view of subscriptions, filterable by query. Cheaper than the full records when only status and value are wanted.",
+      "responseSchema": [
+        {
+          "planCode": "string",
+          "name": "string",
+          "description": "string",
+          "reference": "string",
+          "interval": "string",
+          "subscriptionStatus": "string",
+          "uri": "string",
+          "customerId": "double",
+          "numberOfInterval": "double",
+          "monthlyRecurringRevenue": "double",
+          "netMonthlyRecurringRevenue": "double",
+          "remainingInterval": "double",
+          "id": "double",
+          "lastBillingDate": "timeInstant",
+          "nextBillingDate": "timeInstant",
+          "expiryDate": "timeInstant",
+          "scheduledActivationTimestamp": "timeInstant",
+          "cancellationTimestamp": "timeInstant",
+          "suspendedTimestamp": "timeInstant",
+          "createdTimestamp": "timeInstant",
+          "modifiedTimestamp": "timeInstant",
+          "activatedTimestamp": "timeInstant",
+          "provisionedTimestamp": "timeInstant",
+          "nextPeriodStartDate": "timeInstant",
+          "contractStartTimestamp": "timeInstant",
+          "contractEndTimestamp": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Customer Subscriptions",
       "suffix": "/v1/customers/{Customer ID}/subscriptions?query={Query?:parameterName:value}",
-      "description": "The subscriptions of one customer. Requires a customer id."
+      "description": "The subscriptions of one customer. Requires a customer id.",
+      "responseSchema": [
+        {
+          "planCode": "string",
+          "planName": "string",
+          "planDescription": "string",
+          "planReference": "string",
+          "status": "string",
+          "reference": "string",
+          "salesforceId": "string",
+          "invoiceOwner": "string",
+          "uri": "string",
+          "customerId": "double",
+          "remainingInterval": "double",
+          "remainingIntervalPushOut": "double",
+          "monthlyRecurringRevenue": "double",
+          "netMonthlyRecurringRevenue": "double",
+          "amount": "double",
+          "invoiceDay": "double",
+          "invoiceMonth": "double",
+          "billingPeriodDefinitionId": "double",
+          "id": "double",
+          "invoiceOwnerId": "double",
+          "hasPostedInvoice": "boolean",
+          "planAutoApplyChanges": "boolean",
+          "autoApplyCatalogChanges": "boolean",
+          "canMigrate": "boolean",
+          "subscriptionHasRecurringEndOfPeriodCharge": "boolean",
+          "createdTimestamp": "timeInstant",
+          "activatedTimestamp": "timeInstant",
+          "provisionedTimestamp": "timeInstant",
+          "nextPeriodStartDate": "timeInstant",
+          "lastPeriodStartDate": "timeInstant",
+          "scheduledActivationTimestamp": "timeInstant",
+          "openSubscriptionPeriodEndDate": "timeInstant",
+          "contractStartTimestamp": "timeInstant",
+          "contractEndTimestamp": "timeInstant",
+          "expiredTimestamp": "timeInstant",
+          "cancellationTimestamp": "timeInstant",
+          "modifiedTimestamp": "timeInstant",
+          "migrationDate": "timeInstant",
+          "scheduledMigrationDate": "timeInstant",
+          "nextRechargeDate": "timeInstant",
+          "planFrequency": {
+            "interval": "string",
+            "status": "string",
+            "prorationGranularity": "string",
+            "salesforceId": "string",
+            "uri": "string",
+            "planRevisionId": "double",
+            "numberOfIntervals": "double",
+            "numberOfSubscriptions": "double",
+            "planFrequencyUniqueId": "double",
+            "remainingInterval": "double",
+            "id": "double",
+            "isProrated": "boolean"
+          },
+          "subscriptionOverride": {
+            "name": "string",
+            "description": "string",
+            "uri": "string",
+            "id": "double"
+          },
+          "migrations": {
+            "sourceRelationshipMigrationType": "string",
+            "destinationRelationshipMigrationType": "string",
+            "sourceSubscriptionId": "double",
+            "sourceRelationshipId": "double",
+            "destinationSubscriptionId": "double",
+            "destinationRelationshipId": "double"
+          },
+          "geotabDeviceCodes": [
+            "string"
+          ],
+          "subscriptionProducts": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "coupons": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "customFields": [
+            {
+              "name": "string",
+              "value": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Subscription",
       "suffix": "/v1/subscriptions/{Subscription ID}",
-      "description": "One subscription by id, with its products and schedule."
+      "description": "One subscription by id, with its products and schedule.",
+      "responseSchema": {
+        "planCode": "string",
+        "planName": "string",
+        "planDescription": "string",
+        "planReference": "string",
+        "status": "string",
+        "reference": "string",
+        "salesforceId": "string",
+        "invoiceOwner": "string",
+        "uri": "string",
+        "customerId": "double",
+        "remainingInterval": "double",
+        "remainingIntervalPushOut": "double",
+        "monthlyRecurringRevenue": "double",
+        "netMonthlyRecurringRevenue": "double",
+        "amount": "double",
+        "invoiceDay": "double",
+        "invoiceMonth": "double",
+        "billingPeriodDefinitionId": "double",
+        "id": "double",
+        "invoiceOwnerId": "double",
+        "hasPostedInvoice": "boolean",
+        "planAutoApplyChanges": "boolean",
+        "autoApplyCatalogChanges": "boolean",
+        "canMigrate": "boolean",
+        "subscriptionHasRecurringEndOfPeriodCharge": "boolean",
+        "createdTimestamp": "timeInstant",
+        "activatedTimestamp": "timeInstant",
+        "provisionedTimestamp": "timeInstant",
+        "nextPeriodStartDate": "timeInstant",
+        "lastPeriodStartDate": "timeInstant",
+        "scheduledActivationTimestamp": "timeInstant",
+        "openSubscriptionPeriodEndDate": "timeInstant",
+        "contractStartTimestamp": "timeInstant",
+        "contractEndTimestamp": "timeInstant",
+        "expiredTimestamp": "timeInstant",
+        "cancellationTimestamp": "timeInstant",
+        "modifiedTimestamp": "timeInstant",
+        "migrationDate": "timeInstant",
+        "scheduledMigrationDate": "timeInstant",
+        "nextRechargeDate": "timeInstant",
+        "planFrequency": {
+          "interval": "string",
+          "status": "string",
+          "prorationGranularity": "string",
+          "salesforceId": "string",
+          "uri": "string",
+          "planRevisionId": "double",
+          "numberOfIntervals": "double",
+          "numberOfSubscriptions": "double",
+          "planFrequencyUniqueId": "double",
+          "remainingInterval": "double",
+          "id": "double",
+          "isProrated": "boolean"
+        },
+        "subscriptionOverride": {
+          "name": "string",
+          "description": "string",
+          "uri": "string",
+          "id": "double"
+        },
+        "migrations": {
+          "sourceRelationshipMigrationType": "string",
+          "destinationRelationshipMigrationType": "string",
+          "sourceSubscriptionId": "double",
+          "sourceRelationshipId": "double",
+          "destinationSubscriptionId": "double",
+          "destinationRelationshipId": "double"
+        },
+        "geotabDeviceCodes": [
+          "string"
+        ],
+        "subscriptionProducts": [
+          {
+            "id": "double",
+            "uri": "string"
+          }
+        ],
+        "coupons": [
+          {
+            "id": "double",
+            "uri": "string"
+          }
+        ],
+        "customFields": [
+          {
+            "name": "string",
+            "value": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Subscription Count by Status",
       "suffix": "/v1/customers/customerId/subscriptions/GetCountByStatus?status={Status:Active|Draft|Cancelled|Provisioning|Expired|Suspended}",
-      "description": "How many subscriptions sit in each status. A ready-made aggregate, and the cheapest health check on a recurring-revenue base."
+      "description": "How many subscriptions sit in each status. A ready-made aggregate, and the cheapest health check on a recurring-revenue base.",
+      "responseSchema": [
+        {
+          "planCode": "string",
+          "planName": "string",
+          "planDescription": "string",
+          "planReference": "string",
+          "status": "string",
+          "reference": "string",
+          "salesforceId": "string",
+          "invoiceOwner": "string",
+          "uri": "string",
+          "customerId": "double",
+          "remainingInterval": "double",
+          "remainingIntervalPushOut": "double",
+          "monthlyRecurringRevenue": "double",
+          "netMonthlyRecurringRevenue": "double",
+          "amount": "double",
+          "invoiceDay": "double",
+          "invoiceMonth": "double",
+          "billingPeriodDefinitionId": "double",
+          "id": "double",
+          "invoiceOwnerId": "double",
+          "hasPostedInvoice": "boolean",
+          "planAutoApplyChanges": "boolean",
+          "autoApplyCatalogChanges": "boolean",
+          "canMigrate": "boolean",
+          "subscriptionHasRecurringEndOfPeriodCharge": "boolean",
+          "createdTimestamp": "timeInstant",
+          "activatedTimestamp": "timeInstant",
+          "provisionedTimestamp": "timeInstant",
+          "nextPeriodStartDate": "timeInstant",
+          "lastPeriodStartDate": "timeInstant",
+          "scheduledActivationTimestamp": "timeInstant",
+          "openSubscriptionPeriodEndDate": "timeInstant",
+          "contractStartTimestamp": "timeInstant",
+          "contractEndTimestamp": "timeInstant",
+          "expiredTimestamp": "timeInstant",
+          "cancellationTimestamp": "timeInstant",
+          "modifiedTimestamp": "timeInstant",
+          "migrationDate": "timeInstant",
+          "scheduledMigrationDate": "timeInstant",
+          "nextRechargeDate": "timeInstant",
+          "planFrequency": {
+            "interval": "string",
+            "status": "string",
+            "prorationGranularity": "string",
+            "salesforceId": "string",
+            "uri": "string",
+            "planRevisionId": "double",
+            "numberOfIntervals": "double",
+            "numberOfSubscriptions": "double",
+            "planFrequencyUniqueId": "double",
+            "remainingInterval": "double",
+            "id": "double",
+            "isProrated": "boolean"
+          },
+          "subscriptionOverride": {
+            "name": "string",
+            "description": "string",
+            "uri": "string",
+            "id": "double"
+          },
+          "migrations": {
+            "sourceRelationshipMigrationType": "string",
+            "destinationRelationshipMigrationType": "string",
+            "sourceSubscriptionId": "double",
+            "sourceRelationshipId": "double",
+            "destinationSubscriptionId": "double",
+            "destinationRelationshipId": "double"
+          },
+          "geotabDeviceCodes": [
+            "string"
+          ],
+          "subscriptionProducts": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "coupons": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "customFields": [
+            {
+              "name": "string",
+              "value": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Subscription Product",
       "suffix": "/v1/SubscriptionProducts/{Subscription Product ID}",
-      "description": "One product on one subscription, with its price, quantity and schedule. What a subscription actually consists of, as opposed to its header."
+      "description": "One product on one subscription, with its price, quantity and schedule. What a subscription actually consists of, as opposed to its header.",
+      "responseSchema": {
+        "status": "string",
+        "uri": "string",
+        "customServiceDateInterval": "string",
+        "customServiceDateProjection": "string",
+        "salesforceId": "string",
+        "subscriptionId": "double",
+        "quantity": "double",
+        "monthlyRecurringRevenue": "double",
+        "netMonthlyRecurringRevenue": "double",
+        "amount": "double",
+        "remainingInterval": "double",
+        "customServiceDateNumberOfIntervals": "double",
+        "id": "double",
+        "isIncluded": "boolean",
+        "chargeAtSubscriptionActivation": "boolean",
+        "isCharged": "boolean",
+        "groupQuantityChangeCharges": "boolean",
+        "priceUpliftsEnabled": "boolean",
+        "upliftPriorToRecharge": "boolean",
+        "includingInitialCharge": "boolean",
+        "generateZeroDollarCharge": "boolean",
+        "startDate": "timeInstant",
+        "lastPurchaseDate": "timeInstant",
+        "modifiedTimestamp": "timeInstant",
+        "planProduct": {
+          "status": "string",
+          "productCode": "string",
+          "productName": "string",
+          "productStatus": "string",
+          "productDescription": "string",
+          "productType": "string",
+          "productGLCode": "string",
+          "resetType": "string",
+          "uri": "string",
+          "productId": "double",
+          "planId": "double",
+          "quantity": "double",
+          "maxQuantity": "double",
+          "planProductUniqueId": "double",
+          "sortOrder": "double",
+          "id": "double",
+          "isRecurring": "boolean",
+          "isFixed": "boolean",
+          "isOptional": "boolean",
+          "isIncludedByDefault": "boolean",
+          "isTrackingItems": "boolean",
+          "chargeAtSubscriptionActivation": "boolean",
+          "generateZeroDollarCharge": "boolean",
+          "orderToCashCycles": {
+            "interval": "string",
+            "customServiceDateInterval": "string",
+            "customServiceDateProjection": "string",
+            "earningTimingInterval": "string",
+            "earningTimingType": "string",
+            "planFrequencyId": "double",
+            "planProductId": "double",
+            "numberOfIntervals": "double",
+            "remainingInterval": "double",
+            "customServiceDateNumberOfIntervals": "double",
+            "upliftPriorToRecharge": "boolean",
+            "includingInitialCharge": "boolean",
+            "chargeModels": [
+              {
+                "chargeModelType": "string",
+                "chargeTimingType": "string",
+                "prorationGranularity": "string",
+                "ProrateOnPositiveQuantity": "boolean"
+              }
+            ],
+            "customFields": [
+              {
+                "name": "string",
+                "defaultValue": "string"
+              }
+            ],
+            "planProductPriceUplifts": [
+              {
+                "sequenceNumber": "double",
+                "numberOfIntervals": "double",
+                "amount": "double",
+                "repeatForever": "boolean"
+              }
+            ],
+            "pricingModel": {
+              "pricingModelType": "string",
+              "quantityRanges": [
+                {
+                  "min": "double",
+                  "max": "double",
+                  "prices": [
+                    {
+                      "amount": "double",
+                      "currency": "string"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "subscriptionProductOverride": {
+          "Name": "string",
+          "Description": "string"
+        },
+        "subscriptionProductDiscount": {
+          "discountType": "string",
+          "amount": "double",
+          "remainingUsagesUntilStart": "double",
+          "remainingUsage": "double"
+        },
+        "subscriptionProductDiscounts": [
+          {
+            "discountType": "string",
+            "amount": "double",
+            "remainingUsagesUntilStart": "double",
+            "remainingUsage": "double"
+          }
+        ],
+        "customFields": [
+          {
+            "name": "string",
+            "value": "string"
+          }
+        ],
+        "earningSettings": {
+          "earningTimingInterval": "string",
+          "earningTimingType": "string"
+        },
+        "priceUplifts": [
+          {
+            "sequenceNumber": "double",
+            "numberOfIntervals": "double",
+            "remainingIntervals": "double",
+            "amount": "double",
+            "repeatForever": "boolean",
+            "upliftPriorToRecharge": "boolean"
+          }
+        ],
+        "historicalPriceUplifts": [
+          {
+            "originalAmount": "double",
+            "increasedAmount": "double",
+            "sequenceNumber": "double",
+            "numberOfIntervals": "double",
+            "amount": "double",
+            "upliftPriorToRecharge": "boolean",
+            "consumedTimestamp": "timeInstant"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Customer Billing Period Definitions",
       "suffix": "/v1/customers/{Customer ID}/billingperioddefinitions",
-      "description": "The billing periods configured for one customer. Requires a customer id. When a customer is billed, which decides which period a charge falls in."
+      "description": "The billing periods configured for one customer. Requires a customer id. When a customer is billed, which decides which period a charge falls in.",
+      "responseSchema": [
+        {
+          "cycle": "string",
+          "billingPeriodType": "string",
+          "term": "string",
+          "poNumber": "string",
+          "uri": "string",
+          "invoiceDay": "double",
+          "invoiceMonth": "double",
+          "numberOfIntervals": "double",
+          "numberOfBillingPeriods": "double",
+          "invoiceInAdvance": "double",
+          "paymentMethodId": "double",
+          "quickBooksLocationId": "double",
+          "id": "double",
+          "manuallyCreated": "boolean",
+          "autoCollect": "boolean",
+          "autoPost": "boolean",
+          "currentBillingPeriodStartDate": "timeInstant",
+          "currentBillingPeriodEndDate": "timeInstant",
+          "nextRechargeDate": "timeInstant",
+          "createdDate": "timeInstant",
+          "subscriptions": {
+            "headers": {
+              "sortExpression": "string",
+              "sortOrder": "string",
+              "count": "double",
+              "currentPage": "double",
+              "previousPage": "double",
+              "nextPage": "double",
+              "maxCount": "double",
+              "pageSize": "double",
+              "maxPageIndex": "double"
+            },
+            "results": [
+              {
+                "planCode": "string",
+                "name": "string",
+                "interval": "string",
+                "subscriptionStatus": "string",
+                "uri": "string",
+                "customerId": "double",
+                "planId": "double",
+                "numberOfInterval": "double",
+                "monthlyRecurringRevenue": "double",
+                "netMonthlyRecurringRevenue": "double",
+                "id": "double",
+                "canMigrate": "boolean",
+                "lastBillingDate": "timeInstant",
+                "nextBillingDate": "timeInstant",
+                "createdTimestamp": "timeInstant",
+                "modifiedTimestamp": "timeInstant",
+                "activatedTimestamp": "timeInstant",
+                "nextPeriodStartDate": "timeInstant"
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Subscription Billing Period Definition",
       "suffix": "/v1/BillingPeriodDefinitions/GetBySubscription/{Subscription ID}",
-      "description": "The billing period of one subscription. Requires a subscription id."
+      "description": "The billing period of one subscription. Requires a subscription id.",
+      "responseSchema": {
+        "cycle": "string",
+        "billingPeriodType": "string",
+        "term": "string",
+        "poNumber": "string",
+        "uri": "string",
+        "invoiceDay": "double",
+        "invoiceMonth": "double",
+        "numberOfIntervals": "double",
+        "numberOfBillingPeriods": "double",
+        "invoiceInAdvance": "double",
+        "paymentMethodId": "double",
+        "quickBooksLocationId": "double",
+        "id": "double",
+        "manuallyCreated": "boolean",
+        "autoCollect": "boolean",
+        "autoPost": "boolean",
+        "currentBillingPeriodStartDate": "timeInstant",
+        "currentBillingPeriodEndDate": "timeInstant",
+        "nextRechargeDate": "timeInstant",
+        "createdDate": "timeInstant",
+        "subscriptions": {
+          "headers": {
+            "sortExpression": "string",
+            "sortOrder": "string",
+            "count": "double",
+            "currentPage": "double",
+            "previousPage": "double",
+            "nextPage": "double",
+            "maxCount": "double",
+            "pageSize": "double",
+            "maxPageIndex": "double"
+          },
+          "results": [
+            {
+              "planCode": "string",
+              "name": "string",
+              "interval": "string",
+              "subscriptionStatus": "string",
+              "uri": "string",
+              "customerId": "double",
+              "planId": "double",
+              "numberOfInterval": "double",
+              "monthlyRecurringRevenue": "double",
+              "netMonthlyRecurringRevenue": "double",
+              "id": "double",
+              "canMigrate": "boolean",
+              "lastBillingDate": "timeInstant",
+              "nextBillingDate": "timeInstant",
+              "createdTimestamp": "timeInstant",
+              "modifiedTimestamp": "timeInstant",
+              "activatedTimestamp": "timeInstant",
+              "nextPeriodStartDate": "timeInstant"
+            }
+          ]
+        }
+      }
     },
     {
       "paged": "false",
       "name": "Billing Period Definition Details",
       "suffix": "/v1/BillingPeriodDefinitions/{Billing Period Definition ID}",
-      "description": "One billing period definition by id, with its start, end and cycle."
+      "description": "One billing period definition by id, with its start, end and cycle.",
+      "responseSchema": {
+        "cycle": "string",
+        "billingPeriodType": "string",
+        "term": "string",
+        "poNumber": "string",
+        "uri": "string",
+        "invoiceDay": "double",
+        "invoiceMonth": "double",
+        "numberOfIntervals": "double",
+        "numberOfBillingPeriods": "double",
+        "invoiceInAdvance": "double",
+        "paymentMethodId": "double",
+        "quickBooksLocationId": "double",
+        "id": "double",
+        "manuallyCreated": "boolean",
+        "autoCollect": "boolean",
+        "autoPost": "boolean",
+        "currentBillingPeriodStartDate": "timeInstant",
+        "currentBillingPeriodEndDate": "timeInstant",
+        "nextRechargeDate": "timeInstant",
+        "createdDate": "timeInstant",
+        "subscriptions": {
+          "headers": {
+            "sortExpression": "string",
+            "sortOrder": "string",
+            "count": "double",
+            "currentPage": "double",
+            "previousPage": "double",
+            "nextPage": "double",
+            "maxCount": "double",
+            "pageSize": "double",
+            "maxPageIndex": "double"
+          },
+          "results": [
+            {
+              "planCode": "string",
+              "name": "string",
+              "interval": "string",
+              "subscriptionStatus": "string",
+              "uri": "string",
+              "customerId": "double",
+              "planId": "double",
+              "numberOfInterval": "double",
+              "monthlyRecurringRevenue": "double",
+              "netMonthlyRecurringRevenue": "double",
+              "id": "double",
+              "canMigrate": "boolean",
+              "lastBillingDate": "timeInstant",
+              "nextBillingDate": "timeInstant",
+              "createdTimestamp": "timeInstant",
+              "modifiedTimestamp": "timeInstant",
+              "activatedTimestamp": "timeInstant",
+              "nextPeriodStartDate": "timeInstant"
+            }
+          ]
+        }
+      }
     },
     {
       "paged": "true",
       "name": "Coupons",
       "suffix": "/v1/Coupons?query={Query?:parameterName:value}",
-      "description": "The coupons defined, filterable by query. Campaign-level discounting, as opposed to per-purchase discounts."
+      "description": "The coupons defined, filterable by query. Campaign-level discounting, as opposed to per-purchase discounts.",
+      "responseSchema": [
+        {
+          "discounts": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "eligibilities": [
+            {
+              "startDate": "timeInstant",
+              "endDate": "timeInstant",
+              "discounts": [
+                {
+                  "id": "double",
+                  "uri": "string"
+                }
+              ]
+            }
+          ],
+          "plans": [
+            {
+              "applyToAllProducts": "boolean",
+              "planProducts": [
+                {
+                  "planProductId": "double",
+                  "uri": "string"
+                }
+              ],
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "name": "string",
+          "description": "string",
+          "status": "string",
+          "uri": "string",
+          "id": "double",
+          "applyToAllPlans": "boolean",
+          "eligibilityStartDate": "timeInstant",
+          "eligibilityEndDate": "timeInstant",
+          "couponCodes": [
+            {
+              "code": "string",
+              "timesUsed": "double",
+              "remainingUsages": "double"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Coupon",
       "suffix": "/v1/Coupons/{Coupon ID}",
-      "description": "One coupon by id, with its redemption terms."
+      "description": "One coupon by id, with its redemption terms.",
+      "responseSchema": {
+        "discounts": [
+          {
+            "id": "double",
+            "uri": "string"
+          }
+        ],
+        "eligibilities": [
+          {
+            "startDate": "timeInstant",
+            "endDate": "timeInstant",
+            "discounts": [
+              {
+                "id": "double",
+                "uri": "string"
+              }
+            ]
+          }
+        ],
+        "plans": [
+          {
+            "applyToAllProducts": "boolean",
+            "planProducts": [
+              {
+                "planProductId": "double",
+                "uri": "string"
+              }
+            ],
+            "id": "double",
+            "uri": "string"
+          }
+        ],
+        "name": "string",
+        "description": "string",
+        "status": "string",
+        "uri": "string",
+        "id": "double",
+        "applyToAllPlans": "boolean",
+        "eligibilityStartDate": "timeInstant",
+        "eligibilityEndDate": "timeInstant",
+        "couponCodes": [
+          {
+            "code": "string",
+            "timesUsed": "double",
+            "remainingUsages": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Subscription Scheduled Migrations",
       "suffix": "/v1/subscriptions/{Subscription ID}/migrate",
-      "description": "The plan changes already scheduled for one subscription. Requires a subscription id. FORWARD-LOOKING: the subscription shows today's plan, so a revenue projection that ignores this misses committed upgrades and downgrades."
+      "description": "The plan changes already scheduled for one subscription. Requires a subscription id. FORWARD-LOOKING: the subscription shows today's plan, so a revenue projection that ignores this misses committed upgrades and downgrades.",
+      "responseSchema": {
+        "earningOption": "string",
+        "nameOverrideOption": "string",
+        "descriptionOverrideOption": "string",
+        "referenceOption": "string",
+        "expiryOption": "string",
+        "contractStartOption": "string",
+        "contractEndOption": "string",
+        "migrationTimingOption": "string",
+        "uri": "string",
+        "customerId": "double",
+        "planFamilyId": "double",
+        "planFamilyRelationshipId": "double",
+        "planFrequencyId": "double",
+        "id": "double",
+        "scheduledMigrationDate": "timeInstant",
+        "planFamilyRelationship": {
+          "relationshipMigrationType": "string",
+          "sourceLabel": "string",
+          "destinationLabel": "string",
+          "earningOption": "string",
+          "nameOverrideOption": "string",
+          "descriptionOverrideOption": "string",
+          "referenceOption": "string",
+          "customFieldsOption": "string",
+          "expiryOption": "string",
+          "contractStartOption": "string",
+          "contractEndOption": "string",
+          "uri": "string",
+          "planFamilyId": "double",
+          "sourcePlanId": "double",
+          "sourcePlanFrequencyId": "double",
+          "destinationPlanId": "double",
+          "destinationPlanFrequencyId": "double",
+          "id": "double",
+          "availableOnSsp": "boolean"
+        },
+        "planFamily": {
+          "code": "string",
+          "name": "string",
+          "description": "string",
+          "earningOption": "string",
+          "nameOverrideOption": "string",
+          "descriptionOverrideOption": "string",
+          "referenceOption": "string",
+          "expiryOption": "string",
+          "contractStartOption": "string",
+          "contractEndOption": "string",
+          "uri": "string",
+          "id": "double"
+        }
+      }
     },
     {
       "paged": "true",
       "name": "Purchases by Product",
       "suffix": "/v1/Purchases/GetByProductId?id={Product ID}&query={Query?:parameterName:value}",
-      "description": "The purchases of one product across customers. Requires a product id. Which customers bought a given item."
+      "description": "The purchases of one product across customers. Requires a product id. Which customers bought a given item.",
+      "responseSchema": [
+        {
+          "code": "string",
+          "salesforceId": "string",
+          "netsuiteLocationId": "string",
+          "name": "string",
+          "description": "string",
+          "status": "string",
+          "pricingModelType": "string",
+          "uri": "string",
+          "customerId": "double",
+          "accountId": "double",
+          "taxableAmount": "double",
+          "amount": "double",
+          "productId": "double",
+          "quantity": "double",
+          "targetOrderQuantity": "double",
+          "id": "double",
+          "isTrackingItems": "boolean",
+          "effectiveTimestamp": "timeInstant",
+          "modifiedTimestamp": "timeInstant",
+          "customFields": [
+            {
+              "name": "string",
+              "value": "string"
+            }
+          ],
+          "discounts": [
+            {
+              "discountType": "string",
+              "uri": "string",
+              "purchaseId": "double",
+              "amount": "double",
+              "id": "double"
+            }
+          ],
+          "priceRanges": [
+            {
+              "min": "double",
+              "max": "double",
+              "amount": "double"
+            }
+          ],
+          "productItems": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "couponCodes": [
+            "string"
+          ],
+          "earningSettings": {
+            "earningInterval": "string",
+            "earningTimingInterval": "string",
+            "earningTimingType": "string",
+            "earningNumberOfIntervals": "double"
+          }
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Purchases by Customer",
       "suffix": "/v1/Customers/{Customer ID}/Purchases?query={Query?:field:queryString}",
-      "description": "The one-off purchases of one customer, filterable by query. Requires a customer id. Non-recurring revenue, which the subscription tables do not represent -- a total that counts only subscriptions understates what a customer paid."
+      "description": "The one-off purchases of one customer, filterable by query. Requires a customer id. Non-recurring revenue, which the subscription tables do not represent -- a total that counts only subscriptions understates what a customer paid.",
+      "responseSchema": [
+        {
+          "code": "string",
+          "salesforceId": "string",
+          "netsuiteLocationId": "string",
+          "name": "string",
+          "description": "string",
+          "status": "string",
+          "pricingModelType": "string",
+          "uri": "string",
+          "customerId": "double",
+          "accountId": "double",
+          "taxableAmount": "double",
+          "amount": "double",
+          "productId": "double",
+          "quantity": "double",
+          "targetOrderQuantity": "double",
+          "id": "double",
+          "isTrackingItems": "boolean",
+          "effectiveTimestamp": "timeInstant",
+          "modifiedTimestamp": "timeInstant",
+          "customFields": [
+            {
+              "name": "string",
+              "value": "string"
+            }
+          ],
+          "discounts": [
+            {
+              "discountType": "string",
+              "uri": "string",
+              "purchaseId": "double",
+              "amount": "double",
+              "id": "double"
+            }
+          ],
+          "priceRanges": [
+            {
+              "min": "double",
+              "max": "double",
+              "amount": "double"
+            }
+          ],
+          "productItems": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "couponCodes": [
+            "string"
+          ],
+          "earningSettings": {
+            "earningInterval": "string",
+            "earningTimingInterval": "string",
+            "earningTimingType": "string",
+            "earningNumberOfIntervals": "double"
+          }
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Purchase",
       "suffix": "/v1/Purchases/{Purchase ID}",
-      "description": "One purchase by id, with its items."
+      "description": "One purchase by id, with its items.",
+      "responseSchema": {
+        "code": "string",
+        "salesforceId": "string",
+        "netsuiteLocationId": "string",
+        "name": "string",
+        "description": "string",
+        "status": "string",
+        "pricingModelType": "string",
+        "uri": "string",
+        "customerId": "double",
+        "accountId": "double",
+        "taxableAmount": "double",
+        "amount": "double",
+        "productId": "double",
+        "quantity": "double",
+        "targetOrderQuantity": "double",
+        "id": "double",
+        "isTrackingItems": "boolean",
+        "effectiveTimestamp": "timeInstant",
+        "modifiedTimestamp": "timeInstant",
+        "customFields": [
+          {
+            "name": "string",
+            "value": "string"
+          }
+        ],
+        "discounts": [
+          {
+            "discountType": "string",
+            "uri": "string",
+            "purchaseId": "double",
+            "amount": "double",
+            "id": "double"
+          }
+        ],
+        "priceRanges": [
+          {
+            "min": "double",
+            "max": "double",
+            "amount": "double"
+          }
+        ],
+        "productItems": [
+          {
+            "id": "double",
+            "uri": "string"
+          }
+        ],
+        "couponCodes": [
+          "string"
+        ],
+        "earningSettings": {
+          "earningInterval": "string",
+          "earningTimingInterval": "string",
+          "earningTimingType": "string",
+          "earningNumberOfIntervals": "double"
+        }
+      }
     },
     {
       "paged": "false",
       "name": "Purchase Discount",
       "suffix": "/v1/PurchaseDiscounts/{Purchase Discount ID}",
-      "description": "One discount applied to a purchase, by id."
+      "description": "One discount applied to a purchase, by id.",
+      "responseSchema": {
+        "discountType": "string",
+        "uri": "string",
+        "purchaseId": "double",
+        "amount": "double",
+        "id": "double"
+      }
     },
     {
       "paged": "true",
       "name": "Tracked Items",
       "suffix": "/v1/ProductItems?query={Query?:parameterName:Value}",
-      "description": "The item types tracked for quantity-based billing -- seats, users, devices. The unit definitions behind usage counts."
+      "description": "The item types tracked for quantity-based billing -- seats, users, devices. The unit definitions behind usage counts.",
+      "responseSchema": [
+        {
+          "reference": "string",
+          "name": "string",
+          "description": "string",
+          "status": "string",
+          "uri": "string",
+          "purchaseId": "double",
+          "subscriptionProductId": "double",
+          "subscriptionId": "double",
+          "customerId": "double",
+          "productId": "double",
+          "id": "double",
+          "createdDate": "timeInstant",
+          "modifiedDate": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Subscription Product Items",
       "suffix": "/v1/subscriptionProducts/{Subscription Product ID}/items?query={Query?:parameterName:value}",
-      "description": "The tracked items within one subscription product. Requires a subscription product id. The unit level -- seats, licences, devices -- that quantity-based billing counts."
+      "description": "The tracked items within one subscription product. Requires a subscription product id. The unit level -- seats, licences, devices -- that quantity-based billing counts.",
+      "responseSchema": [
+        {
+          "reference": "string",
+          "name": "string",
+          "description": "string",
+          "status": "string",
+          "uri": "string",
+          "purchaseId": "double",
+          "subscriptionProductId": "double",
+          "subscriptionId": "double",
+          "customerId": "double",
+          "productId": "double",
+          "id": "double",
+          "createdDate": "timeInstant",
+          "modifiedDate": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Subscription Product Item",
       "suffix": "/v1/subscriptionproductitems/{Subscription Product Item ID}",
-      "description": "One subscription product item by id."
+      "description": "One subscription product item by id.",
+      "responseSchema": {
+        "reference": "string",
+        "name": "string",
+        "description": "string",
+        "status": "string",
+        "uri": "string",
+        "purchaseId": "double",
+        "subscriptionProductId": "double",
+        "subscriptionId": "double",
+        "customerId": "double",
+        "productId": "double",
+        "id": "double",
+        "createdDate": "timeInstant",
+        "modifiedDate": "timeInstant"
+      }
     },
     {
       "paged": "false",
       "name": "Purchase Product Item",
       "suffix": "/v1/purchaseProductItems/{Purchase Product Item ID}",
-      "description": "One purchased item by id."
+      "description": "One purchased item by id.",
+      "responseSchema": {
+        "reference": "string",
+        "name": "string",
+        "description": "string",
+        "status": "string",
+        "uri": "string",
+        "purchaseId": "double",
+        "subscriptionProductId": "double",
+        "subscriptionId": "double",
+        "customerId": "double",
+        "productId": "double",
+        "id": "double",
+        "createdDate": "timeInstant",
+        "modifiedDate": "timeInstant"
+      }
     },
     {
       "paged": "false",
       "name": "Related Statuses",
       "suffix": "/v1/SubscriptionProductItemStatuses?reference={Reference}&parentId={Product ID}",
-      "description": "The statuses a subscription product item can hold, by reference. The decoder for an item's status."
+      "description": "The statuses a subscription product item can hold, by reference. The decoder for an item's status.",
+      "responseSchema": {
+        "subscriptionStatus": "string",
+        "customerStatus": "string",
+        "customerAccountingStatus": "string",
+        "uri": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Sales Tracking Code by Type",
       "suffix": "/v1/salesTrackingCodes/{Type:Sales Tracking Code 1|Sales Tracking Code 2|...}",
-      "description": "The sales tracking codes of one type. Fusebill offers several free-form tracking code slots, which is where an account records campaign, region or rep attribution -- and their meaning is entirely account-specific."
+      "description": "The sales tracking codes of one type. Fusebill offers several free-form tracking code slots, which is where an account records campaign, region or rep attribution -- and their meaning is entirely account-specific.",
+      "responseSchema": [
+        {
+          "type": "string",
+          "code": "string",
+          "name": "string",
+          "description": "string",
+          "email": "string",
+          "status": "string",
+          "uri": "string",
+          "id": "double",
+          "deletable": "boolean"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Sales Tracking Code by Type and Code",
       "suffix": "/v1/SalesTrackingCodes?type={Type:Sales Tracking Code 1|Sales Tracking Code 2|...}&code={Code?}",
-      "description": "One tracking code by its type and value."
+      "description": "One tracking code by its type and value.",
+      "responseSchema": {
+        "type": "string",
+        "code": "string",
+        "name": "string",
+        "description": "string",
+        "email": "string",
+        "status": "string",
+        "uri": "string",
+        "id": "double",
+        "deletable": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Payment Details",
       "suffix": "/v1/payments/{Payment ID}",
-      "description": "One payment by id, with its method, amount and outcome."
+      "description": "One payment by id, with its method, amount and outcome.",
+      "responseSchema": {
+        "reference": "string",
+        "currency": "string",
+        "uri": "string",
+        "paymentActivityId": "double",
+        "customerId": "double",
+        "amount": "double",
+        "unallocatedAmount": "double",
+        "refundableAmount": "double",
+        "gatewayFee": "double",
+        "id": "double",
+        "effectiveTimestamp": "timeInstant",
+        "invoiceAllocations": [
+          {
+            "netsuiteId": "string",
+            "uri": "string",
+            "invoiceId": "double",
+            "invoiceNumber": "double",
+            "amount": "double",
+            "outstandingBalance": "double",
+            "invoiceTotal": "double",
+            "quickBooksId": "double"
+          }
+        ],
+        "refunds": [
+          {
+            "reference": "string",
+            "description": "string",
+            "currency": "string",
+            "uri": "string",
+            "paymentActivityId": "double",
+            "customerId": "double",
+            "originalPaymentActivityId": "double",
+            "amount": "double",
+            "gatewayFee": "double",
+            "id": "double",
+            "effectiveTimestamp": "timeInstant",
+            "invoiceAllocations": [
+              {
+                "netsuiteId": "string",
+                "uri": "string",
+                "invoiceId": "double",
+                "invoiceNumber": "double",
+                "amount": "double",
+                "outstandingBalance": "double",
+                "invoiceTotal": "double",
+                "quickBooksId": "double"
+              }
+            ],
+            "settlement": {
+              "status": "string",
+              "message": "string",
+              "modifiedTimestamp": "timeInstant",
+              "lastCheckedTimestamp": "timeInstant",
+              "nextCheckTimestamp": "timeInstant"
+            }
+          }
+        ],
+        "settlement": {
+          "status": "string",
+          "message": "string",
+          "modifiedTimestamp": "timeInstant",
+          "lastCheckedTimestamp": "timeInstant",
+          "nextCheckTimestamp": "timeInstant"
+        }
+      }
     },
     {
       "paged": "true",
       "name": "Customer Payment Activities",
       "suffix": "/v1/customers/{Customer ID}/paymentactivities?query={Query?:parameterName:value}",
-      "description": "The payment activity of one customer. Requires a customer id."
+      "description": "The payment activity of one customer. Requires a customer id.",
+      "responseSchema": [
+        {
+          "status": "string",
+          "source": "string",
+          "method": "string",
+          "transactionType": "string",
+          "currency": "string",
+          "reconciliationId": "string",
+          "uri": "string",
+          "customerId": "double",
+          "amount": "double",
+          "gatewayFee": "double",
+          "parentCustomerId": "double",
+          "id": "double",
+          "methodIsAch": "boolean",
+          "effectiveTimestamp": "timeInstant",
+          "createdTimestamp": "timeInstant",
+          "transaction": {
+            "reference": "string",
+            "currency": "string",
+            "uri": "string",
+            "paymentActivityId": "double",
+            "customerId": "double",
+            "amount": "double",
+            "unallocatedAmount": "double",
+            "refundableAmount": "double",
+            "gatewayFee": "double",
+            "id": "double",
+            "effectiveTimestamp": "timeInstant",
+            "invoiceAllocations": [
+              {
+                "netsuiteId": "string",
+                "uri": "string",
+                "invoiceId": "double",
+                "invoiceNumber": "double",
+                "amount": "double",
+                "outstandingBalance": "double",
+                "invoiceTotal": "double",
+                "quickBooksId": "double"
+              }
+            ],
+            "refunds": [
+              {
+                "reference": "string",
+                "description": "string",
+                "currency": "string",
+                "uri": "string",
+                "paymentActivityId": "double",
+                "customerId": "double",
+                "originalPaymentActivityId": "double",
+                "amount": "double",
+                "gatewayFee": "double",
+                "id": "double",
+                "effectiveTimestamp": "timeInstant",
+                "invoiceAllocations": [
+                  {
+                    "netsuiteId": "string",
+                    "uri": "string",
+                    "invoiceId": "double",
+                    "invoiceNumber": "double",
+                    "amount": "double",
+                    "outstandingBalance": "double",
+                    "invoiceTotal": "double",
+                    "quickBooksId": "double"
+                  }
+                ],
+                "settlement": {
+                  "status": "string",
+                  "message": "string",
+                  "modifiedTimestamp": "timeInstant",
+                  "lastCheckedTimestamp": "timeInstant",
+                  "nextCheckTimestamp": "timeInstant"
+                }
+              }
+            ],
+            "settlement": {
+              "status": "string",
+              "message": "string",
+              "modifiedTimestamp": "timeInstant",
+              "lastCheckedTimestamp": "timeInstant",
+              "nextCheckTimestamp": "timeInstant"
+            }
+          }
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Payment Activities",
       "suffix": "/v1/PaymentActivities/GetByAccountID?query={Query?:parameterName:value}",
-      "description": "Payment activity across the account, filterable by query. The transaction log: attempts, successes and failures. FAILED PAYMENTS ARE HERE AND NOT ON THE INVOICE, which is where involuntary churn is diagnosed."
+      "description": "Payment activity across the account, filterable by query. The transaction log: attempts, successes and failures. FAILED PAYMENTS ARE HERE AND NOT ON THE INVOICE, which is where involuntary churn is diagnosed.",
+      "responseSchema": [
+        {
+          "status": "string",
+          "source": "string",
+          "method": "string",
+          "transactionType": "string",
+          "currency": "string",
+          "reconciliationId": "string",
+          "uri": "string",
+          "customerId": "double",
+          "amount": "double",
+          "gatewayFee": "double",
+          "parentCustomerId": "double",
+          "id": "double",
+          "methodIsAch": "boolean",
+          "effectiveTimestamp": "timeInstant",
+          "createdTimestamp": "timeInstant",
+          "transaction": {
+            "reference": "string",
+            "currency": "string",
+            "uri": "string",
+            "paymentActivityId": "double",
+            "customerId": "double",
+            "amount": "double",
+            "unallocatedAmount": "double",
+            "refundableAmount": "double",
+            "gatewayFee": "double",
+            "id": "double",
+            "effectiveTimestamp": "timeInstant",
+            "invoiceAllocations": [
+              {
+                "netsuiteId": "string",
+                "uri": "string",
+                "invoiceId": "double",
+                "invoiceNumber": "double",
+                "amount": "double",
+                "outstandingBalance": "double",
+                "invoiceTotal": "double",
+                "quickBooksId": "double"
+              }
+            ],
+            "refunds": [
+              {
+                "reference": "string",
+                "description": "string",
+                "currency": "string",
+                "uri": "string",
+                "paymentActivityId": "double",
+                "customerId": "double",
+                "originalPaymentActivityId": "double",
+                "amount": "double",
+                "gatewayFee": "double",
+                "id": "double",
+                "effectiveTimestamp": "timeInstant",
+                "invoiceAllocations": [
+                  {
+                    "netsuiteId": "string",
+                    "uri": "string",
+                    "invoiceId": "double",
+                    "invoiceNumber": "double",
+                    "amount": "double",
+                    "outstandingBalance": "double",
+                    "invoiceTotal": "double",
+                    "quickBooksId": "double"
+                  }
+                ],
+                "settlement": {
+                  "status": "string",
+                  "message": "string",
+                  "modifiedTimestamp": "timeInstant",
+                  "lastCheckedTimestamp": "timeInstant",
+                  "nextCheckTimestamp": "timeInstant"
+                }
+              }
+            ],
+            "settlement": {
+              "status": "string",
+              "message": "string",
+              "modifiedTimestamp": "timeInstant",
+              "lastCheckedTimestamp": "timeInstant",
+              "nextCheckTimestamp": "timeInstant"
+            }
+          }
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Child Payment Activities",
       "suffix": "/v1/customers/{Customer ID}/childPaymentActivities?query={Query?:field:querystring}",
-      "description": "The payment activity of a customer's child accounts. Requires the parent customer id. Where a parent pays for children, revenue read at the parent alone misattributes it."
+      "description": "The payment activity of a customer's child accounts. Requires the parent customer id. Where a parent pays for children, revenue read at the parent alone misattributes it.",
+      "responseSchema": [
+        {
+          "status": "string",
+          "source": "string",
+          "method": "string",
+          "transactionType": "string",
+          "currency": "string",
+          "reconciliationId": "string",
+          "uri": "string",
+          "customerId": "double",
+          "amount": "double",
+          "gatewayFee": "double",
+          "parentCustomerId": "double",
+          "id": "double",
+          "methodIsAch": "boolean",
+          "effectiveTimestamp": "timeInstant",
+          "createdTimestamp": "timeInstant",
+          "transaction": {
+            "reference": "string",
+            "currency": "string",
+            "uri": "string",
+            "paymentActivityId": "double",
+            "customerId": "double",
+            "amount": "double",
+            "unallocatedAmount": "double",
+            "refundableAmount": "double",
+            "gatewayFee": "double",
+            "id": "double",
+            "effectiveTimestamp": "timeInstant",
+            "invoiceAllocations": [
+              {
+                "netsuiteId": "string",
+                "uri": "string",
+                "invoiceId": "double",
+                "invoiceNumber": "double",
+                "amount": "double",
+                "outstandingBalance": "double",
+                "invoiceTotal": "double",
+                "quickBooksId": "double"
+              }
+            ],
+            "refunds": [
+              {
+                "reference": "string",
+                "description": "string",
+                "currency": "string",
+                "uri": "string",
+                "paymentActivityId": "double",
+                "customerId": "double",
+                "originalPaymentActivityId": "double",
+                "amount": "double",
+                "gatewayFee": "double",
+                "id": "double",
+                "effectiveTimestamp": "timeInstant",
+                "invoiceAllocations": [
+                  {
+                    "netsuiteId": "string",
+                    "uri": "string",
+                    "invoiceId": "double",
+                    "invoiceNumber": "double",
+                    "amount": "double",
+                    "outstandingBalance": "double",
+                    "invoiceTotal": "double",
+                    "quickBooksId": "double"
+                  }
+                ],
+                "settlement": {
+                  "status": "string",
+                  "message": "string",
+                  "modifiedTimestamp": "timeInstant",
+                  "lastCheckedTimestamp": "timeInstant",
+                  "nextCheckTimestamp": "timeInstant"
+                }
+              }
+            ],
+            "settlement": {
+              "status": "string",
+              "message": "string",
+              "modifiedTimestamp": "timeInstant",
+              "lastCheckedTimestamp": "timeInstant",
+              "nextCheckTimestamp": "timeInstant"
+            }
+          }
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Payment Activity",
       "suffix": "/v1/PaymentActivities/{Payment Activity ID}",
-      "description": "One payment activity by id, with its gateway response."
+      "description": "One payment activity by id, with its gateway response.",
+      "responseSchema": {
+        "status": "string",
+        "source": "string",
+        "method": "string",
+        "transactionType": "string",
+        "currency": "string",
+        "reconciliationId": "string",
+        "uri": "string",
+        "customerId": "double",
+        "amount": "double",
+        "gatewayFee": "double",
+        "parentCustomerId": "double",
+        "id": "double",
+        "methodIsAch": "boolean",
+        "effectiveTimestamp": "timeInstant",
+        "createdTimestamp": "timeInstant",
+        "transaction": {
+          "reference": "string",
+          "currency": "string",
+          "uri": "string",
+          "paymentActivityId": "double",
+          "customerId": "double",
+          "amount": "double",
+          "unallocatedAmount": "double",
+          "refundableAmount": "double",
+          "gatewayFee": "double",
+          "id": "double",
+          "effectiveTimestamp": "timeInstant",
+          "invoiceAllocations": [
+            {
+              "netsuiteId": "string",
+              "uri": "string",
+              "invoiceId": "double",
+              "invoiceNumber": "double",
+              "amount": "double",
+              "outstandingBalance": "double",
+              "invoiceTotal": "double",
+              "quickBooksId": "double"
+            }
+          ],
+          "refunds": [
+            {
+              "reference": "string",
+              "description": "string",
+              "currency": "string",
+              "uri": "string",
+              "paymentActivityId": "double",
+              "customerId": "double",
+              "originalPaymentActivityId": "double",
+              "amount": "double",
+              "gatewayFee": "double",
+              "id": "double",
+              "effectiveTimestamp": "timeInstant",
+              "invoiceAllocations": [
+                {
+                  "netsuiteId": "string",
+                  "uri": "string",
+                  "invoiceId": "double",
+                  "invoiceNumber": "double",
+                  "amount": "double",
+                  "outstandingBalance": "double",
+                  "invoiceTotal": "double",
+                  "quickBooksId": "double"
+                }
+              ],
+              "settlement": {
+                "status": "string",
+                "message": "string",
+                "modifiedTimestamp": "timeInstant",
+                "lastCheckedTimestamp": "timeInstant",
+                "nextCheckTimestamp": "timeInstant"
+              }
+            }
+          ],
+          "settlement": {
+            "status": "string",
+            "message": "string",
+            "modifiedTimestamp": "timeInstant",
+            "lastCheckedTimestamp": "timeInstant",
+            "nextCheckTimestamp": "timeInstant"
+          }
+        }
+      }
     },
     {
       "paged": "false",
       "name": "Refund",
       "suffix": "/v1/Refunds/{Transaction ID}",
-      "description": "One refund by transaction id."
+      "description": "One refund by transaction id.",
+      "responseSchema": {
+        "reference": "string",
+        "description": "string",
+        "currency": "string",
+        "uri": "string",
+        "paymentActivityId": "double",
+        "customerId": "double",
+        "originalPaymentActivityId": "double",
+        "amount": "double",
+        "gatewayFee": "double",
+        "id": "double",
+        "effectiveTimestamp": "timeInstant",
+        "invoiceAllocations": [
+          {
+            "netsuiteId": "string",
+            "uri": "string",
+            "invoiceId": "double",
+            "invoiceNumber": "double",
+            "amount": "double",
+            "outstandingBalance": "double",
+            "invoiceTotal": "double",
+            "quickBooksId": "double"
+          }
+        ],
+        "settlement": {
+          "status": "string",
+          "message": "string",
+          "modifiedTimestamp": "timeInstant",
+          "lastCheckedTimestamp": "timeInstant",
+          "nextCheckTimestamp": "timeInstant"
+        }
+      }
     },
     {
       "paged": "true",
       "name": "Payment Methods",
       "suffix": "/v1/customers/{Customer ID}/paymentMethods/all?query={Query?:parameterName:value}",
-      "description": "All payment methods on file for one customer. Requires a customer id."
+      "description": "All payment methods on file for one customer. Requires a customer id.",
+      "responseSchema": {
+        "creditCards": [
+          {
+            "maskedCardNumber": "string",
+            "cardType": "string",
+            "firstName": "string",
+            "lastName": "string",
+            "address1": "string",
+            "address2": "string",
+            "country": "string",
+            "state": "string",
+            "city": "string",
+            "postalZip": "string",
+            "externalCustomerId": "string",
+            "externalCardId": "string",
+            "email": "string",
+            "originalPaymentMethodId": "string",
+            "uri": "string",
+            "expirationMonth": "double",
+            "expirationYear": "double",
+            "customerId": "double",
+            "countryId": "double",
+            "stateId": "double",
+            "id": "double",
+            "isDefault": "boolean",
+            "storedInFusebillVault": "boolean",
+            "isUsedForBillingPeriodOverride": "boolean",
+            "modifiedDate": "timeInstant"
+          }
+        ],
+        "achCards": [
+          {
+            "maskedAccountNumber": "string",
+            "maskedTransitNumber": "string",
+            "bankAccountType": "string",
+            "firstName": "string",
+            "lastName": "string",
+            "address1": "string",
+            "address2": "string",
+            "country": "string",
+            "state": "string",
+            "city": "string",
+            "postalZip": "string",
+            "externalCustomerId": "string",
+            "externalCardId": "string",
+            "email": "string",
+            "originalPaymentMethodId": "string",
+            "uri": "string",
+            "customerId": "double",
+            "countryId": "double",
+            "stateId": "double",
+            "id": "double",
+            "isDefault": "boolean",
+            "storedInFusebillVault": "boolean",
+            "isUsedForBillingPeriodOverride": "boolean",
+            "modifiedDate": "timeInstant"
+          }
+        ],
+        "paypalBillingAgreements": [
+          {
+            "id": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Credit Card Payment Methods",
       "suffix": "/v1/customers/{Customer ID}/paymentMethods/creditCard?query={Query?:field:queryString}",
-      "description": "The cards on file for one customer, with expiry and last four digits. Requires a customer id. AN EXPIRING CARD IS THE COMMONEST CAUSE OF INVOLUNTARY CHURN, and the expiry here is the only place it can be anticipated."
+      "description": "The cards on file for one customer, with expiry and last four digits. Requires a customer id. AN EXPIRING CARD IS THE COMMONEST CAUSE OF INVOLUNTARY CHURN, and the expiry here is the only place it can be anticipated.",
+      "responseSchema": [
+        {
+          "maskedCardNumber": "string",
+          "cardType": "string",
+          "firstName": "string",
+          "lastName": "string",
+          "address1": "string",
+          "address2": "string",
+          "country": "string",
+          "state": "string",
+          "city": "string",
+          "postalZip": "string",
+          "externalCustomerId": "string",
+          "externalCardId": "string",
+          "email": "string",
+          "originalPaymentMethodId": "string",
+          "uri": "string",
+          "expirationMonth": "double",
+          "expirationYear": "double",
+          "customerId": "double",
+          "countryId": "double",
+          "stateId": "double",
+          "id": "double",
+          "isDefault": "boolean",
+          "storedInFusebillVault": "boolean",
+          "isUsedForBillingPeriodOverride": "boolean",
+          "modifiedDate": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Credit Card Payment Method",
       "suffix": "/v1/paymentMethods/{Payment Method ID}/creditCard",
-      "description": "One card payment method by id."
+      "description": "One card payment method by id.",
+      "responseSchema": {
+        "maskedCardNumber": "string",
+        "cardType": "string",
+        "firstName": "string",
+        "lastName": "string",
+        "address1": "string",
+        "address2": "string",
+        "country": "string",
+        "state": "string",
+        "city": "string",
+        "postalZip": "string",
+        "externalCustomerId": "string",
+        "externalCardId": "string",
+        "email": "string",
+        "originalPaymentMethodId": "string",
+        "uri": "string",
+        "expirationMonth": "double",
+        "expirationYear": "double",
+        "customerId": "double",
+        "countryId": "double",
+        "stateId": "double",
+        "id": "double",
+        "isDefault": "boolean",
+        "storedInFusebillVault": "boolean",
+        "isUsedForBillingPeriodOverride": "boolean",
+        "modifiedDate": "timeInstant"
+      }
     },
     {
       "paged": "true",
       "name": "ACH Payment Methods",
       "suffix": "/v1/customers/{Customer ID}/paymentMethods/achCard?query={Query?:parameterName:Value}",
-      "description": "The bank-draft payment methods on file for one customer. Requires a customer id. ACH fails differently from cards -- later and for different reasons -- so the two are worth separating in any failure analysis."
+      "description": "The bank-draft payment methods on file for one customer. Requires a customer id. ACH fails differently from cards -- later and for different reasons -- so the two are worth separating in any failure analysis.",
+      "responseSchema": [
+        {
+          "maskedAccountNumber": "string",
+          "maskedTransitNumber": "string",
+          "bankAccountType": "string",
+          "firstName": "string",
+          "lastName": "string",
+          "address1": "string",
+          "address2": "string",
+          "country": "string",
+          "state": "string",
+          "city": "string",
+          "postalZip": "string",
+          "externalCustomerId": "string",
+          "externalCardId": "string",
+          "email": "string",
+          "originalPaymentMethodId": "string",
+          "uri": "string",
+          "customerId": "double",
+          "countryId": "double",
+          "stateId": "double",
+          "id": "double",
+          "isDefault": "boolean",
+          "storedInFusebillVault": "boolean",
+          "isUsedForBillingPeriodOverride": "boolean",
+          "modifiedDate": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "ACH Payment Method",
       "suffix": "/v1/paymentMethods/{Payment Method ID}/achCard",
-      "description": "One ACH payment method by id."
+      "description": "One ACH payment method by id.",
+      "responseSchema": {
+        "maskedAccountNumber": "string",
+        "maskedTransitNumber": "string",
+        "bankAccountType": "string",
+        "firstName": "string",
+        "lastName": "string",
+        "address1": "string",
+        "address2": "string",
+        "country": "string",
+        "state": "string",
+        "city": "string",
+        "postalZip": "string",
+        "externalCustomerId": "string",
+        "externalCardId": "string",
+        "email": "string",
+        "originalPaymentMethodId": "string",
+        "uri": "string",
+        "customerId": "double",
+        "countryId": "double",
+        "stateId": "double",
+        "id": "double",
+        "isDefault": "boolean",
+        "storedInFusebillVault": "boolean",
+        "isUsedForBillingPeriodOverride": "boolean",
+        "modifiedDate": "timeInstant"
+      }
     },
     {
       "paged": "true",
       "name": "AR Activities",
       "suffix": "/v1/aractivities?query={Query?:startDate:yyyy-MM-dd;endDate:yyyy-MM-dd}",
-      "description": "Accounts receivable activity over a date range -- invoices raised, payments received, credits applied. The ledger view of what customers owe and have paid."
+      "description": "Accounts receivable activity over a date range -- invoices raised, payments received, credits applied. The ledger view of what customers owe and have paid.",
+      "responseSchema": [
+        {
+          "transactionType": "string",
+          "name": "string",
+          "description": "string",
+          "productCode": "string",
+          "reference": "string",
+          "manualReference": "string",
+          "glCode": "string",
+          "uri": "string",
+          "paymentActivityId": "double",
+          "quantity": "double",
+          "unitPrice": "double",
+          "arDebit": "double",
+          "arCredit": "double",
+          "associatedId": "double",
+          "id": "double",
+          "fusebillId": "double",
+          "customerId": "double",
+          "effectiveTimestamp": "timeInstant",
+          "invoiceAllocations": [
+            {
+              "netsuiteId": "string",
+              "uri": "string",
+              "invoiceId": "double",
+              "invoiceNumber": "double",
+              "amount": "double",
+              "outstandingBalance": "double",
+              "invoiceTotal": "double",
+              "quickBooksId": "double"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Customer AR Activities",
       "suffix": "/v1/customers/{Customer ID}/customerArActivities?query={Query?:startDate:yyyy-MM-dd;endDate:yyyy-MM-dd}",
-      "description": "The receivable activity of one customer. Requires a customer id. The per-account statement."
+      "description": "The receivable activity of one customer. Requires a customer id. The per-account statement.",
+      "responseSchema": [
+        {
+          "transactionType": "string",
+          "name": "string",
+          "description": "string",
+          "productCode": "string",
+          "reference": "string",
+          "manualReference": "string",
+          "glCode": "string",
+          "uri": "string",
+          "paymentActivityId": "double",
+          "quantity": "double",
+          "unitPrice": "double",
+          "arDebit": "double",
+          "arCredit": "double",
+          "associatedId": "double",
+          "id": "double",
+          "fusebillId": "double",
+          "customerId": "double",
+          "effectiveTimestamp": "timeInstant",
+          "invoiceAllocations": [
+            {
+              "netsuiteId": "string",
+              "uri": "string",
+              "invoiceId": "double",
+              "invoiceNumber": "double",
+              "amount": "double",
+              "outstandingBalance": "double",
+              "invoiceTotal": "double",
+              "quickBooksId": "double"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Credit",
       "suffix": "/v1/Credits/{Transaction ID}",
-      "description": "One credit transaction by id."
+      "description": "One credit transaction by id.",
+      "responseSchema": {
+        "reference": "string",
+        "currency": "string",
+        "uri": "string",
+        "customerId": "double",
+        "amount": "double",
+        "unallocatedAmount": "double",
+        "reversableAmount": "double",
+        "id": "double",
+        "effectiveTimestamp": "timeInstant",
+        "invoiceAllocations": [
+          {
+            "netsuiteId": "string",
+            "uri": "string",
+            "invoiceId": "double",
+            "invoiceNumber": "double",
+            "amount": "double",
+            "outstandingBalance": "double",
+            "invoiceTotal": "double",
+            "quickBooksId": "double"
+          }
+        ],
+        "debits": [
+          {
+            "reference": "string",
+            "description": "string",
+            "currency": "string",
+            "uri": "string",
+            "customerId": "double",
+            "originalCreditId": "double",
+            "amount": "double",
+            "id": "double",
+            "effectiveTimestamp": "timeInstant"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Debit",
       "suffix": "/v1/Debits/{Transaction ID}",
-      "description": "One debit transaction by id."
+      "description": "One debit transaction by id.",
+      "responseSchema": {
+        "reference": "string",
+        "description": "string",
+        "currency": "string",
+        "uri": "string",
+        "customerId": "double",
+        "originalCreditId": "double",
+        "amount": "double",
+        "id": "double",
+        "effectiveTimestamp": "timeInstant",
+        "invoiceAllocations": [
+          {
+            "netsuiteId": "string",
+            "uri": "string",
+            "invoiceId": "double",
+            "invoiceNumber": "double",
+            "amount": "double",
+            "outstandingBalance": "double",
+            "invoiceTotal": "double",
+            "quickBooksId": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Credit Note Summaries",
       "suffix": "/v1/CreditNotes?query={Query?:parameterName:value}",
-      "description": "The credit notes issued, filterable by query. Revenue net of credits requires this; invoice totals alone overstate it."
+      "description": "The credit notes issued, filterable by query. Revenue net of credits requires this; invoice totals alone overstate it.",
+      "responseSchema": [
+        {
+          "creditNotesNumber": "string",
+          "reference": "string",
+          "currency": "string",
+          "customerName": "string",
+          "customerCompany": "string",
+          "uri": "string",
+          "netAmount": "double",
+          "invoiceNumber": "double",
+          "customerId": "double",
+          "invoiceId": "double",
+          "id": "double",
+          "invoicePostedDate": "timeInstant",
+          "effectiveTimestamp": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Credit Note",
       "suffix": "/v1/CreditNotes/{Credit Note ID}",
-      "description": "One credit note by id."
+      "description": "One credit note by id.",
+      "responseSchema": {
+        "creditNotesNumber": "string",
+        "reference": "string",
+        "currency": "string",
+        "customerName": "string",
+        "customerCompany": "string",
+        "uri": "string",
+        "netAmount": "double",
+        "customerId": "double",
+        "invoiceNumber": "double",
+        "id": "double",
+        "invoicePostedDate": "timeInstant",
+        "effectiveTimestamp": "timeInstant",
+        "invoice": {
+          "uri": "string",
+          "id": "double"
+        },
+        "lineItems": [
+          {
+            "chargeGroupName": "string",
+            "chargeGroupDescription": "string",
+            "chargeGroupReference": "string",
+            "lineItems": [
+              {
+                "lineItem": {
+                  "name": "string",
+                  "originalChargeId": "double",
+                  "netAmount": "double"
+                },
+                "discounts": {
+                  "name": "string",
+                  "netAmount": "double"
+                },
+                "taxes": {
+                  "name": "string",
+                  "netAmount": "double"
+                }
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Draft Invoice Summaries",
       "suffix": "/v1/DraftInvoices?query={Query?:parameterName:value}",
-      "description": "The draft invoices, filterable by query. NOT YET ISSUED -- they represent charges accrued and about to be billed, so they are the forward view that the issued-invoice table cannot give."
+      "description": "The draft invoices, filterable by query. NOT YET ISSUED -- they represent charges accrued and about to be billed, so they are the forward view that the issued-invoice table cannot give.",
+      "responseSchema": [
+        {
+          "customerReference": "string",
+          "currency": "string",
+          "status": "string",
+          "billingPeriod": "string",
+          "customerFullName": "string",
+          "companyName": "string",
+          "uri": "string",
+          "pendingCharges": "double",
+          "customerId": "double",
+          "id": "double",
+          "effectiveDate": "timeInstant",
+          "createdDate": "timeInstant",
+          "modifiedTimestamp": "timeInstant",
+          "scheduledChargeDate": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Customer Draft Invoices",
       "suffix": "/v1/Customers/{Customer ID}/DraftInvoices?query={Query?:parameterName:value}",
-      "description": "The draft invoices of one customer. Requires a customer id."
+      "description": "The draft invoices of one customer. Requires a customer id.",
+      "responseSchema": [
+        {
+          "customerReference": "string",
+          "currency": "string",
+          "status": "string",
+          "billingPeriod": "string",
+          "customerFullName": "string",
+          "companyName": "string",
+          "uri": "string",
+          "pendingCharges": "double",
+          "customerId": "double",
+          "id": "double",
+          "effectiveDate": "timeInstant",
+          "createdDate": "timeInstant",
+          "modifiedTimestamp": "timeInstant",
+          "scheduledChargeDate": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Draft Invoice",
       "suffix": "/v1/DraftInvoices/{Draft Invoice ID}",
-      "description": "One draft invoice by id, with its lines."
+      "description": "One draft invoice by id, with its lines.",
+      "responseSchema": {
+        "status": "string",
+        "poNumber": "string",
+        "notes": "string",
+        "shippingInstructions": "string",
+        "customerReferenceValue": "string",
+        "terms": "string",
+        "defaultTerms": "string",
+        "lastGenerated": "string",
+        "uri": "string",
+        "billingPeriodId": "double",
+        "subtotal": "double",
+        "totalDiscount": "double",
+        "total": "double",
+        "id": "double",
+        "isDefaultTerms": "boolean",
+        "rollUpPdf": "boolean",
+        "effectiveTimestamp": "timeInstant",
+        "modifiedTimestamp": "timeInstant",
+        "draftCharges": [
+          {
+            "name": "string",
+            "description": "string",
+            "glCode": "string",
+            "netsuiteChargeItem": "string",
+            "quantity": "double",
+            "unitPrice": "double",
+            "amount": "double",
+            "proratedUnitPrice": "double",
+            "rangeQuantity": "double",
+            "id": "double",
+            "isReversable": "boolean",
+            "effectiveTimestamp": "timeInstant",
+            "startServiceDate": "timeInstant",
+            "endServiceDate": "timeInstant",
+            "discount": {
+              "discountType": "string",
+              "description": "string",
+              "configuredDiscountAmount": "double",
+              "amount": "double",
+              "quantity": "double",
+              "unearnedAmount": "double",
+              "remainingReversalAmount": "double"
+            },
+            "discounts": [
+              {
+                "discountType": "string",
+                "description": "string",
+                "configuredDiscountAmount": "double",
+                "amount": "double",
+                "quantity": "double",
+                "unearnedAmount": "double",
+                "remainingReversalAmount": "double"
+              }
+            ],
+            "subscriptionProduct": {
+              "items": [
+                {
+                  "reference": "string",
+                  "name": "string",
+                  "description": "string",
+                  "status": "string",
+                  "uri": "string",
+                  "purchaseId": "double",
+                  "subscriptionProductId": "double",
+                  "subscriptionId": "double",
+                  "customerId": "double",
+                  "productId": "double",
+                  "id": "double",
+                  "createdDate": "timeInstant",
+                  "modifiedDate": "timeInstant"
+                }
+              ],
+              "id": "double",
+              "uri": "string"
+            },
+            "purchase": {
+              "items": [
+                {
+                  "reference": "string",
+                  "name": "string",
+                  "description": "string",
+                  "status": "string",
+                  "uri": "string",
+                  "purchaseId": "double",
+                  "subscriptionProductId": "double",
+                  "subscriptionId": "double",
+                  "customerId": "double",
+                  "productId": "double",
+                  "id": "double",
+                  "createdDate": "timeInstant",
+                  "modifiedDate": "timeInstant"
+                }
+              ],
+              "id": "double",
+              "uri": "string"
+            },
+            "chargeTiers": [
+              {
+                "label": "string",
+                "quantity": "double",
+                "unitPrice": "double",
+                "amount": "double"
+              }
+            ]
+          }
+        ],
+        "taxes": [
+          {
+            "name": "string",
+            "registrationCode": "string",
+            "percent": "double",
+            "total": "double"
+          }
+        ],
+        "paymentSchedules": [
+          {
+            "amount": "double",
+            "daysDueAfterTerm": "double"
+          }
+        ],
+        "customer": {
+          "firstName": "string",
+          "middleName": "string",
+          "lastName": "string",
+          "companyName": "string",
+          "suffix": "string",
+          "primaryEmail": "string",
+          "primaryPhone": "string",
+          "secondaryEmail": "string",
+          "secondaryPhone": "string",
+          "title": "string",
+          "reference": "string",
+          "status": "string",
+          "customerAccountStatus": "string",
+          "currency": "string",
+          "salesforceId": "string",
+          "salesforceAccountType": "string",
+          "salesforceSynchStatus": "string",
+          "netsuiteId": "string",
+          "netsuiteSynchStatus": "string",
+          "netsuiteCustomerType": "string",
+          "portalUserName": "string",
+          "quickBooksLatchType": "string",
+          "geotabId": "string",
+          "uri": "string",
+          "monthlyRecurringRevenue": "double",
+          "netMonthlyRecurringRevenue": "double",
+          "parentId": "double",
+          "quickBooksId": "double",
+          "hubSpotId": "double",
+          "hubSpotCompanyId": "double",
+          "id": "double",
+          "modifiedTimestamp": "timeInstant",
+          "createdTimestamp": "timeInstant",
+          "customerReference": {
+            "reference1": "string",
+            "reference2": "string",
+            "reference3": "string",
+            "uri": "string",
+            "id": "double",
+            "salesTrackingCodes": [
+              {
+                "type": "string",
+                "code": "string",
+                "name": "string",
+                "uri": "string",
+                "id": "double"
+              }
+            ]
+          },
+          "customerAcquisition": {
+            "adContent": "string",
+            "campaign": "string",
+            "keyword": "string",
+            "landingPage": "string",
+            "medium": "string",
+            "source": "string",
+            "uri": "string",
+            "id": "double"
+          }
+        }
+      }
     },
     {
       "paged": "true",
       "name": "Invoice Summaries",
       "suffix": "/v1/invoiceSummaries?query={Query?:parameterName:value}",
-      "description": "A condensed invoice listing, filterable by query. Cheaper for totals and status than the full records."
+      "description": "A condensed invoice listing, filterable by query. Cheaper for totals and status than the full records.",
+      "responseSchema": [
+        {
+          "reference": "string",
+          "companyName": "string",
+          "customerName": "string",
+          "invoiceStatus": "string",
+          "currency": "string",
+          "avalaraId": "string",
+          "uri": "string",
+          "customerId": "double",
+          "invoiceNumber": "double",
+          "invoiceAmount": "double",
+          "sumOfCharges": "double",
+          "totalPayments": "double",
+          "totalCreditNotes": "double",
+          "writeoffs": "double",
+          "outstandingBalance": "double",
+          "id": "double",
+          "unsettled": "boolean",
+          "effectiveTimestamp": "timeInstant",
+          "postedTimestamp": "timeInstant",
+          "dueDate": "timeInstant",
+          "modifiedTimestamp": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -442,19 +2954,758 @@
           "parameterName": "Invoice ID"
         }
       ],
-      "description": "The invoices issued, filterable by query. Carries the customer, number, dates, status, totals and line items. Only issued invoices are revenue; drafts are a separate table entirely."
+      "description": "The invoices issued, filterable by query. Carries the customer, number, dates, status, totals and line items. Only issued invoices are revenue; drafts are a separate table entirely.",
+      "responseSchema": [
+        {
+          "invoiceSignature": "string",
+          "poNumber": "string",
+          "terms": "string",
+          "defaultTerms": "string",
+          "notes": "string",
+          "customerReferenceValue": "string",
+          "salesforceId": "string",
+          "uri": "string",
+          "invoiceNumber": "double",
+          "subtotal": "double",
+          "invoiceAmount": "double",
+          "totalPayments": "double",
+          "outstandingBalance": "double",
+          "customerId": "double",
+          "sumOfCreditNotes": "double",
+          "totalWriteoffs": "double",
+          "totalDiscount": "double",
+          "openingArBalance": "double",
+          "closingArBalance": "double",
+          "totalTaxes": "double",
+          "id": "double",
+          "unsettled": "boolean",
+          "isDefaultTerms": "boolean",
+          "invoiceInMemoryOnly": "boolean",
+          "rollUpPdf": "boolean",
+          "effectiveTimestamp": "timeInstant",
+          "postedTimestamp": "timeInstant",
+          "modifiedTimestamp": "timeInstant",
+          "charges": [
+            {
+              "name": "string",
+              "description": "string",
+              "glCode": "string",
+              "netsuiteChargeItem": "string",
+              "quantity": "double",
+              "unitPrice": "double",
+              "amount": "double",
+              "proratedUnitPrice": "double",
+              "rangeQuantity": "double",
+              "id": "double",
+              "isReversable": "boolean",
+              "effectiveTimestamp": "timeInstant",
+              "startServiceDate": "timeInstant",
+              "endServiceDate": "timeInstant",
+              "discount": {
+                "discountType": "string",
+                "description": "string",
+                "configuredDiscountAmount": "double",
+                "amount": "double",
+                "quantity": "double",
+                "unearnedAmount": "double",
+                "remainingReversalAmount": "double"
+              },
+              "discounts": [
+                {
+                  "discountType": "string",
+                  "description": "string",
+                  "configuredDiscountAmount": "double",
+                  "amount": "double",
+                  "quantity": "double",
+                  "unearnedAmount": "double",
+                  "remainingReversalAmount": "double"
+                }
+              ],
+              "subscriptionProduct": {
+                "items": [
+                  {
+                    "reference": "string",
+                    "name": "string",
+                    "description": "string",
+                    "status": "string",
+                    "uri": "string",
+                    "purchaseId": "double",
+                    "subscriptionProductId": "double",
+                    "subscriptionId": "double",
+                    "customerId": "double",
+                    "productId": "double",
+                    "id": "double",
+                    "createdDate": "timeInstant",
+                    "modifiedDate": "timeInstant"
+                  }
+                ],
+                "id": "double",
+                "uri": "string"
+              },
+              "purchase": {
+                "items": [
+                  {
+                    "reference": "string",
+                    "name": "string",
+                    "description": "string",
+                    "status": "string",
+                    "uri": "string",
+                    "purchaseId": "double",
+                    "subscriptionProductId": "double",
+                    "subscriptionId": "double",
+                    "customerId": "double",
+                    "productId": "double",
+                    "id": "double",
+                    "createdDate": "timeInstant",
+                    "modifiedDate": "timeInstant"
+                  }
+                ],
+                "id": "double",
+                "uri": "string"
+              },
+              "chargeTiers": [
+                {
+                  "label": "string",
+                  "quantity": "double",
+                  "unitPrice": "double",
+                  "amount": "double"
+                }
+              ]
+            }
+          ],
+          "invoiceCustomer": {
+            "firstName": "string",
+            "middleName": "string",
+            "lastName": "string",
+            "companyName": "string",
+            "suffix": "string",
+            "primaryEmail": "string",
+            "primaryPhone": "string",
+            "secondaryEmail": "string",
+            "secondaryPhone": "string",
+            "title": "string",
+            "reference": "string",
+            "status": "string",
+            "customerAccountStatus": "string",
+            "currency": "string",
+            "salesforceId": "string",
+            "salesforceAccountType": "string",
+            "salesforceSynchStatus": "string",
+            "netsuiteId": "string",
+            "netsuiteSynchStatus": "string",
+            "netsuiteCustomerType": "string",
+            "portalUserName": "string",
+            "quickBooksLatchType": "string",
+            "geotabId": "string",
+            "uri": "string",
+            "monthlyRecurringRevenue": "double",
+            "netMonthlyRecurringRevenue": "double",
+            "parentId": "double",
+            "quickBooksId": "double",
+            "hubSpotId": "double",
+            "hubSpotCompanyId": "double",
+            "id": "double",
+            "modifiedTimestamp": "timeInstant",
+            "createdTimestamp": "timeInstant",
+            "customerReference": {
+              "reference1": "string",
+              "reference2": "string",
+              "reference3": "string",
+              "uri": "string",
+              "id": "double",
+              "salesTrackingCodes": [
+                {
+                  "type": "string",
+                  "code": "string",
+                  "name": "string",
+                  "uri": "string",
+                  "id": "double"
+                }
+              ]
+            },
+            "customerAcquisition": {
+              "adContent": "string",
+              "campaign": "string",
+              "keyword": "string",
+              "landingPage": "string",
+              "medium": "string",
+              "source": "string",
+              "uri": "string",
+              "id": "double"
+            }
+          },
+          "invoiceCustomerAddressPreference": {
+            "contactName": "string",
+            "shippingInstructions": "string",
+            "uri": "string",
+            "id": "double",
+            "useBillingAddressAsShippingAddress": "boolean",
+            "billingAddress": {
+              "companyName": "string",
+              "line1": "string",
+              "line2": "string",
+              "country": "string",
+              "state": "string",
+              "city": "string",
+              "postalZip": "string",
+              "addressType": "string",
+              "uri": "string",
+              "customerAddressPreferenceId": "double",
+              "countryId": "double",
+              "stateId": "double",
+              "id": "double",
+              "valid": "boolean"
+            },
+            "shippingAddress": {
+              "companyName": "string",
+              "line1": "string",
+              "line2": "string",
+              "country": "string",
+              "state": "string",
+              "city": "string",
+              "postalZip": "string",
+              "addressType": "string",
+              "uri": "string",
+              "customerAddressPreferenceId": "double",
+              "countryId": "double",
+              "stateId": "double",
+              "id": "double",
+              "valid": "boolean"
+            }
+          },
+          "taxes": [
+            {
+              "name": "string",
+              "registrationCode": "string",
+              "percent": "double",
+              "total": "double"
+            }
+          ],
+          "paymentSchedule": [
+            {
+              "status": "string",
+              "outstandingBalance": "double",
+              "amount": "double",
+              "daysDueAfterTerm": "double",
+              "dueDateTimestamp": "timeInstant"
+            }
+          ],
+          "invoiceRevisions": [
+            {
+              "user": "string",
+              "poNumber": "string",
+              "notes": "string",
+              "reason": "string",
+              "id": "double",
+              "created": "timeInstant"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Customer Invoices",
       "suffix": "/v1/Customers/{Customer ID}/Invoices/?showZeroDollarCharges={Show Zero Dollar Changes?:true|false}&query={Query?:filter:queryString}",
-      "description": "The invoices of one customer, optionally including zero-dollar ones. Requires a customer id. ZERO-DOLLAR INVOICES ARE EXCLUDED BY DEFAULT, which quietly changes an invoice count -- they are real documents produced by fully discounted or credited subscriptions."
+      "description": "The invoices of one customer, optionally including zero-dollar ones. Requires a customer id. ZERO-DOLLAR INVOICES ARE EXCLUDED BY DEFAULT, which quietly changes an invoice count -- they are real documents produced by fully discounted or credited subscriptions.",
+      "responseSchema": [
+        {
+          "invoiceSignature": "string",
+          "poNumber": "string",
+          "terms": "string",
+          "defaultTerms": "string",
+          "notes": "string",
+          "customerReferenceValue": "string",
+          "salesforceId": "string",
+          "uri": "string",
+          "invoiceNumber": "double",
+          "subtotal": "double",
+          "invoiceAmount": "double",
+          "totalPayments": "double",
+          "outstandingBalance": "double",
+          "customerId": "double",
+          "sumOfCreditNotes": "double",
+          "totalWriteoffs": "double",
+          "totalDiscount": "double",
+          "openingArBalance": "double",
+          "closingArBalance": "double",
+          "totalTaxes": "double",
+          "id": "double",
+          "unsettled": "boolean",
+          "isDefaultTerms": "boolean",
+          "invoiceInMemoryOnly": "boolean",
+          "rollUpPdf": "boolean",
+          "effectiveTimestamp": "timeInstant",
+          "postedTimestamp": "timeInstant",
+          "modifiedTimestamp": "timeInstant",
+          "charges": [
+            {
+              "name": "string",
+              "description": "string",
+              "glCode": "string",
+              "netsuiteChargeItem": "string",
+              "quantity": "double",
+              "unitPrice": "double",
+              "amount": "double",
+              "proratedUnitPrice": "double",
+              "rangeQuantity": "double",
+              "id": "double",
+              "isReversable": "boolean",
+              "effectiveTimestamp": "timeInstant",
+              "startServiceDate": "timeInstant",
+              "endServiceDate": "timeInstant",
+              "discount": {
+                "discountType": "string",
+                "description": "string",
+                "configuredDiscountAmount": "double",
+                "amount": "double",
+                "quantity": "double",
+                "unearnedAmount": "double",
+                "remainingReversalAmount": "double"
+              },
+              "discounts": [
+                {
+                  "discountType": "string",
+                  "description": "string",
+                  "configuredDiscountAmount": "double",
+                  "amount": "double",
+                  "quantity": "double",
+                  "unearnedAmount": "double",
+                  "remainingReversalAmount": "double"
+                }
+              ],
+              "subscriptionProduct": {
+                "items": [
+                  {
+                    "reference": "string",
+                    "name": "string",
+                    "description": "string",
+                    "status": "string",
+                    "uri": "string",
+                    "purchaseId": "double",
+                    "subscriptionProductId": "double",
+                    "subscriptionId": "double",
+                    "customerId": "double",
+                    "productId": "double",
+                    "id": "double",
+                    "createdDate": "timeInstant",
+                    "modifiedDate": "timeInstant"
+                  }
+                ],
+                "id": "double",
+                "uri": "string"
+              },
+              "purchase": {
+                "items": [
+                  {
+                    "reference": "string",
+                    "name": "string",
+                    "description": "string",
+                    "status": "string",
+                    "uri": "string",
+                    "purchaseId": "double",
+                    "subscriptionProductId": "double",
+                    "subscriptionId": "double",
+                    "customerId": "double",
+                    "productId": "double",
+                    "id": "double",
+                    "createdDate": "timeInstant",
+                    "modifiedDate": "timeInstant"
+                  }
+                ],
+                "id": "double",
+                "uri": "string"
+              },
+              "chargeTiers": [
+                {
+                  "label": "string",
+                  "quantity": "double",
+                  "unitPrice": "double",
+                  "amount": "double"
+                }
+              ]
+            }
+          ],
+          "invoiceCustomer": {
+            "firstName": "string",
+            "middleName": "string",
+            "lastName": "string",
+            "companyName": "string",
+            "suffix": "string",
+            "primaryEmail": "string",
+            "primaryPhone": "string",
+            "secondaryEmail": "string",
+            "secondaryPhone": "string",
+            "title": "string",
+            "reference": "string",
+            "status": "string",
+            "customerAccountStatus": "string",
+            "currency": "string",
+            "salesforceId": "string",
+            "salesforceAccountType": "string",
+            "salesforceSynchStatus": "string",
+            "netsuiteId": "string",
+            "netsuiteSynchStatus": "string",
+            "netsuiteCustomerType": "string",
+            "portalUserName": "string",
+            "quickBooksLatchType": "string",
+            "geotabId": "string",
+            "uri": "string",
+            "monthlyRecurringRevenue": "double",
+            "netMonthlyRecurringRevenue": "double",
+            "parentId": "double",
+            "quickBooksId": "double",
+            "hubSpotId": "double",
+            "hubSpotCompanyId": "double",
+            "id": "double",
+            "modifiedTimestamp": "timeInstant",
+            "createdTimestamp": "timeInstant",
+            "customerReference": {
+              "reference1": "string",
+              "reference2": "string",
+              "reference3": "string",
+              "uri": "string",
+              "id": "double",
+              "salesTrackingCodes": [
+                {
+                  "type": "string",
+                  "code": "string",
+                  "name": "string",
+                  "uri": "string",
+                  "id": "double"
+                }
+              ]
+            },
+            "customerAcquisition": {
+              "adContent": "string",
+              "campaign": "string",
+              "keyword": "string",
+              "landingPage": "string",
+              "medium": "string",
+              "source": "string",
+              "uri": "string",
+              "id": "double"
+            }
+          },
+          "invoiceCustomerAddressPreference": {
+            "contactName": "string",
+            "shippingInstructions": "string",
+            "uri": "string",
+            "id": "double",
+            "useBillingAddressAsShippingAddress": "boolean",
+            "billingAddress": {
+              "companyName": "string",
+              "line1": "string",
+              "line2": "string",
+              "country": "string",
+              "state": "string",
+              "city": "string",
+              "postalZip": "string",
+              "addressType": "string",
+              "uri": "string",
+              "customerAddressPreferenceId": "double",
+              "countryId": "double",
+              "stateId": "double",
+              "id": "double",
+              "valid": "boolean"
+            },
+            "shippingAddress": {
+              "companyName": "string",
+              "line1": "string",
+              "line2": "string",
+              "country": "string",
+              "state": "string",
+              "city": "string",
+              "postalZip": "string",
+              "addressType": "string",
+              "uri": "string",
+              "customerAddressPreferenceId": "double",
+              "countryId": "double",
+              "stateId": "double",
+              "id": "double",
+              "valid": "boolean"
+            }
+          },
+          "taxes": [
+            {
+              "name": "string",
+              "registrationCode": "string",
+              "percent": "double",
+              "total": "double"
+            }
+          ],
+          "paymentSchedule": [
+            {
+              "status": "string",
+              "outstandingBalance": "double",
+              "amount": "double",
+              "daysDueAfterTerm": "double",
+              "dueDateTimestamp": "timeInstant"
+            }
+          ],
+          "invoiceRevisions": [
+            {
+              "user": "string",
+              "poNumber": "string",
+              "notes": "string",
+              "reason": "string",
+              "id": "double",
+              "created": "timeInstant"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Invoice",
       "suffix": "/v1/Invoices/{Invoice ID}",
-      "description": "One invoice by id, with its lines."
+      "description": "One invoice by id, with its lines.",
+      "responseSchema": {
+        "invoiceSignature": "string",
+        "poNumber": "string",
+        "terms": "string",
+        "defaultTerms": "string",
+        "notes": "string",
+        "customerReferenceValue": "string",
+        "salesforceId": "string",
+        "uri": "string",
+        "invoiceNumber": "double",
+        "subtotal": "double",
+        "invoiceAmount": "double",
+        "totalPayments": "double",
+        "outstandingBalance": "double",
+        "customerId": "double",
+        "sumOfCreditNotes": "double",
+        "totalWriteoffs": "double",
+        "totalDiscount": "double",
+        "openingArBalance": "double",
+        "closingArBalance": "double",
+        "totalTaxes": "double",
+        "id": "double",
+        "unsettled": "boolean",
+        "isDefaultTerms": "boolean",
+        "invoiceInMemoryOnly": "boolean",
+        "rollUpPdf": "boolean",
+        "effectiveTimestamp": "timeInstant",
+        "postedTimestamp": "timeInstant",
+        "modifiedTimestamp": "timeInstant",
+        "charges": [
+          {
+            "name": "string",
+            "description": "string",
+            "glCode": "string",
+            "netsuiteChargeItem": "string",
+            "quantity": "double",
+            "unitPrice": "double",
+            "amount": "double",
+            "proratedUnitPrice": "double",
+            "rangeQuantity": "double",
+            "id": "double",
+            "isReversable": "boolean",
+            "effectiveTimestamp": "timeInstant",
+            "startServiceDate": "timeInstant",
+            "endServiceDate": "timeInstant",
+            "discount": {
+              "discountType": "string",
+              "description": "string",
+              "configuredDiscountAmount": "double",
+              "amount": "double",
+              "quantity": "double",
+              "unearnedAmount": "double",
+              "remainingReversalAmount": "double"
+            },
+            "discounts": [
+              {
+                "discountType": "string",
+                "description": "string",
+                "configuredDiscountAmount": "double",
+                "amount": "double",
+                "quantity": "double",
+                "unearnedAmount": "double",
+                "remainingReversalAmount": "double"
+              }
+            ],
+            "subscriptionProduct": {
+              "items": [
+                {
+                  "reference": "string",
+                  "name": "string",
+                  "description": "string",
+                  "status": "string",
+                  "uri": "string",
+                  "purchaseId": "double",
+                  "subscriptionProductId": "double",
+                  "subscriptionId": "double",
+                  "customerId": "double",
+                  "productId": "double",
+                  "id": "double",
+                  "createdDate": "timeInstant",
+                  "modifiedDate": "timeInstant"
+                }
+              ],
+              "id": "double",
+              "uri": "string"
+            },
+            "purchase": {
+              "items": [
+                {
+                  "reference": "string",
+                  "name": "string",
+                  "description": "string",
+                  "status": "string",
+                  "uri": "string",
+                  "purchaseId": "double",
+                  "subscriptionProductId": "double",
+                  "subscriptionId": "double",
+                  "customerId": "double",
+                  "productId": "double",
+                  "id": "double",
+                  "createdDate": "timeInstant",
+                  "modifiedDate": "timeInstant"
+                }
+              ],
+              "id": "double",
+              "uri": "string"
+            },
+            "chargeTiers": [
+              {
+                "label": "string",
+                "quantity": "double",
+                "unitPrice": "double",
+                "amount": "double"
+              }
+            ]
+          }
+        ],
+        "invoiceCustomer": {
+          "firstName": "string",
+          "middleName": "string",
+          "lastName": "string",
+          "companyName": "string",
+          "suffix": "string",
+          "primaryEmail": "string",
+          "primaryPhone": "string",
+          "secondaryEmail": "string",
+          "secondaryPhone": "string",
+          "title": "string",
+          "reference": "string",
+          "status": "string",
+          "customerAccountStatus": "string",
+          "currency": "string",
+          "salesforceId": "string",
+          "salesforceAccountType": "string",
+          "salesforceSynchStatus": "string",
+          "netsuiteId": "string",
+          "netsuiteSynchStatus": "string",
+          "netsuiteCustomerType": "string",
+          "portalUserName": "string",
+          "quickBooksLatchType": "string",
+          "geotabId": "string",
+          "uri": "string",
+          "monthlyRecurringRevenue": "double",
+          "netMonthlyRecurringRevenue": "double",
+          "parentId": "double",
+          "quickBooksId": "double",
+          "hubSpotId": "double",
+          "hubSpotCompanyId": "double",
+          "id": "double",
+          "modifiedTimestamp": "timeInstant",
+          "createdTimestamp": "timeInstant",
+          "customerReference": {
+            "reference1": "string",
+            "reference2": "string",
+            "reference3": "string",
+            "uri": "string",
+            "id": "double",
+            "salesTrackingCodes": [
+              {
+                "type": "string",
+                "code": "string",
+                "name": "string",
+                "uri": "string",
+                "id": "double"
+              }
+            ]
+          },
+          "customerAcquisition": {
+            "adContent": "string",
+            "campaign": "string",
+            "keyword": "string",
+            "landingPage": "string",
+            "medium": "string",
+            "source": "string",
+            "uri": "string",
+            "id": "double"
+          }
+        },
+        "invoiceCustomerAddressPreference": {
+          "contactName": "string",
+          "shippingInstructions": "string",
+          "uri": "string",
+          "id": "double",
+          "useBillingAddressAsShippingAddress": "boolean",
+          "billingAddress": {
+            "companyName": "string",
+            "line1": "string",
+            "line2": "string",
+            "country": "string",
+            "state": "string",
+            "city": "string",
+            "postalZip": "string",
+            "addressType": "string",
+            "uri": "string",
+            "customerAddressPreferenceId": "double",
+            "countryId": "double",
+            "stateId": "double",
+            "id": "double",
+            "valid": "boolean"
+          },
+          "shippingAddress": {
+            "companyName": "string",
+            "line1": "string",
+            "line2": "string",
+            "country": "string",
+            "state": "string",
+            "city": "string",
+            "postalZip": "string",
+            "addressType": "string",
+            "uri": "string",
+            "customerAddressPreferenceId": "double",
+            "countryId": "double",
+            "stateId": "double",
+            "id": "double",
+            "valid": "boolean"
+          }
+        },
+        "taxes": [
+          {
+            "name": "string",
+            "registrationCode": "string",
+            "percent": "double",
+            "total": "double"
+          }
+        ],
+        "paymentSchedule": [
+          {
+            "status": "string",
+            "outstandingBalance": "double",
+            "amount": "double",
+            "daysDueAfterTerm": "double",
+            "dueDateTimestamp": "timeInstant"
+          }
+        ],
+        "invoiceRevisions": [
+          {
+            "user": "string",
+            "poNumber": "string",
+            "notes": "string",
+            "reason": "string",
+            "id": "double",
+            "created": "timeInstant"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
@@ -468,7 +3719,14 @@
           "parameterName": "Transaction ID"
         }
       ],
-      "description": "How credits were applied to one invoice. Requires an invoice id. An invoice's balance falls through payment or credit, and only this distinguishes the two."
+      "description": "How credits were applied to one invoice. Requires an invoice id. An invoice's balance falls through payment or credit, and only this distinguishes the two.",
+      "responseSchema": [
+        {
+          "creditId": "double",
+          "invoiceId": "double",
+          "amount": "string"
+        }
+      ]
     },
     {
       "paged": "false",
@@ -482,13 +3740,71 @@
           "parameterName": "Payment ID"
         }
       ],
-      "description": "How payments were applied to one invoice. Requires an invoice id. The other half of how a balance was settled."
+      "description": "How payments were applied to one invoice. Requires an invoice id. The other half of how a balance was settled.",
+      "responseSchema": [
+        {
+          "paymentMethod": "string",
+          "paymentReference": "string",
+          "paymentId": "double",
+          "invoiceId": "double",
+          "amount": "double",
+          "paymentActivityId": "double",
+          "effectiveTimestamp": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Charge Summary",
       "suffix": "/v1/customers/{Customer ID}/chargeSummary?query={Query?:parameterName:value}",
-      "description": "The charges accrued for one customer, filterable by query. Requires a customer id. Accrued rather than billed, which is why it and the invoice total legitimately differ mid-period."
+      "description": "The charges accrued for one customer, filterable by query. Requires a customer id. Accrued rather than billed, which is why it and the invoice total legitimately differ mid-period.",
+      "responseSchema": [
+        {
+          "status": "string",
+          "productCode": "string",
+          "name": "string",
+          "description": "string",
+          "glCode": "string",
+          "uri": "string",
+          "id": "double",
+          "quantity": "double",
+          "unitPrice": "double",
+          "proratedUnitPrice": "double",
+          "amount": "double",
+          "remainingReverseAmount": "double",
+          "effectiveTimestamp": "timeInstant",
+          "invoice": {
+            "uri": "string"
+          },
+          "subscriptionProduct": {
+            "uri": "string",
+            "id": "double"
+          },
+          "purchase": {
+            "uri": "string",
+            "id": "double"
+          },
+          "relatedPayments": [
+            {
+              "reference": "string",
+              "uri": "string",
+              "id": "double"
+            }
+          ],
+          "relatedCredits": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ],
+          "relatedProductItems": [
+            {
+              "id": "double",
+              "uri": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -508,19 +3824,105 @@
           "parameterName": "Plan ID"
         }
       ],
-      "description": "The subscription plans offered, filterable by query. What is sold on a recurring basis."
+      "description": "The subscription plans offered, filterable by query. What is sold on a recurring basis.",
+      "responseSchema": [
+        {
+          "code": "string",
+          "name": "string",
+          "reference": "string",
+          "description": "string",
+          "longdescription": "string",
+          "status": "string",
+          "uri": "string",
+          "id": "double",
+          "salesforceCompatible": "boolean",
+          "modificationTimestamp": "timeInstant",
+          "planFrequencies": [
+            {
+              "interval": "string",
+              "status": "string",
+              "prorationGranularity": "string",
+              "salesforceId": "string",
+              "uri": "string",
+              "planRevisionId": "double",
+              "numberOfIntervals": "double",
+              "numberOfSubscriptions": "double",
+              "planFrequencyUniqueId": "double",
+              "remainingInterval": "double",
+              "id": "double",
+              "isProrated": "boolean",
+              "customFields": [
+                {
+                  "name": "string",
+                  "defaultValue": "string"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Plan",
       "suffix": "/v1/Plans/{Plan ID}",
-      "description": "One plan by id."
+      "description": "One plan by id.",
+      "responseSchema": {
+        "code": "string",
+        "name": "string",
+        "reference": "string",
+        "description": "string",
+        "longdescription": "string",
+        "status": "string",
+        "uri": "string",
+        "id": "double",
+        "salesforceCompatible": "boolean",
+        "modificationTimestamp": "timeInstant",
+        "planFrequencies": [
+          {
+            "interval": "string",
+            "status": "string",
+            "prorationGranularity": "string",
+            "salesforceId": "string",
+            "uri": "string",
+            "planRevisionId": "double",
+            "numberOfIntervals": "double",
+            "numberOfSubscriptions": "double",
+            "planFrequencyUniqueId": "double",
+            "remainingInterval": "double",
+            "id": "double",
+            "isProrated": "boolean",
+            "customFields": [
+              {
+                "name": "string",
+                "defaultValue": "string"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Product Summaries",
       "suffix": "/v1/ProductSummary/?query={Query?:parameterName:value}",
-      "description": "A condensed product listing, filterable by query."
+      "description": "A condensed product listing, filterable by query.",
+      "responseSchema": [
+        {
+          "code": "string",
+          "name": "string",
+          "description": "string",
+          "productType": "string",
+          "status": "string",
+          "glCode": "string",
+          "uri": "string",
+          "quantity": "double",
+          "id": "double",
+          "taxExempt": "boolean",
+          "availableForPurchase": "boolean",
+          "createdTimestamp": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -534,85 +3936,839 @@
           "parameterName": "Product ID"
         }
       ],
-      "description": "The product catalogue, optionally with pricing. The individual sellable items plans are built from."
+      "description": "The product catalogue, optionally with pricing. The individual sellable items plans are built from.",
+      "responseSchema": [
+        {
+          "code": "string",
+          "name": "string",
+          "description": "string",
+          "productType": "string",
+          "status": "string",
+          "avalaraItemCode": "string",
+          "avalaraTaxCode": "string",
+          "glCode": "string",
+          "salesforceId": "string",
+          "netsuiteItemId": "string",
+          "uri": "string",
+          "quantity": "double",
+          "id": "double",
+          "taxExempt": "boolean",
+          "availableForPurchase": "boolean",
+          "isTrackingItems": "boolean",
+          "deletable": "boolean",
+          "orderToCashCycle": {
+            "earningInterval": "string",
+            "earningTimingInterval": "string",
+            "earningTimingType": "string",
+            "earningNumberOfIntervals": "double",
+            "pricingModel": {
+              "pricingModelType": "string",
+              "quantityRanges": [
+                {
+                  "min": "double",
+                  "max": "double",
+                  "prices": [
+                    {
+                      "amount": "double",
+                      "currency": "string"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "productCustomFields": [
+            {
+              "name": "string",
+              "defaultValue": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Product",
       "suffix": "/v1/Products/{Product ID}",
-      "description": "One product by id."
+      "description": "One product by id.",
+      "responseSchema": {
+        "code": "string",
+        "name": "string",
+        "description": "string",
+        "productType": "string",
+        "status": "string",
+        "avalaraItemCode": "string",
+        "avalaraTaxCode": "string",
+        "glCode": "string",
+        "salesforceId": "string",
+        "netsuiteItemId": "string",
+        "uri": "string",
+        "quantity": "double",
+        "id": "double",
+        "taxExempt": "boolean",
+        "availableForPurchase": "boolean",
+        "isTrackingItems": "boolean",
+        "deletable": "boolean",
+        "orderToCashCycle": {
+          "earningInterval": "string",
+          "earningTimingInterval": "string",
+          "earningTimingType": "string",
+          "earningNumberOfIntervals": "double",
+          "pricingModel": {
+            "pricingModelType": "string",
+            "quantityRanges": [
+              {
+                "min": "double",
+                "max": "double",
+                "prices": [
+                  {
+                    "amount": "double",
+                    "currency": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "productCustomFields": [
+          {
+            "name": "string",
+            "defaultValue": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Plan Products by Plan",
       "suffix": "/v1/plans/{Plan ID}/planProducts?query={Query?:parameterName:value}",
-      "description": "The products within one plan, with their prices. Requires a plan id. What a plan actually includes."
+      "description": "The products within one plan, with their prices. Requires a plan id. What a plan actually includes.",
+      "responseSchema": [
+        {
+          "status": "string",
+          "productCode": "string",
+          "productName": "string",
+          "productStatus": "string",
+          "productDescription": "string",
+          "productType": "string",
+          "productGLCode": "string",
+          "resetType": "string",
+          "uri": "string",
+          "productId": "double",
+          "planId": "double",
+          "quantity": "double",
+          "maxQuantity": "double",
+          "planProductUniqueId": "double",
+          "sortOrder": "double",
+          "id": "double",
+          "isRecurring": "boolean",
+          "isFixed": "boolean",
+          "isOptional": "boolean",
+          "isIncludedByDefault": "boolean",
+          "isTrackingItems": "boolean",
+          "chargeAtSubscriptionActivation": "boolean",
+          "generateZeroDollarCharge": "boolean",
+          "orderToCashCycles": {
+            "interval": "string",
+            "customServiceDateInterval": "string",
+            "customServiceDateProjection": "string",
+            "earningTimingInterval": "string",
+            "earningTimingType": "string",
+            "planFrequencyId": "double",
+            "planProductId": "double",
+            "numberOfIntervals": "double",
+            "remainingInterval": "double",
+            "customServiceDateNumberOfIntervals": "double",
+            "upliftPriorToRecharge": "boolean",
+            "includingInitialCharge": "boolean",
+            "chargeModels": [
+              {
+                "chargeModelType": "string",
+                "chargeTimingType": "string",
+                "prorationGranularity": "string",
+                "ProrateOnPositiveQuantity": "boolean"
+              }
+            ],
+            "customFields": [
+              {
+                "name": "string",
+                "defaultValue": "string"
+              }
+            ],
+            "planProductPriceUplifts": [
+              {
+                "sequenceNumber": "double",
+                "numberOfIntervals": "double",
+                "amount": "double",
+                "repeatForever": "boolean"
+              }
+            ],
+            "pricingModel": {
+              "pricingModelType": "string",
+              "quantityRanges": [
+                {
+                  "min": "double",
+                  "max": "double",
+                  "prices": [
+                    {
+                      "amount": "double",
+                      "currency": "string"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Plan Products by Catalog Product",
       "suffix": "/v1/products/{Product ID}/planProducts?query={Query?:parameterName:value}",
-      "description": "The plans one product appears in. Requires a product id. The reverse view -- where a product is sold."
+      "description": "The plans one product appears in. Requires a product id. The reverse view -- where a product is sold.",
+      "responseSchema": [
+        {
+          "status": "string",
+          "productCode": "string",
+          "productName": "string",
+          "productStatus": "string",
+          "productDescription": "string",
+          "productType": "string",
+          "productGLCode": "string",
+          "resetType": "string",
+          "uri": "string",
+          "productId": "double",
+          "planId": "double",
+          "quantity": "double",
+          "maxQuantity": "double",
+          "planProductUniqueId": "double",
+          "sortOrder": "double",
+          "id": "double",
+          "isRecurring": "boolean",
+          "isFixed": "boolean",
+          "isOptional": "boolean",
+          "isIncludedByDefault": "boolean",
+          "isTrackingItems": "boolean",
+          "chargeAtSubscriptionActivation": "boolean",
+          "generateZeroDollarCharge": "boolean",
+          "orderToCashCycles": {
+            "interval": "string",
+            "customServiceDateInterval": "string",
+            "customServiceDateProjection": "string",
+            "earningTimingInterval": "string",
+            "earningTimingType": "string",
+            "planFrequencyId": "double",
+            "planProductId": "double",
+            "numberOfIntervals": "double",
+            "remainingInterval": "double",
+            "customServiceDateNumberOfIntervals": "double",
+            "upliftPriorToRecharge": "boolean",
+            "includingInitialCharge": "boolean",
+            "chargeModels": [
+              {
+                "chargeModelType": "string",
+                "chargeTimingType": "string",
+                "prorationGranularity": "string",
+                "ProrateOnPositiveQuantity": "boolean"
+              }
+            ],
+            "customFields": [
+              {
+                "name": "string",
+                "defaultValue": "string"
+              }
+            ],
+            "planProductPriceUplifts": [
+              {
+                "sequenceNumber": "double",
+                "numberOfIntervals": "double",
+                "amount": "double",
+                "repeatForever": "boolean"
+              }
+            ],
+            "pricingModel": {
+              "pricingModelType": "string",
+              "quantityRanges": [
+                {
+                  "min": "double",
+                  "max": "double",
+                  "prices": [
+                    {
+                      "amount": "double",
+                      "currency": "string"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Plan Product",
       "suffix": "/v1/PlanProducts/{Plan Product ID}",
-      "description": "One plan product by id."
+      "description": "One plan product by id.",
+      "responseSchema": {
+        "status": "string",
+        "productCode": "string",
+        "productName": "string",
+        "productStatus": "string",
+        "productDescription": "string",
+        "productType": "string",
+        "productGLCode": "string",
+        "resetType": "string",
+        "uri": "string",
+        "productId": "double",
+        "planId": "double",
+        "quantity": "double",
+        "maxQuantity": "double",
+        "planProductUniqueId": "double",
+        "sortOrder": "double",
+        "id": "double",
+        "isRecurring": "boolean",
+        "isFixed": "boolean",
+        "isOptional": "boolean",
+        "isIncludedByDefault": "boolean",
+        "isTrackingItems": "boolean",
+        "chargeAtSubscriptionActivation": "boolean",
+        "generateZeroDollarCharge": "boolean",
+        "orderToCashCycles": {
+          "interval": "string",
+          "customServiceDateInterval": "string",
+          "customServiceDateProjection": "string",
+          "earningTimingInterval": "string",
+          "earningTimingType": "string",
+          "planFrequencyId": "double",
+          "planProductId": "double",
+          "numberOfIntervals": "double",
+          "remainingInterval": "double",
+          "customServiceDateNumberOfIntervals": "double",
+          "upliftPriorToRecharge": "boolean",
+          "includingInitialCharge": "boolean",
+          "chargeModels": [
+            {
+              "chargeModelType": "string",
+              "chargeTimingType": "string",
+              "prorationGranularity": "string",
+              "ProrateOnPositiveQuantity": "boolean"
+            }
+          ],
+          "customFields": [
+            {
+              "name": "string",
+              "defaultValue": "string"
+            }
+          ],
+          "planProductPriceUplifts": [
+            {
+              "sequenceNumber": "double",
+              "numberOfIntervals": "double",
+              "amount": "double",
+              "repeatForever": "boolean"
+            }
+          ],
+          "pricingModel": {
+            "pricingModelType": "string",
+            "quantityRanges": [
+              {
+                "min": "double",
+                "max": "double",
+                "prices": [
+                  {
+                    "amount": "double",
+                    "currency": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "paged": "true",
       "name": "Discounts",
       "suffix": "/v1/Discounts?query={Query?:field:querystring}",
-      "description": "The discounts defined, filterable by query. The gap between list price and realised price."
+      "description": "The discounts defined, filterable by query. The gap between list price and realised price.",
+      "responseSchema": [
+        {
+          "name": "string",
+          "description": "string",
+          "code": "string",
+          "discountType": "string",
+          "status": "string",
+          "uri": "string",
+          "remainingUsagesUntilStart": "double",
+          "remainingUsage": "double",
+          "amount": "double",
+          "id": "double",
+          "frequencyOverrides": [
+            {
+              "interval": "string",
+              "discountType": "string",
+              "numberOfIntervals": "double",
+              "remainingUsagesUntilStart": "double",
+              "remainingUsage": "double",
+              "amount": "double"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Discount",
       "suffix": "/v1/Discounts/{Discount ID}",
-      "description": "One discount by id."
+      "description": "One discount by id.",
+      "responseSchema": {
+        "name": "string",
+        "description": "string",
+        "code": "string",
+        "discountType": "string",
+        "status": "string",
+        "uri": "string",
+        "remainingUsagesUntilStart": "double",
+        "remainingUsage": "double",
+        "amount": "double",
+        "id": "double",
+        "frequencyOverrides": [
+          {
+            "interval": "string",
+            "discountType": "string",
+            "numberOfIntervals": "double",
+            "remainingUsagesUntilStart": "double",
+            "remainingUsage": "double",
+            "amount": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Plan Families",
       "suffix": "/v1/PlanFamilies",
-      "description": "The families plans are grouped into. The catalogue's top level, and the axis that separates product lines."
+      "description": "The families plans are grouped into. The catalogue's top level, and the axis that separates product lines.",
+      "responseSchema": [
+        {
+          "code": "string",
+          "name": "string",
+          "description": "string",
+          "earningOption": "string",
+          "nameOverrideOption": "string",
+          "descriptionOverrideOption": "string",
+          "referenceOption": "string",
+          "expiryOption": "string",
+          "customFieldsOption": "string",
+          "contractStartOption": "string",
+          "contractEndOption": "string",
+          "uri": "string",
+          "id": "double",
+          "plans": [
+            {
+              "code": "string",
+              "name": "string",
+              "reference": "string",
+              "description": "string",
+              "status": "string",
+              "uri": "string",
+              "id": "double"
+            }
+          ],
+          "planFamilyRelationship": [
+            {
+              "relationshipMigrationType": "string",
+              "sourceLabel": "string",
+              "destinationLabel": "string",
+              "earningOption": "string",
+              "nameOverrideOption": "string",
+              "descriptionOverrideOption": "string",
+              "referenceOption": "string",
+              "customFieldsOption": "string",
+              "expiryOption": "string",
+              "contractStartOption": "string",
+              "contractEndOption": "string",
+              "uri": "string",
+              "planFamilyId": "double",
+              "sourcePlanId": "double",
+              "sourcePlanFrequencyId": "double",
+              "destinationPlanId": "double",
+              "destinationPlanFrequencyId": "double",
+              "id": "double",
+              "availableOnSsp": "boolean",
+              "sourcePlan": {
+                "code": "string",
+                "name": "string",
+                "uri": "string",
+                "id": "double"
+              },
+              "destinationPlan": {
+                "code": "string",
+                "name": "string",
+                "uri": "string",
+                "id": "double"
+              },
+              "sourcePlanFrequency": {
+                "interval": "string",
+                "numberOfIntervals": "double"
+              },
+              "destinationPlanFrequency": {
+                "interval": "string",
+                "numberOfIntervals": "double"
+              },
+              "planFamilyRelationshipMapping": [
+                {
+                  "nameOverrideOption": "string",
+                  "descriptionOverrideOption": "string",
+                  "quantityOption": "string",
+                  "inclusionOption": "string",
+                  "upliftOption": "string",
+                  "discountOption": "string",
+                  "expiryOption": "string",
+                  "scheduledDateOption": "string",
+                  "customFieldsOption": "string",
+                  "uri": "string",
+                  "sourcePlanProductId": "double",
+                  "destinationPlanProductId": "double",
+                  "id": "double"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Plan Family",
       "suffix": "/v1/PlanFamilies/{Plan Family ID}",
-      "description": "One plan family by id."
+      "description": "One plan family by id.",
+      "responseSchema": {
+        "code": "string",
+        "name": "string",
+        "description": "string",
+        "earningOption": "string",
+        "nameOverrideOption": "string",
+        "descriptionOverrideOption": "string",
+        "referenceOption": "string",
+        "expiryOption": "string",
+        "customFieldsOption": "string",
+        "contractStartOption": "string",
+        "contractEndOption": "string",
+        "uri": "string",
+        "id": "double",
+        "plans": [
+          {
+            "code": "string",
+            "name": "string",
+            "reference": "string",
+            "description": "string",
+            "status": "string",
+            "uri": "string",
+            "id": "double"
+          }
+        ],
+        "planFamilyRelationship": [
+          {
+            "relationshipMigrationType": "string",
+            "sourceLabel": "string",
+            "destinationLabel": "string",
+            "earningOption": "string",
+            "nameOverrideOption": "string",
+            "descriptionOverrideOption": "string",
+            "referenceOption": "string",
+            "customFieldsOption": "string",
+            "expiryOption": "string",
+            "contractStartOption": "string",
+            "contractEndOption": "string",
+            "uri": "string",
+            "planFamilyId": "double",
+            "sourcePlanId": "double",
+            "sourcePlanFrequencyId": "double",
+            "destinationPlanId": "double",
+            "destinationPlanFrequencyId": "double",
+            "id": "double",
+            "availableOnSsp": "boolean",
+            "sourcePlan": {
+              "code": "string",
+              "name": "string",
+              "uri": "string",
+              "id": "double"
+            },
+            "destinationPlan": {
+              "code": "string",
+              "name": "string",
+              "uri": "string",
+              "id": "double"
+            },
+            "sourcePlanFrequency": {
+              "interval": "string",
+              "numberOfIntervals": "double"
+            },
+            "destinationPlanFrequency": {
+              "interval": "string",
+              "numberOfIntervals": "double"
+            },
+            "planFamilyRelationshipMapping": [
+              {
+                "nameOverrideOption": "string",
+                "descriptionOverrideOption": "string",
+                "quantityOption": "string",
+                "inclusionOption": "string",
+                "upliftOption": "string",
+                "discountOption": "string",
+                "expiryOption": "string",
+                "scheduledDateOption": "string",
+                "customFieldsOption": "string",
+                "uri": "string",
+                "sourcePlanProductId": "double",
+                "destinationPlanProductId": "double",
+                "id": "double"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Plan Families by Plan",
       "suffix": "/v1/PlanFamilies/ByPlan/{Plan ID}",
-      "description": "The families one plan belongs to. Requires a plan id."
+      "description": "The families one plan belongs to. Requires a plan id.",
+      "responseSchema": [
+        {
+          "code": "string",
+          "name": "string",
+          "description": "string",
+          "earningOption": "string",
+          "nameOverrideOption": "string",
+          "descriptionOverrideOption": "string",
+          "referenceOption": "string",
+          "expiryOption": "string",
+          "customFieldsOption": "string",
+          "contractStartOption": "string",
+          "contractEndOption": "string",
+          "uri": "string",
+          "id": "double",
+          "plans": [
+            {
+              "code": "string",
+              "name": "string",
+              "reference": "string",
+              "description": "string",
+              "status": "string",
+              "uri": "string",
+              "id": "double"
+            }
+          ],
+          "planFamilyRelationship": [
+            {
+              "relationshipMigrationType": "string",
+              "sourceLabel": "string",
+              "destinationLabel": "string",
+              "earningOption": "string",
+              "nameOverrideOption": "string",
+              "descriptionOverrideOption": "string",
+              "referenceOption": "string",
+              "customFieldsOption": "string",
+              "expiryOption": "string",
+              "contractStartOption": "string",
+              "contractEndOption": "string",
+              "uri": "string",
+              "planFamilyId": "double",
+              "sourcePlanId": "double",
+              "sourcePlanFrequencyId": "double",
+              "destinationPlanId": "double",
+              "destinationPlanFrequencyId": "double",
+              "id": "double",
+              "availableOnSsp": "boolean",
+              "sourcePlan": {
+                "code": "string",
+                "name": "string",
+                "uri": "string",
+                "id": "double"
+              },
+              "destinationPlan": {
+                "code": "string",
+                "name": "string",
+                "uri": "string",
+                "id": "double"
+              },
+              "sourcePlanFrequency": {
+                "interval": "string",
+                "numberOfIntervals": "double"
+              },
+              "destinationPlanFrequency": {
+                "interval": "string",
+                "numberOfIntervals": "double"
+              },
+              "planFamilyRelationshipMapping": [
+                {
+                  "nameOverrideOption": "string",
+                  "descriptionOverrideOption": "string",
+                  "quantityOption": "string",
+                  "inclusionOption": "string",
+                  "upliftOption": "string",
+                  "discountOption": "string",
+                  "expiryOption": "string",
+                  "scheduledDateOption": "string",
+                  "customFieldsOption": "string",
+                  "uri": "string",
+                  "sourcePlanProductId": "double",
+                  "destinationPlanProductId": "double",
+                  "id": "double"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Plan Families by Subscription",
       "suffix": "/v1/planFamilies/bySubscription/{Subscription ID}",
-      "description": "The families reached through one subscription. Requires a subscription id."
+      "description": "The families reached through one subscription. Requires a subscription id.",
+      "responseSchema": [
+        {
+          "code": "string",
+          "name": "string",
+          "description": "string",
+          "earningOption": "string",
+          "nameOverrideOption": "string",
+          "descriptionOverrideOption": "string",
+          "referenceOption": "string",
+          "expiryOption": "string",
+          "customFieldsOption": "string",
+          "contractStartOption": "string",
+          "contractEndOption": "string",
+          "uri": "string",
+          "id": "double",
+          "plans": [
+            {
+              "code": "string",
+              "name": "string",
+              "reference": "string",
+              "description": "string",
+              "status": "string",
+              "uri": "string",
+              "id": "double"
+            }
+          ],
+          "planFamilyRelationship": [
+            {
+              "relationshipMigrationType": "string",
+              "sourceLabel": "string",
+              "destinationLabel": "string",
+              "earningOption": "string",
+              "nameOverrideOption": "string",
+              "descriptionOverrideOption": "string",
+              "referenceOption": "string",
+              "customFieldsOption": "string",
+              "expiryOption": "string",
+              "contractStartOption": "string",
+              "contractEndOption": "string",
+              "uri": "string",
+              "planFamilyId": "double",
+              "sourcePlanId": "double",
+              "sourcePlanFrequencyId": "double",
+              "destinationPlanId": "double",
+              "destinationPlanFrequencyId": "double",
+              "id": "double",
+              "availableOnSsp": "boolean",
+              "sourcePlan": {
+                "code": "string",
+                "name": "string",
+                "uri": "string",
+                "id": "double"
+              },
+              "destinationPlan": {
+                "code": "string",
+                "name": "string",
+                "uri": "string",
+                "id": "double"
+              },
+              "sourcePlanFrequency": {
+                "interval": "string",
+                "numberOfIntervals": "double"
+              },
+              "destinationPlanFrequency": {
+                "interval": "string",
+                "numberOfIntervals": "double"
+              },
+              "planFamilyRelationshipMapping": [
+                {
+                  "nameOverrideOption": "string",
+                  "descriptionOverrideOption": "string",
+                  "quantityOption": "string",
+                  "inclusionOption": "string",
+                  "upliftOption": "string",
+                  "discountOption": "string",
+                  "expiryOption": "string",
+                  "scheduledDateOption": "string",
+                  "customFieldsOption": "string",
+                  "uri": "string",
+                  "sourcePlanProductId": "double",
+                  "destinationPlanProductId": "double",
+                  "id": "double"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "QuickBooks Online Exchange Rates",
       "suffix": "/v1/QuickBooksOnlineExchangeRates",
-      "description": "The exchange rates synced from QuickBooks Online. Relevant because Fusebill holds amounts in their own currencies and this is where conversion comes from."
+      "description": "The exchange rates synced from QuickBooks Online. Relevant because Fusebill holds amounts in their own currencies and this is where conversion comes from.",
+      "responseSchema": {
+        "exchangeRates": [
+          {
+            "exchangeRate": "double",
+            "currency": {
+              "id": "double",
+              "isoName": "string",
+              "symbol": "string"
+            },
+            "createdTimestamp": "timeInstant",
+            "effectiveTimestamp": "timeInstant",
+            "id": "double",
+            "uri": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Net Collections Summary",
       "suffix": "/v1/NetCollections?currency={Currency:USD|EUR|GBP|...}",
-      "description": "Net cash collected in one currency, as a summary. A ready-made figure, and it separates cash from billings, which accrual-based invoice totals conflate."
+      "description": "Net cash collected in one currency, as a summary. A ready-made figure, and it separates cash from billings, which accrual-based invoice totals conflate.",
+      "responseSchema": [
+        {
+          "range": "string",
+          "netCollected": "double",
+          "startDate": "timeInstant",
+          "endDate": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Net Earned Revenue Summary",
       "suffix": "/v1/NetEarned?currency={Currency:USD|EUR|GBP|...}",
-      "description": "Net earned revenue in one currency. The accrual counterpart to net collections -- the two answer different questions and diverge exactly by deferred revenue."
+      "description": "Net earned revenue in one currency. The accrual counterpart to net collections -- the two answer different questions and diverge exactly by deferred revenue.",
+      "responseSchema": [
+        {
+          "range": "string",
+          "netRevenue": "double",
+          "startDate": "timeInstant",
+          "endDate": "timeInstant"
+        }
+      ]
     }
   ]
 }

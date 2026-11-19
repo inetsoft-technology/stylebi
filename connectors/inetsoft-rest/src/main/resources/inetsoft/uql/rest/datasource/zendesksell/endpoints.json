@@ -4,271 +4,1489 @@
       "name": "Account",
       "paged": false,
       "suffix": "/v2/accounts/self",
-      "description": "The Sell account itself -- name, subdomain, currency and time zone. One record, and the base currency is what any converted total would be expressed in."
+      "description": "The Sell account itself -- name, subdomain, currency and time zone. One record, and the base currency is what any converted total would be expressed in.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "name": "string",
+          "currency": "string",
+          "time_format": "string",
+          "timezone": "string",
+          "phone": "string",
+          "subdomain": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Associated Contact",
       "paged": true,
       "suffix": "/v2/deals/{Deal ID}/associated_contacts",
-      "description": "The people associated with one deal beyond its primary contact, each with their role. Requires a deal id. A deal names one contact; this is everyone actually involved."
+      "description": "The people associated with one deal beyond its primary contact, each with their role. Requires a deal id. A deal names one contact; this is everyone actually involved.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "contact_id": "double",
+              "role": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Call Outcomes",
       "paged": true,
       "suffix": "/v2/call_outcomes",
-      "description": "The outcomes a call can be recorded with -- connected, left voicemail, no answer. The decoder for the outcome id, and the dimension that turns call volume into call effectiveness."
+      "description": "The outcomes a call can be recorded with -- connected, left voicemail, no answer. The decoder for the outcome id, and the dimension that turns call volume into call effectiveness.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "name": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Calls",
       "paged": true,
       "suffix": "/v2/calls?ids={Call IDs?:1,2,3,...}&resource_type={Resource Type?:lead|contact}&resource_id={Resource ID?}&associated_deal_id={Associated Deal ID?}",
-      "description": "Logged phone calls, with the record they relate to, duration, direction, outcome and summary. Filterable by resource type. The measure of outbound effort."
+      "description": "Logged phone calls, with the record they relate to, duration, direction, outcome and summary. Filterable by resource type. The measure of outbound effort.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "user_id": "double",
+              "summary": "string",
+              "recording_url": "string",
+              "outcome_id": "double",
+              "duration": "double",
+              "phone_number": "string",
+              "incoming": "boolean",
+              "missed": "boolean",
+              "resource_type": "string",
+              "resource_id": "double",
+              "associated_deal_ids": [
+                "double"
+              ],
+              "made_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "external_id": "string"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Call",
       "paged": false,
       "suffix": "/v2/calls/{Call ID}",
-      "description": "One call by id."
+      "description": "One call by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "user_id": "double",
+          "summary": "string",
+          "recording_url": "string",
+          "outcome_id": "double",
+          "duration": "double",
+          "phone_number": "string",
+          "incoming": "boolean",
+          "missed": "boolean",
+          "resource_type": "string",
+          "resource_id": "double",
+          "associated_deal_ids": [
+            "double"
+          ],
+          "made_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "external_id": "string"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Collaborations",
       "paged": true,
       "suffix": "/v2/collaborations?ids={Collaboration IDs?:1,2,3...}&creator_id={Creator ID?}&resource_type={Resource Type?:lead|contact|sales_account|deal}&resource_id={Resource ID?}",
-      "description": "Records shared with users other than the owner, with the permission granted. Every record has one owner, so this is where additional access is recorded -- and the reason two users see different row counts."
+      "description": "Records shared with users other than the owner, with the permission granted. Every record has one owner, so this is where additional access is recorded -- and the reason two users see different row counts.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "resource_type": "string",
+              "resource_id": "double",
+              "collaborator_id": "double",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Collaboration",
       "paged": false,
       "suffix": "/v2/collaborations/{Collaboration ID}",
-      "description": "One collaboration by id."
+      "description": "One collaboration by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "resource_type": "string",
+          "resource_id": "double",
+          "collaborator_id": "double",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Contacts",
       "paged": true,
       "suffix": "/v2/contacts?ids={Contact IDs?:1,2,3,...}&creator_id={Creator ID?}&owner_id={Owner ID?}&is_organization={Is Organization?:true|false}&first_name={Contact First Name?}&last_name={Contact Last Name?}&customer_status={Customer Status?:none|current|past}&prospect_status={Prospect Status?:none|current|lost}",
-      "description": "People and companies -- BOTH LIVE IN THIS ONE TABLE, told apart by the is_organization flag, with a person carrying a contact_id pointing at their employer. Carries name, contact details, address, owner, tags and custom fields. Any per-company analysis has to filter on that flag first, or it mixes individuals with the firms they work for."
+      "description": "People and companies -- BOTH LIVE IN THIS ONE TABLE, told apart by the is_organization flag, with a person carrying a contact_id pointing at their employer. Carries name, contact details, address, owner, tags and custom fields. Any per-company analysis has to filter on that flag first, or it mixes individuals with the firms they work for.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "owner_id": "double",
+              "is_organization": "boolean",
+              "contact_id": "double",
+              "parent_organization_id": "double",
+              "name": "string",
+              "first_name": "string",
+              "last_name": "string",
+              "customer_status": "string",
+              "prospect_status": "string",
+              "title": "string",
+              "description": "string",
+              "industry": "string",
+              "website": "string",
+              "email": "string",
+              "phone": "string",
+              "mobile": "string",
+              "fax": "string",
+              "twitter": "string",
+              "facebook": "string",
+              "linkedin": "string",
+              "skype": "string",
+              "address": {
+                "line1": "string",
+                "city": "string",
+                "postal_code": "string",
+                "state": "string",
+                "country": "string"
+              },
+              "billing_address": {
+                "line1": "string",
+                "city": "string",
+                "postal_code": "string",
+                "state": "string",
+                "country": "string"
+              },
+              "shipping_address": {
+                "line1": "string",
+                "city": "string",
+                "postal_code": "string",
+                "state": "string",
+                "country": "string"
+              },
+              "tags": [
+                "string"
+              ],
+              "custom_fields": {
+                "*": "string"
+              },
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Contact",
       "paged": false,
       "suffix": "/v2/contacts/{Contact ID}",
-      "description": "One contact by id."
+      "description": "One contact by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "owner_id": "double",
+          "is_organization": "boolean",
+          "contact_id": "double",
+          "parent_organization_id": "double",
+          "name": "string",
+          "first_name": "string",
+          "last_name": "string",
+          "customer_status": "string",
+          "prospect_status": "string",
+          "title": "string",
+          "description": "string",
+          "industry": "string",
+          "website": "string",
+          "email": "string",
+          "phone": "string",
+          "mobile": "string",
+          "fax": "string",
+          "twitter": "string",
+          "facebook": "string",
+          "linkedin": "string",
+          "skype": "string",
+          "address": {
+            "line1": "string",
+            "city": "string",
+            "postal_code": "string",
+            "state": "string",
+            "country": "string"
+          },
+          "billing_address": {
+            "line1": "string",
+            "city": "string",
+            "postal_code": "string",
+            "state": "string",
+            "country": "string"
+          },
+          "shipping_address": {
+            "line1": "string",
+            "city": "string",
+            "postal_code": "string",
+            "state": "string",
+            "country": "string"
+          },
+          "tags": [
+            "string"
+          ],
+          "custom_fields": {
+            "*": "string"
+          },
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Custom Fields",
       "paged": false,
       "suffix": "/v2/{Resource Type:lead|contact|deal|prospect_and_customer}/custom_fields",
-      "description": "The custom fields defined for one resource type -- lead, contact, deal, or prospect and customer. Requires the resource type. THE DECODER for the custom_fields object on every record, which is keyed by field name and otherwise uninterpretable. Note fields are defined PER RESOURCE TYPE, so the same business attribute on leads and deals is two separate definitions."
+      "description": "The custom fields defined for one resource type -- lead, contact, deal, or prospect and customer. Requires the resource type. THE DECODER for the custom_fields object on every record, which is keyed by field name and otherwise uninterpretable. Note fields are defined PER RESOURCE TYPE, so the same business attribute on leads and deals is two separate definitions.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "name": "string",
+              "type": "string",
+              "choices": [
+                {
+                  "id": "double",
+                  "name": "string"
+                }
+              ],
+              "for_company": "boolean",
+              "for_contact": "boolean",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Deal Sources",
       "paged": true,
       "suffix": "/v2/deal_sources?ids={Deal Source IDs?:1,2,3...}&name={Name?}",
-      "description": "The deal source values configured. The attribution dimension for won revenue, distinct from lead sources."
+      "description": "The deal source values configured. The attribution dimension for won revenue, distinct from lead sources.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "name": "string",
+              "resource_type": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Deal Source",
       "paged": false,
       "suffix": "/v2/deal_sources/{Deal Source ID}",
-      "description": "One deal source by id."
+      "description": "One deal source by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "name": "string",
+          "resource_type": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Deal Unqualified Reasons",
       "paged": true,
       "suffix": "/v2/deal_unqualified_reasons?ids={Reason ID?}&name={Name?}",
-      "description": "The reasons a deal can be marked unqualified, as distinct from lost. Unqualified means it should never have been a deal; lost means it was winnable and was not won -- conflating them distorts a win rate."
+      "description": "The reasons a deal can be marked unqualified, as distinct from lost. Unqualified means it should never have been a deal; lost means it was winnable and was not won -- conflating them distorts a win rate.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "name": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Deal Unqualified Reason",
       "paged": false,
       "suffix": "/v2/deal_unqualified_reasons/{Reason ID}",
-      "description": "One deal unqualified reason by id."
+      "description": "One deal unqualified reason by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "name": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Deals",
       "paged": true,
       "suffix": "/v2/deals?ids={Deal IDs?:1,2,3,...}&creator_id={Creator ID?}&owner_id={Owner ID?}&contact_id={Contact ID?}&organization_id={Organization ID?}&name={Name?}",
-      "description": "The revenue opportunities, with name, value and currency, the stage, the contact and organisation, the owner, source, loss reason where lost, tags, custom fields, and the estimated close date. The pipeline table. VALUE IS IN THE DEAL'S OWN CURRENCY, so totals across currencies need conversion Sell does not perform here."
+      "description": "The revenue opportunities, with name, value and currency, the stage, the contact and organisation, the owner, source, loss reason where lost, tags, custom fields, and the estimated close date. The pipeline table. VALUE IS IN THE DEAL'S OWN CURRENCY, so totals across currencies need conversion Sell does not perform here.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "owner_id": "double",
+              "name": "string",
+              "value": "string",
+              "currency": "string",
+              "hot": "boolean",
+              "stage_id": "double",
+              "last_stage_change_at": "timeInstant",
+              "last_stage_change_by_id": "double",
+              "last_activity_at": "timeInstant",
+              "source_id": "double",
+              "loss_reason_id": "double",
+              "unqualified_reason_id": "double",
+              "dropbox_email": "string",
+              "contact_id": "double",
+              "organization_id": "double",
+              "estimated_close_date": "string",
+              "customized_win_likelihood": "double",
+              "tags": [
+                "string"
+              ],
+              "custom_fields": {
+                "*": "string"
+              },
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "added_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Deal",
       "paged": false,
       "suffix": "/v2/deals/{Deal ID}",
-      "description": "One deal by id."
+      "description": "One deal by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "owner_id": "double",
+          "name": "string",
+          "value": "string",
+          "currency": "string",
+          "hot": "boolean",
+          "stage_id": "double",
+          "last_stage_change_at": "timeInstant",
+          "last_stage_change_by_id": "double",
+          "last_activity_at": "timeInstant",
+          "source_id": "double",
+          "loss_reason_id": "double",
+          "unqualified_reason_id": "double",
+          "dropbox_email": "string",
+          "contact_id": "double",
+          "organization_id": "double",
+          "estimated_close_date": "string",
+          "customized_win_likelihood": "double",
+          "tags": [
+            "string"
+          ],
+          "custom_fields": {
+            "*": "string"
+          },
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "added_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Documents",
       "paged": true,
       "suffix": "/v2/documents?resource_type={Resource Type:lead|contact|sales_account|deal}&resource_id={Resource ID}&ids={Document IDs?:1,2,3,...}&name={Document Name?}",
-      "description": "Files attached to leads, contacts, deals or accounts. Requires a resource type. Metadata rather than content."
+      "description": "Files attached to leads, contacts, deals or accounts. Requires a resource type. Metadata rather than content.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "resource_type": "string",
+              "resource_id": "double",
+              "creator_id": "double",
+              "name": "string",
+              "content_type": "string",
+              "size": "double",
+              "download_url": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Document",
       "paged": false,
       "suffix": "/v2/documents/{Document ID}",
-      "description": "One document by id."
+      "description": "One document by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "resource_type": "string",
+          "resource_id": "double",
+          "creator_id": "double",
+          "name": "string",
+          "content_type": "string",
+          "size": "double",
+          "download_url": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Lead Sources",
       "paged": true,
       "suffix": "/v2/lead_sources?ids={Lead Source IDs?:1,2,3,...}&name={Name?}",
-      "description": "The lead source values configured -- the attribution dimension for where prospects came from. Account-specific, and the decoder for the source id on a lead."
+      "description": "The lead source values configured -- the attribution dimension for where prospects came from. Account-specific, and the decoder for the source id on a lead.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "name": "string",
+              "resource_type": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Lead Source",
       "paged": false,
       "suffix": "/v2/lead_sources/{Lead Source ID}",
-      "description": "One lead source by id."
+      "description": "One lead source by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "name": "string",
+          "resource_type": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Lead Unqualified Reasons",
       "paged": true,
       "suffix": "/v2/lead_unqualified_reasons",
-      "description": "The reasons a lead can be marked unqualified. The structured explanation for prospects that went nowhere, which the lead's status alone does not give."
+      "description": "The reasons a lead can be marked unqualified. The structured explanation for prospects that went nowhere, which the lead's status alone does not give.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "name": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Leads",
       "paged": true,
       "suffix": "/v2/leads?ids={Lead IDs?:1,2,3,...}&creator_id={Creator ID?}&owner_id={Owner ID?}&source_id={Lead Source ID?}&first_name={First Name?}&last_name={Last Name?}&organization_name={Organization Name?}&status={Status?}&email={Email?}",
-      "description": "Unqualified prospects, with name, company, title, contact details, status, source, owner, tags and custom fields. Filterable by owner, creator and many other attributes. NOTE THE LIFECYCLE: a lead in Sell is CONVERTED into a contact and usually a deal, and the lead record remains afterwards -- so leads and contacts hold different stages of the same people, and counting both double-counts anyone converted."
+      "description": "Unqualified prospects, with name, company, title, contact details, status, source, owner, tags and custom fields. Filterable by owner, creator and many other attributes. NOTE THE LIFECYCLE: a lead in Sell is CONVERTED into a contact and usually a deal, and the lead record remains afterwards -- so leads and contacts hold different stages of the same people, and counting both double-counts anyone converted.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "owner_id": "double",
+              "first_name": "string",
+              "last_name": "string",
+              "organization_name": "string",
+              "status": "string",
+              "source_id": "double",
+              "title": "string",
+              "description": "string",
+              "industry": "string",
+              "website": "string",
+              "email": "string",
+              "phone": "string",
+              "mobile": "string",
+              "fax": "string",
+              "twitter": "string",
+              "facebook": "string",
+              "linkedin": "string",
+              "skype": "string",
+              "address": {
+                "line1": "string",
+                "city": "string",
+                "postal_code": "string",
+                "state": "string",
+                "country": "string"
+              },
+              "tags": [
+                "string"
+              ],
+              "custom_fields": {
+                "*": "string"
+              },
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Lead",
       "paged": false,
       "suffix": "/v2/leads/{Lead ID}",
-      "description": "One lead by id."
+      "description": "One lead by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "owner_id": "double",
+          "first_name": "string",
+          "last_name": "string",
+          "organization_name": "string",
+          "status": "string",
+          "source_id": "double",
+          "title": "string",
+          "description": "string",
+          "industry": "string",
+          "website": "string",
+          "email": "string",
+          "phone": "string",
+          "mobile": "string",
+          "fax": "string",
+          "twitter": "string",
+          "facebook": "string",
+          "linkedin": "string",
+          "skype": "string",
+          "address": {
+            "line1": "string",
+            "city": "string",
+            "postal_code": "string",
+            "state": "string",
+            "country": "string"
+          },
+          "tags": [
+            "string"
+          ],
+          "custom_fields": {
+            "*": "string"
+          },
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Line Items",
       "paged": true,
       "suffix": "/v2/orders/{Order ID}/line_items?ids={Line Item IDs?:1,2,3,...}&quantity={Line Item Quantity?}&value={Line Item Value?}",
-      "description": "The products on one order, with quantity, price, discount and the resulting value. Requires an order id. What was actually sold; the deal carries only a total."
+      "description": "The products on one order, with quantity, price, discount and the resulting value. Requires an order id. What was actually sold; the deal carries only a total.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "product_id": "double",
+              "value": "string",
+              "variation": "string",
+              "currency": "string",
+              "quantity": "double",
+              "price": "string",
+              "name": "string",
+              "sku": "string",
+              "description": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Line Item",
       "paged": false,
       "suffix": "/v2/orders/{Order ID}/line_items/{Line Item ID}",
-      "description": "One line item by id. Requires the order id."
+      "description": "One line item by id. Requires the order id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "product_id": "double",
+          "value": "string",
+          "variation": "string",
+          "currency": "string",
+          "quantity": "double",
+          "price": "string",
+          "name": "string",
+          "sku": "string",
+          "description": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Loss Reasons",
       "paged": true,
       "suffix": "/v2/loss_reasons?ids={Reason IDs?:1,2,3,...}&name={Name?}",
-      "description": "The reasons configured for losing a deal. Usually the only structured explanation of why revenue was not won."
+      "description": "The reasons configured for losing a deal. Usually the only structured explanation of why revenue was not won.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "name": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Loss Reason",
       "paged": false,
       "suffix": "/v2/loss_reasons/{Reason ID}",
-      "description": "One loss reason by id."
+      "description": "One loss reason by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "name": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Notes",
       "paged": true,
       "suffix": "/v2/notes?ids={Note IDs?:1,2,3,...}&creator_id={Creator ID?}&q={Search Text?}&resource_type={Resource Type?:lead|contact|deal}&resource_id={Resource ID?}",
-      "description": "Free-text notes attached to leads, contacts and deals. The qualitative record; why a deal was lost is usually written here rather than captured in the loss reason."
+      "description": "Free-text notes attached to leads, contacts and deals. The qualitative record; why a deal was lost is usually written here rather than captured in the loss reason.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "resource_type": "string",
+              "resource_id": "double",
+              "content": "string",
+              "is_important": "boolean",
+              "tags": [
+                "string"
+              ],
+              "type": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Note",
       "paged": false,
       "suffix": "/v2/notes/{Note ID}",
-      "description": "One note by id."
+      "description": "One note by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "resource_type": "string",
+          "resource_id": "double",
+          "content": "string",
+          "is_important": "boolean",
+          "tags": [
+            "string"
+          ],
+          "type": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Orders",
       "paged": true,
       "suffix": "/v2/orders?ids={Order IDs?:1,2,3,...}&deal_id={Deal ID?}",
-      "description": "The orders placed against deals, linking a deal to the products sold. The bridge between a deal's headline value and what it actually consists of."
+      "description": "The orders placed against deals, linking a deal to the products sold. The bridge between a deal's headline value and what it actually consists of.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "deal_id": "double",
+              "discount": "double",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Order",
       "paged": false,
       "suffix": "/v2/orders/{Order ID}",
-      "description": "One order by id."
+      "description": "One order by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "deal_id": "double",
+          "discount": "double",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Pipelines",
       "paged": true,
       "suffix": "/v2/pipelines?ids={Pipeline IDs?:1,2,3,...}&name={Name?}&disabled={Return Disabled Pipelines?:true|false}",
-      "description": "The sales pipelines defined. Most accounts run more than one and stages are not comparable between them, so a funnel question has to name the pipeline."
+      "description": "The sales pipelines defined. Most accounts run more than one and stages are not comparable between them, so a funnel question has to name the pipeline.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "name": "string",
+              "disabled": "boolean",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Products",
       "paged": true,
       "suffix": "/v2/products?ids={Product IDs?:1,2,3,...}&name={Name?}&sku={SKU?}&active={Active?:true|false}",
-      "description": "The product catalogue, with name, SKU, description, active flag and prices per currency. Prices are an array by currency rather than a single value."
+      "description": "The product catalogue, with name, SKU, description, active flag and prices per currency. Prices are an array by currency rather than a single value.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "name": "string",
+              "description": "string",
+              "sku": "string",
+              "active": "boolean",
+              "max_discount": "double",
+              "max_markup": "double",
+              "cost": "string",
+              "cost_currency": "string",
+              "prices": [
+                {
+                  "amount": "string",
+                  "currency": "string"
+                }
+              ],
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Product",
       "paged": false,
       "suffix": "/v2/products/{Product ID}",
-      "description": "One product by id."
+      "description": "One product by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "name": "string",
+          "description": "string",
+          "sku": "string",
+          "active": "boolean",
+          "max_discount": "double",
+          "max_markup": "double",
+          "cost": "string",
+          "cost_currency": "string",
+          "prices": [
+            {
+              "amount": "string",
+              "currency": "string"
+            }
+          ],
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Stages",
       "paged": true,
       "suffix": "/v2/stages?ids={Stage IDs?:1,2,3,...}&name={Name?}&active={Active?:true|false}",
-      "description": "The pipeline stages, each with its name, position, category and the pipeline it belongs to. The dimension a funnel breakdown groups by, and stage categories are what make stages comparable across pipelines."
+      "description": "The pipeline stages, each with its name, position, category and the pipeline it belongs to. The dimension a funnel breakdown groups by, and stage categories are what make stages comparable across pipelines.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "name": "string",
+              "category": "string",
+              "active": "boolean",
+              "position": "double",
+              "likelihood": "double",
+              "pipeline_id": "double",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Tags",
       "paged": true,
       "suffix": "/v2/tags?ids={Tag IDs?:1,2,3,...}&creator_id={Creator ID?}&name={Name?}&resource_type={Resource Type?:lead|contact|deal}",
-      "description": "The tags in use across records, with the resource type each applies to. The free-form dimension beyond source and stage."
+      "description": "The tags in use across records, with the resource type each applies to. The free-form dimension beyond source and stage.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "name": "string",
+              "resource_type": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Tag",
       "paged": false,
       "suffix": "/v2/tags/{Tag ID}",
-      "description": "One tag by id."
+      "description": "One tag by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "name": "string",
+          "resource_type": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Tasks",
       "paged": true,
       "suffix": "/v2/tasks?ids={Task IDs?:1,2,3,...}&creator_id={Creator ID?}&owner_id={Owner ID?}&q={Search Text?}&type={Type?:floating|related}&resource_type={Resource Type?:lead|contact|deal}&completed={Completed?:true|false}&overdue={Overdue?:true|false}",
-      "description": "The to-dos recorded against leads, contacts and deals, with due date, completion state, owner and the record each relates to. The forward-looking work, as opposed to activities already logged."
+      "description": "The to-dos recorded against leads, contacts and deals, with due date, completion state, owner and the record each relates to. The forward-looking work, as opposed to activities already logged.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "owner_id": "double",
+              "resource_type": "string",
+              "resource_id": "double",
+              "completed": "boolean",
+              "completed_at": "timeInstant",
+              "due_date": "timeInstant",
+              "overdue": "boolean",
+              "remind_at": "timeInstant",
+              "content": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Task",
       "paged": false,
       "suffix": "/v2/tasks/{Task ID}",
-      "description": "One task by id."
+      "description": "One task by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "creator_id": "double",
+          "owner_id": "double",
+          "resource_type": "string",
+          "resource_id": "double",
+          "completed": "boolean",
+          "completed_at": "timeInstant",
+          "due_date": "timeInstant",
+          "overdue": "boolean",
+          "remind_at": "timeInstant",
+          "content": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Text Messages",
       "paged": true,
       "suffix": "/v2/text_messages?ids={Text Message IDs?:1,2,3,...}&resource_type={Resource Type?:lead|contact}&resource_id={Resource ID?}",
-      "description": "SMS exchanged with contacts, with direction, content and the record it relates to. Another channel alongside calls and emails."
+      "description": "SMS exchanged with contacts, with direction, content and the record it relates to. Another channel alongside calls and emails.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "content": "string",
+              "incoming": "boolean",
+              "resource_id": "double",
+              "resource_type": "string",
+              "resource_phone_number": "string",
+              "user_id": "double",
+              "user_phone_number": "string",
+              "associated_deal_ids": [
+                "double"
+              ],
+              "sent_at": "timeInstant",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Text Message",
       "paged": false,
       "suffix": "/v2/text_messages/{Message ID}",
-      "description": "One text message by id."
+      "description": "One text message by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "content": "string",
+          "incoming": "boolean",
+          "resource_id": "double",
+          "resource_type": "string",
+          "resource_phone_number": "string",
+          "user_id": "double",
+          "user_phone_number": "string",
+          "associated_deal_ids": [
+            "double"
+          ],
+          "sent_at": "timeInstant",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Users",
       "paged": true,
       "suffix": "/v2/users?ids={User IDs?:1,2,3,...}&name={Name?}&email={Email?}&role={Role?:user|admin}&role_id={Role ID?}&status={Status?:active|inactive}&confirmed={Confirmed?:true|false}",
-      "description": "The users in the account, with name, email, role, status and confirmation state. Every record carries an owner, so this is the dimension per-person performance joins to."
+      "description": "The users in the account, with name, email, role, status and confirmation state. Every record carries an owner, so this is the dimension per-person performance joins to.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "name": "string",
+              "email": "string",
+              "status": "string",
+              "invited": "boolean",
+              "confirmed": "boolean",
+              "phone_number": "string",
+              "role": "string",
+              "roles": [
+                {
+                  "id": "double",
+                  "name": "string"
+                }
+              ],
+              "team_name": "string",
+              "group": {
+                "id": "double",
+                "name": "string"
+              },
+              "reports_to": "double",
+              "timezone": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "deleted_at": "timeInstant",
+              "zendesk_user_id": "string",
+              "identity_type": "string"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "User",
       "paged": false,
       "suffix": "/v2/users/{User ID}",
-      "description": "One user by id."
+      "description": "One user by id.",
+      "responseSchema": {
+        "data": {
+          "id": "double",
+          "name": "string",
+          "email": "string",
+          "status": "string",
+          "invited": "boolean",
+          "confirmed": "boolean",
+          "phone_number": "string",
+          "role": "string",
+          "roles": [
+            {
+              "id": "double",
+              "name": "string"
+            }
+          ],
+          "team_name": "string",
+          "group": {
+            "id": "double",
+            "name": "string"
+          },
+          "reports_to": "double",
+          "timezone": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "deleted_at": "timeInstant",
+          "zendesk_user_id": "string",
+          "identity_type": "string"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Visit Outcomes",
       "paged": true,
       "suffix": "/v2/visit_outcomes",
-      "description": "The outcomes a visit can be recorded with. The decoder for the visit outcome id."
+      "description": "The outcomes a visit can be recorded with. The decoder for the visit outcome id.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "name": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     },
     {
       "name": "Visits",
       "paged": true,
       "suffix": "/v2/visits?outcome_id={Outcome ID?}&resource_type={Resource Type?:lead|contact}&resource_id={Resource ID?}&rep_location_verification_status={Location Verification Status?:verified|resource_location_too_far|location_unknown|location_services_disabled}",
-      "description": "Logged in-person visits, with the outcome, the record visited and location. Field-sales activity, which no call or email table captures."
+      "description": "Logged in-person visits, with the outcome, the record visited and location. Field-sales activity, which no call or email table captures.",
+      "responseSchema": {
+        "items": [
+          {
+            "data": {
+              "id": "double",
+              "creator_id": "double",
+              "outcome_id": "double",
+              "resource_type": "string",
+              "resource_id": "double",
+              "visited_at": "timeInstant",
+              "resource_address": "string",
+              "rep_location_verification_status": "string",
+              "summary": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            },
+            "meta": {
+              "type": "string"
+            }
+          }
+        ],
+        "meta": {
+          "type": "string",
+          "count": "double",
+          "links": {
+            "self": "string"
+          }
+        }
+      }
     }
   ]
 }
