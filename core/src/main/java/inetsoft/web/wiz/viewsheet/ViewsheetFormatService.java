@@ -1840,7 +1840,7 @@ public class ViewsheetFormatService {
 
                for(String name : request.assemblies()) {
                   data.add(requirePaths(computeHeaderRegionPaths(rvs, name, request.field()),
-                                        name, "header"));
+                                        name, "header", request.field()));
                }
 
                event.setData(data);
@@ -2503,6 +2503,21 @@ public class ViewsheetFormatService {
    private static TableDataPath[] requirePaths(TableDataPath[] paths, String name,
                                                String region)
    {
+      return requirePaths(paths, name, region, null);
+   }
+
+   private static TableDataPath[] requirePaths(TableDataPath[] paths, String name,
+                                               String region, String field)
+   {
+      if((paths == null || paths.length == 0) && field != null && !field.isBlank()) {
+         throw new IllegalArgumentException(
+            "set_format: could not find any " + region + " cells on '" + name + "' for field '" +
+            field + "' to format (no rendered " + region + " cell of that field matched, or the " +
+            "data could not be computed); the request was not applied as a whole-table format. " +
+            "Render or refresh the viewsheet and try again, omit 'field' to format every " +
+            region + " cell, or use target 'object'.");
+      }
+
       if(paths == null || paths.length == 0) {
          throw new IllegalArgumentException(
             "set_format: could not find any " + region + " cells on '" + name + "' to format " +
@@ -3645,8 +3660,14 @@ public class ViewsheetFormatService {
                isHeaderFamilyType(path.getType());
 
             // Field-scoped on a Crosstab: within the header band, keep only this measure's own
-            // HEADER-typed measure-header cells.
-            if(isHeader && (measureKey == null || path.getType() == TableDataPath.HEADER &&
+            // measure-header cells. With no separate summary-header row/column (one aggregate,
+            // or side-by-side measures with no column dimension) the measure header is a
+            // GROUP_HEADER whose last element is the measure key; otherwise it is a HEADER.
+            // A real dimension header never ends in a measure key, so the last-element check
+            // keeps those out.
+            if(isHeader && (measureKey == null ||
+               (path.getType() == TableDataPath.HEADER ||
+                path.getType() == TableDataPath.GROUP_HEADER) &&
                measureKey.equals(lastPathElement(path))))
             {
                paths.add(path);
@@ -3742,6 +3763,13 @@ public class ViewsheetFormatService {
          if(val != null) {
             keyLabels.add(val.toString());
          }
+      }
+
+      // A measure key named exactly wins: the second copy of a duplicated measure renders the
+      // first copy's text in its header cell, so matching on labels alone calls both of them
+      // "Sum(X)" and refuses the exact name as ambiguous.
+      if(labels.containsKey(field)) {
+         return field;
       }
 
       List<String> matches = new ArrayList<>();
