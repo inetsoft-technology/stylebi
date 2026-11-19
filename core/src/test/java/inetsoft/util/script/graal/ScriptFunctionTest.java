@@ -370,4 +370,41 @@ class ScriptFunctionTest {
       ctx.eval("js", "setActionVisible('Edit', 0)");
       assertFalse(t.visible);
    }
+
+   @Test
+   void nanAndInfinityReachNumberParameter() {
+      // Bug #81780: NaN/Infinity must reach a number parameter unchanged (as Rhino's
+      // FunctionObject did), not be turned into null and then the default 0.
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setRatio", new ScriptFunction(t, Target.class, "setRatio", double.class));
+
+      ctx.eval("js", "setRatio(NaN)");
+      assertTrue(Double.isNaN(t.ratio));
+
+      ctx.eval("js", "setRatio(Infinity)");
+      assertEquals(Double.POSITIVE_INFINITY, t.ratio);
+
+      ctx.eval("js", "setRatio(-Infinity)");
+      assertEquals(Double.NEGATIVE_INFINITY, t.ratio);
+
+      ctx.eval("js", "setRatio(1/0)");
+      assertEquals(Double.POSITIVE_INFINITY, t.ratio);
+   }
+
+   @Test
+   void nanAndInfinityReachTextParameterAsJavaScriptText() {
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setLabel", new ScriptFunction(t, Target.class, "setLabel", String.class));
+
+      ctx.eval("js", "setLabel(NaN)");
+      assertEquals("NaN", t.label);
+
+      ctx.eval("js", "setLabel(Infinity)");
+      assertEquals("Infinity", t.label);
+
+      ctx.eval("js", "setLabel(-Infinity)");
+      assertEquals("-Infinity", t.label);
+   }
 }
