@@ -358,10 +358,13 @@ class WizEntitlementGrantControllerTest {
    }
 
    @Test
-   void adminPermissionGrantIsRestrictedOnlyWhenItHasGrants() throws Exception {
+   void anAdminPermissionWithGrantsIsNeverReportedAsRestricted() throws Exception {
       SRPrincipal writer = wiz("writer", ORG_A);
       assertFalse(post(request("config.read", "user", "carol", false), writer).restricted());
-      assertTrue(post(request("config.read", "user", "carol", true), writer).restricted());
+
+      GrantEntry granted = post(request("config.read", "user", "carol", true), writer);
+      assertFalse(granted.restricted());
+      assertFalse(granted.defaultAllow());
    }
 
    // ---- failure atomicity and concurrency ---------------------------------------------------------
