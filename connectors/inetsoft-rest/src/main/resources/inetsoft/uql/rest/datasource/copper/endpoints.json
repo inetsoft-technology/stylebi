@@ -6,6 +6,16 @@
       "name": "Account Details",
       "bodyTemplate": null,
       "suffix": "/v1/account",
+      "responseSchema": {
+        "id": "double",
+        "logo_mini_url": "string",
+        "name": "string",
+        "primary_timezone": "string",
+        "settings": {
+          "setting_enable_leads": "boolean",
+          "setting_team_permissions_enabled": "boolean"
+        }
+      },
       "description": "The Copper account's name and id. One record."
     },
     {
@@ -14,6 +24,17 @@
       "name": "User",
       "bodyTemplate": null,
       "suffix": "/v1/users/{User ID}",
+      "responseSchema": {
+        "email": "string",
+        "groups": [
+          {
+            "id": "double",
+            "name": "string"
+          }
+        ],
+        "id": "double",
+        "name": "string"
+      },
       "description": "One user by id."
     },
     {
@@ -22,6 +43,13 @@
       "name": "Users",
       "bodyTemplate": "{}",
       "suffix": "/v1/users/search",
+      "responseSchema": [
+        {
+          "email": "string",
+          "id": "double",
+          "name": "string"
+        }
+      ],
       "description": "The users in the account, through search. Every record carries an owner id, so this is the dimension per-person performance joins to."
     },
     {
@@ -30,6 +58,65 @@
       "name": "Lead",
       "bodyTemplate": null,
       "suffix": "/v1/leads/{Lead ID}",
+      "responseSchema": {
+        "address": {
+          "city": "string",
+          "country": "string",
+          "postal_code": "string",
+          "state": "string",
+          "street": "string"
+        },
+        "assignee_id": "double",
+        "company_name": "string",
+        "custom_fields": [
+          {
+            "custom_field_definition_id": "double"
+          }
+        ],
+        "customer_source_id": "double",
+        "date_created": "double",
+        "date_last_contacted": "double",
+        "date_modified": "double",
+        "details": "string",
+        "email": {
+          "category": "string",
+          "email": "string"
+        },
+        "first_name": "string",
+        "id": "double",
+        "interaction_count": "double",
+        "last_name": "string",
+        "middle_name": "string",
+        "monetary_unit": "string",
+        "monetary_value": "double",
+        "name": "string",
+        "phone_numbers": [
+          {
+            "category": "string",
+            "number": "string"
+          }
+        ],
+        "prefix": "string",
+        "socials": [
+          {
+            "category": "string",
+            "url": "string"
+          }
+        ],
+        "status": "string",
+        "status_id": "double",
+        "suffix": "string",
+        "tags": [
+          "string"
+        ],
+        "title": "string",
+        "websites": [
+          {
+            "category": "string",
+            "url": "string"
+          }
+        ]
+      },
       "description": "One lead by id."
     },
     {
@@ -38,6 +125,67 @@
       "name": "Leads",
       "bodyTemplate": "{\n  \"name\": \"John Doe\",\n  \"phone_number\": \"555-555-5555\",\n  \"emails\": \"user@example.com\",\n  \"assignee_ids\": [ 1 ],\n  \"status_ids\": [ 1 ],\n  \"customer_source_ids\": [ 1 ],\n  \"city\": \"Manhattan\",\n  \"state\": \"NY\",\n  \"postal_code\": \"10001\",\n  \"country\": \"US\",\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"age\": 1,\n  \"minimum_monetary_value\": 1,\n  \"maximum_monetary_value\": 1,\n  \"minimum_interaction_count\": 1,\n  \"maximum_interaction_count\": 1,\n  \"minimum_interaction_date\": 1,\n  \"maximum_interaction_date\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1,\n  \"minimum_modified_date\": 1,\n  \"maximum_modified_date\": 1\n}",
       "suffix": "/v1/leads/search",
+      "responseSchema": [
+        {
+          "address": {
+            "city": "string",
+            "country": "string",
+            "postal_code": "string",
+            "state": "string",
+            "street": "string"
+          },
+          "assignee_id": "double",
+          "company_name": "string",
+          "custom_fields": [
+            {
+              "custom_field_definition_id": "double"
+            }
+          ],
+          "customer_source_id": "double",
+          "date_created": "double",
+          "date_last_contacted": "double",
+          "date_modified": "double",
+          "details": "string",
+          "email": {
+            "category": "string",
+            "email": "string"
+          },
+          "first_name": "string",
+          "id": "double",
+          "interaction_count": "double",
+          "last_name": "string",
+          "middle_name": "string",
+          "monetary_unit": "string",
+          "monetary_value": "double",
+          "name": "string",
+          "phone_numbers": [
+            {
+              "category": "string",
+              "number": "string"
+            }
+          ],
+          "prefix": "string",
+          "socials": [
+            {
+              "category": "string",
+              "url": "string"
+            }
+          ],
+          "status": "string",
+          "status_id": "double",
+          "suffix": "string",
+          "tags": [
+            "string"
+          ],
+          "title": "string",
+          "websites": [
+            {
+              "category": "string",
+              "url": "string"
+            }
+          ]
+        }
+      ],
       "description": "Leads, through search. In Copper a lead is a person not yet qualified into the contact-and-opportunity model, so leads and people are separate tables holding different stages -- and a lead CONVERTED into a person exists in both, which double-counts if summed."
     },
     {
@@ -46,6 +194,24 @@
       "name": "Lead Activites",
       "bodyTemplate": "{\n  \"activity_types\": [\n    {\n      \"id\": 1,\n      \"category\": \"user\"\n    }\n  ]\n}",
       "suffix": "/v1/leads/{Lead ID}/activities",
+      "responseSchema": [
+        {
+          "activity_date": "double",
+          "date_created": "double",
+          "date_modified": "double",
+          "details": "string",
+          "id": "double",
+          "parent": {
+            "id": "double",
+            "type": "string"
+          },
+          "type": {
+            "category": "string",
+            "id": "double"
+          },
+          "user_id": "double"
+        }
+      ],
       "description": "The activity timeline of one lead. Requires a lead id."
     },
     {
@@ -54,6 +220,12 @@
       "name": "Customer Sources",
       "bodyTemplate": null,
       "suffix": "/v1/customer_sources",
+      "responseSchema": [
+        {
+          "id": "double",
+          "name": "string"
+        }
+      ],
       "description": "The lead source values configured. The attribution dimension: where a lead or opportunity came from, and account-specific."
     },
     {
@@ -62,6 +234,14 @@
       "name": "Lead Statuses",
       "bodyTemplate": null,
       "suffix": "/v1/lead_statuses",
+      "responseSchema": [
+        {
+          "id": "double",
+          "is_default": "boolean",
+          "name": "string",
+          "order": "double"
+        }
+      ],
       "description": "The lead statuses configured, with their names and order. Account-specific, and the decoder for the status id on a lead."
     },
     {
@@ -70,6 +250,71 @@
       "name": "Person",
       "bodyTemplate": null,
       "suffix": "/v1/people/{Person ID}",
+      "responseSchema": {
+        "address": {
+          "city": "string",
+          "country": "string",
+          "postal_code": "string",
+          "state": "string",
+          "street": "string"
+        },
+        "assignee_id": "double",
+        "company_id": "double",
+        "company_name": "string",
+        "contact_type_id": "double",
+        "custom_fields": [
+          {
+            "custom_field_definition_id": "double"
+          }
+        ],
+        "date_created": "double",
+        "date_last_contacted": "double",
+        "date_lead_created": "double",
+        "date_modified": "double",
+        "details": "string",
+        "emails": [
+          {
+            "category": "string",
+            "email": "string"
+          }
+        ],
+        "first_name": "string",
+        "id": "double",
+        "interaction_count": "double",
+        "last_name": "string",
+        "leads_converted_from": [
+          {
+            "converted_timestamp": "double",
+            "lead_id": "double"
+          }
+        ],
+        "middle_name": "string",
+        "name": "string",
+        "phone_numbers": [
+          {
+            "category": "string",
+            "number": "string"
+          }
+        ],
+        "prefix": "string",
+        "socials": [
+          {
+            "category": "string",
+            "url": "string"
+          }
+        ],
+        "suffix": "string",
+        "tags": [
+          "string"
+        ],
+        "title": "string",
+        "websites": [
+          {
+            "category": "string",
+            "url": "string"
+          }
+        ]
+      },
       "description": "One contact by id, with the full record."
     },
     {
@@ -78,6 +323,71 @@
       "name": "Person by Email",
       "bodyTemplate": "{\n  \"email\": \"user@example.com\"\n}",
       "suffix": "/v1/people/fetch_by_email",
+      "responseSchema": {
+        "address": {
+          "city": "string",
+          "country": "string",
+          "postal_code": "string",
+          "state": "string",
+          "street": "string"
+        },
+        "assignee_id": "double",
+        "company_id": "double",
+        "company_name": "string",
+        "contact_type_id": "double",
+        "custom_fields": [
+          {
+            "custom_field_definition_id": "double"
+          }
+        ],
+        "date_created": "double",
+        "date_last_contacted": "double",
+        "date_lead_created": "double",
+        "date_modified": "double",
+        "details": "string",
+        "emails": [
+          {
+            "category": "string",
+            "email": "string"
+          }
+        ],
+        "first_name": "string",
+        "id": "double",
+        "interaction_count": "double",
+        "last_name": "string",
+        "leads_converted_from": [
+          {
+            "converted_timestamp": "double",
+            "lead_id": "double"
+          }
+        ],
+        "middle_name": "string",
+        "name": "string",
+        "phone_numbers": [
+          {
+            "category": "string",
+            "number": "string"
+          }
+        ],
+        "prefix": "string",
+        "socials": [
+          {
+            "category": "string",
+            "url": "string"
+          }
+        ],
+        "suffix": "string",
+        "tags": [
+          "string"
+        ],
+        "title": "string",
+        "websites": [
+          {
+            "category": "string",
+            "url": "string"
+          }
+        ]
+      },
       "description": "One contact looked up by email address. The efficient way in when the email is known and the id is not."
     },
     {
@@ -86,6 +396,73 @@
       "name": "People",
       "bodyTemplate": "{\n  \"name\": \"John Doe\",\n  \"phone_number\": \"555-555-5555\",\n  \"emails\": [ \"user@example.com\" ],\n  \"contact_type_ids\": [ 1 ],\n  \"assignee_ids\": [ 1 ],\n  \"company_ids\": [ 1 ],\n  \"opportunity_ids\": [ 1 ],\n  \"city\": \"Manhattan\",\n  \"state\": \"NY\",\n  \"postal_code\": \"10001\",\n  \"country\": \"US\",\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"age\": 1,\n  \"minimum_interaction_count\": 1,\n  \"minimum_interaction_date\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1\n}",
       "suffix": "/v1/people/search",
+      "responseSchema": [
+        {
+          "address": {
+            "city": "string",
+            "country": "string",
+            "postal_code": "string",
+            "state": "string",
+            "street": "string"
+          },
+          "assignee_id": "double",
+          "company_id": "double",
+          "company_name": "string",
+          "contact_type_id": "double",
+          "custom_fields": [
+            {
+              "custom_field_definition_id": "double"
+            }
+          ],
+          "date_created": "double",
+          "date_last_contacted": "double",
+          "date_lead_created": "double",
+          "date_modified": "double",
+          "details": "string",
+          "emails": [
+            {
+              "category": "string",
+              "email": "string"
+            }
+          ],
+          "first_name": "string",
+          "id": "double",
+          "interaction_count": "double",
+          "last_name": "string",
+          "leads_converted_from": [
+            {
+              "converted_timestamp": "double",
+              "lead_id": "double"
+            }
+          ],
+          "middle_name": "string",
+          "name": "string",
+          "phone_numbers": [
+            {
+              "category": "string",
+              "number": "string"
+            }
+          ],
+          "prefix": "string",
+          "socials": [
+            {
+              "category": "string",
+              "url": "string"
+            }
+          ],
+          "suffix": "string",
+          "tags": [
+            "string"
+          ],
+          "title": "string",
+          "websites": [
+            {
+              "category": "string",
+              "url": "string"
+            }
+          ]
+        }
+      ],
       "description": "Contacts, retrieved through a SEARCH endpoint rather than a plain list -- which is how everything in Copper works: leads, companies, opportunities, projects, tasks and activities are all reached by posting search criteria, and there is no unfiltered listing anywhere. Carries name, emails, phone numbers, the company, the owner, tags and custom fields. Note EMAILS AND PHONE NUMBERS ARE ARRAYS of labelled entries rather than single values."
     },
     {
@@ -94,6 +471,24 @@
       "name": "Person Activity",
       "bodyTemplate": "{\n  \"activity_types\": [\n    {\n      \"id\": 1,\n      \"category\": \"user\"\n    }\n  ]\n}",
       "suffix": "/v1/people/{Person ID}/activities",
+      "responseSchema": [
+        {
+          "activity_date": "double",
+          "date_created": "double",
+          "date_modified": "double",
+          "details": "string",
+          "id": "double",
+          "parent": {
+            "id": "double",
+            "type": "string"
+          },
+          "type": {
+            "category": "string",
+            "id": "double"
+          },
+          "user_id": "double"
+        }
+      ],
       "description": "The activity timeline of one contact -- calls, meetings, notes and system events. Requires a person id. The contact carries current state only; this is when it changed."
     },
     {
@@ -102,6 +497,12 @@
       "name": "Contact Types",
       "bodyTemplate": null,
       "suffix": "/v1/contact_types",
+      "responseSchema": [
+        {
+          "id": "double",
+          "name": "string"
+        }
+      ],
       "description": "The contact types configured -- potential customer, current customer, partner and so on. The decoder for the contact type id on a person."
     },
     {
@@ -110,6 +511,51 @@
       "name": "Company",
       "bodyTemplate": null,
       "suffix": "/v1/companies/{Company ID}",
+      "responseSchema": {
+        "address": {
+          "city": "string",
+          "country": "string",
+          "postal_code": "string",
+          "state": "string",
+          "street": "string"
+        },
+        "assignee_id": "double",
+        "contact_type_id": "double",
+        "custom_fields": [
+          {
+            "custom_field_definition_id": "double"
+          }
+        ],
+        "date_created": "double",
+        "date_modified": "double",
+        "details": "string",
+        "email_domain": "string",
+        "id": "double",
+        "interaction_count": "double",
+        "name": "string",
+        "phone_numbers": [
+          {
+            "category": "string",
+            "number": "string"
+          }
+        ],
+        "primary_contact_id": "double",
+        "socials": [
+          {
+            "category": "string",
+            "url": "string"
+          }
+        ],
+        "tags": [
+          "string"
+        ],
+        "websites": [
+          {
+            "category": "string",
+            "url": "string"
+          }
+        ]
+      },
       "description": "One company by id."
     },
     {
@@ -118,6 +564,53 @@
       "name": "Companies",
       "bodyTemplate": "{\n  \"name\": \"Example Inc.\",\n  \"phone_number\": \"555-555-5555\",\n  \"email_domains\": \"example.com\",\n  \"contact_type_ids\": [ 1 ],\n  \"assignee_ids\": [ 1 ],\n  \"city\": \"Manhattan\",\n  \"state\": \"NY\",\n  \"postal_code\": \"10001\",\n  \"country\": \"US\",\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"age\": 1,\n  \"minimum_interaction_count\": 1,\n  \"maximum_interaction_count\": 1,\n  \"minimum_interaction_date\": 1,\n  \"maximum_interaction_date\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1\n}",
       "suffix": "/v1/companies/search",
+      "responseSchema": [
+        {
+          "address": {
+            "city": "string",
+            "country": "string",
+            "postal_code": "string",
+            "state": "string",
+            "street": "string"
+          },
+          "assignee_id": "double",
+          "contact_type_id": "double",
+          "custom_fields": [
+            {
+              "custom_field_definition_id": "double"
+            }
+          ],
+          "date_created": "double",
+          "date_modified": "double",
+          "details": "string",
+          "email_domain": "string",
+          "id": "double",
+          "interaction_count": "double",
+          "name": "string",
+          "phone_numbers": [
+            {
+              "category": "string",
+              "number": "string"
+            }
+          ],
+          "primary_contact_id": "double",
+          "socials": [
+            {
+              "category": "string",
+              "url": "string"
+            }
+          ],
+          "tags": [
+            "string"
+          ],
+          "websites": [
+            {
+              "category": "string",
+              "url": "string"
+            }
+          ]
+        }
+      ],
       "description": "Companies, through search. Carries name, address, phone, website, the owner, tags and custom fields. The account-level dimension people and opportunities group under."
     },
     {
@@ -126,6 +619,24 @@
       "name": "Company Activities",
       "bodyTemplate": "{\n  \"activity_types\": [\n    {\n      \"id\": 1,\n      \"category\": \"user\"\n    }\n  ]\n}",
       "suffix": "/v1/companies/{Company ID}/activities",
+      "responseSchema": [
+        {
+          "activity_date": "double",
+          "date_created": "double",
+          "date_modified": "double",
+          "details": "string",
+          "id": "double",
+          "parent": {
+            "id": "double",
+            "type": "string"
+          },
+          "type": {
+            "category": "string",
+            "id": "double"
+          },
+          "user_id": "double"
+        }
+      ],
       "description": "The activity timeline of one company. Requires a company id."
     },
     {
@@ -134,6 +645,47 @@
       "name": "Opportunity",
       "bodyTemplate": null,
       "suffix": "/v1/opportunities/{Opportunity ID}",
+      "responseSchema": {
+        "assignee_id": "double",
+        "close_date": "date",
+        "company_id": "double",
+        "company_name": "string",
+        "custom_fields": [
+          {
+            "custom_field_definition_id": "double"
+          }
+        ],
+        "customer_source_id": "double",
+        "date_created": "double",
+        "date_last_contacted": "double",
+        "date_lead_created": "double",
+        "date_modified": "double",
+        "date_stage_changed": "double",
+        "details": "string",
+        "id": "double",
+        "interaction_count": "double",
+        "leads_converted_from": [
+          {
+            "converted_timestamp": "double",
+            "lead_id": "double"
+          }
+        ],
+        "loss_reason_id": "double",
+        "monetary_unit": "string",
+        "monetary_value": "double",
+        "name": "string",
+        "pipeline_id": "double",
+        "pipeline_is_revenue": "boolean",
+        "pipeline_stage_id": "double",
+        "pipeline_type": "string",
+        "primary_contact_id": "double",
+        "priority": "string",
+        "status": "string",
+        "tags": [
+          "string"
+        ],
+        "win_probability": "double"
+      },
       "description": "One opportunity by id."
     },
     {
@@ -142,6 +694,49 @@
       "name": "Opportunities",
       "bodyTemplate": "{\n  \"name\": \"Op 1\",\n  \"assignee_ids\": [ 1 ],\n  \"status_ids\": [ 1 ],\n  \"pipeline_ids\": [ 1 ],\n  \"priority_ids\": [ 1 ],\n  \"customer_source_ids\": [ 1 ],\n  \"loss_reason_ids\": [ 1 ],\n  \"company_ids\": [ 1 ],\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"minimum_monetary_value\": 1,\n  \"maximum_monetary_value\": 1,\n  \"minimum_interaction_count\": 1,\n  \"maximum_interaction_count\": 1,\n  \"minimum_close_date\": 1,\n  \"maximum_close_date\": 1,\n  \"minimum_interaction_date\": 1,\n  \"maximum_interaction_date\": 1,\n  \"minimum_stage_change_date\": 1,\n  \"maximum_stage_change_date\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1,\n  \"minimum_modified_date\": 1,\n  \"maximum_modified_date\": 1\n}",
       "suffix": "/v1/opportunities/search",
+      "responseSchema": [
+        {
+          "assignee_id": "double",
+          "close_date": "date",
+          "company_id": "double",
+          "company_name": "string",
+          "custom_fields": [
+            {
+              "custom_field_definition_id": "double"
+            }
+          ],
+          "customer_source_id": "double",
+          "date_created": "double",
+          "date_last_contacted": "double",
+          "date_lead_created": "double",
+          "date_modified": "double",
+          "date_stage_changed": "double",
+          "details": "string",
+          "id": "double",
+          "interaction_count": "double",
+          "leads_converted_from": [
+            {
+              "converted_timestamp": "double",
+              "lead_id": "double"
+            }
+          ],
+          "loss_reason_id": "double",
+          "monetary_unit": "string",
+          "monetary_value": "double",
+          "name": "string",
+          "pipeline_id": "double",
+          "pipeline_is_revenue": "boolean",
+          "pipeline_stage_id": "double",
+          "pipeline_type": "string",
+          "primary_contact_id": "double",
+          "priority": "string",
+          "status": "string",
+          "tags": [
+            "string"
+          ],
+          "win_probability": "double"
+        }
+      ],
       "description": "Opportunities, through search -- the revenue pipeline. Carries name, the company and primary contact, monetary value, win probability, the pipeline and stage, close date, status and the owner. STATUS separates Open from Won, Lost and Abandoned, so a win rate has a specific denominator and an unfiltered value total is not a forecast."
     },
     {
@@ -150,6 +745,12 @@
       "name": "Loss Reasons",
       "bodyTemplate": null,
       "suffix": "/v1/loss_reasons",
+      "responseSchema": [
+        {
+          "id": "double",
+          "name": "string"
+        }
+      ],
       "description": "The reasons configured for losing an opportunity. The decoder for the loss reason id -- and usually the only structured explanation of why revenue was not won."
     },
     {
@@ -158,6 +759,21 @@
       "name": "Pipelines",
       "bodyTemplate": null,
       "suffix": "/v1/pipelines",
+      "responseSchema": [
+        {
+          "id": "double",
+          "is_revenue": "boolean",
+          "name": "string",
+          "stages": [
+            {
+              "id": "double",
+              "name": "string",
+              "win_probability": "double"
+            }
+          ],
+          "type": "string"
+        }
+      ],
       "description": "The sales pipelines defined, each with its stages. Most accounts run more than one, and stages are not comparable between them -- so a funnel question has to name the pipeline."
     },
     {
@@ -166,6 +782,14 @@
       "name": "Pipeline Stages",
       "bodyTemplate": null,
       "suffix": "/v1/pipeline_stages",
+      "responseSchema": [
+        {
+          "id": "double",
+          "name": "string",
+          "pipeline_id": "double",
+          "win_probability": "double"
+        }
+      ],
       "description": "Every stage across all pipelines, with its name, order and win probability. The dimension a funnel breakdown joins to."
     },
     {
@@ -174,6 +798,14 @@
       "name": "Stages in Pipeline",
       "bodyTemplate": null,
       "suffix": "/v1/pipeline_stages/pipeline/{Pipeline ID}",
+      "responseSchema": [
+        {
+          "id": "double",
+          "name": "string",
+          "pipeline_id": "double",
+          "win_probability": "double"
+        }
+      ],
       "description": "The stages of one pipeline, in order. Requires a pipeline id. The correct per-pipeline funnel definition."
     },
     {
@@ -182,6 +814,27 @@
       "name": "Project",
       "bodyTemplate": null,
       "suffix": "/v1/projects/{Project ID}",
+      "responseSchema": {
+        "assignee_id": "double",
+        "custom_fields": [
+          {
+            "custom_field_definition_id": "double"
+          }
+        ],
+        "date_created": "double",
+        "date_modified": "double",
+        "details": "string",
+        "id": "double",
+        "name": "string",
+        "related_resource": {
+          "id": "double",
+          "type": "string"
+        },
+        "status": "string",
+        "tags": [
+          "string"
+        ]
+      },
       "description": "One project by id."
     },
     {
@@ -190,6 +843,29 @@
       "name": "Projects",
       "bodyTemplate": "{\n  \"name\": \"Big Project\",\n  \"assignee_ids\": [ 1 ],\n  \"status_ids\": [ 1 ],\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1,\n  \"minimum_modified_date\": 1,\n  \"maximum_modified_date\": 1\n}",
       "suffix": "/v1/projects/search",
+      "responseSchema": [
+        {
+          "assignee_id": "double",
+          "custom_fields": [
+            {
+              "custom_field_definition_id": "double"
+            }
+          ],
+          "date_created": "double",
+          "date_modified": "double",
+          "details": "string",
+          "id": "double",
+          "name": "string",
+          "related_resource": {
+            "id": "double",
+            "type": "string"
+          },
+          "status": "string",
+          "tags": [
+            "string"
+          ]
+        }
+      ],
       "description": "Projects, through search. Copper's post-sale delivery tracking, separate from opportunities."
     },
     {
@@ -198,6 +874,31 @@
       "name": "Task",
       "bodyTemplate": null,
       "suffix": "/v1/tasks/{Task ID}",
+      "responseSchema": {
+        "assignee_id": "double",
+        "completed_date": "double",
+        "custom_fields": [
+          {
+            "custom_field_definition_id": "double"
+          }
+        ],
+        "date_created": "double",
+        "date_modified": "double",
+        "details": "string",
+        "due_date": "double",
+        "id": "double",
+        "name": "string",
+        "priority": "string",
+        "related_resource": {
+          "id": "double",
+          "type": "string"
+        },
+        "reminder_date": "double",
+        "status": "string",
+        "tags": [
+          "string"
+        ]
+      },
       "description": "One task by id."
     },
     {
@@ -206,6 +907,33 @@
       "name": "Tasks",
       "bodyTemplate": "{\n  \"name\": \"Task 1\",\n  \"assignee_ids\": [ 1 ],\n  \"opportunity_ids\": [ 1 ],\n  \"project_ids\": [ 1 ],\n  \"statuses\": [ \"Open\" ],\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"minimum_due_date\": 1,\n  \"maximum_due_date\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1,\n  \"minimum_modified_date\": 1,\n  \"maximum_modified_date\": 1\n}",
       "suffix": "/v1/tasks/search",
+      "responseSchema": [
+        {
+          "assignee_id": "double",
+          "completed_date": "double",
+          "custom_fields": [
+            {
+              "custom_field_definition_id": "double"
+            }
+          ],
+          "date_created": "double",
+          "date_modified": "double",
+          "details": "string",
+          "due_date": "double",
+          "id": "double",
+          "name": "string",
+          "priority": "string",
+          "related_resource": {
+            "id": "double",
+            "type": "string"
+          },
+          "reminder_date": "double",
+          "status": "string",
+          "tags": [
+            "string"
+          ]
+        }
+      ],
       "description": "Tasks, through search. Carries name, due date, priority, status, the assignee and the record it relates to."
     },
     {
@@ -214,6 +942,22 @@
       "name": "Activity",
       "bodyTemplate": null,
       "suffix": "/v1/activities/{Activity ID}",
+      "responseSchema": {
+        "activity_date": "double",
+        "date_created": "double",
+        "date_modified": "double",
+        "details": "string",
+        "id": "double",
+        "parent": {
+          "id": "double",
+          "type": "string"
+        },
+        "type": {
+          "category": "string",
+          "id": "double"
+        },
+        "user_id": "double"
+      },
       "description": "One activity by id."
     },
     {
@@ -222,6 +966,24 @@
       "name": "Activities",
       "bodyTemplate": "{\n  \"parent\": {\n    \"id\": \"parent_id\",\n    \"type\": \"company\"\n  },\n  \"activity_types\": [\n    {\n      \"id\": 1,\n      \"category\": \"user\"\n    }\n  ],\n  \"minimum_activity_date\": 1,\n  \"maximum_activity_date\": 1,\n  \"full_result\": false\n}",
       "suffix": "/v1/activities/search",
+      "responseSchema": [
+        {
+          "activity_date": "double",
+          "date_created": "double",
+          "date_modified": "double",
+          "details": "string",
+          "id": "double",
+          "parent": {
+            "id": "double",
+            "type": "string"
+          },
+          "type": {
+            "category": "string",
+            "id": "double"
+          },
+          "user_id": "double"
+        }
+      ],
       "description": "Activity records, through search -- logged calls, meetings, notes and system events across all record types. The account-wide activity feed, as opposed to the per-record timelines."
     },
     {
@@ -230,6 +992,26 @@
       "name": "Activity Types",
       "bodyTemplate": null,
       "suffix": "/v1/activity_types",
+      "responseSchema": {
+        "system": [
+          {
+            "category": "string",
+            "count_as_interaction": "boolean",
+            "id": "double",
+            "is_disabled": "boolean",
+            "name": "string"
+          }
+        ],
+        "user": [
+          {
+            "category": "string",
+            "count_as_interaction": "boolean",
+            "id": "double",
+            "is_disabled": "boolean",
+            "name": "string"
+          }
+        ]
+      },
       "description": "The activity types configured, split into user types (logged by people) and system types (generated by Copper). THE DISTINCTION MATTERS FOR MEASURING EFFORT: system activities record that a field changed, and counting them alongside logged calls inflates apparent sales activity."
     }
   ]
