@@ -45,7 +45,14 @@ public final class WizPortalEntry {
     * protocol-relative {@code //host} or a header-splitting control character out of an href.
     */
    public static String getUrl() {
-      String url = SreeEnv.getProperty(WIZ_PORTAL_URL);
+      return normalizeUrl(SreeEnv.getProperty(WIZ_PORTAL_URL));
+   }
+
+   /**
+    * The trimmed {@code raw} URL when it is a safe http(s) or root-relative URL, otherwise null.
+    */
+   public static String normalizeUrl(String raw) {
+      String url = raw;
 
       if(url == null) {
          return null;

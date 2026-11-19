@@ -29,6 +29,14 @@ import javax.annotation.Nullable;
 public interface PresentationAISettingsModel {
    boolean aiAssistantVisible();
 
+   @Value.Default
+   default boolean wizPortalVisible() {
+      return false;
+   }
+
+   @Nullable
+   String wizPortalUrl();
+
    @Nullable
    String chatAppServerUrl();
 

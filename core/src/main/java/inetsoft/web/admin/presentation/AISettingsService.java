@@ -18,9 +18,12 @@
 package inetsoft.web.admin.presentation;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.PresentationAISettingsModel;
 import inetsoft.web.assistant.AIAssistantController;
+import inetsoft.web.portal.WizPortalEntry;
 import inetsoft.web.viewsheet.Audited;
 import org.springframework.stereotype.Service;
 
@@ -35,8 +38,14 @@ public class AISettingsService {
       String chatAppVendorName = SreeEnv.getProperty(AIAssistantController.CHAT_APP_VENDOR_NAME);
       String chatAppLogoUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_LOGO_URL);
 
+      boolean wizPortalVisible =
+         "true".equalsIgnoreCase(SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "false"));
+      String wizPortalUrl = SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_URL);
+
       return PresentationAISettingsModel.builder()
          .aiAssistantVisible(aiAssistantVisible)
+         .wizPortalVisible(wizPortalVisible)
+         .wizPortalUrl(wizPortalUrl)
          .chatAppServerUrl(chatAppServerUrl)
          .chatAppInternalUrl(chatAppInternalUrl)
          .chatAppTitle(chatAppTitle)
@@ -51,6 +60,24 @@ public class AISettingsService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void setModel(PresentationAISettingsModel model) throws Exception {
+      // validate before anything is written, so a rejected value leaves every setting unchanged
+      String wizPortalUrl = model.wizPortalUrl() != null ? model.wizPortalUrl().trim() : "";
+
+      if(!wizPortalUrl.isEmpty() && WizPortalEntry.normalizeUrl(wizPortalUrl) == null) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("em.presentation.wizPortal.urlInvalid"));
+      }
+
+      SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE,
+                          model.wizPortalVisible() ? "true" : "false");
+
+      if(!wizPortalUrl.isEmpty()) {
+         SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_URL, wizPortalUrl);
+      }
+      else {
+         SreeEnv.remove(WizPortalEntry.WIZ_PORTAL_URL);
+      }
+
       SreeEnv.setProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, model.aiAssistantVisible() ? "true" : "false");
 
       String chatAppServerUrl = model.chatAppServerUrl() != null ? model.chatAppServerUrl().trim() : "";
@@ -122,6 +149,8 @@ public class AISettingsService {
       SreeEnv.remove(AIAssistantController.CHAT_APP_TITLE);
       SreeEnv.remove(AIAssistantController.CHAT_APP_VENDOR_NAME);
       SreeEnv.remove(AIAssistantController.CHAT_APP_LOGO_URL);
+      SreeEnv.remove(WizPortalEntry.WIZ_PORTAL_VISIBLE);
+      SreeEnv.remove(WizPortalEntry.WIZ_PORTAL_URL);
       SreeEnv.save();
    }
 }
