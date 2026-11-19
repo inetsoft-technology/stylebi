@@ -30,22 +30,24 @@
       [variables]="variables" (valueChange)="changeColumnValue($event)">
     </dynamic-combo-box>
     @if (showFieldOption()) {
-      <div class="fieldEditIcon" (click)="openFieldOption($event)">
-        <i class="icon-size-small btn-icon setting-icon"
+      <button type="button" class="fieldEditIcon" (click)="openFieldOption($event)"
+        aria-label="_#(Field Option)">
+        <i class="icon-size-small btn-icon setting-icon" aria-hidden="true"
         title="_#(Field Option)"></i>
-      </div>
+      </button>
     }
     @if (isEditEnable()) {
       @let fieldClassType = getFieldClassType();
       @let titleText = getTitle();
-      <div (openChange)="toggled($event)" [autoClose]="false" class="fieldEditIcon"
+      <button type="button" (openChange)="toggled($event)" [autoClose]="false"
+        class="fieldEditIcon" [attr.aria-label]="titleText"
         [closeOnOutsideClick]="!dialogOpened"
         [fixedDropdown]="dropdownMenu" [zIndex]="10000">
-        <i class="icon-size-small btn-icon"
+        <i class="icon-size-small btn-icon" aria-hidden="true"
           [class.dimension-setting-icon]="fieldClassType == 'Dimension'"
           [class.measure-setting-icon]="fieldClassType == 'Measure'"
         title="{{titleText}}"></i>
-      </div>
+      </button>
     }
     @if (fieldType==='details') {
       @let fieldName = getFieldName();

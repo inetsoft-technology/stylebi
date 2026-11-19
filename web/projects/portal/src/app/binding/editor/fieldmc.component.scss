@@ -59,6 +59,39 @@
   margin-left: -1px; /* overlap border with outer border */
 }
 
+// The icon buttons beside a field (value type f(x), and the dimension/measure or field option
+// settings) were bare glyphs, so nothing said they could be clicked. They now share the shelf
+// tiles' bordered look, sized to the field box beside them.
+@mixin field-icon-button {
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: var(--inet-control-height-md);
+  height: var(--inet-control-height-md);
+  padding: 0;
+  border: 1px solid var(--inet-shell-border-strong);
+  border-radius: 3px;
+  background-color: var(--inet-shell-surface-default);
+  color: inherit;
+  line-height: 1;
+
+  &:hover:not(:disabled):not(.disabled):not(.disable-actions) {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+  }
+}
+
+// dynamic-combo-box is a child component, so its toggle needs ::ng-deep
+.fieldmc ::ng-deep .type-toggle {
+  @include field-icon-button;
+}
+
+button.fieldEditIcon {
+  @include field-icon-button;
+}
+
 .fieldEditIcon {
   display: inline-flex;
   align-items: center;
