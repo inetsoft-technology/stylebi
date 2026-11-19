@@ -68,8 +68,18 @@ public class DatagovRuntime extends TabularRuntime {
    public void testDataSource(TabularDataSource ds0,
                               VariableTable params) throws Exception
    {
-      URL url = new URL(((DatagovDataSource) ds0).getURL());
-      url.openConnection();
+      URL url = new URL(((DatagovDataSource) ds0).getURL().trim());
+      URLConnection conn = url.openConnection();
+
+      // openConnection() only creates the connection object; connect() resolves the host and
+      // opens the socket so an unreachable host is reported
+      conn.setConnectTimeout(TEST_TIMEOUT);
+      conn.setReadTimeout(TEST_TIMEOUT);
+      conn.connect();
+
+      if(conn instanceof HttpURLConnection) {
+         ((HttpURLConnection) conn).disconnect();
+      }
    }
 
    /**
@@ -118,5 +128,6 @@ public class DatagovRuntime extends TabularRuntime {
       return uri.toString();
    }
 
+   private static final int TEST_TIMEOUT = 10000;
    private static final Logger LOG = LoggerFactory.getLogger(DatagovRuntime.class.getName());
 }
