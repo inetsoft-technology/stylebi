@@ -247,25 +247,7 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
                getString("Named User Not Allowed", loginUser.getName()));
          }
 
-         Set<SRPrincipal> activeSessions = sessionService.getActiveSessions();
-         Set<SRPrincipal> invalidSessions = new HashSet<>();
-
-         for(SRPrincipal session : activeSessions) {
-            ClientInfo activeInfo = session.getUser();
-            IdentityID activeLoginUser = activeInfo.getLoginUserID();
-
-            if(activeLoginUser.equals(loginUser)) {
-               if(!activeInfo.getIPAddress().equals(info.getIPAddress())) {
-                  invalidSessions.add(session);
-               }
-            }
-         }
-
-         // Feature #36409, invalidate old sessions for a named user when a new session is created
-         for(SRPrincipal session : invalidSessions) {
-            // this will also remove the session from the license service
-            SUtil.logout(session, true);
-         }
+         logoutOtherAddressSessions(loginUser, info);
 
          try {
             sessionService.newSession(srPrincipal);
@@ -303,6 +285,8 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
                getString("Named User Not Allowed", loginUser.getName()));
          }
 
+         logoutOtherAddressSessions(loginUser, info);
+
          try {
             sessionService.newSession(srPrincipal, sessionIdToReplace);
          }
@@ -338,6 +322,32 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
       @Override
       public void close() throws Exception {
          dispose();
+      }
+
+      /**
+       * Feature #36409, invalidates the active sessions of a named user that were opened from
+       * a different IP address than the new session.
+       */
+      private void logoutOtherAddressSessions(IdentityID loginUser, ClientInfo info) {
+         Set<SRPrincipal> activeSessions = sessionService.getActiveSessions();
+         Set<SRPrincipal> invalidSessions = new HashSet<>();
+
+         for(SRPrincipal session : activeSessions) {
+            ClientInfo activeInfo = session.getUser();
+            IdentityID activeLoginUser = activeInfo.getLoginUserID();
+
+            if(activeLoginUser.equals(loginUser)) {
+               if(!activeInfo.getIPAddress().equals(info.getIPAddress())) {
+                  invalidSessions.add(session);
+               }
+            }
+         }
+
+         // Feature #36409, invalidate old sessions for a named user when a new session is created
+         for(SRPrincipal session : invalidSessions) {
+            // this will also remove the session from the license service
+            SUtil.logout(session, true);
+         }
       }
 
       private void sessionError(SRPrincipal srPrincipal, LicenseException le) {
