@@ -74,6 +74,14 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
                     break;
                 }
 
+                // A response was received and parsed. QueryRunner.run() collapses an empty
+                // result to null, so say here that the run itself completed (see
+                // TabularQuery.isRunCompleted) and a zero-row refusal does not blame credentials;
+                // failures never reach this line.
+                if(!isCancelled()) {
+                    query.setRunCompleted(true);
+                }
+
                 doLookups(query, json);
 
                 final Object selectedData = selectData(json, query.getValidJsonPath(), transformer);
