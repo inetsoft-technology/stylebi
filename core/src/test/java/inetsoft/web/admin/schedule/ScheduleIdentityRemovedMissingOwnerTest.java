@@ -94,6 +94,7 @@ class ScheduleIdentityRemovedMissingOwnerTest {
          .addUser("erin2", ORG_B, "password")
          .addUser("erin3", ORG_B, "password")
          .addUser("erin4", ORG_B, "password")
+         .addUser("erin5", ORG_B, "password")
          .addGroup("idrmGroupB", ORG_B)
          .addRole("idrmRoleB", ORG_B)
          .addRole("idrmRoleB2", ORG_B)
@@ -232,6 +233,21 @@ class ScheduleIdentityRemovedMissingOwnerTest {
       assertNull(systemTask.getIdentity(), "a system task keeps running as before");
       assertEquals(erin.getIdentityID(), task.getIdentity().getIdentityID(),
                    "unrelated execute-as untouched");
+   }
+
+   // Bug #81833: the task of a deleted owner left the map but its trigger was never removed
+   @Test
+   void userRemoved_ownedTaskIsUnscheduled() throws Exception {
+      User erin = provider().getUser(new IdentityID("erin5", ORG_B));
+      ScheduleTask task = saveTask("JobOwnedByRemoved", erin.getIdentityID(), null);
+      ScheduleClient scheduleClient =
+         (ScheduleClient) ReflectionTestUtils.getField(scheduleManager, "scheduleClient");
+      clearInvocations(scheduleClient);
+
+      removeIdentity(erin);
+
+      assertNull(scheduleManager.getScheduleTask(task.getTaskId(), ORG_B), "task removed");
+      verify(scheduleClient).taskRemoved(task.getTaskId());
    }
 
    private void assertKeptAndRefused(ScheduleTask task, Identity removed) {
