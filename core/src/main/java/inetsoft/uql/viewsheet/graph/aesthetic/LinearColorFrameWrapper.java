@@ -17,6 +17,11 @@
  */
 package inetsoft.uql.viewsheet.graph.aesthetic;
 
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
+
 /**
  * This class defines a color frame for numeric values.
  *
@@ -24,4 +29,49 @@ package inetsoft.uql.viewsheet.graph.aesthetic;
  * @author InetSoft Technology
  */
 public abstract class LinearColorFrameWrapper extends ColorFrameWrapper {
+   /**
+    * Check whether the author picked this ramp, as opposed to the chart seeding it.
+    */
+   public boolean isAuthorRamp() {
+      return authorRamp;
+   }
+
+   /**
+    * Set whether the author picked this ramp.
+    */
+   public void setAuthorRamp(boolean authorRamp) {
+      this.authorRamp = authorRamp;
+   }
+
+   @Override
+   protected void writeAttributes(PrintWriter writer) {
+      super.writeAttributes(writer);
+
+      if(authorRamp) {
+         writer.print(" authorRamp=\"true\"");
+      }
+   }
+
+   @Override
+   protected void parseAttributes(Element tag) throws Exception {
+      super.parseAttributes(tag);
+      authorRamp = "true".equals(Tool.getAttribute(tag, "authorRamp"));
+   }
+
+   @Override
+   public boolean equalsContent(Object obj) {
+      return super.equalsContent(obj) && sameRamp(obj);
+   }
+
+   @Override
+   public boolean equals(Object obj) {
+      return super.equals(obj) && sameRamp(obj);
+   }
+
+   private boolean sameRamp(Object obj) {
+      return obj instanceof LinearColorFrameWrapper &&
+         authorRamp == ((LinearColorFrameWrapper) obj).authorRamp;
+   }
+
+   private boolean authorRamp;
 }

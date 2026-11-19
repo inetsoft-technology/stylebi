@@ -24,6 +24,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.LinearColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.VisualFrameWrapper;
 
 import java.awt.Color;
@@ -476,6 +477,13 @@ final class ChartChromeSlots {
 
                if(current instanceof LinearColorFrame && current.getClass() != ramp.getClass()) {
                   replace.accept((ChartVSAssemblyInfo) info, ramp);
+               }
+               else if(current instanceof LinearColorFrame) {
+                  VisualFrameWrapper target = wrapper.on(info);
+
+                  if(target instanceof LinearColorFrameWrapper) {
+                     ((LinearColorFrameWrapper) target).setAuthorRamp(false);
+                  }
                }
             }));
          }

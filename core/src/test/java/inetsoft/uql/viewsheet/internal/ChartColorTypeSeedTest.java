@@ -36,6 +36,7 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.BluesColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.ColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.SpectralColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.TealColorFrameWrapper;
@@ -390,6 +391,79 @@ class ChartColorTypeSeedTest {
       info.seedChromeDefaults(VizContext.of(info));
 
       assertInstanceOf(BluesColorFrame.class, info.getVSChartInfo().getColorFrame());
+   }
+
+   @Test
+   void revertKeepsAnAuthorsTeal() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.seedChromeDefaults(VizContext.ofTransition(null, VizMark.MODERN_LIGHT));
+      VSAestheticRef color = colorRamp(info, flagged(new TealColorFrameWrapper()));
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
+
+      assertInstanceOf(TealColorFrame.class, color.getVisualFrame());
+      assertTrue(((TealColorFrameWrapper) color.getVisualFrameWrapper()).isAuthorRamp());
+   }
+
+   @Test
+   void modernizeKeepsAnAuthorsBlues() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      VSAestheticRef color = colorRamp(info, flagged(new BluesColorFrameWrapper()));
+
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.seedChromeDefaults(VizContext.ofTransition(null, VizMark.MODERN_LIGHT));
+
+      assertInstanceOf(BluesColorFrame.class, color.getVisualFrame());
+   }
+
+   @Test
+   void revertStillSwapsASeededTeal() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.seedChromeDefaults(VizContext.ofTransition(null, VizMark.MODERN_LIGHT));
+      VSAestheticRef color = colorRamp(info, new TealColorFrameWrapper());
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
+
+      assertInstanceOf(BluesColorFrame.class, color.getVisualFrame());
+   }
+
+   @Test
+   void revertKeepsAnAuthorsChartLevelTeal() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.seedChromeDefaults(VizContext.ofTransition(null, VizMark.MODERN_LIGHT));
+      info.getVSChartInfo().setColorFrameWrapper(flagged(new TealColorFrameWrapper()));
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
+
+      assertInstanceOf(TealColorFrame.class, info.getVSChartInfo().getColorFrame());
+   }
+
+   private static TealColorFrameWrapper flagged(TealColorFrameWrapper wrapper) {
+      wrapper.setAuthorRamp(true);
+      return wrapper;
+   }
+
+   private static BluesColorFrameWrapper flagged(BluesColorFrameWrapper wrapper) {
+      wrapper.setAuthorRamp(true);
+      return wrapper;
+   }
+
+   private static VSAestheticRef colorRamp(ChartVSAssemblyInfo info, ColorFrameWrapper wrapper) {
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(agg("Sales"));
+      color.setVisualFrameWrapper(wrapper);
+      info.getVSChartInfo().setColorField(color);
+      return color;
    }
 
    @ParameterizedTest(name = "{0}")
