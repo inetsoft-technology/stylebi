@@ -2360,6 +2360,7 @@ public class ScheduleManager implements MessageListener {
       }
 
       Set<ScheduleTask> changedTasks = new HashSet<>();
+      List<String> removedTaskIds = new ArrayList<>();
 
       Iterator<ScheduleTask> i = getOrgTaskMap(orgID).values().iterator();
 
@@ -2372,6 +2373,7 @@ public class ScheduleManager implements MessageListener {
 
          if(type == Identity.USER && identityID.equals(task.getOwner())) {
             i.remove();
+            removedTaskIds.add(task.getTaskId());
             continue;
          }
 
@@ -2396,6 +2398,17 @@ public class ScheduleManager implements MessageListener {
       catch(Exception ex) {
          LOG.error("Failed to save schedule task file after " +
                "identity was removed: " + identityID, ex);
+      }
+
+      // Bug #81833, removing the task from the map does not unschedule it: tell the scheduler,
+      // as removeScheduleTask does, or the trigger of a deleted owner's task keeps firing
+      for(String taskId : removedTaskIds) {
+         try {
+            scheduleClient.taskRemoved(taskId);
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to unschedule task {} of removed owner {}", taskId, identityID, ex);
+         }
       }
 
       for(ScheduleExt ext : extensions) {
