@@ -238,7 +238,7 @@ describe("Aesthetic Pane Unit Test", () => {
       let shapeFixDropdown = document.getElementsByTagName("fixed-dropdown")[0];
       expect(shapeFixDropdown).not.toBeNull();
 
-      let sizeCell = fixture.debugElement.query(By.css(".aesthetic-pane size-field-mc div.visual-cell")).nativeElement;
+      let sizeCell = fixture.debugElement.query(By.css(".aesthetic-pane size-field-mc div.visual-edit-icon")).nativeElement;
       sizeCell.click();
       fixture.detectChanges();
       let sizeFixDropdown = document.getElementsByTagName("fixed-dropdown")[0];
@@ -513,7 +513,7 @@ describe("Aesthetic Pane Unit Test", () => {
 
       //Bug #19185
       let shapeEditIcon: HTMLElement = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon i")).nativeElement;
-      let sizeEditIcon: HTMLElement = fixture.debugElement.query(By.css(".size_field_id .visual-edit-icon i")).nativeElement;
+      let sizeEditIcon: Element = fixture.debugElement.query(By.css(".size_field_id .visual-edit-icon svg.size-glyph")).nativeElement;
 
       //Bug #21174, Bug #21465
       let textEditIcon: HTMLElement = fixture.debugElement.query(By.css(".text_field_id .visual-edit-icon i")).nativeElement;
@@ -725,9 +725,12 @@ describe("Aesthetic Pane Unit Test", () => {
       fixture.detectChanges();
 
       let colorCells: any = fixture.nativeElement.querySelectorAll(".color_field_id .visual-edit-icon i");
-      let sizeCells: any = fixture.nativeElement.querySelectorAll(".size_field_id .visual-cell size-cell");
+      // the Size tile always shows the circles glyph, enabled once the frame is editable
+      let sizeIcons: any = fixture.nativeElement.querySelectorAll(".size_field_id .visual-edit-icon svg.size-glyph");
       expect(colorCells.length).toEqual(1);
-      expect(sizeCells.length).toEqual(1);
+      expect(sizeIcons.length).toEqual(1);
+      expect(sizeIcons[0].classList.contains("icon-disabled")).toBe(false);
+      expect(fixture.nativeElement.querySelectorAll(".size_field_id size-cell").length).toEqual(0);
    });
 
    //Bug #21320
