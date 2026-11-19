@@ -4,30 +4,193 @@
       "name": "Root",
       "paged": false,
       "suffix": "/v2/",
+      "responseSchema": {
+        "status": "string",
+        "message": "string",
+        "see": "string",
+        "version": "string",
+        "user": {
+          "id": "double",
+          "name": "string",
+          "email": "string"
+        },
+        "usage": {
+          "daily_used": "double",
+          "daily_limit": "double"
+        },
+        "sequence": "double",
+        "source": "string"
+      },
       "description": "The API root, listing the available resources and the authenticated account. A discovery and connectivity check."
     },
     {
       "name": "Product",
       "paged": false,
       "suffix": "/v2/products/{Product ID}",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "developer": "string",
+        "icon": "string",
+        "vendor_identifier": "string",
+        "ref_no": "double",
+        "sku": "string",
+        "package_name": "string",
+        "store_id": "double",
+        "store": "string",
+        "release_date": "timeInstant",
+        "added_date": "timeInstant",
+        "updated_date": "timeInstant",
+        "version": "string",
+        "type": "string",
+        "devices": [
+          "string"
+        ],
+        "active": "boolean",
+        "price": {
+          "currency": "string",
+          "price": "string"
+        },
+        "source": {
+          "external_account_id": "double",
+          "added_timestamp": "timeInstant",
+          "active": "boolean",
+          "hidden": "boolean",
+          "type": "string"
+        },
+        "parent_id": "double",
+        "children": [
+          "double"
+        ],
+        "features": [
+          "string"
+        ]
+      },
       "description": "One app by its Appfigures product id, with its store metadata."
     },
     {
       "name": "Product Search",
       "paged": false,
       "suffix": "/v2/products/search/{Term}?filter={Filter?}",
+      "responseSchema": [
+        {
+          "id": "double",
+          "name": "string",
+          "developer": "string",
+          "icon": "string",
+          "vendor_identifier": "string",
+          "ref_no": "double",
+          "sku": "string",
+          "package_name": "string",
+          "store_id": "double",
+          "store": "string",
+          "release_date": "timeInstant",
+          "added_date": "timeInstant",
+          "updated_date": "timeInstant",
+          "version": "string",
+          "type": "string",
+          "devices": [
+            "string"
+          ],
+          "active": "boolean",
+          "price": {
+            "currency": "string",
+            "price": "string"
+          }
+        }
+      ],
       "description": "Apps matching a search term across the connected stores, including apps the account does not own. Competitor discovery."
     },
     {
       "name": "Product by Store ID",
       "paged": false,
       "suffix": "/v2/products/{Store}/{Store ID}",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "developer": "string",
+        "icon": "string",
+        "vendor_identifier": "string",
+        "ref_no": "double",
+        "sku": "string",
+        "package_name": "string",
+        "store_id": "double",
+        "store": "string",
+        "release_date": "timeInstant",
+        "added_date": "timeInstant",
+        "updated_date": "timeInstant",
+        "version": "string",
+        "type": "string",
+        "devices": [
+          "string"
+        ],
+        "active": "boolean",
+        "price": {
+          "currency": "string",
+          "price": "string"
+        },
+        "source": {
+          "external_account_id": "double",
+          "added_timestamp": "timeInstant",
+          "active": "boolean",
+          "hidden": "boolean",
+          "type": "string"
+        },
+        "parent_id": "double",
+        "children": [
+          "double"
+        ],
+        "features": [
+          "string"
+        ]
+      },
       "description": "One app looked up by store and the store's own id. The bridge from an App Store or Play Store identifier to the Appfigures product id everything else needs."
     },
     {
       "name": "My Products",
       "paged": false,
       "suffix": "/v2/products/mine?store={Store Name?}",
+      "responseSchema": {
+        "*": {
+          "id": "double",
+          "name": "string",
+          "developer": "string",
+          "icon": "string",
+          "vendor_identifier": "string",
+          "ref_no": "double",
+          "sku": "string",
+          "package_name": "string",
+          "store_id": "double",
+          "store": "string",
+          "release_date": "timeInstant",
+          "added_date": "timeInstant",
+          "updated_date": "timeInstant",
+          "version": "string",
+          "type": "string",
+          "devices": [
+            "string"
+          ],
+          "active": "boolean",
+          "price": {
+            "currency": "string",
+            "price": "string"
+          },
+          "source": {
+            "external_account_id": "double",
+            "added_timestamp": "timeInstant",
+            "active": "boolean",
+            "hidden": "boolean",
+            "type": "string"
+          },
+          "parent_id": "double",
+          "children": [
+            "double"
+          ],
+          "features": [
+            "string"
+          ]
+        }
+      },
       "description": "The apps connected to the account, optionally filtered by store. THE STARTING POINT: every report here takes product ids, and these are the ones the account actually owns, as opposed to the whole store catalogue the product endpoints can reach."
     },
     {
@@ -46,6 +209,36 @@
       "name": "Reports Subscriptions",
       "paged": false,
       "suffix": "/v2/reports/subscriptions?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}",
+      "responseSchema": {
+        "active_subscriptions": "double",
+        "active_free_trials": "double",
+        "new_subscriptions": "double",
+        "cancelled_subscriptions": "double",
+        "new_trials": "double",
+        "trial_conversion_rate": "string",
+        "mrr": "string",
+        "actual_revenue": "string",
+        "renewals": "double",
+        "first_year_subscribers": "double",
+        "non_first_year_subscribers": "double",
+        "reactivations": "double",
+        "transitions_out": "double",
+        "trial_cancellations": "double",
+        "transitions_in": "double",
+        "activations": "double",
+        "cancellations": "double",
+        "trial_conversions": "double",
+        "churn": "string",
+        "gross_revenue": "string",
+        "gross_mrr": "string",
+        "active_grace": "double",
+        "new_grace": "double",
+        "grace_drop_off": "double",
+        "grace_recovery": "double",
+        "new_trial_grace": "double",
+        "trial_grace_drop_off": "double",
+        "trial_grace_recovery": "double"
+      },
       "description": "Subscription figures over a date range -- active subscriptions, new, renewals, cancellations and revenue. The recurring-revenue view, which the one-off sales report cannot express."
     },
     {
@@ -76,6 +269,29 @@
       "name": "Ratings",
       "paged": false,
       "suffix": "/v2/reports/ratings?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&granularity={Granularity?}&products={Product IDs?}&countries={Countries?}",
+      "responseSchema": {
+        "breakdown": [
+          "double"
+        ],
+        "new": [
+          "double"
+        ],
+        "average": "string",
+        "total": "double",
+        "new_average": "string",
+        "new_total": "double",
+        "positive": "double",
+        "negative": "double",
+        "neutral": "double",
+        "new_positive": "double",
+        "new_negative": "double",
+        "new_neutral": "double",
+        "one_star_percent": "string",
+        "two_star_percent": "string",
+        "three_star_percent": "string",
+        "four_star_percent": "string",
+        "five_star_percent": "string"
+      },
       "description": "Star ratings over a date range, with the counts at each star level. The rating snapshot rather than the reviews behind it."
     },
     {
@@ -94,6 +310,32 @@
       "name": "All Usages",
       "paged": false,
       "suffix": "/v2/usage",
+      "responseSchema": {
+        "api_requests": {
+          "history": {
+            "total": "double",
+            "today": "double",
+            "history": {
+              "*": "double"
+            }
+          },
+          "total": "double",
+          "used": "double",
+          "remaining": "double"
+        },
+        "partner_api": {
+          "history": {
+            "total": "double",
+            "today": "double",
+            "history": {
+              "*": "double"
+            }
+          },
+          "total": "double",
+          "used": "double",
+          "remaining": "double"
+        }
+      },
       "description": "The account-wide usage summary."
     },
     {
@@ -106,54 +348,237 @@
       "name": "Ranks",
       "paged": false,
       "suffix": "/v2/ranks/{Product IDS}/{Granularity:hourly|daily}/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?countries={Countries?}&filter={Filter?}&tz={Timezone?:user|utc|est}",
+      "responseSchema": {
+        "start_date": "timeInstant",
+        "end_date": "timeInstant",
+        "dates": [
+          "timeInstant"
+        ],
+        "data": [
+          {
+            "country": "string",
+            "category": {
+              "store": "string",
+              "store_id": "double",
+              "device": "string",
+              "device_id": "double",
+              "name": "string",
+              "subtype": "string",
+              "id": "double",
+              "parent_id": "double"
+            },
+            "product_id": "double",
+            "positions": [
+              "double"
+            ],
+            "deltas": [
+              "double"
+            ]
+          }
+        ]
+      },
       "description": "The store rank history of given products at hourly or daily granularity over a date range. Requires product ids and dates. The historical series; every other rank endpoint here is a snapshot."
     },
     {
       "name": "Ranks Snapshot",
       "paged": false,
       "suffix": "/v2/ranks/snapshots/{Time:HH-MM-SS}/{Country}/{Category}/{Subcategory:free|paid|topgrossing}?top={Top?}",
+      "responseSchema": {
+        "page_count": "double",
+        "page_start": "double",
+        "total_count": "double",
+        "country": "string",
+        "category": {
+          "store": "string",
+          "store_id": "double",
+          "device": "string",
+          "device_id": "double",
+          "name": "string",
+          "subtype": "string",
+          "id": "double"
+        },
+        "timestamp": "timeInstant",
+        "entries": [
+          {
+            "id": "double",
+            "name": "string",
+            "developer": "string",
+            "icon": "string",
+            "vendor_identifier": "string",
+            "ref_no": "double",
+            "sku": "string",
+            "package_name": "string",
+            "store_id": "double",
+            "store": "string",
+            "release_date": "timeInstant",
+            "added_date": "timeInstant",
+            "updated_date": "timeInstant",
+            "version": "string",
+            "type": "string",
+            "devices": [
+              "string"
+            ],
+            "active": "boolean",
+            "price": {
+              "currency": "string",
+              "price": "string"
+            }
+          }
+        ]
+      },
       "description": "The chart standings at one moment, for a country, category and subcategory. Requires the time and the chart coordinates. Who was where at a point in time, including competitors the account does not own."
     },
     {
       "name": "Featured",
       "paged": false,
       "suffix": "/v2/featured/summary/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?products={Products?}",
+      "responseSchema": {
+        "*": {
+          "product_id": "double",
+          "start": "timeInstant",
+          "end": "timeInstant",
+          "countries": [
+            "string"
+          ],
+          "paths": [
+            [
+              "string"
+            ]
+          ]
+        }
+      },
       "description": "A summary of the store featuring one or more products received over a date range. Being featured by a store is the single largest driver of a download spike, and this is the only record of it."
     },
     {
       "name": "Featured Full",
       "paged": false,
       "suffix": "/v2/featured/full/{Product ID}/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?countries={Countries?}",
+      "responseSchema": {
+        "*": {
+          "country": "string",
+          "base_category": {
+            "store": "string",
+            "store_id": "double",
+            "device": "string",
+            "device_id": "double",
+            "name": "string",
+            "subtype": "string",
+            "id": "double"
+          },
+          "viewed_from": "string",
+          "crumbs": [
+            "string"
+          ],
+          "start_date": "timeInstant",
+          "end_date": "timeInstant",
+          "highest_position": "double",
+          "lowest_position": "double",
+          "positions": [
+            {
+              "start": "timeInstant",
+              "end": "timeInstant",
+              "position": "double"
+            }
+          ]
+        }
+      },
       "description": "The full featuring detail for one product over a range -- every placement, where and when. Requires a product id and dates."
     },
     {
       "name": "Featured Count",
       "paged": false,
       "suffix": "/v2/featured/counts?end={End Date?:YYYY-MM-DD}&products={Products?}&granularity={Granularity?:daily|weekly}&show_empty={Show Empty?:true|false}",
+      "responseSchema": [
+        {
+          "date_range": [
+            "date"
+          ],
+          "products": [
+            {
+              "product_id": "double",
+              "featured_count": "double"
+            }
+          ]
+        }
+      ],
       "description": "How many featuring placements products received, without the detail. The cheap size check."
     },
     {
       "name": "Featured History",
       "paged": false,
       "suffix": "/v2/featured/history/{Product ID}/{Featured Category ID}",
+      "responseSchema": [
+        {
+          "time": "timeInstant",
+          "position": "double"
+        }
+      ],
       "description": "The featuring history of one product in one featured category. Requires the product id and category id."
     },
     {
       "name": "Review",
       "paged": false,
       "suffix": "/v2/reviews?stars={Stars?}",
+      "responseSchema": {
+        "total": "double",
+        "pages": "double",
+        "this_page": "double",
+        "reviews": [
+          {
+            "author": "string",
+            "title": "string",
+            "review": "string",
+            "original_title": "string",
+            "original_review": "string",
+            "stars": "string",
+            "iso": "string",
+            "version": "string",
+            "date": "timeInstant",
+            "product": "double",
+            "weight": "double",
+            "id": "string",
+            "has_response": "boolean"
+          }
+        ]
+      },
       "description": "User reviews, filterable by star rating. The qualitative record behind a rating movement."
     },
     {
       "name": "Review Filters Counts",
       "paged": false,
       "suffix": "/v2/reviews/count?stars={Stars?}",
+      "responseSchema": {
+        "stars": {
+          "*": "double"
+        },
+        "versions": {
+          "*": "double"
+        },
+        "countries": {
+          "*": "double"
+        },
+        "products": {
+          "*": "double"
+        }
+      },
       "description": "How many reviews match given filters, without returning them. The cheap way to size a review set before fetching it."
     },
     {
       "name": "Events",
       "paged": false,
       "suffix": "/v2/events/",
+      "responseSchema": {
+        "*": {
+          "id": "double",
+          "caption": "string",
+          "date": "timeInstant",
+          "origin": "string",
+          "details": "string",
+          "products": [
+            "string"
+          ]
+        }
+      },
       "description": "The dated events recorded on the account -- releases, campaigns, price changes. The business context behind a movement in the numbers, which no report explains on its own."
     },
     {
@@ -178,60 +603,191 @@
       "name": "Users",
       "paged": false,
       "suffix": "/v2/users/{Email}",
+      "responseSchema": {
+        "active": "boolean",
+        "currency": "string",
+        "region": "string",
+        "is_owner": "boolean",
+        "share_of_profit": "string",
+        "last_login": "timeInstant",
+        "timezone": "string",
+        "account": {
+          "id": "double",
+          "company": "string",
+          "last_import": "timeInstant",
+          "plan": "string"
+        },
+        "id": "double",
+        "role": "string",
+        "name": "string",
+        "email": "string",
+        "date_format": "string"
+      },
       "description": "One Appfigures user by email address. Administrative."
     },
     {
       "name": "Accounts",
       "paged": false,
       "suffix": "/v2/external_accounts",
+      "responseSchema": {
+        "*": {
+          "id": "double",
+          "account_id": "double",
+          "nickname": "string",
+          "username": "string",
+          "auto_import": "boolean",
+          "store_id": "double",
+          "store": "string"
+        }
+      },
       "description": "The store and network accounts connected to Appfigures -- iTunes Connect, Google Play, ad networks. Their status is what determines whether a report has data at all: a broken connection produces gaps that look like zero sales."
     },
     {
       "name": "Account",
       "paged": false,
       "suffix": "/v2/external_accounts/{External Account ID}",
+      "responseSchema": {
+        "id": "double",
+        "account_id": "double",
+        "nickname": "string",
+        "username": "string",
+        "auto_import": "boolean",
+        "store_id": "double",
+        "store": "string"
+      },
       "description": "One connected external account by id, with its sync status."
     },
     {
       "name": "Categories",
       "paged": false,
       "suffix": "/v2/data/categories",
+      "responseSchema": {
+        "*": {
+          "id": "double",
+          "store": "string",
+          "device": "string",
+          "subcategories": [
+            "string"
+          ],
+          "parent_id": "double",
+          "name": "string"
+        }
+      },
       "description": "The store category taxonomy across the supported stores. Reference data; category ids differ per store, which is why a cross-store category comparison needs this."
     },
     {
       "name": "Countries",
       "paged": false,
       "suffix": "/v2/data/countries",
+      "responseSchema": {
+        "*": {
+          "iso": "string",
+          "name": "string",
+          "apple_store_no": "string"
+        }
+      },
       "description": "The country codes used across reports. Reference data."
     },
     {
       "name": "Apple Country",
       "paged": false,
       "suffix": "/v2/data/countries/apple",
+      "responseSchema": {
+        "*": {
+          "iso": "string",
+          "name": "string",
+          "apple_store_no": "string"
+        }
+      },
       "description": "Apple's own country and storefront codes, which differ from the general list. The decoder for App Store regional figures."
     },
     {
       "name": "Languages",
       "paged": false,
       "suffix": "/v2/data/languages",
+      "responseSchema": {
+        "*": {
+          "name": "string",
+          "code": "string",
+          "iso": "string"
+        }
+      },
       "description": "The language codes used in store listings and reviews. Reference data."
     },
     {
       "name": "Currencies",
       "paged": false,
       "suffix": "/v2/data/currencies",
+      "responseSchema": [
+        {
+          "Currency": "string",
+          "Symbol": "string"
+        }
+      ],
       "description": "The currencies revenue is reported in. Relevant because store payouts arrive in several, and totals across them need conversion Appfigures does not perform in these endpoints."
     },
     {
       "name": "Stores",
       "paged": false,
       "suffix": "/v2/data/stores",
+      "responseSchema": {
+        "*": {
+          "id": "string",
+          "code": "double",
+          "name": "string",
+          "short_name": "string",
+          "type": "string",
+          "supported_features": [
+            "string"
+          ],
+          "storefronts": [
+            {
+              "id": "string",
+              "name": "string",
+              "short_name": "string",
+              "type": "string"
+            }
+          ],
+          "countries": [
+            {
+              "iso": "string",
+              "name": "string",
+              "apple_store_no": "string"
+            }
+          ]
+        }
+      },
       "description": "The app stores Appfigures supports, with their ids. The decoder for the store column that appears throughout the reports."
     },
     {
       "name": "Sdks",
       "paged": false,
       "suffix": "/v2/data/sdks",
+      "responseSchema": [
+        {
+          "id": "string",
+          "code": "double",
+          "name": "string",
+          "tags": [
+            "string"
+          ],
+          "active": "boolean",
+          "started_tracking": "timeInstant",
+          "description": "string",
+          "tracked_platforms": [
+            "string"
+          ],
+          "external_links": [
+            {
+              "type": "string",
+              "value": "string"
+            }
+          ],
+          "developer": {
+            "name": "string"
+          }
+        }
+      ],
       "description": "The SDK catalogue Appfigures recognises. Reference data for SDK-based product searches."
     }
   ]
