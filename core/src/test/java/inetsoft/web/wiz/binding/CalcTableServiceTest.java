@@ -1246,6 +1246,48 @@ class CalcTableServiceTest {
       assertEquals(true, captor.getValue().getBinding().getTopn().getOthers());
    }
 
+   /** Bug #81772: a topn without 'others' keeps the stored Others setting. */
+   @Test
+   void aTopnWithoutOthersKeepsTheStoredOthersSetting() throws Exception {
+      Harness h = harness(3, 3);
+      AggregateRef sum = aggregate("PAID", "Sum");
+      when(h.layoutHandler().getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[]{ sum });
+      CellBindingInfo stored = new CellBindingInfo();
+      stored.getTopn().setOthers(true);
+      when(h.layoutService.getCellBindingInfo(any(), eq(0), eq(0))).thenReturn(stored);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension"),
+              "topn", spec("mode", "top", "n", 1)));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertEquals(true, captor.getValue().getBinding().getTopn().getOthers());
+   }
+
+   /** Bug #81772: an explicit others:false still wins over the stored value. */
+   @Test
+   void anExplicitOthersFalseOverridesTheStoredSetting() throws Exception {
+      Harness h = harness(3, 3);
+      AggregateRef sum = aggregate("PAID", "Sum");
+      when(h.layoutHandler().getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[]{ sum });
+      CellBindingInfo stored = new CellBindingInfo();
+      stored.getTopn().setOthers(true);
+      when(h.layoutService.getCellBindingInfo(any(), eq(0), eq(0))).thenReturn(stored);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension"),
+              "topn", spec("mode", "top", "n", 1, "others", false)));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertEquals(false, captor.getValue().getBinding().getTopn().getOthers());
+   }
+
    /**
     * Unlike a chart/table dimension's dlevelValue, a calc-table cell's OrderModel.option is a
     * plain int with no DynamicValue counterpart -- DateLevels.normalize() now returns a
