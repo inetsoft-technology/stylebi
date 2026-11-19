@@ -465,6 +465,9 @@ public class PolarCoord extends Coordinate {
       AffineTransform ctrans = coord.getCoordTransform();
       List<Axis> vaxes = new ArrayList<>();
       List<Double> thetas = new ArrayList<>();
+      List<DefaultAxis> spokes = new ArrayList<>();
+      List<Point2D[]> ends = new ArrayList<>(); // each spoke's logic end points
+      PolarAxis outer = null;
 
       // this should be called since the fit won't be called on the base
       // coord. It adds the grid lines and to be transformed in polar.
@@ -505,6 +508,7 @@ public class PolarCoord extends Coordinate {
 
             vgraph.setAxis(i, axis2);
             axises.add(axis2);
+            outer = axis2;
 
             // copy grid lines
             while(axis.getGridLineCount() > 0) {
@@ -531,6 +535,11 @@ public class PolarCoord extends Coordinate {
             axises.add(axis);
             axis.setScreenTransform(trans);
             axis.transformGridLines(this);
+
+            if(axis instanceof DefaultAxis spoke) {
+               spokes.add(spoke);
+               ends.add(new Point2D[] { pos, pos2 });
+            }
          }
          // diagonal axis not supported yet, need to be transformed into
          // a curve
@@ -553,6 +562,84 @@ public class PolarCoord extends Coordinate {
             applySpokeLabelModes(vaxes, thetas);
          }
       }
+
+      if(modernWeb && coord instanceof AbstractParallelCoord) {
+         createWebLines(vgraph, spokes, ends, outer);
+      }
+   }
+
+   /**
+    * Draw the spoke and outer ring lines as grid lines under the series.
+    * @param ends each spoke's logic end points, at its index in spokes.
+    */
+   private void createWebLines(VGraph vgraph, List<DefaultAxis> spokes, List<Point2D[]> ends,
+                               PolarAxis outer)
+   {
+      weblines.clear();
+
+      for(int i = 0; i < spokes.size(); i++) {
+         DefaultAxis spoke = spokes.get(i);
+         Point2D p0 = ends.get(i)[0];
+         Point2D p1 = ends.get(i)[1];
+
+         if(spoke.isLineVisible() && spoke.getLineColor() != null) {
+            addWebLine(vgraph, spoke, new Line2D.Double(transformPoint0(p0.getX(), p0.getY()),
+                                                        transformPoint0(p1.getX(), p1.getY())));
+         }
+      }
+
+      if(outer != null && outer.isLineVisible() && outer.getLineColor() != null) {
+         addWebLine(vgraph, outer, createOuterRing());
+      }
+   }
+
+   // the closed path through the spoke ends, or a circle without polygon sides
+   private Shape createOuterRing() {
+      double maxr = Math.min(GWIDTH, GHEIGHT) / 2;
+
+      if(!webGrid || getSidesCount() < 3) {
+         double yratio = getRatioY();
+         return new Ellipse2D.Double(-maxr, -maxr * yratio, 2 * maxr, 2 * maxr * yratio);
+      }
+
+      AffineTransform ctrans = coord.getCoordTransform();
+      int n = ((AbstractParallelCoord) coord).getParallelScales().length;
+      Path2D path = new Path2D.Double();
+
+      for(int i = 0; i < n; i++) {
+         // the x of spoke i, as the parallel coord places it
+         Point2D pt = ctrans.transform(new Point2D.Double((i + 0.5) * GWIDTH / n, GHEIGHT), null);
+         pt = transformPoint0(pt.getX(), pt.getY());
+
+         if(i == 0) {
+            path.moveTo(pt.getX(), pt.getY());
+         }
+         else {
+            path.lineTo(pt.getX(), pt.getY());
+         }
+      }
+
+      path.closePath();
+      return path;
+   }
+
+   // a grid line in place of the owner's axis line
+   private void addWebLine(VGraph vgraph, Axis owner, Shape shape) {
+      GridLine line = new GridLine(shape, owner, GDefaults.GRIDLINE_Z_INDEX, true);
+
+      line.setColor(owner.getLineColor());
+      line.setStyle(GraphConstants.THIN_LINE);
+      vgraph.addVisual(line);
+      weblines.add(line);
+      owner.setLineAsGrid(true);
+   }
+
+   /**
+    * Get the spoke and outer ring lines drawn under the series.
+    * @hidden
+    */
+   public List<GridLine> getWebLines() {
+      return Collections.unmodifiableList(weblines);
    }
 
    /**
@@ -821,6 +908,13 @@ public class PolarCoord extends Coordinate {
       if(pieRatio > 0) {
          hideTinyText(vgraph);
       }
+
+      // a hidden axis hides its web line
+      for(GridLine line : weblines) {
+         if(line.getAxis().getZIndex() < 0) {
+            line.setZIndex(-1);
+         }
+      }
    }
 
    // if fixed pie ratio is set, hide texts that are truncated to only 1 char, which looks
@@ -999,6 +1093,7 @@ public class PolarCoord extends Coordinate {
       PolarCoord obj = (PolarCoord) super.clone();
       obj.coord = (Coordinate) coord.clone(srange);
       obj.axises = new Vector<>();
+      obj.weblines = new ArrayList<>();
       return obj;
    }
 
@@ -1383,6 +1478,7 @@ public class PolarCoord extends Coordinate {
    private int type = THETA_RHO; // polar transformation type
    private Coordinate coord; // inner coordinate
    private Vector<Axis> axises = new Vector<>(); // all axises in this coord
+   private List<GridLine> weblines = new ArrayList<>(); // spokes and outer ring under the series
    private Double pradius = null; // polar radius
    private double holeRatio = 0.3;
    private double pieRatio = 0;

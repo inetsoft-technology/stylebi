@@ -23,8 +23,10 @@ import inetsoft.graph.Plotter;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.AreaElement;
+import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.guide.axis.DefaultAxis;
+import inetsoft.graph.guide.axis.GridLine;
 import inetsoft.graph.guide.axis.PolarAxis;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.internal.GTool;
@@ -34,20 +36,26 @@ import inetsoft.graph.visual.VisualObject;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.util.graphics.SVGSupport;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Graphics2D;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * The rings of a radar: even steps on unequal spokes, and polygons for a one-measure radar.
@@ -228,15 +236,265 @@ class RadarWebTest {
       }
    }
 
-   // the outer ring radius after layout
-   private static double outerRadius(VGraph vgraph) {
+   @Test
+   void modernWebLinesDrawUnderTheSeries() {
+      VGraph vgraph = vgraph(true, new double[] { 100, 7, 2000 }, GraphConstants.THIN_LINE,
+                             true, 400, 240);
+      List<GridLine> web = webLines(vgraph);
+      Axis[] axes = vgraph.getCoordinate().getAxes(false);
+
+      assertEquals(4, web.size(), "three spokes and the outer ring");
+      assertEquals(4, axes.length, "premise: three spokes and the outer ring axis");
+      assertFalse(GTool.getVOs(vgraph).isEmpty(), "premise: a series");
+
+      for(GridLine line : web) {
+         assertEquals(GDefaults.GRIDLINE_Z_INDEX, line.getZIndex());
+
+         for(VisualObject vo : GTool.getVOs(vgraph)) {
+            assertTrue(vo.getZIndex() > line.getZIndex(), "series z " + vo.getZIndex());
+         }
+      }
+
+      for(Axis axis : axes) {
+         int z = axis instanceof PolarAxis ? GDefaults.AXIS_Z_INDEX : GDefaults.VO_Z_INDEX + 1;
+
+         assertEquals(z, axis.getZIndex(), axis.toString());
+         assertTrue(axis.isLineAsGrid(), axis.toString());
+         assertTrue(axis.isLineVisible(), axis.toString());
+      }
+   }
+
+   @Test
+   void modernSpokesRunFromTheCentreToTheOuterRing() {
+      VGraph vgraph = vgraph(true, new double[] { 100, 7, 2000 }, GraphConstants.THIN_LINE,
+                             true, 400, 240);
+      double outer = outerRadius(vgraph);
+      Point2D c = centre(vgraph);
+      List<GridLine> spokes = spokeWebLines(vgraph);
+      List<Point2D> ring = vertices(painted(outerWebLine(vgraph)));
+
+      assertEquals(3, spokes.size());
+      assertEquals(3, ring.size(), "outer ring vertices " + ring);
+
+      for(Point2D v : ring) {
+         assertEquals(outer, v.distance(c), 0.5, "vertex " + v);
+      }
+
+      for(GridLine spoke : spokes) {
+         List<Point2D> ends = vertices(painted(spoke));
+         assertEquals(2, ends.size());
+         Point2D end = ends.get(1);
+
+         assertEquals(0, ends.get(0).distance(c), 0.5, "starts at the centre");
+         assertEquals(outer, end.distance(c), 0.5, "ends on the outer ring");
+         assertTrue(ring.stream().anyMatch(v -> v.distance(end) <= 0.5),
+                    "end " + end + " on a vertex of " + ring);
+      }
+   }
+
+   @Test
+   void modernYGridNoneKeepsSpokesAndOuterRing() {
+      VGraph vgraph = vgraph(true, new double[] { 100, 7, 2000 }, GraphConstants.NONE,
+                             true, 400, 240);
+
+      for(DefaultAxis spoke : spokesOf(vgraph)) {
+         assertEquals(0, spoke.getGridLineCount(), "no inner rings");
+      }
+
+      assertEquals(3, spokeWebLines(vgraph).size());
+      assertNotNull(outerWebLine(vgraph));
+   }
+
+   @Test
+   void aTwoSpokeModernRadarHasACircularOuterRing() {
+      VGraph vgraph = vgraph(true, new double[] { 100, 2000 }, GraphConstants.THIN_LINE,
+                             true, 400, 240);
+      double outer = outerRadius(vgraph);
+      Point2D c = centre(vgraph);
+      Shape ring = painted(outerWebLine(vgraph));
+      Rectangle2D box = ring.getBounds2D();
+
+      assertEquals(2, spokeWebLines(vgraph).size());
+      assertTrue(curved(ring), "a circle, not a chord");
+      assertEquals(outer, box.getWidth() / 2, 0.5, "x radius");
+      assertEquals(outer, box.getHeight() / 2, 0.5, "y radius");
+      assertEquals(c.getX(), box.getCenterX(), 0.5, "x centre");
+      assertEquals(c.getY(), box.getCenterY(), 0.5, "y centre");
+   }
+
+   @Test
+   void classicWebGridHasNoWebLines() {
+      VGraph vgraph = vgraph(false, new double[] { 100, 7, 2000 }, GraphConstants.THIN_LINE,
+                             false, 400, 240);
+      PolarCoord polar = (PolarCoord) vgraph.getCoordinate();
+      Axis[] axes = polar.getAxes(false);
+
+      assertTrue(polar.isWebGrid(), "premise: a scripted web grid");
+      assertTrue(polar.getWebLines().isEmpty());
+      assertEquals(4, axes.length, "premise: three spokes and the outer ring axis");
+
+      for(Axis axis : axes) {
+         int z = axis instanceof PolarAxis ? GDefaults.AXIS_Z_INDEX : GDefaults.VO_Z_INDEX + 1;
+
+         assertFalse(axis.isLineAsGrid(), axis.toString());
+         assertEquals(z, axis.getZIndex(), axis.toString());
+      }
+   }
+
+   @Test
+   void modernAxesPaintTheirTicksButNotTheirLines() {
+      VGraph vgraph = vgraph(true, new double[] { 100, 7, 2000 }, GraphConstants.THIN_LINE,
+                             true, 400, 240);
+      // a stub for Batik, which the core tests lack
+      SVGSupport saved = SVGSupport._CACHE[0];
+      SVGSupport._CACHE[0] = mock(SVGSupport.class);
+
+      try {
+         for(Axis axis : vgraph.getCoordinate().getAxes(false)) {
+            int grid = inked(axis);
+            axis.setLineAsGrid(false);
+            int line = inked(axis);
+            axis.setLineAsGrid(true);
+
+            assertTrue(grid < line,
+                       axis + ": " + grid + " pixels as a grid, " + line + " as a line");
+
+            if(axis instanceof DefaultAxis) {
+               assertTrue(grid > 0, axis + " ticks still paint");
+            }
+         }
+      }
+      finally {
+         SVGSupport._CACHE[0] = saved;
+      }
+   }
+
+   @Test
+   void aHiddenAxisHidesItsWebLine() {
+      // the first spoke axis is hidden before layout
+      Function<Coordinate, PolarCoord> hiding = inner -> new PolarCoord(inner) {
+         @Override
+         public void createAxis(VGraph vgraph) {
+            super.createAxis(vgraph);
+            getAxes(false)[0].setZIndex(-1);
+         }
+      };
+      VGraph vgraph = vgraph(true, new double[] { 100, 7, 2000 }, GraphConstants.THIN_LINE,
+                             true, 400, 240, hiding);
+      List<GridLine> web = webLines(vgraph);
+      Axis hidden = vgraph.getCoordinate().getAxes(false)[0];
+
+      assertEquals(4, web.size(), "three spokes and the outer ring");
+      assertEquals(-1, hidden.getZIndex(), "premise: a hidden spoke axis");
+
+      for(GridLine line : web) {
+         int z = line.getAxis() == hidden ? -1 : GDefaults.GRIDLINE_Z_INDEX;
+         assertEquals(z, line.getZIndex(), line.getAxis().toString());
+      }
+   }
+
+   @Test
+   void webLinesLeaveTheLabelLayoutAlone() {
+      double[] max = { 100, 7, 2000 };
+      List<Rectangle2D> modern =
+         labelBounds(vgraph(true, max, GraphConstants.THIN_LINE, true, 400, 240));
+      List<Rectangle2D> classic =
+         labelBounds(vgraph(true, max, GraphConstants.THIN_LINE, false, 400, 240));
+
+      assertFalse(modern.isEmpty(), "premise: labels");
+      assertEquals(classic, modern);
+   }
+
+   private static List<GridLine> webLines(VGraph vgraph) {
+      return ((PolarCoord) vgraph.getCoordinate()).getWebLines();
+   }
+
+   private static List<GridLine> spokeWebLines(VGraph vgraph) {
+      return webLines(vgraph).stream().filter(l -> l.getAxis() instanceof DefaultAxis).toList();
+   }
+
+   // the outer ring's web line
+   private static GridLine outerWebLine(VGraph vgraph) {
+      List<GridLine> outer =
+         webLines(vgraph).stream().filter(l -> l.getAxis() instanceof PolarAxis).toList();
+
+      assertEquals(1, outer.size(), "one outer ring");
+      return outer.get(0);
+   }
+
+   // a web line as painted
+   private static Shape painted(GridLine line) {
+      return line.getAxis().getGridLineTransform().createTransformedShape(line.getShape());
+   }
+
+   // the plot centre, from the outer ring axis's own layout
+   private static Point2D centre(VGraph vgraph) {
+      PolarAxis axis = polarAxis(vgraph);
+      Point2D mid = new Point2D.Double(axis.getWidth() / 2, axis.getHeight() / 2);
+
+      return axis.getScreenTransform().transform(mid, null);
+   }
+
+   // the end points of a shape's straight segments
+   private static List<Point2D> vertices(Shape shape) {
+      List<Point2D> points = new ArrayList<>();
+      double[] pt = new double[6];
+
+      for(PathIterator it = shape.getPathIterator(null); !it.isDone(); it.next()) {
+         int type = it.currentSegment(pt);
+
+         if(type == PathIterator.SEG_MOVETO || type == PathIterator.SEG_LINETO) {
+            points.add(new Point2D.Double(pt[0], pt[1]));
+         }
+      }
+
+      return points;
+   }
+
+   // the pixels an axis line paints
+   private static int inked(Axis axis) {
+      BufferedImage img = new BufferedImage(400, 240, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g = img.createGraphics();
+      int n = 0;
+
+      axis.getAxisLine().paint(g);
+      g.dispose();
+
+      for(int y = 0; y < img.getHeight(); y++) {
+         for(int x = 0; x < img.getWidth(); x++) {
+            n += (img.getRGB(x, y) >>> 24) != 0 ? 1 : 0;
+         }
+      }
+
+      return n;
+   }
+
+   // every axis label's bounds, axis by axis
+   private static List<Rectangle2D> labelBounds(VGraph vgraph) {
+      List<Rectangle2D> bounds = new ArrayList<>();
+
+      for(Axis axis : vgraph.getCoordinate().getAxes(false)) {
+         for(VLabel label : axis.getLabels()) {
+            bounds.add(label.getBounds());
+         }
+      }
+
+      return bounds;
+   }
+
+   private static PolarAxis polarAxis(VGraph vgraph) {
       for(Axis axis : vgraph.getCoordinate().getAxes(false)) {
          if(axis instanceof PolarAxis polarAxis) {
-            return polarAxis.getWidth() / 2;
+            return polarAxis;
          }
       }
 
       throw new AssertionError("no polar axis");
+   }
+
+   // the outer ring radius after layout
+   private static double outerRadius(VGraph vgraph) {
+      return polarAxis(vgraph).getWidth() / 2;
    }
 
    // the painted distance from the centre to a ring of a spoke
@@ -332,6 +590,12 @@ class RadarWebTest {
    private static VGraph vgraph(boolean even, double[] max, int gridStyle, boolean modern,
                                 int width, int height)
    {
+      return vgraph(even, max, gridStyle, modern, width, height, PolarCoord::new);
+   }
+
+   private static VGraph vgraph(boolean even, double[] max, int gridStyle, boolean modern,
+                                int width, int height, Function<Coordinate, PolarCoord> polarOf)
+   {
       int n = max.length;
       String[] names = new String[n];
       Scale[] scales = new Scale[n];
@@ -359,7 +623,9 @@ class RadarWebTest {
       graph.addElement(area);
       ParallelCoord inner = new ParallelCoord(scales);
       inner.setEvenRings(even);
-      PolarCoord polar = new PolarCoord(inner);
+      // the outer ring line a generated radar shows
+      inner.getAxisLabelScale().getAxisSpec().setLineVisible(true);
+      PolarCoord polar = polarOf.apply(inner);
       polar.setWebGrid(true);
       polar.setModernWeb(modern);
       graph.setCoordinate(polar);

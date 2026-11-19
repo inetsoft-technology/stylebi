@@ -20,10 +20,18 @@ package inetsoft.report.composition.graph;
 import inetsoft.graph.AxisSpec;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.GraphConstants;
+import inetsoft.graph.Plotter;
+import inetsoft.graph.VGraph;
 import inetsoft.graph.coord.AbstractParallelCoord;
 import inetsoft.graph.coord.PolarCoord;
 import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.graph.guide.VLabel;
+import inetsoft.graph.guide.axis.Axis;
+import inetsoft.graph.guide.axis.DefaultAxis;
+import inetsoft.graph.guide.axis.GridLine;
+import inetsoft.graph.guide.axis.PolarAxis;
 import inetsoft.graph.internal.GDefaults;
+import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.Scale;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.SreeEnv;
@@ -34,6 +42,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
+import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
@@ -149,6 +158,124 @@ class ModernRadarWebTest {
       assertEquals(3, checked, "premise: one spec per spoke");
    }
 
+   @Test
+   void anAuthorMeasureAxisColourReachesEverySpoke() {
+      Consumer<RadarChartInfo> red = r -> {
+         for(VSDataRef ref : r.getAggregateRefs()) {
+            ((VSChartAggregateRef) ref).getAxisDescriptor().setLineColor(Color.RED);
+         }
+      };
+      List<GridLine> spokes = spokeLines(plot(VizMark.MODERN_LIGHT, LIGHT, d -> { }, red));
+
+      assertEquals(3, spokes.size());
+
+      for(GridLine line : spokes) {
+         assertEquals(Color.RED, line.getColor());
+      }
+   }
+
+   @Test
+   void anAuthorLabelAxisColourReachesTheOuterRing() {
+      Consumer<RadarChartInfo> blue = r -> r.getLabelAxisDescriptor().setLineColor(Color.BLUE);
+      VGraph vgraph = plot(VizMark.MODERN_LIGHT, LIGHT, d -> { }, blue);
+      List<GridLine> spokes = spokeLines(vgraph);
+
+      assertEquals(Color.BLUE, outerLine(vgraph).getColor());
+      assertEquals(3, spokes.size());
+
+      for(GridLine line : spokes) {
+         assertEquals(LIGHT, line.getColor());
+      }
+   }
+
+   @Test
+   void webLinesDefaultToTheGridColour() {
+      for(VizMark mark : new VizMark[] { VizMark.MODERN_LIGHT, VizMark.MODERN_DARK }) {
+         Color grid = mark == VizMark.MODERN_DARK ? DARK : LIGHT;
+         List<GridLine> web = webLines(plot(mark, grid, d -> { }, r -> { }));
+
+         assertEquals(4, web.size(), mark + ": three spokes and the outer ring");
+
+         for(GridLine line : web) {
+            assertEquals(grid, line.getColor(), mark.toString());
+         }
+      }
+   }
+
+   @Test
+   void theYGridColourReachesOnlyTheRings() {
+      Consumer<ChartDescriptor> green = d -> d.getPlotDescriptor().setYGridColor(Color.GREEN);
+      VGraph vgraph = plot(VizMark.MODERN_LIGHT, LIGHT, green, r -> { });
+      List<GridLine> web = webLines(vgraph);
+      int rings = 0;
+
+      for(Axis axis : vgraph.getCoordinate().getAxes(false)) {
+         for(int i = 0; i < axis.getGridLineCount(); i++) {
+            assertEquals(Color.GREEN, axis.getGridLine(i).getColor());
+            rings++;
+         }
+      }
+
+      assertTrue(rings > 0, "premise: inner rings");
+      assertEquals(4, web.size(), "three spokes and the outer ring");
+
+      for(GridLine line : web) {
+         assertEquals(LIGHT, line.getColor());
+      }
+   }
+
+   @Test
+   void aHiddenLabelAxisLineHasNoOuterRing() {
+      Consumer<RadarChartInfo> hide = r -> r.getLabelAxisDescriptor().setLineVisible(false);
+      VGraph vgraph = plot(VizMark.MODERN_LIGHT, LIGHT, d -> { }, hide);
+      PolarAxis outer = null;
+
+      for(Axis axis : vgraph.getCoordinate().getAxes(false)) {
+         if(axis instanceof PolarAxis polar) {
+            outer = polar;
+         }
+      }
+
+      assertNotNull(outer, "premise: the spoke names' axis");
+      assertTrue(webLines(vgraph).stream().noneMatch(l -> l.getAxis() instanceof PolarAxis),
+                 "no outer web line");
+      assertEquals(3, spokeLines(vgraph).size());
+      assertTrue(outer.getZIndex() >= 0, "the spoke names' axis draws");
+      assertEquals(3, outer.getLabels().length, "one name per spoke");
+
+      for(VLabel label : outer.getLabels()) {
+         assertTrue(label.getZIndex() >= 0, "a spoke name draws");
+      }
+   }
+
+   private static List<GridLine> webLines(VGraph vgraph) {
+      return ((PolarCoord) vgraph.getCoordinate()).getWebLines();
+   }
+
+   private static List<GridLine> spokeLines(VGraph vgraph) {
+      return webLines(vgraph).stream().filter(l -> l.getAxis() instanceof DefaultAxis).toList();
+   }
+
+   private static GridLine outerLine(VGraph vgraph) {
+      List<GridLine> outer =
+         webLines(vgraph).stream().filter(l -> l.getAxis() instanceof PolarAxis).toList();
+
+      assertEquals(1, outer.size(), "one outer ring");
+      return outer.get(0);
+   }
+
+   // a 400x240 layout of the built radar
+   private static VGraph plot(VizMark mark, Color seed, Consumer<ChartDescriptor> descSetup,
+                              Consumer<RadarChartInfo> infoSetup)
+   {
+      GraphGenerator gen = generator(mark, seed, descSetup, infoSetup);
+      VGraph vgraph =
+         Plotter.getPlotter(gen.createEGraph()).plotAndLayout(gen.getData(), 0, 0, 400, 240);
+
+      assertFalse(GTool.getVOs(vgraph).isEmpty(), "premise: a series");
+      return vgraph;
+   }
+
    private static Color seeded(Color seed) {
       PlotDescriptor plot = new PlotDescriptor();
       plot.setYGridColor(seed, CompositeValue.Type.DEFAULT);
@@ -173,9 +300,16 @@ class ModernRadarWebTest {
       return specs;
    }
 
-   // the seed is written as the chrome seed would, the helper not running it
    private static EGraph build(VizMark mark, Color seed, Consumer<ChartDescriptor> descSetup,
                                Consumer<RadarChartInfo> infoSetup)
+   {
+      return generator(mark, seed, descSetup, infoSetup).createEGraph();
+   }
+
+   // the seed is written as the chrome seed would, the helper not running it
+   private static GraphGenerator generator(VizMark mark, Color seed,
+                                           Consumer<ChartDescriptor> descSetup,
+                                           Consumer<RadarChartInfo> infoSetup)
    {
       RadarVSChartInfo radar = new RadarVSChartInfo();
       VSChartAggregateRef price = agg("Price", "Sum");
@@ -206,7 +340,7 @@ class ModernRadarWebTest {
       assemblyInfo.setVizMark(mark);
       return GraphGenerator.getGenerator(assemblyInfo, null, new DefaultDataSet(rows),
                                          new VariableTable(), null, XSourceInfo.NONE,
-                                         new Dimension(400, 400)).createEGraph();
+                                         new Dimension(400, 400));
    }
 
    private static VSChartAggregateRef agg(String name, String formula) {
