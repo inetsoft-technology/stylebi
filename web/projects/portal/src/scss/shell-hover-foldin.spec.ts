@@ -135,7 +135,8 @@ describe("dark shell disabled primary button", () => {
    });
 
    it("draws a disabled primary with them at full opacity, outside dashboard content", () => {
-      const css = shellDark();
+      // only inside the :where(.shell-dark) block: moved out of it, the rule would apply in light too
+      const css = block(shellDark(), ":where(.shell-dark)");
       // the selector list interpolates #{...}, so the declarations start at the " {" that ends a line
       const rule = css.match(/\.btn\.btn-primary:is\(:disabled, \.disabled\)#\{\$outside-content\}[\s\S]*? \{\r?\n[^}]*\}/);
 
@@ -149,7 +150,8 @@ describe("dark shell disabled primary button", () => {
 
 describe("dark shell button press", () => {
    it("lightens past the hover, as hover lightens past rest in the dark shell", () => {
-      const css = read("scss/_shell-dark.scss");
+      // only inside the :where(.shell-dark) block: moved out of it, the rule would apply in light too
+      const css = block(read("scss/_shell-dark.scss"), ":where(.shell-dark)");
       const press = css.match(
          /\.btn\.btn-primary, \.btn\.btn-secondary, \.btn\.btn-default, \.btn-light, \.btn\.btn-light,\s*\.btn\.btn-danger\s*\{\s*&:not\(:disabled\):not\(\.disabled\):not\(\.condition-field-combo-toggle\.disabled\):active:focus#\{\$outside-content\}\s*\{[^}]*\}/);
 
