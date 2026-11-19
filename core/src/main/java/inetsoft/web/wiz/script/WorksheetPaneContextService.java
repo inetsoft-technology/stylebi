@@ -103,7 +103,7 @@ public class WorksheetPaneContextService {
       return new PaneContext(
          grant == null ? PaneContextService.SHEET_KIND : grant.kind(), grant,
          syntaxOf(grant, sql), components, parameters(model), columns(tables, grant, notes),
-         functions, operators, notes);
+         List.of(), functions, operators, notes);
    }
 
    private static PaneContext.Syntax syntaxOf(EditorContext grant, boolean sql) {

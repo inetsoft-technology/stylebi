@@ -19,6 +19,7 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.web.binding.VSFormulaServiceProxy;
 import inetsoft.web.wiz.binding.BindableFieldsService;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
@@ -80,7 +81,8 @@ class PaneContextControllerTest {
       when(fields.list(any(), any(), any())).thenReturn(List.of());
 
       controller = new PaneContextController(feature, sessions, edit,
-         new PaneContextService(contextService, api, mock(ViewsheetService.class), fields));
+         new PaneContextService(contextService, api, mock(ViewsheetService.class), fields,
+            mock(VSFormulaServiceProxy.class)));
    }
 
    @Test

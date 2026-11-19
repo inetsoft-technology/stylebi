@@ -27,6 +27,13 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.script.VariableScriptable;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.web.binding.VSFormulaServiceProxy;
+import inetsoft.web.binding.drm.AggregateRefModel;
 import inetsoft.web.wiz.binding.BindableFieldsService;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
@@ -45,6 +52,7 @@ import org.junit.jupiter.api.Test;
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -65,6 +73,7 @@ class PaneContextServiceTest {
    private ScriptContextService contextService;
    private ScriptApiService apiService;
    private BindableFieldsService fields;
+   private VSFormulaServiceProxy formulas;
    private PaneContextService service;
    private final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
    private final Principal user = () -> "admin";
@@ -94,8 +103,9 @@ class PaneContextServiceTest {
       when(fields.list(eq(RUNTIME_ID), any(), eq(user))).thenReturn(
          List.of(table("Orders", null, "id", "total"), table("Customers", null, "name")));
 
+      formulas = mock(VSFormulaServiceProxy.class);
       service = new PaneContextService(
-         contextService, apiService, mock(ViewsheetService.class), fields);
+         contextService, apiService, mock(ViewsheetService.class), fields, formulas);
    }
 
    /** A viewsheet that declares {@code region}, holding a RadioButton1 component. */
@@ -501,6 +511,76 @@ class PaneContextServiceTest {
       assertTrue(detail.syntax().note().contains("evaluated per row"), detail.syntax().note());
       assertNotEquals(detail.syntax().note(), aggregate.syntax().note());
       assertEquals(detail.editorContext(), aggregate.editorContext());
+   }
+
+   private static AggregateRef aggregate(String column, AggregateFormula formula) {
+      return new AggregateRef(new ColumnRef(new AttributeRef(null, column)), formula);
+   }
+
+   /** What VSFormulaService.getFields returns: the dialog's aggregate tree, as models. */
+   private static Map<String, Object> fieldsWith(AggregateRef... aggregates) {
+      return Map.of("aggregateFields",
+         Arrays.stream(aggregates).map(AggregateRefModel::new).toList());
+   }
+
+   @Test
+   void aCalcFieldOnAggregateListsTheAggregateFieldsTheDialogOffers() throws Exception {
+      AggregateRef count = aggregate("Customer:Address", AggregateFormula.COUNT_ALL);
+      AggregateRef sum = aggregate("Total", AggregateFormula.SUM);
+      when(formulas.getFields(RUNTIME_ID, null, "Orders", user))
+         .thenReturn(fieldsWith(count, sum, count));
+      EditorContext calcField = new EditorContext("calcField", "Orders", "Margin", null);
+
+      PaneContext detail = service.paneContext(rvs, session(calcField), user, PaneState.DEFAULT);
+      PaneContext pane =
+         service.paneContext(rvs, session(calcField), user, new PaneState(false, true));
+
+      // the engine's own spelling, not the model's name (the bare column), without duplicates
+      assertEquals(List.of(VSUtil.getAggregateString(count, false),
+                           VSUtil.getAggregateString(sum, false)), pane.aggregates());
+      assertTrue(pane.aggregates().get(0).contains("Customer:Address"), pane.aggregates().toString());
+      assertTrue(pane.aggregates().stream().noneMatch(a -> a.equals("Customer:Address")));
+      assertTrue(detail.aggregates().isEmpty(), detail.aggregates().toString());
+      // the Detail inventory is unchanged
+      assertEquals(detail.columns(), pane.columns());
+   }
+
+   @Test
+   void everyListedAggregateIsMatchedByTheEngineWhenWrittenInAFormula() throws Exception {
+      AggregateRef count = aggregate("Customer:Address", AggregateFormula.COUNT_ALL);
+      AggregateRef top = aggregate("Total", AggregateFormula.SUM);
+      when(formulas.getFields(RUNTIME_ID, null, "Orders", user))
+         .thenReturn(fieldsWith(count, top));
+      EditorContext calcField = new EditorContext("calcField", "Orders", "Margin", null);
+
+      PaneContext pane =
+         service.paneContext(rvs, session(calcField), user, new PaneState(false, true));
+
+      for(String listed : pane.aggregates()) {
+         List<String> matched = new java.util.ArrayList<>();
+         List<AggregateRef> found = VSUtil.findAggregate(
+            new AggregateRef[] {count, top}, matched, listed + " * 2");
+         assertEquals(1, found.size(), listed);
+      }
+   }
+
+   @Test
+   void aggregateModeWithNoAggregateOrAFailingSourceSaysSoInsteadOfFailing() throws Exception {
+      EditorContext calcField = new EditorContext("calcField", "Orders", "Margin", null);
+      PaneState onAggregate = new PaneState(false, true);
+      when(formulas.getFields(RUNTIME_ID, null, "Orders", user)).thenReturn(fieldsWith());
+
+      PaneContext none = service.paneContext(rvs, session(calcField), user, onAggregate);
+      assertTrue(none.aggregates().isEmpty());
+      assertTrue(none.notes().stream().anyMatch(n -> n.contains("No aggregate field exists")),
+                 none.notes().toString());
+
+      when(formulas.getFields(RUNTIME_ID, null, "Orders", user))
+         .thenThrow(new IllegalStateException("boom"));
+      PaneContext failed = service.paneContext(rvs, session(calcField), user, onAggregate);
+      assertTrue(failed.aggregates().isEmpty());
+      assertTrue(failed.notes().stream().anyMatch(n -> n.contains("boom")), failed.notes().toString());
+      assertFalse(failed.columns().isEmpty());
    }
 
    @Test

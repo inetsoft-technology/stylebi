@@ -36,6 +36,10 @@ import java.util.List;
  * @param components    every component of the viewsheet, name and type only
  * @param parameters    the parameter names a script can read as {@code parameter.<name>}
  * @param columns       the table(s) whose columns the location can read, names and types only
+ * @param aggregates    the aggregate fields a calculated field on Aggregate can read, each as the
+ *                      complete expression to write (for example
+ *                      {@code field['Count(Customer:Address)']}); empty for every other location
+ *                      and on Detail
  * @param functions     the callable global function names; {@code get_function_signature} gives
  *                      each one's signature
  * @param operators     the operators the dialog offers when it lists them separately from
@@ -44,8 +48,8 @@ import java.util.List;
  */
 public record PaneContext(String kind, EditorContext editorContext, Syntax syntax,
                           List<Component> components, List<String> parameters,
-                          List<Table> columns, List<String> functions,
-                          List<String> operators, List<String> notes)
+                          List<Table> columns, List<String> aggregates,
+                          List<String> functions, List<String> operators, List<String> notes)
 {
    /** @param language always {@code "javascript"} today; @param note how to write it here. */
    public record Syntax(String language, String note) {}
