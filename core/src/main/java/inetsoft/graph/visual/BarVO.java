@@ -736,7 +736,7 @@ public class BarVO extends ElementVO {
       vtext.setPlacement(placement);
 
       if(elem.isValueFitInside()) {
-         applyValueFit(vtext, prefw, prefh, box);
+         applyValueFit(vtext, prefw, prefh, box, placement == GraphConstants.CENTER);
       }
 
       Point2D pt = new Point2D.Double(midx, midy);
@@ -744,26 +744,26 @@ public class BarVO extends ElementVO {
       vtext.setOffset(offset);
    }
 
-   // hide a value that does not fit its mark, and show it again once it does
-   private void applyValueFit(VOText text, double prefw, double prefh, Rectangle2D box) {
-      boolean fits = prefw + 2 * VALUE_FIT_INSET <= box.getWidth() &&
+   // hide a centred value that does not fit its mark, and show it again once it does
+   private void applyValueFit(VOText text, double prefw, double prefh, Rectangle2D box,
+                              boolean centered)
+   {
+      // the stack total is placed off centre and never fitted
+      if(text == stackText) {
+         return;
+      }
+
+      boolean fits = !centered || prefw + 2 * VALUE_FIT_INSET <= box.getWidth() &&
          prefh + 2 * VALUE_FIT_INSET <= box.getHeight();
-      boolean stack = text == stackText;
-      boolean hidden = stack ? stackFitHidden : fitHidden;
 
       if(!fits) {
          text.setZIndex(-1);
       }
-      else if(hidden) {
+      else if(fitHidden) {
          text.setZIndex(GDefaults.TEXT_Z_INDEX);
       }
 
-      if(stack) {
-         stackFitHidden = !fits;
-      }
-      else {
-         fitHidden = !fits;
-      }
+      fitHidden = !fits;
    }
 
    // a highlight gives the label its own colour, which the automatic colour must not replace
@@ -2062,7 +2062,6 @@ public class BarVO extends ElementVO {
    private boolean negative = false;
    private VOText vtext;
    private boolean fitHidden;
-   private boolean stackFitHidden;
    private static final double VALUE_FIT_INSET = 3;
    private VOText stackText;
    private Coordinate coord;

@@ -17,11 +17,13 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.CategoricalLineFrame;
 import inetsoft.graph.aesthetic.CategoricalShapeFrame;
 import inetsoft.graph.aesthetic.GShape;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.report.internal.binding.BaseField;
+import inetsoft.report.internal.graph.ChangeChartTypeProcessor;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -203,6 +205,33 @@ class ShapeListSeedTest {
       }
 
       return list((CategoricalShapeFrame) wrapper.getVisualFrame());
+   }
+
+   @Test
+   void aTypeChangeKeepsTheMarkedListOnAShapeDimension() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      VSChartInfo cinfo = info.getVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_LINE);
+      cinfo.setRTChartType(GraphTypes.CHART_LINE);
+      cinfo.addYField(aggregate("Sales", new CategoricalShapeFrame()));
+      VSAestheticRef ref = new VSAestheticRef();
+      ref.setDataRef(stateDimension());
+      ref.setVisualFrame(new CategoricalLineFrame());
+      cinfo.setShapeField(ref);
+      info.seedChromeDefaults(VizContext.of(info));
+
+      new ChangeChartTypeProcessor(GraphTypes.CHART_LINE, GraphTypes.CHART_POINT, null, cinfo)
+         .process();
+      assertArrayEquals(ModernShapes.classicDefault(), list(shapeFrame(info)), "premise");
+      info.reseedIfResolvedTypeChanged();
+
+      assertArrayEquals(ModernShapes.modernDefault(), list(shapeFrame(info)));
+   }
+
+   private static CategoricalShapeFrame shapeFrame(ChartVSAssemblyInfo info) {
+      return (CategoricalShapeFrame) info.getVSChartInfo().getShapeField().getVisualFrame();
    }
 
    @Test

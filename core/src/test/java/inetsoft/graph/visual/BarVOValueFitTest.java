@@ -64,7 +64,7 @@ class BarVOValueFitTest {
       Laid laid = lay(5, 6, "520", true, 400, 240);
 
       assertBar(laid, 12, 40);
-      assertFalse(shown(laid.text));
+      assertTrue(hidden(laid.text));
    }
 
    @Test
@@ -72,7 +72,7 @@ class BarVOValueFitTest {
       Laid laid = lay(24, 30, "-1,250", true, 400, 240);
 
       assertBar(laid, 60, 8);
-      assertFalse(shown(laid.text));
+      assertTrue(hidden(laid.text));
    }
 
    @Test
@@ -96,6 +96,30 @@ class BarVOValueFitTest {
    }
 
    @Test
+   void aLabelNotCentredIsNeverFitted() {
+      Laid laid = lay(5, 6, "520", true, 400, 240, GraphConstants.TOP);
+
+      assertBar(laid, 12, 40);
+      assertTrue(shown(laid.text));
+   }
+
+   @Test
+   void theMarginIsThreePixelsOnEachSide() {
+      double perUnit = lay(5, 50, "520", true, 400, 240).bar.getBounds().getHeight() / 50;
+      Laid probe = lay(5, 50, "520", true, 400, 240);
+      double label = probe.text.stream().filter(t -> t.getElementVO() == probe.bar).findFirst()
+         .orElseThrow().getPreferredHeight();
+
+      Laid fits = lay(5, (label + 6 + 0.01) / perUnit, "520", true, 400, 240);
+      Laid short1 = lay(5, (label + 6 - 1) / perUnit, "520", true, 400, 240);
+
+      assertEquals(label + 6, fits.bar.getBounds().getHeight(), 0.5, "premise: bar height");
+      assertTrue(shown(fits.text), "bar " + fits.bar.getBounds().getHeight() + " label " + label);
+      assertTrue(hidden(short1.text),
+                 "bar " + short1.bar.getBounds().getHeight() + " label " + label);
+   }
+
+   @Test
    void withoutTheFlagNothingIsHidden() {
       Laid laid = lay(24, 30, "-1,250", false, 400, 240);
 
@@ -116,10 +140,21 @@ class BarVOValueFitTest {
       return texts.stream().allMatch(t -> t.getZIndex() >= 0);
    }
 
+   private static boolean hidden(List<VOText> texts) {
+      assertFalse(texts.isEmpty(), "premise: a value label");
+      return texts.stream().noneMatch(t -> t.getZIndex() >= 0);
+   }
+
    private record Laid(VGraph vgraph, BarVO bar, List<VOText> text) {
    }
 
    private static Laid lay(int categories, double value, String label, boolean fit, int w, int h) {
+      return lay(categories, value, label, fit, w, h, GraphConstants.CENTER);
+   }
+
+   private static Laid lay(int categories, double value, String label, boolean fit, int w, int h,
+                           int placement)
+   {
       Object[][] rows = new Object[categories + 1][];
       rows[0] = new Object[] { "State", "Sales", "Label" };
 
@@ -129,7 +164,7 @@ class BarVOValueFitTest {
 
       IntervalElement elem = new IntervalElement("State", "Sales");
       elem.setTextFrame(new DefaultTextFrame("Label"));
-      elem.setLabelPlacement(GraphConstants.CENTER);
+      elem.setLabelPlacement(placement);
       elem.setValueFitInside(fit);
       LinearScale scale = new LinearScale("Sales");
       scale.setMin(0);

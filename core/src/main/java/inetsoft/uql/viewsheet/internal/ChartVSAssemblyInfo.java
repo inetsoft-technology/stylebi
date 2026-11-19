@@ -3351,6 +3351,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    protected void seedTypeDefaults(VizContext ctx, ResolvedChartType type) {
       seedLegendPlacement(ctx, type);
       seedLegendTitles(ctx);
+      // a type change can rebuild the shape frame as a classic list
+      seedShapeLists(ctx);
       // values that depend on the resolved type; written on both branches
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
