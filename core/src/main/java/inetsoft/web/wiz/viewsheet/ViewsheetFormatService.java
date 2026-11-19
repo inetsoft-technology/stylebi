@@ -1228,8 +1228,17 @@ public class ViewsheetFormatService {
     */
    public record ChartRegionFormatRequest(String assembly, String region, String axis,
                                           String field, Integer index,
-                                          VSObjectFormatInfoModel format, boolean reset)
+                                          VSObjectFormatInfoModel format, boolean reset,
+                                          Set<String> formatKeys)
    {
+      /** Kept for callers built in Java that carry no raw keys. */
+      public ChartRegionFormatRequest(String assembly, String region, String axis, String field,
+                                      Integer index, VSObjectFormatInfoModel format,
+                                      boolean reset)
+      {
+         this(assembly, region, axis, field, index, format, reset, null);
+      }
+
       @JsonCreator
       public static ChartRegionFormatRequest fromJson(
          @JsonProperty("assembly") String assembly, @JsonProperty("region") String region,
@@ -1238,7 +1247,8 @@ public class ViewsheetFormatService {
          @JsonProperty("reset") boolean reset)
       {
          return new ChartRegionFormatRequest(assembly, region, axis, field, index,
-                                             parseFormat(format, "set_chart_region_format"), reset);
+                                             parseFormat(format, "set_chart_region_format"), reset,
+                                             FormatRequest.formatKeys(format));
       }
    }
 
@@ -1493,6 +1503,14 @@ public class ViewsheetFormatService {
          VSObjectFormatInfoModel model = request.format();
          event.setFormat(model == null ? new VSObjectFormatInfoModel() : model);
          event.setReset(request.reset());
+
+         // The painter writes a key only when it differs from the original format; a blank
+         // original carries defaults (backgroundAlpha 100), so a sent value equal to the
+         // default would be skipped as "no change". Perturb each sent key, as set_format does.
+         if(!request.reset() && model != null && request.formatKeys() != null) {
+            event.setOrigFormat(perturbedOrig(model, request.formatKeys(), false));
+         }
+
          event.setObjects(new String[0]);
          event.setCharts(new String[]{ request.assembly() });
          event.setRegions(new String[]{ region.painterRegion() });

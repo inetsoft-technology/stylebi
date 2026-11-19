@@ -128,6 +128,20 @@ class ViewsheetFormatServiceChartRegionTest {
    }
 
    @Test
+   void sentBackgroundAlphaOfDefaultValueDiffersFromTheOriginalFormat() throws Exception {
+      // The painter skips a key equal to the original format; a blank original has alpha 100, so
+      // an opaque (100) request must be made to differ, or it is silently dropped.
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setBackgroundAlpha(100);
+      FormatVSObjectEvent event = write(
+         new ViewsheetFormatService.ChartRegionFormatRequest(
+            "Chart1", "legend_content", null, null, 0, format, false,
+            java.util.Set.of("backgroundAlpha")), 0);
+      assertNotNull(event.getOrigFormat());
+      assertNotEquals(format.getBackgroundAlpha(), event.getOrigFormat().getBackgroundAlpha());
+   }
+
+   @Test
    void axisLabelsUseTheBottomXAxisAndFirstFieldOfTheShelf() throws Exception {
       FormatVSObjectEvent event = write(request("axis_labels", "x", null, null), 0);
       assertArrayEquals(new String[]{ ChartFormatConstants.BOTTOM_X_AXIS }, event.getRegions());
