@@ -22,6 +22,17 @@ import inetsoft.sree.ClientInfo;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.report.internal.LicenseException;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import inetsoft.util.ThreadContext;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import inetsoft.uql.util.XSessionService;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
@@ -29,7 +40,9 @@ import org.mockito.MockedStatic;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.security.Principal;
+
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -38,10 +51,24 @@ import static org.mockito.Mockito.*;
  * license service keeps one session entry for all of a user's logins on a node. Ending one login
  * must not stop that entry while another login of the same user is still active.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class,
+                                  HostedSessionServiceTest.LogoutConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class HostedSessionServiceTest {
+   @Configuration
+   static class LogoutConfiguration {
+      @Bean
+      AuthenticationService authenticationService() {
+         return mock(AuthenticationService.class);
+      }
+   }
+
    @BeforeEach
    void setUp() {
+      savedPrincipal = ThreadContext.getPrincipal();
       AtomicInteger sessionCounter = new AtomicInteger();
       XSessionService sessionService = mock(XSessionService.class);
       when(sessionService.createSessionID(any(), any()))
@@ -75,6 +102,7 @@ class HostedSessionServiceTest {
 
    @AfterEach
    void tearDown() {
+      ThreadContext.setPrincipal(savedPrincipal);
       securityStatic.close();
       hostedStatic.close();
       licenseManagerStatic.close();
@@ -121,6 +149,26 @@ class HostedSessionServiceTest {
       verify(hostedLicenseService, never()).stopSession("hosted-key", user2);
    }
 
+   @Test
+   void newSessionRejectedByHostedServiceThrowsAndLeavesPrincipalInactive() {
+      when(hostedLicenseService.startSession(any(), any())).thenReturn(false);
+      SRPrincipal browser1 = createPrincipal("S1", 111L);
+
+      assertThrows(LicenseException.class, () -> service.newSession(browser1));
+
+      assertTrue(service.getActiveSessions().isEmpty());
+   }
+
+   @Test
+   void newSessionAcceptedByHostedServiceSeatsPrincipalAndStartsSessionOnce() {
+      SRPrincipal browser1 = createPrincipal("S1", 111L);
+
+      service.newSession(browser1);
+
+      assertEquals(Set.of(browser1), service.getActiveSessions());
+      verify(hostedLicenseService, times(1)).startSession(license, browser1);
+   }
+
    private SRPrincipal createPrincipal(String sessionId, long secureId) {
       return createPrincipal("u", sessionId, secureId);
    }
@@ -136,6 +184,7 @@ class HostedSessionServiceTest {
    }
 
    private final List<SRPrincipal> activePrincipals = new ArrayList<>();
+   private Principal savedPrincipal;
    private License license;
    private HostedLicenseService hostedLicenseService;
    private MockedStatic<LicenseManager> licenseManagerStatic;
