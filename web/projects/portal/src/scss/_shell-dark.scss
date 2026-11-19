@@ -222,9 +222,9 @@ $dark-ws-row-hover-bg: #302D27;
   // orange. Dashboard content restores the light shell's label.
   --inet-button-primary-text-color: var(--inet-dark-on-primary-text-color);
   --inet-button-primary-hover-text-color: var(--inet-dark-on-primary-text-color);
-  // Hover and focus lighten the fill, as in a light shell, but to the dark shell's link orange,
+  // Hover and focus lighten the fill (a light shell darkens it) to the dark shell's link orange,
   // which reads as raised like the other hovered surfaces in a dark shell. The dark text reads
-  // 8.5:1 on it, and about 7:1 on a pressed button (brightness(.9) darkens the text too).
+  // 8.5:1 on it, and about 10:1 on a pressed button (the dark press brightens to 1.12).
   --inet-button-primary-hover-bg-color: #{$dark-link};
   --inet-button-primary-hover-border-color: #{$dark-link};
   // A disabled primary button: the light shell fades the orange to .3 opacity, which on a dark
