@@ -67,6 +67,12 @@
   &:hover, &:active, &:focus {
     border-right: 1px dashed !important;
   }
+
+  // keyboard focus: the ring's right edge marks the seam, so the dashed divider just inside it would
+  // double that line; it hides while Apply has keyboard focus (same specificity, later, so it wins)
+  &:focus-visible {
+    border-right-color: transparent !important;
+  }
 }
 
 .input-group > .btn.btn-default.input-group-btn-addon:not(:disabled) {
