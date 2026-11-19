@@ -12,6 +12,26 @@
       "name": "Sitemaps",
       "bodyTemplate": null,
       "suffix": "/v3/sites/{Site URL}/sitemaps",
+      "responseSchema": {
+        "sitemap": [
+          {
+            "contents": [
+              {
+                "submitted": "string",
+                "type": "string"
+              }
+            ],
+            "errors": "string",
+            "isPending": "boolean",
+            "isSitemapsIndex": "boolean",
+            "lastDownloaded": "timeInstant",
+            "lastSubmitted": "timeInstant",
+            "path": "string",
+            "type": "string",
+            "warnings": "string"
+          }
+        ]
+      },
       "description": "The sitemaps submitted for one site, each with the submission and last-download dates, whether it is an index, warning and error counts, and per-content-type counts of URLs submitted and indexed. Requires a site URL. The submitted-versus-indexed gap is the useful part -- it is the direct measure of how much of a site Google actually took."
     },
     {
@@ -19,6 +39,22 @@
       "name": "Sitemap",
       "bodyTemplate": null,
       "suffix": "/v3/sites/{Site URL}/sitemaps/{Feedpath}",
+      "responseSchema": {
+        "contents": [
+          {
+            "submitted": "string",
+            "type": "string"
+          }
+        ],
+        "errors": "string",
+        "isPending": "boolean",
+        "isSitemapsIndex": "boolean",
+        "lastDownloaded": "timeInstant",
+        "lastSubmitted": "timeInstant",
+        "path": "string",
+        "type": "string",
+        "warnings": "string"
+      },
       "description": "One sitemap by its full URL. Requires the site URL and the sitemap path."
     },
     {
@@ -26,6 +62,14 @@
       "name": "Sites",
       "bodyTemplate": null,
       "suffix": "/v3/sites",
+      "responseSchema": {
+        "siteEntry": [
+          {
+            "permissionLevel": "string",
+            "siteUrl": "string"
+          }
+        ]
+      },
       "lookups": [
         {
           "endpoints": [
@@ -44,6 +88,10 @@
       "name": "Site",
       "bodyTemplate": null,
       "suffix": "/v3/sites/{Site URL}",
+      "responseSchema": {
+        "permissionLevel": "string",
+        "siteUrl": "string"
+      },
       "description": "One property by its URL, with the permission level. Requires the site URL exactly as Sites reports it."
     },
     {

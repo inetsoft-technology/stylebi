@@ -20,97 +20,918 @@
           "parameterName": "Module API Name"
         }
       ],
-      "description": "Every module in the account -- standard and custom -- with its API name, display label, and whether it is visible and creatable. THE FIRST REQUEST: the API name is what every data endpoint here takes, and it is not always the display name, particularly for custom modules."
+      "description": "Every module in the account -- standard and custom -- with its API name, display label, and whether it is visible and creatable. THE FIRST REQUEST: the API name is what every data endpoint here takes, and it is not always the display name, particularly for custom modules.",
+      "responseSchema": {
+        "modules": [
+          {
+            "id": "string",
+            "api_name": "string",
+            "module_name": "string",
+            "singular_label": "string",
+            "plural_label": "string",
+            "description": "string",
+            "creatable": "boolean",
+            "editable": "boolean",
+            "deletable": "boolean",
+            "viewable": "boolean",
+            "api_supported": "boolean",
+            "convertable": "boolean",
+            "generated_type": "string",
+            "modified_time": "timeInstant",
+            "modified_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "sequence_number": "double",
+            "visibility": "double",
+            "global_search_supported": "boolean",
+            "presence_sub_menu": "boolean",
+            "triggers_supported": "boolean",
+            "inventory_template_supported": "boolean",
+            "emailTemplate_support": "boolean",
+            "filter_supported": "boolean",
+            "show_as_tab": "boolean",
+            "web_link": "string",
+            "quick_create": "boolean",
+            "feeds_required": "boolean",
+            "scoring_supported": "boolean",
+            "webform_supported": "boolean",
+            "arguments": [
+              {
+                "name": "string",
+                "value": "string"
+              }
+            ],
+            "business_card_field_limit": "double",
+            "parent_module": {
+              "api_name": "string",
+              "id": "string"
+            },
+            "profiles": [
+              {
+                "name": "string",
+                "id": "string"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Organization",
       "paged": false,
       "suffix": "/crm/v2/org",
-      "description": "The CRM organisation's details -- company name, licence edition, time zone, currency and user limits. One record, and the edition matters because several endpoints here are edition-gated."
+      "description": "The CRM organisation's details -- company name, licence edition, time zone, currency and user limits. One record, and the edition matters because several endpoints here are edition-gated.",
+      "responseSchema": {
+        "org": [
+          {
+            "id": "string",
+            "company_name": "string",
+            "description": "string",
+            "currency": "string",
+            "currency_symbol": "string",
+            "currency_locale": "string",
+            "iso_code": "string",
+            "time_zone": "string",
+            "domain_name": "string",
+            "alias": "string",
+            "zgid": "string",
+            "country_code": "string",
+            "country": "string",
+            "city": "string",
+            "street": "string",
+            "state": "string",
+            "zip": "string",
+            "phone": "string",
+            "mobile": "string",
+            "fax": "string",
+            "website": "string",
+            "employee_count": "string",
+            "photo_id": "string",
+            "primary_zuid": "string",
+            "primary_email": "string",
+            "zia_portal_id": "string",
+            "mc_status": "boolean",
+            "gapps_enabled": "boolean",
+            "translation_enabled": "boolean",
+            "privacy_settings": "boolean",
+            "hipaa_compliance_enabled": "boolean",
+            "license_details": {
+              "paid": "boolean",
+              "paid_type": "string",
+              "paid_expiry": "timeInstant",
+              "trial_type": "string",
+              "trial_expiry": "timeInstant",
+              "users_license_purchased": "double"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Users",
       "paged": true,
       "suffix": "/crm/v2/users?type={Type?:AllUsers|ActiveUsers|...}",
-      "description": "The users of the CRM, filterable by type -- all, active, deactivated, confirmed, admin. Every record carries an owner, so this is the dimension per-person performance joins to. Deactivated users still own their historical records, so excluding them loses that history."
+      "description": "The users of the CRM, filterable by type -- all, active, deactivated, confirmed, admin. Every record carries an owner, so this is the dimension per-person performance joins to. Deactivated users still own their historical records, so excluding them loses that history.",
+      "responseSchema": {
+        "users": [
+          {
+            "id": "string",
+            "email": "string",
+            "full_name": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "alias": "string",
+            "zuid": "string",
+            "status": "string",
+            "role": {
+              "name": "string",
+              "id": "string"
+            },
+            "profile": {
+              "name": "string",
+              "id": "string"
+            },
+            "Reporting_To": {
+              "name": "string",
+              "id": "string"
+            },
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "created_time": "timeInstant",
+            "Modified_By": {
+              "name": "string",
+              "id": "string"
+            },
+            "Modified_Time": "timeInstant",
+            "phone": "string",
+            "mobile": "string",
+            "fax": "string",
+            "city": "string",
+            "state": "string",
+            "street": "string",
+            "country": "string",
+            "zip": "string",
+            "website": "string",
+            "dob": "date",
+            "time_zone": "string",
+            "locale": "string",
+            "language": "string",
+            "country_locale": "string",
+            "confirm": "boolean",
+            "personal_account": "boolean",
+            "microsoft": "boolean",
+            "Isonline": "boolean",
+            "Currency": "string",
+            "default_tab_group": "string",
+            "offset": "double",
+            "date_format": "string",
+            "time_format": "string",
+            "decimal_separator": "string",
+            "name_format": "string",
+            "signature": "string",
+            "territories": [
+              {
+                "name": "string",
+                "id": "string",
+                "manager": "boolean"
+              }
+            ]
+          }
+        ],
+        "info": {
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "more_records": "boolean"
+        }
+      }
     },
     {
       "name": "User",
       "paged": false,
       "suffix": "/crm/v2/users/{User ID}",
-      "description": "One user by id, with their profile and role."
+      "description": "One user by id, with their profile and role.",
+      "responseSchema": {
+        "users": [
+          {
+            "id": "string",
+            "email": "string",
+            "full_name": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "alias": "string",
+            "zuid": "string",
+            "status": "string",
+            "role": {
+              "name": "string",
+              "id": "string"
+            },
+            "profile": {
+              "name": "string",
+              "id": "string"
+            },
+            "Reporting_To": {
+              "name": "string",
+              "id": "string"
+            },
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "created_time": "timeInstant",
+            "Modified_By": {
+              "name": "string",
+              "id": "string"
+            },
+            "Modified_Time": "timeInstant",
+            "phone": "string",
+            "mobile": "string",
+            "fax": "string",
+            "city": "string",
+            "state": "string",
+            "street": "string",
+            "country": "string",
+            "zip": "string",
+            "website": "string",
+            "dob": "date",
+            "time_zone": "string",
+            "locale": "string",
+            "language": "string",
+            "country_locale": "string",
+            "confirm": "boolean",
+            "personal_account": "boolean",
+            "microsoft": "boolean",
+            "Isonline": "boolean",
+            "Currency": "string",
+            "default_tab_group": "string",
+            "offset": "double",
+            "date_format": "string",
+            "time_format": "string",
+            "decimal_separator": "string",
+            "name_format": "string",
+            "signature": "string",
+            "territories": [
+              {
+                "name": "string",
+                "id": "string",
+                "manager": "boolean"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Roles",
       "paged": false,
       "suffix": "/crm/v2/settings/roles",
-      "description": "The role hierarchy, each role with its reporting parent. ROLES CONTROL WHAT DATA A USER SEES in Zoho -- a manager sees their subordinates' records -- so this hierarchy is the reason two people running the same query get different row counts."
+      "description": "The role hierarchy, each role with its reporting parent. ROLES CONTROL WHAT DATA A USER SEES in Zoho -- a manager sees their subordinates' records -- so this hierarchy is the reason two people running the same query get different row counts.",
+      "responseSchema": {
+        "roles": [
+          {
+            "id": "string",
+            "name": "string",
+            "display_label": "string",
+            "description": "string",
+            "admin_user": "boolean",
+            "share_with_peers": "boolean",
+            "forecast_manager": {
+              "name": "string",
+              "id": "string"
+            },
+            "reporting_to": {
+              "name": "string",
+              "id": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Role",
       "paged": false,
       "suffix": "/crm/v2/settings/roles/{Role ID}",
-      "description": "One role by id."
+      "description": "One role by id.",
+      "responseSchema": {
+        "roles": [
+          {
+            "id": "string",
+            "name": "string",
+            "display_label": "string",
+            "description": "string",
+            "admin_user": "boolean",
+            "share_with_peers": "boolean",
+            "forecast_manager": {
+              "name": "string",
+              "id": "string"
+            },
+            "reporting_to": {
+              "name": "string",
+              "id": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Profiles",
       "paged": false,
       "suffix": "/crm/v2/settings/profiles",
-      "description": "The permission profiles, each with the operations it permits. Distinct from roles: a profile says what a user may DO, a role says whose records they may see."
+      "description": "The permission profiles, each with the operations it permits. Distinct from roles: a profile says what a user may DO, a role says whose records they may see.",
+      "responseSchema": {
+        "profiles": [
+          {
+            "id": "string",
+            "name": "string",
+            "display_label": "string",
+            "description": "string",
+            "category": "boolean",
+            "created_time": "timeInstant",
+            "modified_time": "timeInstant",
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "modified_by": {
+              "name": "string",
+              "id": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Profile",
       "paged": false,
       "suffix": "/crm/v2/settings/profiles/{Profile ID}",
-      "description": "One profile by id, with its permission set."
+      "description": "One profile by id, with its permission set.",
+      "responseSchema": {
+        "profiles": [
+          {
+            "id": "string",
+            "name": "string",
+            "display_label": "string",
+            "description": "string",
+            "category": "boolean",
+            "created_time": "timeInstant",
+            "modified_time": "timeInstant",
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "modified_by": {
+              "name": "string",
+              "id": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Territories",
       "paged": false,
       "suffix": "/crm/v2/settings/territories",
-      "description": "The territories defined, if territory management is enabled. A second access dimension beyond the role hierarchy, and another reason record visibility differs between users."
+      "description": "The territories defined, if territory management is enabled. A second access dimension beyond the role hierarchy, and another reason record visibility differs between users.",
+      "responseSchema": {
+        "territories": [
+          {
+            "id": "string",
+            "name": "string",
+            "description": "string",
+            "parent_id": "string",
+            "created_time": "timeInstant",
+            "modified_time": "timeInstant",
+            "manager": {
+              "name": "string",
+              "id": "string"
+            },
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "modified_by": {
+              "name": "string",
+              "id": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Module",
       "paged": false,
       "suffix": "/crm/v2/settings/modules/{Module API Name}",
-      "description": "One module by API name, with its settings and properties."
+      "description": "One module by API name, with its settings and properties.",
+      "responseSchema": {
+        "modules": [
+          {
+            "id": "string",
+            "api_name": "string",
+            "module_name": "string",
+            "singular_label": "string",
+            "plural_label": "string",
+            "description": "string",
+            "creatable": "boolean",
+            "editable": "boolean",
+            "deletable": "boolean",
+            "viewable": "boolean",
+            "api_supported": "boolean",
+            "convertable": "boolean",
+            "generated_type": "string",
+            "modified_time": "timeInstant",
+            "modified_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "sequence_number": "double",
+            "visibility": "double",
+            "global_search_supported": "boolean",
+            "presence_sub_menu": "boolean",
+            "triggers_supported": "boolean",
+            "inventory_template_supported": "boolean",
+            "emailTemplate_support": "boolean",
+            "filter_supported": "boolean",
+            "show_as_tab": "boolean",
+            "web_link": "string",
+            "quick_create": "boolean",
+            "feeds_required": "boolean",
+            "scoring_supported": "boolean",
+            "webform_supported": "boolean",
+            "arguments": [
+              {
+                "name": "string",
+                "value": "string"
+              }
+            ],
+            "business_card_field_limit": "double",
+            "parent_module": {
+              "api_name": "string",
+              "id": "string"
+            },
+            "profiles": [
+              {
+                "name": "string",
+                "id": "string"
+              }
+            ],
+            "kanban_view": "boolean",
+            "kanban_view_supported": "boolean",
+            "filter_status": "boolean",
+            "display_field": "string",
+            "per_page": "double",
+            "search_layout_fields": [
+              "string"
+            ],
+            "$properties": [
+              "string"
+            ],
+            "related_list_properties": {
+              "fields": [
+                "string"
+              ]
+            },
+            "custom_view": {
+              "id": "string",
+              "name": "string",
+              "display_value": "string",
+              "system_name": "string",
+              "category": "string",
+              "default": "boolean",
+              "system_defined": "boolean",
+              "offline": "boolean",
+              "fields": [
+                "string"
+              ]
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Fields",
       "paged": false,
       "suffix": "/crm/v2/settings/fields?module={Module API Name}",
-      "description": "Every field of one module, with API name, display label, data type, whether it is custom, mandatory or read-only, and for picklists the allowed values. Requires the module API name. THE DECODER: records return values under field API names, and picklist values are stored as their raw values, so neither is readable without this."
+      "description": "Every field of one module, with API name, display label, data type, whether it is custom, mandatory or read-only, and for picklists the allowed values. Requires the module API name. THE DECODER: records return values under field API names, and picklist values are stored as their raw values, so neither is readable without this.",
+      "responseSchema": {
+        "fields": [
+          {
+            "id": "string",
+            "api_name": "string",
+            "field_label": "string",
+            "display_label": "string",
+            "data_type": "string",
+            "json_type": "string",
+            "ui_type": "double",
+            "custom_field": "boolean",
+            "visible": "boolean",
+            "read_only": "boolean",
+            "field_read_only": "boolean",
+            "system_mandatory": "boolean",
+            "businesscard_supported": "boolean",
+            "webhook": "boolean",
+            "mass_update": "boolean",
+            "length": "double",
+            "decimal_place": "double",
+            "sequence_number": "double",
+            "created_source": "string",
+            "history_tracking": "boolean",
+            "hipaa_compliance_enabled": "boolean",
+            "quick_sequence_number": "double",
+            "blueprint_supported": "boolean",
+            "currency": {
+              "rounding_option": "string",
+              "precision": "double"
+            },
+            "auto_number": {
+              "starting_number_length": "double",
+              "prefix": "string",
+              "start_number": "double",
+              "suffix": "string"
+            },
+            "pick_list_values": [
+              {
+                "display_value": "string",
+                "reference_value": "string",
+                "actual_value": "string"
+              }
+            ],
+            "crypt": {
+              "mode": "string",
+              "status": "double"
+            },
+            "unique": {
+              "casesensitive": "string"
+            },
+            "tooltip": {
+              "name": "string",
+              "value": "string"
+            },
+            "textarea": {
+              "type": "string"
+            },
+            "view_type": {
+              "view": "boolean",
+              "edit": "boolean",
+              "quick_create": "boolean",
+              "create": "boolean"
+            },
+            "private": {
+              "restricted": "boolean",
+              "type": "string",
+              "export": "boolean"
+            },
+            "hipaa_compliance": {
+              "restricted_in_export": "boolean",
+              "restricted": "boolean"
+            },
+            "lookup": {
+              "display_label": "string",
+              "api_name": "string",
+              "module": "string",
+              "id": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Layouts",
       "paged": false,
       "suffix": "/crm/v2/settings/layouts?module={Module API Name}",
-      "description": "The page layouts of one module, each with its sections, the fields on it, and which profiles it applies to. Requires the module API name. Different profiles can see different layouts, so this is why two users see different fields on the same record."
+      "description": "The page layouts of one module, each with its sections, the fields on it, and which profiles it applies to. Requires the module API name. Different profiles can see different layouts, so this is why two users see different fields on the same record.",
+      "responseSchema": {
+        "layouts": [
+          {
+            "id": "string",
+            "name": "string",
+            "visible": "boolean",
+            "status": "double",
+            "created_time": "timeInstant",
+            "modified_time": "timeInstant",
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "modified_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "profiles": [
+              {
+                "name": "string",
+                "id": "string",
+                "default": "boolean"
+              }
+            ],
+            "sections": [
+              {
+                "display_label": "string",
+                "sequence_number": "double",
+                "isSubformSection": "boolean",
+                "tab_traversal": "double",
+                "api_name": "string",
+                "column_count": "double",
+                "name": "string",
+                "generated_type": "string",
+                "fields": [
+                  {
+                    "id": "string",
+                    "api_name": "string",
+                    "field_label": "string",
+                    "display_label": "string",
+                    "data_type": "string",
+                    "json_type": "string",
+                    "ui_type": "double",
+                    "custom_field": "boolean",
+                    "visible": "boolean",
+                    "read_only": "boolean",
+                    "field_read_only": "boolean",
+                    "system_mandatory": "boolean",
+                    "businesscard_supported": "boolean",
+                    "webhook": "boolean",
+                    "mass_update": "boolean",
+                    "length": "double",
+                    "decimal_place": "double",
+                    "sequence_number": "double",
+                    "created_source": "string",
+                    "history_tracking": "boolean",
+                    "hipaa_compliance_enabled": "boolean",
+                    "quick_sequence_number": "double",
+                    "blueprint_supported": "boolean",
+                    "currency": {
+                      "rounding_option": "string",
+                      "precision": "double"
+                    },
+                    "auto_number": {
+                      "starting_number_length": "double",
+                      "prefix": "string",
+                      "start_number": "double",
+                      "suffix": "string"
+                    },
+                    "pick_list_values": [
+                      {
+                        "display_value": "string",
+                        "reference_value": "string",
+                        "actual_value": "string"
+                      }
+                    ],
+                    "crypt": {
+                      "mode": "string",
+                      "status": "double"
+                    },
+                    "unique": {
+                      "casesensitive": "string"
+                    },
+                    "tooltip": {
+                      "name": "string",
+                      "value": "string"
+                    },
+                    "textarea": {
+                      "type": "string"
+                    },
+                    "view_type": {
+                      "view": "boolean",
+                      "edit": "boolean",
+                      "quick_create": "boolean",
+                      "create": "boolean"
+                    },
+                    "private": {
+                      "restricted": "boolean",
+                      "type": "string",
+                      "export": "boolean"
+                    },
+                    "hipaa_compliance": {
+                      "restricted_in_export": "boolean",
+                      "restricted": "boolean"
+                    },
+                    "lookup": {
+                      "display_label": "string",
+                      "api_name": "string",
+                      "module": "string",
+                      "id": "string"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Layout",
       "paged": false,
       "suffix": "/crm/v2/settings/layouts/{Layout ID}?module={Module API Name}",
-      "description": "One layout by id. Requires the module API name."
+      "description": "One layout by id. Requires the module API name.",
+      "responseSchema": {
+        "layouts": [
+          {
+            "id": "string",
+            "name": "string",
+            "visible": "boolean",
+            "status": "double",
+            "created_time": "timeInstant",
+            "modified_time": "timeInstant",
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "modified_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "profiles": [
+              {
+                "name": "string",
+                "id": "string",
+                "default": "boolean"
+              }
+            ],
+            "sections": [
+              {
+                "display_label": "string",
+                "sequence_number": "double",
+                "isSubformSection": "boolean",
+                "tab_traversal": "double",
+                "api_name": "string",
+                "column_count": "double",
+                "name": "string",
+                "generated_type": "string",
+                "fields": [
+                  {
+                    "id": "string",
+                    "api_name": "string",
+                    "field_label": "string",
+                    "display_label": "string",
+                    "data_type": "string",
+                    "json_type": "string",
+                    "ui_type": "double",
+                    "custom_field": "boolean",
+                    "visible": "boolean",
+                    "read_only": "boolean",
+                    "field_read_only": "boolean",
+                    "system_mandatory": "boolean",
+                    "businesscard_supported": "boolean",
+                    "webhook": "boolean",
+                    "mass_update": "boolean",
+                    "length": "double",
+                    "decimal_place": "double",
+                    "sequence_number": "double",
+                    "created_source": "string",
+                    "history_tracking": "boolean",
+                    "hipaa_compliance_enabled": "boolean",
+                    "quick_sequence_number": "double",
+                    "blueprint_supported": "boolean",
+                    "currency": {
+                      "rounding_option": "string",
+                      "precision": "double"
+                    },
+                    "auto_number": {
+                      "starting_number_length": "double",
+                      "prefix": "string",
+                      "start_number": "double",
+                      "suffix": "string"
+                    },
+                    "pick_list_values": [
+                      {
+                        "display_value": "string",
+                        "reference_value": "string",
+                        "actual_value": "string"
+                      }
+                    ],
+                    "crypt": {
+                      "mode": "string",
+                      "status": "double"
+                    },
+                    "unique": {
+                      "casesensitive": "string"
+                    },
+                    "tooltip": {
+                      "name": "string",
+                      "value": "string"
+                    },
+                    "textarea": {
+                      "type": "string"
+                    },
+                    "view_type": {
+                      "view": "boolean",
+                      "edit": "boolean",
+                      "quick_create": "boolean",
+                      "create": "boolean"
+                    },
+                    "private": {
+                      "restricted": "boolean",
+                      "type": "string",
+                      "export": "boolean"
+                    },
+                    "hipaa_compliance": {
+                      "restricted_in_export": "boolean",
+                      "restricted": "boolean"
+                    },
+                    "lookup": {
+                      "display_label": "string",
+                      "api_name": "string",
+                      "module": "string",
+                      "id": "string"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Related Lists",
       "paged": false,
       "suffix": "/crm/v2/settings/related_lists?module={Module API Name}",
-      "description": "The relationships defined on one module, each with its API name and the module it points at. Requires the module API name. The catalogue of what can be traversed from a record, and the source of the names Related Records needs."
+      "description": "The relationships defined on one module, each with its API name and the module it points at. Requires the module API name. The catalogue of what can be traversed from a record, and the source of the names Related Records needs.",
+      "responseSchema": {
+        "related_lists": [
+          {
+            "id": "string",
+            "sequence_number": "double",
+            "display_label": "string",
+            "api_name": "string",
+            "module": "string",
+            "name": "string",
+            "href": "string",
+            "type": "string",
+            "connectedmodule": "string",
+            "linkingmodule": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Custom Views",
       "paged": true,
       "suffix": "/crm/v2/settings/custom_views?module={Module API Name}",
-      "description": "The saved views of one module, with name, whether shared, and their criteria. Requires the module API name. Views encode the segments the business already agreed on, and their criteria state the definitions in the organisation's own terms."
+      "description": "The saved views of one module, with name, whether shared, and their criteria. Requires the module API name. Views encode the segments the business already agreed on, and their criteria state the definitions in the organisation's own terms.",
+      "responseSchema": {
+        "custom_views": [
+          {
+            "id": "string",
+            "name": "string",
+            "display_value": "string",
+            "system_name": "string",
+            "category": "string",
+            "default": "boolean",
+            "system_defined": "boolean",
+            "offline": "boolean"
+          }
+        ],
+        "info": {
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "more_records": "boolean",
+          "default": "string",
+          "translation": {
+            "public_views": "string",
+            "other_users_views": "string",
+            "shared_with_me": "string",
+            "created_by_me": "string"
+          }
+        }
+      }
     },
     {
       "name": "Custom View",
       "paged": false,
       "suffix": "/crm/v2/settings/custom_views/{Custom View ID}?module={Module API Name}",
-      "description": "One custom view by id, with its full criteria. Requires the module API name."
+      "description": "One custom view by id, with its full criteria. Requires the module API name.",
+      "responseSchema": {
+        "custom_views": [
+          {
+            "id": "string",
+            "name": "string",
+            "display_value": "string",
+            "system_name": "string",
+            "category": "string",
+            "default": "boolean",
+            "system_defined": "boolean",
+            "offline": "boolean"
+          }
+        ],
+        "info": {
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "more_records": "boolean",
+          "default": "string",
+          "translation": {
+            "public_views": "string",
+            "other_users_views": "string",
+            "shared_with_me": "string",
+            "created_by_me": "string"
+          }
+        }
+      }
     },
     {
       "name": "Records",
@@ -128,7 +949,31 @@
       "name": "Deleted Records",
       "paged": true,
       "suffix": "/crm/v2/{Module API Name}/deleted?module={Module API Name}&type={Type?:All|Recycle|Permanent}",
-      "description": "The records deleted from one module, filterable by whether they were deleted permanently or are in the recycle bin. Requires the module API name. THE ONLY WAY A SYNCHRONISED COPY LEARNS THAT RECORDS HAVE GONE -- deletions leave no trace in the module itself."
+      "description": "The records deleted from one module, filterable by whether they were deleted permanently or are in the recycle bin. Requires the module API name. THE ONLY WAY A SYNCHRONISED COPY LEARNS THAT RECORDS HAVE GONE -- deletions leave no trace in the module itself.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "display_name": "string",
+            "type": "string",
+            "deleted_time": "timeInstant",
+            "deleted_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            }
+          }
+        ],
+        "info": {
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "more_records": "boolean"
+        }
+      }
     },
     {
       "name": "Record Search",
@@ -146,73 +991,376 @@
       "name": "Variables",
       "paged": false,
       "suffix": "/crm/v2/settings/variables",
-      "description": "The organisation variables -- named values used in workflows and templates. Configuration."
+      "description": "The organisation variables -- named values used in workflows and templates. Configuration.",
+      "responseSchema": {
+        "variables": [
+          {
+            "id": "string",
+            "api_name": "string",
+            "name": "string",
+            "description": "string",
+            "type": "string",
+            "value": "string",
+            "variable_group": {
+              "api_name": "string",
+              "id": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Variable",
       "paged": false,
       "suffix": "/crm/v2/settings/variables/{Variable ID}?group={Variable Group ID}",
-      "description": "One variable by id. Requires its group."
+      "description": "One variable by id. Requires its group.",
+      "responseSchema": {
+        "variables": [
+          {
+            "id": "string",
+            "api_name": "string",
+            "name": "string",
+            "description": "string",
+            "type": "string",
+            "value": "string",
+            "variable_group": {
+              "api_name": "string",
+              "id": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Variable Group",
       "paged": false,
       "suffix": "/crm/v2/settings/variable_groups/{Variable Group ID}",
-      "description": "One variable group by id."
+      "description": "One variable group by id.",
+      "responseSchema": {
+        "variable_groups": [
+          {
+            "id": "string",
+            "api_name": "string",
+            "name": "string",
+            "display_label": "string",
+            "description": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Blueprint",
       "paged": false,
       "suffix": "/crm/v2/{Module API Name}/{Record ID}/actions/blueprint",
-      "description": "The blueprint state of one record -- Zoho's guided process, with the current stage and the transitions available. Requires the module and record id. Where a business process is enforced, the record's own status field is only half the picture; this says where it sits in the process and what may happen next."
+      "description": "The blueprint state of one record -- Zoho's guided process, with the current stage and the transitions available. Requires the module and record id. Where a business process is enforced, the record's own status field is only half the picture; this says where it sits in the process and what may happen next.",
+      "responseSchema": {
+        "blueprint": {
+          "process_info": {
+            "id": "string",
+            "field_id": "string",
+            "field_name": "string",
+            "field_label": "string",
+            "api_name": "string",
+            "column_name": "string",
+            "field_value": "string",
+            "is_continuous": "boolean",
+            "continuous": "boolean",
+            "name": "string"
+          },
+          "transitions": [
+            {
+              "id": "string",
+              "name": "string",
+              "next_field_value": "string",
+              "criteria_matched": "boolean",
+              "criteria_message": "string",
+              "percent_partial_save": "double",
+              "next_transitions": [
+                "string"
+              ],
+              "fields": [
+                {
+                  "id": "string",
+                  "api_name": "string",
+                  "display_label": "string",
+                  "data_type": "string",
+                  "column_name": "string",
+                  "transition_sequence": "double",
+                  "mandatory": "boolean",
+                  "_type": "string",
+                  "personality_name": "string"
+                }
+              ]
+            }
+          ]
+        }
+      }
     },
     {
       "name": "Tags",
       "paged": false,
       "suffix": "/crm/v2/settings/tags?module={Module API Name}&my_tags={My Tags?:true|false}",
-      "description": "The tags defined for one module, with names and colours. Requires the module API name. Zoho tags are per module rather than global, so the same word on Leads and Deals is two separate tags."
+      "description": "The tags defined for one module, with names and colours. Requires the module API name. Zoho tags are per module rather than global, so the same word on Leads and Deals is two separate tags.",
+      "responseSchema": {
+        "tags": [
+          {
+            "id": "string",
+            "name": "string",
+            "created_time": "timeInstant",
+            "modified_time": "timeInstant",
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "modified_by": {
+              "name": "string",
+              "id": "string"
+            }
+          }
+        ],
+        "info": {
+          "allowed_count": "double",
+          "count": "double"
+        }
+      }
     },
     {
       "name": "Tag Record Count",
       "paged": false,
       "suffix": "/crm/v2/settings/tags/{Tag ID}/actions/records_count?module={Module API Name}",
-      "description": "How many records carry one tag within a module. Requires the tag id and module. A ready-made count rather than a filtered scan."
+      "description": "How many records carry one tag within a module. Requires the tag id and module. A ready-made count rather than a filtered scan.",
+      "responseSchema": {
+        "count": "string"
+      }
     },
     {
       "name": "Notes",
       "paged": true,
       "suffix": "/crm/v2/Notes",
-      "description": "Every note across the account, with its content, the record it is attached to, and the author. The qualitative record beside the structured one."
+      "description": "Every note across the account, with its content, the record it is attached to, and the author. The qualitative record beside the structured one.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "Note_Title": "string",
+            "Note_Content": "string",
+            "Owner": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Modified_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_Time": "timeInstant",
+            "Modified_Time": "timeInstant",
+            "Parent_Id": {
+              "name": "string",
+              "id": "string"
+            },
+            "$editable": "boolean",
+            "$se_module": "string",
+            "$state": "string",
+            "$voice_note": "boolean",
+            "$is_shared_to_client": "boolean"
+          }
+        ],
+        "info": {
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "more_records": "boolean"
+        }
+      }
     },
     {
       "name": "Record Notes",
       "paged": true,
       "suffix": "/crm/v2/{Module API Name}/{Record ID}/Notes",
-      "description": "The notes on one record. Requires the module and record id."
+      "description": "The notes on one record. Requires the module and record id.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "Note_Title": "string",
+            "Note_Content": "string",
+            "Owner": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Modified_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_Time": "timeInstant",
+            "Modified_Time": "timeInstant",
+            "Parent_Id": {
+              "name": "string",
+              "id": "string"
+            },
+            "$editable": "boolean",
+            "$se_module": "string",
+            "$state": "string",
+            "$voice_note": "boolean",
+            "$is_shared_to_client": "boolean"
+          }
+        ],
+        "info": {
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "more_records": "boolean"
+        }
+      }
     },
     {
       "name": "Attachments",
       "paged": false,
       "suffix": "/crm/v2/{Module API Name}/{Record ID}/Attachments",
-      "description": "The files attached to one record. Requires the module and record id."
+      "description": "The files attached to one record. Requires the module and record id.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "File_Name": "string",
+            "Size": "string",
+            "Owner": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Modified_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_Time": "timeInstant",
+            "Modified_Time": "timeInstant",
+            "Parent_Id": {
+              "name": "string",
+              "id": "string"
+            },
+            "$editable": "boolean",
+            "$file_id": "string",
+            "$type": "string",
+            "$se_module": "string",
+            "$state": "string",
+            "$link_url": "string"
+          }
+        ],
+        "info": {
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "more_records": "boolean"
+        }
+      }
     },
     {
       "name": "Mass Update Status",
       "paged": false,
       "suffix": "/crm/v2/{Module API Name}/actions/mass_update?job_id={Job ID}",
-      "description": "The progress of a bulk update job. Requires the module and job id. Bulk operations report only that they were queued, so this is where their outcome and per-record failures are found."
+      "description": "The progress of a bulk update job. Requires the module and job id. Bulk operations report only that they were queued, so this is where their outcome and per-record failures are found.",
+      "responseSchema": {
+        "data": [
+          {
+            "Status": "string",
+            "Failed_Count": "double",
+            "Updated_Count": "double",
+            "Not_Updated_Count": "double",
+            "Total_Count": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Currencies",
       "paged": false,
       "suffix": "/crm/v2/org/currencies",
-      "description": "The currencies enabled, with their exchange rates and which is the base. Records store amounts in their own currency with a rate, so a multi-currency total has to decide which it means."
+      "description": "The currencies enabled, with their exchange rates and which is the base. Records store amounts in their own currency with a rate, so a multi-currency total has to decide which it means.",
+      "responseSchema": {
+        "currencies": [
+          {
+            "id": "string",
+            "name": "string",
+            "iso_code": "string",
+            "symbol": "string",
+            "prefix_symbol": "boolean",
+            "is_active": "boolean",
+            "is_base": "boolean",
+            "exchange_rate": "string",
+            "format": {
+              "decimal_separator": "string",
+              "thousand_separator": "string",
+              "decimal_places": "string"
+            },
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "modified_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "created_time": "timeInstant",
+            "modified_time": "timeInstant"
+          }
+        ]
+      }
     },
     {
       "name": "Currency",
       "paged": false,
       "suffix": "/crm/v2/org/currencies/{Currency ID}",
-      "description": "One currency by id, with its rate."
+      "description": "One currency by id, with its rate.",
+      "responseSchema": {
+        "currencies": [
+          {
+            "id": "string",
+            "name": "string",
+            "iso_code": "string",
+            "symbol": "string",
+            "prefix_symbol": "boolean",
+            "is_active": "boolean",
+            "is_base": "boolean",
+            "exchange_rate": "string",
+            "format": {
+              "decimal_separator": "string",
+              "thousand_separator": "string",
+              "decimal_places": "string"
+            },
+            "created_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "modified_by": {
+              "name": "string",
+              "id": "string"
+            },
+            "created_time": "timeInstant",
+            "modified_time": "timeInstant"
+          }
+        ]
+      }
     },
     {
       "name": "Shared Record",
@@ -224,7 +1372,29 @@
       "name": "Notifications",
       "paged": true,
       "suffix": "/crm/v2/actions/watch?channel_id={Channel ID}&module={Module API Name?}",
-      "description": "The change notification channels currently subscribed. Integration state rather than data."
+      "description": "The change notification channels currently subscribed. Integration state rather than data.",
+      "responseSchema": {
+        "watch": [
+          {
+            "channel_id": "string",
+            "channel_expiry": "timeInstant",
+            "resource_uri": "string",
+            "resource_id": "string",
+            "resource_name": "string",
+            "notify_url": "string",
+            "token": "string",
+            "events": [
+              "string"
+            ]
+          }
+        ],
+        "info": {
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "more_records": "boolean"
+        }
+      }
     }
   ]
 }

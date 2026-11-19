@@ -4,19 +4,118 @@
       "paged": "true",
       "name": "Activity Sets",
       "suffix": "/v3.0/ActivitySets?brief={Brief?:true|false}&count_total=true",
-      "description": "The templates that create a standard batch of tasks and events at once -- Insightly's repeatable process definitions. What a team considers its standard procedure."
+      "description": "The templates that create a standard batch of tasks and events at once -- Insightly's repeatable process definitions. What a team considers its standard procedure.",
+      "responseSchema": [
+        {
+          "ACTIVITYSET_ID": "double",
+          "NAME": "string",
+          "FOR_CONTACTS": "boolean",
+          "FOR_ORGANISATIONS": "boolean",
+          "FOR_OPPORTUNITIES": "boolean",
+          "FOR_PROJECTS": "boolean",
+          "FOR_LEADS": "boolean",
+          "OWNER_USER_ID": "double",
+          "ACTIVITIES": [
+            {
+              "ACTIVITY_ID": "double",
+              "ACTIVITYSET_ID": "double",
+              "ACTIVITY_NAME": "string",
+              "ACTIVITY_DETAILS": "string",
+              "ACTIVITY_TYPE": "string",
+              "CATEGORY_ID": "double",
+              "REMINDER": "boolean",
+              "REMINDER_DAYS_BEFORE_DUE": "double",
+              "REMINDER_TIME": "string",
+              "PUBLICLY_VISIBLE": "boolean",
+              "OWNER_VISIBLE": "boolean",
+              "OWNER_USER_ID": "double",
+              "RESPONSIBLE_USER_ID": "double",
+              "ASSIGNED_TEAM_ID": "double",
+              "SKIP_SUN": "boolean",
+              "SKIP_MON": "boolean",
+              "SKIP_TUE": "boolean",
+              "SKIP_WED": "boolean",
+              "SKIP_THU": "boolean",
+              "SKIP_FRI": "boolean",
+              "SKIP_SAT": "boolean",
+              "DUE_DAYS_AFTER_START": "double",
+              "DUE_DAYS_BEFORE_END": "double",
+              "EVENT_DAYS_AFTER_START": "double",
+              "EVENT_DAYS_BEFORE_END": "double",
+              "EVENT_TIME": "string",
+              "ALL_DAY": "boolean",
+              "DURATION": "double"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Activity Set",
       "suffix": "/v3.0/ActivitySets/{Activity Set ID}",
-      "description": "One activity set by id, with its tasks and events."
+      "description": "One activity set by id, with its tasks and events.",
+      "responseSchema": {
+        "ACTIVITYSET_ID": "double",
+        "NAME": "string",
+        "FOR_CONTACTS": "boolean",
+        "FOR_ORGANISATIONS": "boolean",
+        "FOR_OPPORTUNITIES": "boolean",
+        "FOR_PROJECTS": "boolean",
+        "FOR_LEADS": "boolean",
+        "OWNER_USER_ID": "double",
+        "ACTIVITIES": [
+          {
+            "ACTIVITY_ID": "double",
+            "ACTIVITYSET_ID": "double",
+            "ACTIVITY_NAME": "string",
+            "ACTIVITY_DETAILS": "string",
+            "ACTIVITY_TYPE": "string",
+            "CATEGORY_ID": "double",
+            "REMINDER": "boolean",
+            "REMINDER_DAYS_BEFORE_DUE": "double",
+            "REMINDER_TIME": "string",
+            "PUBLICLY_VISIBLE": "boolean",
+            "OWNER_VISIBLE": "boolean",
+            "OWNER_USER_ID": "double",
+            "RESPONSIBLE_USER_ID": "double",
+            "ASSIGNED_TEAM_ID": "double",
+            "SKIP_SUN": "boolean",
+            "SKIP_MON": "boolean",
+            "SKIP_TUE": "boolean",
+            "SKIP_WED": "boolean",
+            "SKIP_THU": "boolean",
+            "SKIP_FRI": "boolean",
+            "SKIP_SAT": "boolean",
+            "DUE_DAYS_AFTER_START": "double",
+            "DUE_DAYS_BEFORE_END": "double",
+            "EVENT_DAYS_AFTER_START": "double",
+            "EVENT_DAYS_BEFORE_END": "double",
+            "EVENT_TIME": "string",
+            "ALL_DAY": "boolean",
+            "DURATION": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Comment File Attachments",
       "suffix": "/v3.0/Comment/{Comment ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
-      "description": "The files attached to one comment. Requires a comment id."
+      "description": "The files attached to one comment. Requires a comment id.",
+      "responseSchema": [
+        {
+          "FILE_ID": "double",
+          "FILE_NAME": "string",
+          "CONTENT_TYPE": "string",
+          "FILE_SIZE": "double",
+          "FILE_CATEGORY_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "URL": "string"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -37,13 +136,129 @@
           "parameterName": "Contact ID"
         }
       ],
-      "description": "The people in the CRM, with name, contact details, the organisation, owner, tags, dates and custom fields. THE PATTERN OF THIS CONNECTOR, which repeats for every major object: a plain listing, a Search variant taking field criteria, a SearchByTag variant, and a family of child endpoints for that record's emails, events, notes, tasks, links, files and follow state. Once one object is understood the rest follow the same shape."
+      "description": "The people in the CRM, with name, contact details, the organisation, owner, tags, dates and custom fields. THE PATTERN OF THIS CONNECTOR, which repeats for every major object: a plain listing, a Search variant taking field criteria, a SearchByTag variant, and a family of child endpoints for that record's emails, events, notes, tasks, links, files and follow state. Once one object is understood the rest follow the same shape.",
+      "responseSchema": [
+        {
+          "CONTACT_ID": "double",
+          "SALUTATION": "string",
+          "FIRST_NAME": "string",
+          "LAST_NAME": "string",
+          "IMAGE_URL": "string",
+          "BACKGROUND": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "SOCIAL_LINKEDIN": "string",
+          "SOCIAL_FACEBOOK": "string",
+          "SOCIAL_TWITTER": "string",
+          "DATE_OF_BIRTH": "timeInstant",
+          "PHONE": "string",
+          "PHONE_HOME": "string",
+          "PHONE_MOBILE": "string",
+          "PHONE_OTHER": "string",
+          "PHONE_ASSISTANT": "string",
+          "PHONE_FAX": "string",
+          "EMAIL_ADDRESS": "string",
+          "ASSISTANT_NAME": "string",
+          "ADDRESS_MAIL_STREET": "string",
+          "ADDRESS_MAIL_CITY": "string",
+          "ADDRESS_MAIL_STATE": "string",
+          "ADDRESS_MAIL_POSTCODE": "string",
+          "ADDRESS_MAIL_COUNTRY": "string",
+          "ADDRESS_OTHER_STREET": "string",
+          "ADDRESS_OTHER_CITY": "string",
+          "ADDRESS_OTHER_STATE": "string",
+          "ADDRESS_OTHER_POSTCODE": "string",
+          "ADDRESS_OTHER_COUNTRY": "string",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "ORGANISATION_ID": "double",
+          "TITLE": "string",
+          "EMAIL_OPTED_OUT": "boolean",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ],
+          "DATES": [
+            {
+              "DATE_ID": "double",
+              "OCCASION_NAME": "string",
+              "OCCASION_DATE": "timeInstant",
+              "REPEAT_YEARLY": "boolean",
+              "CREATE_TASK_YEARLY": "boolean"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Contact",
       "suffix": "/v3.0/Contacts/{Contact ID}",
-      "description": "One contact by id."
+      "description": "One contact by id.",
+      "responseSchema": {
+        "CONTACT_ID": "double",
+        "SALUTATION": "string",
+        "FIRST_NAME": "string",
+        "LAST_NAME": "string",
+        "IMAGE_URL": "string",
+        "BACKGROUND": "string",
+        "OWNER_USER_ID": "double",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "SOCIAL_LINKEDIN": "string",
+        "SOCIAL_FACEBOOK": "string",
+        "SOCIAL_TWITTER": "string",
+        "DATE_OF_BIRTH": "timeInstant",
+        "PHONE": "string",
+        "PHONE_HOME": "string",
+        "PHONE_MOBILE": "string",
+        "PHONE_OTHER": "string",
+        "PHONE_ASSISTANT": "string",
+        "PHONE_FAX": "string",
+        "EMAIL_ADDRESS": "string",
+        "ASSISTANT_NAME": "string",
+        "ADDRESS_MAIL_STREET": "string",
+        "ADDRESS_MAIL_CITY": "string",
+        "ADDRESS_MAIL_STATE": "string",
+        "ADDRESS_MAIL_POSTCODE": "string",
+        "ADDRESS_MAIL_COUNTRY": "string",
+        "ADDRESS_OTHER_STREET": "string",
+        "ADDRESS_OTHER_CITY": "string",
+        "ADDRESS_OTHER_STATE": "string",
+        "ADDRESS_OTHER_POSTCODE": "string",
+        "ADDRESS_OTHER_COUNTRY": "string",
+        "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+        "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+        "ORGANISATION_ID": "double",
+        "TITLE": "string",
+        "EMAIL_OPTED_OUT": "boolean",
+        "CUSTOMFIELDS": [
+          {
+            "FIELD_NAME": "string"
+          }
+        ],
+        "TAGS": [
+          {
+            "TAG_NAME": "string"
+          }
+        ],
+        "DATES": [
+          {
+            "DATE_ID": "double",
+            "OCCASION_NAME": "string",
+            "OCCASION_DATE": "timeInstant",
+            "REPEAT_YEARLY": "boolean",
+            "CREATE_TASK_YEARLY": "boolean"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
@@ -62,7 +277,19 @@
           "parameterName": "Email ID"
         }
       ],
-      "description": "The emails linked to one contact. Requires a contact id."
+      "description": "The emails linked to one contact. Requires a contact id.",
+      "responseSchema": [
+        {
+          "EMAIL_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -76,25 +303,66 @@
           "parameterName": "Event ID"
         }
       ],
-      "description": "The calendar events involving one contact. Requires a contact id."
+      "description": "The calendar events involving one contact. Requires a contact id.",
+      "responseSchema": [
+        {
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Contact File Attachments",
       "suffix": "/v3.0/Contacts/{Contact ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
-      "description": "The files attached to one contact. Requires a contact id."
+      "description": "The files attached to one contact. Requires a contact id.",
+      "responseSchema": [
+        {
+          "FILE_ID": "double",
+          "FILE_NAME": "string",
+          "CONTENT_TYPE": "string",
+          "FILE_SIZE": "double",
+          "FILE_CATEGORY_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "URL": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Contact Follow State",
       "suffix": "/v3.0/Contacts/{Contact ID}/Follow",
-      "description": "Whether the calling user follows one contact. Scoped to the caller."
+      "description": "Whether the calling user follows one contact. Scoped to the caller.",
+      "responseSchema": {
+        "FOLLOWING": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Contact Links",
       "suffix": "/v3.0/Contacts/{Contact ID}/Links",
-      "description": "The other records one contact is linked to -- organisations, opportunities, projects. Requires a contact id. LINKS ARE HOW INSIGHTLY MODELS RELATIONSHIPS: a contact carries one organisation id, but everything else it relates to is expressed here, so the object graph is only traversable through the link endpoints."
+      "description": "The other records one contact is linked to -- organisations, opportunities, projects. Requires a contact id. LINKS ARE HOW INSIGHTLY MODELS RELATIONSHIPS: a contact carries one organisation id, but everything else it relates to is expressed here, so the object graph is only traversable through the link endpoints.",
+      "responseSchema": [
+        {
+          "LINK_ID": "double",
+          "OBJECT_NAME": "string",
+          "OBJECT_ID": "double",
+          "LINK_OBJECT_NAME": "string",
+          "LINK_OBJECT_ID": "double",
+          "ROLE": "string",
+          "DETAILS": "string",
+          "RELATIONSHIP_ID": "double",
+          "IS_FORWARD": "boolean"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -113,7 +381,16 @@
           "parameterName": "Note ID"
         }
       ],
-      "description": "The notes on one contact. Requires a contact id."
+      "description": "The notes on one contact. Requires a contact id.",
+      "responseSchema": [
+        {
+          "NOTE_ID": "double",
+          "BODY": "string",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -132,7 +409,22 @@
           "parameterName": "Task ID"
         }
       ],
-      "description": "The tasks relating to one contact. Requires a contact id."
+      "description": "The tasks relating to one contact. Requires a contact id.",
+      "responseSchema": [
+        {
+          "TASK_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "NOTE_ID": "double",
+          "EMAIL_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -153,7 +445,66 @@
           "parameterName": "Contact ID"
         }
       ],
-      "description": "Contacts matching field criteria. The filtered route where the plain listing only pages."
+      "description": "Contacts matching field criteria. The filtered route where the plain listing only pages.",
+      "responseSchema": [
+        {
+          "CONTACT_ID": "double",
+          "SALUTATION": "string",
+          "FIRST_NAME": "string",
+          "LAST_NAME": "string",
+          "IMAGE_URL": "string",
+          "BACKGROUND": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "SOCIAL_LINKEDIN": "string",
+          "SOCIAL_FACEBOOK": "string",
+          "SOCIAL_TWITTER": "string",
+          "DATE_OF_BIRTH": "timeInstant",
+          "PHONE": "string",
+          "PHONE_HOME": "string",
+          "PHONE_MOBILE": "string",
+          "PHONE_OTHER": "string",
+          "PHONE_ASSISTANT": "string",
+          "PHONE_FAX": "string",
+          "EMAIL_ADDRESS": "string",
+          "ASSISTANT_NAME": "string",
+          "ADDRESS_MAIL_STREET": "string",
+          "ADDRESS_MAIL_CITY": "string",
+          "ADDRESS_MAIL_STATE": "string",
+          "ADDRESS_MAIL_POSTCODE": "string",
+          "ADDRESS_MAIL_COUNTRY": "string",
+          "ADDRESS_OTHER_STREET": "string",
+          "ADDRESS_OTHER_CITY": "string",
+          "ADDRESS_OTHER_STATE": "string",
+          "ADDRESS_OTHER_POSTCODE": "string",
+          "ADDRESS_OTHER_COUNTRY": "string",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "ORGANISATION_ID": "double",
+          "TITLE": "string",
+          "EMAIL_OPTED_OUT": "boolean",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ],
+          "DATES": [
+            {
+              "DATE_ID": "double",
+              "OCCASION_NAME": "string",
+              "OCCASION_DATE": "timeInstant",
+              "REPEAT_YEARLY": "boolean",
+              "CREATE_TASK_YEARLY": "boolean"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -174,31 +525,163 @@
           "parameterName": "Contact ID"
         }
       ],
-      "description": "Contacts carrying a given tag. Tags are Insightly's cross-cutting segmentation, so this is often the fastest way to a business-meaningful subset."
+      "description": "Contacts carrying a given tag. Tags are Insightly's cross-cutting segmentation, so this is often the fastest way to a business-meaningful subset.",
+      "responseSchema": [
+        {
+          "CONTACT_ID": "double",
+          "SALUTATION": "string",
+          "FIRST_NAME": "string",
+          "LAST_NAME": "string",
+          "IMAGE_URL": "string",
+          "BACKGROUND": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "SOCIAL_LINKEDIN": "string",
+          "SOCIAL_FACEBOOK": "string",
+          "SOCIAL_TWITTER": "string",
+          "DATE_OF_BIRTH": "timeInstant",
+          "PHONE": "string",
+          "PHONE_HOME": "string",
+          "PHONE_MOBILE": "string",
+          "PHONE_OTHER": "string",
+          "PHONE_ASSISTANT": "string",
+          "PHONE_FAX": "string",
+          "EMAIL_ADDRESS": "string",
+          "ASSISTANT_NAME": "string",
+          "ADDRESS_MAIL_STREET": "string",
+          "ADDRESS_MAIL_CITY": "string",
+          "ADDRESS_MAIL_STATE": "string",
+          "ADDRESS_MAIL_POSTCODE": "string",
+          "ADDRESS_MAIL_COUNTRY": "string",
+          "ADDRESS_OTHER_STREET": "string",
+          "ADDRESS_OTHER_CITY": "string",
+          "ADDRESS_OTHER_STATE": "string",
+          "ADDRESS_OTHER_POSTCODE": "string",
+          "ADDRESS_OTHER_COUNTRY": "string",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "ORGANISATION_ID": "double",
+          "TITLE": "string",
+          "EMAIL_OPTED_OUT": "boolean",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ],
+          "DATES": [
+            {
+              "DATE_ID": "double",
+              "OCCASION_NAME": "string",
+              "OCCASION_DATE": "timeInstant",
+              "REPEAT_YEARLY": "boolean",
+              "CREATE_TASK_YEARLY": "boolean"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Countries",
       "suffix": "/v3.0/Countries",
-      "description": "The country list Insightly recognises. Reference data."
+      "description": "The country list Insightly recognises. Reference data.",
+      "responseSchema": [
+        {
+          "COUNTRY_NAME": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Currencies",
       "suffix": "/v3.0/Currencies",
-      "description": "The currencies configured, with their codes. Opportunity values are held in their own currency, so a total spanning them needs conversion Insightly does not perform here."
+      "description": "The currencies configured, with their codes. Opportunity values are held in their own currency, so a total spanning them needs conversion Insightly does not perform here.",
+      "responseSchema": [
+        {
+          "CURRENCY_CODE": "string",
+          "CURRENCY_SYMBOL": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Custom Fields",
       "suffix": "/v3.0/CustomFields/{Object Name}",
-      "description": "The custom fields defined on one object. Requires the object name. THE DECODER for custom values, which arrive keyed by field id on every standard object as well as custom ones."
+      "description": "The custom fields defined on one object. Requires the object name. THE DECODER for custom values, which arrive keyed by field id on every standard object as well as custom ones.",
+      "responseSchema": [
+        {
+          "FIELD_NAME": "string",
+          "FIELD_ORDER": "double",
+          "FIELD_FOR": "string",
+          "FIELD_LABEL": "string",
+          "FIELD_TYPE": "string",
+          "FIELD_HELP_TEXT": "string",
+          "DEFAULT_VALUE": "string",
+          "EDITABLE": "boolean",
+          "VISIBLE": "boolean",
+          "CUSTOM_FIELD_OPTIONS": [
+            {
+              "OPTION_ID": "double",
+              "OPTION_VALUE": "string",
+              "OPTION_DEFAULT": "boolean"
+            }
+          ],
+          "DEPENDENCY": {
+            "CONTROLLING_FIELD_ID": "string",
+            "OPTIONS_FILTERS": [
+              {
+                "CONTROLLING_VALUE": "string",
+                "OPTION_IDS": [
+                  "double"
+                ]
+              }
+            ]
+          },
+          "JOIN_OBJECT": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Custom Field",
       "suffix": "/v3.0/CustomFields/{Object Name}/Search?fieldName={Field Name}",
-      "description": "One custom field definition, searched within an object."
+      "description": "One custom field definition, searched within an object.",
+      "responseSchema": {
+        "FIELD_NAME": "string",
+        "FIELD_ORDER": "double",
+        "FIELD_FOR": "string",
+        "FIELD_LABEL": "string",
+        "FIELD_TYPE": "string",
+        "FIELD_HELP_TEXT": "string",
+        "DEFAULT_VALUE": "string",
+        "EDITABLE": "boolean",
+        "VISIBLE": "boolean",
+        "CUSTOM_FIELD_OPTIONS": [
+          {
+            "OPTION_ID": "double",
+            "OPTION_VALUE": "string",
+            "OPTION_DEFAULT": "boolean"
+          }
+        ],
+        "DEPENDENCY": {
+          "CONTROLLING_FIELD_ID": "string",
+          "OPTIONS_FILTERS": [
+            {
+              "CONTROLLING_VALUE": "string",
+              "OPTION_IDS": [
+                "double"
+              ]
+            }
+          ]
+        },
+        "JOIN_OBJECT": "string"
+      }
     },
     {
       "paged": "false",
@@ -215,31 +698,104 @@
           "parameterName": "Object Name"
         }
       ],
-      "description": "The custom objects defined on the account. INSIGHTLY LETS AN ACCOUNT DEFINE ITS OWN RECORD TYPES, so this is the first request whenever a question involves anything beyond the standard objects -- what exists is entirely account-specific."
+      "description": "The custom objects defined on the account. INSIGHTLY LETS AN ACCOUNT DEFINE ITS OWN RECORD TYPES, so this is the first request whenever a question involves anything beyond the standard objects -- what exists is entirely account-specific.",
+      "responseSchema": [
+        {
+          "OBJECT_NAME": "string",
+          "SINGULAR_LABEL": "string",
+          "PLURAL_LABEL": "string",
+          "DESCRIPTION": "string",
+          "RECORD_NAME_LABEL": "string",
+          "RECORD_NAME_TYPE": "string",
+          "RECORD_NAME_DISPLAY_FORMAT": "string",
+          "ENABLE_NAVBAR": "boolean",
+          "ENABLE_WORKFLOWS": "boolean",
+          "CREATED_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Custom Object",
       "suffix": "/v3.0/CustomObjects/{Custom Object Name}",
-      "description": "One custom object's definition by name, with its fields."
+      "description": "One custom object's definition by name, with its fields.",
+      "responseSchema": {
+        "OBJECT_NAME": "string",
+        "SINGULAR_LABEL": "string",
+        "PLURAL_LABEL": "string",
+        "DESCRIPTION": "string",
+        "RECORD_NAME_LABEL": "string",
+        "RECORD_NAME_TYPE": "string",
+        "RECORD_NAME_DISPLAY_FORMAT": "string",
+        "ENABLE_NAVBAR": "boolean",
+        "ENABLE_WORKFLOWS": "boolean",
+        "CREATED_USER_ID": "double",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant"
+      }
     },
     {
       "paged": "true",
       "name": "Custom Object Records",
       "suffix": "/v3.0/{Object Name}?brief={Brief?:true|false}&count_total=true",
-      "description": "The records of one custom object. Requires the object name. The data behind a user-defined record type."
+      "description": "The records of one custom object. Requires the object name. The data behind a user-defined record type.",
+      "responseSchema": [
+        {
+          "RECORD_ID": "double",
+          "RECORD_NAME": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "VISIBLE_TO": "string",
+          "VISIBLE_TEAM_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Custom Object Record",
       "suffix": "/v3.0/{Object Name}/{Record ID}",
-      "description": "One custom object record by id."
+      "description": "One custom object record by id.",
+      "responseSchema": {
+        "RECORD_ID": "double",
+        "RECORD_NAME": "string",
+        "OWNER_USER_ID": "double",
+        "DATE_CREATED_UTC": "timeInstant",
+        "VISIBLE_TO": "string",
+        "VISIBLE_TEAM_ID": "double",
+        "CUSTOMFIELDS": [
+          {
+            "FIELD_NAME": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Filtered Custom Object Records",
       "suffix": "/v3.0/{Object Name}/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
-      "description": "Custom object records matching field criteria."
+      "description": "Custom object records matching field criteria.",
+      "responseSchema": [
+        {
+          "RECORD_ID": "double",
+          "RECORD_NAME": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "VISIBLE_TO": "string",
+          "VISIBLE_TEAM_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -258,37 +814,112 @@
           "parameterName": "Email ID"
         }
       ],
-      "description": "The emails captured into the CRM, with subject, body, sender, recipients and date. Where correspondence is filed against records."
+      "description": "The emails captured into the CRM, with subject, body, sender, recipients and date. Where correspondence is filed against records.",
+      "responseSchema": [
+        {
+          "EMAIL_ID": "double",
+          "EMAIL_FROM": "string",
+          "SUBJECT": "string",
+          "EMAIL_DATE_UTC": "timeInstant",
+          "FORMAT": "string",
+          "SIZE": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "QUEUED_SEND_DATE_UTC": "timeInstant",
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Email",
       "suffix": "/v3.0/Emails/{Email ID}",
-      "description": "One email by id."
+      "description": "One email by id.",
+      "responseSchema": {
+        "EMAIL_ID": "double",
+        "EMAIL_FROM": "string",
+        "SUBJECT": "string",
+        "EMAIL_DATE_UTC": "timeInstant",
+        "FORMAT": "string",
+        "SIZE": "double",
+        "OWNER_USER_ID": "double",
+        "DATE_CREATED_UTC": "timeInstant",
+        "QUEUED_SEND_DATE_UTC": "timeInstant",
+        "TAGS": [
+          {
+            "TAG_NAME": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Email Comments",
       "suffix": "/v3.0/Emails/{Email ID}/Comments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
-      "description": "The comments on one email."
+      "description": "The comments on one email.",
+      "responseSchema": [
+        {
+          "COMMENT_ID": "double",
+          "BODY": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "NOTE_ID": "double",
+          "TASK_ID": "double",
+          "EMAIL_ID": "double"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Email File Attachments",
       "suffix": "/v3.0/Emails/{Email ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
-      "description": "The files attached to one email."
+      "description": "The files attached to one email.",
+      "responseSchema": [
+        {
+          "FILE_ID": "double",
+          "FILE_NAME": "string",
+          "CONTENT_TYPE": "string",
+          "FILE_SIZE": "double",
+          "FILE_CATEGORY_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "URL": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Email Follow State",
       "suffix": "/v3.0/Emails/{Email ID}/Follow",
-      "description": "Whether the caller follows one email."
+      "description": "Whether the caller follows one email.",
+      "responseSchema": {
+        "FOLLOWING": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Email Links",
       "suffix": "/v3.0/Emails/{Email ID}/Links",
-      "description": "The records one email is linked to."
+      "description": "The records one email is linked to.",
+      "responseSchema": [
+        {
+          "LINK_ID": "double",
+          "OBJECT_NAME": "string",
+          "OBJECT_ID": "double",
+          "LINK_OBJECT_NAME": "string",
+          "LINK_OBJECT_ID": "double",
+          "ROLE": "string",
+          "DETAILS": "string",
+          "RELATIONSHIP_ID": "double",
+          "IS_FORWARD": "boolean"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -307,7 +938,25 @@
           "parameterName": "Email ID"
         }
       ],
-      "description": "Emails matching field criteria."
+      "description": "Emails matching field criteria.",
+      "responseSchema": [
+        {
+          "EMAIL_ID": "double",
+          "EMAIL_FROM": "string",
+          "SUBJECT": "string",
+          "EMAIL_DATE_UTC": "timeInstant",
+          "FORMAT": "string",
+          "SIZE": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "QUEUED_SEND_DATE_UTC": "timeInstant",
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -326,7 +975,25 @@
           "parameterName": "Email ID"
         }
       ],
-      "description": "Emails carrying a given tag."
+      "description": "Emails carrying a given tag.",
+      "responseSchema": [
+        {
+          "EMAIL_ID": "double",
+          "EMAIL_FROM": "string",
+          "SUBJECT": "string",
+          "EMAIL_DATE_UTC": "timeInstant",
+          "FORMAT": "string",
+          "SIZE": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "QUEUED_SEND_DATE_UTC": "timeInstant",
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -340,19 +1007,72 @@
           "parameterName": "Event ID"
         }
       ],
-      "description": "The calendar events -- meetings and appointments -- with title, times, location and attendees. The activity record beside tasks."
+      "description": "The calendar events -- meetings and appointments -- with title, times, location and attendees. The activity record beside tasks.",
+      "responseSchema": [
+        {
+          "EVENT_ID": "double",
+          "TITLE": "string",
+          "LOCATION": "string",
+          "START_DATE_UTC": "timeInstant",
+          "END_DATE_UTC": "timeInstant",
+          "ALL_DAY": "boolean",
+          "DETAILS": "string",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "REMINDER_DATE_UTC": "timeInstant",
+          "REMINDER_SENT": "boolean",
+          "OWNER_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Event",
       "suffix": "/v3.0/Events/{Event ID}",
-      "description": "One event by id."
+      "description": "One event by id.",
+      "responseSchema": {
+        "EVENT_ID": "double",
+        "TITLE": "string",
+        "LOCATION": "string",
+        "START_DATE_UTC": "timeInstant",
+        "END_DATE_UTC": "timeInstant",
+        "ALL_DAY": "boolean",
+        "DETAILS": "string",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "REMINDER_DATE_UTC": "timeInstant",
+        "REMINDER_SENT": "boolean",
+        "OWNER_USER_ID": "double",
+        "CUSTOMFIELDS": [
+          {
+            "FIELD_NAME": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Event Links",
       "suffix": "/v3.0/Events/{Event ID}/Links",
-      "description": "The records one event is linked to."
+      "description": "The records one event is linked to.",
+      "responseSchema": [
+        {
+          "LINK_ID": "double",
+          "OBJECT_NAME": "string",
+          "OBJECT_ID": "double",
+          "LINK_OBJECT_NAME": "string",
+          "LINK_OBJECT_ID": "double",
+          "ROLE": "string",
+          "DETAILS": "string",
+          "RELATIONSHIP_ID": "double",
+          "IS_FORWARD": "boolean"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -366,25 +1086,66 @@
           "parameterName": "Event ID"
         }
       ],
-      "description": "Events matching field criteria."
+      "description": "Events matching field criteria.",
+      "responseSchema": [
+        {
+          "EVENT_ID": "double",
+          "TITLE": "string",
+          "LOCATION": "string",
+          "START_DATE_UTC": "timeInstant",
+          "END_DATE_UTC": "timeInstant",
+          "ALL_DAY": "boolean",
+          "DETAILS": "string",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "REMINDER_DATE_UTC": "timeInstant",
+          "REMINDER_SENT": "boolean",
+          "OWNER_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "File Categories",
       "suffix": "/v3.0/FileCategories?count_total=true",
-      "description": "The categories file attachments are classified under."
+      "description": "The categories file attachments are classified under.",
+      "responseSchema": [
+        {
+          "CATEGORY_ID": "double",
+          "CATEGORY_NAME": "string",
+          "ACTIVE": "boolean",
+          "BACKGROUND_COLOR": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "File Category",
       "suffix": "/v3.0/FileCategories/{File Category ID}",
-      "description": "One file category by id."
+      "description": "One file category by id.",
+      "responseSchema": {
+        "CATEGORY_ID": "double",
+        "CATEGORY_NAME": "string",
+        "ACTIVE": "boolean",
+        "BACKGROUND_COLOR": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Followed Records",
       "suffix": "/v3.0/Follows?record_type={Record Type?}&count_total=true",
-      "description": "The records the calling user follows, across types. Scoped to the caller."
+      "description": "The records the calling user follows, across types. Scoped to the caller.",
+      "responseSchema": [
+        {
+          "RECORD_TYPE": "string",
+          "RECORD_ID": "double"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -407,13 +1168,111 @@
           "parameterName": "Lead ID"
         }
       ],
-      "description": "The unqualified prospects, with name, company, contact details, status, source, owner and custom fields. IN INSIGHTLY A LEAD IS CONVERTED into a contact, organisation and opportunity, and the lead record survives -- so leads and contacts hold different stages of the same people and counting both double-counts anyone converted."
+      "description": "The unqualified prospects, with name, company, contact details, status, source, owner and custom fields. IN INSIGHTLY A LEAD IS CONVERTED into a contact, organisation and opportunity, and the lead record survives -- so leads and contacts hold different stages of the same people and counting both double-counts anyone converted.",
+      "responseSchema": [
+        {
+          "LEAD_ID": "double",
+          "SALUTATION": "string",
+          "FIRST_NAME": "string",
+          "LAST_NAME": "string",
+          "LEAD_SOURCE_ID": "double",
+          "LEAD_STATUS_ID": "double",
+          "TITLE": "string",
+          "CONVERTED": "boolean",
+          "CONVERTED_CONTACT_ID": "double",
+          "CONVERTED_DATE_UTC": "timeInstant",
+          "CONVERTED_OPPORTUNITY_ID": "double",
+          "CONVERTED_ORGANISATION_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "EMAIL": "string",
+          "EMPLOYEE_COUNT": "double",
+          "FAX": "string",
+          "INDUSTRY": "string",
+          "LEAD_DESCRIPTION": "string",
+          "LEAD_RATING": "double",
+          "MOBILE": "string",
+          "OWNER_USER_ID": "double",
+          "PHONE": "string",
+          "RESPONSIBLE_USER_ID": "double",
+          "WEBSITE": "string",
+          "ADDRESS_STREET": "string",
+          "ADDRESS_CITY": "string",
+          "ADDRESS_STATE": "string",
+          "ADDRESS_POSTCODE": "string",
+          "ADDRESS_COUNTRY": "string",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "ORGANISATION_NAME": "string",
+          "IMAGE_URL": "string",
+          "EMAIL_OPTED_OUT": "boolean",
+          "LinkedProspectName": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Lead",
       "suffix": "/v3.0/Leads/{Lead ID}",
-      "description": "One lead by id."
+      "description": "One lead by id.",
+      "responseSchema": {
+        "LEAD_ID": "double",
+        "SALUTATION": "string",
+        "FIRST_NAME": "string",
+        "LAST_NAME": "string",
+        "LEAD_SOURCE_ID": "double",
+        "LEAD_STATUS_ID": "double",
+        "TITLE": "string",
+        "CONVERTED": "boolean",
+        "CONVERTED_CONTACT_ID": "double",
+        "CONVERTED_DATE_UTC": "timeInstant",
+        "CONVERTED_OPPORTUNITY_ID": "double",
+        "CONVERTED_ORGANISATION_ID": "double",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "EMAIL": "string",
+        "EMPLOYEE_COUNT": "double",
+        "FAX": "string",
+        "INDUSTRY": "string",
+        "LEAD_DESCRIPTION": "string",
+        "LEAD_RATING": "double",
+        "MOBILE": "string",
+        "OWNER_USER_ID": "double",
+        "PHONE": "string",
+        "RESPONSIBLE_USER_ID": "double",
+        "WEBSITE": "string",
+        "ADDRESS_STREET": "string",
+        "ADDRESS_CITY": "string",
+        "ADDRESS_STATE": "string",
+        "ADDRESS_POSTCODE": "string",
+        "ADDRESS_COUNTRY": "string",
+        "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+        "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+        "ORGANISATION_NAME": "string",
+        "IMAGE_URL": "string",
+        "EMAIL_OPTED_OUT": "boolean",
+        "LinkedProspectName": "double",
+        "CUSTOMFIELDS": [
+          {
+            "FIELD_NAME": "string"
+          }
+        ],
+        "TAGS": [
+          {
+            "TAG_NAME": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
@@ -432,7 +1291,19 @@
           "parameterName": "Email ID"
         }
       ],
-      "description": "The emails linked to one lead."
+      "description": "The emails linked to one lead.",
+      "responseSchema": [
+        {
+          "EMAIL_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -446,31 +1317,75 @@
           "parameterName": "Event ID"
         }
       ],
-      "description": "The calendar events involving one lead."
+      "description": "The calendar events involving one lead.",
+      "responseSchema": [
+        {
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Lead File Attachments",
       "suffix": "/v3.0/Leads/{Lead ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
-      "description": "The files attached to one lead."
+      "description": "The files attached to one lead.",
+      "responseSchema": [
+        {
+          "FILE_ID": "double",
+          "FILE_NAME": "string",
+          "CONTENT_TYPE": "string",
+          "FILE_SIZE": "double",
+          "FILE_CATEGORY_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "URL": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Lead Follow State",
       "suffix": "/v3.0/Leads/{Lead ID}/Follow",
-      "description": "Whether the caller follows one lead."
+      "description": "Whether the caller follows one lead.",
+      "responseSchema": {
+        "FOLLOWING": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Lead Email Address",
       "suffix": "/v3.0/Leads/{Lead ID}/LinkEmailAddress",
-      "description": "The dedicated email address that files mail against one lead. Requires a lead id. How correspondence is captured without forwarding by hand."
+      "description": "The dedicated email address that files mail against one lead. Requires a lead id. How correspondence is captured without forwarding by hand.",
+      "responseSchema": {
+        "EMAIL": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Lead Links",
       "suffix": "/v3.0/Leads/{Lead ID}/Links",
-      "description": "The records one lead is linked to."
+      "description": "The records one lead is linked to.",
+      "responseSchema": [
+        {
+          "LINK_ID": "double",
+          "OBJECT_NAME": "string",
+          "OBJECT_ID": "double",
+          "LINK_OBJECT_NAME": "string",
+          "LINK_OBJECT_ID": "double",
+          "ROLE": "string",
+          "DETAILS": "string",
+          "RELATIONSHIP_ID": "double",
+          "IS_FORWARD": "boolean"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -489,7 +1404,16 @@
           "parameterName": "Note ID"
         }
       ],
-      "description": "The notes on one lead."
+      "description": "The notes on one lead.",
+      "responseSchema": [
+        {
+          "NOTE_ID": "double",
+          "BODY": "string",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -508,7 +1432,22 @@
           "parameterName": "Task ID"
         }
       ],
-      "description": "The tasks relating to one lead."
+      "description": "The tasks relating to one lead.",
+      "responseSchema": [
+        {
+          "TASK_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "NOTE_ID": "double",
+          "EMAIL_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -531,7 +1470,57 @@
           "parameterName": "Lead ID"
         }
       ],
-      "description": "Leads matching field criteria."
+      "description": "Leads matching field criteria.",
+      "responseSchema": [
+        {
+          "LEAD_ID": "double",
+          "SALUTATION": "string",
+          "FIRST_NAME": "string",
+          "LAST_NAME": "string",
+          "LEAD_SOURCE_ID": "double",
+          "LEAD_STATUS_ID": "double",
+          "TITLE": "string",
+          "CONVERTED": "boolean",
+          "CONVERTED_CONTACT_ID": "double",
+          "CONVERTED_DATE_UTC": "timeInstant",
+          "CONVERTED_OPPORTUNITY_ID": "double",
+          "CONVERTED_ORGANISATION_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "EMAIL": "string",
+          "EMPLOYEE_COUNT": "double",
+          "FAX": "string",
+          "INDUSTRY": "string",
+          "LEAD_DESCRIPTION": "string",
+          "LEAD_RATING": "double",
+          "MOBILE": "string",
+          "OWNER_USER_ID": "double",
+          "PHONE": "string",
+          "RESPONSIBLE_USER_ID": "double",
+          "WEBSITE": "string",
+          "ADDRESS_STREET": "string",
+          "ADDRESS_CITY": "string",
+          "ADDRESS_STATE": "string",
+          "ADDRESS_POSTCODE": "string",
+          "ADDRESS_COUNTRY": "string",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "ORGANISATION_NAME": "string",
+          "IMAGE_URL": "string",
+          "EMAIL_OPTED_OUT": "boolean",
+          "LinkedProspectName": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -554,37 +1543,144 @@
           "parameterName": "Lead ID"
         }
       ],
-      "description": "Leads carrying a given tag."
+      "description": "Leads carrying a given tag.",
+      "responseSchema": [
+        {
+          "LEAD_ID": "double",
+          "SALUTATION": "string",
+          "FIRST_NAME": "string",
+          "LAST_NAME": "string",
+          "LEAD_SOURCE_ID": "double",
+          "LEAD_STATUS_ID": "double",
+          "TITLE": "string",
+          "CONVERTED": "boolean",
+          "CONVERTED_CONTACT_ID": "double",
+          "CONVERTED_DATE_UTC": "timeInstant",
+          "CONVERTED_OPPORTUNITY_ID": "double",
+          "CONVERTED_ORGANISATION_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "EMAIL": "string",
+          "EMPLOYEE_COUNT": "double",
+          "FAX": "string",
+          "INDUSTRY": "string",
+          "LEAD_DESCRIPTION": "string",
+          "LEAD_RATING": "double",
+          "MOBILE": "string",
+          "OWNER_USER_ID": "double",
+          "PHONE": "string",
+          "RESPONSIBLE_USER_ID": "double",
+          "WEBSITE": "string",
+          "ADDRESS_STREET": "string",
+          "ADDRESS_CITY": "string",
+          "ADDRESS_STATE": "string",
+          "ADDRESS_POSTCODE": "string",
+          "ADDRESS_COUNTRY": "string",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "ORGANISATION_NAME": "string",
+          "IMAGE_URL": "string",
+          "EMAIL_OPTED_OUT": "boolean",
+          "LinkedProspectName": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Lead Sources",
       "suffix": "/v3.0/LeadSources?count_total=true",
-      "description": "The lead source values configured. The attribution dimension, and account-specific."
+      "description": "The lead source values configured. The attribution dimension, and account-specific.",
+      "responseSchema": [
+        {
+          "LEAD_SOURCE_ID": "double",
+          "LEAD_SOURCE": "string",
+          "DEFAULT_VALUE": "boolean",
+          "FIELD_ORDER": "double"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Lead Statuses",
       "suffix": "/v3.0/LeadStatuses?include_converted={Include Converted?:true|false}&count_total=true",
-      "description": "The lead status values configured. The stages before conversion, and the decoder for a lead's status id."
+      "description": "The lead status values configured. The stages before conversion, and the decoder for a lead's status id.",
+      "responseSchema": [
+        {
+          "LEAD_STATUS_ID": "double",
+          "LEAD_STATUS": "string",
+          "DEFAULT_STATUS": "boolean",
+          "STATUS_TYPE": "double",
+          "FIELD_ORDER": "double"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Milestones",
       "suffix": "/v3.0/Milestone?brief={Brief?:true|false}&count_total=true",
-      "description": "The milestones across all projects. The account-wide delivery schedule."
+      "description": "The milestones across all projects. The account-wide delivery schedule.",
+      "responseSchema": [
+        {
+          "MILESTONE_ID": "double",
+          "TITLE": "string",
+          "COMPLETED": "boolean",
+          "DUE_DATE": "timeInstant",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "COMPLETED_DATE_UTC": "timeInstant",
+          "PROJECT_ID": "double",
+          "RESPONSIBLE_USER": "double"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Milestone",
       "suffix": "/v3.0/Milestone/{Milestone ID}",
-      "description": "One milestone by id."
+      "description": "One milestone by id.",
+      "responseSchema": {
+        "MILESTONE_ID": "double",
+        "TITLE": "string",
+        "COMPLETED": "boolean",
+        "DUE_DATE": "timeInstant",
+        "OWNER_USER_ID": "double",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "COMPLETED_DATE_UTC": "timeInstant",
+        "PROJECT_ID": "double",
+        "RESPONSIBLE_USER": "double"
+      }
     },
     {
       "paged": "true",
       "name": "Filtered Milestones",
       "suffix": "/v3.0/Milestone/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
-      "description": "Milestones matching field criteria."
+      "description": "Milestones matching field criteria.",
+      "responseSchema": [
+        {
+          "MILESTONE_ID": "double",
+          "TITLE": "string",
+          "COMPLETED": "boolean",
+          "DUE_DATE": "timeInstant",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "COMPLETED_DATE_UTC": "timeInstant",
+          "PROJECT_ID": "double",
+          "RESPONSIBLE_USER": "double"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -603,37 +1699,96 @@
           "parameterName": "Note ID"
         }
       ],
-      "description": "The free-text notes across records. The qualitative record, and where the reasoning behind an outcome is usually written."
+      "description": "The free-text notes across records. The qualitative record, and where the reasoning behind an outcome is usually written.",
+      "responseSchema": [
+        {
+          "NOTE_ID": "double",
+          "TITLE": "string",
+          "BODY": "string",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Note",
       "suffix": "/v3.0/Notes/{Note ID}",
-      "description": "One note by id."
+      "description": "One note by id.",
+      "responseSchema": {
+        "NOTE_ID": "double",
+        "TITLE": "string",
+        "BODY": "string",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "OWNER_USER_ID": "double"
+      }
     },
     {
       "paged": "true",
       "name": "Note Comments",
       "suffix": "/v3.0/Notes/{Note ID}/Comments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
-      "description": "The comments on one note."
+      "description": "The comments on one note.",
+      "responseSchema": [
+        {
+          "COMMENT_ID": "double",
+          "BODY": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "NOTE_ID": "double",
+          "TASK_ID": "double",
+          "EMAIL_ID": "double"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Note File Attachments",
       "suffix": "/v3.0/Notes/{Note ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
-      "description": "The files attached to one note."
+      "description": "The files attached to one note.",
+      "responseSchema": [
+        {
+          "FILE_ID": "double",
+          "FILE_NAME": "string",
+          "CONTENT_TYPE": "string",
+          "FILE_SIZE": "double",
+          "FILE_CATEGORY_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "URL": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Note Follow State",
       "suffix": "/v3.0/Notes/{Note ID}/Follow",
-      "description": "Whether the caller follows one note."
+      "description": "Whether the caller follows one note.",
+      "responseSchema": {
+        "FOLLOWING": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Note Links",
       "suffix": "/v3.0/Notes/{Note ID}/Links",
-      "description": "The records one note is linked to."
+      "description": "The records one note is linked to.",
+      "responseSchema": [
+        {
+          "LINK_ID": "double",
+          "OBJECT_NAME": "string",
+          "OBJECT_ID": "double",
+          "LINK_OBJECT_NAME": "string",
+          "LINK_OBJECT_ID": "double",
+          "ROLE": "string",
+          "DETAILS": "string",
+          "RELATIONSHIP_ID": "double",
+          "IS_FORWARD": "boolean"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -652,13 +1807,61 @@
           "parameterName": "Note ID"
         }
       ],
-      "description": "Notes matching field criteria."
+      "description": "Notes matching field criteria.",
+      "responseSchema": [
+        {
+          "NOTE_ID": "double",
+          "TITLE": "string",
+          "BODY": "string",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Opportunities",
       "suffix": "/v3.0/Opportunities?brief={Brief?:true|false}&count_total=true",
-      "description": "The revenue opportunities, with name, value and currency, the pipeline and stage, probability, forecast and actual close dates, state, and the organisation and contacts involved. The pipeline table. STATE separates Open from Won, Lost, Suspended and Abandoned, so a win rate has a specific denominator and an unfiltered value total is not a forecast."
+      "description": "The revenue opportunities, with name, value and currency, the pipeline and stage, probability, forecast and actual close dates, state, and the organisation and contacts involved. The pipeline table. STATE separates Open from Won, Lost, Suspended and Abandoned, so a win rate has a specific denominator and an unfiltered value total is not a forecast.",
+      "responseSchema": [
+        {
+          "OPPORTUNITY_ID": "double",
+          "OPPORTUNITY_NAME": "string",
+          "OPPORTUNITY_DETAILS": "string",
+          "OPPORTUNITY_STATE": "string",
+          "RESPONSIBLE_USER_ID": "double",
+          "CATEGORY_ID": "double",
+          "IMAGE_URL": "string",
+          "BID_CURRENCY": "string",
+          "BID_AMOUNT": "string",
+          "BID_TYPE": "string",
+          "BID_DURATION": "double",
+          "ACTUAL_CLOSE_DATE": "timeInstant",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OPPORTUNITY_VALUE": "string",
+          "PROBABILITY": "double",
+          "FORECAST_CLOSE_DATE": "timeInstant",
+          "OWNER_USER_ID": "double",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "PIPELINE_ID": "double",
+          "STAGE_ID": "double",
+          "ORGANISATION_ID": "double",
+          "PRICEBOOK_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
@@ -682,7 +1885,43 @@
           "parameterName": "Opportunity ID"
         }
       ],
-      "description": "One opportunity by id."
+      "description": "One opportunity by id.",
+      "responseSchema": {
+        "OPPORTUNITY_ID": "double",
+        "OPPORTUNITY_NAME": "string",
+        "OPPORTUNITY_DETAILS": "string",
+        "OPPORTUNITY_STATE": "string",
+        "RESPONSIBLE_USER_ID": "double",
+        "CATEGORY_ID": "double",
+        "IMAGE_URL": "string",
+        "BID_CURRENCY": "string",
+        "BID_AMOUNT": "string",
+        "BID_TYPE": "string",
+        "BID_DURATION": "double",
+        "ACTUAL_CLOSE_DATE": "timeInstant",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "OPPORTUNITY_VALUE": "string",
+        "PROBABILITY": "double",
+        "FORECAST_CLOSE_DATE": "timeInstant",
+        "OWNER_USER_ID": "double",
+        "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+        "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+        "PIPELINE_ID": "double",
+        "STAGE_ID": "double",
+        "ORGANISATION_ID": "double",
+        "PRICEBOOK_ID": "double",
+        "CUSTOMFIELDS": [
+          {
+            "FIELD_NAME": "string"
+          }
+        ],
+        "TAGS": [
+          {
+            "TAG_NAME": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
@@ -701,7 +1940,19 @@
           "parameterName": "Email ID"
         }
       ],
-      "description": "The emails linked to one opportunity."
+      "description": "The emails linked to one opportunity.",
+      "responseSchema": [
+        {
+          "EMAIL_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -715,31 +1966,75 @@
           "parameterName": "Event ID"
         }
       ],
-      "description": "The calendar events involving one opportunity."
+      "description": "The calendar events involving one opportunity.",
+      "responseSchema": [
+        {
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Opportunity File Attachments",
       "suffix": "/v3.0/Opportunities/{Opportunity ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
-      "description": "The files attached to one opportunity."
+      "description": "The files attached to one opportunity.",
+      "responseSchema": [
+        {
+          "FILE_ID": "double",
+          "FILE_NAME": "string",
+          "CONTENT_TYPE": "string",
+          "FILE_SIZE": "double",
+          "FILE_CATEGORY_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "URL": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Opportunity Follow State",
       "suffix": "/v3.0/Opportunities/{Opportunity ID}/Follow",
-      "description": "Whether the caller follows one opportunity."
+      "description": "Whether the caller follows one opportunity.",
+      "responseSchema": {
+        "FOLLOWING": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Opportunity Email Address",
       "suffix": "/v3.0/Opportunities/{Opportunity ID}/LinkEmailAddress",
-      "description": "The dedicated email address that files mail against one opportunity."
+      "description": "The dedicated email address that files mail against one opportunity.",
+      "responseSchema": {
+        "EMAIL": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Opportunity Links",
       "suffix": "/v3.0/Opportunities/{Opportunity ID}/Links",
-      "description": "The records one opportunity is linked to."
+      "description": "The records one opportunity is linked to.",
+      "responseSchema": [
+        {
+          "LINK_ID": "double",
+          "OBJECT_NAME": "string",
+          "OBJECT_ID": "double",
+          "LINK_OBJECT_NAME": "string",
+          "LINK_OBJECT_ID": "double",
+          "ROLE": "string",
+          "DETAILS": "string",
+          "RELATIONSHIP_ID": "double",
+          "IS_FORWARD": "boolean"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -758,13 +2053,31 @@
           "parameterName": "Note ID"
         }
       ],
-      "description": "The notes on one opportunity."
+      "description": "The notes on one opportunity.",
+      "responseSchema": [
+        {
+          "NOTE_ID": "double",
+          "BODY": "string",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Opportunity State History",
       "suffix": "/v3.0/Opportunities/{Opportunity ID}/StateHistory",
-      "description": "THE STAGE AND STATE HISTORY of one opportunity, with the dates of each change. Requires an opportunity id. The opportunity carries its current stage only, so time-in-stage, stage skipping and the date a deal actually closed are answerable here and nowhere else."
+      "description": "THE STAGE AND STATE HISTORY of one opportunity, with the dates of each change. Requires an opportunity id. The opportunity carries its current stage only, so time-in-stage, stage skipping and the date a deal actually closed are answerable here and nowhere else.",
+      "responseSchema": [
+        {
+          "OPPORTUNITY_ID": "double",
+          "DATE_CHANGED_UTC": "timeInstant",
+          "FOR_OPPORTUNITY_STATE": "string",
+          "STATE_REASON_ID": "double",
+          "STATE_REASON": "string"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -783,7 +2096,22 @@
           "parameterName": "Task ID"
         }
       ],
-      "description": "The tasks relating to one opportunity."
+      "description": "The tasks relating to one opportunity.",
+      "responseSchema": [
+        {
+          "TASK_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "NOTE_ID": "double",
+          "EMAIL_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -807,7 +2135,45 @@
           "parameterName": "Opportunity ID"
         }
       ],
-      "description": "Opportunities matching field criteria."
+      "description": "Opportunities matching field criteria.",
+      "responseSchema": [
+        {
+          "OPPORTUNITY_ID": "double",
+          "OPPORTUNITY_NAME": "string",
+          "OPPORTUNITY_DETAILS": "string",
+          "OPPORTUNITY_STATE": "string",
+          "RESPONSIBLE_USER_ID": "double",
+          "CATEGORY_ID": "double",
+          "IMAGE_URL": "string",
+          "BID_CURRENCY": "string",
+          "BID_AMOUNT": "string",
+          "BID_TYPE": "string",
+          "BID_DURATION": "double",
+          "ACTUAL_CLOSE_DATE": "timeInstant",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OPPORTUNITY_VALUE": "string",
+          "PROBABILITY": "double",
+          "FORECAST_CLOSE_DATE": "timeInstant",
+          "OWNER_USER_ID": "double",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "PIPELINE_ID": "double",
+          "STAGE_ID": "double",
+          "ORGANISATION_ID": "double",
+          "PRICEBOOK_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -831,25 +2197,84 @@
           "parameterName": "Opportunity ID"
         }
       ],
-      "description": "Opportunities carrying a given tag."
+      "description": "Opportunities carrying a given tag.",
+      "responseSchema": [
+        {
+          "OPPORTUNITY_ID": "double",
+          "OPPORTUNITY_NAME": "string",
+          "OPPORTUNITY_DETAILS": "string",
+          "OPPORTUNITY_STATE": "string",
+          "RESPONSIBLE_USER_ID": "double",
+          "CATEGORY_ID": "double",
+          "IMAGE_URL": "string",
+          "BID_CURRENCY": "string",
+          "BID_AMOUNT": "string",
+          "BID_TYPE": "string",
+          "BID_DURATION": "double",
+          "ACTUAL_CLOSE_DATE": "timeInstant",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OPPORTUNITY_VALUE": "string",
+          "PROBABILITY": "double",
+          "FORECAST_CLOSE_DATE": "timeInstant",
+          "OWNER_USER_ID": "double",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "PIPELINE_ID": "double",
+          "STAGE_ID": "double",
+          "ORGANISATION_ID": "double",
+          "PRICEBOOK_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Opportunity Categories",
       "suffix": "/v3.0/OpportunityCategories?count_total=true",
-      "description": "The categories opportunities are classified under. An extra dimension beyond pipeline and stage."
+      "description": "The categories opportunities are classified under. An extra dimension beyond pipeline and stage.",
+      "responseSchema": [
+        {
+          "CATEGORY_ID": "double",
+          "CATEGORY_NAME": "string",
+          "ACTIVE": "boolean",
+          "BACKGROUND_COLOR": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Opportunity Category",
       "suffix": "/v3.0/OpportunityCategories/{Opportunity Category ID}",
-      "description": "One opportunity category by id."
+      "description": "One opportunity category by id.",
+      "responseSchema": {
+        "CATEGORY_ID": "double",
+        "CATEGORY_NAME": "string",
+        "ACTIVE": "boolean",
+        "BACKGROUND_COLOR": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Opportunity State Reasons",
       "suffix": "/v3.0/OpportunityStateReasons?count_total=true",
-      "description": "The reasons configured for an opportunity reaching each state -- why it was won, lost or abandoned. The structured explanation behind a state, which the state alone does not give."
+      "description": "The reasons configured for an opportunity reaching each state -- why it was won, lost or abandoned. The structured explanation behind a state, which the state alone does not give.",
+      "responseSchema": [
+        {
+          "STATE_REASON_ID": "double",
+          "STATE_REASON": "string",
+          "FOR_OPPORTUNITY_STATE": "string"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -871,13 +2296,119 @@
           "parameterName": "Organization ID"
         }
       ],
-      "description": "The companies in the CRM, with name, address, phone, website, owner, tags and custom fields. NOTE THE SPELLING: the API path is Organisations with an s, while the connector names the endpoints Organizations -- the same records either way."
+      "description": "The companies in the CRM, with name, address, phone, website, owner, tags and custom fields. NOTE THE SPELLING: the API path is Organisations with an s, while the connector names the endpoints Organizations -- the same records either way.",
+      "responseSchema": [
+        {
+          "ORGANISATION_ID": "double",
+          "ORGANISATION_NAME": "string",
+          "BACKGROUND": "string",
+          "IMAGE_URL": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "PHONE": "string",
+          "PHONE_FAX": "string",
+          "WEBSITE": "string",
+          "ADDRESS_BILLING_STREET": "string",
+          "ADDRESS_BILLING_CITY": "string",
+          "ADDRESS_BILLING_STATE": "string",
+          "ADDRESS_BILLING_COUNTRY": "string",
+          "ADDRESS_BILLING_POSTCODE": "string",
+          "ADDRESS_SHIP_STREET": "string",
+          "ADDRESS_SHIP_CITY": "string",
+          "ADDRESS_SHIP_STATE": "string",
+          "ADDRESS_SHIP_POSTCODE": "string",
+          "ADDRESS_SHIP_COUNTRY": "string",
+          "SOCIAL_LINKEDIN": "string",
+          "SOCIAL_FACEBOOK": "string",
+          "SOCIAL_TWITTER": "string",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ],
+          "DATES": [
+            {
+              "DATE_ID": "double",
+              "OCCASION_NAME": "string",
+              "OCCASION_DATE": "timeInstant",
+              "REPEAT_YEARLY": "boolean",
+              "CREATE_TASK_YEARLY": "boolean"
+            }
+          ],
+          "EMAILDOMAINS": [
+            {
+              "EMAIL_DOMAIN_ID": "double",
+              "EMAIL_DOMAIN": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Organization",
       "suffix": "/v3.0/Organisations/{Organization ID}",
-      "description": "One organisation by id."
+      "description": "One organisation by id.",
+      "responseSchema": {
+        "ORGANISATION_ID": "double",
+        "ORGANISATION_NAME": "string",
+        "BACKGROUND": "string",
+        "IMAGE_URL": "string",
+        "OWNER_USER_ID": "double",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+        "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+        "PHONE": "string",
+        "PHONE_FAX": "string",
+        "WEBSITE": "string",
+        "ADDRESS_BILLING_STREET": "string",
+        "ADDRESS_BILLING_CITY": "string",
+        "ADDRESS_BILLING_STATE": "string",
+        "ADDRESS_BILLING_COUNTRY": "string",
+        "ADDRESS_BILLING_POSTCODE": "string",
+        "ADDRESS_SHIP_STREET": "string",
+        "ADDRESS_SHIP_CITY": "string",
+        "ADDRESS_SHIP_STATE": "string",
+        "ADDRESS_SHIP_POSTCODE": "string",
+        "ADDRESS_SHIP_COUNTRY": "string",
+        "SOCIAL_LINKEDIN": "string",
+        "SOCIAL_FACEBOOK": "string",
+        "SOCIAL_TWITTER": "string",
+        "CUSTOMFIELDS": [
+          {
+            "FIELD_NAME": "string"
+          }
+        ],
+        "TAGS": [
+          {
+            "TAG_NAME": "string"
+          }
+        ],
+        "DATES": [
+          {
+            "DATE_ID": "double",
+            "OCCASION_NAME": "string",
+            "OCCASION_DATE": "timeInstant",
+            "REPEAT_YEARLY": "boolean",
+            "CREATE_TASK_YEARLY": "boolean"
+          }
+        ],
+        "EMAILDOMAINS": [
+          {
+            "EMAIL_DOMAIN_ID": "double",
+            "EMAIL_DOMAIN": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
@@ -896,7 +2427,19 @@
           "parameterName": "Email ID"
         }
       ],
-      "description": "The emails linked to one organisation. Requires an organisation id."
+      "description": "The emails linked to one organisation. Requires an organisation id.",
+      "responseSchema": [
+        {
+          "EMAIL_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -910,31 +2453,81 @@
           "parameterName": "Event ID"
         }
       ],
-      "description": "The calendar events involving one organisation."
+      "description": "The calendar events involving one organisation.",
+      "responseSchema": [
+        {
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Organization File Attachments",
       "suffix": "/v3.0/Organisations/{Organization ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
-      "description": "The files attached to one organisation."
+      "description": "The files attached to one organisation.",
+      "responseSchema": [
+        {
+          "FILE_ID": "double",
+          "FILE_NAME": "string",
+          "CONTENT_TYPE": "string",
+          "FILE_SIZE": "double",
+          "FILE_CATEGORY_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "URL": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Organization Follow State",
       "suffix": "/v3.0/Organisations/{Organization ID}/Follow",
-      "description": "Whether the caller follows one organisation."
+      "description": "Whether the caller follows one organisation.",
+      "responseSchema": {
+        "FOLLOWING": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Organization Links",
       "suffix": "/v3.0/Organisations/{Organization ID}/Links",
-      "description": "The records one organisation is linked to."
+      "description": "The records one organisation is linked to.",
+      "responseSchema": [
+        {
+          "LINK_ID": "double",
+          "OBJECT_NAME": "string",
+          "OBJECT_ID": "double",
+          "LINK_OBJECT_NAME": "string",
+          "LINK_OBJECT_ID": "double",
+          "ROLE": "string",
+          "DETAILS": "string",
+          "RELATIONSHIP_ID": "double",
+          "IS_FORWARD": "boolean"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Organization Notes",
       "suffix": "/v3.0/Organisations/{Organization ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
-      "description": "The notes on one organisation."
+      "description": "The notes on one organisation.",
+      "responseSchema": [
+        {
+          "NOTE_ID": "double",
+          "BODY": "string",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -953,7 +2546,22 @@
           "parameterName": "Task ID"
         }
       ],
-      "description": "The tasks relating to one organisation."
+      "description": "The tasks relating to one organisation.",
+      "responseSchema": [
+        {
+          "TASK_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "NOTE_ID": "double",
+          "EMAIL_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -975,7 +2583,61 @@
           "parameterName": "Organization ID"
         }
       ],
-      "description": "Organisations matching field criteria."
+      "description": "Organisations matching field criteria.",
+      "responseSchema": [
+        {
+          "ORGANISATION_ID": "double",
+          "ORGANISATION_NAME": "string",
+          "BACKGROUND": "string",
+          "IMAGE_URL": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "PHONE": "string",
+          "PHONE_FAX": "string",
+          "WEBSITE": "string",
+          "ADDRESS_BILLING_STREET": "string",
+          "ADDRESS_BILLING_CITY": "string",
+          "ADDRESS_BILLING_STATE": "string",
+          "ADDRESS_BILLING_COUNTRY": "string",
+          "ADDRESS_BILLING_POSTCODE": "string",
+          "ADDRESS_SHIP_STREET": "string",
+          "ADDRESS_SHIP_CITY": "string",
+          "ADDRESS_SHIP_STATE": "string",
+          "ADDRESS_SHIP_POSTCODE": "string",
+          "ADDRESS_SHIP_COUNTRY": "string",
+          "SOCIAL_LINKEDIN": "string",
+          "SOCIAL_FACEBOOK": "string",
+          "SOCIAL_TWITTER": "string",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ],
+          "DATES": [
+            {
+              "DATE_ID": "double",
+              "OCCASION_NAME": "string",
+              "OCCASION_DATE": "timeInstant",
+              "REPEAT_YEARLY": "boolean",
+              "CREATE_TASK_YEARLY": "boolean"
+            }
+          ],
+          "EMAILDOMAINS": [
+            {
+              "EMAIL_DOMAIN_ID": "double",
+              "EMAIL_DOMAIN": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -997,49 +2659,164 @@
           "parameterName": "Organization ID"
         }
       ],
-      "description": "Organisations carrying a given tag."
+      "description": "Organisations carrying a given tag.",
+      "responseSchema": [
+        {
+          "ORGANISATION_ID": "double",
+          "ORGANISATION_NAME": "string",
+          "BACKGROUND": "string",
+          "IMAGE_URL": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "PHONE": "string",
+          "PHONE_FAX": "string",
+          "WEBSITE": "string",
+          "ADDRESS_BILLING_STREET": "string",
+          "ADDRESS_BILLING_CITY": "string",
+          "ADDRESS_BILLING_STATE": "string",
+          "ADDRESS_BILLING_COUNTRY": "string",
+          "ADDRESS_BILLING_POSTCODE": "string",
+          "ADDRESS_SHIP_STREET": "string",
+          "ADDRESS_SHIP_CITY": "string",
+          "ADDRESS_SHIP_STATE": "string",
+          "ADDRESS_SHIP_POSTCODE": "string",
+          "ADDRESS_SHIP_COUNTRY": "string",
+          "SOCIAL_LINKEDIN": "string",
+          "SOCIAL_FACEBOOK": "string",
+          "SOCIAL_TWITTER": "string",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ],
+          "DATES": [
+            {
+              "DATE_ID": "double",
+              "OCCASION_NAME": "string",
+              "OCCASION_DATE": "timeInstant",
+              "REPEAT_YEARLY": "boolean",
+              "CREATE_TASK_YEARLY": "boolean"
+            }
+          ],
+          "EMAILDOMAINS": [
+            {
+              "EMAIL_DOMAIN_ID": "double",
+              "EMAIL_DOMAIN": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "User Permissions",
       "suffix": "/v3.0/Permissions",
-      "description": "The permissions the calling user holds. The direct explanation for a record that cannot be seen."
+      "description": "The permissions the calling user holds. The direct explanation for a record that cannot be seen.",
+      "responseSchema": {
+        "PERMISSIONS_STATE": "string",
+        "OBJECT_PERMISSIONS": [
+          {
+            "OBJECT_TYPE": "string",
+            "PERMISSIONS_STATE": "string",
+            "CAN_READ": "boolean",
+            "CAN_CREATE": "boolean",
+            "CAN_EDIT": "boolean",
+            "CAN_DELETE": "boolean"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Pipelines",
       "suffix": "/v3.0/Pipelines?count_total=true",
-      "description": "The pipelines defined, with the record type each applies to -- opportunities or projects. Insightly pipelines cover both, so a pipeline question has to say which."
+      "description": "The pipelines defined, with the record type each applies to -- opportunities or projects. Insightly pipelines cover both, so a pipeline question has to say which.",
+      "responseSchema": [
+        {
+          "PIPELINE_ID": "double",
+          "PIPELINE_NAME": "string",
+          "FOR_OPPORTUNITIES": "boolean",
+          "FOR_PROJECTS": "boolean",
+          "OWNER_USER_ID": "double"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Pipeline",
       "suffix": "/v3.0/Pipelines/{Pipeline ID}",
-      "description": "One pipeline by id."
+      "description": "One pipeline by id.",
+      "responseSchema": {
+        "PIPELINE_ID": "double",
+        "PIPELINE_NAME": "string",
+        "FOR_OPPORTUNITIES": "boolean",
+        "FOR_PROJECTS": "boolean",
+        "OWNER_USER_ID": "double"
+      }
     },
     {
       "paged": "true",
       "name": "Pipeline Stages",
       "suffix": "/v3.0/PipelineStages?count_total=true",
-      "description": "The stages within pipelines, with their order and the pipeline each belongs to. The dimension a funnel breakdown joins to."
+      "description": "The stages within pipelines, with their order and the pipeline each belongs to. The dimension a funnel breakdown joins to.",
+      "responseSchema": [
+        {
+          "STAGE_ID": "double",
+          "PIPELINE_ID": "double",
+          "STAGE_NAME": "string",
+          "STAGE_ORDER": "double",
+          "ACTIVITYSET_ID": "double",
+          "OWNER_USER_ID": "double"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Pipeline Stage",
       "suffix": "/v3.0/PipelineStages/{Pipeline Stage ID}",
-      "description": "One pipeline stage by id."
+      "description": "One pipeline stage by id.",
+      "responseSchema": {
+        "STAGE_ID": "double",
+        "PIPELINE_ID": "double",
+        "STAGE_NAME": "string",
+        "STAGE_ORDER": "double",
+        "ACTIVITYSET_ID": "double",
+        "OWNER_USER_ID": "double"
+      }
     },
     {
       "paged": "true",
       "name": "Project Categories",
       "suffix": "/v3.0/ProjectCategories?count_total=true",
-      "description": "The categories projects are classified under."
+      "description": "The categories projects are classified under.",
+      "responseSchema": [
+        {
+          "CATEGORY_ID": "double",
+          "CATEGORY_NAME": "string",
+          "ACTIVE": "boolean",
+          "BACKGROUND_COLOR": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Project Category",
       "suffix": "/v3.0/ProjectCategories/{Project Category ID}",
-      "description": "One project category by id."
+      "description": "One project category by id.",
+      "responseSchema": {
+        "CATEGORY_ID": "double",
+        "CATEGORY_NAME": "string",
+        "ACTIVE": "boolean",
+        "BACKGROUND_COLOR": "string"
+      }
     },
     {
       "paged": "true",
@@ -1063,13 +2840,73 @@
           "parameterName": "Project ID"
         }
       ],
-      "description": "The delivery projects, with name, status, the pipeline and stage, dates, the responsible user and the organisation. THE POST-SALE SIDE: an opportunity becomes a project, so delivery tracking lives here while the sale lives in opportunities, and the two are separate records."
+      "description": "The delivery projects, with name, status, the pipeline and stage, dates, the responsible user and the organisation. THE POST-SALE SIDE: an opportunity becomes a project, so delivery tracking lives here while the sale lives in opportunities, and the two are separate records.",
+      "responseSchema": [
+        {
+          "PROJECT_ID": "double",
+          "PROJECT_NAME": "string",
+          "STATUS": "string",
+          "PROJECT_DETAILS": "string",
+          "STARTED_DATE": "timeInstant",
+          "COMPLETED_DATE": "timeInstant",
+          "OPPORTUNITY_ID": "double",
+          "CATEGORY_ID": "double",
+          "PIPELINE_ID": "double",
+          "STAGE_ID": "double",
+          "IMAGE_URL": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "RESPONSIBLE_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Project",
       "suffix": "/v3.0/Projects/{Project ID}",
-      "description": "One project by id."
+      "description": "One project by id.",
+      "responseSchema": {
+        "PROJECT_ID": "double",
+        "PROJECT_NAME": "string",
+        "STATUS": "string",
+        "PROJECT_DETAILS": "string",
+        "STARTED_DATE": "timeInstant",
+        "COMPLETED_DATE": "timeInstant",
+        "OPPORTUNITY_ID": "double",
+        "CATEGORY_ID": "double",
+        "PIPELINE_ID": "double",
+        "STAGE_ID": "double",
+        "IMAGE_URL": "string",
+        "OWNER_USER_ID": "double",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+        "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+        "RESPONSIBLE_USER_ID": "double",
+        "CUSTOMFIELDS": [
+          {
+            "FIELD_NAME": "string"
+          }
+        ],
+        "TAGS": [
+          {
+            "TAG_NAME": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
@@ -1088,7 +2925,19 @@
           "parameterName": "Email ID"
         }
       ],
-      "description": "The emails linked to one project."
+      "description": "The emails linked to one project.",
+      "responseSchema": [
+        {
+          "EMAIL_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -1102,43 +2951,103 @@
           "parameterName": "Event ID"
         }
       ],
-      "description": "The calendar events involving one project."
+      "description": "The calendar events involving one project.",
+      "responseSchema": [
+        {
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Project File Attachments",
       "suffix": "/v3.0/Projects/{Project ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
-      "description": "The files attached to one project."
+      "description": "The files attached to one project.",
+      "responseSchema": [
+        {
+          "FILE_ID": "double",
+          "FILE_NAME": "string",
+          "CONTENT_TYPE": "string",
+          "FILE_SIZE": "double",
+          "FILE_CATEGORY_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "URL": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Project Follow State",
       "suffix": "/v3.0/Projects/{Project ID}/Follow",
-      "description": "Whether the caller follows one project."
+      "description": "Whether the caller follows one project.",
+      "responseSchema": {
+        "FOLLOWING": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Project Email Address",
       "suffix": "/v3.0/Projects/{Project ID}/LinkEmailAddress",
-      "description": "The dedicated email address that files mail against one project."
+      "description": "The dedicated email address that files mail against one project.",
+      "responseSchema": {
+        "EMAIL": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Project Links",
       "suffix": "/v3.0/Projects/{Project ID}/Links",
-      "description": "The records one project is linked to."
+      "description": "The records one project is linked to.",
+      "responseSchema": [
+        {
+          "LINK_ID": "double",
+          "OBJECT_NAME": "string",
+          "OBJECT_ID": "double",
+          "LINK_OBJECT_NAME": "string",
+          "LINK_OBJECT_ID": "double",
+          "ROLE": "string",
+          "DETAILS": "string",
+          "RELATIONSHIP_ID": "double",
+          "IS_FORWARD": "boolean"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Project Milestones",
       "suffix": "/v3.0/Projects/{Project ID}/Milestones",
-      "description": "The milestones of one project. Requires a project id. The delivery schedule within a project."
+      "description": "The milestones of one project. Requires a project id. The delivery schedule within a project.",
+      "responseSchema": [
+        {
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Project Notes",
       "suffix": "/v3.0/Projects/{Project ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
-      "description": "The notes on one project."
+      "description": "The notes on one project.",
+      "responseSchema": [
+        {
+          "NOTE_ID": "double",
+          "BODY": "string",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "OWNER_USER_ID": "double"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -1157,7 +3066,22 @@
           "parameterName": "Task ID"
         }
       ],
-      "description": "The tasks relating to one project."
+      "description": "The tasks relating to one project.",
+      "responseSchema": [
+        {
+          "TASK_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "NOTE_ID": "double",
+          "EMAIL_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -1181,7 +3105,38 @@
           "parameterName": "Project ID"
         }
       ],
-      "description": "Projects matching field criteria."
+      "description": "Projects matching field criteria.",
+      "responseSchema": [
+        {
+          "PROJECT_ID": "double",
+          "PROJECT_NAME": "string",
+          "STATUS": "string",
+          "PROJECT_DETAILS": "string",
+          "STARTED_DATE": "timeInstant",
+          "COMPLETED_DATE": "timeInstant",
+          "OPPORTUNITY_ID": "double",
+          "CATEGORY_ID": "double",
+          "PIPELINE_ID": "double",
+          "STAGE_ID": "double",
+          "IMAGE_URL": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "RESPONSIBLE_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
@@ -1205,31 +3160,92 @@
           "parameterName": "Project ID"
         }
       ],
-      "description": "Projects carrying a given tag."
+      "description": "Projects carrying a given tag.",
+      "responseSchema": [
+        {
+          "PROJECT_ID": "double",
+          "PROJECT_NAME": "string",
+          "STATUS": "string",
+          "PROJECT_DETAILS": "string",
+          "STARTED_DATE": "timeInstant",
+          "COMPLETED_DATE": "timeInstant",
+          "OPPORTUNITY_ID": "double",
+          "CATEGORY_ID": "double",
+          "PIPELINE_ID": "double",
+          "STAGE_ID": "double",
+          "IMAGE_URL": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "LAST_ACTIVITY_DATE_UTC": "timeInstant",
+          "NEXT_ACTIVITY_DATE_UTC": "timeInstant",
+          "RESPONSIBLE_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ],
+          "TAGS": [
+            {
+              "TAG_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Relationships",
       "suffix": "/v3.0/Relationships?count_total=true",
-      "description": "The relationship types defined between records -- reports to, works with, supplier of. The vocabulary the Links endpoints use, and the decoder for what a link actually means."
+      "description": "The relationship types defined between records -- reports to, works with, supplier of. The vocabulary the Links endpoints use, and the decoder for what a link actually means.",
+      "responseSchema": [
+        {
+          "RELATIONSHIP_ID": "double",
+          "FORWARD_TITLE": "string",
+          "FORWARD": "string",
+          "REVERSE_TITLE": "string",
+          "REVERSE": "string",
+          "FOR_CONTACTS": "boolean",
+          "FOR_ORGANISATIONS": "boolean"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Record Type Tags",
       "suffix": "/v3.0/Tags?record_type={Record Type?}&count_total=true",
-      "description": "The tags in use, by record type. The segmentation vocabulary, and the input to every SearchByTag endpoint."
+      "description": "The tags in use, by record type. The segmentation vocabulary, and the input to every SearchByTag endpoint.",
+      "responseSchema": [
+        {
+          "TAG_NAME": "string"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Task Categories",
       "suffix": "/v3.0/TaskCategories?count_total=true",
-      "description": "The categories tasks are classified under. The dimension that turns task volume into activity mix."
+      "description": "The categories tasks are classified under. The dimension that turns task volume into activity mix.",
+      "responseSchema": [
+        {
+          "CATEGORY_ID": "double",
+          "CATEGORY_NAME": "string",
+          "ACTIVE": "boolean",
+          "BACKGROUND_COLOR": "string"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Task Category",
       "suffix": "/v3.0/TaskCategories/{Task Category ID}",
-      "description": "One task category by id."
+      "description": "One task category by id.",
+      "responseSchema": {
+        "CATEGORY_ID": "double",
+        "CATEGORY_NAME": "string",
+        "ACTIVE": "boolean",
+        "BACKGROUND_COLOR": "string"
+      }
     },
     {
       "paged": "true",
@@ -1247,31 +3263,133 @@
           "parameterName": "Task ID"
         }
       ],
-      "description": "The to-dos, with title, due date, completion, priority, the responsible user and the record each relates to. The forward-looking work."
+      "description": "The to-dos, with title, due date, completion, priority, the responsible user and the record each relates to. The forward-looking work.",
+      "responseSchema": [
+        {
+          "TASK_ID": "double",
+          "TITLE": "string",
+          "CATEGORY_ID": "double",
+          "DUE_DATE": "timeInstant",
+          "COMPLETED_DATE_UTC": "timeInstant",
+          "COMPLETED": "boolean",
+          "DETAILS": "string",
+          "STATUS": "string",
+          "PRIORITY": "double",
+          "PERCENT_COMPLETE": "double",
+          "START_DATE": "timeInstant",
+          "MILESTONE_ID": "double",
+          "RESPONSIBLE_USER_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "EMAIL_ID": "double",
+          "PROJECT_ID": "double",
+          "REMINDER_DATE_UTC": "timeInstant",
+          "REMINDER_SENT": "boolean",
+          "OWNER_VISIBLE": "boolean",
+          "STAGE_ID": "double",
+          "ASSIGNED_BY_USER_ID": "double",
+          "PARENT_TASK_ID": "double",
+          "RECURRENCE": "string",
+          "OPPORTUNITY_ID": "double",
+          "ASSIGNED_TEAM_ID": "double",
+          "ASSIGNED_DATE_UTC": "timeInstant",
+          "CREATED_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Task",
       "suffix": "/v3.0/Tasks/{Task ID}",
-      "description": "One task by id."
+      "description": "One task by id.",
+      "responseSchema": {
+        "TASK_ID": "double",
+        "TITLE": "string",
+        "CATEGORY_ID": "double",
+        "DUE_DATE": "timeInstant",
+        "COMPLETED_DATE_UTC": "timeInstant",
+        "COMPLETED": "boolean",
+        "DETAILS": "string",
+        "STATUS": "string",
+        "PRIORITY": "double",
+        "PERCENT_COMPLETE": "double",
+        "START_DATE": "timeInstant",
+        "MILESTONE_ID": "double",
+        "RESPONSIBLE_USER_ID": "double",
+        "OWNER_USER_ID": "double",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "EMAIL_ID": "double",
+        "PROJECT_ID": "double",
+        "REMINDER_DATE_UTC": "timeInstant",
+        "REMINDER_SENT": "boolean",
+        "OWNER_VISIBLE": "boolean",
+        "STAGE_ID": "double",
+        "ASSIGNED_BY_USER_ID": "double",
+        "PARENT_TASK_ID": "double",
+        "RECURRENCE": "string",
+        "OPPORTUNITY_ID": "double",
+        "ASSIGNED_TEAM_ID": "double",
+        "ASSIGNED_DATE_UTC": "timeInstant",
+        "CREATED_USER_ID": "double",
+        "CUSTOMFIELDS": [
+          {
+            "FIELD_NAME": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Task Comments",
       "suffix": "/v3.0/Tasks/{Task ID}/Comments?count_total=true",
-      "description": "The comments on one task. Requires a task id."
+      "description": "The comments on one task. Requires a task id.",
+      "responseSchema": [
+        {
+          "COMMENT_ID": "double",
+          "BODY": "string",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "NOTE_ID": "double",
+          "TASK_ID": "double",
+          "EMAIL_ID": "double"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Task Follow State",
       "suffix": "/v3.0/Tasks/{Task ID}/Follow",
-      "description": "Whether the caller follows one task."
+      "description": "Whether the caller follows one task.",
+      "responseSchema": {
+        "FOLLOWING": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Task Links",
       "suffix": "/v3.0/Tasks/{Task ID}/Links",
-      "description": "The records one task is linked to."
+      "description": "The records one task is linked to.",
+      "responseSchema": [
+        {
+          "LINK_ID": "double",
+          "OBJECT_NAME": "string",
+          "OBJECT_ID": "double",
+          "LINK_OBJECT_NAME": "string",
+          "LINK_OBJECT_ID": "double",
+          "ROLE": "string",
+          "DETAILS": "string",
+          "RELATIONSHIP_ID": "double",
+          "IS_FORWARD": "boolean"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -1289,55 +3407,219 @@
           "parameterName": "Task ID"
         }
       ],
-      "description": "Tasks matching field criteria."
+      "description": "Tasks matching field criteria.",
+      "responseSchema": [
+        {
+          "TASK_ID": "double",
+          "TITLE": "string",
+          "CATEGORY_ID": "double",
+          "DUE_DATE": "timeInstant",
+          "COMPLETED_DATE_UTC": "timeInstant",
+          "COMPLETED": "boolean",
+          "DETAILS": "string",
+          "STATUS": "string",
+          "PRIORITY": "double",
+          "PERCENT_COMPLETE": "double",
+          "START_DATE": "timeInstant",
+          "MILESTONE_ID": "double",
+          "RESPONSIBLE_USER_ID": "double",
+          "OWNER_USER_ID": "double",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "EMAIL_ID": "double",
+          "PROJECT_ID": "double",
+          "REMINDER_DATE_UTC": "timeInstant",
+          "REMINDER_SENT": "boolean",
+          "OWNER_VISIBLE": "boolean",
+          "STAGE_ID": "double",
+          "ASSIGNED_BY_USER_ID": "double",
+          "PARENT_TASK_ID": "double",
+          "RECURRENCE": "string",
+          "OPPORTUNITY_ID": "double",
+          "ASSIGNED_TEAM_ID": "double",
+          "ASSIGNED_DATE_UTC": "timeInstant",
+          "CREATED_USER_ID": "double",
+          "CUSTOMFIELDS": [
+            {
+              "FIELD_NAME": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Team Members",
       "suffix": "/v3.0/TeamMembers?count_total=true",
-      "description": "The user-to-team memberships across the account."
+      "description": "The user-to-team memberships across the account.",
+      "responseSchema": [
+        {
+          "PERMISSION_ID": "double",
+          "TEAM_ID": "double",
+          "MEMBER_USER_ID": "double"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Team Member",
       "suffix": "/v3.0/TeamMembers/{Team Member ID}",
-      "description": "One team membership by id."
+      "description": "One team membership by id.",
+      "responseSchema": {
+        "PERMISSION_ID": "double",
+        "TEAM_ID": "double",
+        "MEMBER_USER_ID": "double"
+      }
     },
     {
       "paged": "true",
       "name": "Teams",
       "suffix": "/v3.0/Teams?brief={Brief?:true|false}&count_total=true",
-      "description": "The teams users belong to. The grouping above individuals for reporting."
+      "description": "The teams users belong to. The grouping above individuals for reporting.",
+      "responseSchema": [
+        {
+          "TEAM_ID": "double",
+          "TEAM_NAME": "string",
+          "ANONYMOUS_TEAM": "boolean",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "TEAMMEMBERS": [
+            {
+              "PERMISSION_ID": "double",
+              "TEAM_ID": "double",
+              "MEMBER_USER_ID": "double"
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Team",
       "suffix": "/v3.0/Teams/{Team ID}",
-      "description": "One team by id."
+      "description": "One team by id.",
+      "responseSchema": {
+        "TEAM_ID": "double",
+        "TEAM_NAME": "string",
+        "ANONYMOUS_TEAM": "boolean",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "TEAMMEMBERS": [
+          {
+            "PERMISSION_ID": "double",
+            "TEAM_ID": "double",
+            "MEMBER_USER_ID": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Users",
       "suffix": "/v3.0/Users?count_total=true",
-      "description": "The users of the account, with name, email, whether active and administrative, and their timezone. Every record carries an owner and a responsible user, so this is the dimension per-person performance joins to."
+      "description": "The users of the account, with name, email, whether active and administrative, and their timezone. Every record carries an owner and a responsible user, so this is the dimension per-person performance joins to.",
+      "responseSchema": [
+        {
+          "USER_ID": "double",
+          "CONTACT_ID": "double",
+          "FIRST_NAME": "string",
+          "LAST_NAME": "string",
+          "TIMEZONE_ID": "string",
+          "EMAIL_ADDRESS": "string",
+          "EMAIL_DROPBOX_IDENTIFIER": "string",
+          "EMAIL_DROPBOX_ADDRESS": "string",
+          "ADMINISTRATOR": "boolean",
+          "ACCOUNT_OWNER": "boolean",
+          "ACTIVE": "boolean",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "USER_CURRENCY": "string",
+          "CONTACT_DISPLAY": "string",
+          "CONTACT_ORDER": "string",
+          "TASK_WEEK_START": "double",
+          "INSTANCE_ID": "double"
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "User",
       "suffix": "/v3.0/Users/{User ID}",
-      "description": "One user by id."
+      "description": "One user by id.",
+      "responseSchema": {
+        "USER_ID": "double",
+        "CONTACT_ID": "double",
+        "FIRST_NAME": "string",
+        "LAST_NAME": "string",
+        "TIMEZONE_ID": "string",
+        "EMAIL_ADDRESS": "string",
+        "EMAIL_DROPBOX_IDENTIFIER": "string",
+        "EMAIL_DROPBOX_ADDRESS": "string",
+        "ADMINISTRATOR": "boolean",
+        "ACCOUNT_OWNER": "boolean",
+        "ACTIVE": "boolean",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "USER_CURRENCY": "string",
+        "CONTACT_DISPLAY": "string",
+        "CONTACT_ORDER": "string",
+        "TASK_WEEK_START": "double",
+        "INSTANCE_ID": "double"
+      }
     },
     {
       "paged": "false",
       "name": "Current User",
       "suffix": "/v3.0/Users/Me",
-      "description": "The account the credentials belong to. One record, always the caller."
+      "description": "The account the credentials belong to. One record, always the caller.",
+      "responseSchema": {
+        "USER_ID": "double",
+        "CONTACT_ID": "double",
+        "FIRST_NAME": "string",
+        "LAST_NAME": "string",
+        "TIMEZONE_ID": "string",
+        "EMAIL_ADDRESS": "string",
+        "EMAIL_DROPBOX_IDENTIFIER": "string",
+        "EMAIL_DROPBOX_ADDRESS": "string",
+        "ADMINISTRATOR": "boolean",
+        "ACCOUNT_OWNER": "boolean",
+        "ACTIVE": "boolean",
+        "DATE_CREATED_UTC": "timeInstant",
+        "DATE_UPDATED_UTC": "timeInstant",
+        "USER_CURRENCY": "string",
+        "CONTACT_DISPLAY": "string",
+        "CONTACT_ORDER": "string",
+        "TASK_WEEK_START": "double",
+        "INSTANCE_ID": "double"
+      }
     },
     {
       "paged": "true",
       "name": "Filtered Users",
       "suffix": "/v3.0/Users/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true",
-      "description": "Users matching field criteria."
+      "description": "Users matching field criteria.",
+      "responseSchema": [
+        {
+          "USER_ID": "double",
+          "CONTACT_ID": "double",
+          "FIRST_NAME": "string",
+          "LAST_NAME": "string",
+          "TIMEZONE_ID": "string",
+          "EMAIL_ADDRESS": "string",
+          "EMAIL_DROPBOX_IDENTIFIER": "string",
+          "EMAIL_DROPBOX_ADDRESS": "string",
+          "ADMINISTRATOR": "boolean",
+          "ACCOUNT_OWNER": "boolean",
+          "ACTIVE": "boolean",
+          "DATE_CREATED_UTC": "timeInstant",
+          "DATE_UPDATED_UTC": "timeInstant",
+          "USER_CURRENCY": "string",
+          "CONTACT_DISPLAY": "string",
+          "CONTACT_ORDER": "string",
+          "TASK_WEEK_START": "double",
+          "INSTANCE_ID": "double"
+        }
+      ]
     }
   ]
 }

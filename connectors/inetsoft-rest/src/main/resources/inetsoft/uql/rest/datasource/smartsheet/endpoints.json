@@ -4,7 +4,24 @@
       "paged": "false",
       "name": "Attachment",
       "suffix": "/2.0/sheets/{Sheet ID}/attachments/{Attachment ID}",
-      "description": "One attachment by id."
+      "description": "One attachment by id.",
+      "responseSchema": {
+        "id": "double",
+        "parentId": "double",
+        "attachmentType": "string",
+        "attachmentSubType": "string",
+        "mimeType": "string",
+        "parentType": "string",
+        "createdAt": "timeInstant",
+        "createdBy": {
+          "email": "string",
+          "name": "string"
+        },
+        "name": "string",
+        "sizeInKb": "double",
+        "url": "string",
+        "urlExpiresInMillis": "double"
+      }
     },
     {
       "paged": "true",
@@ -18,127 +35,800 @@
           "parameterName": "Attachment ID"
         }
       ],
-      "description": "The files attached to one sheet. Requires a sheet id. Metadata; the binary is a separate fetch."
+      "description": "The files attached to one sheet. Requires a sheet id. Metadata; the binary is a separate fetch.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "parentId": "double",
+            "attachmentType": "string",
+            "attachmentSubType": "string",
+            "mimeType": "string",
+            "parentType": "string",
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "name": "string",
+            "sizeInKb": "double",
+            "url": "string",
+            "urlExpiresInMillis": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Discussion Attachments",
       "suffix": "/2.0/sheets/{Sheet ID}/discussions/{Discussion ID}/attachments",
-      "description": "The files attached to one discussion. Requires the sheet and discussion ids."
+      "description": "The files attached to one discussion. Requires the sheet and discussion ids.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "parentId": "double",
+            "attachmentType": "string",
+            "attachmentSubType": "string",
+            "mimeType": "string",
+            "parentType": "string",
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "name": "string",
+            "sizeInKb": "double",
+            "url": "string",
+            "urlExpiresInMillis": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Row Attachments",
       "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/attachments",
-      "description": "The files attached to one row. Requires the sheet and row ids."
+      "description": "The files attached to one row. Requires the sheet and row ids.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "parentId": "double",
+            "attachmentType": "string",
+            "attachmentSubType": "string",
+            "mimeType": "string",
+            "parentType": "string",
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "name": "string",
+            "sizeInKb": "double",
+            "url": "string",
+            "urlExpiresInMillis": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Versions",
       "suffix": "/2.0/sheets/{Sheet ID}/attachments/{Attachment ID}/versions",
-      "description": "The version history of one attachment. Requires the sheet and attachment ids."
+      "description": "The version history of one attachment. Requires the sheet and attachment ids.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "parentId": "double",
+            "attachmentType": "string",
+            "attachmentSubType": "string",
+            "mimeType": "string",
+            "parentType": "string",
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "name": "string",
+            "sizeInKb": "double",
+            "url": "string",
+            "urlExpiresInMillis": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Automation Rule",
       "suffix": "/2.0/sheets/{Sheet ID}/automationrules/{Automation Rule ID}",
-      "description": "One automation rule by id."
+      "description": "One automation rule by id.",
+      "responseSchema": {
+        "id": "double",
+        "createdAt": "timeInstant",
+        "createdBy": {
+          "email": "string",
+          "name": "string"
+        },
+        "disabledReason": "string",
+        "disabledReasonText": "string",
+        "enabled": "boolean",
+        "modifiedAt": "timeInstant",
+        "modifiedBy": {
+          "email": "string",
+          "name": "string"
+        },
+        "name": "string",
+        "userCanModify": "boolean"
+      }
     },
     {
       "paged": "true",
       "name": "Automation Rules",
       "suffix": "/2.0/sheets/{Sheet ID}/automationrules",
-      "description": "The automation rules on one sheet -- alerts, reminders, approval requests and update requests, with their conditions and recipients. Requires a sheet id. Automation changes cells without a person doing it, so this explains edits with no obvious author."
+      "description": "The automation rules on one sheet -- alerts, reminders, approval requests and update requests, with their conditions and recipients. Requires a sheet id. Automation changes cells without a person doing it, so this explains edits with no obvious author.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "disabledReason": "string",
+            "disabledReasonText": "string",
+            "enabled": "boolean",
+            "modifiedAt": "timeInstant",
+            "modifiedBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "name": "string",
+            "userCanModify": "boolean"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Cell History",
       "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/columns/{Column ID}/history?include={Include?:columnType,objectValue}&level={Level?}",
-      "description": "Every past value of ONE CELL, with who changed it and when. Requires the sheet, row and column ids. The only audit trail Smartsheet offers at cell level -- a sheet holds current values only, so when a date slipped or a status changed is answerable here and nowhere else, at the cost of one request per cell."
+      "description": "Every past value of ONE CELL, with who changed it and when. Requires the sheet, row and column ids. The only audit trail Smartsheet offers at cell level -- a sheet holds current values only, so when a date slipped or a status changed is answerable here and nowhere else, at the cost of one request per cell.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "columnId": "double",
+            "columnType": "string",
+            "conditionalFormat": "string",
+            "displayValue": "string",
+            "format": "string",
+            "formula": "string",
+            "hyperlink": {
+              "reportId": "double",
+              "sheetId": "double",
+              "sightId": "double",
+              "url": "string"
+            },
+            "image": {
+              "altText": "string",
+              "height": "double",
+              "id": "string",
+              "width": "double"
+            },
+            "linkInFromCell": {
+              "columnId": "double",
+              "rowId": "double",
+              "sheetId": "double",
+              "sheetName": "string",
+              "status": "string"
+            },
+            "linksOutToCells": [
+              {
+                "columnId": "double",
+                "rowId": "double",
+                "sheetId": "double",
+                "sheetName": "string",
+                "status": "string"
+              }
+            ],
+            "overrideValidation": "boolean",
+            "modifiedAt": "timeInstant",
+            "modifiedBy": {
+              "email": "string",
+              "name": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Column",
       "suffix": "/2.0/sheets/{Sheet ID}/columns/{Column ID}?level={Level?}",
-      "description": "One column by id. Requires the sheet id."
+      "description": "One column by id. Requires the sheet id.",
+      "responseSchema": {
+        "description": "string",
+        "format": "string",
+        "hidden": "boolean",
+        "id": "double",
+        "index": "double",
+        "locked": "boolean",
+        "lockedForUser": "boolean",
+        "title": "string",
+        "width": "double",
+        "type": "string",
+        "validation": "boolean",
+        "version": "double",
+        "options": [
+          "string"
+        ],
+        "primary": "boolean"
+      }
     },
     {
       "paged": "true",
       "name": "Columns",
       "suffix": "/2.0/sheets/{Sheet ID}/columns?level={Level?}",
-      "description": "The column definitions of one sheet, with title, type, index, whether it is the primary column, and for picklists the allowed options. Requires a sheet id. THE SCHEMA: every cell references a columnId, so this is the decoder without which sheet data is a set of numbers against opaque ids."
+      "description": "The column definitions of one sheet, with title, type, index, whether it is the primary column, and for picklists the allowed options. Requires a sheet id. THE SCHEMA: every cell references a columnId, so this is the decoder without which sheet data is a set of numbers against opaque ids.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "description": "string",
+            "format": "string",
+            "hidden": "boolean",
+            "id": "double",
+            "index": "double",
+            "locked": "boolean",
+            "lockedForUser": "boolean",
+            "title": "string",
+            "width": "double",
+            "type": "string",
+            "validation": "boolean",
+            "version": "double",
+            "options": [
+              "string"
+            ],
+            "primary": "boolean"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Comment",
       "suffix": "/2.0/sheets/{Sheet ID}/comments/{Comment ID}",
-      "description": "One comment by id. Requires the sheet id."
+      "description": "One comment by id. Requires the sheet id.",
+      "responseSchema": {
+        "attachments": [
+          {
+            "id": "double",
+            "parentId": "double",
+            "attachmentType": "string",
+            "attachmentSubType": "string",
+            "mimeType": "string",
+            "parentType": "string",
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "name": "string",
+            "sizeInKb": "double",
+            "url": "string",
+            "urlExpiresInMillis": "double"
+          }
+        ],
+        "createdAt": "timeInstant",
+        "createdBy": {
+          "email": "string",
+          "name": "string"
+        },
+        "discussionId": "double",
+        "id": "double",
+        "modifiedAt": "timeInstant",
+        "text": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Contact",
       "suffix": "/2.0/contacts/{Contact ID}?include={Include?:profileImage}",
-      "description": "One contact by id."
+      "description": "One contact by id.",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "email": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Contacts",
       "suffix": "/2.0/contacts",
-      "description": "The contacts available to the caller for assignment and sharing. Smartsheet contact-type cells reference these, so it is the decoder for a contact column."
+      "description": "The contacts available to the caller for assignment and sharing. Smartsheet contact-type cells reference these, so it is the decoder for a contact column.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "string",
+            "name": "string",
+            "email": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Cross-sheet Reference",
       "suffix": "/2.0/sheets/{Sheet ID}/crosssheetreferences/{Cross Sheet Reference ID}",
-      "description": "One cross-sheet reference by id."
+      "description": "One cross-sheet reference by id.",
+      "responseSchema": {
+        "endColumnId": "double",
+        "endRowId": "double",
+        "id": "double",
+        "name": "string",
+        "startColumnId": "double",
+        "startRowId": "double",
+        "status": "string",
+        "sourceSheetId": "double"
+      }
     },
     {
       "paged": "true",
       "name": "Cross-sheet References",
       "suffix": "/2.0/sheets/{Sheet ID}/crosssheetreferences",
-      "description": "The references one sheet makes to ranges in other sheets. Requires a sheet id. THE DEPENDENCY GRAPH: a formula pulling from another sheet is invisible in the cell values, so this is what reveals that a number is driven by a sheet somewhere else."
+      "description": "The references one sheet makes to ranges in other sheets. Requires a sheet id. THE DEPENDENCY GRAPH: a formula pulling from another sheet is invisible in the cell values, so this is what reveals that a number is driven by a sheet somewhere else.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "endColumnId": "double",
+            "endRowId": "double",
+            "id": "double",
+            "name": "string",
+            "startColumnId": "double",
+            "startRowId": "double",
+            "status": "string",
+            "sourceSheetId": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Discussions",
       "suffix": "/2.0/sheets/{Sheet ID}/discussions?include={Include?:attachments,comments}",
-      "description": "The comment threads on one sheet. Requires a sheet id. Where the reasoning behind a change is recorded, which the cells do not carry."
+      "description": "The comment threads on one sheet. Requires a sheet id. Where the reasoning behind a change is recorded, which the cells do not carry.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "accessLevel": "string",
+            "id": "double",
+            "comments": [
+              {
+                "attachments": [
+                  {
+                    "id": "double",
+                    "parentId": "double",
+                    "attachmentType": "string",
+                    "attachmentSubType": "string",
+                    "mimeType": "string",
+                    "parentType": "string",
+                    "createdAt": "timeInstant",
+                    "createdBy": {
+                      "email": "string",
+                      "name": "string"
+                    },
+                    "name": "string",
+                    "sizeInKb": "double",
+                    "url": "string",
+                    "urlExpiresInMillis": "double"
+                  }
+                ],
+                "createdAt": "timeInstant",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "discussionId": "double",
+                "id": "double",
+                "modifiedAt": "timeInstant",
+                "text": "string"
+              }
+            ],
+            "commentAttachments": [
+              {
+                "id": "double",
+                "parentId": "double",
+                "attachmentType": "string",
+                "attachmentSubType": "string",
+                "mimeType": "string",
+                "parentType": "string",
+                "createdAt": "timeInstant",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "name": "string",
+                "sizeInKb": "double",
+                "url": "string",
+                "urlExpiresInMillis": "double"
+              }
+            ],
+            "commentCount": "double",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "lastCommentedAt": "timeInstant",
+            "lastCommentedUser": {
+              "email": "string",
+              "name": "string"
+            },
+            "parentId": "double",
+            "parentType": "string",
+            "readOnly": "boolean",
+            "title": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Discussion",
       "suffix": "/2.0/sheets/{Sheet ID}/discussions/{Discussion ID}",
-      "description": "One discussion by id, with its comments."
+      "description": "One discussion by id, with its comments.",
+      "responseSchema": {
+        "accessLevel": "string",
+        "id": "double",
+        "comments": [
+          {
+            "attachments": [
+              {
+                "id": "double",
+                "parentId": "double",
+                "attachmentType": "string",
+                "attachmentSubType": "string",
+                "mimeType": "string",
+                "parentType": "string",
+                "createdAt": "timeInstant",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "name": "string",
+                "sizeInKb": "double",
+                "url": "string",
+                "urlExpiresInMillis": "double"
+              }
+            ],
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "discussionId": "double",
+            "id": "double",
+            "modifiedAt": "timeInstant",
+            "text": "string"
+          }
+        ],
+        "commentAttachments": [
+          {
+            "id": "double",
+            "parentId": "double",
+            "attachmentType": "string",
+            "attachmentSubType": "string",
+            "mimeType": "string",
+            "parentType": "string",
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "name": "string",
+            "sizeInKb": "double",
+            "url": "string",
+            "urlExpiresInMillis": "double"
+          }
+        ],
+        "commentCount": "double",
+        "createdBy": {
+          "email": "string",
+          "name": "string"
+        },
+        "lastCommentedAt": "timeInstant",
+        "lastCommentedUser": {
+          "email": "string",
+          "name": "string"
+        },
+        "parentId": "double",
+        "parentType": "string",
+        "readOnly": "boolean",
+        "title": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Row Discussions",
       "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/discussions?include={Include?:attachments,comments}",
-      "description": "The comment threads attached to one row. Requires the sheet and row ids."
+      "description": "The comment threads attached to one row. Requires the sheet and row ids.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "accessLevel": "string",
+            "id": "double",
+            "comments": [
+              {
+                "attachments": [
+                  {
+                    "id": "double",
+                    "parentId": "double",
+                    "attachmentType": "string",
+                    "attachmentSubType": "string",
+                    "mimeType": "string",
+                    "parentType": "string",
+                    "createdAt": "timeInstant",
+                    "createdBy": {
+                      "email": "string",
+                      "name": "string"
+                    },
+                    "name": "string",
+                    "sizeInKb": "double",
+                    "url": "string",
+                    "urlExpiresInMillis": "double"
+                  }
+                ],
+                "createdAt": "timeInstant",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "discussionId": "double",
+                "id": "double",
+                "modifiedAt": "timeInstant",
+                "text": "string"
+              }
+            ],
+            "commentAttachments": [
+              {
+                "id": "double",
+                "parentId": "double",
+                "attachmentType": "string",
+                "attachmentSubType": "string",
+                "mimeType": "string",
+                "parentType": "string",
+                "createdAt": "timeInstant",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "name": "string",
+                "sizeInKb": "double",
+                "url": "string",
+                "urlExpiresInMillis": "double"
+              }
+            ],
+            "commentCount": "double",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "lastCommentedAt": "timeInstant",
+            "lastCommentedUser": {
+              "email": "string",
+              "name": "string"
+            },
+            "parentId": "double",
+            "parentType": "string",
+            "readOnly": "boolean",
+            "title": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Favorites",
       "suffix": "/2.0/favorites",
-      "description": "The items the caller has starred. Scoped to the caller."
+      "description": "The items the caller has starred. Scoped to the caller.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "objectId": "double",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Folder",
       "suffix": "/2.0/folders/{Folder ID}?include={Include?:ownerInfo,sheetVersion,source}",
-      "description": "One folder by id, with its sheets, reports, dashboards and subfolders."
+      "description": "One folder by id, with its sheets, reports, dashboards and subfolders.",
+      "responseSchema": {
+        "id": "double",
+        "favorite": "boolean",
+        "name": "string",
+        "permalink": "string",
+        "reports": [
+          {
+            "id": "double",
+            "name": "string",
+            "permalink": "string"
+          }
+        ],
+        "sheets": [
+          {
+            "id": "double",
+            "name": "string",
+            "permalink": "string"
+          }
+        ],
+        "sights": [
+          {
+            "id": "double",
+            "name": "string",
+            "permalink": "string",
+            "createdAt": "timeInstant",
+            "modifiedAt": "timeInstant"
+          }
+        ],
+        "templates": [
+          {
+            "id": "double",
+            "name": "string",
+            "permalink": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Sheet Folders",
       "suffix": "/2.0/home/folders",
-      "description": "The folders in the caller's home area."
+      "description": "The folders in the caller's home area.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "result": [
+          {
+            "id": "double",
+            "favorite": "boolean",
+            "name": "string",
+            "permalink": "string",
+            "reports": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string"
+              }
+            ],
+            "sheets": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string"
+              }
+            ],
+            "sights": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string",
+                "createdAt": "timeInstant",
+                "modifiedAt": "timeInstant"
+              }
+            ],
+            "templates": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Subfolders",
       "suffix": "/2.0/folders/{Folder ID}/folders",
-      "description": "The folders inside one folder. Requires a folder id. Folders nest, so a full tree means walking this repeatedly."
+      "description": "The folders inside one folder. Requires a folder id. Folders nest, so a full tree means walking this repeatedly.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "result": [
+          {
+            "id": "double",
+            "favorite": "boolean",
+            "name": "string",
+            "permalink": "string",
+            "reports": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string"
+              }
+            ],
+            "sheets": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string"
+              }
+            ],
+            "sights": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string",
+                "createdAt": "timeInstant",
+                "modifiedAt": "timeInstant"
+              }
+            ],
+            "templates": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "paged": "true",
@@ -150,25 +840,994 @@
       "paged": "false",
       "name": "Group",
       "suffix": "/2.0/groups/{Group ID}",
-      "description": "One group by id, with its members."
+      "description": "One group by id, with its members.",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "description": "string",
+        "owner": "string",
+        "ownerId": "double",
+        "createdAt": "timeInstant",
+        "modifiedAt": "timeInstant",
+        "members": [
+          {
+            "id": "double",
+            "email": "string",
+            "firstName": "string",
+            "lastName": "string",
+            "name": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Organization Groups",
       "suffix": "/2.0/groups",
-      "description": "The groups in the organisation, used to share items in bulk."
+      "description": "The groups in the organisation, used to share items in bulk.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "owner": "string",
+            "ownerId": "double",
+            "createdAt": "timeInstant",
+            "modifiedAt": "timeInstant"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Contents",
       "suffix": "/2.0/home?include={Include?:source}&exclude={Exclude?:permalinks}",
-      "description": "Everything in the caller's home -- sheets, folders, reports, dashboards, workspaces and templates in one response. The fastest inventory of what a user can reach, and the alternative to walking folders one at a time."
+      "description": "Everything in the caller's home -- sheets, folders, reports, dashboards, workspaces and templates in one response. The fastest inventory of what a user can reach, and the alternative to walking folders one at a time.",
+      "responseSchema": {
+        "folders": [
+          {
+            "id": "double",
+            "favorite": "boolean",
+            "name": "string",
+            "permalink": "string",
+            "reports": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string"
+              }
+            ],
+            "sheets": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string"
+              }
+            ],
+            "sights": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string",
+                "createdAt": "timeInstant",
+                "modifiedAt": "timeInstant"
+              }
+            ],
+            "templates": [
+              {
+                "id": "double",
+                "name": "string",
+                "permalink": "string"
+              }
+            ]
+          }
+        ],
+        "reports": [
+          {
+            "id": "double",
+            "name": "string",
+            "totalRowCount": "double",
+            "accessLevel": "string",
+            "effectiveAttachmentOptions": [
+              "string"
+            ],
+            "ganttEnabled": "boolean",
+            "cellImageUploadEnabled": "boolean",
+            "workspace": {
+              "id": "double",
+              "name": "string"
+            },
+            "permalink": "string",
+            "createdAt": "timeInstant",
+            "modifiedAt": "timeInstant",
+            "columns": [
+              {
+                "title": "string",
+                "type": "string",
+                "systemColumnType": "string",
+                "sheetNameColumn": "boolean",
+                "primary": "boolean",
+                "virtualId": "double",
+                "index": "double",
+                "hidden": "boolean",
+                "version": "double",
+                "width": "double",
+                "validation": "boolean",
+                "autoNumberFormat": {
+                  "fill": "string",
+                  "prefix": "string",
+                  "startingNumber": "double",
+                  "suffix": "string"
+                }
+              }
+            ],
+            "rows": [
+              {
+                "id": "double",
+                "sheetId": "double",
+                "rowNumber": "double",
+                "siblingId": "double",
+                "locked": "boolean",
+                "lockedForUser": "boolean",
+                "expanded": "boolean",
+                "accessLevel": "string",
+                "createdAt": "timeInstant",
+                "modifiedAt": "timeInstant",
+                "dataModifiedAt": "timeInstant",
+                "cells": [
+                  {
+                    "columnId": "double",
+                    "virtualColumnId": "double",
+                    "displayValue": "string"
+                  }
+                ],
+                "proof": {
+                  "id": "double",
+                  "originalId": "double",
+                  "name": "string",
+                  "type": "string",
+                  "documentType": "string",
+                  "proofRequestUrl": "string",
+                  "version": "double",
+                  "lastUpdatedAt": "timeInstant",
+                  "lastUpdatedBy": {
+                    "email": "string",
+                    "name": "string"
+                  },
+                  "isCompleted": "boolean",
+                  "attachments": [
+                    {
+                      "id": "double",
+                      "parentId": "double",
+                      "attachmentType": "string",
+                      "attachmentSubType": "string",
+                      "mimeType": "string",
+                      "parentType": "string",
+                      "createdAt": "timeInstant",
+                      "createdBy": {
+                        "email": "string",
+                        "name": "string"
+                      },
+                      "name": "string",
+                      "sizeInKb": "double",
+                      "url": "string",
+                      "urlExpiresInMillis": "double"
+                    }
+                  ],
+                  "discussions": [
+                    {
+                      "accessLevel": "string",
+                      "id": "double",
+                      "comments": [
+                        {
+                          "attachments": [
+                            {
+                              "id": "double",
+                              "parentId": "double",
+                              "attachmentType": "string",
+                              "attachmentSubType": "string",
+                              "mimeType": "string",
+                              "parentType": "string",
+                              "createdAt": "timeInstant",
+                              "name": "string",
+                              "sizeInKb": "double",
+                              "url": "string",
+                              "urlExpiresInMillis": "double"
+                            }
+                          ],
+                          "createdAt": "timeInstant",
+                          "createdBy": {
+                            "email": "string",
+                            "name": "string"
+                          },
+                          "discussionId": "double",
+                          "id": "double",
+                          "modifiedAt": "timeInstant",
+                          "text": "string"
+                        }
+                      ],
+                      "commentAttachments": [
+                        {
+                          "id": "double",
+                          "parentId": "double",
+                          "attachmentType": "string",
+                          "attachmentSubType": "string",
+                          "mimeType": "string",
+                          "parentType": "string",
+                          "createdAt": "timeInstant",
+                          "createdBy": {
+                            "email": "string",
+                            "name": "string"
+                          },
+                          "name": "string",
+                          "sizeInKb": "double",
+                          "url": "string",
+                          "urlExpiresInMillis": "double"
+                        }
+                      ],
+                      "commentCount": "double",
+                      "createdBy": {
+                        "email": "string",
+                        "name": "string"
+                      },
+                      "lastCommentedAt": "timeInstant",
+                      "lastCommentedUser": {
+                        "email": "string",
+                        "name": "string"
+                      },
+                      "parentId": "double",
+                      "parentType": "string",
+                      "readOnly": "boolean",
+                      "title": "string"
+                    }
+                  ]
+                }
+              }
+            ],
+            "isSummaryReport": "boolean"
+          }
+        ],
+        "sheets": [
+          {
+            "id": "double",
+            "fromId": "double",
+            "ownerId": "double",
+            "accessLevel": "string",
+            "attachments": [
+              {
+                "id": "double",
+                "parentId": "double",
+                "attachmentType": "string",
+                "attachmentSubType": "string",
+                "mimeType": "string",
+                "parentType": "string",
+                "createdAt": "timeInstant",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "name": "string",
+                "sizeInKb": "double",
+                "url": "string",
+                "urlExpiresInMillis": "double"
+              }
+            ],
+            "cellImageUploadEnabled": "boolean",
+            "columns": [
+              {
+                "description": "string",
+                "format": "string",
+                "hidden": "boolean",
+                "id": "double",
+                "index": "double",
+                "locked": "boolean",
+                "lockedForUser": "boolean",
+                "title": "string",
+                "width": "double",
+                "type": "string",
+                "validation": "boolean",
+                "version": "double",
+                "options": [
+                  "string"
+                ],
+                "primary": "boolean"
+              }
+            ],
+            "createdAt": "timeInstant",
+            "crossSheetReferences": [
+              {
+                "endColumnId": "double",
+                "endRowId": "double",
+                "id": "double",
+                "name": "string",
+                "startColumnId": "double",
+                "startRowId": "double",
+                "status": "string",
+                "sourceSheetId": "double"
+              }
+            ],
+            "dependenciesEnabled": "boolean",
+            "discussions": [
+              {
+                "accessLevel": "string",
+                "id": "double",
+                "comments": [
+                  {
+                    "attachments": [
+                      {
+                        "id": "double",
+                        "parentId": "double",
+                        "attachmentType": "string",
+                        "attachmentSubType": "string",
+                        "mimeType": "string",
+                        "parentType": "string",
+                        "createdAt": "timeInstant",
+                        "createdBy": {
+                          "email": "string",
+                          "name": "string"
+                        },
+                        "name": "string",
+                        "sizeInKb": "double",
+                        "url": "string",
+                        "urlExpiresInMillis": "double"
+                      }
+                    ],
+                    "createdAt": "timeInstant",
+                    "createdBy": {
+                      "email": "string",
+                      "name": "string"
+                    },
+                    "discussionId": "double",
+                    "id": "double",
+                    "modifiedAt": "timeInstant",
+                    "text": "string"
+                  }
+                ],
+                "commentAttachments": [
+                  {
+                    "id": "double",
+                    "parentId": "double",
+                    "attachmentType": "string",
+                    "attachmentSubType": "string",
+                    "mimeType": "string",
+                    "parentType": "string",
+                    "createdAt": "timeInstant",
+                    "createdBy": {
+                      "email": "string",
+                      "name": "string"
+                    },
+                    "name": "string",
+                    "sizeInKb": "double",
+                    "url": "string",
+                    "urlExpiresInMillis": "double"
+                  }
+                ],
+                "commentCount": "double",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "lastCommentedAt": "timeInstant",
+                "lastCommentedUser": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "parentId": "double",
+                "parentType": "string",
+                "readOnly": "boolean",
+                "title": "string"
+              }
+            ],
+            "effectiveAttachmentOptions": [
+              "string"
+            ],
+            "favorite": "boolean",
+            "ganttEnabled": "boolean",
+            "hasSummaryFields": "boolean",
+            "isMultiPicklistEnabled": "boolean",
+            "modifiedAt": "timeInstant",
+            "name": "string",
+            "owner": "string",
+            "permalink": "string",
+            "projectSettings": {
+              "lengthOfDay": "double",
+              "nonWorkingDays": [
+                "date"
+              ],
+              "workingDays": [
+                "string"
+              ]
+            },
+            "readOnly": "boolean",
+            "resourceManagementEnabled": "boolean",
+            "resourceManagementType": "string",
+            "rows": [
+              {
+                "id": "double",
+                "siblingId": "double",
+                "accessLevel": "string",
+                "attachments": [
+                  {
+                    "id": "double",
+                    "parentId": "double",
+                    "attachmentType": "string",
+                    "attachmentSubType": "string",
+                    "mimeType": "string",
+                    "parentType": "string",
+                    "createdAt": "timeInstant",
+                    "createdBy": {
+                      "email": "string",
+                      "name": "string"
+                    },
+                    "name": "string",
+                    "sizeInKb": "double",
+                    "url": "string",
+                    "urlExpiresInMillis": "double"
+                  }
+                ],
+                "cells": [
+                  {
+                    "columnId": "double",
+                    "columnType": "string",
+                    "conditionalFormat": "string",
+                    "displayValue": "string",
+                    "format": "string",
+                    "formula": "string",
+                    "hyperlink": {
+                      "reportId": "double",
+                      "sheetId": "double",
+                      "sightId": "double",
+                      "url": "string"
+                    },
+                    "image": {
+                      "altText": "string",
+                      "height": "double",
+                      "id": "string",
+                      "width": "double"
+                    },
+                    "linkInFromCell": {
+                      "columnId": "double",
+                      "rowId": "double",
+                      "sheetId": "double",
+                      "sheetName": "string",
+                      "status": "string"
+                    },
+                    "linksOutToCells": [
+                      {
+                        "columnId": "double",
+                        "rowId": "double",
+                        "sheetId": "double",
+                        "sheetName": "string",
+                        "status": "string"
+                      }
+                    ],
+                    "overrideValidation": "boolean"
+                  }
+                ],
+                "columns": [
+                  {
+                    "description": "string",
+                    "format": "string",
+                    "hidden": "boolean",
+                    "id": "double",
+                    "index": "double",
+                    "locked": "boolean",
+                    "lockedForUser": "boolean",
+                    "title": "string",
+                    "width": "double",
+                    "type": "string",
+                    "validation": "boolean",
+                    "version": "double",
+                    "options": [
+                      "string"
+                    ],
+                    "primary": "boolean"
+                  }
+                ],
+                "conditionalFormat": "string",
+                "createdAt": "timeInstant",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "discussions": [
+                  {
+                    "accessLevel": "string",
+                    "id": "double",
+                    "comments": [
+                      {
+                        "attachments": [
+                          {
+                            "id": "double",
+                            "parentId": "double",
+                            "attachmentType": "string",
+                            "attachmentSubType": "string",
+                            "mimeType": "string",
+                            "parentType": "string",
+                            "createdAt": "timeInstant",
+                            "createdBy": {
+                              "email": "string",
+                              "name": "string"
+                            },
+                            "name": "string",
+                            "sizeInKb": "double",
+                            "url": "string",
+                            "urlExpiresInMillis": "double"
+                          }
+                        ],
+                        "createdAt": "timeInstant",
+                        "createdBy": {
+                          "email": "string",
+                          "name": "string"
+                        },
+                        "discussionId": "double",
+                        "id": "double",
+                        "modifiedAt": "timeInstant",
+                        "text": "string"
+                      }
+                    ],
+                    "commentAttachments": [
+                      {
+                        "id": "double",
+                        "parentId": "double",
+                        "attachmentType": "string",
+                        "attachmentSubType": "string",
+                        "mimeType": "string",
+                        "parentType": "string",
+                        "createdAt": "timeInstant",
+                        "createdBy": {
+                          "email": "string",
+                          "name": "string"
+                        },
+                        "name": "string",
+                        "sizeInKb": "double",
+                        "url": "string",
+                        "urlExpiresInMillis": "double"
+                      }
+                    ],
+                    "commentCount": "double",
+                    "createdBy": {
+                      "email": "string",
+                      "name": "string"
+                    },
+                    "lastCommentedAt": "timeInstant",
+                    "lastCommentedUser": {
+                      "email": "string",
+                      "name": "string"
+                    },
+                    "parentId": "double",
+                    "parentType": "string",
+                    "readOnly": "boolean",
+                    "title": "string"
+                  }
+                ],
+                "proof": {
+                  "id": "double",
+                  "originalId": "double",
+                  "name": "string",
+                  "type": "string",
+                  "documentType": "string",
+                  "proofRequestUrl": "string",
+                  "version": "double",
+                  "lastUpdatedAt": "timeInstant",
+                  "lastUpdatedBy": {
+                    "email": "string",
+                    "name": "string"
+                  },
+                  "isCompleted": "boolean",
+                  "attachments": [
+                    {
+                      "id": "double",
+                      "parentId": "double",
+                      "attachmentType": "string",
+                      "attachmentSubType": "string",
+                      "mimeType": "string",
+                      "parentType": "string",
+                      "createdAt": "timeInstant",
+                      "createdBy": {
+                        "email": "string",
+                        "name": "string"
+                      },
+                      "name": "string",
+                      "sizeInKb": "double",
+                      "url": "string",
+                      "urlExpiresInMillis": "double"
+                    }
+                  ],
+                  "discussions": [
+                    {
+                      "accessLevel": "string",
+                      "id": "double",
+                      "comments": [
+                        {
+                          "attachments": [
+                            {
+                              "id": "double",
+                              "parentId": "double",
+                              "attachmentType": "string",
+                              "attachmentSubType": "string",
+                              "mimeType": "string",
+                              "parentType": "string",
+                              "createdAt": "timeInstant",
+                              "name": "string",
+                              "sizeInKb": "double",
+                              "url": "string",
+                              "urlExpiresInMillis": "double"
+                            }
+                          ],
+                          "createdAt": "timeInstant",
+                          "createdBy": {
+                            "email": "string",
+                            "name": "string"
+                          },
+                          "discussionId": "double",
+                          "id": "double",
+                          "modifiedAt": "timeInstant",
+                          "text": "string"
+                        }
+                      ],
+                      "commentAttachments": [
+                        {
+                          "id": "double",
+                          "parentId": "double",
+                          "attachmentType": "string",
+                          "attachmentSubType": "string",
+                          "mimeType": "string",
+                          "parentType": "string",
+                          "createdAt": "timeInstant",
+                          "createdBy": {
+                            "email": "string",
+                            "name": "string"
+                          },
+                          "name": "string",
+                          "sizeInKb": "double",
+                          "url": "string",
+                          "urlExpiresInMillis": "double"
+                        }
+                      ],
+                      "commentCount": "double",
+                      "createdBy": {
+                        "email": "string",
+                        "name": "string"
+                      },
+                      "lastCommentedAt": "timeInstant",
+                      "lastCommentedUser": {
+                        "email": "string",
+                        "name": "string"
+                      },
+                      "parentId": "double",
+                      "parentType": "string",
+                      "readOnly": "boolean",
+                      "title": "string"
+                    }
+                  ]
+                },
+                "expanded": "boolean",
+                "filteredOut": "boolean",
+                "format": "string",
+                "inCriticalPath": "boolean",
+                "locked": "boolean",
+                "lockedForUser": "boolean",
+                "modifiedAt": "timeInstant",
+                "modifiedBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "permaLink": "string",
+                "rowNumber": "double",
+                "version": "double"
+              }
+            ],
+            "showParentRowsForFilters": "boolean",
+            "source": {
+              "id": "double",
+              "type": "string"
+            },
+            "summary": {
+              "fields": [
+                {
+                  "id": "double",
+                  "contactOptions": [
+                    {
+                      "email": "string",
+                      "name": "string"
+                    }
+                  ],
+                  "createdAt": "timeInstant",
+                  "createdBy": {
+                    "email": "string",
+                    "name": "string"
+                  },
+                  "displayValue": "string",
+                  "format": "string",
+                  "formula": "string",
+                  "hyperlink": {
+                    "reportId": "double",
+                    "sheetId": "double",
+                    "sightId": "double",
+                    "url": "string"
+                  },
+                  "image": {
+                    "altText": "string",
+                    "height": "double",
+                    "id": "string",
+                    "width": "double"
+                  },
+                  "index": "double",
+                  "locked": "boolean",
+                  "lockedForUser": "boolean",
+                  "modifiedAt": "timeInstant",
+                  "modifiedBy": {
+                    "email": "string",
+                    "name": "string"
+                  },
+                  "options": [
+                    "string"
+                  ],
+                  "symbol": "string",
+                  "title": "string",
+                  "type": "string",
+                  "validation": "boolean"
+                }
+              ]
+            },
+            "totalRowCount": "double",
+            "userPermissions": {
+              "summaryPermissions": "string"
+            },
+            "userSettings": {
+              "criticalPathEnabled": "boolean",
+              "displaySummaryTasks": "boolean"
+            },
+            "version": "double",
+            "workspace": {
+              "id": "double",
+              "name": "string",
+              "accessLevel": "string",
+              "permalink": "string"
+            }
+          }
+        ],
+        "sights": [
+          {
+            "name": "string",
+            "id": "double",
+            "accessLevel": "string",
+            "permalink": "string",
+            "createdAt": "timeInstant",
+            "modifiedAt": "timeInstant",
+            "backgroundColor": "string",
+            "defaultWidgetBackgroundColor": "string",
+            "columnCount": "double",
+            "source": {
+              "id": "double",
+              "type": "string"
+            },
+            "widgets": [
+              {
+                "id": "double",
+                "type": "string",
+                "height": "double",
+                "showTitle": "boolean",
+                "showTitleIcon": "boolean",
+                "title": "string",
+                "titleFormat": "string",
+                "titleFont": "string",
+                "version": "double",
+                "viewMode": "double",
+                "width": "double",
+                "xPosition": "double",
+                "yPosition": "double"
+              }
+            ],
+            "workspace": {
+              "id": "double",
+              "name": "string"
+            }
+          }
+        ],
+        "templates": [
+          {
+            "id": "double",
+            "type": "string",
+            "accessLevel": "string",
+            "blank": "boolean",
+            "categories": [
+              "string"
+            ],
+            "description": "string",
+            "globalTemplate": "string",
+            "image": "string",
+            "largeImage": "string",
+            "locale": "string",
+            "name": "string",
+            "tags": [
+              "string"
+            ]
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Report",
       "suffix": "/2.0/reports/{Report ID}?include={Include?:attachments,discussions...}&exclude={Exclude?:linkInFromCellDetails,linksOutToCellsDetails}&level={Level?}",
-      "description": "One report by id, with its rows. Requires a report id. Returns data drawn from several sheets, so rows carry a sheet reference the source sheets do not need."
+      "description": "One report by id, with its rows. Requires a report id. Returns data drawn from several sheets, so rows carry a sheet reference the source sheets do not need.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "id": "double",
+        "name": "string",
+        "totalRowCount": "double",
+        "accessLevel": "string",
+        "effectiveAttachmentOptions": [
+          "string"
+        ],
+        "ganttEnabled": "boolean",
+        "cellImageUploadEnabled": "boolean",
+        "workspace": {
+          "id": "double",
+          "name": "string"
+        },
+        "permalink": "string",
+        "createdAt": "timeInstant",
+        "modifiedAt": "timeInstant",
+        "columns": [
+          {
+            "title": "string",
+            "type": "string",
+            "systemColumnType": "string",
+            "sheetNameColumn": "boolean",
+            "primary": "boolean",
+            "virtualId": "double",
+            "index": "double",
+            "hidden": "boolean",
+            "version": "double",
+            "width": "double",
+            "validation": "boolean",
+            "autoNumberFormat": {
+              "fill": "string",
+              "prefix": "string",
+              "startingNumber": "double",
+              "suffix": "string"
+            }
+          }
+        ],
+        "rows": [
+          {
+            "id": "double",
+            "sheetId": "double",
+            "rowNumber": "double",
+            "siblingId": "double",
+            "locked": "boolean",
+            "lockedForUser": "boolean",
+            "expanded": "boolean",
+            "accessLevel": "string",
+            "createdAt": "timeInstant",
+            "modifiedAt": "timeInstant",
+            "dataModifiedAt": "timeInstant",
+            "cells": [
+              {
+                "columnId": "double",
+                "virtualColumnId": "double",
+                "displayValue": "string"
+              }
+            ],
+            "proof": {
+              "id": "double",
+              "originalId": "double",
+              "name": "string",
+              "type": "string",
+              "documentType": "string",
+              "proofRequestUrl": "string",
+              "version": "double",
+              "lastUpdatedAt": "timeInstant",
+              "lastUpdatedBy": {
+                "email": "string",
+                "name": "string"
+              },
+              "isCompleted": "boolean",
+              "attachments": [
+                {
+                  "id": "double",
+                  "parentId": "double",
+                  "attachmentType": "string",
+                  "attachmentSubType": "string",
+                  "mimeType": "string",
+                  "parentType": "string",
+                  "createdAt": "timeInstant",
+                  "createdBy": {
+                    "email": "string",
+                    "name": "string"
+                  },
+                  "name": "string",
+                  "sizeInKb": "double",
+                  "url": "string",
+                  "urlExpiresInMillis": "double"
+                }
+              ],
+              "discussions": [
+                {
+                  "accessLevel": "string",
+                  "id": "double",
+                  "comments": [
+                    {
+                      "attachments": [
+                        {
+                          "id": "double",
+                          "parentId": "double",
+                          "attachmentType": "string",
+                          "attachmentSubType": "string",
+                          "mimeType": "string",
+                          "parentType": "string",
+                          "createdAt": "timeInstant",
+                          "createdBy": {
+                            "email": "string",
+                            "name": "string"
+                          },
+                          "name": "string",
+                          "sizeInKb": "double",
+                          "url": "string",
+                          "urlExpiresInMillis": "double"
+                        }
+                      ],
+                      "createdAt": "timeInstant",
+                      "createdBy": {
+                        "email": "string",
+                        "name": "string"
+                      },
+                      "discussionId": "double",
+                      "id": "double",
+                      "modifiedAt": "timeInstant",
+                      "text": "string"
+                    }
+                  ],
+                  "commentAttachments": [
+                    {
+                      "id": "double",
+                      "parentId": "double",
+                      "attachmentType": "string",
+                      "attachmentSubType": "string",
+                      "mimeType": "string",
+                      "parentType": "string",
+                      "createdAt": "timeInstant",
+                      "createdBy": {
+                        "email": "string",
+                        "name": "string"
+                      },
+                      "name": "string",
+                      "sizeInKb": "double",
+                      "url": "string",
+                      "urlExpiresInMillis": "double"
+                    }
+                  ],
+                  "commentCount": "double",
+                  "createdBy": {
+                    "email": "string",
+                    "name": "string"
+                  },
+                  "lastCommentedAt": "timeInstant",
+                  "lastCommentedUser": {
+                    "email": "string",
+                    "name": "string"
+                  },
+                  "parentId": "double",
+                  "parentType": "string",
+                  "readOnly": "boolean",
+                  "title": "string"
+                }
+              ]
+            }
+          }
+        ],
+        "isSummaryReport": "boolean"
+      }
     },
     {
       "paged": "true",
@@ -185,79 +1844,792 @@
           "parameterName": "Report ID"
         }
       ],
-      "description": "The reports defined, with name and timestamps. A Smartsheet report is a saved query across sheets, so it is the closest thing to a cross-sheet view -- and its definition states which sheets the organisation considers related."
+      "description": "The reports defined, with name and timestamps. A Smartsheet report is a saved query across sheets, so it is the closest thing to a cross-sheet view -- and its definition states which sheets the organisation considers related.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "accessLevel": "string",
+            "permalink": "string",
+            "isSummaryReport": "boolean"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Report Publish Status",
       "suffix": "/2.0/reports/{Report ID}/publish",
-      "description": "Whether one report is published to the web. Requires a report id."
+      "description": "Whether one report is published to the web. Requires a report id.",
+      "responseSchema": {
+        "readOnlyFullAccessibleBy": "string",
+        "readOnlyFullDefaultView": "string",
+        "readOnlyFullEnabled": "boolean",
+        "readOnlyFullShowToolbar": "boolean",
+        "readOnlyFullUrl": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Row",
       "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}?include={Include?:attachments,columnType...}&exclude={Exclude?:linkInFromCellDetails,linksOutToCellsDetails...}&level={Level?}",
-      "description": "One row by id, with its cells. Requires the sheet id. Includes optional attachments, discussions and column formulas."
+      "description": "One row by id, with its cells. Requires the sheet id. Includes optional attachments, discussions and column formulas.",
+      "responseSchema": {
+        "id": "double",
+        "sheetId": "double",
+        "rowNumber": "double",
+        "expanded": "boolean",
+        "cells": [
+          {
+            "columnId": "double",
+            "columnType": "string",
+            "displayValue": "string"
+          }
+        ],
+        "createdAt": "timeInstant",
+        "modifiedAt": "timeInstant"
+      }
     },
     {
       "paged": "false",
       "name": "Search Everything",
       "suffix": "/2.0/search?query={Query}&include={Include?:favorite,parentObjectFavorite}&location={Location?}&modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}&scopes={Scopes?:attachments,cellData...}",
-      "description": "Searches across every object the caller can access -- sheet names, cell contents, discussions, attachments. The route to finding a value when the sheet holding it is unknown, which the per-sheet endpoints cannot answer."
+      "description": "Searches across every object the caller can access -- sheet names, cell contents, discussions, attachments. The route to finding a value when the sheet holding it is unknown, which the per-sheet endpoints cannot answer.",
+      "responseSchema": {
+        "totalCount": "double",
+        "results": [
+          {
+            "text": "string",
+            "objectType": "string",
+            "objectId": "double",
+            "contextData": [
+              "string"
+            ],
+            "favorite": "boolean",
+            "parentObjectType": "string",
+            "parentObjectId": "double",
+            "parentObjectName": "string",
+            "parentObjectFavorite": "boolean"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Search Sheet",
       "suffix": "/2.0/search/sheets/{Sheet ID}?query={Query}",
-      "description": "Searches within one sheet. Requires the sheet id and a query."
+      "description": "Searches within one sheet. Requires the sheet id and a query.",
+      "responseSchema": {
+        "totalCount": "double",
+        "results": [
+          {
+            "text": "string",
+            "objectType": "string",
+            "objectId": "double",
+            "contextData": [
+              "string"
+            ],
+            "favorite": "boolean",
+            "parentObjectType": "string",
+            "parentObjectId": "double",
+            "parentObjectName": "string",
+            "parentObjectFavorite": "boolean"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Server Info",
       "suffix": "/2.0/serverinfo",
-      "description": "The Smartsheet server's supported locales, formats and feature set. Notably it lists the FORMAT TABLES -- the numeric codes cells use for fonts, colours and number formats -- which are otherwise uninterpretable."
+      "description": "The Smartsheet server's supported locales, formats and feature set. Notably it lists the FORMAT TABLES -- the numeric codes cells use for fonts, colours and number formats -- which are otherwise uninterpretable.",
+      "responseSchema": {
+        "formats": {
+          "defaults": "string",
+          "bold": [
+            "string"
+          ],
+          "color": [
+            "string"
+          ],
+          "currency": [
+            {
+              "code": "string",
+              "symbol": "string"
+            }
+          ],
+          "dateFormat": [
+            "string"
+          ],
+          "decimalCount": [
+            "string"
+          ],
+          "fontFamily": [
+            {
+              "name": "string",
+              "traits": [
+                "string"
+              ]
+            }
+          ],
+          "fontSize": [
+            "string"
+          ],
+          "horizontalAlign": [
+            "string"
+          ],
+          "italic": [
+            "string"
+          ],
+          "numberFormat": [
+            "string"
+          ],
+          "strikethrough": [
+            "string"
+          ],
+          "textWrap": [
+            "string"
+          ],
+          "thousandsSeparator": [
+            "string"
+          ],
+          "underline": [
+            "string"
+          ],
+          "verticalAlign": [
+            "string"
+          ]
+        },
+        "supportedLocales": [
+          "string"
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Report Share",
       "suffix": "/2.0/reports/{Report ID}/shares/{Share ID}",
-      "description": "One report share by id."
+      "description": "One report share by id.",
+      "responseSchema": {
+        "id": "string",
+        "email": "string",
+        "userId": "double",
+        "groupId": "double",
+        "name": "string",
+        "type": "string",
+        "accessLevel": "string",
+        "scope": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Report Shares",
       "suffix": "/2.0/reports/{Report ID}/shares?include={Include?:workspaceShares}",
-      "description": "Who one report is shared with and at what access level. Requires a report id."
+      "description": "Who one report is shared with and at what access level. Requires a report id.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "string",
+            "email": "string",
+            "userId": "double",
+            "groupId": "double",
+            "name": "string",
+            "type": "string",
+            "accessLevel": "string",
+            "scope": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Sheet Share",
       "suffix": "/2.0/sheets/{Sheet ID}/shares/{Share ID}",
-      "description": "One sheet share by id."
+      "description": "One sheet share by id.",
+      "responseSchema": {
+        "id": "string",
+        "email": "string",
+        "userId": "double",
+        "groupId": "double",
+        "name": "string",
+        "type": "string",
+        "accessLevel": "string",
+        "scope": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Sheet Shares",
       "suffix": "/2.0/sheets/{Sheet ID}/shares?include={Include?:workspaceShares}",
-      "description": "Who one sheet is shared with and at what access level. Requires a sheet id. The access list, and the reason two users see different sheets."
+      "description": "Who one sheet is shared with and at what access level. Requires a sheet id. The access list, and the reason two users see different sheets.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "string",
+            "email": "string",
+            "userId": "double",
+            "groupId": "double",
+            "name": "string",
+            "type": "string",
+            "accessLevel": "string",
+            "scope": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Sheet Version",
       "suffix": "/2.0/sheets/{Sheet ID}/version",
-      "description": "The current version number of one sheet. Requires a sheet id. A cheap change check: the version increments on every edit, so polling this is far cheaper than refetching the sheet to see whether anything moved."
+      "description": "The current version number of one sheet. Requires a sheet id. A cheap change check: the version increments on every edit, so polling this is far cheaper than refetching the sheet to see whether anything moved.",
+      "responseSchema": {
+        "version": "double"
+      }
     },
     {
       "paged": "true",
       "name": "Sheet",
       "suffix": "/2.0/sheets/{Sheet ID}?include={Include?:attachments,crossSheetReferences...}&exclude={Exclude?:filteredOutRows,linkInFromCellDetails...}&columnIds={Column IDs?:value1,value2...}&filterId={Filter ID?}&ifVersionAfter={If Version After?:version}&level={Level?}&rowIds={Row IDs?:value1,value2...}&rowNumbers={Row Numbers?:value1,value2...}&rowsModifiedSince={Rows Modified Since?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "One sheet by id, WITH its rows and cells. Requires a sheet id. The main data endpoint. Cells reference their column by columnId rather than by name, so a row is unreadable without the column list -- and a cell carries both a raw value and a displayValue, which differ for dates, contacts and formulas."
+      "description": "One sheet by id, WITH its rows and cells. Requires a sheet id. The main data endpoint. Cells reference their column by columnId rather than by name, so a row is unreadable without the column list -- and a cell carries both a raw value and a displayValue, which differ for dates, contacts and formulas.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "id": "double",
+        "fromId": "double",
+        "ownerId": "double",
+        "accessLevel": "string",
+        "attachments": [
+          {
+            "id": "double",
+            "parentId": "double",
+            "attachmentType": "string",
+            "attachmentSubType": "string",
+            "mimeType": "string",
+            "parentType": "string",
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "name": "string",
+            "sizeInKb": "double",
+            "url": "string",
+            "urlExpiresInMillis": "double"
+          }
+        ],
+        "cellImageUploadEnabled": "boolean",
+        "columns": [
+          {
+            "description": "string",
+            "format": "string",
+            "hidden": "boolean",
+            "id": "double",
+            "index": "double",
+            "locked": "boolean",
+            "lockedForUser": "boolean",
+            "title": "string",
+            "width": "double",
+            "type": "string",
+            "validation": "boolean",
+            "version": "double",
+            "options": [
+              "string"
+            ],
+            "primary": "boolean"
+          }
+        ],
+        "createdAt": "timeInstant",
+        "crossSheetReferences": [
+          {
+            "endColumnId": "double",
+            "endRowId": "double",
+            "id": "double",
+            "name": "string",
+            "startColumnId": "double",
+            "startRowId": "double",
+            "status": "string",
+            "sourceSheetId": "double"
+          }
+        ],
+        "dependenciesEnabled": "boolean",
+        "discussions": [
+          {
+            "accessLevel": "string",
+            "id": "double",
+            "comments": [
+              {
+                "attachments": [
+                  {
+                    "id": "double",
+                    "parentId": "double",
+                    "attachmentType": "string",
+                    "attachmentSubType": "string",
+                    "mimeType": "string",
+                    "parentType": "string",
+                    "createdAt": "timeInstant",
+                    "createdBy": {
+                      "email": "string",
+                      "name": "string"
+                    },
+                    "name": "string",
+                    "sizeInKb": "double",
+                    "url": "string",
+                    "urlExpiresInMillis": "double"
+                  }
+                ],
+                "createdAt": "timeInstant",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "discussionId": "double",
+                "id": "double",
+                "modifiedAt": "timeInstant",
+                "text": "string"
+              }
+            ],
+            "commentAttachments": [
+              {
+                "id": "double",
+                "parentId": "double",
+                "attachmentType": "string",
+                "attachmentSubType": "string",
+                "mimeType": "string",
+                "parentType": "string",
+                "createdAt": "timeInstant",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "name": "string",
+                "sizeInKb": "double",
+                "url": "string",
+                "urlExpiresInMillis": "double"
+              }
+            ],
+            "commentCount": "double",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "lastCommentedAt": "timeInstant",
+            "lastCommentedUser": {
+              "email": "string",
+              "name": "string"
+            },
+            "parentId": "double",
+            "parentType": "string",
+            "readOnly": "boolean",
+            "title": "string"
+          }
+        ],
+        "effectiveAttachmentOptions": [
+          "string"
+        ],
+        "favorite": "boolean",
+        "ganttEnabled": "boolean",
+        "hasSummaryFields": "boolean",
+        "isMultiPicklistEnabled": "boolean",
+        "modifiedAt": "timeInstant",
+        "name": "string",
+        "owner": "string",
+        "permalink": "string",
+        "projectSettings": {
+          "lengthOfDay": "double",
+          "nonWorkingDays": [
+            "date"
+          ],
+          "workingDays": [
+            "string"
+          ]
+        },
+        "readOnly": "boolean",
+        "resourceManagementEnabled": "boolean",
+        "resourceManagementType": "string",
+        "rows": [
+          {
+            "id": "double",
+            "siblingId": "double",
+            "accessLevel": "string",
+            "attachments": [
+              {
+                "id": "double",
+                "parentId": "double",
+                "attachmentType": "string",
+                "attachmentSubType": "string",
+                "mimeType": "string",
+                "parentType": "string",
+                "createdAt": "timeInstant",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "name": "string",
+                "sizeInKb": "double",
+                "url": "string",
+                "urlExpiresInMillis": "double"
+              }
+            ],
+            "cells": [
+              {
+                "columnId": "double",
+                "columnType": "string",
+                "conditionalFormat": "string",
+                "displayValue": "string",
+                "format": "string",
+                "formula": "string",
+                "hyperlink": {
+                  "reportId": "double",
+                  "sheetId": "double",
+                  "sightId": "double",
+                  "url": "string"
+                },
+                "image": {
+                  "altText": "string",
+                  "height": "double",
+                  "id": "string",
+                  "width": "double"
+                },
+                "linkInFromCell": {
+                  "columnId": "double",
+                  "rowId": "double",
+                  "sheetId": "double",
+                  "sheetName": "string",
+                  "status": "string"
+                },
+                "linksOutToCells": [
+                  {
+                    "columnId": "double",
+                    "rowId": "double",
+                    "sheetId": "double",
+                    "sheetName": "string",
+                    "status": "string"
+                  }
+                ],
+                "overrideValidation": "boolean"
+              }
+            ],
+            "columns": [
+              {
+                "description": "string",
+                "format": "string",
+                "hidden": "boolean",
+                "id": "double",
+                "index": "double",
+                "locked": "boolean",
+                "lockedForUser": "boolean",
+                "title": "string",
+                "width": "double",
+                "type": "string",
+                "validation": "boolean",
+                "version": "double",
+                "options": [
+                  "string"
+                ],
+                "primary": "boolean"
+              }
+            ],
+            "conditionalFormat": "string",
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "discussions": [
+              {
+                "accessLevel": "string",
+                "id": "double",
+                "comments": [
+                  {
+                    "attachments": [
+                      {
+                        "id": "double",
+                        "parentId": "double",
+                        "attachmentType": "string",
+                        "attachmentSubType": "string",
+                        "mimeType": "string",
+                        "parentType": "string",
+                        "createdAt": "timeInstant",
+                        "createdBy": {
+                          "email": "string",
+                          "name": "string"
+                        },
+                        "name": "string",
+                        "sizeInKb": "double",
+                        "url": "string",
+                        "urlExpiresInMillis": "double"
+                      }
+                    ],
+                    "createdAt": "timeInstant",
+                    "createdBy": {
+                      "email": "string",
+                      "name": "string"
+                    },
+                    "discussionId": "double",
+                    "id": "double",
+                    "modifiedAt": "timeInstant",
+                    "text": "string"
+                  }
+                ],
+                "commentAttachments": [
+                  {
+                    "id": "double",
+                    "parentId": "double",
+                    "attachmentType": "string",
+                    "attachmentSubType": "string",
+                    "mimeType": "string",
+                    "parentType": "string",
+                    "createdAt": "timeInstant",
+                    "createdBy": {
+                      "email": "string",
+                      "name": "string"
+                    },
+                    "name": "string",
+                    "sizeInKb": "double",
+                    "url": "string",
+                    "urlExpiresInMillis": "double"
+                  }
+                ],
+                "commentCount": "double",
+                "createdBy": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "lastCommentedAt": "timeInstant",
+                "lastCommentedUser": {
+                  "email": "string",
+                  "name": "string"
+                },
+                "parentId": "double",
+                "parentType": "string",
+                "readOnly": "boolean",
+                "title": "string"
+              }
+            ],
+            "proof": {
+              "id": "double",
+              "originalId": "double",
+              "name": "string",
+              "type": "string",
+              "documentType": "string",
+              "proofRequestUrl": "string",
+              "version": "double",
+              "lastUpdatedAt": "timeInstant",
+              "lastUpdatedBy": {
+                "email": "string",
+                "name": "string"
+              },
+              "isCompleted": "boolean",
+              "attachments": [
+                {
+                  "id": "double",
+                  "parentId": "double",
+                  "attachmentType": "string",
+                  "attachmentSubType": "string",
+                  "mimeType": "string",
+                  "parentType": "string",
+                  "createdAt": "timeInstant",
+                  "createdBy": {
+                    "email": "string",
+                    "name": "string"
+                  },
+                  "name": "string",
+                  "sizeInKb": "double",
+                  "url": "string",
+                  "urlExpiresInMillis": "double"
+                }
+              ],
+              "discussions": [
+                {
+                  "accessLevel": "string",
+                  "id": "double",
+                  "comments": [
+                    {
+                      "attachments": [
+                        {
+                          "id": "double",
+                          "parentId": "double",
+                          "attachmentType": "string",
+                          "attachmentSubType": "string",
+                          "mimeType": "string",
+                          "parentType": "string",
+                          "createdAt": "timeInstant",
+                          "createdBy": {
+                            "email": "string",
+                            "name": "string"
+                          },
+                          "name": "string",
+                          "sizeInKb": "double",
+                          "url": "string",
+                          "urlExpiresInMillis": "double"
+                        }
+                      ],
+                      "createdAt": "timeInstant",
+                      "createdBy": {
+                        "email": "string",
+                        "name": "string"
+                      },
+                      "discussionId": "double",
+                      "id": "double",
+                      "modifiedAt": "timeInstant",
+                      "text": "string"
+                    }
+                  ],
+                  "commentAttachments": [
+                    {
+                      "id": "double",
+                      "parentId": "double",
+                      "attachmentType": "string",
+                      "attachmentSubType": "string",
+                      "mimeType": "string",
+                      "parentType": "string",
+                      "createdAt": "timeInstant",
+                      "createdBy": {
+                        "email": "string",
+                        "name": "string"
+                      },
+                      "name": "string",
+                      "sizeInKb": "double",
+                      "url": "string",
+                      "urlExpiresInMillis": "double"
+                    }
+                  ],
+                  "commentCount": "double",
+                  "createdBy": {
+                    "email": "string",
+                    "name": "string"
+                  },
+                  "lastCommentedAt": "timeInstant",
+                  "lastCommentedUser": {
+                    "email": "string",
+                    "name": "string"
+                  },
+                  "parentId": "double",
+                  "parentType": "string",
+                  "readOnly": "boolean",
+                  "title": "string"
+                }
+              ]
+            },
+            "expanded": "boolean",
+            "filteredOut": "boolean",
+            "format": "string",
+            "inCriticalPath": "boolean",
+            "locked": "boolean",
+            "lockedForUser": "boolean",
+            "modifiedAt": "timeInstant",
+            "modifiedBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "permaLink": "string",
+            "rowNumber": "double",
+            "version": "double"
+          }
+        ],
+        "showParentRowsForFilters": "boolean",
+        "source": {
+          "id": "double",
+          "type": "string"
+        },
+        "summary": {
+          "fields": [
+            {
+              "id": "double",
+              "contactOptions": [
+                {
+                  "email": "string",
+                  "name": "string"
+                }
+              ],
+              "createdAt": "timeInstant",
+              "createdBy": {
+                "email": "string",
+                "name": "string"
+              },
+              "displayValue": "string",
+              "format": "string",
+              "formula": "string",
+              "hyperlink": {
+                "reportId": "double",
+                "sheetId": "double",
+                "sightId": "double",
+                "url": "string"
+              },
+              "image": {
+                "altText": "string",
+                "height": "double",
+                "id": "string",
+                "width": "double"
+              },
+              "index": "double",
+              "locked": "boolean",
+              "lockedForUser": "boolean",
+              "modifiedAt": "timeInstant",
+              "modifiedBy": {
+                "email": "string",
+                "name": "string"
+              },
+              "options": [
+                "string"
+              ],
+              "symbol": "string",
+              "title": "string",
+              "type": "string",
+              "validation": "boolean"
+            }
+          ]
+        },
+        "totalRowCount": "double",
+        "userPermissions": {
+          "summaryPermissions": "string"
+        },
+        "userSettings": {
+          "criticalPathEnabled": "boolean",
+          "displaySummaryTasks": "boolean"
+        },
+        "version": "double",
+        "workspace": {
+          "id": "double",
+          "name": "string",
+          "accessLevel": "string",
+          "permalink": "string"
+        }
+      }
     },
     {
       "paged": "true",
       "name": "Organization Sheets",
       "suffix": "/2.0/users/sheets?modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}",
-      "description": "Every sheet in the organisation, not just those the caller can access. Administrator only. The inventory view, and the way to find sheets nobody is watching."
+      "description": "Every sheet in the organisation, not just those the caller can access. Administrator only. The inventory view, and the way to find sheets nobody is watching.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "owner": "string",
+            "ownerId": "double"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
@@ -284,31 +2656,204 @@
           "parameterName": "Sheet ID"
         }
       ],
-      "description": "The sheets the user can access, with name, permalink, createdAt and modifiedAt. THE STARTING POINT, and the shape of Smartsheet is worth stating once: a sheet is a user-built grid, so its COLUMNS ARE DEFINED PER SHEET and nothing about the data is knowable in advance -- Columns is the schema and must be read before any row makes sense. The listing carries no cell data at all."
+      "description": "The sheets the user can access, with name, permalink, createdAt and modifiedAt. THE STARTING POINT, and the shape of Smartsheet is worth stating once: a sheet is a user-built grid, so its COLUMNS ARE DEFINED PER SHEET and nothing about the data is knowable in advance -- Columns is the schema and must be read before any row makes sense. The listing carries no cell data at all.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "accessLevel": "string",
+            "createdAt": "timeInstant",
+            "modifiedAt": "timeInstant",
+            "name": "string",
+            "permalink": "string",
+            "version": "double",
+            "source": {
+              "id": "double",
+              "type": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Sheet Publish Status",
       "suffix": "/2.0/sheets/{Sheet ID}/publish",
-      "description": "Whether one sheet is published to the web, and in what form. Requires a sheet id. A published sheet is readable without credentials, which makes this a security-review endpoint as much as a configuration one."
+      "description": "Whether one sheet is published to the web, and in what form. Requires a sheet id. A published sheet is readable without credentials, which makes this a security-review endpoint as much as a configuration one.",
+      "responseSchema": {
+        "readOnlyFullAccessibleBy": "string",
+        "readOnlyFullDefaultView": "string",
+        "readOnlyFullEnabled": "boolean",
+        "readOnlyFullShowToolbar": "boolean",
+        "readOnlyLiteEnabled": "boolean",
+        "readWriteAccessibleBy": "string",
+        "readWriteDefaultView": "string",
+        "readWriteEnabled": "boolean",
+        "readWriteShowToolbar": "boolean",
+        "readOnlyFullUrl": "string",
+        "readOnlyLiteSslUrl": "string",
+        "readOnlyLiteUrl": "string",
+        "readWriteUrl": "string",
+        "icalEnabled": "boolean"
+      }
     },
     {
       "paged": "false",
       "name": "Sheet Summary",
       "suffix": "/2.0/sheets/{Sheet ID}/summary?include={Include?:format,writerInfo}&exclude={Exclude?:displayValue,image,imageAltText}",
-      "description": "The summary fields of one sheet -- the named values that sit beside the grid rather than in it. Requires a sheet id. Where a sheet records totals, owners and status that are properties of the whole sheet rather than of any row."
+      "description": "The summary fields of one sheet -- the named values that sit beside the grid rather than in it. Requires a sheet id. Where a sheet records totals, owners and status that are properties of the whole sheet rather than of any row.",
+      "responseSchema": {
+        "fields": [
+          {
+            "id": "double",
+            "contactOptions": [
+              {
+                "email": "string",
+                "name": "string"
+              }
+            ],
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "displayValue": "string",
+            "format": "string",
+            "formula": "string",
+            "hyperlink": {
+              "reportId": "double",
+              "sheetId": "double",
+              "sightId": "double",
+              "url": "string"
+            },
+            "image": {
+              "altText": "string",
+              "height": "double",
+              "id": "string",
+              "width": "double"
+            },
+            "index": "double",
+            "locked": "boolean",
+            "lockedForUser": "boolean",
+            "modifiedAt": "timeInstant",
+            "modifiedBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "options": [
+              "string"
+            ],
+            "symbol": "string",
+            "title": "string",
+            "type": "string",
+            "validation": "boolean"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Summary Fields",
       "suffix": "/2.0/sheets/{Sheet ID}/summary/fields?include={Include?:format,writerInfo}&exclude={Exclude?:displayValue,image,imageAltText}",
-      "description": "The individual summary fields with their values and formats. Requires a sheet id. The row-shaped view of the same data."
+      "description": "The individual summary fields with their values and formats. Requires a sheet id. The row-shaped view of the same data.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "contactOptions": [
+              {
+                "email": "string",
+                "name": "string"
+              }
+            ],
+            "createdAt": "timeInstant",
+            "createdBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "displayValue": "string",
+            "format": "string",
+            "formula": "string",
+            "hyperlink": {
+              "reportId": "double",
+              "sheetId": "double",
+              "sightId": "double",
+              "url": "string"
+            },
+            "image": {
+              "altText": "string",
+              "height": "double",
+              "id": "string",
+              "width": "double"
+            },
+            "index": "double",
+            "locked": "boolean",
+            "lockedForUser": "boolean",
+            "modifiedAt": "timeInstant",
+            "modifiedBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "options": [
+              "string"
+            ],
+            "symbol": "string",
+            "title": "string",
+            "type": "string",
+            "validation": "boolean"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Sight",
       "suffix": "/2.0/sights/{Sight ID}?include={Include?:source}&level={Level?}&objectValue={Object Value?}",
-      "description": "One dashboard by id, with its widgets and their sources. The map from a dashboard tile back to the sheet feeding it."
+      "description": "One dashboard by id, with its widgets and their sources. The map from a dashboard tile back to the sheet feeding it.",
+      "responseSchema": {
+        "name": "string",
+        "id": "double",
+        "accessLevel": "string",
+        "permalink": "string",
+        "createdAt": "timeInstant",
+        "modifiedAt": "timeInstant",
+        "backgroundColor": "string",
+        "defaultWidgetBackgroundColor": "string",
+        "columnCount": "double",
+        "source": {
+          "id": "double",
+          "type": "string"
+        },
+        "widgets": [
+          {
+            "id": "double",
+            "type": "string",
+            "height": "double",
+            "showTitle": "boolean",
+            "showTitleIcon": "boolean",
+            "title": "string",
+            "titleFormat": "string",
+            "titleFont": "string",
+            "version": "double",
+            "viewMode": "double",
+            "width": "double",
+            "xPosition": "double",
+            "yPosition": "double"
+          }
+        ],
+        "workspace": {
+          "id": "double",
+          "name": "string"
+        }
+      }
     },
     {
       "paged": "true",
@@ -322,79 +2867,411 @@
           "parameterName": "Sight ID"
         }
       ],
-      "description": "The dashboards defined, with name and timestamps. Sights are Smartsheet's dashboards, assembled from widgets over sheets and reports."
+      "description": "The dashboards defined, with name and timestamps. Sights are Smartsheet's dashboards, assembled from widgets over sheets and reports.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "name": "string",
+            "id": "double",
+            "accessLevel": "string",
+            "permalink": "string",
+            "createdAt": "timeInstant",
+            "modifiedAt": "timeInstant"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Sight Publish Status",
       "suffix": "/2.0/sights/{Sight ID}/publish",
-      "description": "Whether one dashboard is published to the web. Requires a sight id."
+      "description": "Whether one dashboard is published to the web. Requires a sight id.",
+      "responseSchema": {
+        "readOnlyFullAccessibleBy": "string",
+        "readOnlyFullEnabled": "boolean",
+        "readOnlyFullUrl": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Public Templates",
       "suffix": "/2.0/templates/public",
-      "description": "The templates Smartsheet publishes. Reference content, identical on every account."
+      "description": "The templates Smartsheet publishes. Reference content, identical on every account.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "type": "string",
+            "accessLevel": "string",
+            "blank": "boolean",
+            "categories": [
+              "string"
+            ],
+            "description": "string",
+            "globalTemplate": "string",
+            "image": "string",
+            "largeImage": "string",
+            "locale": "string",
+            "name": "string",
+            "tags": [
+              "string"
+            ]
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "User-created Templates",
       "suffix": "/2.0/templates",
-      "description": "The templates the account has created."
+      "description": "The templates the account has created.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "type": "string",
+            "accessLevel": "string",
+            "blank": "boolean",
+            "categories": [
+              "string"
+            ],
+            "description": "string",
+            "globalTemplate": "string",
+            "image": "string",
+            "largeImage": "string",
+            "locale": "string",
+            "name": "string",
+            "tags": [
+              "string"
+            ]
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Update Request",
       "suffix": "/2.0/sheets/{Sheet ID}/updaterequests/{Update Request ID}",
-      "description": "One update request by id."
+      "description": "One update request by id.",
+      "responseSchema": {
+        "ccMe": "boolean",
+        "message": "string",
+        "subject": "string",
+        "columnIds": [
+          "double"
+        ],
+        "includeAttachments": "boolean",
+        "includeDiscussions": "boolean",
+        "layout": "boolean",
+        "rowIds": [
+          "double"
+        ],
+        "id": "double",
+        "createdAt": "timeInstant",
+        "modifiedAt": "timeInstant",
+        "schedule": {
+          "type": "string",
+          "dayDescriptors": [
+            "string"
+          ],
+          "dayOfMonth": "double",
+          "dayOrdinal": "string",
+          "repeatEvery": "double",
+          "lastSentAt": "timeInstant",
+          "nextSendAt": "timeInstant",
+          "startAt": "timeInstant",
+          "endAt": "timeInstant"
+        },
+        "sentBy": {
+          "email": "string",
+          "name": "string"
+        }
+      }
     },
     {
       "paged": "true",
       "name": "Update Requests",
       "suffix": "/2.0/sheets/{Sheet ID}/updaterequests",
-      "description": "The pending requests asking someone to fill in rows. Requires a sheet id. Outstanding data collection, which no cell value reveals."
+      "description": "The pending requests asking someone to fill in rows. Requires a sheet id. Outstanding data collection, which no cell value reveals.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "ccMe": "boolean",
+            "message": "string",
+            "subject": "string",
+            "columnIds": [
+              "double"
+            ],
+            "includeAttachments": "boolean",
+            "includeDiscussions": "boolean",
+            "layout": "boolean",
+            "rowIds": [
+              "double"
+            ],
+            "id": "double",
+            "createdAt": "timeInstant",
+            "modifiedAt": "timeInstant",
+            "schedule": {
+              "type": "string",
+              "dayDescriptors": [
+                "string"
+              ],
+              "dayOfMonth": "double",
+              "dayOrdinal": "string",
+              "repeatEvery": "double",
+              "lastSentAt": "timeInstant",
+              "nextSendAt": "timeInstant"
+            },
+            "sentBy": {
+              "email": "string",
+              "name": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Sent Update Request",
       "suffix": "/2.0/sheets/{Sheet ID}/sentupdaterequests/{Sent Update Request ID}",
-      "description": "One sent update request by id."
+      "description": "One sent update request by id.",
+      "responseSchema": {
+        "id": "double",
+        "updateRequestId": "double",
+        "message": "string",
+        "sentAt": "timeInstant",
+        "sentBy": {
+          "email": "string",
+          "name": "string"
+        },
+        "status": "string",
+        "subject": "string",
+        "columnIds": [
+          "double"
+        ],
+        "rowIds": [
+          "double"
+        ],
+        "includeAttachments": "boolean",
+        "includeDiscussions": "boolean"
+      }
     },
     {
       "paged": "true",
       "name": "Sent Update Requests",
       "suffix": "/2.0/sheets/{Sheet ID}/sentupdaterequests",
-      "description": "Update requests already sent, with their status. Requires a sheet id. The record of who was asked and whether they responded."
+      "description": "Update requests already sent, with their status. Requires a sheet id. The record of who was asked and whether they responded.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "updateRequestId": "double",
+            "message": "string",
+            "sentAt": "timeInstant",
+            "sentBy": {
+              "email": "string",
+              "name": "string"
+            },
+            "status": "string",
+            "subject": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Current User",
       "suffix": "/2.0/users/me?include={Include?:groups}",
-      "description": "The account the credentials belong to, optionally with its groups. One record, and the explanation for which sheets the rest of this connector can see."
+      "description": "The account the credentials belong to, optionally with its groups. One record, and the explanation for which sheets the rest of this connector can see.",
+      "responseSchema": {
+        "id": "double",
+        "account": {
+          "id": "double",
+          "name": "string"
+        },
+        "admin": "boolean",
+        "alternateEmails": [
+          {
+            "id": "double",
+            "confirmed": "boolean",
+            "email": "string"
+          }
+        ],
+        "company": "string",
+        "customWelcomeScreenViewed": "timeInstant",
+        "department": "string",
+        "email": "string",
+        "firstName": "string",
+        "groupAdmin": "boolean",
+        "jiraAdmin": "boolean",
+        "lastLogin": "timeInstant",
+        "lastName": "string",
+        "licensedSheetCreator": "boolean",
+        "locale": "string",
+        "mobilePhone": "string",
+        "profileImage": {
+          "imageId": "string",
+          "height": "double",
+          "width": "double"
+        },
+        "resourceViewer": "boolean",
+        "role": "string",
+        "salesforceAdmin": "boolean",
+        "salesforceUser": "boolean",
+        "sheetCount": "double",
+        "timeZone": "string",
+        "title": "string",
+        "workPhone": "string",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "owner": "string",
+            "ownerId": "double",
+            "createdAt": "timeInstant",
+            "modifiedAt": "timeInstant"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "User",
       "suffix": "/2.0/users/{User ID}",
-      "description": "One user by id."
+      "description": "One user by id.",
+      "responseSchema": {
+        "id": "double",
+        "account": {
+          "id": "double",
+          "name": "string"
+        },
+        "admin": "boolean",
+        "alternateEmails": [
+          {
+            "id": "double",
+            "confirmed": "boolean",
+            "email": "string"
+          }
+        ],
+        "company": "string",
+        "customWelcomeScreenViewed": "timeInstant",
+        "department": "string",
+        "email": "string",
+        "firstName": "string",
+        "groupAdmin": "boolean",
+        "jiraAdmin": "boolean",
+        "lastLogin": "timeInstant",
+        "lastName": "string",
+        "licensedSheetCreator": "boolean",
+        "locale": "string",
+        "mobilePhone": "string",
+        "profileImage": {
+          "imageId": "string",
+          "height": "double",
+          "width": "double"
+        },
+        "resourceViewer": "boolean",
+        "role": "string",
+        "salesforceAdmin": "boolean",
+        "salesforceUser": "boolean",
+        "sheetCount": "double",
+        "timeZone": "string",
+        "title": "string",
+        "workPhone": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Users",
       "suffix": "/2.0/users?email={Email?}&include={Include?:lastLogin}",
-      "description": "The users in the account, with email, name, admin and licensed flags, and their status. Filterable by email; lastLogin is available only when explicitly included. THE LICENSED FLAG IS THE ONE THAT MATTERS COMMERCIALLY -- Smartsheet bills on licensed users, and unlicensed collaborators are free, so a headcount and a bill do not correspond."
+      "description": "The users in the account, with email, name, admin and licensed flags, and their status. Filterable by email; lastLogin is available only when explicitly included. THE LICENSED FLAG IS THE ONE THAT MATTERS COMMERCIALLY -- Smartsheet bills on licensed users, and unlicensed collaborators are free, so a headcount and a bill do not correspond.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "admin": "boolean",
+            "customWelcomeScreenViewed": "timeInstant",
+            "email": "string",
+            "firstName": "string",
+            "groupAdmin": "boolean",
+            "isInternal": "boolean",
+            "lastLogin": "timeInstant",
+            "lastName": "string",
+            "licensedSheetCreator": "boolean",
+            "name": "string",
+            "profileImage": {
+              "imageId": "string",
+              "height": "double",
+              "width": "double"
+            },
+            "provisionalExpirationDate": "timeInstant",
+            "resourceViewer": "boolean",
+            "seatType": "string",
+            "seatTypeLastChangedAt": "timeInstant",
+            "sheetCount": "double",
+            "status": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Workspace",
       "suffix": "/2.0/workspaces/{Workspace ID}?loadAll={Load All?:true|false}&include={Include?:ownerInfo,source,sheetVersion}",
-      "description": "One workspace by id, optionally loading its whole contents. Requires a workspace id."
+      "description": "One workspace by id, optionally loading its whole contents. Requires a workspace id.",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "permalink": "string",
+        "createdAt": "timeInstant",
+        "modifiedAt": "timeInstant",
+        "accessLevel": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Workspaces",
       "suffix": "/2.0/workspaces",
-      "description": "The workspaces, each grouping sheets, reports, dashboards and templates with shared permissions. The organisational container above folders."
+      "description": "The workspaces, each grouping sheets, reports, dashboards and templates with shared permissions. The organisational container above folders.",
+      "responseSchema": {
+        "pageNumber": "double",
+        "pageSize": "double",
+        "totalPages": "double",
+        "totalCount": "double",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "accessLevel": "string",
+            "permalink": "string"
+          }
+        ]
+      }
     }
   ]
 }

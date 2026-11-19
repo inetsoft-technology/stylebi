@@ -16,13 +16,106 @@
           "parameterName": "Container"
         }
       ],
-      "description": "The containers in the storage account, each with its name, last-modified time, lease state and public access level. The top level of blob storage and the starting point, since everything else needs a container name. Note this returns XML rather than JSON, as does every endpoint in this connector -- Azure's Blob REST API is XML-only."
+      "description": "The containers in the storage account, each with its name, last-modified time, lease state and public access level. The top level of blob storage and the starting point, since everything else needs a container name. Note this returns XML rather than JSON, as does every endpoint in this connector -- Azure's Blob REST API is XML-only.",
+      "responseSchema": {
+        "EnumerationResults": {
+          "Prefix": "string",
+          "Marker": "string",
+          "MaxResults": "double",
+          "Containers": {
+            "Container": [
+              {
+                "Name": "string",
+                "Deleted": "boolean",
+                "Version": "string",
+                "Properties": {
+                  "Last-Modified": "string",
+                  "Etag": "string",
+                  "LeaseStatus": "string",
+                  "LeaseState": "string",
+                  "LeaseDuration": "string",
+                  "PublicAccess": "string",
+                  "HasImmutabilityPolicy": "boolean",
+                  "HasLegalHold": "boolean",
+                  "DefaultEncryptionScope": "string",
+                  "DenyEncryptionScopeOverride": "boolean",
+                  "DeletedTime": "string",
+                  "RemainingRetentionDays": "double",
+                  "ImmutableStorageWithVersioningEnabled": "boolean"
+                },
+                "Metadata": {
+                  "*": "string"
+                }
+              }
+            ]
+          },
+          "NextMarker": "string"
+        }
+      }
     },
     {
       "name": "Blob Service Properties",
       "paged": false,
       "suffix": "/?restype=service&comp=properties&timeout={Timeout?}",
-      "description": "The account's blob service settings: logging, metrics, CORS rules, the default service version and the soft-delete retention policy. The soft-delete policy is worth reading alongside any storage figure, since deleted blobs continue to be billed for its duration."
+      "description": "The account's blob service settings: logging, metrics, CORS rules, the default service version and the soft-delete retention policy. The soft-delete policy is worth reading alongside any storage figure, since deleted blobs continue to be billed for its duration.",
+      "responseSchema": {
+        "StorageServiceProperties": {
+          "Logging": {
+            "Version": "string",
+            "Delete": "boolean",
+            "Read": "boolean",
+            "Write": "boolean",
+            "RetentionPolicy": {
+              "Enabled": "boolean",
+              "Days": "double",
+              "AllowPermanentDelete": "boolean"
+            }
+          },
+          "HourMetrics": {
+            "Version": "string",
+            "Enabled": "boolean",
+            "IncludeAPIs": "boolean",
+            "RetentionPolicy": {
+              "Enabled": "boolean",
+              "Days": "double",
+              "AllowPermanentDelete": "boolean"
+            }
+          },
+          "MinuteMetrics": {
+            "Version": "string",
+            "Enabled": "boolean",
+            "IncludeAPIs": "boolean",
+            "RetentionPolicy": {
+              "Enabled": "boolean",
+              "Days": "double",
+              "AllowPermanentDelete": "boolean"
+            }
+          },
+          "Cors": {
+            "CorsRule": [
+              {
+                "AllowedOrigins": "string",
+                "AllowedMethods": "string",
+                "AllowedHeaders": "string",
+                "ExposedHeaders": "string",
+                "MaxAgeInSeconds": "double"
+              }
+            ]
+          },
+          "DefaultServiceVersion": "string",
+          "DeleteRetentionPolicy": {
+            "Enabled": "boolean",
+            "Days": "double",
+            "AllowPermanentDelete": "boolean"
+          },
+          "StaticWebsite": {
+            "Enabled": "boolean",
+            "IndexDocument": "string",
+            "ErrorDocument404Path": "string",
+            "DefaultIndexDocumentPath": "string"
+          }
+        }
+      }
     },
     {
       "name": "Account",
@@ -46,13 +139,111 @@
       "name": "Container ACL",
       "paged": false,
       "suffix": "/{Container}?restype=container&comp=acl&timeout={Timeout?}",
-      "description": "The public access level of one container and its stored access policies, with their permissions and expiry. Requires a container name. THE SECURITY-REVIEW ENDPOINT: a container set to blob or container access is readable without credentials, which is the single most consequential setting in a storage account."
+      "description": "The public access level of one container and its stored access policies, with their permissions and expiry. Requires a container name. THE SECURITY-REVIEW ENDPOINT: a container set to blob or container access is readable without credentials, which is the single most consequential setting in a storage account.",
+      "responseSchema": {
+        "SignedIdentifiers": {
+          "SignedIdentifier": [
+            {
+              "Id": "string",
+              "AccessPolicy": {
+                "Start": "string",
+                "Expiry": "string",
+                "Permission": "string"
+              }
+            }
+          ]
+        }
+      }
     },
     {
       "name": "Blobs",
       "paged": true,
       "suffix": "/{Container}?restype=container&comp=list&prefix={Prefix?}&delimiter={Delimiter?}&include={Include?:snapshots|metadata|uncommittedblobs|copy|deleted}&timeout={Timeout?}",
-      "description": "The blobs inside one container, with name, size, content type, last-modified, ETag, blob type, access tier and lease state. Requires a container name. Storage and lifecycle questions are answered here: size and access tier together are what determine cost. THE DELIMITER PARAMETER IS WHAT MAKES IT LOOK LIKE FOLDERS -- blob storage is flat, and a delimiter of / groups by prefix to simulate a directory tree; without it every blob in the container comes back regardless of depth. Snapshots and versions are excluded unless asked for by the include parameter, so a size total omits them by default even though they are billed."
+      "description": "The blobs inside one container, with name, size, content type, last-modified, ETag, blob type, access tier and lease state. Requires a container name. Storage and lifecycle questions are answered here: size and access tier together are what determine cost. THE DELIMITER PARAMETER IS WHAT MAKES IT LOOK LIKE FOLDERS -- blob storage is flat, and a delimiter of / groups by prefix to simulate a directory tree; without it every blob in the container comes back regardless of depth. Snapshots and versions are excluded unless asked for by the include parameter, so a size total omits them by default even though they are billed.",
+      "responseSchema": {
+        "EnumerationResults": {
+          "Prefix": "string",
+          "Marker": "string",
+          "MaxResults": "double",
+          "Delimiter": "string",
+          "Blobs": {
+            "BlobPrefix": [
+              {
+                "Name": "string"
+              }
+            ],
+            "Blob": [
+              {
+                "Name": "string",
+                "Deleted": "boolean",
+                "Snapshot": "string",
+                "VersionId": "string",
+                "IsCurrentVersion": "boolean",
+                "Properties": {
+                  "Creation-Time": "string",
+                  "Last-Modified": "string",
+                  "Etag": "string",
+                  "Content-Length": "double",
+                  "Content-Type": "string",
+                  "Content-Encoding": "string",
+                  "Content-Language": "string",
+                  "Content-MD5": "string",
+                  "Content-Disposition": "string",
+                  "Cache-Control": "string",
+                  "x-ms-blob-sequence-number": "double",
+                  "BlobType": "string",
+                  "LeaseStatus": "string",
+                  "LeaseState": "string",
+                  "LeaseDuration": "string",
+                  "CopyId": "string",
+                  "CopyStatus": "string",
+                  "CopySource": "string",
+                  "CopyProgress": "string",
+                  "CopyCompletionTime": "string",
+                  "CopyStatusDescription": "string",
+                  "ServerEncrypted": "boolean",
+                  "IncrementalCopy": "boolean",
+                  "DestinationSnapshot": "string",
+                  "DeletedTime": "string",
+                  "RemainingRetentionDays": "double",
+                  "AccessTier": "string",
+                  "AccessTierInferred": "boolean",
+                  "ArchiveStatus": "string",
+                  "CustomerProvidedKeySha256": "string",
+                  "EncryptionScope": "string",
+                  "AccessTierChangeTime": "string",
+                  "TagCount": "double",
+                  "Expiry-Time": "string",
+                  "Sealed": "boolean",
+                  "RehydratePriority": "string",
+                  "LastAccessTime": "string",
+                  "ImmutabilityPolicyUntilDate": "string",
+                  "ImmutabilityPolicyMode": "string",
+                  "LegalHold": "boolean"
+                },
+                "Metadata": {
+                  "*": "string"
+                },
+                "Tags": {
+                  "TagSet": {
+                    "Tag": [
+                      {
+                        "Key": "string",
+                        "Value": "string"
+                      }
+                    ]
+                  }
+                },
+                "OrMetadata": {
+                  "*": "string"
+                },
+                "HasVersionsOnly": "boolean"
+              }
+            ]
+          },
+          "NextMarker": "string"
+        }
+      }
     },
     {
       "name": "Blob Metadata",
@@ -64,13 +255,50 @@
       "name": "Block List",
       "paged": false,
       "suffix": "/{Container}/{Blob}?comp=blocklist&snapshot={Snapshot?:yyyy-MM-dd’T’HH:mm:ssZ}&blocklisttype={Blocklist Type:committed|uncommitted|all}&timeout={Timeout?}",
-      "description": "The blocks making up one block blob, committed and uncommitted, with their sizes. Requires the container and blob names. UNCOMMITTED BLOCKS ARE BILLED BUT INVISIBLE in the blob listing -- an abandoned upload leaves them behind, and this is the only endpoint that shows them, which makes it the explanation for a storage bill that exceeds the sum of the blobs."
+      "description": "The blocks making up one block blob, committed and uncommitted, with their sizes. Requires the container and blob names. UNCOMMITTED BLOCKS ARE BILLED BUT INVISIBLE in the blob listing -- an abandoned upload leaves them behind, and this is the only endpoint that shows them, which makes it the explanation for a storage bill that exceeds the sum of the blobs.",
+      "responseSchema": {
+        "BlockList": {
+          "CommittedBlocks": {
+            "Block": [
+              {
+                "Name": "string",
+                "Size": "double"
+              }
+            ]
+          },
+          "UncommittedBlocks": {
+            "Block": [
+              {
+                "Name": "string",
+                "Size": "double"
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "name": "Page Ranges",
       "paged": false,
       "suffix": "/{Container}/{Blob}?comp=pagelist&snapshot={Snapshot?:yyyy-MM-dd’T’HH:mm:ssZ}&prevsnapshot={Previous Snapshot?:yyyy-MM-dd’T’HH:mm:ssZ}&timeout={Timeout?}",
-      "description": "The ranges of one page blob that actually hold data, optionally as the difference against an earlier snapshot. Requires the container and blob names. A page blob is sparse -- virtual machine disks are the usual case -- so its declared size and its billed size differ, and only this endpoint gives the second."
+      "description": "The ranges of one page blob that actually hold data, optionally as the difference against an earlier snapshot. Requires the container and blob names. A page blob is sparse -- virtual machine disks are the usual case -- so its declared size and its billed size differ, and only this endpoint gives the second.",
+      "responseSchema": {
+        "PageList": {
+          "PageRange": [
+            {
+              "Start": "double",
+              "End": "double"
+            }
+          ],
+          "ClearRange": [
+            {
+              "Start": "double",
+              "End": "double"
+            }
+          ],
+          "NextMarker": "string"
+        }
+      }
     }
   ]
 }

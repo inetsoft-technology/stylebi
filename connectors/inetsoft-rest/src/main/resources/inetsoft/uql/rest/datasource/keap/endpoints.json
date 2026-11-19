@@ -4,61 +4,358 @@
       "name": "Account Profile",
       "paged": false,
       "suffix": "/v1/account/profile",
-      "description": "The Keap account's own details -- company name, address, currency and time zone. One record."
+      "description": "The Keap account's own details -- company name, address, currency and time zone. One record.",
+      "responseSchema": {
+        "name": "string",
+        "email": "string",
+        "website": "string",
+        "phone": "string",
+        "address": {
+          "line1": "string",
+          "line2": "string",
+          "locality": "string",
+          "region": "string",
+          "field": "string",
+          "postal_code": "string",
+          "zip_code": "string",
+          "zip_four": "string",
+          "country_code": "string"
+        },
+        "phone_ext": "string",
+        "time_zone": "string",
+        "logo_url": "string",
+        "currency_code": "string",
+        "language_tag": "string",
+        "business_type": "string",
+        "business_goals": [
+          "string"
+        ],
+        "business_primary_color": "string",
+        "business_secondary_color": "string"
+      }
     },
     {
       "name": "Commissions",
       "paged": true,
       "suffix": "/v1/affiliates/commissions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&affiliateId={Affiliate ID?}",
-      "description": "Affiliate commissions earned, filterable by date. Requires the affiliate programme to be in use. What partners are owed, which appears nowhere in the order table."
+      "description": "Affiliate commissions earned, filterable by date. Requires the affiliate programme to be in use. What partners are owed, which appears nowhere in the order table.",
+      "responseSchema": {
+        "commissions": [
+          {
+            "description": "string",
+            "amount_earned": "double",
+            "contact_first_name": "string",
+            "contact_last_name": "string",
+            "invoice_id": "double",
+            "date_earned": "string",
+            "contact_id": "double",
+            "sales_affiliate_id": "double",
+            "sold_by_first_name": "string",
+            "sold_by_last_name": "string",
+            "product_name": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Affiliate Model",
       "paged": false,
       "suffix": "/v1/affiliates/model",
-      "description": "The schema of the affiliate object."
+      "description": "The schema of the affiliate object.",
+      "responseSchema": {
+        "custom_fields": [
+          {
+            "id": "double",
+            "label": "string",
+            "options": [
+              {
+                "id": "string",
+                "label": "string"
+              }
+            ],
+            "record_type": "string",
+            "field_type": "string",
+            "field_name": "string",
+            "default_value": "string"
+          }
+        ],
+        "optional_properties": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Appointments",
       "paged": true,
       "suffix": "/v1/appointments?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID?}",
-      "description": "Calendar appointments, filterable by date range. Carries the contact, times, location and remind time."
+      "description": "Calendar appointments, filterable by date range. Carries the contact, times, location and remind time.",
+      "responseSchema": {
+        "appointments": [
+          {
+            "title": "string",
+            "description": "string",
+            "user": "double",
+            "location": "string",
+            "contact_id": "double",
+            "start_date": "string",
+            "end_date": "string",
+            "remind_time": "double"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string",
+        "sync_token": "string"
+      }
     },
     {
       "name": "Appointment",
       "paged": false,
       "suffix": "/v1/appointments/{Appointment ID}",
-      "description": "One appointment by id."
+      "description": "One appointment by id.",
+      "responseSchema": {
+        "title": "string",
+        "description": "string",
+        "user": "double",
+        "location": "string",
+        "contact_id": "double",
+        "start_date": "string",
+        "end_date": "string",
+        "remind_time": "double"
+      }
     },
     {
       "name": "Appointment Model",
       "paged": false,
       "suffix": "/v1/appointments/model",
-      "description": "The schema of the appointment object."
+      "description": "The schema of the appointment object.",
+      "responseSchema": {
+        "custom_fields": [
+          {
+            "id": "double",
+            "label": "string",
+            "options": [
+              {
+                "id": "string",
+                "label": "string"
+              }
+            ],
+            "record_type": "string",
+            "field_type": "string",
+            "field_name": "string",
+            "default_value": "string"
+          }
+        ],
+        "optional_properties": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Campaigns",
       "paged": true,
       "suffix": "/v1/campaigns?search_text={Search Text?}",
-      "description": "The marketing campaigns -- Keap's automation sequences -- filterable by search text. Carries the name, the goals and sequences within, and the counts of contacts active in each. WHERE AUTOMATION LIVES: contacts move through these based on tags and behaviour, and the active counts are the closest thing to a funnel state for the business."
+      "description": "The marketing campaigns -- Keap's automation sequences -- filterable by search text. Carries the name, the goals and sequences within, and the counts of contacts active in each. WHERE AUTOMATION LIVES: contacts move through these based on tags and behaviour, and the active counts are the closest thing to a funnel state for the business.",
+      "responseSchema": {
+        "campaigns": [
+          {
+            "id": "double",
+            "name": "string",
+            "locked": "boolean",
+            "goals": [
+              {
+                "id": "double",
+                "name": "string",
+                "type": "string",
+                "historical_contact_counts": {
+                  "24_hours": "double",
+                  "30_days": "double"
+                },
+                "next_sequence_ids": [
+                  "double"
+                ],
+                "previous_sequence_ids": [
+                  "double"
+                ]
+              }
+            ],
+            "sequences": [
+              {
+                "id": "double",
+                "name": "string",
+                "paths": [
+                  {
+                    "id": "double",
+                    "items": [
+                      {
+                        "id": "double",
+                        "name": "string",
+                        "type": "string",
+                        "next_item_id": "double",
+                        "previous_item_id": "double"
+                      }
+                    ]
+                  }
+                ],
+                "active_contact_count": "double",
+                "active_contact_count_completed": "double",
+                "historical_contact_count": {
+                  "24_hours": "double",
+                  "30_days": "double"
+                }
+              }
+            ],
+            "date_created": "string",
+            "published_date": "string",
+            "published_status": "boolean",
+            "error_message": "string",
+            "time_zone": "string",
+            "published_time_zone": "string",
+            "created_by_global_id": "double"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Campaign",
       "paged": false,
       "suffix": "/v1/campaigns/{Campaign ID}?optional_properties={Optional Properties?: value1,value2,...}",
-      "description": "One campaign by id, with its sequences and goals."
+      "description": "One campaign by id, with its sequences and goals.",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "locked": "boolean",
+        "goals": [
+          {
+            "id": "double",
+            "name": "string",
+            "type": "string",
+            "historical_contact_counts": {
+              "24_hours": "double",
+              "30_days": "double"
+            },
+            "next_sequence_ids": [
+              "double"
+            ],
+            "previous_sequence_ids": [
+              "double"
+            ]
+          }
+        ],
+        "sequences": [
+          {
+            "id": "double",
+            "name": "string",
+            "paths": [
+              {
+                "id": "double",
+                "items": [
+                  {
+                    "id": "double",
+                    "name": "string",
+                    "type": "string",
+                    "next_item_id": "double",
+                    "previous_item_id": "double"
+                  }
+                ]
+              }
+            ],
+            "active_contact_count": "double",
+            "active_contact_count_completed": "double",
+            "historical_contact_count": {
+              "24_hours": "double",
+              "30_days": "double"
+            }
+          }
+        ],
+        "date_created": "string",
+        "published_date": "string",
+        "published_status": "boolean",
+        "error_message": "string",
+        "time_zone": "string",
+        "published_time_zone": "string",
+        "created_by_global_id": "double",
+        "active_contact_count": "double",
+        "completed_contact_count": "double"
+      }
     },
     {
       "name": "Companies",
       "paged": true,
       "suffix": "/v1/companies?company_name={Company Name?}&optional_properties={Optional Properties?: value1,value2,...}",
-      "description": "The companies contacts belong to, filterable by name. The organisation dimension."
+      "description": "The companies contacts belong to, filterable by name. The organisation dimension.",
+      "responseSchema": {
+        "companies": [
+          {
+            "id": "double",
+            "website": "string",
+            "address": {
+              "line1": "string",
+              "line2": "string",
+              "locality": "string",
+              "region": "string",
+              "zip_code": "string",
+              "zip_four": "string",
+              "country_code": "string"
+            },
+            "notes": "string",
+            "company_name": "string",
+            "phone_number": {
+              "number": "string",
+              "extension": "string",
+              "type": "string"
+            },
+            "fax_number": {
+              "number": "string",
+              "type": "string"
+            },
+            "email_address": "string",
+            "email_status": "string",
+            "email_opted_in": "boolean",
+            "custom_fields": [
+              {
+                "id": "double"
+              }
+            ]
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Company Model",
       "paged": false,
       "suffix": "/v1/companies/model",
-      "description": "The schema of the company object, including custom fields."
+      "description": "The schema of the company object, including custom fields.",
+      "responseSchema": {
+        "custom_fields": [
+          {
+            "id": "double",
+            "label": "string",
+            "options": [
+              {
+                "id": "string",
+                "label": "string"
+              }
+            ],
+            "record_type": "string",
+            "field_type": "string",
+            "field_name": "string",
+            "default_value": "string"
+          }
+        ],
+        "optional_properties": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Contacts",
@@ -76,37 +373,270 @@
           "parameterName": "Contact ID"
         }
       ],
-      "description": "The contacts in the account, filterable by email, given name and family name. Carries names, email addresses and phone numbers as ARRAYS of labelled entries rather than single values, addresses, the owner, the source, tags, and custom fields. The central table of a Keap account. Note optional_properties: several useful fields -- custom fields among them -- are omitted unless named there, so their absence is often an unmade request rather than empty data."
+      "description": "The contacts in the account, filterable by email, given name and family name. Carries names, email addresses and phone numbers as ARRAYS of labelled entries rather than single values, addresses, the owner, the source, tags, and custom fields. The central table of a Keap account. Note optional_properties: several useful fields -- custom fields among them -- are omitted unless named there, so their absence is often an unmade request rather than empty data.",
+      "responseSchema": {
+        "contacts": [
+          {
+            "addresses": [
+              {
+                "line1": "string",
+                "line2": "string",
+                "locality": "string",
+                "region": "string",
+                "field": "string",
+                "postal_code": "string",
+                "zip_code": "string",
+                "zip_four": "string",
+                "country_code": "string"
+              }
+            ],
+            "birthday": "string",
+            "prefix": "string",
+            "suffix": "string",
+            "website": "string",
+            "anniversary": "string",
+            "email_addresses": [
+              {
+                "email": "string",
+                "field": "string"
+              }
+            ],
+            "phone_numbers": [
+              {
+                "number": "string",
+                "extension": "string",
+                "field": "string",
+                "type": "string",
+                "number_e164": "string"
+              }
+            ],
+            "fax_numbers": [
+              {
+                "number": "string",
+                "field": "string",
+                "type": "string"
+              }
+            ],
+            "social_accounts": [
+              {
+                "name": "string",
+                "type": "string"
+              }
+            ],
+            "contact_type": "string",
+            "lead_source_id": "double",
+            "given_name": "string",
+            "family_name": "string",
+            "middle_name": "string",
+            "preferred_name": "string",
+            "time_zone": "string",
+            "owner_id": "double",
+            "job_title": "string",
+            "preferred_locale": "string",
+            "source_type": "string",
+            "custom_fields": [
+              {
+                "id": "double"
+              }
+            ],
+            "spouse_name": "string",
+            "id": "double",
+            "company": {
+              "id": "double",
+              "company_name": "string"
+            },
+            "email_opted_in": "boolean",
+            "email_status": "string",
+            "date_created": "string",
+            "last_updated": "string",
+            "ScoreValue": "string",
+            "company_name": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Credit Cards",
       "paged": false,
       "suffix": "/v1/contacts/{Contact ID}/creditCards",
-      "description": "The payment cards stored on one contact. Requires a contact id. Metadata only; card numbers are not returned."
+      "description": "The payment cards stored on one contact. Requires a contact id. Metadata only; card numbers are not returned.",
+      "responseSchema": [
+        {
+          "id": "double",
+          "card_type": "string",
+          "card_number": "string",
+          "validation_status": "string",
+          "payment_method_id": "string"
+        }
+      ]
     },
     {
       "name": "Contact Emails",
       "paged": true,
       "suffix": "/v1/contacts/{Contact ID}/emails?email={Email?}",
-      "description": "The email addresses on one contact. Requires a contact id."
+      "description": "The email addresses on one contact. Requires a contact id.",
+      "responseSchema": {
+        "emails": [
+          {
+            "id": "double",
+            "subject": "string",
+            "headers": "string",
+            "contact_id": "double",
+            "sent_to_address": "string",
+            "sent_to_cc_addresses": "string",
+            "sent_to_bcc_addresses": "string",
+            "sent_from_address": "string",
+            "sent_from_reply_address": "string",
+            "sent_date": "string",
+            "received_date": "string",
+            "opened_date": "string",
+            "clicked_date": "string",
+            "original_provider": "string",
+            "original_provider_id": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Applied Tags",
       "paged": true,
       "suffix": "/v1/contacts/{Contact ID}/tags",
-      "description": "The tags applied to one contact. Requires a contact id. Tags in Keap are the primary segmentation mechanism -- automation is driven by them -- so a contact's tags say more about where they sit in the business than any status field."
+      "description": "The tags applied to one contact. Requires a contact id. Tags in Keap are the primary segmentation mechanism -- automation is driven by them -- so a contact's tags say more about where they sit in the business than any status field.",
+      "responseSchema": {
+        "tags": [
+          {
+            "tag": {
+              "id": "double",
+              "name": "string",
+              "category": "string"
+            },
+            "date_applied": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Contact",
       "paged": false,
       "suffix": "/v1/contacts/{ID}?optional_properties={Optional Properties?: value1,value2,...}",
-      "description": "One contact by id, with the same optional_properties behaviour."
+      "description": "One contact by id, with the same optional_properties behaviour.",
+      "responseSchema": {
+        "addresses": [
+          {
+            "line1": "string",
+            "line2": "string",
+            "locality": "string",
+            "region": "string",
+            "field": "string",
+            "postal_code": "string",
+            "zip_code": "string",
+            "zip_four": "string",
+            "country_code": "string"
+          }
+        ],
+        "birthday": "string",
+        "prefix": "string",
+        "suffix": "string",
+        "website": "string",
+        "anniversary": "string",
+        "email_addresses": [
+          {
+            "email": "string",
+            "field": "string"
+          }
+        ],
+        "phone_numbers": [
+          {
+            "number": "string",
+            "extension": "string",
+            "field": "string",
+            "type": "string",
+            "number_e164": "string"
+          }
+        ],
+        "fax_numbers": [
+          {
+            "number": "string",
+            "field": "string",
+            "type": "string"
+          }
+        ],
+        "social_accounts": [
+          {
+            "name": "string",
+            "type": "string"
+          }
+        ],
+        "contact_type": "string",
+        "lead_source_id": "double",
+        "given_name": "string",
+        "family_name": "string",
+        "middle_name": "string",
+        "preferred_name": "string",
+        "time_zone": "string",
+        "owner_id": "double",
+        "job_title": "string",
+        "preferred_locale": "string",
+        "source_type": "string",
+        "custom_fields": [
+          {
+            "id": "double"
+          }
+        ],
+        "spouse_name": "string",
+        "origin": {
+          "date": "string",
+          "ip_address": "string"
+        },
+        "relationships": [
+          {
+            "id": "double",
+            "linked_contact_id": "double",
+            "relationship_type_id": "double"
+          }
+        ],
+        "company_name": "string",
+        "opt_in_reason": "string",
+        "tag_ids": [
+          "double"
+        ]
+      }
     },
     {
       "name": "Contact Model",
       "paged": false,
       "suffix": "/v1/contacts/model",
-      "description": "The schema of the contact object -- every field including custom ones, with its type and options. THE DECODER, and Keap gives every major object one of these model endpoints, which is the pattern to reach for whenever a custom field appears."
+      "description": "The schema of the contact object -- every field including custom ones, with its type and options. THE DECODER, and Keap gives every major object one of these model endpoints, which is the pattern to reach for whenever a custom field appears.",
+      "responseSchema": {
+        "custom_fields": [
+          {
+            "id": "double",
+            "label": "string",
+            "options": [
+              {
+                "id": "string",
+                "label": "string"
+              }
+            ],
+            "record_type": "string",
+            "field_type": "string",
+            "field_name": "string",
+            "default_value": "string"
+          }
+        ],
+        "optional_properties": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Orders",
@@ -120,187 +650,1331 @@
           "parameterName": "Order ID"
         }
       ],
-      "description": "The orders placed, filterable by date range, contact and product. Carries the contact, order items, total, status and the date. The commerce side of Keap, distinct from opportunities: an opportunity is a forecast, an order is money owed."
+      "description": "The orders placed, filterable by date range, contact and product. Carries the contact, order items, total, status and the date. The commerce side of Keap, distinct from opportunities: an opportunity is a forecast, an order is money owed.",
+      "responseSchema": {
+        "orders": [
+          {
+            "id": "double",
+            "title": "string",
+            "status": "string",
+            "recurring": "boolean",
+            "total": "double",
+            "contact": {
+              "id": "double",
+              "email": "string",
+              "first_name": "string",
+              "last_name": "string",
+              "company_name": "string",
+              "job_title": "string"
+            },
+            "notes": "string",
+            "terms": "string",
+            "order_type": "string",
+            "source_type": "string",
+            "creation_date": "string",
+            "modification_date": "string",
+            "order_date": "string",
+            "lead_affiliate_id": "double",
+            "sales_affiliate_id": "double",
+            "total_paid": "double",
+            "total_due": "double",
+            "shipping_information": {
+              "id": "double",
+              "first_name": "string",
+              "middle_name": "string",
+              "last_name": "string",
+              "company": "string",
+              "phone": "string",
+              "street1": "string",
+              "street2": "string",
+              "city": "string",
+              "state": "string",
+              "zip": "string",
+              "country": "string",
+              "invoiceToCompany": "boolean"
+            },
+            "refund_total": "double",
+            "allow_payment": "boolean",
+            "allow_paypal": "boolean",
+            "order_items": [
+              {
+                "id": "double",
+                "jobRecurringId": "double",
+                "name": "string",
+                "description": "string",
+                "type": "string",
+                "notes": "string",
+                "quantity": "double",
+                "cost": "double",
+                "price": "double",
+                "discount": "double",
+                "specialId": "double",
+                "specialAmount": "double",
+                "specialPctOrAmt": "double",
+                "product": {
+                  "id": "double",
+                  "name": "string",
+                  "sku": "string",
+                  "description": "string",
+                  "shippable": "boolean",
+                  "taxable": "boolean"
+                },
+                "subscriptionPlan": {
+                  "id": "double",
+                  "cycle": "double",
+                  "frequency": "double",
+                  "active": "boolean",
+                  "prorate": "boolean",
+                  "subscription_plan_name": "string",
+                  "number_of_cycles": "double",
+                  "plan_price": "double",
+                  "subscription_plan_index": "double"
+                }
+              }
+            ],
+            "payment_plan": {
+              "auto_charge": "boolean",
+              "credit_card_id": "double",
+              "days_between_payments": "double",
+              "initial_payment_amount": "double",
+              "initial_payment_percent": "double",
+              "initial_payment_date": "string",
+              "number_of_payments": "double",
+              "payment_gateway": {
+                "merchant_account_id": "double",
+                "use_default": "boolean",
+                "merchant_account_name": "string"
+              },
+              "plan_start_date": "string",
+              "payment_method_id": "string",
+              "max_charge_attempts": "double",
+              "days_between_retries": "double"
+            },
+            "invoice_number": "double",
+            "contact_id": "string",
+            "product_id": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Order",
       "paged": false,
       "suffix": "/v1/orders/{Order ID}",
-      "description": "One order by id, with its line items."
+      "description": "One order by id, with its line items.",
+      "responseSchema": {
+        "id": "double",
+        "title": "string",
+        "status": "string",
+        "recurring": "boolean",
+        "total": "double",
+        "contact": {
+          "id": "double",
+          "email": "string",
+          "first_name": "string",
+          "last_name": "string",
+          "company_name": "string",
+          "job_title": "string"
+        },
+        "notes": "string",
+        "terms": "string",
+        "order_type": "string",
+        "source_type": "string",
+        "creation_date": "string",
+        "modification_date": "string",
+        "order_date": "string",
+        "lead_affiliate_id": "double",
+        "sales_affiliate_id": "double",
+        "total_paid": "double",
+        "total_due": "double",
+        "shipping_information": {
+          "id": "double",
+          "first_name": "string",
+          "middle_name": "string",
+          "last_name": "string",
+          "company": "string",
+          "phone": "string",
+          "street1": "string",
+          "street2": "string",
+          "city": "string",
+          "state": "string",
+          "zip": "string",
+          "country": "string",
+          "invoiceToCompany": "boolean"
+        },
+        "refund_total": "double",
+        "allow_payment": "boolean",
+        "allow_paypal": "boolean",
+        "order_items": [
+          {
+            "id": "double",
+            "jobRecurringId": "double",
+            "name": "string",
+            "description": "string",
+            "type": "string",
+            "notes": "string",
+            "quantity": "double",
+            "cost": "double",
+            "price": "double",
+            "discount": "double",
+            "specialId": "double",
+            "specialAmount": "double",
+            "specialPctOrAmt": "double",
+            "product": {
+              "id": "double",
+              "name": "string",
+              "sku": "string",
+              "description": "string",
+              "shippable": "boolean",
+              "taxable": "boolean"
+            },
+            "subscriptionPlan": {
+              "id": "double",
+              "cycle": "double",
+              "frequency": "double",
+              "active": "boolean",
+              "prorate": "boolean",
+              "subscription_plan_name": "string",
+              "number_of_cycles": "double",
+              "plan_price": "double",
+              "subscription_plan_index": "double"
+            }
+          }
+        ],
+        "payment_plan": {
+          "auto_charge": "boolean",
+          "credit_card_id": "double",
+          "days_between_payments": "double",
+          "initial_payment_amount": "double",
+          "initial_payment_percent": "double",
+          "initial_payment_date": "string",
+          "number_of_payments": "double",
+          "payment_gateway": {
+            "merchant_account_id": "double",
+            "use_default": "boolean",
+            "merchant_account_name": "string"
+          },
+          "plan_start_date": "string",
+          "payment_method_id": "string",
+          "max_charge_attempts": "double",
+          "days_between_retries": "double"
+        },
+        "invoice_number": "double",
+        "contact_id": "string",
+        "product_id": "string"
+      }
     },
     {
       "name": "Order Transactions",
       "paged": true,
       "suffix": "/v1/orders/{Order ID}/transactions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID}",
-      "description": "The payments applied against one order. Requires an order id. The order carries a total; this says when and whether money actually arrived."
+      "description": "The payments applied against one order. Requires an order id. The order carries a total; this says when and whether money actually arrived.",
+      "responseSchema": {
+        "transactions": [
+          {
+            "id": "double",
+            "test": "boolean",
+            "amount": "double",
+            "currency": "string",
+            "gateway": "string",
+            "paymentDate": "string",
+            "type": "string",
+            "status": "string",
+            "errors": "string",
+            "orders": [
+              {
+                "id": "double",
+                "title": "string",
+                "status": "string",
+                "recurring": "boolean",
+                "total": "double",
+                "contact": {
+                  "id": "double",
+                  "email": "string",
+                  "first_name": "string",
+                  "last_name": "string",
+                  "company_name": "string",
+                  "job_title": "string"
+                },
+                "notes": "string",
+                "terms": "string",
+                "order_type": "string",
+                "source_type": "string",
+                "creation_date": "string",
+                "modification_date": "string",
+                "order_date": "string",
+                "lead_affiliate_id": "double",
+                "sales_affiliate_id": "double",
+                "total_paid": "double",
+                "total_due": "double",
+                "shipping_information": {
+                  "id": "double",
+                  "first_name": "string",
+                  "middle_name": "string",
+                  "last_name": "string",
+                  "company": "string",
+                  "phone": "string",
+                  "street1": "string",
+                  "street2": "string",
+                  "city": "string",
+                  "state": "string",
+                  "zip": "string",
+                  "country": "string",
+                  "invoiceToCompany": "boolean"
+                },
+                "refund_total": "double",
+                "allow_payment": "boolean",
+                "allow_paypal": "boolean",
+                "order_items": [
+                  {
+                    "id": "double",
+                    "jobRecurringId": "double",
+                    "name": "string",
+                    "description": "string",
+                    "type": "string",
+                    "notes": "string",
+                    "quantity": "double",
+                    "cost": "double",
+                    "price": "double",
+                    "discount": "double",
+                    "specialId": "double",
+                    "specialAmount": "double",
+                    "specialPctOrAmt": "double",
+                    "product": {
+                      "id": "double",
+                      "name": "string",
+                      "sku": "string",
+                      "description": "string",
+                      "shippable": "boolean",
+                      "taxable": "boolean"
+                    },
+                    "subscriptionPlan": {
+                      "id": "double",
+                      "cycle": "double",
+                      "frequency": "double",
+                      "active": "boolean",
+                      "prorate": "boolean",
+                      "subscription_plan_name": "string",
+                      "number_of_cycles": "double",
+                      "plan_price": "double",
+                      "subscription_plan_index": "double"
+                    }
+                  }
+                ],
+                "payment_plan": {
+                  "auto_charge": "boolean",
+                  "credit_card_id": "double",
+                  "days_between_payments": "double",
+                  "initial_payment_amount": "double",
+                  "initial_payment_percent": "double",
+                  "initial_payment_date": "string",
+                  "number_of_payments": "double",
+                  "payment_gateway": {
+                    "merchant_account_id": "double",
+                    "use_default": "boolean",
+                    "merchant_account_name": "string"
+                  },
+                  "plan_start_date": "string",
+                  "payment_method_id": "string",
+                  "max_charge_attempts": "double",
+                  "days_between_retries": "double"
+                },
+                "invoice_number": "double",
+                "contact_id": "string",
+                "product_id": "string"
+              }
+            ],
+            "contact_id": "double",
+            "transaction_date": "string",
+            "gateway_account_name": "string",
+            "order_ids": "string",
+            "collection_method": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Custom Order Model",
       "paged": false,
       "suffix": "/v1/orders/model",
-      "description": "The schema of the order object, including custom fields."
+      "description": "The schema of the order object, including custom fields.",
+      "responseSchema": {
+        "custom_fields": [
+          {
+            "id": "double",
+            "label": "string",
+            "options": [
+              {
+                "id": "string",
+                "label": "string"
+              }
+            ],
+            "record_type": "string",
+            "field_type": "string",
+            "field_name": "string",
+            "default_value": "string"
+          }
+        ],
+        "optional_properties": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Subscriptions",
       "paged": true,
       "suffix": "/v1/subscriptions?contact_id={Contact ID?}",
-      "description": "The recurring billing subscriptions, optionally for one contact. Carries the product, billing cycle, amount and status. Recurring revenue, which the order table records only as individual charges."
+      "description": "The recurring billing subscriptions, optionally for one contact. Carries the product, billing cycle, amount and status. Recurring revenue, which the order table records only as individual charges.",
+      "responseSchema": {
+        "subscriptions": [
+          {
+            "id": "double",
+            "quantity": "double",
+            "active": "boolean",
+            "contact_id": "double",
+            "product_id": "double",
+            "subscription_plan_id": "double",
+            "billing_amount": "double",
+            "auto_charge": "boolean",
+            "billing_frequency": "double",
+            "billing_cycle": "string",
+            "start_date": "string",
+            "next_bill_date": "string",
+            "end_date": "string",
+            "payment_gateway_id": "double",
+            "credit_card_id": "double",
+            "use_default_payment_gateway": "boolean",
+            "allow_tax": "boolean",
+            "sale_affiliate_id": "double"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Subscription Model",
       "paged": false,
       "suffix": "/v1/subscriptions/model",
-      "description": "The schema of the subscription object."
+      "description": "The schema of the subscription object.",
+      "responseSchema": {
+        "custom_fields": [
+          {
+            "id": "double",
+            "label": "string",
+            "options": [
+              {
+                "id": "string",
+                "label": "string"
+              }
+            ],
+            "record_type": "string",
+            "field_type": "string",
+            "field_name": "string",
+            "default_value": "string"
+          }
+        ],
+        "optional_properties": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Transactions",
       "paged": true,
       "suffix": "/v1/transactions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID?}",
-      "description": "All payment transactions across the account, filterable by date and contact. The account-wide cash view, as opposed to the per-order one."
+      "description": "All payment transactions across the account, filterable by date and contact. The account-wide cash view, as opposed to the per-order one.",
+      "responseSchema": {
+        "transactions": [
+          {
+            "id": "double",
+            "test": "boolean",
+            "amount": "double",
+            "currency": "string",
+            "gateway": "string",
+            "paymentDate": "string",
+            "type": "string",
+            "status": "string",
+            "errors": "string",
+            "orders": [
+              {
+                "id": "double",
+                "title": "string",
+                "status": "string",
+                "recurring": "boolean",
+                "total": "double",
+                "contact": {
+                  "id": "double",
+                  "email": "string",
+                  "first_name": "string",
+                  "last_name": "string",
+                  "company_name": "string",
+                  "job_title": "string"
+                },
+                "notes": "string",
+                "terms": "string",
+                "order_type": "string",
+                "source_type": "string",
+                "creation_date": "string",
+                "modification_date": "string",
+                "order_date": "string",
+                "lead_affiliate_id": "double",
+                "sales_affiliate_id": "double",
+                "total_paid": "double",
+                "total_due": "double",
+                "shipping_information": {
+                  "id": "double",
+                  "first_name": "string",
+                  "middle_name": "string",
+                  "last_name": "string",
+                  "company": "string",
+                  "phone": "string",
+                  "street1": "string",
+                  "street2": "string",
+                  "city": "string",
+                  "state": "string",
+                  "zip": "string",
+                  "country": "string",
+                  "invoiceToCompany": "boolean"
+                },
+                "refund_total": "double",
+                "allow_payment": "boolean",
+                "allow_paypal": "boolean",
+                "order_items": [
+                  {
+                    "id": "double",
+                    "jobRecurringId": "double",
+                    "name": "string",
+                    "description": "string",
+                    "type": "string",
+                    "notes": "string",
+                    "quantity": "double",
+                    "cost": "double",
+                    "price": "double",
+                    "discount": "double",
+                    "specialId": "double",
+                    "specialAmount": "double",
+                    "specialPctOrAmt": "double",
+                    "product": {
+                      "id": "double",
+                      "name": "string",
+                      "sku": "string",
+                      "description": "string",
+                      "shippable": "boolean",
+                      "taxable": "boolean"
+                    },
+                    "subscriptionPlan": {
+                      "id": "double",
+                      "cycle": "double",
+                      "frequency": "double",
+                      "active": "boolean",
+                      "prorate": "boolean",
+                      "subscription_plan_name": "string",
+                      "number_of_cycles": "double",
+                      "plan_price": "double",
+                      "subscription_plan_index": "double"
+                    }
+                  }
+                ],
+                "payment_plan": {
+                  "auto_charge": "boolean",
+                  "credit_card_id": "double",
+                  "days_between_payments": "double",
+                  "initial_payment_amount": "double",
+                  "initial_payment_percent": "double",
+                  "initial_payment_date": "string",
+                  "number_of_payments": "double",
+                  "payment_gateway": {
+                    "merchant_account_id": "double",
+                    "use_default": "boolean",
+                    "merchant_account_name": "string"
+                  },
+                  "plan_start_date": "string",
+                  "payment_method_id": "string",
+                  "max_charge_attempts": "double",
+                  "days_between_retries": "double"
+                },
+                "invoice_number": "double",
+                "contact_id": "string",
+                "product_id": "string"
+              }
+            ],
+            "contact_id": "double",
+            "transaction_date": "string",
+            "gateway_account_name": "string",
+            "order_ids": "string",
+            "collection_method": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Transaction",
       "paged": false,
       "suffix": "/v1/transactions/{Transaction ID}",
-      "description": "One transaction by id."
+      "description": "One transaction by id.",
+      "responseSchema": {
+        "id": "double",
+        "test": "boolean",
+        "amount": "double",
+        "currency": "string",
+        "gateway": "string",
+        "paymentDate": "string",
+        "type": "string",
+        "status": "string",
+        "errors": "string",
+        "orders": [
+          {
+            "id": "double",
+            "title": "string",
+            "status": "string",
+            "recurring": "boolean",
+            "total": "double",
+            "contact": {
+              "id": "double",
+              "email": "string",
+              "first_name": "string",
+              "last_name": "string",
+              "company_name": "string",
+              "job_title": "string"
+            },
+            "notes": "string",
+            "terms": "string",
+            "order_type": "string",
+            "source_type": "string",
+            "creation_date": "string",
+            "modification_date": "string",
+            "order_date": "string",
+            "lead_affiliate_id": "double",
+            "sales_affiliate_id": "double",
+            "total_paid": "double",
+            "total_due": "double",
+            "shipping_information": {
+              "id": "double",
+              "first_name": "string",
+              "middle_name": "string",
+              "last_name": "string",
+              "company": "string",
+              "phone": "string",
+              "street1": "string",
+              "street2": "string",
+              "city": "string",
+              "state": "string",
+              "zip": "string",
+              "country": "string",
+              "invoiceToCompany": "boolean"
+            },
+            "refund_total": "double",
+            "allow_payment": "boolean",
+            "allow_paypal": "boolean",
+            "order_items": [
+              {
+                "id": "double",
+                "jobRecurringId": "double",
+                "name": "string",
+                "description": "string",
+                "type": "string",
+                "notes": "string",
+                "quantity": "double",
+                "cost": "double",
+                "price": "double",
+                "discount": "double",
+                "specialId": "double",
+                "specialAmount": "double",
+                "specialPctOrAmt": "double",
+                "product": {
+                  "id": "double",
+                  "name": "string",
+                  "sku": "string",
+                  "description": "string",
+                  "shippable": "boolean",
+                  "taxable": "boolean"
+                },
+                "subscriptionPlan": {
+                  "id": "double",
+                  "cycle": "double",
+                  "frequency": "double",
+                  "active": "boolean",
+                  "prorate": "boolean",
+                  "subscription_plan_name": "string",
+                  "number_of_cycles": "double",
+                  "plan_price": "double",
+                  "subscription_plan_index": "double"
+                }
+              }
+            ],
+            "payment_plan": {
+              "auto_charge": "boolean",
+              "credit_card_id": "double",
+              "days_between_payments": "double",
+              "initial_payment_amount": "double",
+              "initial_payment_percent": "double",
+              "initial_payment_date": "string",
+              "number_of_payments": "double",
+              "payment_gateway": {
+                "merchant_account_id": "double",
+                "use_default": "boolean",
+                "merchant_account_name": "string"
+              },
+              "plan_start_date": "string",
+              "payment_method_id": "string",
+              "max_charge_attempts": "double",
+              "days_between_retries": "double"
+            },
+            "invoice_number": "double",
+            "contact_id": "string",
+            "product_id": "string"
+          }
+        ],
+        "contact_id": "double",
+        "transaction_date": "string",
+        "gateway_account_name": "string",
+        "order_ids": "string",
+        "collection_method": "string"
+      }
     },
     {
       "name": "Emails",
       "paged": true,
       "suffix": "/v1/emails?contact_id={Contact ID?}&email={Email?}&since_sent_date={Since Sent Date?:yyyy-MM-ddTHH:mm:ssZ}&until_sent_date={Until Sent Date?:yyyy-MM-ddTHH:mm:ssZ}",
-      "description": "The emails sent to contacts, filterable by contact, address and sent date. The record of what was actually delivered, as opposed to the campaign that intended it."
+      "description": "The emails sent to contacts, filterable by contact, address and sent date. The record of what was actually delivered, as opposed to the campaign that intended it.",
+      "responseSchema": {
+        "emails": [
+          {
+            "id": "double",
+            "subject": "string",
+            "headers": "string",
+            "contact_id": "double",
+            "sent_to_address": "string",
+            "sent_to_cc_addresses": "string",
+            "sent_to_bcc_addresses": "string",
+            "sent_from_address": "string",
+            "sent_from_reply_address": "string",
+            "sent_date": "string",
+            "received_date": "string",
+            "opened_date": "string",
+            "clicked_date": "string",
+            "original_provider": "string",
+            "original_provider_id": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Email",
       "paged": false,
       "suffix": "/v1/emails/{ID}",
-      "description": "One email by id, with its content and headers."
+      "description": "One email by id, with its content and headers.",
+      "responseSchema": {
+        "id": "double",
+        "subject": "string",
+        "headers": "string",
+        "contact_id": "double",
+        "sent_to_address": "string",
+        "sent_to_cc_addresses": "string",
+        "sent_to_bcc_addresses": "string",
+        "sent_from_address": "string",
+        "sent_from_reply_address": "string",
+        "sent_date": "string",
+        "received_date": "string",
+        "opened_date": "string",
+        "clicked_date": "string",
+        "original_provider": "string",
+        "original_provider_id": "string",
+        "plain_content": "string",
+        "html_content": "string"
+      }
     },
     {
       "name": "Files",
       "paged": true,
       "suffix": "/v1/files?viewable={Viewable?:PUBLIC | PRIVATE | BOTH}&permission={Permission?:USER | COMPANY | BOTH}&type={Type?:Application | Image | Fax | ... }&name={Name?}&contact_id={Contact ID}",
-      "description": "The files stored, filterable by visibility and permission. Metadata; contents are a separate fetch."
+      "description": "The files stored, filterable by visibility and permission. Metadata; contents are a separate fetch.",
+      "responseSchema": {
+        "files": [
+          {
+            "category": "string",
+            "date_created": "string",
+            "last_updated": "string",
+            "file_name": "string",
+            "file_size": "double",
+            "created_by": "double",
+            "public": "boolean",
+            "contact_id": "double",
+            "remote_file_key": "string",
+            "file_box_type": "string",
+            "download_url": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "File",
       "paged": false,
       "suffix": "/v1/files/{FileId}?optional_properties={Optional Properties?: value1,value2,...}",
-      "description": "One file by id."
+      "description": "One file by id.",
+      "responseSchema": {
+        "file_descriptor": {
+          "category": "string",
+          "date_created": "string",
+          "last_updated": "string",
+          "file_name": "string",
+          "file_size": "double",
+          "created_by": "double",
+          "public": "boolean",
+          "contact_id": "double",
+          "remote_file_key": "string",
+          "file_box_type": "string",
+          "download_url": "string"
+        },
+        "file_data": "string"
+      }
     },
     {
       "name": "Countries",
       "paged": false,
       "suffix": "/v1/locales/countries",
-      "description": "The country list Keap accepts. Reference data."
+      "description": "The country list Keap accepts. Reference data.",
+      "responseSchema": {
+        "countries": {
+          "*": "string"
+        }
+      }
     },
     {
       "name": "Country's Provinces",
       "paged": false,
       "suffix": "/v1/locales/countries/{Country Code}/provinces",
-      "description": "The provinces or states of one country. Requires the country code."
+      "description": "The provinces or states of one country. Requires the country code.",
+      "responseSchema": {
+        "provinces": {
+          "*": "string"
+        }
+      }
     },
     {
       "name": "Merchants",
       "paged": false,
       "suffix": "/v1/merchants",
-      "description": "The payment gateways configured. Which processor a transaction went through, and the explanation for a payment method that is unavailable."
+      "description": "The payment gateways configured. Which processor a transaction went through, and the explanation for a payment method that is unavailable.",
+      "responseSchema": {
+        "default_merchant_account": "double",
+        "merchant_accounts": [
+          {
+            "id": "double",
+            "type": "string",
+            "account_name": "string",
+            "is_test": "boolean"
+          }
+        ]
+      }
     },
     {
       "name": "Notes",
       "paged": true,
       "suffix": "/v1/notes?user_id={User ID?}&contact_id={Contact ID?}",
-      "description": "Notes recorded against contacts, filterable by user and contact. The qualitative record."
+      "description": "Notes recorded against contacts, filterable by user and contact. The qualitative record.",
+      "responseSchema": {
+        "notes": [
+          {
+            "id": "double",
+            "title": "string",
+            "body": "string",
+            "type": "string",
+            "contact_id": "double",
+            "user_id": "double",
+            "last_updated_by": {
+              "user_id": "double",
+              "given_name": "string",
+              "family_name": "string"
+            },
+            "date_created": "string",
+            "last_updated": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Note",
       "paged": false,
       "suffix": "/v1/notes/{Note ID}",
-      "description": "One note by id."
+      "description": "One note by id.",
+      "responseSchema": {
+        "id": "double",
+        "title": "string",
+        "body": "string",
+        "type": "string",
+        "contact_id": "double",
+        "user_id": "double",
+        "last_updated_by": {
+          "user_id": "double",
+          "given_name": "string",
+          "family_name": "string"
+        },
+        "date_created": "string",
+        "last_updated": "string"
+      }
     },
     {
       "name": "Note Model",
       "paged": false,
       "suffix": "/v1/notes/model",
-      "description": "The schema of the note object."
+      "description": "The schema of the note object.",
+      "responseSchema": {
+        "custom_fields": [
+          {
+            "id": "double",
+            "label": "string",
+            "options": [
+              {
+                "id": "string",
+                "label": "string"
+              }
+            ],
+            "record_type": "string",
+            "field_type": "string",
+            "field_name": "string",
+            "default_value": "string"
+          }
+        ],
+        "optional_properties": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Opportunities",
       "paged": true,
       "suffix": "/v1/opportunities?user_id={User ID?}&stage_id={Stage ID?}&search_term={Search Term?}",
-      "description": "The sales opportunities, filterable by owner, stage and search term. Carries the contact, the stage, estimated close date, value and probability. The pipeline table."
+      "description": "The sales opportunities, filterable by owner, stage and search term. Carries the contact, the stage, estimated close date, value and probability. The pipeline table.",
+      "responseSchema": {
+        "opportunities": [
+          {
+            "id": "double",
+            "contact": {
+              "id": "double",
+              "email": "string",
+              "city": "string",
+              "state": "string",
+              "first_name": "string",
+              "last_name": "string",
+              "company_name": "string",
+              "job_title": "string",
+              "phone_number": "string"
+            },
+            "stage": {
+              "id": "double",
+              "name": "string",
+              "details": {
+                "probability": "double",
+                "stage_order": "double",
+                "target_num_days": "double",
+                "check_list_items": [
+                  {
+                    "id": "double",
+                    "description": "string",
+                    "required": "boolean",
+                    "instance_id": "double",
+                    "item_order": "double",
+                    "done_date": "string"
+                  }
+                ]
+              },
+              "reasons": [
+                "string"
+              ]
+            },
+            "user": {
+              "id": "double",
+              "first_name": "string",
+              "last_name": "string"
+            },
+            "opportunity_title": "string",
+            "next_action_date": "string",
+            "next_action_notes": "string",
+            "opportunity_notes": "string",
+            "estimated_close_date": "string",
+            "include_in_forecast": "double",
+            "projected_revenue_low": "double",
+            "projected_revenue_high": "double",
+            "custom_fields": [
+              {
+                "id": "double"
+              }
+            ],
+            "date_created": "string",
+            "last_updated": "string",
+            "affiliate_id": "double"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Opportunity",
       "paged": false,
       "suffix": "/v1/opportunities/{Opportunity ID}?optional_properties={Optional Properties?: value1,value2,...}",
-      "description": "One opportunity by id."
+      "description": "One opportunity by id.",
+      "responseSchema": {
+        "id": "double",
+        "contact": {
+          "id": "double",
+          "email": "string",
+          "city": "string",
+          "state": "string",
+          "first_name": "string",
+          "last_name": "string",
+          "company_name": "string",
+          "job_title": "string",
+          "phone_number": "string"
+        },
+        "stage": {
+          "id": "double",
+          "name": "string",
+          "details": {
+            "probability": "double",
+            "stage_order": "double",
+            "target_num_days": "double",
+            "check_list_items": [
+              {
+                "id": "double",
+                "description": "string",
+                "required": "boolean",
+                "instance_id": "double",
+                "item_order": "double",
+                "done_date": "string"
+              }
+            ]
+          },
+          "reasons": [
+            "string"
+          ]
+        },
+        "user": {
+          "id": "double",
+          "first_name": "string",
+          "last_name": "string"
+        },
+        "opportunity_title": "string",
+        "next_action_date": "string",
+        "next_action_notes": "string",
+        "opportunity_notes": "string",
+        "estimated_close_date": "string",
+        "include_in_forecast": "double",
+        "projected_revenue_low": "double",
+        "projected_revenue_high": "double",
+        "custom_fields": [
+          {
+            "id": "double"
+          }
+        ],
+        "date_created": "string",
+        "last_updated": "string",
+        "affiliate_id": "double"
+      }
     },
     {
       "name": "Opportunity Model",
       "paged": false,
       "suffix": "/v1/opportunities/model",
-      "description": "The schema of the opportunity object."
+      "description": "The schema of the opportunity object.",
+      "responseSchema": {
+        "custom_fields": [
+          {
+            "id": "double",
+            "label": "string",
+            "options": [
+              {
+                "id": "string",
+                "label": "string"
+              }
+            ],
+            "record_type": "string",
+            "field_type": "string",
+            "field_name": "string",
+            "default_value": "string"
+          }
+        ],
+        "optional_properties": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Opportunity Stage Pipelines",
       "paged": false,
       "suffix": "/v1/opportunity/stage_pipeline",
-      "description": "The pipelines and their stages, in order. The dimension a funnel breakdown joins to, and the decoder for the stage id on an opportunity."
+      "description": "The pipelines and their stages, in order. The dimension a funnel breakdown joins to, and the decoder for the stage id on an opportunity.",
+      "responseSchema": [
+        {
+          "stage_id": "double",
+          "stage_name": "string",
+          "stage_count": "double",
+          "stage_order": "double",
+          "end_stage": "boolean",
+          "is_default": "boolean"
+        }
+      ]
     },
     {
       "name": "Products",
       "paged": true,
       "suffix": "/v1/products?active={Active?:true | false}",
-      "description": "The product catalogue, filterable by active state, with price, SKU and description."
+      "description": "The product catalogue, filterable by active state, with price, SKU and description.",
+      "responseSchema": {
+        "products": [
+          {
+            "id": "double",
+            "sku": "string",
+            "url": "string",
+            "status": "double",
+            "product_name": "string",
+            "product_desc": "string",
+            "product_price": "double",
+            "product_short_desc": "string",
+            "subscription_only": "boolean",
+            "product_options": [
+              {
+                "id": "double",
+                "name": "string",
+                "label": "string",
+                "required": "boolean",
+                "type": "string",
+                "values": [
+                  {
+                    "id": "double",
+                    "label": "string",
+                    "sku": "string",
+                    "index": "double",
+                    "is_default": "boolean",
+                    "price_adjustment": "double"
+                  }
+                ],
+                "min_chars": "double",
+                "max_chars": "double",
+                "allow_spaces": "boolean",
+                "can_end_with_character": "boolean",
+                "can_end_with_number": "boolean",
+                "can_contain_character": "boolean",
+                "can_contain_number": "boolean",
+                "can_start_with_character": "boolean",
+                "can_start_with_number": "boolean",
+                "text_message": "string",
+                "display_index": "double"
+              }
+            ],
+            "subscription_plans": [
+              {
+                "id": "double",
+                "cycle": "double",
+                "frequency": "double",
+                "url": "string",
+                "active": "boolean",
+                "subscription_plan_name": "string",
+                "number_of_cycles": "double",
+                "plan_price": "double",
+                "subscription_plan_index": "double"
+              }
+            ]
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string",
+        "sync_token": "string"
+      }
     },
     {
       "name": "Product",
       "paged": false,
       "suffix": "/v1/products/{Product ID}",
-      "description": "One product by id."
+      "description": "One product by id.",
+      "responseSchema": {
+        "id": "double",
+        "sku": "string",
+        "active": "boolean",
+        "url": "string",
+        "product_name": "string",
+        "product_desc": "string",
+        "product_price": "double",
+        "product_short_desc": "string",
+        "subscription_only": "boolean",
+        "subscription_plans": [
+          {
+            "id": "double",
+            "frequency": "double",
+            "active": "boolean",
+            "url": "string",
+            "cycle_type": "string",
+            "plan_price": "double",
+            "subscription_plan_name": "string",
+            "number_of_cycles": "double",
+            "subscription_plan_index": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Product Subscription",
       "paged": false,
       "suffix": "/v1/products/{Product ID}/subscriptions/{Subscription ID}",
-      "description": "One subscription plan on one product. Requires both ids. The recurring offer attached to a product."
+      "description": "One subscription plan on one product. Requires both ids. The recurring offer attached to a product.",
+      "responseSchema": {
+        "id": "double",
+        "frequency": "double",
+        "active": "boolean",
+        "url": "string",
+        "cycle_type": "string",
+        "plan_price": "double",
+        "subscription_plan_name": "string",
+        "number_of_cycles": "double",
+        "subscription_plan_index": "double"
+      }
     },
     {
       "name": "Synced Products",
       "paged": true,
       "suffix": "/v1/products/sync?sync_token={Sync Token}",
-      "description": "Products changed since a sync token was issued. Requires the token. The incremental-sync route for the catalogue, which the plain listing cannot provide."
+      "description": "Products changed since a sync token was issued. Requires the token. The incremental-sync route for the catalogue, which the plain listing cannot provide.",
+      "responseSchema": {
+        "product_statuses": [
+          {
+            "status": "string",
+            "product": {
+              "id": "double",
+              "sku": "string",
+              "url": "string",
+              "status": "double",
+              "product_name": "string",
+              "product_desc": "string",
+              "product_price": "double",
+              "product_short_desc": "string",
+              "subscription_only": "boolean",
+              "product_options": [
+                {
+                  "id": "double",
+                  "name": "string",
+                  "label": "string",
+                  "required": "boolean",
+                  "type": "string",
+                  "values": [
+                    {
+                      "id": "double",
+                      "label": "string",
+                      "sku": "string",
+                      "index": "double",
+                      "is_default": "boolean",
+                      "price_adjustment": "double"
+                    }
+                  ],
+                  "min_chars": "double",
+                  "max_chars": "double",
+                  "allow_spaces": "boolean",
+                  "can_end_with_character": "boolean",
+                  "can_end_with_number": "boolean",
+                  "can_contain_character": "boolean",
+                  "can_contain_number": "boolean",
+                  "can_start_with_character": "boolean",
+                  "can_start_with_number": "boolean",
+                  "text_message": "string",
+                  "display_index": "double"
+                }
+              ],
+              "subscription_plans": [
+                {
+                  "id": "double",
+                  "cycle": "double",
+                  "frequency": "double",
+                  "url": "string",
+                  "active": "boolean",
+                  "subscription_plan_name": "string",
+                  "number_of_cycles": "double",
+                  "plan_price": "double",
+                  "subscription_plan_index": "double"
+                }
+              ]
+            }
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string",
+        "sync_token": "string"
+      }
     },
     {
       "name": "Hook Event Types",
       "paged": false,
       "suffix": "/v1/hooks/event_keys",
-      "description": "The event types a webhook can subscribe to. Reference data."
+      "description": "The event types a webhook can subscribe to. Reference data.",
+      "responseSchema": [
+        "string"
+      ]
     },
     {
       "name": "Hook Subscriptions",
       "paged": false,
       "suffix": "/v1/hooks",
-      "description": "The webhooks registered by the calling application, with the events each subscribes to. Note it lists this application's hooks, not every hook on the account."
+      "description": "The webhooks registered by the calling application, with the events each subscribes to. Note it lists this application's hooks, not every hook on the account.",
+      "responseSchema": [
+        {
+          "key": "string",
+          "eventKey": "string",
+          "hookUrl": "string",
+          "status": "string"
+        }
+      ]
     },
     {
       "name": "Hook Subscription",
       "paged": false,
       "suffix": "/v1/hooks/{Key}",
-      "description": "One webhook by key."
+      "description": "One webhook by key.",
+      "responseSchema": {
+        "key": "string",
+        "eventKey": "string",
+        "hookUrl": "string",
+        "status": "string"
+      }
     },
     {
       "name": "Application Status",
       "paged": false,
       "suffix": "/v1/setting/application/enabled",
-      "description": "Whether the Keap application is enabled. A health check."
+      "description": "Whether the Keap application is enabled. A health check.",
+      "responseSchema": {
+        "value": "string"
+      }
     },
     {
       "name": "Contact Types",
       "paged": false,
       "suffix": "/v1/setting/contact/optionTypes",
-      "description": "The contact option types configured. Reference data for the contact model."
+      "description": "The contact option types configured. Reference data for the contact model.",
+      "responseSchema": {
+        "value": "string"
+      }
     },
     {
       "name": "Tags",
@@ -317,49 +1991,210 @@
           "parameterName": "Tag ID"
         }
       ],
-      "description": "The tags defined, filterable by category and name. Since automation runs on tags, this list is effectively the catalogue of states and segments the business tracks."
+      "description": "The tags defined, filterable by category and name. Since automation runs on tags, this list is effectively the catalogue of states and segments the business tracks.",
+      "responseSchema": {
+        "tags": [
+          {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "category": {
+              "id": "double",
+              "name": "string",
+              "description": "string"
+            }
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Tag",
       "paged": false,
       "suffix": "/v1/tags/{ID}",
-      "description": "One tag by id."
+      "description": "One tag by id.",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "description": "string",
+        "category": {
+          "id": "double",
+          "name": "string",
+          "description": "string"
+        }
+      }
     },
     {
       "name": "Tagged Companies",
       "paged": true,
       "suffix": "/v1/tags/{Tag ID}/companies",
-      "description": "The companies carrying one tag. Requires a tag id."
+      "description": "The companies carrying one tag. Requires a tag id.",
+      "responseSchema": {
+        "companies": [
+          {
+            "company": {
+              "id": "double",
+              "email": "string",
+              "company_name": "string"
+            },
+            "date_applied": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Tagged Contacts",
       "paged": true,
       "suffix": "/v1/tags/{Tag ID}/contacts",
-      "description": "The contacts carrying one tag. Requires a tag id. The membership behind a segment."
+      "description": "The contacts carrying one tag. Requires a tag id. The membership behind a segment.",
+      "responseSchema": {
+        "contacts": [
+          {
+            "contact": {
+              "id": "double",
+              "email": "string",
+              "first_name": "string",
+              "last_name": "string"
+            },
+            "date_applied": "string"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     },
     {
       "name": "Tasks",
       "paged": true,
       "suffix": "/v1/tasks?contact_id={Contact ID?}&has_due_date={Has Due Date?:true | false}&user_id={User ID?}&since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&completed={Completed?:true | false}",
-      "description": "The to-dos, filterable by contact, due date presence and completion. Carries the contact, due date, priority and owner."
+      "description": "The to-dos, filterable by contact, due date presence and completion. Carries the contact, due date, priority and owner.",
+      "responseSchema": {
+        "tasks": [
+          {
+            "title": "string",
+            "description": "string",
+            "type": "string",
+            "priority": "double",
+            "completed": "boolean",
+            "contact": {
+              "id": "double",
+              "email": "string",
+              "first_name": "string",
+              "last_name": "string"
+            },
+            "url": "string",
+            "due_date": "string",
+            "creation_date": "string",
+            "modification_date": "string",
+            "completion_date": "string",
+            "remind_time": "double",
+            "user_id": "double",
+            "funnel_id": "double",
+            "jgraph_id": "double"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string",
+        "sync_token": "string"
+      }
     },
     {
       "name": "Task",
       "paged": false,
       "suffix": "/v1/tasks/{Task ID}",
-      "description": "One task by id."
+      "description": "One task by id.",
+      "responseSchema": {
+        "title": "string",
+        "description": "string",
+        "type": "string",
+        "priority": "double",
+        "completed": "boolean",
+        "contact": {
+          "id": "double",
+          "email": "string",
+          "first_name": "string",
+          "last_name": "string"
+        },
+        "url": "string",
+        "due_date": "string",
+        "creation_date": "string",
+        "modification_date": "string",
+        "completion_date": "string",
+        "remind_time": "double",
+        "user_id": "double",
+        "funnel_id": "double",
+        "jgraph_id": "double"
+      }
     },
     {
       "name": "Task Model",
       "paged": false,
       "suffix": "/v1/tasks/model",
-      "description": "The schema of the task object."
+      "description": "The schema of the task object.",
+      "responseSchema": {
+        "custom_fields": [
+          {
+            "id": "double",
+            "label": "string",
+            "options": [
+              {
+                "id": "string",
+                "label": "string"
+              }
+            ],
+            "record_type": "string",
+            "field_type": "string",
+            "field_name": "string",
+            "default_value": "string"
+          }
+        ],
+        "optional_properties": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Search Tasks",
       "paged": true,
       "suffix": "/v1/tasks/search?contact_id={Contact ID?}&has_due_date={Has Due Date?:true | false}&user_id={User ID}&since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&completed={Completed?:true | false}",
-      "description": "Tasks matching search criteria. The filtered route where the plain listing's parameters are insufficient."
+      "description": "Tasks matching search criteria. The filtered route where the plain listing's parameters are insufficient.",
+      "responseSchema": {
+        "tasks": [
+          {
+            "title": "string",
+            "description": "string",
+            "type": "string",
+            "priority": "double",
+            "completed": "boolean",
+            "contact": {
+              "id": "double",
+              "email": "string",
+              "first_name": "string",
+              "last_name": "string"
+            },
+            "url": "string",
+            "due_date": "string",
+            "creation_date": "string",
+            "modification_date": "string",
+            "completion_date": "string",
+            "remind_time": "double",
+            "user_id": "double",
+            "funnel_id": "double",
+            "jgraph_id": "double"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string",
+        "sync_token": "string"
+      }
     },
     {
       "name": "User Info",
@@ -371,7 +2206,59 @@
       "name": "Users",
       "paged": true,
       "suffix": "/v1/users?include_inactive={Include Inactive?:true|false}&include_partners={Include Partners?:true | false}",
-      "description": "The users of the account, optionally including inactive ones. Every record carries an owner, so this is the dimension per-person performance joins to."
+      "description": "The users of the account, optionally including inactive ones. Every record carries an owner, so this is the dimension per-person performance joins to.",
+      "responseSchema": {
+        "users": [
+          {
+            "address": {
+              "line1": "string",
+              "line2": "string",
+              "locality": "string",
+              "region": "string",
+              "zip_code": "string",
+              "zip_four": "string",
+              "country_code": "string"
+            },
+            "website": "string",
+            "partner": "boolean",
+            "status": "string",
+            "company_name": "string",
+            "email_address": "string",
+            "phone_numbers": [
+              {
+                "number": "string",
+                "extension": "string",
+                "field": "string",
+                "type": "string",
+                "number_e164": "string"
+              }
+            ],
+            "fax_numbers": [
+              {
+                "number": "string",
+                "field": "string",
+                "type": "string"
+              }
+            ],
+            "given_name": "string",
+            "family_name": "string",
+            "middle_name": "string",
+            "preferred_name": "string",
+            "time_zone": "string",
+            "job_title": "string",
+            "infusionsoft_id": "string",
+            "date_created": "string",
+            "created_by": "double",
+            "last_updated": "string",
+            "last_updated_by": "double",
+            "global_user_id": "double",
+            "id": "double"
+          }
+        ],
+        "count": "double",
+        "next": "string",
+        "previous": "string"
+      }
     }
   ]
 }

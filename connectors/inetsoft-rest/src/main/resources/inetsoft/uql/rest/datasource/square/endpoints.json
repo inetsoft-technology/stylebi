@@ -12,13 +12,576 @@
           "parameterName": "Location ID"
         }
       ],
-      "description": "Card, cash and external payments taken, one row each -- the central table of a Square account. Carries the amount, tip, total and app fee, the processing fee, the status, source_type, location_id, order_id, customer_id, created_at and updated_at, the receipt number and url, and card details including brand and last four digits. THREE THINGS DECIDE WHETHER A TOTAL IS RIGHT. MONEY IS IN THE SMALLEST CURRENCY UNIT: an amount of 1000 with currency USD is ten dollars, not a thousand, and every money field in this connector works that way. STATUS matters: APPROVED is authorised but not captured, only COMPLETED is settled money, and CANCELED and FAILED are rows that never became revenue. And processing_fee is frequently ABSENT until Square settles, so net revenue computed the same day is not the net revenue computed a week later. Filter by location_id and a time range; both are required in practice on a multi-location account."
+      "description": "Card, cash and external payments taken, one row each -- the central table of a Square account. Carries the amount, tip, total and app fee, the processing fee, the status, source_type, location_id, order_id, customer_id, created_at and updated_at, the receipt number and url, and card details including brand and last four digits. THREE THINGS DECIDE WHETHER A TOTAL IS RIGHT. MONEY IS IN THE SMALLEST CURRENCY UNIT: an amount of 1000 with currency USD is ten dollars, not a thousand, and every money field in this connector works that way. STATUS matters: APPROVED is authorised but not captured, only COMPLETED is settled money, and CANCELED and FAILED are rows that never became revenue. And processing_fee is frequently ABSENT until Square settles, so net revenue computed the same day is not the net revenue computed a week later. Filter by location_id and a time range; both are required in practice on a multi-location account.",
+      "responseSchema": {
+        "payments": [
+          {
+            "id": "string",
+            "created_at": "string",
+            "updated_at": "string",
+            "amount_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "tip_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "total_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "app_fee_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "approved_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "processing_fee": [
+              {
+                "effective_at": "string",
+                "type": "string",
+                "amount_money": {
+                  "amount": "double",
+                  "currency": "string"
+                }
+              }
+            ],
+            "refunded_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "status": "string",
+            "delay_duration": "string",
+            "delay_action": "string",
+            "delayed_until": "string",
+            "source_type": "string",
+            "card_details": {
+              "status": "string",
+              "card": {
+                "id": "string",
+                "card_brand": "string",
+                "last_4": "string",
+                "exp_month": "double",
+                "exp_year": "double",
+                "cardholder_name": "string",
+                "billing_address": {
+                  "address_line_1": "string",
+                  "address_line_2": "string",
+                  "address_line_3": "string",
+                  "locality": "string",
+                  "sublocality": "string",
+                  "sublocality_2": "string",
+                  "sublocality_3": "string",
+                  "administrative_district_level_1": "string",
+                  "administrative_district_level_2": "string",
+                  "administrative_district_level_3": "string",
+                  "postal_code": "string",
+                  "country": "string",
+                  "first_name": "string",
+                  "last_name": "string"
+                },
+                "fingerprint": "string",
+                "customer_id": "string",
+                "merchant_id": "string",
+                "reference_id": "string",
+                "enabled": "boolean",
+                "card_type": "string",
+                "prepaid_type": "string",
+                "bin": "string",
+                "created_at": "string",
+                "disabled_at": "string",
+                "version": "double",
+                "card_co_brand": "string",
+                "issuer_alert": "string",
+                "issuer_alert_at": "string",
+                "hsa_fsa": "boolean"
+              },
+              "entry_method": "string",
+              "cvv_status": "string",
+              "avs_status": "string",
+              "auth_result_code": "string",
+              "application_identifier": "string",
+              "application_name": "string",
+              "application_cryptogram": "string",
+              "verification_method": "string",
+              "verification_results": "string",
+              "statement_description": "string",
+              "device_details": {
+                "device_id": "string",
+                "device_installation_id": "string",
+                "device_name": "string"
+              },
+              "card_payment_timeline": {
+                "authorized_at": "string",
+                "captured_at": "string",
+                "voided_at": "string"
+              },
+              "refund_requires_card_presence": "boolean",
+              "errors": [
+                {
+                  "category": "string",
+                  "code": "string",
+                  "detail": "string",
+                  "field": "string"
+                }
+              ],
+              "applied_card_surcharge_details": {
+                "card_surcharge_money": {
+                  "amount": "double",
+                  "currency": "string"
+                }
+              },
+              "wallet_type": "string"
+            },
+            "cash_details": {
+              "buyer_supplied_money": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "change_back_money": {
+                "amount": "double",
+                "currency": "string"
+              }
+            },
+            "bank_account_details": {
+              "bank_name": "string",
+              "transfer_type": "string",
+              "account_ownership_type": "string",
+              "fingerprint": "string",
+              "country": "string",
+              "statement_description": "string",
+              "ach_details": {
+                "routing_number": "string",
+                "account_number_suffix": "string",
+                "account_type": "string"
+              },
+              "errors": [
+                {
+                  "category": "string",
+                  "code": "string",
+                  "detail": "string",
+                  "field": "string"
+                }
+              ]
+            },
+            "external_details": {
+              "type": "string",
+              "source": "string",
+              "source_id": "string",
+              "source_fee_money": {
+                "amount": "double",
+                "currency": "string"
+              }
+            },
+            "wallet_details": {
+              "status": "string",
+              "brand": "string",
+              "cash_app_details": {
+                "buyer_full_name": "string",
+                "buyer_country_code": "string",
+                "buyer_cashtag": "string"
+              },
+              "lightning_details": {
+                "payment_url": "string"
+              },
+              "errors": [
+                {
+                  "category": "string",
+                  "code": "string",
+                  "detail": "string",
+                  "field": "string"
+                }
+              ]
+            },
+            "buy_now_pay_later_details": {
+              "brand": "string",
+              "afterpay_details": {
+                "email_address": "string"
+              },
+              "clearpay_details": {
+                "email_address": "string"
+              },
+              "errors": [
+                {
+                  "category": "string",
+                  "code": "string",
+                  "detail": "string",
+                  "field": "string"
+                }
+              ]
+            },
+            "square_account_details": {
+              "payment_source_token": "string",
+              "errors": [
+                {
+                  "category": "string",
+                  "code": "string",
+                  "detail": "string",
+                  "field": "string"
+                }
+              ]
+            },
+            "location_id": "string",
+            "order_id": "string",
+            "reference_id": "string",
+            "customer_id": "string",
+            "employee_id": "string",
+            "team_member_id": "string",
+            "refund_ids": [
+              "string"
+            ],
+            "risk_evaluation": {
+              "created_at": "string",
+              "risk_level": "string"
+            },
+            "terminal_checkout_id": "string",
+            "buyer_email_address": "string",
+            "billing_address": {
+              "address_line_1": "string",
+              "address_line_2": "string",
+              "address_line_3": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "sublocality_2": "string",
+              "sublocality_3": "string",
+              "administrative_district_level_1": "string",
+              "administrative_district_level_2": "string",
+              "administrative_district_level_3": "string",
+              "postal_code": "string",
+              "country": "string",
+              "first_name": "string",
+              "last_name": "string"
+            },
+            "shipping_address": {
+              "address_line_1": "string",
+              "address_line_2": "string",
+              "address_line_3": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "sublocality_2": "string",
+              "sublocality_3": "string",
+              "administrative_district_level_1": "string",
+              "administrative_district_level_2": "string",
+              "administrative_district_level_3": "string",
+              "postal_code": "string",
+              "country": "string",
+              "first_name": "string",
+              "last_name": "string"
+            },
+            "note": "string",
+            "statement_description_identifier": "string",
+            "capabilities": [
+              "string"
+            ],
+            "receipt_number": "string",
+            "receipt_url": "string",
+            "device_details": {
+              "device_id": "string",
+              "device_installation_id": "string",
+              "device_name": "string"
+            },
+            "application_details": {
+              "square_product": "string",
+              "application_id": "string"
+            },
+            "is_offline_payment": "boolean",
+            "offline_payment_details": {
+              "client_created_at": "string"
+            },
+            "version_token": "string"
+          }
+        ],
+        "cursor": "string"
+      }
     },
     {
       "name": "Payment",
       "paged": false,
       "suffix": "/v2/payments/{Payment ID}",
-      "description": "One payment by id, with the full detail including the itemised processing fees."
+      "description": "One payment by id, with the full detail including the itemised processing fees.",
+      "responseSchema": {
+        "payment": {
+          "id": "string",
+          "created_at": "string",
+          "updated_at": "string",
+          "amount_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "tip_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "total_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "app_fee_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "approved_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "processing_fee": [
+            {
+              "effective_at": "string",
+              "type": "string",
+              "amount_money": {
+                "amount": "double",
+                "currency": "string"
+              }
+            }
+          ],
+          "refunded_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "status": "string",
+          "delay_duration": "string",
+          "delay_action": "string",
+          "delayed_until": "string",
+          "source_type": "string",
+          "card_details": {
+            "status": "string",
+            "card": {
+              "id": "string",
+              "card_brand": "string",
+              "last_4": "string",
+              "exp_month": "double",
+              "exp_year": "double",
+              "cardholder_name": "string",
+              "billing_address": {
+                "address_line_1": "string",
+                "address_line_2": "string",
+                "address_line_3": "string",
+                "locality": "string",
+                "sublocality": "string",
+                "sublocality_2": "string",
+                "sublocality_3": "string",
+                "administrative_district_level_1": "string",
+                "administrative_district_level_2": "string",
+                "administrative_district_level_3": "string",
+                "postal_code": "string",
+                "country": "string",
+                "first_name": "string",
+                "last_name": "string"
+              },
+              "fingerprint": "string",
+              "customer_id": "string",
+              "merchant_id": "string",
+              "reference_id": "string",
+              "enabled": "boolean",
+              "card_type": "string",
+              "prepaid_type": "string",
+              "bin": "string",
+              "created_at": "string",
+              "disabled_at": "string",
+              "version": "double",
+              "card_co_brand": "string",
+              "issuer_alert": "string",
+              "issuer_alert_at": "string",
+              "hsa_fsa": "boolean"
+            },
+            "entry_method": "string",
+            "cvv_status": "string",
+            "avs_status": "string",
+            "auth_result_code": "string",
+            "application_identifier": "string",
+            "application_name": "string",
+            "application_cryptogram": "string",
+            "verification_method": "string",
+            "verification_results": "string",
+            "statement_description": "string",
+            "device_details": {
+              "device_id": "string",
+              "device_installation_id": "string",
+              "device_name": "string"
+            },
+            "card_payment_timeline": {
+              "authorized_at": "string",
+              "captured_at": "string",
+              "voided_at": "string"
+            },
+            "refund_requires_card_presence": "boolean",
+            "errors": [
+              {
+                "category": "string",
+                "code": "string",
+                "detail": "string",
+                "field": "string"
+              }
+            ],
+            "applied_card_surcharge_details": {
+              "card_surcharge_money": {
+                "amount": "double",
+                "currency": "string"
+              }
+            },
+            "wallet_type": "string"
+          },
+          "cash_details": {
+            "buyer_supplied_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "change_back_money": {
+              "amount": "double",
+              "currency": "string"
+            }
+          },
+          "bank_account_details": {
+            "bank_name": "string",
+            "transfer_type": "string",
+            "account_ownership_type": "string",
+            "fingerprint": "string",
+            "country": "string",
+            "statement_description": "string",
+            "ach_details": {
+              "routing_number": "string",
+              "account_number_suffix": "string",
+              "account_type": "string"
+            },
+            "errors": [
+              {
+                "category": "string",
+                "code": "string",
+                "detail": "string",
+                "field": "string"
+              }
+            ]
+          },
+          "external_details": {
+            "type": "string",
+            "source": "string",
+            "source_id": "string",
+            "source_fee_money": {
+              "amount": "double",
+              "currency": "string"
+            }
+          },
+          "wallet_details": {
+            "status": "string",
+            "brand": "string",
+            "cash_app_details": {
+              "buyer_full_name": "string",
+              "buyer_country_code": "string",
+              "buyer_cashtag": "string"
+            },
+            "lightning_details": {
+              "payment_url": "string"
+            },
+            "errors": [
+              {
+                "category": "string",
+                "code": "string",
+                "detail": "string",
+                "field": "string"
+              }
+            ]
+          },
+          "buy_now_pay_later_details": {
+            "brand": "string",
+            "afterpay_details": {
+              "email_address": "string"
+            },
+            "clearpay_details": {
+              "email_address": "string"
+            },
+            "errors": [
+              {
+                "category": "string",
+                "code": "string",
+                "detail": "string",
+                "field": "string"
+              }
+            ]
+          },
+          "square_account_details": {
+            "payment_source_token": "string",
+            "errors": [
+              {
+                "category": "string",
+                "code": "string",
+                "detail": "string",
+                "field": "string"
+              }
+            ]
+          },
+          "location_id": "string",
+          "order_id": "string",
+          "reference_id": "string",
+          "customer_id": "string",
+          "employee_id": "string",
+          "team_member_id": "string",
+          "refund_ids": [
+            "string"
+          ],
+          "risk_evaluation": {
+            "created_at": "string",
+            "risk_level": "string"
+          },
+          "terminal_checkout_id": "string",
+          "buyer_email_address": "string",
+          "billing_address": {
+            "address_line_1": "string",
+            "address_line_2": "string",
+            "address_line_3": "string",
+            "locality": "string",
+            "sublocality": "string",
+            "sublocality_2": "string",
+            "sublocality_3": "string",
+            "administrative_district_level_1": "string",
+            "administrative_district_level_2": "string",
+            "administrative_district_level_3": "string",
+            "postal_code": "string",
+            "country": "string",
+            "first_name": "string",
+            "last_name": "string"
+          },
+          "shipping_address": {
+            "address_line_1": "string",
+            "address_line_2": "string",
+            "address_line_3": "string",
+            "locality": "string",
+            "sublocality": "string",
+            "sublocality_2": "string",
+            "sublocality_3": "string",
+            "administrative_district_level_1": "string",
+            "administrative_district_level_2": "string",
+            "administrative_district_level_3": "string",
+            "postal_code": "string",
+            "country": "string",
+            "first_name": "string",
+            "last_name": "string"
+          },
+          "note": "string",
+          "statement_description_identifier": "string",
+          "capabilities": [
+            "string"
+          ],
+          "receipt_number": "string",
+          "receipt_url": "string",
+          "device_details": {
+            "device_id": "string",
+            "device_installation_id": "string",
+            "device_name": "string"
+          },
+          "application_details": {
+            "square_product": "string",
+            "application_id": "string"
+          },
+          "is_offline_payment": "boolean",
+          "offline_payment_details": {
+            "client_created_at": "string"
+          },
+          "version_token": "string"
+        }
+      }
     },
     {
       "name": "Refunds",
@@ -38,19 +601,247 @@
           "parameterName": "Payment ID"
         }
       ],
-      "description": "Refunds issued, with the amount, the payment refunded, the status, the location, the reason and created_at. Refunds are NOT negative payments and do not appear in the payments table, so net revenue is payments minus this table -- taking payments alone overstates it. Status matters here too: only COMPLETED refunds have actually moved money."
+      "description": "Refunds issued, with the amount, the payment refunded, the status, the location, the reason and created_at. Refunds are NOT negative payments and do not appear in the payments table, so net revenue is payments minus this table -- taking payments alone overstates it. Status matters here too: only COMPLETED refunds have actually moved money.",
+      "responseSchema": {
+        "refunds": [
+          {
+            "id": "string",
+            "status": "string",
+            "location_id": "string",
+            "unlinked": "boolean",
+            "destination_type": "string",
+            "destination_details": {
+              "card_details": {
+                "card": {
+                  "id": "string",
+                  "card_brand": "string",
+                  "last_4": "string",
+                  "exp_month": "double",
+                  "exp_year": "double",
+                  "cardholder_name": "string",
+                  "billing_address": {
+                    "address_line_1": "string",
+                    "address_line_2": "string",
+                    "address_line_3": "string",
+                    "locality": "string",
+                    "sublocality": "string",
+                    "sublocality_2": "string",
+                    "sublocality_3": "string",
+                    "administrative_district_level_1": "string",
+                    "administrative_district_level_2": "string",
+                    "administrative_district_level_3": "string",
+                    "postal_code": "string",
+                    "country": "string",
+                    "first_name": "string",
+                    "last_name": "string"
+                  },
+                  "fingerprint": "string",
+                  "customer_id": "string",
+                  "merchant_id": "string",
+                  "reference_id": "string",
+                  "enabled": "boolean",
+                  "card_type": "string",
+                  "prepaid_type": "string",
+                  "bin": "string",
+                  "created_at": "string",
+                  "disabled_at": "string",
+                  "version": "double",
+                  "card_co_brand": "string",
+                  "issuer_alert": "string",
+                  "issuer_alert_at": "string",
+                  "hsa_fsa": "boolean"
+                },
+                "entry_method": "string",
+                "auth_result_code": "string"
+              },
+              "cash_details": {
+                "seller_supplied_money": {
+                  "amount": "double",
+                  "currency": "string"
+                },
+                "change_back_money": {
+                  "amount": "double",
+                  "currency": "string"
+                }
+              },
+              "external_details": {
+                "type": "string",
+                "source": "string",
+                "source_id": "string"
+              }
+            },
+            "amount_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "app_fee_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "processing_fee": [
+              {
+                "effective_at": "string",
+                "type": "string",
+                "amount_money": {
+                  "amount": "double",
+                  "currency": "string"
+                }
+              }
+            ],
+            "payment_id": "string",
+            "order_id": "string",
+            "reason": "string",
+            "created_at": "string",
+            "updated_at": "string",
+            "team_member_id": "string",
+            "terminal_refund_id": "string"
+          }
+        ],
+        "cursor": "string"
+      }
     },
     {
       "name": "Refund",
       "paged": false,
       "suffix": "/v2/refunds/{Refund ID}",
-      "description": "One refund by id."
+      "description": "One refund by id.",
+      "responseSchema": {
+        "refund": {
+          "id": "string",
+          "status": "string",
+          "location_id": "string",
+          "unlinked": "boolean",
+          "destination_type": "string",
+          "destination_details": {
+            "card_details": {
+              "card": {
+                "id": "string",
+                "card_brand": "string",
+                "last_4": "string",
+                "exp_month": "double",
+                "exp_year": "double",
+                "cardholder_name": "string",
+                "billing_address": {
+                  "address_line_1": "string",
+                  "address_line_2": "string",
+                  "address_line_3": "string",
+                  "locality": "string",
+                  "sublocality": "string",
+                  "sublocality_2": "string",
+                  "sublocality_3": "string",
+                  "administrative_district_level_1": "string",
+                  "administrative_district_level_2": "string",
+                  "administrative_district_level_3": "string",
+                  "postal_code": "string",
+                  "country": "string",
+                  "first_name": "string",
+                  "last_name": "string"
+                },
+                "fingerprint": "string",
+                "customer_id": "string",
+                "merchant_id": "string",
+                "reference_id": "string",
+                "enabled": "boolean",
+                "card_type": "string",
+                "prepaid_type": "string",
+                "bin": "string",
+                "created_at": "string",
+                "disabled_at": "string",
+                "version": "double",
+                "card_co_brand": "string",
+                "issuer_alert": "string",
+                "issuer_alert_at": "string",
+                "hsa_fsa": "boolean"
+              },
+              "entry_method": "string",
+              "auth_result_code": "string"
+            },
+            "cash_details": {
+              "seller_supplied_money": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "change_back_money": {
+                "amount": "double",
+                "currency": "string"
+              }
+            },
+            "external_details": {
+              "type": "string",
+              "source": "string",
+              "source_id": "string"
+            }
+          },
+          "amount_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "app_fee_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "processing_fee": [
+            {
+              "effective_at": "string",
+              "type": "string",
+              "amount_money": {
+                "amount": "double",
+                "currency": "string"
+              }
+            }
+          ],
+          "payment_id": "string",
+          "order_id": "string",
+          "reason": "string",
+          "created_at": "string",
+          "updated_at": "string",
+          "team_member_id": "string",
+          "terminal_refund_id": "string"
+        }
+      }
     },
     {
       "name": "Catalog Info",
       "paged": false,
       "suffix": "/v2/catalog/info",
-      "description": "The limits of the catalogue API -- batch sizes and supported types. Reference data about the API itself, not about the catalogue."
+      "description": "The limits of the catalogue API -- batch sizes and supported types. Reference data about the API itself, not about the catalogue.",
+      "responseSchema": {
+        "limits": {
+          "batch_upsert_max_objects_per_batch": "double",
+          "batch_upsert_max_total_objects": "double",
+          "batch_retrieve_max_object_ids": "double",
+          "search_max_page_limit": "double",
+          "batch_delete_max_object_ids": "double",
+          "update_item_taxes_max_item_ids": "double",
+          "update_item_taxes_max_taxes_to_enable": "double",
+          "update_item_taxes_max_taxes_to_disable": "double",
+          "update_item_modifier_lists_max_item_ids": "double",
+          "update_item_modifier_lists_max_modifier_lists_to_enable": "double",
+          "update_item_modifier_lists_max_modifier_lists_to_disable": "double"
+        },
+        "standard_unit_description_group": {
+          "standard_unit_descriptions": [
+            {
+              "unit": {
+                "custom_unit": {
+                  "name": "string",
+                  "abbreviation": "string"
+                },
+                "area_unit": "string",
+                "length_unit": "string",
+                "volume_unit": "string",
+                "weight_unit": "string",
+                "generic_unit": "string",
+                "time_unit": "string",
+                "type": "string"
+              },
+              "name": "string",
+              "abbreviation": "string"
+            }
+          ],
+          "language_code": "string"
+        }
+      }
     },
     {
       "name": "List Catalog",
@@ -70,25 +861,971 @@
           "parameterName": "Catalog Object ID"
         }
       ],
-      "description": "The catalogue -- but note its shape before using it. Square stores everything sellable as a CATALOG OBJECT with a type discriminator, so this ONE endpoint returns items, item variations, categories, taxes, discounts, modifiers, modifier lists and images, all in one list, and the types parameter is what narrows it. THE PRICE IS NOT ON THE ITEM: an ITEM holds the name and description while its ITEM_VARIATION children hold the price, sku and stock behaviour, so a catalogue with prices requires both types and a join between them."
+      "description": "The catalogue -- but note its shape before using it. Square stores everything sellable as a CATALOG OBJECT with a type discriminator, so this ONE endpoint returns items, item variations, categories, taxes, discounts, modifiers, modifier lists and images, all in one list, and the types parameter is what narrows it. THE PRICE IS NOT ON THE ITEM: an ITEM holds the name and description while its ITEM_VARIATION children hold the price, sku and stock behaviour, so a catalogue with prices requires both types and a join between them.",
+      "responseSchema": {
+        "cursor": "string",
+        "objects": [
+          {
+            "type": "string",
+            "id": "string",
+            "updated_at": "string",
+            "version": "double",
+            "is_deleted": "boolean",
+            "custom_attribute_values": {
+              "*": {
+                "name": "string",
+                "string_value": "string",
+                "custom_attribute_definition_id": "string",
+                "type": "string",
+                "number_value": "string",
+                "boolean_value": "boolean",
+                "selection_uid_values": [
+                  "string"
+                ],
+                "key": "string"
+              }
+            },
+            "catalog_v1_ids": [
+              {
+                "catalog_v1_id": "string",
+                "location_id": "string"
+              }
+            ],
+            "present_at_all_locations": "boolean",
+            "present_at_location_ids": [
+              "string"
+            ],
+            "absent_at_location_ids": [
+              "string"
+            ],
+            "item_data": {
+              "name": "string",
+              "description": "string",
+              "abbreviation": "string",
+              "label_color": "string",
+              "is_taxable": "boolean",
+              "category_id": "string",
+              "buyer_facing_name": "string",
+              "tax_ids": [
+                "string"
+              ],
+              "modifier_list_info": [
+                {
+                  "modifier_list_id": "string",
+                  "modifier_overrides": [
+                    {
+                      "modifier_id": "string",
+                      "on_by_default": "boolean",
+                      "hidden_online_override": "string",
+                      "on_by_default_override": "string"
+                    }
+                  ],
+                  "min_selected_modifiers": "double",
+                  "max_selected_modifiers": "double",
+                  "enabled": "boolean",
+                  "ordinal": "double",
+                  "allow_quantities": "string",
+                  "is_conversational": "string",
+                  "hidden_from_customer_override": "string"
+                }
+              ],
+              "product_type": "string",
+              "skip_modifier_screen": "boolean",
+              "item_options": [
+                {
+                  "item_option_id": "string"
+                }
+              ],
+              "ecom_uri": "string",
+              "ecom_image_uris": [
+                "string"
+              ],
+              "image_ids": [
+                "string"
+              ],
+              "sort_name": "string",
+              "categories": [
+                {
+                  "id": "string",
+                  "ordinal": "double"
+                }
+              ],
+              "description_html": "string",
+              "description_plaintext": "string",
+              "kitchen_name": "string",
+              "channels": [
+                "string"
+              ],
+              "is_archived": "boolean",
+              "ecom_seo_data": {
+                "page_title": "string",
+                "page_description": "string",
+                "permalink": "string"
+              },
+              "food_and_beverage_details": {
+                "calorie_count": "double",
+                "dietary_preferences": [
+                  {
+                    "type": "string",
+                    "standard_name": "string",
+                    "custom_name": "string"
+                  }
+                ],
+                "ingredients": [
+                  {
+                    "type": "string",
+                    "standard_name": "string",
+                    "custom_name": "string"
+                  }
+                ]
+              },
+              "reporting_category": {
+                "id": "string",
+                "ordinal": "double"
+              },
+              "is_alcoholic": "boolean"
+            },
+            "category_data": {
+              "name": "string",
+              "image_ids": [
+                "string"
+              ],
+              "category_type": "string",
+              "parent_category": {
+                "id": "string",
+                "ordinal": "double"
+              },
+              "is_top_level": "boolean",
+              "channels": [
+                "string"
+              ],
+              "availability_period_ids": [
+                "string"
+              ],
+              "online_visibility": "boolean",
+              "root_category": "string",
+              "ecom_seo_data": {
+                "page_title": "string",
+                "page_description": "string",
+                "permalink": "string"
+              },
+              "path_to_root": [
+                {
+                  "category_id": "string",
+                  "category_name": "string"
+                }
+              ]
+            },
+            "item_variation_data": {
+              "item_id": "string",
+              "name": "string",
+              "sku": "string",
+              "upc": "string",
+              "ordinal": "double",
+              "pricing_type": "string",
+              "price_money": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "location_overrides": [
+                {
+                  "location_id": "string",
+                  "price_money": {
+                    "amount": "double",
+                    "currency": "string"
+                  },
+                  "pricing_type": "string",
+                  "track_inventory": "boolean",
+                  "inventory_alert_type": "string",
+                  "inventory_alert_threshold": "double",
+                  "sold_out": "boolean",
+                  "sold_out_valid_until": "string"
+                }
+              ],
+              "track_inventory": "boolean",
+              "inventory_alert_type": "string",
+              "inventory_alert_threshold": "double",
+              "user_data": "string",
+              "service_duration": "double",
+              "available_for_booking": "boolean",
+              "item_option_values": [
+                {
+                  "item_option_id": "string",
+                  "item_option_value_id": "string"
+                }
+              ],
+              "measurement_unit_id": "string",
+              "sellable": "boolean",
+              "stockable": "boolean",
+              "image_ids": [
+                "string"
+              ],
+              "team_member_ids": [
+                "string"
+              ],
+              "stockable_conversion": {
+                "stockable_item_variation_id": "string",
+                "stockable_quantity": "string",
+                "nonstockable_quantity": "string"
+              },
+              "kitchen_name": "string",
+              "vendor_information": [
+                {
+                  "vendor_id": "string",
+                  "vendor_code": "string",
+                  "unit_cost_money": {
+                    "amount": "double",
+                    "currency": "string"
+                  }
+                }
+              ]
+            },
+            "tax_data": {
+              "name": "string",
+              "calculation_phase": "string",
+              "inclusion_type": "string",
+              "percentage": "string",
+              "applies_to_custom_amounts": "boolean",
+              "enabled": "boolean",
+              "applies_to_product_set_id": "string"
+            },
+            "discount_data": {
+              "name": "string",
+              "discount_type": "string",
+              "percentage": "string",
+              "amount_money": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "pin_required": "boolean",
+              "label_color": "string",
+              "modify_tax_basis": "string",
+              "maximum_amount_money": {
+                "amount": "double",
+                "currency": "string"
+              }
+            },
+            "modifier_list_data": {
+              "name": "string",
+              "ordinal": "double",
+              "selection_type": "string",
+              "image_ids": [
+                "string"
+              ],
+              "allow_quantities": "boolean",
+              "is_conversational": "boolean",
+              "modifier_type": "string",
+              "max_length": "double",
+              "text_required": "boolean",
+              "internal_name": "string",
+              "min_selected_modifiers": "double",
+              "max_selected_modifiers": "double",
+              "hidden_from_customer": "boolean"
+            },
+            "modifier_data": {
+              "name": "string",
+              "price_money": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "on_by_default": "boolean",
+              "ordinal": "double",
+              "modifier_list_id": "string",
+              "location_overrides": [
+                {
+                  "location_id": "string",
+                  "price_money": {
+                    "amount": "double",
+                    "currency": "string"
+                  },
+                  "sold_out": "boolean"
+                }
+              ],
+              "kitchen_name": "string",
+              "image_id": "string",
+              "hidden_online": "boolean",
+              "child_modifier_list_ids": [
+                "string"
+              ]
+            },
+            "image_data": {
+              "name": "string",
+              "url": "string",
+              "caption": "string",
+              "photo_studio_order_id": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Catalog Object",
       "paged": false,
       "suffix": "/v2/catalog/object/{Object ID}?include_related_objects={Include Related Objects?:true|false}",
-      "description": "One catalogue object by id, optionally with the related objects it depends on. Requires the object id. Use the related-objects option to pull an item's variations and category in a single call rather than resolving them separately."
+      "description": "One catalogue object by id, optionally with the related objects it depends on. Requires the object id. Use the related-objects option to pull an item's variations and category in a single call rather than resolving them separately.",
+      "responseSchema": {
+        "object": {
+          "type": "string",
+          "id": "string",
+          "updated_at": "string",
+          "version": "double",
+          "is_deleted": "boolean",
+          "custom_attribute_values": {
+            "*": {
+              "name": "string",
+              "string_value": "string",
+              "custom_attribute_definition_id": "string",
+              "type": "string",
+              "number_value": "string",
+              "boolean_value": "boolean",
+              "selection_uid_values": [
+                "string"
+              ],
+              "key": "string"
+            }
+          },
+          "catalog_v1_ids": [
+            {
+              "catalog_v1_id": "string",
+              "location_id": "string"
+            }
+          ],
+          "present_at_all_locations": "boolean",
+          "present_at_location_ids": [
+            "string"
+          ],
+          "absent_at_location_ids": [
+            "string"
+          ],
+          "item_data": {
+            "name": "string",
+            "description": "string",
+            "abbreviation": "string",
+            "label_color": "string",
+            "is_taxable": "boolean",
+            "category_id": "string",
+            "buyer_facing_name": "string",
+            "tax_ids": [
+              "string"
+            ],
+            "modifier_list_info": [
+              {
+                "modifier_list_id": "string",
+                "modifier_overrides": [
+                  {
+                    "modifier_id": "string",
+                    "on_by_default": "boolean",
+                    "hidden_online_override": "string",
+                    "on_by_default_override": "string"
+                  }
+                ],
+                "min_selected_modifiers": "double",
+                "max_selected_modifiers": "double",
+                "enabled": "boolean",
+                "ordinal": "double",
+                "allow_quantities": "string",
+                "is_conversational": "string",
+                "hidden_from_customer_override": "string"
+              }
+            ],
+            "product_type": "string",
+            "skip_modifier_screen": "boolean",
+            "item_options": [
+              {
+                "item_option_id": "string"
+              }
+            ],
+            "ecom_uri": "string",
+            "ecom_image_uris": [
+              "string"
+            ],
+            "image_ids": [
+              "string"
+            ],
+            "sort_name": "string",
+            "categories": [
+              {
+                "id": "string",
+                "ordinal": "double"
+              }
+            ],
+            "description_html": "string",
+            "description_plaintext": "string",
+            "kitchen_name": "string",
+            "channels": [
+              "string"
+            ],
+            "is_archived": "boolean",
+            "ecom_seo_data": {
+              "page_title": "string",
+              "page_description": "string",
+              "permalink": "string"
+            },
+            "food_and_beverage_details": {
+              "calorie_count": "double",
+              "dietary_preferences": [
+                {
+                  "type": "string",
+                  "standard_name": "string",
+                  "custom_name": "string"
+                }
+              ],
+              "ingredients": [
+                {
+                  "type": "string",
+                  "standard_name": "string",
+                  "custom_name": "string"
+                }
+              ]
+            },
+            "reporting_category": {
+              "id": "string",
+              "ordinal": "double"
+            },
+            "is_alcoholic": "boolean"
+          },
+          "category_data": {
+            "name": "string",
+            "image_ids": [
+              "string"
+            ],
+            "category_type": "string",
+            "parent_category": {
+              "id": "string",
+              "ordinal": "double"
+            },
+            "is_top_level": "boolean",
+            "channels": [
+              "string"
+            ],
+            "availability_period_ids": [
+              "string"
+            ],
+            "online_visibility": "boolean",
+            "root_category": "string",
+            "ecom_seo_data": {
+              "page_title": "string",
+              "page_description": "string",
+              "permalink": "string"
+            },
+            "path_to_root": [
+              {
+                "category_id": "string",
+                "category_name": "string"
+              }
+            ]
+          },
+          "item_variation_data": {
+            "item_id": "string",
+            "name": "string",
+            "sku": "string",
+            "upc": "string",
+            "ordinal": "double",
+            "pricing_type": "string",
+            "price_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "location_overrides": [
+              {
+                "location_id": "string",
+                "price_money": {
+                  "amount": "double",
+                  "currency": "string"
+                },
+                "pricing_type": "string",
+                "track_inventory": "boolean",
+                "inventory_alert_type": "string",
+                "inventory_alert_threshold": "double",
+                "sold_out": "boolean",
+                "sold_out_valid_until": "string"
+              }
+            ],
+            "track_inventory": "boolean",
+            "inventory_alert_type": "string",
+            "inventory_alert_threshold": "double",
+            "user_data": "string",
+            "service_duration": "double",
+            "available_for_booking": "boolean",
+            "item_option_values": [
+              {
+                "item_option_id": "string",
+                "item_option_value_id": "string"
+              }
+            ],
+            "measurement_unit_id": "string",
+            "sellable": "boolean",
+            "stockable": "boolean",
+            "image_ids": [
+              "string"
+            ],
+            "team_member_ids": [
+              "string"
+            ],
+            "stockable_conversion": {
+              "stockable_item_variation_id": "string",
+              "stockable_quantity": "string",
+              "nonstockable_quantity": "string"
+            },
+            "kitchen_name": "string",
+            "vendor_information": [
+              {
+                "vendor_id": "string",
+                "vendor_code": "string",
+                "unit_cost_money": {
+                  "amount": "double",
+                  "currency": "string"
+                }
+              }
+            ]
+          },
+          "tax_data": {
+            "name": "string",
+            "calculation_phase": "string",
+            "inclusion_type": "string",
+            "percentage": "string",
+            "applies_to_custom_amounts": "boolean",
+            "enabled": "boolean",
+            "applies_to_product_set_id": "string"
+          },
+          "discount_data": {
+            "name": "string",
+            "discount_type": "string",
+            "percentage": "string",
+            "amount_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "pin_required": "boolean",
+            "label_color": "string",
+            "modify_tax_basis": "string",
+            "maximum_amount_money": {
+              "amount": "double",
+              "currency": "string"
+            }
+          },
+          "modifier_list_data": {
+            "name": "string",
+            "ordinal": "double",
+            "selection_type": "string",
+            "image_ids": [
+              "string"
+            ],
+            "allow_quantities": "boolean",
+            "is_conversational": "boolean",
+            "modifier_type": "string",
+            "max_length": "double",
+            "text_required": "boolean",
+            "internal_name": "string",
+            "min_selected_modifiers": "double",
+            "max_selected_modifiers": "double",
+            "hidden_from_customer": "boolean"
+          },
+          "modifier_data": {
+            "name": "string",
+            "price_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "on_by_default": "boolean",
+            "ordinal": "double",
+            "modifier_list_id": "string",
+            "location_overrides": [
+              {
+                "location_id": "string",
+                "price_money": {
+                  "amount": "double",
+                  "currency": "string"
+                },
+                "sold_out": "boolean"
+              }
+            ],
+            "kitchen_name": "string",
+            "image_id": "string",
+            "hidden_online": "boolean",
+            "child_modifier_list_ids": [
+              "string"
+            ]
+          },
+          "image_data": {
+            "name": "string",
+            "url": "string",
+            "caption": "string",
+            "photo_studio_order_id": "string"
+          }
+        },
+        "related_objects": [
+          {
+            "type": "string",
+            "id": "string",
+            "updated_at": "string",
+            "version": "double",
+            "is_deleted": "boolean",
+            "custom_attribute_values": {
+              "*": {
+                "name": "string",
+                "string_value": "string",
+                "custom_attribute_definition_id": "string",
+                "type": "string",
+                "number_value": "string",
+                "boolean_value": "boolean",
+                "selection_uid_values": [
+                  "string"
+                ],
+                "key": "string"
+              }
+            },
+            "catalog_v1_ids": [
+              {
+                "catalog_v1_id": "string",
+                "location_id": "string"
+              }
+            ],
+            "present_at_all_locations": "boolean",
+            "present_at_location_ids": [
+              "string"
+            ],
+            "absent_at_location_ids": [
+              "string"
+            ],
+            "item_data": {
+              "name": "string",
+              "description": "string",
+              "abbreviation": "string",
+              "label_color": "string",
+              "is_taxable": "boolean",
+              "category_id": "string",
+              "buyer_facing_name": "string",
+              "tax_ids": [
+                "string"
+              ],
+              "modifier_list_info": [
+                {
+                  "modifier_list_id": "string",
+                  "modifier_overrides": [
+                    {
+                      "modifier_id": "string",
+                      "on_by_default": "boolean",
+                      "hidden_online_override": "string",
+                      "on_by_default_override": "string"
+                    }
+                  ],
+                  "min_selected_modifiers": "double",
+                  "max_selected_modifiers": "double",
+                  "enabled": "boolean",
+                  "ordinal": "double",
+                  "allow_quantities": "string",
+                  "is_conversational": "string",
+                  "hidden_from_customer_override": "string"
+                }
+              ],
+              "product_type": "string",
+              "skip_modifier_screen": "boolean",
+              "item_options": [
+                {
+                  "item_option_id": "string"
+                }
+              ],
+              "ecom_uri": "string",
+              "ecom_image_uris": [
+                "string"
+              ],
+              "image_ids": [
+                "string"
+              ],
+              "sort_name": "string",
+              "categories": [
+                {
+                  "id": "string",
+                  "ordinal": "double"
+                }
+              ],
+              "description_html": "string",
+              "description_plaintext": "string",
+              "kitchen_name": "string",
+              "channels": [
+                "string"
+              ],
+              "is_archived": "boolean",
+              "ecom_seo_data": {
+                "page_title": "string",
+                "page_description": "string",
+                "permalink": "string"
+              },
+              "food_and_beverage_details": {
+                "calorie_count": "double",
+                "dietary_preferences": [
+                  {
+                    "type": "string",
+                    "standard_name": "string",
+                    "custom_name": "string"
+                  }
+                ],
+                "ingredients": [
+                  {
+                    "type": "string",
+                    "standard_name": "string",
+                    "custom_name": "string"
+                  }
+                ]
+              },
+              "reporting_category": {
+                "id": "string",
+                "ordinal": "double"
+              },
+              "is_alcoholic": "boolean"
+            },
+            "category_data": {
+              "name": "string",
+              "image_ids": [
+                "string"
+              ],
+              "category_type": "string",
+              "parent_category": {
+                "id": "string",
+                "ordinal": "double"
+              },
+              "is_top_level": "boolean",
+              "channels": [
+                "string"
+              ],
+              "availability_period_ids": [
+                "string"
+              ],
+              "online_visibility": "boolean",
+              "root_category": "string",
+              "ecom_seo_data": {
+                "page_title": "string",
+                "page_description": "string",
+                "permalink": "string"
+              },
+              "path_to_root": [
+                {
+                  "category_id": "string",
+                  "category_name": "string"
+                }
+              ]
+            },
+            "item_variation_data": {
+              "item_id": "string",
+              "name": "string",
+              "sku": "string",
+              "upc": "string",
+              "ordinal": "double",
+              "pricing_type": "string",
+              "price_money": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "location_overrides": [
+                {
+                  "location_id": "string",
+                  "price_money": {
+                    "amount": "double",
+                    "currency": "string"
+                  },
+                  "pricing_type": "string",
+                  "track_inventory": "boolean",
+                  "inventory_alert_type": "string",
+                  "inventory_alert_threshold": "double",
+                  "sold_out": "boolean",
+                  "sold_out_valid_until": "string"
+                }
+              ],
+              "track_inventory": "boolean",
+              "inventory_alert_type": "string",
+              "inventory_alert_threshold": "double",
+              "user_data": "string",
+              "service_duration": "double",
+              "available_for_booking": "boolean",
+              "item_option_values": [
+                {
+                  "item_option_id": "string",
+                  "item_option_value_id": "string"
+                }
+              ],
+              "measurement_unit_id": "string",
+              "sellable": "boolean",
+              "stockable": "boolean",
+              "image_ids": [
+                "string"
+              ],
+              "team_member_ids": [
+                "string"
+              ],
+              "stockable_conversion": {
+                "stockable_item_variation_id": "string",
+                "stockable_quantity": "string",
+                "nonstockable_quantity": "string"
+              },
+              "kitchen_name": "string",
+              "vendor_information": [
+                {
+                  "vendor_id": "string",
+                  "vendor_code": "string",
+                  "unit_cost_money": {
+                    "amount": "double",
+                    "currency": "string"
+                  }
+                }
+              ]
+            },
+            "tax_data": {
+              "name": "string",
+              "calculation_phase": "string",
+              "inclusion_type": "string",
+              "percentage": "string",
+              "applies_to_custom_amounts": "boolean",
+              "enabled": "boolean",
+              "applies_to_product_set_id": "string"
+            },
+            "discount_data": {
+              "name": "string",
+              "discount_type": "string",
+              "percentage": "string",
+              "amount_money": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "pin_required": "boolean",
+              "label_color": "string",
+              "modify_tax_basis": "string",
+              "maximum_amount_money": {
+                "amount": "double",
+                "currency": "string"
+              }
+            },
+            "modifier_list_data": {
+              "name": "string",
+              "ordinal": "double",
+              "selection_type": "string",
+              "image_ids": [
+                "string"
+              ],
+              "allow_quantities": "boolean",
+              "is_conversational": "boolean",
+              "modifier_type": "string",
+              "max_length": "double",
+              "text_required": "boolean",
+              "internal_name": "string",
+              "min_selected_modifiers": "double",
+              "max_selected_modifiers": "double",
+              "hidden_from_customer": "boolean"
+            },
+            "modifier_data": {
+              "name": "string",
+              "price_money": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "on_by_default": "boolean",
+              "ordinal": "double",
+              "modifier_list_id": "string",
+              "location_overrides": [
+                {
+                  "location_id": "string",
+                  "price_money": {
+                    "amount": "double",
+                    "currency": "string"
+                  },
+                  "sold_out": "boolean"
+                }
+              ],
+              "kitchen_name": "string",
+              "image_id": "string",
+              "hidden_online": "boolean",
+              "child_modifier_list_ids": [
+                "string"
+              ]
+            },
+            "image_data": {
+              "name": "string",
+              "url": "string",
+              "caption": "string",
+              "photo_studio_order_id": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Inventory Adjustment",
       "paged": false,
       "suffix": "/v2/inventory/adjustment/{Adjustment ID}",
-      "description": "One inventory adjustment by id, with the from and to states, quantity, and the employee and reference behind it. The from-and-to states are what give an adjustment its meaning: IN_STOCK to SOLD is a sale, IN_STOCK to WASTE is a loss."
+      "description": "One inventory adjustment by id, with the from and to states, quantity, and the employee and reference behind it. The from-and-to states are what give an adjustment its meaning: IN_STOCK to SOLD is a sale, IN_STOCK to WASTE is a loss.",
+      "responseSchema": {
+        "adjustment": {
+          "id": "string",
+          "reference_id": "string",
+          "from_state": "string",
+          "to_state": "string",
+          "from_location_id": "string",
+          "to_location_id": "string",
+          "catalog_object_id": "string",
+          "catalog_object_type": "string",
+          "quantity": "string",
+          "total_price_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "occurred_at": "string",
+          "created_at": "string",
+          "source": {
+            "product": "string",
+            "application_id": "string",
+            "name": "string"
+          },
+          "employee_id": "string",
+          "team_member_id": "string",
+          "transaction_id": "string",
+          "refund_id": "string",
+          "purchase_order_id": "string",
+          "goods_receipt_id": "string",
+          "adjustment_group": {
+            "id": "string",
+            "root_adjustment_id": "string",
+            "from_state": "string",
+            "to_state": "string"
+          },
+          "cost_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "vendor_id": "string",
+          "physical_count_id": "string",
+          "reason_id": {
+            "type": "string",
+            "custom_reason_id": "string"
+          }
+        }
+      }
     },
     {
       "name": "Inventory Physical Count",
       "paged": false,
       "suffix": "/v2/inventory/physical-count/{Physical Count ID}",
-      "description": "One physical stock count by id, with the counted quantity, location, employee and time. A recount overrides the running total rather than adjusting it, which is why a count can make stock jump with no corresponding sale."
+      "description": "One physical stock count by id, with the counted quantity, location, employee and time. A recount overrides the running total rather than adjusting it, which is why a count can make stock jump with no corresponding sale.",
+      "responseSchema": {
+        "count": {
+          "id": "string",
+          "reference_id": "string",
+          "catalog_object_id": "string",
+          "catalog_object_type": "string",
+          "state": "string",
+          "location_id": "string",
+          "quantity": "string",
+          "source": {
+            "product": "string",
+            "application_id": "string",
+            "name": "string"
+          },
+          "employee_id": "string",
+          "team_member_id": "string",
+          "occurred_at": "string",
+          "created_at": "string",
+          "adjustment_id": "string"
+        }
+      }
     },
     {
       "name": "Inventory Count",
@@ -102,25 +1839,223 @@
           "parameterName": "Location ID"
         }
       ],
-      "description": "The current stock of one catalogue object, per location, with the state and the calculated_at timestamp. Requires a catalogue object id. STOCK IS TRACKED PER VARIATION AND PER LOCATION, so a single item across several locations is several rows, and a total needs them summed. The state separates IN_STOCK from SOLD, WASTE, RETURNED_BY_CUSTOMER and the rest -- only IN_STOCK is sellable inventory."
+      "description": "The current stock of one catalogue object, per location, with the state and the calculated_at timestamp. Requires a catalogue object id. STOCK IS TRACKED PER VARIATION AND PER LOCATION, so a single item across several locations is several rows, and a total needs them summed. The state separates IN_STOCK from SOLD, WASTE, RETURNED_BY_CUSTOMER and the rest -- only IN_STOCK is sellable inventory.",
+      "responseSchema": {
+        "counts": [
+          {
+            "catalog_object_id": "string",
+            "catalog_object_type": "string",
+            "state": "string",
+            "location_id": "string",
+            "quantity": "string",
+            "calculated_at": "string",
+            "is_estimated": "boolean"
+          }
+        ],
+        "cursor": "string"
+      }
     },
     {
       "name": "Inventory Changes",
       "paged": true,
       "suffix": "/v2/inventory/{Catalog Object ID}/changes?location_ids={Location IDs?}",
-      "description": "Every movement of one catalogue object's stock: adjustments, physical counts and transfers, each with its type, quantity, location and timestamp. Requires a catalogue object id. The current count is a running total; this is how it got there, and the only way to distinguish sales from shrinkage, transfers or recounts."
+      "description": "Every movement of one catalogue object's stock: adjustments, physical counts and transfers, each with its type, quantity, location and timestamp. Requires a catalogue object id. The current count is a running total; this is how it got there, and the only way to distinguish sales from shrinkage, transfers or recounts.",
+      "responseSchema": {
+        "changes": [
+          {
+            "type": "string",
+            "physical_count": {
+              "id": "string",
+              "reference_id": "string",
+              "catalog_object_id": "string",
+              "catalog_object_type": "string",
+              "state": "string",
+              "location_id": "string",
+              "quantity": "string",
+              "source": {
+                "product": "string",
+                "application_id": "string",
+                "name": "string"
+              },
+              "employee_id": "string",
+              "team_member_id": "string",
+              "occurred_at": "string",
+              "created_at": "string",
+              "adjustment_id": "string"
+            },
+            "adjustment": {
+              "id": "string",
+              "reference_id": "string",
+              "from_state": "string",
+              "to_state": "string",
+              "from_location_id": "string",
+              "to_location_id": "string",
+              "catalog_object_id": "string",
+              "catalog_object_type": "string",
+              "quantity": "string",
+              "total_price_money": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "occurred_at": "string",
+              "created_at": "string",
+              "source": {
+                "product": "string",
+                "application_id": "string",
+                "name": "string"
+              },
+              "employee_id": "string",
+              "team_member_id": "string",
+              "transaction_id": "string",
+              "refund_id": "string",
+              "purchase_order_id": "string",
+              "goods_receipt_id": "string",
+              "adjustment_group": {
+                "id": "string",
+                "root_adjustment_id": "string",
+                "from_state": "string",
+                "to_state": "string"
+              },
+              "cost_money": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "vendor_id": "string",
+              "physical_count_id": "string",
+              "reason_id": {
+                "type": "string",
+                "custom_reason_id": "string"
+              }
+            },
+            "measurement_unit": {
+              "measurement_unit": {
+                "custom_unit": {
+                  "name": "string",
+                  "abbreviation": "string"
+                },
+                "area_unit": "string",
+                "length_unit": "string",
+                "volume_unit": "string",
+                "weight_unit": "string",
+                "generic_unit": "string",
+                "time_unit": "string",
+                "type": "string"
+              },
+              "precision": "double"
+            },
+            "measurement_unit_id": "string"
+          }
+        ],
+        "cursor": "string"
+      }
     },
     {
       "name": "Customers",
       "paged": true,
       "suffix": "/v2/customers",
-      "description": "The customer records held by the merchant, with name, email, phone, address, company, birthday, the reference id linking to an external system, creation and update times, and the creation source. Carries no purchase history: the link to spending is customer_id on Payments, and a customer created at the point of sale may have no name at all, so a customer count is not a count of identified people."
+      "description": "The customer records held by the merchant, with name, email, phone, address, company, birthday, the reference id linking to an external system, creation and update times, and the creation source. Carries no purchase history: the link to spending is customer_id on Payments, and a customer created at the point of sale may have no name at all, so a customer count is not a count of identified people.",
+      "responseSchema": {
+        "customers": [
+          {
+            "id": "string",
+            "created_at": "string",
+            "updated_at": "string",
+            "given_name": "string",
+            "family_name": "string",
+            "nickname": "string",
+            "company_name": "string",
+            "email_address": "string",
+            "address": {
+              "address_line_1": "string",
+              "address_line_2": "string",
+              "address_line_3": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "sublocality_2": "string",
+              "sublocality_3": "string",
+              "administrative_district_level_1": "string",
+              "administrative_district_level_2": "string",
+              "administrative_district_level_3": "string",
+              "postal_code": "string",
+              "country": "string",
+              "first_name": "string",
+              "last_name": "string"
+            },
+            "phone_number": "string",
+            "birthday": "string",
+            "reference_id": "string",
+            "note": "string",
+            "preferences": {
+              "email_unsubscribed": "boolean"
+            },
+            "creation_source": "string",
+            "group_ids": [
+              "string"
+            ],
+            "segment_ids": [
+              "string"
+            ],
+            "version": "double",
+            "tax_ids": {
+              "eu_vat": "string"
+            }
+          }
+        ],
+        "cursor": "string",
+        "count": "double"
+      }
     },
     {
       "name": "Customer",
       "paged": false,
       "suffix": "/v2/customers/{Customer ID}",
-      "description": "One customer by id."
+      "description": "One customer by id.",
+      "responseSchema": {
+        "customer": {
+          "id": "string",
+          "created_at": "string",
+          "updated_at": "string",
+          "given_name": "string",
+          "family_name": "string",
+          "nickname": "string",
+          "company_name": "string",
+          "email_address": "string",
+          "address": {
+            "address_line_1": "string",
+            "address_line_2": "string",
+            "address_line_3": "string",
+            "locality": "string",
+            "sublocality": "string",
+            "sublocality_2": "string",
+            "sublocality_3": "string",
+            "administrative_district_level_1": "string",
+            "administrative_district_level_2": "string",
+            "administrative_district_level_3": "string",
+            "postal_code": "string",
+            "country": "string",
+            "first_name": "string",
+            "last_name": "string"
+          },
+          "phone_number": "string",
+          "birthday": "string",
+          "reference_id": "string",
+          "note": "string",
+          "preferences": {
+            "email_unsubscribed": "boolean"
+          },
+          "creation_source": "string",
+          "group_ids": [
+            "string"
+          ],
+          "segment_ids": [
+            "string"
+          ],
+          "version": "double",
+          "tax_ids": {
+            "eu_vat": "string"
+          }
+        }
+      }
     },
     {
       "name": "Merchants",
@@ -134,13 +2069,40 @@
           "parameterName": "Location ID"
         }
       ],
-      "description": "The merchant accounts the credentials can reach, with the business name, country, language and currency. A merchant owns locations, so this sits one level above them; most accounts have exactly one."
+      "description": "The merchant accounts the credentials can reach, with the business name, country, language and currency. A merchant owns locations, so this sits one level above them; most accounts have exactly one.",
+      "responseSchema": {
+        "merchant": [
+          {
+            "id": "string",
+            "business_name": "string",
+            "country": "string",
+            "language_code": "string",
+            "currency": "string",
+            "status": "string",
+            "main_location_id": "string",
+            "created_at": "string"
+          }
+        ],
+        "cursor": "double"
+      }
     },
     {
       "name": "Merchant",
       "paged": false,
       "suffix": "/v2/merchants/{Merchant ID}",
-      "description": "One merchant by id."
+      "description": "One merchant by id.",
+      "responseSchema": {
+        "merchant": {
+          "id": "string",
+          "business_name": "string",
+          "country": "string",
+          "language_code": "string",
+          "currency": "string",
+          "status": "string",
+          "main_location_id": "string",
+          "created_at": "string"
+        }
+      }
     },
     {
       "name": "Locations",
@@ -154,79 +2116,486 @@
           "parameterName": "Merchant ID"
         }
       ],
-      "description": "The merchant's locations, with name, address, timezone, currency, business hours, status and capabilities. NEARLY EVERYTHING ELSE IN THIS CONNECTOR IS SCOPED BY LOCATION -- payments, inventory, cash drawers and labour all take a location_id, and several require it -- so this is the first request on any multi-location account and the dimension all comparisons group by. The currency is per location, which matters for any total spanning countries."
+      "description": "The merchant's locations, with name, address, timezone, currency, business hours, status and capabilities. NEARLY EVERYTHING ELSE IN THIS CONNECTOR IS SCOPED BY LOCATION -- payments, inventory, cash drawers and labour all take a location_id, and several require it -- so this is the first request on any multi-location account and the dimension all comparisons group by. The currency is per location, which matters for any total spanning countries.",
+      "responseSchema": {
+        "locations": [
+          {
+            "id": "string",
+            "name": "string",
+            "address": {
+              "address_line_1": "string",
+              "address_line_2": "string",
+              "address_line_3": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "sublocality_2": "string",
+              "sublocality_3": "string",
+              "administrative_district_level_1": "string",
+              "administrative_district_level_2": "string",
+              "administrative_district_level_3": "string",
+              "postal_code": "string",
+              "country": "string",
+              "first_name": "string",
+              "last_name": "string"
+            },
+            "timezone": "string",
+            "capabilities": [
+              "string"
+            ],
+            "status": "string",
+            "created_at": "string",
+            "merchant_id": "string",
+            "country": "string",
+            "language_code": "string",
+            "currency": "string",
+            "phone_number": "string",
+            "business_name": "string",
+            "type": "string",
+            "website_url": "string",
+            "business_hours": {
+              "periods": [
+                {
+                  "day_of_week": "string",
+                  "start_local_time": "string",
+                  "end_local_time": "string"
+                }
+              ]
+            },
+            "business_email": "string",
+            "description": "string",
+            "twitter_username": "string",
+            "instagram_username": "string",
+            "facebook_url": "string",
+            "coordinates": {
+              "latitude": "double",
+              "longitude": "double"
+            },
+            "logo_url": "string",
+            "pos_background_url": "string",
+            "mcc": "string",
+            "full_format_logo_url": "string",
+            "tax_ids": {
+              "eu_vat": "string",
+              "fr_siret": "string",
+              "fr_naf": "string",
+              "es_nif": "string",
+              "jp_qii": "string"
+            },
+            "custom_receipt_text": "string",
+            "return_policy": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Location",
       "paged": false,
       "suffix": "/v2/locations/{Location ID}",
-      "description": "One location by id, with its full settings."
+      "description": "One location by id, with its full settings.",
+      "responseSchema": {
+        "location": {
+          "id": "string",
+          "name": "string",
+          "address": {
+            "address_line_1": "string",
+            "address_line_2": "string",
+            "address_line_3": "string",
+            "locality": "string",
+            "sublocality": "string",
+            "sublocality_2": "string",
+            "sublocality_3": "string",
+            "administrative_district_level_1": "string",
+            "administrative_district_level_2": "string",
+            "administrative_district_level_3": "string",
+            "postal_code": "string",
+            "country": "string",
+            "first_name": "string",
+            "last_name": "string"
+          },
+          "timezone": "string",
+          "capabilities": [
+            "string"
+          ],
+          "status": "string",
+          "created_at": "string",
+          "merchant_id": "string",
+          "country": "string",
+          "language_code": "string",
+          "currency": "string",
+          "phone_number": "string",
+          "business_name": "string",
+          "type": "string",
+          "website_url": "string",
+          "business_hours": {
+            "periods": [
+              {
+                "day_of_week": "string",
+                "start_local_time": "string",
+                "end_local_time": "string"
+              }
+            ]
+          },
+          "business_email": "string",
+          "description": "string",
+          "twitter_username": "string",
+          "instagram_username": "string",
+          "facebook_url": "string",
+          "coordinates": {
+            "latitude": "double",
+            "longitude": "double"
+          },
+          "logo_url": "string",
+          "pos_background_url": "string",
+          "mcc": "string",
+          "full_format_logo_url": "string",
+          "tax_ids": {
+            "eu_vat": "string",
+            "fr_siret": "string",
+            "fr_naf": "string",
+            "es_nif": "string",
+            "jp_qii": "string"
+          },
+          "custom_receipt_text": "string",
+          "return_policy": "string"
+        }
+      }
     },
     {
       "name": "Team Member",
       "paged": false,
       "suffix": "/v2/team-members/{Team Member ID}",
-      "description": "One team member by id, with name, email, phone, status and the locations they are assigned to. NOTE THE GAP: Square exposes no way to LIST team members through a plain read -- its search is a POST endpoint this connector cannot reach -- so members can only be fetched one at a time by an id obtained elsewhere, such as from a shift or a payment."
+      "description": "One team member by id, with name, email, phone, status and the locations they are assigned to. NOTE THE GAP: Square exposes no way to LIST team members through a plain read -- its search is a POST endpoint this connector cannot reach -- so members can only be fetched one at a time by an id obtained elsewhere, such as from a shift or a payment.",
+      "responseSchema": {
+        "team_member": {
+          "id": "string",
+          "reference_id": "string",
+          "is_owner": "boolean",
+          "status": "string",
+          "given_name": "string",
+          "family_name": "string",
+          "email_address": "string",
+          "phone_number": "string",
+          "created_at": "string",
+          "updated_at": "string",
+          "assigned_locations": {
+            "assignment_type": "string",
+            "location_ids": [
+              "string"
+            ]
+          },
+          "wage_setting": {
+            "team_member_id": "string",
+            "job_assignments": [
+              {
+                "job_title": "string",
+                "pay_type": "string",
+                "hourly_rate": {
+                  "amount": "double",
+                  "currency": "string"
+                },
+                "annual_rate": {
+                  "amount": "double",
+                  "currency": "string"
+                },
+                "weekly_hours": "double",
+                "job_id": "string"
+              }
+            ],
+            "is_overtime_exempt": "boolean",
+            "version": "double",
+            "created_at": "string",
+            "updated_at": "string"
+          }
+        }
+      }
     },
     {
       "name": "Team Member Wage Setting",
       "paged": false,
       "suffix": "/v2/team-members/{Team Member ID}/wage-setting",
-      "description": "One team member's wage configuration, with the job assignments and the hourly rate for each. Requires a team member id. The rate is what turns recorded hours into labour cost; the shift records carry hours only."
+      "description": "One team member's wage configuration, with the job assignments and the hourly rate for each. Requires a team member id. The rate is what turns recorded hours into labour cost; the shift records carry hours only.",
+      "responseSchema": {
+        "wage_setting": {
+          "team_member_id": "string",
+          "job_assignments": [
+            {
+              "job_title": "string",
+              "pay_type": "string",
+              "hourly_rate": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "annual_rate": {
+                "amount": "double",
+                "currency": "string"
+              },
+              "weekly_hours": "double",
+              "job_id": "string"
+            }
+          ],
+          "is_overtime_exempt": "boolean",
+          "version": "double",
+          "created_at": "string",
+          "updated_at": "string"
+        }
+      }
     },
     {
       "name": "Break Types",
       "paged": true,
       "suffix": "/v2/labor/break-types?location_id={Location ID?}",
-      "description": "The break types configured per location, each with a name, expected duration and whether it is paid. Requires a location id. The paid flag is what decides whether a break is deducted from paid hours, so labour cost cannot be computed correctly without it."
+      "description": "The break types configured per location, each with a name, expected duration and whether it is paid. Requires a location id. The paid flag is what decides whether a break is deducted from paid hours, so labour cost cannot be computed correctly without it.",
+      "responseSchema": {
+        "break_types": [
+          {
+            "id": "string",
+            "location_id": "string",
+            "break_name": "string",
+            "expected_duration": "string",
+            "is_paid": "boolean",
+            "version": "double",
+            "created_at": "string",
+            "updated_at": "string"
+          }
+        ],
+        "cursor": "string"
+      }
     },
     {
       "name": "Break Type",
       "paged": false,
       "suffix": "/v2/labor/break-types/{Break Type ID}",
-      "description": "One break type by id."
+      "description": "One break type by id.",
+      "responseSchema": {
+        "break_type": {
+          "id": "string",
+          "location_id": "string",
+          "break_name": "string",
+          "expected_duration": "string",
+          "is_paid": "boolean",
+          "version": "double",
+          "created_at": "string",
+          "updated_at": "string"
+        }
+      }
     },
     {
       "name": "Team Member Wages",
       "paged": true,
       "suffix": "/v2/labor/team-member-wages?team_member_id={Team Member ID?}",
-      "description": "The wage records across team members, each pairing a member with a job title and hourly rate. The account-wide view of pay rates, and the practical lookup table for costing labour."
+      "description": "The wage records across team members, each pairing a member with a job title and hourly rate. The account-wide view of pay rates, and the practical lookup table for costing labour.",
+      "responseSchema": {
+        "team_member_wages": [
+          {
+            "id": "string",
+            "team_member_id": "string",
+            "title": "string",
+            "hourly_rate": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "job_id": "string",
+            "tip_eligible": "boolean"
+          }
+        ],
+        "cursor": "string"
+      }
     },
     {
       "name": "Team Member Wage",
       "paged": false,
       "suffix": "/v2/labor/team-member-wages/{Team Member Wage ID}",
-      "description": "One team member wage record by id."
+      "description": "One team member wage record by id.",
+      "responseSchema": {
+        "team_member_wage": {
+          "id": "string",
+          "team_member_id": "string",
+          "title": "string",
+          "hourly_rate": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "job_id": "string",
+          "tip_eligible": "boolean"
+        }
+      }
     },
     {
       "name": "Shift",
       "paged": false,
       "suffix": "/v2/labor/shifts/{Shift ID}",
-      "description": "One recorded work shift by id, with the team member, location, start and end times, the declared cash tips, the wage applied, and any breaks taken. THE SAME GAP AS TEAM MEMBERS: shift search is a POST endpoint, so shifts cannot be listed here and must be fetched individually by id. That makes labour-cost analysis impractical through this connector unless the ids are already known."
+      "description": "One recorded work shift by id, with the team member, location, start and end times, the declared cash tips, the wage applied, and any breaks taken. THE SAME GAP AS TEAM MEMBERS: shift search is a POST endpoint, so shifts cannot be listed here and must be fetched individually by id. That makes labour-cost analysis impractical through this connector unless the ids are already known.",
+      "responseSchema": {
+        "shift": {
+          "id": "string",
+          "employee_id": "string",
+          "location_id": "string",
+          "timezone": "string",
+          "start_at": "string",
+          "end_at": "string",
+          "wage": {
+            "title": "string",
+            "hourly_rate": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "job_id": "string",
+            "tip_eligible": "boolean"
+          },
+          "breaks": [
+            {
+              "id": "string",
+              "start_at": "string",
+              "end_at": "string",
+              "break_type_id": "string",
+              "name": "string",
+              "expected_duration": "string",
+              "is_paid": "boolean"
+            }
+          ],
+          "status": "string",
+          "version": "double",
+          "created_at": "string",
+          "updated_at": "string",
+          "team_member_id": "string",
+          "declared_cash_tip_money": {
+            "amount": "double",
+            "currency": "string"
+          }
+        }
+      }
     },
     {
       "name": "Workweek Configurations",
       "paged": true,
       "suffix": "/v2/labor/workweek-configs",
-      "description": "How the workweek is defined -- which day it starts and the cut-off time. One record per merchant. Overtime and weekly hour totals are computed against this boundary, so a week measured from any other start date will not agree with Square's own figures."
+      "description": "How the workweek is defined -- which day it starts and the cut-off time. One record per merchant. Overtime and weekly hour totals are computed against this boundary, so a week measured from any other start date will not agree with Square's own figures.",
+      "responseSchema": {
+        "workweek_configs": [
+          {
+            "id": "string",
+            "start_of_week": "string",
+            "start_of_day_local_time": "string",
+            "version": "double",
+            "created_at": "string",
+            "updated_at": "string"
+          }
+        ],
+        "cursor": "string"
+      }
     },
     {
       "name": "Cash Drawer Shifts",
       "paged": true,
       "suffix": "/v2/cash-drawers/shifts?location_id={Location ID}&begin_time={Begin Time:yyyy-MM-ddTHH:mm:ssZ}&end_time={End Time:yyyy-MM-ddTHH:mm:ssZ}",
-      "description": "Cash drawer sessions at one location over a time range, each with the opening and closing amounts, expected versus actual cash, and the DIFFERENCE. Requires a location id and a date range. That difference is the till discrepancy -- over or short at close -- which no payment table records and which is the point of this group."
+      "description": "Cash drawer sessions at one location over a time range, each with the opening and closing amounts, expected versus actual cash, and the DIFFERENCE. Requires a location id and a date range. That difference is the till discrepancy -- over or short at close -- which no payment table records and which is the point of this group.",
+      "responseSchema": {
+        "cursor": "string",
+        "cash_drawer_shifts": [
+          {
+            "id": "string",
+            "state": "string",
+            "opened_at": "string",
+            "ended_at": "string",
+            "closed_at": "string",
+            "description": "string",
+            "opened_cash_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "expected_cash_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "closed_cash_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "created_at": "string",
+            "updated_at": "string",
+            "location_id": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Cash Drawer Shift",
       "paged": false,
       "suffix": "/v2/cash-drawers/shifts/{Shift ID}?location_id={Location ID}",
-      "description": "One cash drawer session by id, with its opening, closing and expected amounts."
+      "description": "One cash drawer session by id, with its opening, closing and expected amounts.",
+      "responseSchema": {
+        "cash_drawer_shift": {
+          "id": "string",
+          "state": "string",
+          "opened_at": "string",
+          "ended_at": "string",
+          "closed_at": "string",
+          "description": "string",
+          "opened_cash_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "cash_payment_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "cash_refunds_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "cash_paid_in_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "cash_paid_out_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "expected_cash_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "closed_cash_money": {
+            "amount": "double",
+            "currency": "string"
+          },
+          "device": {
+            "id": "string",
+            "name": "string"
+          },
+          "created_at": "string",
+          "updated_at": "string",
+          "location_id": "string",
+          "team_member_ids": [
+            "string"
+          ],
+          "opening_team_member_id": "string",
+          "ending_team_member_id": "string",
+          "closing_team_member_id": "string"
+        }
+      }
     },
     {
       "name": "Cash Drawer Shift Events",
       "paged": true,
       "suffix": "/v2/cash-drawers/shifts/{Shift ID}/events?location_id={Location ID}",
-      "description": "The individual cash movements within one session -- each payment, refund, paid-in and paid-out -- with amount, type and time. Requires the shift id and location id. Where a discrepancy is traced to a specific event rather than merely observed at close."
+      "description": "The individual cash movements within one session -- each payment, refund, paid-in and paid-out -- with amount, type and time. Requires the shift id and location id. Where a discrepancy is traced to a specific event rather than merely observed at close.",
+      "responseSchema": {
+        "cursor": "string",
+        "cash_drawer_shift_events": [
+          {
+            "id": "string",
+            "event_type": "string",
+            "event_money": {
+              "amount": "double",
+              "currency": "string"
+            },
+            "created_at": "string",
+            "description": "string",
+            "team_member_id": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Bank Accounts",
@@ -240,13 +2609,60 @@
           "parameterName": "Location ID"
         }
       ],
-      "description": "The bank accounts linked for settlement, with the last four digits, bank name, holder name, currency, status and the location each belongs to. Where the money ends up; settlement amounts themselves are not in this connector."
+      "description": "The bank accounts linked for settlement, with the last four digits, bank name, holder name, currency, status and the location each belongs to. Where the money ends up; settlement amounts themselves are not in this connector.",
+      "responseSchema": {
+        "bank_accounts": [
+          {
+            "id": "string",
+            "account_number_suffix": "string",
+            "country": "string",
+            "currency": "string",
+            "account_type": "string",
+            "holder_name": "string",
+            "primary_bank_identification_number": "string",
+            "secondary_bank_identification_number": "string",
+            "debit_mandate_reference_id": "string",
+            "reference_id": "string",
+            "location_id": "string",
+            "status": "string",
+            "creditable": "boolean",
+            "debitable": "boolean",
+            "fingerprint": "string",
+            "version": "double",
+            "bank_name": "string",
+            "customer_id": "string"
+          }
+        ],
+        "cursor": "string"
+      }
     },
     {
       "name": "Bank Account",
       "paged": false,
       "suffix": "/v2/bank-accounts/{Bank Account ID}",
-      "description": "One linked bank account by id."
+      "description": "One linked bank account by id.",
+      "responseSchema": {
+        "bank_account": {
+          "id": "string",
+          "account_number_suffix": "string",
+          "country": "string",
+          "currency": "string",
+          "account_type": "string",
+          "holder_name": "string",
+          "primary_bank_identification_number": "string",
+          "secondary_bank_identification_number": "string",
+          "debit_mandate_reference_id": "string",
+          "reference_id": "string",
+          "location_id": "string",
+          "status": "string",
+          "creditable": "boolean",
+          "debitable": "boolean",
+          "fingerprint": "string",
+          "version": "double",
+          "bank_name": "string",
+          "customer_id": "string"
+        }
+      }
     }
   ]
 }

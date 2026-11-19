@@ -4,7 +4,10 @@
       "name": "Site Users",
       "paged": true,
       "suffix": "/v1.1/sites/{Site ID or Domain}/users?context={Context?:display|edit}&meta={Include Metadata?:sites,likes,...}&fields={Include Fields?:ID,title,...}&authors_only={Fetch Authors Only?:true|false}&type={Post Type?}&search={Search Text?}&search_columns={Search Columns?,:ID,user_login,user_email,...}&role={User Role?}",
-      "description": "The users of one site, with their roles and capabilities. Requires a site."
+      "description": "The users of one site, with their roles and capabilities. Requires a site.",
+      "responseSchema": {
+        "found": "double"
+      }
     },
     {
       "name": "Site User",
@@ -16,19 +19,115 @@
       "name": "Current User Metadata",
       "paged": false,
       "suffix": "/v1.1/me?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The authenticated account's profile -- name, email, avatar and primary blog. One record, always the caller."
+      "description": "The authenticated account's profile -- name, email, avatar and primary blog. One record, always the caller.",
+      "responseSchema": {
+        "ID": "double",
+        "display_name": "string",
+        "username": "string",
+        "email": "string",
+        "primary_blog": "double",
+        "primary_blog_url": "string",
+        "primary_blog_is_jetpack": "boolean",
+        "has_jetpack_partner_access": "boolean",
+        "language": "string",
+        "locale_variant": "string",
+        "token_site_id": "double",
+        "token_scope": [
+          "string"
+        ],
+        "token_client_id": "double",
+        "avatar_URL": "string",
+        "profile_URL": "string",
+        "verified": "boolean",
+        "email_verified": "boolean",
+        "email_bouncing": "boolean",
+        "recovery_email_matches_account_email": "boolean",
+        "date": "timeInstant",
+        "site_count": "double",
+        "jetpack_site_count": "double",
+        "atomic_site_count": "double",
+        "garden_site_count": "double",
+        "visible_site_count": "double",
+        "jetpack_visible_site_count": "double",
+        "atomic_visible_site_count": "double",
+        "garden_visible_site_count": "double",
+        "has_unseen_notes": "boolean",
+        "newest_note_type": "string",
+        "phone_account": "boolean",
+        "is_valid_google_apps_country": "boolean",
+        "user_ip_country_code": "string",
+        "logout_URL": "string",
+        "is_new_reader": "boolean",
+        "social_signup_service": "string",
+        "i18n_empathy_mode": "boolean",
+        "use_fallback_for_incomplete_languages": "boolean",
+        "had_hosting_trial": "boolean",
+        "is_subscription_only": "boolean",
+        "abtests": {
+          "*": "string"
+        },
+        "lasagna_jwt": "string"
+      }
     },
     {
       "name": "Current User Billing History",
       "paged": false,
       "suffix": "/v1.1/me/billing-history?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The caller's purchase history on WordPress.com -- plans, domains and upgrades bought. The commercial record, which no site endpoint carries."
+      "description": "The caller's purchase history on WordPress.com -- plans, domains and upgrades bought. The commercial record, which no site endpoint carries.",
+      "responseSchema": {
+        "billing_history_total": "double"
+      }
     },
     {
       "name": "Current User Settings",
       "paged": false,
       "suffix": "/v1.1/me/settings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The caller's account settings."
+      "description": "The caller's account settings.",
+      "responseSchema": {
+        "enable_translator": "boolean",
+        "surprise_me": "boolean",
+        "post_post_flag": "boolean",
+        "holidaysnow": "boolean",
+        "user_login": "string",
+        "display_name": "string",
+        "first_name": "string",
+        "last_name": "string",
+        "description": "string",
+        "user_email": "string",
+        "user_email_change_pending": "boolean",
+        "new_user_email": "string",
+        "user_URL": "string",
+        "language": "string",
+        "avatar_URL": "string",
+        "primary_site_ID": "double",
+        "comment_like_notification": "boolean",
+        "mentions_notification": "boolean",
+        "subscription_delivery_email_default": "string",
+        "subscription_delivery_jabber_default": "boolean",
+        "subscription_delivery_mail_option": "string",
+        "subscription_delivery_day": "double",
+        "subscription_delivery_hour": "double",
+        "subscription_delivery_email_blocked": "boolean",
+        "two_step_enabled": "boolean",
+        "two_step_sms_enabled": "boolean",
+        "two_step_backup_codes_printed": "boolean",
+        "two_step_sms_country": "string",
+        "two_step_sms_phone_number": "string",
+        "two_step_app_enabled": "boolean",
+        "two_step_security_key_enabled": "boolean",
+        "two_step_enhanced_security": "boolean",
+        "locale_variant": "string",
+        "tracks_opt_out": "boolean",
+        "i18n_empathy_mode": "boolean",
+        "use_fallback_for_incomplete_languages": "boolean",
+        "gravatar_profile_hidden": "boolean",
+        "is_dev_account": "boolean",
+        "last_admin_activity_timestamp": "string",
+        "advertising_targeting_opt_out": "boolean",
+        "p2_disable_autofollow_on_comment": "boolean",
+        "woomobile_crash_reporting_opt_out": "boolean",
+        "ai_assistant": "boolean"
+      }
     },
     {
       "name": "Current User Preferences",
@@ -58,7 +157,10 @@
       "name": "Current User Likes",
       "paged": true,
       "suffix": "/v1.1/me/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&after={Dated On or After?:yyyy-MM-ddTHH:mm:ss}&before={Dated On or Before?:yyyy-MM-ddTHH:mm:ss}",
-      "description": "The posts the caller has liked across WordPress.com."
+      "description": "The posts the caller has liked across WordPress.com.",
+      "responseSchema": {
+        "found": "double"
+      }
     },
     {
       "name": "Site Shortcodes",
@@ -76,25 +178,82 @@
       "name": "Site",
       "paged": false,
       "suffix": "/v1.2/sites/{Site ID or Domain}?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One site's details -- name, description, URL, post count, subscriber count, language, and the plan and features it has. THIS IS THE WORDPRESS.COM API, not the REST API of a self-hosted install: it serves WordPress.com sites and self-hosted ones connected through Jetpack, and a plain self-hosted WordPress is not reachable through it at all. Every endpoint here takes a site id or domain."
+      "description": "One site's details -- name, description, URL, post count, subscriber count, language, and the plan and features it has. THIS IS THE WORDPRESS.COM API, not the REST API of a self-hosted install: it serves WordPress.com sites and self-hosted ones connected through Jetpack, and a plain self-hosted WordPress is not reachable through it at all. Every endpoint here takes a site id or domain.",
+      "responseSchema": {
+        "ID": "double",
+        "name": "string",
+        "description": "string",
+        "URL": "string",
+        "jetpack": "boolean",
+        "jetpack_connection": "boolean",
+        "is_multisite": "boolean",
+        "site_owner": "double",
+        "post_count": "double",
+        "subscribers_count": "double",
+        "locale": "string",
+        "visible": "boolean",
+        "is_private": "boolean",
+        "is_coming_soon": "boolean",
+        "single_user_site": "boolean",
+        "is_vip": "boolean",
+        "is_following": "boolean",
+        "organization_id": "double",
+        "launch_status": "string",
+        "is_fse_active": "boolean",
+        "is_fse_eligible": "boolean",
+        "is_core_site_editor_enabled": "boolean",
+        "is_wpcom_atomic": "boolean",
+        "is_wpcom_staging_site": "boolean",
+        "was_ecommerce_trial": "boolean",
+        "was_upgraded_from_trial": "boolean",
+        "was_migration_trial": "boolean",
+        "was_hosting_trial": "boolean",
+        "is_deleted": "boolean",
+        "is_a4a_client": "boolean",
+        "is_a4a_dev_site": "boolean",
+        "is_garden": "boolean",
+        "hosting_provider_guess": "string",
+        "environment_type": "string"
+      }
     },
     {
       "name": "Site Page Templates",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/page-templates?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The page templates the site's theme offers."
+      "description": "The page templates the site's theme offers.",
+      "responseSchema": {
+        "templates": [
+          {
+            "label": "string",
+            "file": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Site Post Types",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/post-types?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The post types registered on one site -- post, page, and any custom ones. Requires a site. What kinds of content exist, which the post listing's default hides."
+      "description": "The post types registered on one site -- post, page, and any custom ones. Requires a site. What kinds of content exist, which the post listing's default hides.",
+      "responseSchema": {
+        "found": "double"
+      }
     },
     {
       "name": "Site Post Counts by Type",
       "paged": false,
       "suffix": "/v1.2/sites/{Site ID or Domain}/post-counts/{Post Type}?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "How many posts of one type exist, by status. Requires the site and post type. The cheap count, broken out by draft, published and trashed."
+      "description": "How many posts of one type exist, by status. Requires the site and post type. The cheap count, broken out by draft, published and trashed.",
+      "responseSchema": {
+        "counts": {
+          "all": {
+            "*": "double"
+          },
+          "mine": {
+            "*": "double"
+          }
+        }
+      }
     },
     {
       "name": "Site Widgets",
@@ -106,25 +265,44 @@
       "name": "Site WordAds Settings",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/settings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The advertising configuration of one site."
+      "description": "The advertising configuration of one site.",
+      "responseSchema": {
+        "ID": "double",
+        "name": "string",
+        "URL": "string"
+      }
     },
     {
       "name": "Site WordAds Earnings",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/earnings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Advertising earnings by period. The revenue side of running ads."
+      "description": "Advertising earnings by period. The revenue side of running ads.",
+      "responseSchema": {
+        "ID": "double",
+        "name": "string",
+        "URL": "string"
+      }
     },
     {
       "name": "Site WordAds TOS",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/tos?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Whether the site has accepted the advertising terms. Ads do not run until it has, which explains zero earnings on a configured site."
+      "description": "Whether the site has accepted the advertising terms. Ads do not run until it has, which explains zero earnings on a configured site.",
+      "responseSchema": {
+        "ID": "double",
+        "name": "string",
+        "URL": "string"
+      }
     },
     {
       "name": "Site WordAds Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/stats?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&unit={Unit?:day|week|month}&quantity={Quantity?}&date={Date?:yyyy-MM-dd}",
-      "description": "Advertising impressions and revenue for one site over a period. Only meaningful where WordAds is enabled."
+      "description": "Advertising impressions and revenue for one site over a period. Only meaningful where WordAds is enabled.",
+      "responseSchema": {
+        "date": "string",
+        "unit": "double"
+      }
     },
     {
       "name": "Current User Sites",
@@ -179,7 +357,32 @@
           "parameterName": "Site ID or Domain"
         }
       ],
-      "description": "The sites the authenticated user can access. The starting point, since everything else needs a site."
+      "description": "The sites the authenticated user can access. The starting point, since everything else needs a site.",
+      "responseSchema": {
+        "sites": [
+          {
+            "ID": "double",
+            "name": "string",
+            "description": "string",
+            "URL": "string",
+            "jetpack": "boolean",
+            "jetpack_connection": "boolean",
+            "is_multisite": "boolean",
+            "site_owner": "double",
+            "post_count": "double",
+            "subscribers_count": "double",
+            "locale": "string",
+            "visible": "boolean",
+            "is_private": "boolean",
+            "is_coming_soon": "boolean",
+            "single_user_site": "boolean",
+            "is_vip": "boolean",
+            "is_following": "boolean",
+            "organization_id": "double",
+            "launch_status": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Site Widget",
@@ -197,19 +400,211 @@
       "name": "Site Headers",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/headers/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The header images in use on one site."
+      "description": "The header images in use on one site.",
+      "responseSchema": {
+        "random_default": "boolean",
+        "random_uploaded": "boolean",
+        "text_color": "string",
+        "url": "string",
+        "width": "double",
+        "height": "double",
+        "defaults": {
+          "url": "string",
+          "text_color": "string",
+          "header_text": "boolean",
+          "random_default": "boolean"
+        }
+      }
     },
     {
       "name": "Post by ID",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One post by id. Requires the site."
+      "description": "One post by id. Requires the site.",
+      "responseSchema": {
+        "ID": "double",
+        "site_ID": "double",
+        "date": "timeInstant",
+        "modified": "timeInstant",
+        "title": "string",
+        "URL": "string",
+        "short_URL": "string",
+        "content": "string",
+        "excerpt": "string",
+        "slug": "string",
+        "guid": "string",
+        "status": "string",
+        "sticky": "boolean",
+        "password": "string",
+        "has_password": "boolean",
+        "type": "string",
+        "likes_enabled": "boolean",
+        "sharing_enabled": "boolean",
+        "like_count": "double",
+        "i_like": "boolean",
+        "is_reblogged": "boolean",
+        "is_following": "boolean",
+        "global_ID": "string",
+        "featured_image": "string",
+        "format": "string",
+        "menu_order": "double",
+        "page_template": "string",
+        "publicize_URLs": [
+          "string"
+        ],
+        "tags": {
+          "*": {
+            "ID": "double",
+            "name": "string",
+            "slug": "string",
+            "description": "string",
+            "post_count": "double"
+          }
+        },
+        "categories": {
+          "*": {
+            "ID": "double",
+            "name": "string",
+            "slug": "string",
+            "description": "string",
+            "post_count": "double",
+            "feed_url": "string",
+            "parent": "double"
+          }
+        },
+        "attachments": {
+          "*": {
+            "ID": "double",
+            "date": "timeInstant",
+            "post_ID": "double",
+            "author_ID": "double",
+            "URL": "string",
+            "guid": "string",
+            "file": "string",
+            "extension": "string",
+            "mime_type": "string",
+            "title": "string",
+            "caption": "string",
+            "description": "string",
+            "alt": "string",
+            "thumbnails": {
+              "*": "string"
+            },
+            "height": "double",
+            "width": "double",
+            "length": "double",
+            "rating": "string",
+            "display_embed": "string",
+            "allow_download": "string",
+            "videopress_guid": "string",
+            "videopress_processing_done": "boolean"
+          }
+        },
+        "attachment_count": "double",
+        "capabilities": {
+          "publish_post": "boolean",
+          "edit_post": "boolean",
+          "delete_post": "boolean"
+        },
+        "revisions": [
+          "double"
+        ]
+      }
     },
     {
       "name": "Post by Slug",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/posts/slug:{Post Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One post by its URL slug. Requires the site. The route in when only the public URL is known."
+      "description": "One post by its URL slug. Requires the site. The route in when only the public URL is known.",
+      "responseSchema": {
+        "ID": "double",
+        "site_ID": "double",
+        "date": "timeInstant",
+        "modified": "timeInstant",
+        "title": "string",
+        "URL": "string",
+        "short_URL": "string",
+        "content": "string",
+        "excerpt": "string",
+        "slug": "string",
+        "guid": "string",
+        "status": "string",
+        "sticky": "boolean",
+        "password": "string",
+        "has_password": "boolean",
+        "type": "string",
+        "likes_enabled": "boolean",
+        "sharing_enabled": "boolean",
+        "like_count": "double",
+        "i_like": "boolean",
+        "is_reblogged": "boolean",
+        "is_following": "boolean",
+        "global_ID": "string",
+        "featured_image": "string",
+        "format": "string",
+        "menu_order": "double",
+        "page_template": "string",
+        "publicize_URLs": [
+          "string"
+        ],
+        "tags": {
+          "*": {
+            "ID": "double",
+            "name": "string",
+            "slug": "string",
+            "description": "string",
+            "post_count": "double"
+          }
+        },
+        "categories": {
+          "*": {
+            "ID": "double",
+            "name": "string",
+            "slug": "string",
+            "description": "string",
+            "post_count": "double",
+            "feed_url": "string",
+            "parent": "double"
+          }
+        },
+        "attachments": {
+          "*": {
+            "ID": "double",
+            "date": "timeInstant",
+            "post_ID": "double",
+            "author_ID": "double",
+            "URL": "string",
+            "guid": "string",
+            "file": "string",
+            "extension": "string",
+            "mime_type": "string",
+            "title": "string",
+            "caption": "string",
+            "description": "string",
+            "alt": "string",
+            "thumbnails": {
+              "*": "string"
+            },
+            "height": "double",
+            "width": "double",
+            "length": "double",
+            "rating": "string",
+            "display_embed": "string",
+            "allow_download": "string",
+            "videopress_guid": "string",
+            "videopress_processing_done": "boolean"
+          }
+        },
+        "attachment_count": "double",
+        "capabilities": {
+          "publish_post": "boolean",
+          "edit_post": "boolean",
+          "delete_post": "boolean"
+        },
+        "revisions": [
+          "double"
+        ]
+      }
     },
     {
       "name": "Search Posts",
@@ -232,7 +627,101 @@
           "parameterName": "Post ID"
         }
       ],
-      "description": "The posts of one site, filterable by status, type, author, category, tag, search term and date. Requires a site. THE MAIN CONTENT TABLE. Carries title, content, excerpt, status, the author, date and modified date, categories, tags, and the counts of likes and comments. NOTE THE DEFAULT: only PUBLISHED posts of type post are returned, so drafts, pages and custom post types are absent unless asked for -- which quietly excludes most of a site's content on anything but a simple blog."
+      "description": "The posts of one site, filterable by status, type, author, category, tag, search term and date. Requires a site. THE MAIN CONTENT TABLE. Carries title, content, excerpt, status, the author, date and modified date, categories, tags, and the counts of likes and comments. NOTE THE DEFAULT: only PUBLISHED posts of type post are returned, so drafts, pages and custom post types are absent unless asked for -- which quietly excludes most of a site's content on anything but a simple blog.",
+      "responseSchema": {
+        "found": "double",
+        "posts": [
+          {
+            "ID": "double",
+            "site_ID": "double",
+            "date": "timeInstant",
+            "modified": "timeInstant",
+            "title": "string",
+            "URL": "string",
+            "short_URL": "string",
+            "content": "string",
+            "excerpt": "string",
+            "slug": "string",
+            "guid": "string",
+            "status": "string",
+            "sticky": "boolean",
+            "password": "string",
+            "has_password": "boolean",
+            "type": "string",
+            "likes_enabled": "boolean",
+            "sharing_enabled": "boolean",
+            "like_count": "double",
+            "i_like": "boolean",
+            "is_reblogged": "boolean",
+            "is_following": "boolean",
+            "global_ID": "string",
+            "featured_image": "string",
+            "format": "string",
+            "menu_order": "double",
+            "page_template": "string",
+            "publicize_URLs": [
+              "string"
+            ],
+            "tags": {
+              "*": {
+                "ID": "double",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "post_count": "double"
+              }
+            },
+            "categories": {
+              "*": {
+                "ID": "double",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "post_count": "double",
+                "feed_url": "string",
+                "parent": "double"
+              }
+            },
+            "attachments": {
+              "*": {
+                "ID": "double",
+                "date": "timeInstant",
+                "post_ID": "double",
+                "author_ID": "double",
+                "URL": "string",
+                "guid": "string",
+                "file": "string",
+                "extension": "string",
+                "mime_type": "string",
+                "title": "string",
+                "caption": "string",
+                "description": "string",
+                "alt": "string",
+                "thumbnails": {
+                  "*": "string"
+                },
+                "height": "double",
+                "width": "double",
+                "length": "double",
+                "rating": "string",
+                "display_embed": "string",
+                "allow_download": "string",
+                "videopress_guid": "string",
+                "videopress_processing_done": "boolean"
+              }
+            },
+            "attachment_count": "double",
+            "capabilities": {
+              "publish_post": "boolean",
+              "edit_post": "boolean",
+              "delete_post": "boolean"
+            },
+            "revisions": [
+              "double"
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Current User Posts",
@@ -255,19 +744,126 @@
           "parameterName": "Post ID"
         }
       ],
-      "description": "The posts the caller has written across their sites."
+      "description": "The posts the caller has written across their sites.",
+      "responseSchema": {
+        "found": "double",
+        "posts": [
+          {
+            "ID": "double",
+            "site_ID": "double",
+            "date": "timeInstant",
+            "modified": "timeInstant",
+            "title": "string",
+            "URL": "string",
+            "short_URL": "string",
+            "content": "string",
+            "excerpt": "string",
+            "slug": "string",
+            "guid": "string",
+            "status": "string",
+            "sticky": "boolean",
+            "password": "string",
+            "has_password": "boolean",
+            "type": "string",
+            "likes_enabled": "boolean",
+            "sharing_enabled": "boolean",
+            "like_count": "double",
+            "i_like": "boolean",
+            "is_reblogged": "boolean",
+            "is_following": "boolean",
+            "global_ID": "string",
+            "featured_image": "string",
+            "format": "string",
+            "menu_order": "double",
+            "page_template": "string",
+            "publicize_URLs": [
+              "string"
+            ],
+            "tags": {
+              "*": {
+                "ID": "double",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "post_count": "double"
+              }
+            },
+            "categories": {
+              "*": {
+                "ID": "double",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "post_count": "double",
+                "feed_url": "string",
+                "parent": "double"
+              }
+            },
+            "attachments": {
+              "*": {
+                "ID": "double",
+                "date": "timeInstant",
+                "post_ID": "double",
+                "author_ID": "double",
+                "URL": "string",
+                "guid": "string",
+                "file": "string",
+                "extension": "string",
+                "mime_type": "string",
+                "title": "string",
+                "caption": "string",
+                "description": "string",
+                "alt": "string",
+                "thumbnails": {
+                  "*": "string"
+                },
+                "height": "double",
+                "width": "double",
+                "length": "double",
+                "rating": "string",
+                "display_embed": "string",
+                "allow_download": "string",
+                "videopress_guid": "string",
+                "videopress_processing_done": "boolean"
+              }
+            },
+            "attachment_count": "double",
+            "capabilities": {
+              "publish_post": "boolean",
+              "edit_post": "boolean",
+              "delete_post": "boolean"
+            },
+            "revisions": [
+              "double"
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Post Likes",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Who liked one post. Requires the site and post id. The post carries a like count; this is who they were."
+      "description": "Who liked one post. Requires the site and post id. The post carries a like count; this is who they were.",
+      "responseSchema": {
+        "found": "double",
+        "i_like": "boolean",
+        "can_like": "boolean",
+        "site_ID": "double",
+        "post_ID": "double"
+      }
     },
     {
       "name": "Current User Post Like Status",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/likes/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Whether the caller has liked one post."
+      "description": "Whether the caller has liked one post.",
+      "responseSchema": {
+        "i_like": "boolean",
+        "like_count": "double",
+        "site_ID": "double",
+        "post_ID": "double"
+      }
     },
     {
       "name": "Post Subscribers",
@@ -285,13 +881,31 @@
       "name": "Current User Post Reblog Status",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/reblogs/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Whether the caller has reblogged one post."
+      "description": "Whether the caller has reblogged one post.",
+      "responseSchema": {
+        "is_reblogged": "boolean",
+        "meta": {
+          "ID": "double"
+        }
+      }
     },
     {
       "name": "Comment",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One comment by id. Requires the site."
+      "description": "One comment by id. Requires the site.",
+      "responseSchema": {
+        "ID": "double",
+        "date": "timeInstant",
+        "URL": "string",
+        "short_URL": "string",
+        "content": "string",
+        "raw_content": "string",
+        "status": "string",
+        "type": "string",
+        "like_count": "double",
+        "i_like": "boolean"
+      }
     },
     {
       "name": "Recent Comments",
@@ -309,7 +923,25 @@
           "parameterName": "Comment ID"
         }
       ],
-      "description": "The comments on one site, filterable by status. Requires a site. Carries the author, content, date, the post commented on, and the approval status. STATUS MATTERS: unapproved, spam and trashed comments share this table with approved ones, so an engagement count that does not filter includes spam."
+      "description": "The comments on one site, filterable by status. Requires a site. Carries the author, content, date, the post commented on, and the approval status. STATUS MATTERS: unapproved, spam and trashed comments share this table with approved ones, so an engagement count that does not filter includes spam.",
+      "responseSchema": {
+        "found": "double",
+        "site_ID": "double",
+        "comments": [
+          {
+            "ID": "double",
+            "date": "timeInstant",
+            "URL": "string",
+            "short_URL": "string",
+            "content": "string",
+            "raw_content": "string",
+            "status": "string",
+            "type": "string",
+            "like_count": "double",
+            "i_like": "boolean"
+          }
+        ]
+      }
     },
     {
       "name": "Post Recent Comments",
@@ -327,13 +959,40 @@
           "parameterName": "Comment ID"
         }
       ],
-      "description": "The comments on one post. Requires the site and post id."
+      "description": "The comments on one post. Requires the site and post id.",
+      "responseSchema": {
+        "found": "double",
+        "site_ID": "double",
+        "comments": [
+          {
+            "ID": "double",
+            "date": "timeInstant",
+            "URL": "string",
+            "short_URL": "string",
+            "content": "string",
+            "raw_content": "string",
+            "status": "string",
+            "type": "string",
+            "like_count": "double",
+            "i_like": "boolean"
+          }
+        ]
+      }
     },
     {
       "name": "Comment Counts",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/comment-counts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&post_id={Post ID?}",
-      "description": "Comment counts by status for one site. Requires a site. The ready-made summary, and it separates approved from spam without paging anything."
+      "description": "Comment counts by status for one site. Requires a site. The ready-made summary, and it separates approved from spam without paging anything.",
+      "responseSchema": {
+        "all": "double",
+        "approved": "double",
+        "pending": "double",
+        "trash": "double",
+        "spam": "double",
+        "post_trashed": "double",
+        "total_comments": "double"
+      }
     },
     {
       "name": "Comment Audit History",
@@ -345,19 +1004,41 @@
       "name": "Comment Likes",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Who liked one comment. Requires the site and comment id."
+      "description": "Who liked one comment. Requires the site and comment id.",
+      "responseSchema": {
+        "found": "double",
+        "i_like": "boolean"
+      }
     },
     {
       "name": "Current User Comment Like Status",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}/likes/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Whether the caller has liked one comment."
+      "description": "Whether the caller has liked one comment.",
+      "responseSchema": {
+        "i_like": "boolean",
+        "like_count": "double"
+      }
     },
     {
       "name": "Site Categories",
       "paged": true,
       "suffix": "/v1.1/sites/{Site ID or Domain}/categories?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search?}",
-      "description": "The categories of one site, with post counts. Requires a site. The primary content taxonomy."
+      "description": "The categories of one site, with post counts. Requires a site. The primary content taxonomy.",
+      "responseSchema": {
+        "found": "double",
+        "categories": [
+          {
+            "ID": "double",
+            "name": "string",
+            "slug": "string",
+            "description": "string",
+            "post_count": "double",
+            "feed_url": "string",
+            "parent": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Site Tags",
@@ -374,19 +1055,47 @@
           "parameterName": "Tag"
         }
       ],
-      "description": "The tags of one site, with post counts. Requires a site. The secondary, free-form taxonomy."
+      "description": "The tags of one site, with post counts. Requires a site. The secondary, free-form taxonomy.",
+      "responseSchema": {
+        "found": "double",
+        "tags": [
+          {
+            "ID": "double",
+            "name": "string",
+            "slug": "string",
+            "description": "string",
+            "post_count": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Site Category",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/categories/slug:{Category Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One category by slug. Requires the site."
+      "description": "One category by slug. Requires the site.",
+      "responseSchema": {
+        "ID": "double",
+        "name": "string",
+        "slug": "string",
+        "description": "string",
+        "post_count": "double",
+        "feed_url": "string",
+        "parent": "double"
+      }
     },
     {
       "name": "Site Tag",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/tags/slug:{Tag Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One tag by slug. Requires the site."
+      "description": "One tag by slug. Requires the site.",
+      "responseSchema": {
+        "ID": "double",
+        "name": "string",
+        "slug": "string",
+        "description": "string",
+        "post_count": "double"
+      }
     },
     {
       "name": "Taxonomy Term",
@@ -398,13 +1107,19 @@
       "name": "Post Type Taxonomies",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/post-types/{Post Type}/taxonomies?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The taxonomies attached to one post type. Requires the site and post type. CUSTOM POST TYPES BRING THEIR OWN TAXONOMIES, so categories and tags are not the whole classification on a site that uses them."
+      "description": "The taxonomies attached to one post type. Requires the site and post type. CUSTOM POST TYPES BRING THEIR OWN TAXONOMIES, so categories and tags are not the whole classification on a site that uses them.",
+      "responseSchema": {
+        "found": "double"
+      }
     },
     {
       "name": "Taxonomy Terms",
       "paged": true,
       "suffix": "/v1.1/sites/{Site ID or Domain}/taxonomies/{Taxonomy}/terms?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search?}",
-      "description": "The terms of one taxonomy. Requires the site and taxonomy. The generalised version of categories and tags."
+      "description": "The terms of one taxonomy. Requires the site and taxonomy. The generalised version of categories and tags.",
+      "responseSchema": {
+        "found": "double"
+      }
     },
     {
       "name": "Site Followers",
@@ -416,73 +1131,255 @@
       "name": "Current User Blog Following Status",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/follows/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Whether the caller follows one site."
+      "description": "Whether the caller follows one site.",
+      "responseSchema": {
+        "is_following": "boolean"
+      }
     },
     {
       "name": "Sharing Buttons",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/sharing-buttons?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&enabled_only={Enabled Only?:true|false}&visibility={Visibility?:visible|hidden}",
-      "description": "The sharing buttons configured on one site."
+      "description": "The sharing buttons configured on one site.",
+      "responseSchema": {
+        "found": "double"
+      }
     },
     {
       "name": "External Services",
       "paged": false,
       "suffix": "/v1.1/meta/external-services?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&type={Type?:publicize|other}",
-      "description": "The external services WordPress.com can connect to. Reference data."
+      "description": "The external services WordPress.com can connect to. Reference data.",
+      "responseSchema": {
+        "services": [
+          {
+            "ID": "string",
+            "label": "string",
+            "type": "string",
+            "description": "string",
+            "genericon": {
+              "class_name": "string",
+              "unicode_character": "string"
+            },
+            "icon": "string",
+            "connect_url": "string",
+            "multiple_external_user_ID_support": "boolean",
+            "jetpack_support": "boolean",
+            "jetpack_module_required": "string"
+          }
+        ]
+      }
     },
     {
       "name": "External Service",
       "paged": false,
       "suffix": "/v1.1/meta/external-services/{Service}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One external service by name."
+      "description": "One external service by name.",
+      "responseSchema": {
+        "ID": "string",
+        "label": "string",
+        "type": "string",
+        "description": "string",
+        "genericon": {
+          "class_name": "string",
+          "unicode_character": "string"
+        },
+        "icon": "string",
+        "connect_url": "string",
+        "multiple_external_user_ID_support": "boolean",
+        "jetpack_support": "boolean",
+        "jetpack_module_required": "string"
+      }
     },
     {
       "name": "Current User Publicize Connections",
       "paged": false,
       "suffix": "/v1.1/me/publicize-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&service={Service?}&keyring_connection_ID={Keyring Connection ID?}&site={Site?}",
-      "description": "The caller's own social publishing connections."
+      "description": "The caller's own social publishing connections.",
+      "responseSchema": {
+        "connections": [
+          {
+            "ID": "double",
+            "site_ID": "double",
+            "user_ID": "double",
+            "keyring_connection_ID": "double",
+            "keyring_connection_user_ID": "double",
+            "shared": "boolean",
+            "service": "string",
+            "label": "string",
+            "issued": "timeInstant",
+            "expires": "timeInstant",
+            "external_ID": "string",
+            "external_name": "string",
+            "external_display": "string",
+            "external_profile_picture": "string",
+            "external_profile_URL": "string",
+            "external_follower_count": "double",
+            "URL": "string",
+            "status": "string",
+            "refresh_URL": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Current User Publicize Connection",
       "paged": false,
       "suffix": "/v1.1/me/publicize-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One of the caller's publicize connections by id."
+      "description": "One of the caller's publicize connections by id.",
+      "responseSchema": {
+        "ID": "double",
+        "site_ID": "double",
+        "user_ID": "double",
+        "keyring_connection_ID": "double",
+        "keyring_connection_user_ID": "double",
+        "shared": "boolean",
+        "service": "string",
+        "label": "string",
+        "issued": "timeInstant",
+        "expires": "timeInstant",
+        "external_ID": "string",
+        "external_name": "string",
+        "external_display": "string",
+        "external_profile_picture": "string",
+        "external_profile_URL": "string",
+        "external_follower_count": "double",
+        "URL": "string",
+        "status": "string",
+        "refresh_URL": "string"
+      }
     },
     {
       "name": "Current User Keyring Connections",
       "paged": false,
       "suffix": "/v1.1/me/keyring-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&site={Site?}&force_external_users_refetch={Force Refetch External Users?:true|false}&force_connection_test={Force Test Connection?:true|false}",
-      "description": "The caller's underlying authorisations to external services. The credential layer beneath publicize connections."
+      "description": "The caller's underlying authorisations to external services. The credential layer beneath publicize connections.",
+      "responseSchema": {
+        "connections": [
+          {
+            "ID": "double",
+            "user_ID": "double",
+            "type": "string",
+            "service": "string",
+            "label": "string",
+            "issued": "timeInstant",
+            "expires": "timeInstant",
+            "external_ID": "string",
+            "external_name": "string",
+            "external_display": "string",
+            "external_profile_picture": "string",
+            "additional_external_users_empty_reason": "string",
+            "status": "string",
+            "refresh_url": "string",
+            "sites": [
+              "double"
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Current User Keyring Connection",
       "paged": false,
       "suffix": "/v1.1/me/keyring-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One keyring connection by id."
+      "description": "One keyring connection by id.",
+      "responseSchema": {
+        "ID": "double",
+        "user_ID": "double",
+        "type": "string",
+        "service": "string",
+        "label": "string",
+        "issued": "timeInstant",
+        "expires": "timeInstant",
+        "external_ID": "string",
+        "external_name": "string",
+        "external_display": "string",
+        "external_profile_picture": "string",
+        "additional_external_users_empty_reason": "string",
+        "status": "string",
+        "refresh_url": "string",
+        "sites": [
+          "double"
+        ]
+      }
     },
     {
       "name": "Site Publicize Connections",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/publicize-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&service={Service?}&user_id={User ID?}&keyring_connection_ID={Keyring Connection ID?}",
-      "description": "The social accounts one site auto-publishes to. Requires a site. Where a post reaches beyond the site itself."
+      "description": "The social accounts one site auto-publishes to. Requires a site. Where a post reaches beyond the site itself.",
+      "responseSchema": {
+        "connections": [
+          {
+            "ID": "double",
+            "site_ID": "double",
+            "user_ID": "double",
+            "keyring_connection_ID": "double",
+            "keyring_connection_user_ID": "double",
+            "shared": "boolean",
+            "service": "string",
+            "label": "string",
+            "issued": "timeInstant",
+            "expires": "timeInstant",
+            "external_ID": "string",
+            "external_name": "string",
+            "external_display": "string",
+            "external_profile_picture": "string",
+            "external_profile_URL": "string",
+            "external_follower_count": "double",
+            "URL": "string",
+            "status": "string",
+            "refresh_URL": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Site Publicize Connection",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/publicize-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One site publicize connection by id."
+      "description": "One site publicize connection by id.",
+      "responseSchema": {
+        "ID": "double",
+        "site_ID": "double",
+        "user_ID": "double",
+        "keyring_connection_ID": "double",
+        "keyring_connection_user_ID": "double",
+        "shared": "boolean",
+        "service": "string",
+        "label": "string",
+        "issued": "timeInstant",
+        "expires": "timeInstant",
+        "external_ID": "string",
+        "external_name": "string",
+        "external_display": "string",
+        "external_profile_picture": "string",
+        "external_profile_URL": "string",
+        "external_follower_count": "double",
+        "URL": "string",
+        "status": "string",
+        "refresh_URL": "string"
+      }
     },
     {
       "name": "External Services with Sharing Buttons",
       "paged": false,
       "suffix": "/v1.1/meta/sharing-buttons?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The services available as sharing buttons. Reference data."
+      "description": "The services available as sharing buttons. Reference data.",
+      "responseSchema": {
+        "more": "string"
+      }
     },
     {
       "name": "Insights List",
       "paged": false,
       "suffix": "/v1.1/insights?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The insight reports available. WordPress.com's own prepared analyses, as opposed to the raw statistics."
+      "description": "The insight reports available. WordPress.com's own prepared analyses, as opposed to the raw statistics.",
+      "responseSchema": {
+        "ID": "double",
+        "name": "string",
+        "has_custom": "boolean"
+      }
     },
     {
       "name": "Insights Data",
@@ -523,7 +1420,65 @@
           "parameterName": "Post ID"
         }
       ],
-      "description": "The posts from sites the caller follows. The Reader feed -- consumption rather than publishing."
+      "description": "The posts from sites the caller follows. The Reader feed -- consumption rather than publishing.",
+      "responseSchema": {
+        "number": "double",
+        "posts": [
+          {
+            "ID": "double",
+            "site_ID": "double",
+            "date": "timeInstant",
+            "modified": "timeInstant",
+            "title": "string",
+            "URL": "string",
+            "short_URL": "string",
+            "content": "string",
+            "excerpt": "string",
+            "slug": "string",
+            "guid": "string",
+            "status": "string",
+            "sticky": "boolean",
+            "password": "string",
+            "type": "string",
+            "comments_open": "boolean",
+            "pings_open": "boolean",
+            "likes_enabled": "boolean",
+            "sharing_enabled": "boolean",
+            "comment_count": "double",
+            "like_count": "double",
+            "i_like": "boolean",
+            "is_reblogged": "boolean",
+            "is_following": "boolean",
+            "global_ID": "string",
+            "featured_image": "string",
+            "format": "string",
+            "menu_order": "double",
+            "publicize_URLs": [
+              "string"
+            ],
+            "tags": {
+              "*": {
+                "ID": "double",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "post_count": "double"
+              }
+            },
+            "categories": {
+              "*": {
+                "ID": "double",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "post_count": "double",
+                "feed_url": "string",
+                "parent": "double"
+              }
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Liked Blog Posts",
@@ -546,7 +1501,65 @@
           "parameterName": "Post ID"
         }
       ],
-      "description": "The posts the caller has liked, as a feed."
+      "description": "The posts the caller has liked, as a feed.",
+      "responseSchema": {
+        "number": "double",
+        "posts": [
+          {
+            "ID": "double",
+            "site_ID": "double",
+            "date": "timeInstant",
+            "modified": "timeInstant",
+            "title": "string",
+            "URL": "string",
+            "short_URL": "string",
+            "content": "string",
+            "excerpt": "string",
+            "slug": "string",
+            "guid": "string",
+            "status": "string",
+            "sticky": "boolean",
+            "password": "string",
+            "type": "string",
+            "comments_open": "boolean",
+            "pings_open": "boolean",
+            "likes_enabled": "boolean",
+            "sharing_enabled": "boolean",
+            "comment_count": "double",
+            "like_count": "double",
+            "i_like": "boolean",
+            "is_reblogged": "boolean",
+            "is_following": "boolean",
+            "global_ID": "string",
+            "featured_image": "string",
+            "format": "string",
+            "menu_order": "double",
+            "publicize_URLs": [
+              "string"
+            ],
+            "tags": {
+              "*": {
+                "ID": "double",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "post_count": "double"
+              }
+            },
+            "categories": {
+              "*": {
+                "ID": "double",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "post_count": "double",
+                "feed_url": "string",
+                "parent": "double"
+              }
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Tagged Posts",
@@ -569,7 +1582,65 @@
           "parameterName": "Post ID"
         }
       ],
-      "description": "Recent posts carrying one tag, across WordPress.com. Requires the tag. Cross-site content discovery, unlike Site Tags which is one site's own taxonomy."
+      "description": "Recent posts carrying one tag, across WordPress.com. Requires the tag. Cross-site content discovery, unlike Site Tags which is one site's own taxonomy.",
+      "responseSchema": {
+        "number": "double",
+        "posts": [
+          {
+            "ID": "double",
+            "site_ID": "double",
+            "date": "timeInstant",
+            "modified": "timeInstant",
+            "title": "string",
+            "URL": "string",
+            "short_URL": "string",
+            "content": "string",
+            "excerpt": "string",
+            "slug": "string",
+            "guid": "string",
+            "status": "string",
+            "sticky": "boolean",
+            "password": "string",
+            "type": "string",
+            "comments_open": "boolean",
+            "pings_open": "boolean",
+            "likes_enabled": "boolean",
+            "sharing_enabled": "boolean",
+            "comment_count": "double",
+            "like_count": "double",
+            "i_like": "boolean",
+            "is_reblogged": "boolean",
+            "is_following": "boolean",
+            "global_ID": "string",
+            "featured_image": "string",
+            "format": "string",
+            "menu_order": "double",
+            "publicize_URLs": [
+              "string"
+            ],
+            "tags": {
+              "*": {
+                "ID": "double",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "post_count": "double"
+              }
+            },
+            "categories": {
+              "*": {
+                "ID": "double",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "post_count": "double",
+                "feed_url": "string",
+                "parent": "double"
+              }
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Subscribed Tags",
@@ -609,13 +1680,21 @@
       "name": "Tag",
       "paged": false,
       "suffix": "/v1.1/read/tags/{Tag}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One Reader tag by name, with its post count."
+      "description": "One Reader tag by name, with its post count.",
+      "responseSchema": {
+        "ID": "double",
+        "title": "string",
+        "endpoint": "string"
+      }
     },
     {
       "name": "Tag Subscription Status",
       "paged": false,
       "suffix": "/v1.1/read/tags/{Tag}/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Whether the caller follows one tag."
+      "description": "Whether the caller follows one tag.",
+      "responseSchema": {
+        "subscribed": "boolean"
+      }
     },
     {
       "name": "Followed Feeds",
@@ -639,91 +1718,170 @@
       "name": "Site Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The headline traffic figures for one site over a period -- views, visitors, likes and comments. Requires a site. THE WORDPRESS.COM STATS SYSTEM, which is separate from the content tables and computed independently: a post's view count comes from here rather than from the post record."
+      "description": "The headline traffic figures for one site over a period -- views, visitors, likes and comments. Requires a site. THE WORDPRESS.COM STATS SYSTEM, which is separate from the content tables and computed independently: a post's view count comes from here rather than from the post record.",
+      "responseSchema": {
+        "date": "string"
+      }
     },
     {
       "name": "Site Summary Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/summary?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Period Date?:yyyy-MM-dd}&offset={Time Zone Offset?}",
-      "description": "The site's aggregate figures for a period -- views, visitors, best-ever day and totals. The overview."
+      "description": "The site's aggregate figures for a period -- views, visitors, best-ever day and totals. The overview.",
+      "responseSchema": {
+        "date": "string",
+        "period": "string",
+        "views": "double",
+        "visitors": "double",
+        "likes": "double",
+        "reblogs": "double",
+        "comments": "double",
+        "followers": "double"
+      }
     },
     {
       "name": "Site Top Post Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/top-posts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summarize={Summarize Data?:true|false}",
-      "description": "The most-viewed posts over a period, with their view counts. Which content actually earned the traffic."
+      "description": "The most-viewed posts over a period, with their view counts. Which content actually earned the traffic.",
+      "responseSchema": {
+        "date": "string",
+        "period": "string"
+      }
     },
     {
       "name": "Video Post Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/video/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The play statistics of one video post."
+      "description": "The play statistics of one video post.",
+      "responseSchema": {
+        "date": "string",
+        "period": "string",
+        "total": {
+          "*": "double"
+        },
+        "post": {
+          "poster": "string"
+        }
+      }
     },
     {
       "name": "Site Referrer Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/referrers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}",
-      "description": "Where traffic came from over a period, by referring site. The acquisition table."
+      "description": "Where traffic came from over a period, by referring site. The acquisition table.",
+      "responseSchema": {
+        "date": "string",
+        "period": "string"
+      }
     },
     {
       "name": "Site Outbound Click Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/clicks?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}",
-      "description": "The outbound links visitors clicked, over a period. Where readers went next -- which no view count reveals."
+      "description": "The outbound links visitors clicked, over a period. Where readers went next -- which no view count reveals.",
+      "responseSchema": {
+        "date": "string",
+        "period": "string"
+      }
     },
     {
       "name": "Site Views by Tag and Category",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/tags?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&max={Maximum Number of Results?}",
-      "description": "Traffic by taxonomy term over a period. Which subjects draw readers, as opposed to which individual posts."
+      "description": "Traffic by taxonomy term over a period. Which subjects draw readers, as opposed to which individual posts.",
+      "responseSchema": {
+        "date": "string"
+      }
     },
     {
       "name": "Site Top Author Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/top-authors?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}",
-      "description": "Views by author over a period. Per-writer performance on a multi-author site."
+      "description": "Views by author over a period. Per-writer performance on a multi-author site.",
+      "responseSchema": {
+        "date": "string",
+        "period": "string"
+      }
     },
     {
       "name": "Site Top Comment Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/comments?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The most-commented posts and the most active commenters over a period."
+      "description": "The most-commented posts and the most active commenters over a period.",
+      "responseSchema": {
+        "date": "string",
+        "monthly_comments": "double",
+        "total_comments": "double",
+        "most_active_day": "string",
+        "most_active_time": "string"
+      }
     },
     {
       "name": "Site Video Plays Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/video-plays?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}",
-      "description": "Video plays across the site over a period."
+      "description": "Video plays across the site over a period.",
+      "responseSchema": {
+        "date": "string"
+      }
     },
     {
       "name": "Site File Download Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/file-downloads?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}",
-      "description": "Downloads of files hosted on the site, over a period."
+      "description": "Downloads of files hosted on the site, over a period.",
+      "responseSchema": {
+        "date": "string",
+        "period": "string"
+      }
     },
     {
       "name": "Post View Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/post/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The view history of ONE post over time. Requires the site and post id. The per-post series, as opposed to a ranking snapshot."
+      "description": "The view history of ONE post over time. Requires the site and post id. The per-post series, as opposed to a ranking snapshot.",
+      "responseSchema": {
+        "date": "string",
+        "like_count": "double",
+        "discussion": {
+          "comment_count": "double"
+        }
+      }
     },
     {
       "name": "Site Views by Country",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/country-views?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}",
-      "description": "Traffic by country over a period."
+      "description": "Traffic by country over a period.",
+      "responseSchema": {
+        "date": "string"
+      }
     },
     {
       "name": "Site Follower Statistics",
       "paged": true,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/followers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&type={Type?:wpcom|email}&search={Email Address?}",
-      "description": "The site's follower count over time, and the recent followers. Audience growth rather than traffic."
+      "description": "The site's follower count over time, and the recent followers. Audience growth rather than traffic.",
+      "responseSchema": {
+        "page": "double",
+        "pages": "double",
+        "total": "double",
+        "total_email": "double",
+        "total_wpcom": "double",
+        "is_owner_subscribed": "boolean"
+      }
     },
     {
       "name": "Site Comment Follower Statistics",
       "paged": true,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/comment-followers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Followers subscribed to comments rather than to posts."
+      "description": "Followers subscribed to comments rather than to posts.",
+      "responseSchema": {
+        "page": "double",
+        "pages": "double",
+        "total": "double"
+      }
     },
     {
       "name": "Site Publicize Follower Statistics",
@@ -735,13 +1893,20 @@
       "name": "Site Search Term Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/search-terms?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}",
-      "description": "The search terms that brought visitors, over a period. NOTE most search engines withhold the term, so this table is heavily incomplete by design and its totals do not reconcile with search referral counts."
+      "description": "The search terms that brought visitors, over a period. NOTE most search engines withhold the term, so this table is heavily incomplete by design and its totals do not reconcile with search referral counts.",
+      "responseSchema": {
+        "date": "string",
+        "period": "string"
+      }
     },
     {
       "name": "Post Total View Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/views/posts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Days?:1-30}&post_ids={Post IDs:id1,id2,...}&date={Most Recent Day to Include?:yyyy-MM-dd}&offset={Time Zone Offset?}",
-      "description": "Lifetime view totals for the site's posts. The all-time ranking rather than a period one."
+      "description": "Lifetime view totals for the site's posts. The all-time ranking rather than a period one.",
+      "responseSchema": {
+        "date": "string"
+      }
     },
     {
       "name": "Calendar Heatmap Statistics",
@@ -753,25 +1918,115 @@
       "name": "Media Item",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/media/{Media ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One media item by id."
+      "description": "One media item by id.",
+      "responseSchema": {
+        "ID": "double",
+        "date": "timeInstant",
+        "post_ID": "double",
+        "author_ID": "double",
+        "URL": "string",
+        "guid": "string",
+        "file": "string",
+        "extension": "string",
+        "mime_type": "string",
+        "title": "string",
+        "caption": "string",
+        "description": "string",
+        "alt": "string",
+        "thumbnails": {
+          "*": "string"
+        },
+        "height": "double",
+        "width": "double",
+        "length": "double",
+        "rating": "string",
+        "display_embed": "string",
+        "allow_download": "string",
+        "videopress_guid": "string",
+        "videopress_processing_done": "boolean"
+      }
     },
     {
       "name": "Media Items",
       "paged": true,
       "suffix": "/v1.1/sites/{Site ID or Domain}/media?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search Query?}&post_ID={Post ID?}&mime_type={MIME Type?}&after={Uploaded After?:yyyy-MM-ddTHH:mm:ss}&before={Uploaded Before?:yyyy-MM-ddTHH:mm:ss}",
-      "description": "The media library of one site, with file name, type, dimensions, size, the post each is attached to and the upload date. Requires a site. Storage questions and unused-asset questions are answered here."
+      "description": "The media library of one site, with file name, type, dimensions, size, the post each is attached to and the upload date. Requires a site. Storage questions and unused-asset questions are answered here.",
+      "responseSchema": {
+        "found": "double",
+        "media": [
+          {
+            "ID": "double",
+            "date": "timeInstant",
+            "post_ID": "double",
+            "author_ID": "double",
+            "URL": "string",
+            "guid": "string",
+            "file": "string",
+            "extension": "string",
+            "mime_type": "string",
+            "title": "string",
+            "caption": "string",
+            "description": "string",
+            "alt": "string",
+            "thumbnails": {
+              "*": "string"
+            },
+            "height": "double",
+            "width": "double",
+            "length": "double",
+            "rating": "string",
+            "display_embed": "string",
+            "allow_download": "string",
+            "videopress_guid": "string",
+            "videopress_processing_done": "boolean"
+          }
+        ]
+      }
     },
     {
       "name": "Navigation Menu",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/menus/{Menu ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One menu by id."
+      "description": "One menu by id.",
+      "responseSchema": {
+        "name": "string",
+        "items": [
+          {
+            "id": "double",
+            "type": "string",
+            "content_id": "double"
+          }
+        ],
+        "locations": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Navigation Menus",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/menus?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The navigation menus of one site, with their items. The site's own structure as presented to readers."
+      "description": "The navigation menus of one site, with their items. The site's own structure as presented to readers.",
+      "responseSchema": {
+        "menus": [
+          {
+            "name": "string",
+            "items": [
+              {
+                "id": "double",
+                "type": "string",
+                "content_id": "double"
+              }
+            ],
+            "locations": [
+              "string"
+            ]
+          }
+        ],
+        "locations": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Video Metadata",

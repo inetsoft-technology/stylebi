@@ -26,6 +26,43 @@
       "paged": false,
       "suffix": "/api/v2/authorizations?org={Organization Name?}&orgID={Organization ID?}&user={User Name?}&userID={User ID?}",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        },
+        "authorizations": [
+          {
+            "status": "string",
+            "description": "string",
+            "createdAt": "string",
+            "updatedAt": "string",
+            "orgID": "string",
+            "permissions": [
+              {
+                "action": "string",
+                "resource": {
+                  "type": "string",
+                  "id": "string",
+                  "name": "string",
+                  "orgID": "string",
+                  "org": "string"
+                }
+              }
+            ],
+            "id": "string",
+            "token": "string",
+            "userID": "string",
+            "user": "string",
+            "org": "string",
+            "links": {
+              "self": "string",
+              "user": "string"
+            }
+          }
+        ]
+      },
       "description": "The API tokens issued, with their permissions, the organisation and user, and their status. Security inventory -- a token's permission set is what decides which of these endpoints it can reach."
     },
     {
@@ -33,6 +70,34 @@
       "paged": false,
       "suffix": "/api/v2/authorizations/{Authorization ID}",
       "post": false,
+      "responseSchema": {
+        "status": "string",
+        "description": "string",
+        "createdAt": "string",
+        "updatedAt": "string",
+        "orgID": "string",
+        "permissions": [
+          {
+            "action": "string",
+            "resource": {
+              "type": "string",
+              "id": "string",
+              "name": "string",
+              "orgID": "string",
+              "org": "string"
+            }
+          }
+        ],
+        "id": "string",
+        "token": "string",
+        "userID": "string",
+        "user": "string",
+        "org": "string",
+        "links": {
+          "self": "string",
+          "user": "string"
+        }
+      },
       "description": "One authorization by id, with its permissions."
     },
     {
@@ -66,6 +131,51 @@
           "parameterName": "Bucket ID"
         }
       ],
+      "responseSchema": {
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        },
+        "buckets": [
+          {
+            "links": {
+              "labels": "string",
+              "members": "string",
+              "org": "string",
+              "owners": "string",
+              "self": "string",
+              "write": "string"
+            },
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "description": "string",
+            "orgID": "string",
+            "rp": "string",
+            "schemaType": "string",
+            "createdAt": "string",
+            "updatedAt": "string",
+            "retentionRules": [
+              {
+                "type": "string",
+                "everySeconds": "double",
+                "shardGroupDurationSeconds": "double"
+              }
+            ],
+            "labels": [
+              {
+                "id": "string",
+                "orgID": "string",
+                "name": "string",
+                "properties": {
+                  "*": "string"
+                }
+              }
+            ]
+          }
+        ]
+      },
       "description": "The buckets on the instance -- the containers time series are written into, each with its organisation and its RETENTION PERIOD. Filterable by name, id and organisation. THE RETENTION PERIOD BOUNDS EVERY QUERY AGAINST A BUCKET: data older than it has been deleted, so an empty result for last year is expected behaviour rather than missing data, and this is the only place that boundary is visible."
     },
     {
@@ -73,6 +183,42 @@
       "paged": false,
       "suffix": "/api/v2/buckets/{Bucket ID?}",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "labels": "string",
+          "members": "string",
+          "org": "string",
+          "owners": "string",
+          "self": "string",
+          "write": "string"
+        },
+        "id": "string",
+        "type": "string",
+        "name": "string",
+        "description": "string",
+        "orgID": "string",
+        "rp": "string",
+        "schemaType": "string",
+        "createdAt": "string",
+        "updatedAt": "string",
+        "retentionRules": [
+          {
+            "type": "string",
+            "everySeconds": "double",
+            "shardGroupDurationSeconds": "double"
+          }
+        ],
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ]
+      },
       "description": "One bucket by id, with its retention rules."
     },
     {
@@ -80,6 +226,23 @@
       "paged": false,
       "suffix": "/api/v2/buckets/{Bucket ID?}/labels",
       "post": false,
+      "responseSchema": {
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The labels on one bucket. Requires a bucket id."
     },
     {
@@ -87,6 +250,22 @@
       "paged": false,
       "suffix": "/api/v2/buckets/{Bucket ID?}/members",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users with member access to one bucket."
     },
     {
@@ -94,6 +273,22 @@
       "paged": false,
       "suffix": "/api/v2/buckets/{Bucket ID?}/owners",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users owning one bucket."
     },
     {
@@ -101,6 +296,51 @@
       "paged": false,
       "suffix": "/api/v2/sources/{Source ID}/buckets?org={Organization Name?}",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        },
+        "buckets": [
+          {
+            "links": {
+              "labels": "string",
+              "members": "string",
+              "org": "string",
+              "owners": "string",
+              "self": "string",
+              "write": "string"
+            },
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "description": "string",
+            "orgID": "string",
+            "rp": "string",
+            "schemaType": "string",
+            "createdAt": "string",
+            "updatedAt": "string",
+            "retentionRules": [
+              {
+                "type": "string",
+                "everySeconds": "double",
+                "shardGroupDurationSeconds": "double"
+              }
+            ],
+            "labels": [
+              {
+                "id": "string",
+                "orgID": "string",
+                "name": "string",
+                "properties": {
+                  "*": "string"
+                }
+              }
+            ]
+          }
+        ]
+      },
       "description": "The buckets available through one source. Requires a source id."
     },
     {
@@ -108,6 +348,57 @@
       "paged": false,
       "suffix": "/api/v2/dashboards/{Dashboard ID}/cells/{Cell ID}/view",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "id": "string",
+        "name": "string",
+        "properties": {
+          "type": "string",
+          "shape": "string",
+          "note": "string",
+          "queries": [
+            {
+              "text": "string",
+              "editMode": "string",
+              "name": "string",
+              "builderConfig": {
+                "buckets": [
+                  "string"
+                ],
+                "tags": [
+                  {
+                    "key": "string",
+                    "values": [
+                      "string"
+                    ],
+                    "aggregateFunctionType": "string"
+                  }
+                ],
+                "functions": [
+                  {
+                    "name": "string"
+                  }
+                ],
+                "aggregateWindow": {
+                  "period": "string",
+                  "fillValues": "boolean"
+                }
+              }
+            }
+          ],
+          "colors": [
+            {
+              "id": "string",
+              "type": "string",
+              "hex": "string",
+              "name": "string",
+              "value": "double"
+            }
+          ]
+        }
+      },
       "description": "The visualisation configuration of one dashboard cell, INCLUDING THE FLUX QUERY BEHIND IT. Requires the dashboard and cell ids. The map from a chart back to the query producing it, which is the fastest route to a known-good query for a metric."
     },
     {
@@ -126,6 +417,98 @@
           "parameterName": "Check ID"
         }
       ],
+      "responseSchema": {
+        "checks": [
+          {
+            "id": "string",
+            "name": "string",
+            "orgID": "string",
+            "taskID": "string",
+            "ownerID": "string",
+            "createdAt": "string",
+            "updatedAt": "string",
+            "query": {
+              "text": "string",
+              "editMode": "string",
+              "name": "string",
+              "builderConfig": {
+                "buckets": [
+                  "string"
+                ],
+                "tags": [
+                  {
+                    "key": "string",
+                    "values": [
+                      "string"
+                    ],
+                    "aggregateFunctionType": "string"
+                  }
+                ],
+                "functions": [
+                  {
+                    "name": "string"
+                  }
+                ],
+                "aggregateWindow": {
+                  "period": "string",
+                  "fillValues": "boolean"
+                }
+              }
+            },
+            "status": "string",
+            "description": "string",
+            "latestCompleted": "string",
+            "lastRunStatus": "string",
+            "lastRunError": "string",
+            "labels": [
+              {
+                "id": "string",
+                "orgID": "string",
+                "name": "string",
+                "properties": {
+                  "*": "string"
+                }
+              }
+            ],
+            "links": {
+              "self": "string",
+              "labels": "string",
+              "members": "string",
+              "owners": "string",
+              "query": "string"
+            },
+            "type": "string",
+            "thresholds": [
+              {
+                "type": "string",
+                "allValues": "boolean",
+                "value": "double",
+                "min": "double",
+                "max": "double",
+                "within": "boolean"
+              }
+            ],
+            "every": "string",
+            "offset": "string",
+            "tags": [
+              {
+                "key": "string",
+                "value": "string"
+              }
+            ],
+            "statusMessageTemplate": "string",
+            "timeSince": "string",
+            "staleTime": "string",
+            "reportZero": "boolean",
+            "level": "string"
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The monitoring checks defined -- the queries evaluated on a schedule to decide a status. Requires an organisation id. Checks produce statuses, notification rules act on them, and notification endpoints deliver them: the three together are InfluxDB's alerting, and none makes sense alone."
     },
     {
@@ -133,6 +516,89 @@
       "paged": false,
       "suffix": "/api/v2/checks/{Check ID}",
       "post": false,
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "orgID": "string",
+        "taskID": "string",
+        "ownerID": "string",
+        "createdAt": "string",
+        "updatedAt": "string",
+        "query": {
+          "text": "string",
+          "editMode": "string",
+          "name": "string",
+          "builderConfig": {
+            "buckets": [
+              "string"
+            ],
+            "tags": [
+              {
+                "key": "string",
+                "values": [
+                  "string"
+                ],
+                "aggregateFunctionType": "string"
+              }
+            ],
+            "functions": [
+              {
+                "name": "string"
+              }
+            ],
+            "aggregateWindow": {
+              "period": "string",
+              "fillValues": "boolean"
+            }
+          }
+        },
+        "status": "string",
+        "description": "string",
+        "latestCompleted": "string",
+        "lastRunStatus": "string",
+        "lastRunError": "string",
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "self": "string",
+          "labels": "string",
+          "members": "string",
+          "owners": "string",
+          "query": "string"
+        },
+        "type": "string",
+        "thresholds": [
+          {
+            "type": "string",
+            "allValues": "boolean",
+            "value": "double",
+            "min": "double",
+            "max": "double",
+            "within": "boolean"
+          }
+        ],
+        "every": "string",
+        "offset": "string",
+        "tags": [
+          {
+            "key": "string",
+            "value": "string"
+          }
+        ],
+        "statusMessageTemplate": "string",
+        "timeSince": "string",
+        "staleTime": "string",
+        "reportZero": "boolean",
+        "level": "string"
+      },
       "description": "One check by id, with its thresholds and schedule."
     },
     {
@@ -140,6 +606,23 @@
       "paged": false,
       "suffix": "/api/v2/checks/{Check ID}/labels",
       "post": false,
+      "responseSchema": {
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The labels on one check."
     },
     {
@@ -147,6 +630,9 @@
       "paged": false,
       "suffix": "/api/v2/checks/{Check ID}/query",
       "post": false,
+      "responseSchema": {
+        "flux": "string"
+      },
       "description": "The Flux query one check actually runs. Requires a check id. What a check MEANS, as opposed to its name."
     },
     {
@@ -154,6 +640,57 @@
       "paged": true,
       "suffix": "/api/v2/dashboards?descending={Descending?:true|false}&id={Dashboard ID?}&org={Organization Name?}&orgID={Organization ID?}&owner={Owner?}",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        },
+        "dashboards": [
+          {
+            "orgID": "string",
+            "name": "string",
+            "description": "string",
+            "links": {
+              "self": "string",
+              "cells": "string",
+              "members": "string",
+              "owners": "string",
+              "labels": "string",
+              "org": "string"
+            },
+            "id": "string",
+            "meta": {
+              "createdAt": "string",
+              "updatedAt": "string"
+            },
+            "cells": [
+              {
+                "id": "string",
+                "links": {
+                  "self": "string",
+                  "view": "string"
+                },
+                "x": "double",
+                "y": "double",
+                "w": "double",
+                "h": "double",
+                "viewID": "string"
+              }
+            ],
+            "labels": [
+              {
+                "id": "string",
+                "orgID": "string",
+                "name": "string",
+                "properties": {
+                  "*": "string"
+                }
+              }
+            ]
+          }
+        ]
+      },
       "description": "The dashboards defined, with their cells and the organisation. What the operators actually watch, which is a fair guide to the metrics that matter on this instance."
     },
     {
@@ -173,6 +710,48 @@
           "parameterName": "Dashboard ID"
         }
       ],
+      "responseSchema": {
+        "orgID": "string",
+        "name": "string",
+        "description": "string",
+        "links": {
+          "self": "string",
+          "cells": "string",
+          "members": "string",
+          "owners": "string",
+          "labels": "string",
+          "org": "string"
+        },
+        "id": "string",
+        "meta": {
+          "createdAt": "string",
+          "updatedAt": "string"
+        },
+        "cells": [
+          {
+            "id": "string",
+            "links": {
+              "self": "string",
+              "view": "string"
+            },
+            "x": "double",
+            "y": "double",
+            "w": "double",
+            "h": "double",
+            "viewID": "string"
+          }
+        ],
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ]
+      },
       "description": "One dashboard by id, with its cells."
     },
     {
@@ -180,6 +759,23 @@
       "paged": true,
       "suffix": "/api/v2/dashboards/{Dashboard ID?}/labels",
       "post": false,
+      "responseSchema": {
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The labels on one dashboard."
     },
     {
@@ -187,6 +783,22 @@
       "paged": true,
       "suffix": "/api/v2/dashboards/{Dashboard ID?}/members",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users with member access to one dashboard."
     },
     {
@@ -194,6 +806,22 @@
       "paged": true,
       "suffix": "/api/v2/dashboards/{Dashboard ID?}/owners",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users owning one dashboard."
     },
     {
@@ -201,6 +829,24 @@
       "paged": false,
       "suffix": "/api/v2/dbrps?bucketID={Bucket ID?}&db={Database?}&default={Default Filter?:true|false}&id={Mapping ID?}&org={Organization Name?}&orgID={Organization ID?}&rp={Retention Policy?}",
       "post": false,
+      "responseSchema": {
+        "content": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "bucketID": "string",
+            "database": "string",
+            "retention_policy": "string",
+            "default": "boolean",
+            "virtual": "boolean",
+            "links": {
+              "next": "string",
+              "self": "string",
+              "prev": "string"
+            }
+          }
+        ]
+      },
       "description": "The mappings from v1-style database and retention-policy names onto v2 buckets. THE TRANSLATION LAYER: a v1 query names a database and retention policy, and this is what resolves those to the bucket actually holding the data."
     },
     {
@@ -208,6 +854,22 @@
       "paged": false,
       "suffix": "/api/v2/dbrps/{dbrpsID}",
       "post": false,
+      "responseSchema": {
+        "content": {
+          "id": "string",
+          "orgID": "string",
+          "bucketID": "string",
+          "database": "string",
+          "retention_policy": "string",
+          "default": "boolean",
+          "virtual": "boolean",
+          "links": {
+            "next": "string",
+            "self": "string",
+            "prev": "string"
+          }
+        }
+      },
       "description": "One mapping by id."
     },
     {
@@ -215,6 +877,22 @@
       "paged": false,
       "suffix": "/health",
       "post": false,
+      "responseSchema": {
+        "name": "string",
+        "message": "string",
+        "checks": [
+          {
+            "name": "string",
+            "message": "string",
+            "status": "string",
+            "version": "string",
+            "commit": "string"
+          }
+        ],
+        "status": "string",
+        "version": "string",
+        "commit": "string"
+      },
       "description": "Whether the instance is healthy. A liveness check."
     },
     {
@@ -222,6 +900,23 @@
       "paged": false,
       "suffix": "/api/v2/labels?orgID={Organization ID?}",
       "post": false,
+      "responseSchema": {
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The labels defined, optionally by organisation. The cross-cutting tagging of buckets, dashboards, tasks and checks -- the only organisational dimension InfluxDB offers besides the organisation itself."
     },
     {
@@ -229,6 +924,21 @@
       "paged": false,
       "suffix": "/api/v2/labels/{Label ID}",
       "post": false,
+      "responseSchema": {
+        "label": {
+          "id": "string",
+          "orgID": "string",
+          "name": "string",
+          "properties": {
+            "*": "string"
+          }
+        },
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "One label by id."
     },
     {
@@ -236,6 +946,43 @@
       "paged": false,
       "suffix": "/legacy/authorizations?authID={Authorization ID?}&org={Organization Name?}&orgID={Organization ID?}&token={Token (Authorization Name)?}&user={User Name?}&userID={User ID?}",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        },
+        "authorizations": [
+          {
+            "status": "string",
+            "description": "string",
+            "createdAt": "string",
+            "updatedAt": "string",
+            "orgID": "string",
+            "permissions": [
+              {
+                "action": "string",
+                "resource": {
+                  "type": "string",
+                  "id": "string",
+                  "name": "string",
+                  "orgID": "string",
+                  "org": "string"
+                }
+              }
+            ],
+            "id": "string",
+            "token": "string",
+            "userID": "string",
+            "user": "string",
+            "org": "string",
+            "links": {
+              "self": "string",
+              "user": "string"
+            }
+          }
+        ]
+      },
       "description": "The v1-compatible tokens issued. Present where 1.x tools still write to this instance."
     },
     {
@@ -243,6 +990,34 @@
       "paged": false,
       "suffix": "/legacy/authorizations/{Authorization ID?}",
       "post": false,
+      "responseSchema": {
+        "status": "string",
+        "description": "string",
+        "createdAt": "string",
+        "updatedAt": "string",
+        "orgID": "string",
+        "permissions": [
+          {
+            "action": "string",
+            "resource": {
+              "type": "string",
+              "id": "string",
+              "name": "string",
+              "orgID": "string",
+              "org": "string"
+            }
+          }
+        ],
+        "id": "string",
+        "token": "string",
+        "userID": "string",
+        "user": "string",
+        "org": "string",
+        "links": {
+          "self": "string",
+          "user": "string"
+        }
+      },
       "description": "One legacy authorization by id."
     },
     {
@@ -257,6 +1032,54 @@
       "paged": true,
       "suffix": "/api/v2/notificationEndpoints?orgID={Organization ID}",
       "post": false,
+      "responseSchema": {
+        "notificationEndpoints": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "userID": "string",
+            "createdAt": "string",
+            "updatedAt": "string",
+            "description": "string",
+            "name": "string",
+            "status": "string",
+            "labels": [
+              {
+                "id": "string",
+                "orgID": "string",
+                "name": "string",
+                "properties": {
+                  "*": "string"
+                }
+              }
+            ],
+            "links": {
+              "self": "string",
+              "labels": "string",
+              "members": "string",
+              "owners": "string"
+            },
+            "type": "string",
+            "url": "string",
+            "token": "string",
+            "clientURL": "string",
+            "routingKey": "string",
+            "username": "string",
+            "password": "string",
+            "method": "string",
+            "authMethod": "string",
+            "contentTemplate": "string",
+            "headers": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "Where notifications are delivered -- Slack, PagerDuty, HTTP. Requires an organisation id. The final layer; a rule firing into a dead endpoint is silent."
     },
     {
@@ -264,6 +1087,45 @@
       "paged": false,
       "suffix": "/api/v2/notificationEndpoints/{Endpoint ID}",
       "post": false,
+      "responseSchema": {
+        "id": "string",
+        "orgID": "string",
+        "userID": "string",
+        "createdAt": "string",
+        "updatedAt": "string",
+        "description": "string",
+        "name": "string",
+        "status": "string",
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "self": "string",
+          "labels": "string",
+          "members": "string",
+          "owners": "string"
+        },
+        "type": "string",
+        "url": "string",
+        "token": "string",
+        "clientURL": "string",
+        "routingKey": "string",
+        "username": "string",
+        "password": "string",
+        "method": "string",
+        "authMethod": "string",
+        "contentTemplate": "string",
+        "headers": {
+          "*": "string"
+        }
+      },
       "description": "One notification endpoint by id."
     },
     {
@@ -271,6 +1133,23 @@
       "paged": false,
       "suffix": "/api/v2/notificationEndpoints/{Endpoint ID}/labels",
       "post": false,
+      "responseSchema": {
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The labels on one notification endpoint."
     },
     {
@@ -278,6 +1157,77 @@
       "paged": true,
       "suffix": "/api/v2/notificationRules?checkID={Check ID?}&orgID={Organization ID}&tag={Tag}",
       "post": false,
+      "responseSchema": {
+        "notificationRules": [
+          {
+            "latestCompleted": "string",
+            "lastRunStatus": "string",
+            "lastRunError": "string",
+            "id": "string",
+            "endpointID": "string",
+            "orgID": "string",
+            "taskID": "string",
+            "ownerID": "string",
+            "createdAt": "string",
+            "updatedAt": "string",
+            "status": "string",
+            "name": "string",
+            "sleepUntil": "string",
+            "every": "string",
+            "offset": "string",
+            "runbookLink": "string",
+            "limitEvery": "double",
+            "limit": "double",
+            "tagRules": [
+              {
+                "key": "string",
+                "value": "string",
+                "operator": "string"
+              }
+            ],
+            "description": "string",
+            "statusRules": [
+              {
+                "currentLevel": "string",
+                "previousLevel": "string",
+                "count": "double",
+                "period": "string"
+              }
+            ],
+            "labels": [
+              {
+                "id": "string",
+                "orgID": "string",
+                "name": "string",
+                "properties": {
+                  "*": "string"
+                }
+              }
+            ],
+            "links": {
+              "self": "string",
+              "labels": "string",
+              "members": "string",
+              "owners": "string",
+              "query": "string"
+            },
+            "type": "string",
+            "url": "string",
+            "channel": "string",
+            "messageTemplate": "string",
+            "parseMode": "string",
+            "disableWebPagePreview": "boolean",
+            "subjectTemplate": "string",
+            "bodyTemplate": "string",
+            "to": "string"
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The rules deciding which check statuses become notifications, filterable by check. The middle layer of alerting."
     },
     {
@@ -285,6 +1235,68 @@
       "paged": true,
       "suffix": "/api/v2/notificationRules/{Rule ID}",
       "post": false,
+      "responseSchema": {
+        "latestCompleted": "string",
+        "lastRunStatus": "string",
+        "lastRunError": "string",
+        "id": "string",
+        "endpointID": "string",
+        "orgID": "string",
+        "taskID": "string",
+        "ownerID": "string",
+        "createdAt": "string",
+        "updatedAt": "string",
+        "status": "string",
+        "name": "string",
+        "sleepUntil": "string",
+        "every": "string",
+        "offset": "string",
+        "runbookLink": "string",
+        "limitEvery": "double",
+        "limit": "double",
+        "tagRules": [
+          {
+            "key": "string",
+            "value": "string",
+            "operator": "string"
+          }
+        ],
+        "description": "string",
+        "statusRules": [
+          {
+            "currentLevel": "string",
+            "previousLevel": "string",
+            "count": "double",
+            "period": "string"
+          }
+        ],
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "self": "string",
+          "labels": "string",
+          "members": "string",
+          "owners": "string",
+          "query": "string"
+        },
+        "type": "string",
+        "url": "string",
+        "channel": "string",
+        "messageTemplate": "string",
+        "parseMode": "string",
+        "disableWebPagePreview": "boolean",
+        "subjectTemplate": "string",
+        "bodyTemplate": "string",
+        "to": "string"
+      },
       "description": "One notification rule by id."
     },
     {
@@ -292,6 +1304,23 @@
       "paged": true,
       "suffix": "/api/v2/notificationRules/{Rule ID}/labels",
       "post": false,
+      "responseSchema": {
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The labels on one notification rule."
     },
     {
@@ -324,6 +1353,34 @@
           "parameterName": "Organization ID"
         }
       ],
+      "responseSchema": {
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        },
+        "orgs": [
+          {
+            "links": {
+              "self": "string",
+              "members": "string",
+              "owners": "string",
+              "labels": "string",
+              "secrets": "string",
+              "buckets": "string",
+              "tasks": "string",
+              "dashboards": "string"
+            },
+            "id": "string",
+            "name": "string",
+            "defaultStorageType": "string",
+            "description": "string",
+            "createdAt": "string",
+            "updatedAt": "string",
+            "status": "string"
+          }
+        ]
+      },
       "description": "The organisations on the instance. Everything in InfluxDB 2 belongs to an organisation -- buckets, dashboards, tasks, tokens -- so this is the first request and the scope every other one needs."
     },
     {
@@ -331,6 +1388,25 @@
       "paged": false,
       "suffix": "/api/v2/orgs/{Organization ID}",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string",
+          "members": "string",
+          "owners": "string",
+          "labels": "string",
+          "secrets": "string",
+          "buckets": "string",
+          "tasks": "string",
+          "dashboards": "string"
+        },
+        "id": "string",
+        "name": "string",
+        "defaultStorageType": "string",
+        "description": "string",
+        "createdAt": "string",
+        "updatedAt": "string",
+        "status": "string"
+      },
       "description": "One organisation by id."
     },
     {
@@ -338,6 +1414,22 @@
       "paged": false,
       "suffix": "/api/v2/orgs/{Organization ID}/members",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users with member access to one organisation."
     },
     {
@@ -345,6 +1437,22 @@
       "paged": false,
       "suffix": "/api/v2/orgs/{Organization ID}/owners",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users owning one organisation."
     },
     {
@@ -380,6 +1488,11 @@
       "paged": false,
       "suffix": "/ready",
       "post": false,
+      "responseSchema": {
+        "status": "string",
+        "started": "string",
+        "up": "string"
+      },
       "description": "Whether the instance has finished starting and is ready to serve. Distinct from health, which reports on a running instance."
     },
     {
@@ -387,6 +1500,9 @@
       "paged": false,
       "suffix": "/api/v2/resources",
       "post": false,
+      "responseSchema": [
+        "string"
+      ],
       "description": "The resource types the API exposes. Reference data for building permission sets."
     },
     {
@@ -394,6 +1510,37 @@
       "paged": false,
       "suffix": "/api/v2/",
       "post": false,
+      "responseSchema": {
+        "authorizations": "string",
+        "buckets": "string",
+        "dashboards": "string",
+        "external": {
+          "statusFeed": "string"
+        },
+        "variables": "string",
+        "me": "string",
+        "flags": "string",
+        "orgs": "string",
+        "query": {
+          "self": "string",
+          "ast": "string",
+          "analyze": "string",
+          "suggestions": "string"
+        },
+        "setup": "string",
+        "signin": "string",
+        "signout": "string",
+        "sources": "string",
+        "system": {
+          "metrics": "string",
+          "debug": "string",
+          "health": "string"
+        },
+        "tasks": "string",
+        "telegrafs": "string",
+        "users": "string",
+        "write": "string"
+      },
       "description": "The API's own route listing. A discovery endpoint."
     },
     {
@@ -401,6 +1548,9 @@
       "paged": false,
       "suffix": "/api/v2/notificationRules/{Rule ID}/query",
       "post": false,
+      "responseSchema": {
+        "flux": "string"
+      },
       "description": "The Flux query one notification rule runs. Requires a rule id."
     },
     {
@@ -420,6 +1570,28 @@
           "parameterName": "Scraper Target ID"
         }
       ],
+      "responseSchema": {
+        "configurations": [
+          {
+            "name": "string",
+            "type": "string",
+            "url": "string",
+            "orgID": "string",
+            "bucketID": "string",
+            "allowInsecure": "boolean",
+            "id": "string",
+            "org": "string",
+            "bucket": "string",
+            "links": {
+              "self": "string",
+              "members": "string",
+              "owners": "string",
+              "bucket": "string",
+              "organization": "string"
+            }
+          }
+        ]
+      },
       "description": "The Prometheus-format endpoints InfluxDB scrapes on a schedule, with their URL and target bucket. Where data arrives without anything writing to InfluxDB explicitly."
     },
     {
@@ -427,6 +1599,24 @@
       "paged": false,
       "suffix": "/api/v2/scrapers/{Scraper Target ID}",
       "post": false,
+      "responseSchema": {
+        "name": "string",
+        "type": "string",
+        "url": "string",
+        "orgID": "string",
+        "bucketID": "string",
+        "allowInsecure": "boolean",
+        "id": "string",
+        "org": "string",
+        "bucket": "string",
+        "links": {
+          "self": "string",
+          "members": "string",
+          "owners": "string",
+          "bucket": "string",
+          "organization": "string"
+        }
+      },
       "description": "One scraper target by id."
     },
     {
@@ -434,6 +1624,23 @@
       "paged": false,
       "suffix": "/api/v2/scrapers/{Scraper Target ID}/labels",
       "post": false,
+      "responseSchema": {
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The labels on one scraper target."
     },
     {
@@ -441,6 +1648,22 @@
       "paged": false,
       "suffix": "/api/v2/scrapers/{Scraper Target ID}/members",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users with member access to one scraper target."
     },
     {
@@ -448,6 +1671,22 @@
       "paged": false,
       "suffix": "/api/v2/scrapers/{Scraper Target ID}/owners",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users owning one scraper target."
     },
     {
@@ -455,6 +1694,15 @@
       "paged": false,
       "suffix": "/api/v2/orgs/{Organization ID}/secrets",
       "post": false,
+      "responseSchema": {
+        "secrets": [
+          "string"
+        ],
+        "links": {
+          "self": "string",
+          "org": "string"
+        }
+      },
       "description": "The names of the secrets stored for one organisation. Requires an organisation id. Names only -- values are never returned -- and useful for knowing what a task can reference."
     },
     {
@@ -462,6 +1710,9 @@
       "paged": false,
       "suffix": "/api/v2/setup",
       "post": false,
+      "responseSchema": {
+        "allowed": "boolean"
+      },
       "description": "Whether the instance has completed initial setup, and its default user, organisation and bucket. A first-run check."
     },
     {
@@ -480,6 +1731,38 @@
           "parameterName": "Source ID"
         }
       ],
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "sources": [
+          {
+            "links": {
+              "self": "string",
+              "query": "string",
+              "health": "string",
+              "buckets": "string"
+            },
+            "id": "string",
+            "orgID": "string",
+            "default": "boolean",
+            "name": "string",
+            "type": "string",
+            "url": "string",
+            "insecureSkipVerify": "boolean",
+            "telegraf": "string",
+            "token": "string",
+            "username": "string",
+            "password": "string",
+            "sharedSecret": "string",
+            "metaUrl": "string",
+            "defaultRP": "string",
+            "languages": [
+              "string"
+            ]
+          }
+        ]
+      },
       "description": "The data sources configured, optionally by organisation. Connections to other InfluxDB instances."
     },
     {
@@ -487,6 +1770,31 @@
       "paged": false,
       "suffix": "/api/v2/sources/{Source ID}",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string",
+          "query": "string",
+          "health": "string",
+          "buckets": "string"
+        },
+        "id": "string",
+        "orgID": "string",
+        "default": "boolean",
+        "name": "string",
+        "type": "string",
+        "url": "string",
+        "insecureSkipVerify": "boolean",
+        "telegraf": "string",
+        "token": "string",
+        "username": "string",
+        "password": "string",
+        "sharedSecret": "string",
+        "metaUrl": "string",
+        "defaultRP": "string",
+        "languages": [
+          "string"
+        ]
+      },
       "description": "One source by id."
     },
     {
@@ -494,6 +1802,22 @@
       "paged": false,
       "suffix": "/api/v2/sources/{Source ID}/health",
       "post": false,
+      "responseSchema": {
+        "name": "string",
+        "message": "string",
+        "checks": [
+          {
+            "name": "string",
+            "message": "string",
+            "status": "string",
+            "version": "string",
+            "commit": "string"
+          }
+        ],
+        "status": "string",
+        "version": "string",
+        "commit": "string"
+      },
       "description": "Whether one source is reachable. Requires a source id."
     },
     {
@@ -515,6 +1839,52 @@
           "parameterName": "Task ID"
         }
       ],
+      "responseSchema": {
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        },
+        "tasks": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "org": "string",
+            "name": "string",
+            "ownerID": "string",
+            "description": "string",
+            "status": "string",
+            "labels": [
+              {
+                "id": "string",
+                "orgID": "string",
+                "name": "string",
+                "properties": {
+                  "*": "string"
+                }
+              }
+            ],
+            "authorizationID": "string",
+            "flux": "string",
+            "every": "string",
+            "cron": "string",
+            "offset": "string",
+            "latestCompleted": "string",
+            "lastRunStatus": "string",
+            "lastRunError": "string",
+            "createdAt": "string",
+            "updatedAt": "string",
+            "links": {
+              "self": "string",
+              "owners": "string",
+              "members": "string",
+              "runs": "string",
+              "logs": "string",
+              "labels": "string"
+            }
+          }
+        ]
+      },
       "description": "The scheduled Flux tasks, with their name, cron or interval, status, and the organisation. TASKS ARE HOW DERIVED DATA IS PRODUCED -- downsampling, alerting, materialised aggregates -- so a bucket that appears to hold suspiciously tidy data usually has a task behind it, and this is where that is visible."
     },
     {
@@ -522,6 +1892,43 @@
       "paged": false,
       "suffix": "/api/v2/tasks/{Task ID}",
       "post": false,
+      "responseSchema": {
+        "id": "string",
+        "orgID": "string",
+        "org": "string",
+        "name": "string",
+        "ownerID": "string",
+        "description": "string",
+        "status": "string",
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "authorizationID": "string",
+        "flux": "string",
+        "every": "string",
+        "cron": "string",
+        "offset": "string",
+        "latestCompleted": "string",
+        "lastRunStatus": "string",
+        "lastRunError": "string",
+        "createdAt": "string",
+        "updatedAt": "string",
+        "links": {
+          "self": "string",
+          "owners": "string",
+          "members": "string",
+          "runs": "string",
+          "logs": "string",
+          "labels": "string"
+        }
+      },
       "description": "One task by id, with its Flux script."
     },
     {
@@ -529,6 +1936,23 @@
       "paged": false,
       "suffix": "/api/v2/tasks/{Task ID}/labels",
       "post": false,
+      "responseSchema": {
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The labels on one task."
     },
     {
@@ -536,6 +1960,15 @@
       "paged": false,
       "suffix": "/api/v2/tasks/{Task ID}/logs",
       "post": false,
+      "responseSchema": {
+        "events": [
+          {
+            "time": "string",
+            "message": "string",
+            "runID": "string"
+          }
+        ]
+      },
       "description": "The recent log entries across one task's runs. Requires a task id."
     },
     {
@@ -543,6 +1976,22 @@
       "paged": false,
       "suffix": "/api/v2/tasks/{Task ID}/members",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users with member access to one task."
     },
     {
@@ -550,6 +1999,22 @@
       "paged": false,
       "suffix": "/api/v2/tasks/{Task ID}/owners",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users owning one task."
     },
     {
@@ -557,6 +2022,37 @@
       "paged": false,
       "suffix": "/api/v2/tasks/{Task ID}/runs?limit=500&after={After ID?}&afterTime={After Time?}&beforeTime={Before Time?}",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        },
+        "runs": [
+          {
+            "id": "string",
+            "taskID": "string",
+            "status": "string",
+            "scheduledFor": "string",
+            "log": [
+              {
+                "time": "string",
+                "message": "string",
+                "runID": "string"
+              }
+            ],
+            "flux": "string",
+            "startedAt": "string",
+            "finishedAt": "string",
+            "requestedAt": "string",
+            "links": {
+              "self": "string",
+              "task": "string",
+              "retry": "string"
+            }
+          }
+        ]
+      },
       "description": "The execution history of one task, with each run's scheduled time, start and finish, and status. Requires a task id. WHETHER A TASK ACTUALLY RAN is what determines whether the data it produces is complete, and a silently failing task leaves gaps that look like an absence of activity."
     },
     {
@@ -564,6 +2060,28 @@
       "paged": false,
       "suffix": "/api/v2/tasks/{Task ID}/runs/{Run ID}",
       "post": false,
+      "responseSchema": {
+        "id": "string",
+        "taskID": "string",
+        "status": "string",
+        "scheduledFor": "string",
+        "log": [
+          {
+            "time": "string",
+            "message": "string",
+            "runID": "string"
+          }
+        ],
+        "flux": "string",
+        "startedAt": "string",
+        "finishedAt": "string",
+        "requestedAt": "string",
+        "links": {
+          "self": "string",
+          "task": "string",
+          "retry": "string"
+        }
+      },
       "description": "One task run by id, with its outcome."
     },
     {
@@ -571,6 +2089,15 @@
       "paged": false,
       "suffix": "/api/v2/tasks/{Task ID}/runs/{Run ID}/logs",
       "post": false,
+      "responseSchema": {
+        "events": [
+          {
+            "time": "string",
+            "message": "string",
+            "runID": "string"
+          }
+        ]
+      },
       "description": "The log output of one task run. Requires the task and run ids. Where a failure's cause is found."
     },
     {
@@ -578,6 +2105,18 @@
       "paged": false,
       "suffix": "/api/v2/telegraf/plugins?type={Type?}",
       "post": false,
+      "responseSchema": {
+        "version": "string",
+        "os": "string",
+        "plugins": [
+          {
+            "type": "string",
+            "name": "string",
+            "description": "string",
+            "config": "string"
+          }
+        ]
+      },
       "description": "The Telegraf plugins available, by type. Reference data."
     },
     {
@@ -597,6 +2136,38 @@
           "parameterName": "Telegraf Configuration ID"
         }
       ],
+      "responseSchema": {
+        "configurations": [
+          {
+            "name": "string",
+            "description": "string",
+            "metadata": {
+              "buckets": [
+                "string"
+              ]
+            },
+            "config": "string",
+            "orgID": "string",
+            "id": "string",
+            "links": {
+              "self": "string",
+              "labels": "string",
+              "members": "string",
+              "owners": "string"
+            },
+            "labels": [
+              {
+                "id": "string",
+                "orgID": "string",
+                "name": "string",
+                "properties": {
+                  "*": "string"
+                }
+              }
+            ]
+          }
+        ]
+      },
       "description": "The Telegraf agent configurations stored, filterable by organisation. Telegraf is the collection agent, so these describe what is being collected and from where -- which explains the shape of the data in a bucket."
     },
     {
@@ -604,6 +2175,34 @@
       "paged": false,
       "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}",
       "post": false,
+      "responseSchema": {
+        "name": "string",
+        "description": "string",
+        "metadata": {
+          "buckets": [
+            "string"
+          ]
+        },
+        "config": "string",
+        "orgID": "string",
+        "id": "string",
+        "links": {
+          "self": "string",
+          "labels": "string",
+          "members": "string",
+          "owners": "string"
+        },
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ]
+      },
       "description": "One Telegraf configuration by id, with its full TOML."
     },
     {
@@ -611,6 +2210,23 @@
       "paged": false,
       "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}/labels",
       "post": false,
+      "responseSchema": {
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The labels on one Telegraf configuration."
     },
     {
@@ -618,6 +2234,22 @@
       "paged": false,
       "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}/members",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users with member access to one Telegraf configuration."
     },
     {
@@ -625,6 +2257,22 @@
       "paged": false,
       "suffix": "/api/v2/telegrafs/{Telegraf Configuration ID}/owners",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            },
+            "role": "string"
+          }
+        ]
+      },
       "description": "The users owning one Telegraf configuration."
     },
     {
@@ -632,6 +2280,46 @@
       "paged": false,
       "suffix": "/api/v2/stacks?&orgID={Organization ID}&name={Name?}&stackID={Stack ID?}",
       "post": false,
+      "responseSchema": {
+        "stacks": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "createdAt": "string",
+            "events": [
+              {
+                "eventType": "string",
+                "name": "string",
+                "description": "string",
+                "sources": [
+                  "string"
+                ],
+                "resources": [
+                  {
+                    "apiVersion": "string",
+                    "resourceID": "string",
+                    "kind": "string",
+                    "templateMetaName": "string",
+                    "associations": [
+                      {
+                        "kind": "string",
+                        "metaName": "string"
+                      }
+                    ],
+                    "links": {
+                      "self": "string"
+                    }
+                  }
+                ],
+                "urls": [
+                  "string"
+                ],
+                "updatedAt": "string"
+              }
+            ]
+          }
+        ]
+      },
       "description": "The template stacks installed on the instance, filterable by organisation. Stacks are bundles of dashboards, tasks and buckets installed together, so this explains resources nobody created individually."
     },
     {
@@ -639,6 +2327,42 @@
       "paged": false,
       "suffix": "/api/v2/stacks/{Stack ID}",
       "post": false,
+      "responseSchema": {
+        "id": "string",
+        "orgID": "string",
+        "createdAt": "string",
+        "events": [
+          {
+            "eventType": "string",
+            "name": "string",
+            "description": "string",
+            "sources": [
+              "string"
+            ],
+            "resources": [
+              {
+                "apiVersion": "string",
+                "resourceID": "string",
+                "kind": "string",
+                "templateMetaName": "string",
+                "associations": [
+                  {
+                    "kind": "string",
+                    "metaName": "string"
+                  }
+                ],
+                "links": {
+                  "self": "string"
+                }
+              }
+            ],
+            "urls": [
+              "string"
+            ],
+            "updatedAt": "string"
+          }
+        ]
+      },
       "description": "One template stack by id, with the resources it created."
     },
     {
@@ -653,6 +2377,14 @@
       "paged": false,
       "suffix": "/api/v2/me",
       "post": false,
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "status": "string",
+        "links": {
+          "self": "string"
+        }
+      },
       "description": "The account the token belongs to. One record, always the caller -- and the explanation for what the rest of this connector can see, since InfluxDB scopes everything by token permissions."
     },
     {
@@ -660,6 +2392,21 @@
       "paged": true,
       "suffix": "/api/v2/users?after={After ID?}&id={User ID?}&name={User Name?}",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string"
+        },
+        "users": [
+          {
+            "id": "string",
+            "name": "string",
+            "status": "string",
+            "links": {
+              "self": "string"
+            }
+          }
+        ]
+      },
       "description": "The users on the instance, filterable by id and name. Administrative."
     },
     {
@@ -667,6 +2414,14 @@
       "paged": false,
       "suffix": "/api/v2/users/{User ID}",
       "post": false,
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "status": "string",
+        "links": {
+          "self": "string"
+        }
+      },
       "description": "One user by id."
     },
     {
@@ -684,6 +2439,39 @@
           "parameterName": "Variable ID"
         }
       ],
+      "responseSchema": {
+        "variables": [
+          {
+            "links": {
+              "self": "string",
+              "org": "string",
+              "labels": "string"
+            },
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "description": "string",
+            "selected": [
+              "string"
+            ],
+            "labels": [
+              {
+                "id": "string",
+                "orgID": "string",
+                "name": "string",
+                "properties": {
+                  "*": "string"
+                }
+              }
+            ],
+            "createdAt": "string",
+            "updatedAt": "string",
+            "arguments": {
+              "type": "string"
+            }
+          }
+        ]
+      },
       "description": "The dashboard variables defined, each with its query or value list. Variables parameterise dashboard queries, so a cell's query is incomplete without them."
     },
     {
@@ -691,6 +2479,35 @@
       "paged": false,
       "suffix": "/api/v2/variables/{Variable ID}",
       "post": false,
+      "responseSchema": {
+        "links": {
+          "self": "string",
+          "org": "string",
+          "labels": "string"
+        },
+        "id": "string",
+        "orgID": "string",
+        "name": "string",
+        "description": "string",
+        "selected": [
+          "string"
+        ],
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "createdAt": "string",
+        "updatedAt": "string",
+        "arguments": {
+          "type": "string"
+        }
+      },
       "description": "One variable by id."
     },
     {
@@ -698,6 +2515,23 @@
       "paged": false,
       "suffix": "/api/v2/variables/{Variable ID}/labels",
       "post": false,
+      "responseSchema": {
+        "labels": [
+          {
+            "id": "string",
+            "orgID": "string",
+            "name": "string",
+            "properties": {
+              "*": "string"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "self": "string",
+          "prev": "string"
+        }
+      },
       "description": "The labels on one variable."
     }
   ]
