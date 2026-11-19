@@ -53,17 +53,18 @@ public class UserSessionChangesetApplyService {
    public UserSessionChangesetApplyService(UserSessionChangePlanService planService,
                                            UserService userService)
    {
-      this(planService, userService, VERIFY_TIMEOUT_MS, VERIFY_POLL_MS);
-   }
-
-   UserSessionChangesetApplyService(UserSessionChangePlanService planService,
-                                    UserService userService, long verifyTimeoutMs,
-                                    long verifyPollMs)
-   {
       this.planService = planService;
       this.userService = userService;
-      this.verifyTimeoutMs = verifyTimeoutMs;
-      this.verifyPollMs = verifyPollMs;
+   }
+
+   /**
+    * Overrides the logout read-back timing. Test hook: kept as a method rather than a second
+    * constructor so every constructor parameter stays resolvable by Spring.
+    */
+   UserSessionChangesetApplyService withVerifyTiming(long timeoutMs, long pollMs) {
+      this.verifyTimeoutMs = timeoutMs;
+      this.verifyPollMs = pollMs;
+      return this;
    }
 
    public UserSessionApplyResult apply(UserSessionApplyRequest req, Principal user) {
@@ -219,6 +220,6 @@ public class UserSessionChangesetApplyService {
    private static final ReentrantLock APPLY_LOCK = new ReentrantLock();
    private final UserSessionChangePlanService planService;
    private final UserService userService;
-   private final long verifyTimeoutMs;
-   private final long verifyPollMs;
+   private long verifyTimeoutMs = VERIFY_TIMEOUT_MS;
+   private long verifyPollMs = VERIFY_POLL_MS;
 }

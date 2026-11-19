@@ -59,7 +59,8 @@ class UserSessionChangeServicesTest {
 
    @BeforeEach void setUp() {
       planService = new UserSessionChangePlanService(userService);
-      applyService = new UserSessionChangesetApplyService(planService, userService, 200L, 10L);
+      applyService = new UserSessionChangesetApplyService(planService, userService)
+         .withVerifyTiming(200L, 10L);
       tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString())).thenAnswer(inv -> "TKN:" + inv.getArgument(0));
