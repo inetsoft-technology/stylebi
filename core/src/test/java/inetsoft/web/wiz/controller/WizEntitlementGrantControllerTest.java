@@ -347,14 +347,21 @@ class WizEntitlementGrantControllerTest {
       assertTrue(holds("reader", "plugin.use", false));
       assertTrue(entry(controller.getGrants(writer), "plugin.use").restricted());
 
+      // a revoke can only tighten: the last revoke leaves the permission restricted to nobody
       GrantEntry last = post(request("plugin.use", "user", "reader", false), writer);
       assertTrue(last.users().isEmpty());
-      assertFalse(last.restricted());
-      assertTrue(holds("plain", "plugin.use", false), "revoking the last grant restores default-allow");
-      assertTrue(holds("carol", "plugin.use", false));
+      assertTrue(last.restricted());
+      assertFalse(holds("plain", "plugin.use", false), "revoking the last grant must not widen");
+      assertFalse(holds("carol", "plugin.use", false));
+      assertFalse(holds("reader", "plugin.use", false));
 
-      assertFalse(post(request("plugin.use", "user", "reader", false), writer).restricted());
+      assertTrue(post(request("plugin.use", "user", "reader", false), writer).restricted());
+      assertFalse(holds("plain", "plugin.use", false));
+
+      // only the explicit reset restores the default
+      assertFalse(reset("plugin.use", writer).restricted());
       assertTrue(holds("plain", "plugin.use", false));
+      assertTrue(holds("carol", "plugin.use", false));
    }
 
    @Test
@@ -591,7 +598,10 @@ class WizEntitlementGrantControllerTest {
       GrantEntry result = post(request("plugin.use", "user", "ghost", false), writer);
 
       assertTrue(result.users().isEmpty(), result.toString());
-      assertFalse(result.restricted());
+      assertTrue(result.restricted(), "a revoke never clears the restriction");
+      assertFalse(holds("plain", "plugin.use", false));
+
+      assertFalse(reset("plugin.use", writer).restricted());
       assertTrue(holds("plain", "plugin.use", false));
    }
 
@@ -827,7 +837,7 @@ class WizEntitlementGrantControllerTest {
       assertFalse(entry(controller.getGrants(writer), "plugin.use").restricted());
       assertTrue(post(request("plugin.use", "user", "carol", true), writer).restricted());
       assertTrue(post(request("plugin.use", "user", "carol", false), writer).users().isEmpty());
-      assertFalse(entry(controller.getGrants(writer), "plugin.use").restricted());
+      assertTrue(entry(controller.getGrants(writer), "plugin.use").restricted());
 
       storeEditedWithoutGrants("plugin.use");
       GrantEntry nobody = entry(controller.getGrants(writer), "plugin.use");

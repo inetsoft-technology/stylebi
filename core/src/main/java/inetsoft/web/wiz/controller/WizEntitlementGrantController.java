@@ -129,11 +129,11 @@ public class WizEntitlementGrantController {
          if(changed) {
             setGrantNames(updated, type, names, orgId);
 
-            if(hasAnyGrant(updated, orgId)) {
+            // A revoke can only tighten: the edited flag is set by a grant and never cleared by a
+            // revoke, so revoking the last grantee leaves the permission restricted to nobody.
+            // Only reset restores the default.
+            if(granted) {
                updated.updateGrantAllByOrg(orgId, true);
-            }
-            else {
-               updated.removeGrantAllByOrg(orgId);
             }
 
             try {
@@ -367,12 +367,6 @@ public class WizEntitlementGrantController {
       }
    }
 
-   private static boolean hasAnyGrant(Permission perm, String orgId) {
-      return !perm.getOrgScopedUserGrants(ResourceAction.ACCESS, orgId).isEmpty() ||
-         !perm.getOrgScopedGroupGrants(ResourceAction.ACCESS, orgId).isEmpty() ||
-         !perm.getOrgScopedRoleGrants(ResourceAction.ACCESS, orgId).isEmpty();
-   }
-
    private static void audit(Principal principal, String permission, String description,
                              String orgId, SecurityProvider provider)
    {
@@ -397,6 +391,9 @@ public class WizEntitlementGrantController {
    }
 
    /**
+    * A revoke can only tighten: it never clears the restriction, so revoking the last grantee of
+    * an end-user permission leaves it restricted to nobody until the explicit reset.
+    *
     * @param restricted   true only for end-user permissions whose default allow is switched off for
     *                     the organization; the grantee lists then name who still holds it,
     *                     possibly nobody. Always false for an admin permission, which is denied
