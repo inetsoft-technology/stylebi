@@ -108,7 +108,7 @@ public class TreemapVO extends ElementVO {
             }
 
             if(elem.isAutoTextColor()) {
-               vtext.setAutoBackground(obj.getColor(0));
+               vtext.setAutoBackground(elem.getLevelColor(obj.getColor(0), k));
                vtext.setContrastInk(elem.isContrastInk());
             }
 
@@ -210,7 +210,7 @@ public class TreemapVO extends ElementVO {
 
       try {
          Shape shape = getScreenTransform().createTransformedShape(this.shape);
-         Color color = gobj.getColor(0);
+         Color color = elem.getLevelColor(gobj.getColor(0), elem.getTreeDimCount() - level - 1);
          GLine line = gobj.getLine(0);
          GTexture texture = gobj.getTexture(0);
          Graphics2D g2 = (Graphics2D) g.create();

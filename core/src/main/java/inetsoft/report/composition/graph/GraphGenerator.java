@@ -5290,6 +5290,32 @@ public abstract class GraphGenerator {
          // an author's plot resize keeps today's layout
          relation.setPlotFit(!info.isWidthResized() && !info.isHeightResized());
       }
+      else if(elem instanceof TreemapElement treemap &&
+              (treemap.getMapType() == TreemapElement.Type.SUNBURST ||
+               treemap.getMapType() == TreemapElement.Type.ICICLE))
+      {
+         treemap.setLevelStep(getLevelStepBase(treemap),
+                              VSObjectChromeDefaults.cardComposite(vizContext));
+      }
+   }
+
+   /**
+    * Get the tree level a sunburst or icicle steps its colours down from: the colour field's
+    * level, or the top level with no colour field. A ramp, or a colour field outside the tree,
+    * gets no steps (-1).
+    */
+   private int getLevelStepBase(TreemapElement treemap) {
+      AestheticRef colorField = info.getColorField();
+
+      if(colorField == null) {
+         return 0;
+      }
+
+      if(colorField.getVisualFrame() instanceof LinearColorFrame) {
+         return -1;
+      }
+
+      return treemap.getTreeDims().indexOf(colorField.getFullName());
    }
 
    /**

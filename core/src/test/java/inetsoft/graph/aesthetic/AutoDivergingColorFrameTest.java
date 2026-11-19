@@ -23,14 +23,24 @@ import inetsoft.graph.scale.LinearScale;
 import inetsoft.graph.scale.LogScale;
 import inetsoft.graph.scale.Scale;
 import inetsoft.graph.visual.ElementVO;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A Teal that draws the diverging ramp, centred on zero, when its data crosses zero.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class AutoDivergingColorFrameTest {
    private static final String FIELD = "Sum(V)";
