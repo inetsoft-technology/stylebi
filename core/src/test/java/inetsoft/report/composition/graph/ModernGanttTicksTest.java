@@ -26,6 +26,7 @@ import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.guide.axis.GridLine;
 import inetsoft.graph.internal.GTool;
+import inetsoft.graph.scale.Scale;
 import inetsoft.graph.scale.TimeScale;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.SreeEnv;
@@ -125,11 +126,22 @@ class ModernGanttTicksTest {
                     "grid line at " + x + " has no label, labels at " + labelX);
       }
 
-      assertTrue(texts.stream().anyMatch(t -> t.startsWith("Jan")), texts.toString());
+      assertTrue(texts.stream().anyMatch(t -> t.startsWith("Apr")), texts.toString());
       assertTrue(texts.stream().anyMatch(t -> t.startsWith("Feb")), texts.toString());
       assertTrue(texts.stream().anyMatch(t -> t.startsWith("Mar")), texts.toString());
       assertTrue(texts.get(0).contains("2026"), texts.toString());
       assertEquals(1, texts.stream().filter(t -> t.contains("2026")).count(), texts.toString());
+   }
+
+   @Test
+   void aMarkedGanttAxisStartsAtTheFirstTask() {
+      Gantt g = gantt(25, VizMark.MODERN_LIGHT, new Dimension(400, 240), false);
+      VGraph vgraph = Plotter.getPlotter(g.gen.createEGraph())
+         .plotAndLayout(g.gen.getData(), 0, 0, 400, 240);
+      Scale time = ((RectCoord) vgraph.getCoordinate()).getYScale();
+
+      assertInstanceOf(TimeScale.class, time, "premise: the time scale");
+      assertEquals(date(2026, Calendar.JANUARY, 4).getTime(), time.getMin(), 0);
    }
 
    @Test
