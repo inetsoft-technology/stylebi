@@ -88,6 +88,7 @@ public class UserSessionChangePlanService {
 
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seen = new HashSet<>();
+      List<String> stableCurrents = new ArrayList<>();
 
       for(int i = 0; i < req.getChanges().size(); i++) {
          UserSessionChangeRequest change = req.getChanges().get(i);
@@ -115,8 +116,11 @@ public class UserSessionChangePlanService {
                "the id is wrong) -- call list_user_sessions for current ids");
          }
 
-         String current = STATE_ACTIVE + " (user " + s.user() + ", organization " +
-            s.organization() + ", address " + s.address() + ", age " + s.age() + ")";
+         // the age changes every second: it is shown to the reviewer but never hashed
+         String stableState = STATE_ACTIVE + " (user " + s.user() + ", organization " +
+            s.organization() + ", address " + s.address();
+         String current = stableState + ", age " + s.age() + ")";
+         stableCurrents.add(stableState + ")");
          String description = "log out session " + id + " of user " + s.user() +
             " -- ends that session immediately, discarding any unsaved work, and cannot be undone";
 
@@ -130,18 +134,21 @@ public class UserSessionChangePlanService {
       }
 
       String task = req.getTask().trim();
-      String planHash = hash(changes, address);
+      String planHash = hash(changes, stableCurrents, address);
       return new ResolvedPlan(task, changes, false, true, planHash,
                               TaskAuditToken.issue(planHash, task));
    }
 
-   private static String hash(List<PlanChange> changes, String address) {
+   private static String hash(List<PlanChange> changes, List<String> stableCurrents,
+                              String address)
+   {
       StringBuilder canonical = new StringBuilder();
       canonical.append(canonical(address)).append(SEP);
 
-      for(PlanChange change : changes) {
+      for(int i = 0; i < changes.size(); i++) {
+         PlanChange change = changes.get(i);
          canonical.append(change.property()).append(SEP)
-            .append(canonical(change.currentValue())).append(SEP)
+            .append(canonical(stableCurrents.get(i))).append(SEP)
             .append(canonical(change.proposedValue())).append(SEP)
             .append(change.risk()).append(SEP)
             .append(change.snapshotScope()).append(SEP);

@@ -128,6 +128,16 @@ class UserSessionChangeServicesTest {
       assertNotEquals(a, b);
    }
 
+   @Test void planHashIgnoresSessionAge() {
+      String a = planService.resolve(request("t", "s1"), user).planHash();
+      sessions.set(0, UserSessionMonitoringTableModel.builder()
+         .sessionID("s1").sessionLabel("s1").user("alice").userName("alice")
+         .address("10.0.0.1").age("2:00:07").roles("r").groups("g")
+         .organization("host-org").build());
+      String b = planService.resolve(request("t", "s1"), user).planHash();
+      assertEquals(a, b);
+   }
+
    @Test void applyRequiresMatchingHash() {
       UserSessionApplyRequest req = apply("t", "wrong", "TKN:x", "ok", "s1");
       assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
