@@ -52,7 +52,7 @@
   --ln-radius-md: var(--inet-radius-xl, 6px);
   --ln-shadow-low: var(--inet-shadow-low, 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04));
   --ln-shadow-medium: var(--inet-shadow-medium, 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 6px rgba(0, 0, 0, 0.05));
-  --ln-focus: var(--inet-focus-ring-color, rgba(229, 138, 42, 0.28));
+  --ln-focus: var(--inet-focus-ring-color, rgba(217, 122, 26, 0.28));
   --ln-nav-h: 56px;
 }
 

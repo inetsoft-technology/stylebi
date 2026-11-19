@@ -431,7 +431,7 @@ the New Data Source picker cards).
 | State | Guidance |
 |---|---|
 | Rest | the card spec above: surface, neutral border, `4px`+ radius, low shadow |
-| Hover | border `primary` (`#E58A2A`) plus medium shadow, no ring; no lift or movement |
+| Hover | border `primary` (`--inet-primary-color`) plus medium shadow, no ring; no lift or movement |
 | Focus | the same border and medium shadow plus the `2px` focus ring (keyboard focus only: focus left by a mouse click draws no ring). The New Data Source picker cards cannot take keyboard focus yet (Bug #81489), so they have no focus state |
 | Selected (picker cards) | primary border plus a solid `1px` primary ring outside it (reads as a `2px` primary edge), so selected is stronger than hover; hover adds the medium shadow and keeps the selection |
 

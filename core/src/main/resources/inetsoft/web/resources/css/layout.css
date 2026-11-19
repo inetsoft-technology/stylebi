@@ -40,9 +40,9 @@
   --inet-shadow-medium: 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 6px rgba(0, 0, 0, 0.05);
   --inet-radius-lg: 4px;
   --inet-radius-xl: 6px;
-  --inet-focus-ring-color: rgba(229, 138, 42, 0.28);
-  /* clickable cards take the portal's orange (#E58A2A), not this page's --inet-primary-color */
-  --inet-card-hover-border-color: #E58A2A;
+  --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
+  /* clickable cards take the portal's primary (#D97A1A), not this page's --inet-primary-color */
+  --inet-card-hover-border-color: #D97A1A;
 }
 
 /* Shell dark: the server writes the class when the shell is dark (inetsoft.web.portal.ShellDarkMode).
@@ -68,7 +68,7 @@
   --inet-shadow-low: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
   --inet-shadow-medium: 0 2px 4px rgba(0, 0, 0, 0.45), 0 1px 6px rgba(0, 0, 0, 0.35);
   /* the portal's dark focus ring strength, as on the home card */
-  --inet-focus-ring-color: rgba(229, 138, 42, 0.75);
+  --inet-focus-ring-color: rgba(217, 122, 26, 0.75);
 }
 
 html,
