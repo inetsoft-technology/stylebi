@@ -113,7 +113,7 @@ public class PermissionChangesetApplyService {
          // only that case is a genuine partial-mutation risk that must force
          // STATUS_ROLLBACK_FAILED on its own; a throw that fires strictly before the mutating call
          // means the item was never touched, so it must not by itself override an otherwise
-         // fully-verified rollback (bug 76856, mirroring bug 76808's DataSourceChangesetApplyService
+         // fully-verified rollback (bug 76856, mirroring bug 76808's former DataSourceChangesetApplyService
          // fix).
          boolean unknownStateMutationEntered = false;
 

@@ -103,7 +103,7 @@ public class LicenseChangesetApplyService {
          }
 
          // Re-derived fresh, from live state, before any mutation -- mirrors
-         // DataSourceApplyRequest.acknowledgeIrreversibleDelete's own apply-time re-derivation
+         // former DataSourceApplyRequest.acknowledgeIrreversibleDelete's own apply-time re-derivation
          // rather than trusting a preview-time snapshot (03-reconcile.md, 01-spec.md section 6).
          int installedCountNow = licenseManager.getInstalledLicenses().size();
          int addCount = 0;

@@ -558,7 +558,7 @@ public class ProviderChangePlanService {
     * carried over from {@code current} unchanged. {@code ldapServer}, when sent, is validated the
     * same way {@link #requireLdapSpec} validates it for create. Package-visible so
     * {@link ProviderChangesetApplyService} can build the SAME merged value fresh at apply time
-    * (never re-deriving the merge independently, mirroring {@code DataSourceChangePlanService
+    * (never re-deriving the merge independently, mirroring {@code former DataSourceChangePlanService
     * .buildProposedJdbc}'s own precedent).
     */
    static LdapAuthenticationProviderModel mergePartialLdapSpec(String label,
@@ -625,7 +625,7 @@ public class ProviderChangePlanService {
     * {@code useCredential=true}/{@code secretId} mode would pass a naive per-field-if-present check
     * cleanly (neither the omitted {@code secretId} nor the newly-sent {@code password} violates
     * anything in isolation) while producing a merged model that is internally contradictory.
-    * Mirrors {@code DataSourceChangePlanService.requireCredentialCrossValidation}'s exact shape:
+    * Mirrors {@code former DataSourceChangePlanService.requireCredentialCrossValidation}'s exact shape:
     * check which raw {@code spec} fields the caller actually sent against the RESOLVED state of the
     * proposed object. Package-visible for the same apply-time reuse reason as
     * {@link #mergePartialLdapSpec}.

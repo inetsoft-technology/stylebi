@@ -259,7 +259,7 @@ public class LicenseChangePlanService {
     * this net computation (01-spec.md section 5) needs no per-key set arithmetic beyond the two
     * counts. Package-visible so {@link LicenseChangesetApplyService} can re-derive this fact from
     * fresh state at apply time, exactly as it re-derives every other plan-time check (mirroring
-    * {@code DataSourceApplyRequest.acknowledgeIrreversibleDelete}'s own apply-time re-derivation
+    * {@code former DataSourceApplyRequest.acknowledgeIrreversibleDelete}'s own apply-time re-derivation
     * pattern).
     */
    static boolean computeDeLicensingWarning(int currentInstalledCount, int addCount, int removeCount) {

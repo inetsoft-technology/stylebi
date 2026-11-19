@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
  * rather than failing deep in the registry as a 500.
  *
  * <p>Both patterns are matched against the whole string. Failures are
- * {@code IllegalArgumentException}s: the wiz advice and the admin data source controller each map
+ * {@code IllegalArgumentException}s: the wiz advice maps
  * that to a 400 carrying the message.</p>
  *
  * <p>Two different rules on purpose, as in the native UI: a data source name may not contain a

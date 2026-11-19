@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
 
 /**
  * Applies a whole stored-asset changeset, all-or-nothing, and audits every attempt -- the
- * stored-asset analog of {@code DataSourceChangesetApplyService} (01-design.md section 6.3).
+ * stored-asset analog of {@code former DataSourceChangesetApplyService} (01-design.md section 6.3).
  *
  * <p>A plan is {@code requiresStorageBackup: true} unless every entry is a pure create (a new
  * folder, or a write to a path that does not exist yet; Bug #80650) or is restored from

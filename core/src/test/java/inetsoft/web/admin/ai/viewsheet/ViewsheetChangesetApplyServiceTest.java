@@ -57,7 +57,7 @@ import static org.mockito.Mockito.*;
 /**
  * 01-spec.md section 13. Uses a tiny in-memory fake ("the store", keyed the same way the real
  * server keys each unit) behind the mocked {@link ViewsheetService}/{@link
- * ViewsheetFolderService}, matching {@code DataSourceChangesetApplyServiceTest}'s own precedent --
+ * ViewsheetFolderService}, matching {@code former DataSourceChangesetApplyServiceTest}'s own precedent --
  * a fake that actually mutates gives each test's intent a direct assertion instead of a brittle
  * call-count derivation, and is essential here specifically because a successful viewsheet rename
  * changes the unit's own identifier (section 2/4/6), so a positional stub cannot express "the next
@@ -263,7 +263,7 @@ class ViewsheetChangesetApplyServiceTest {
    @Test void viewsheetRenameRollbackTargetsTheNewlyResolvedIdentityNotTheStaleOne() throws Exception {
       folderStore.put(folderKey("Examples/DoomedFolder", null), true);
       // A no-op (not a throw) that leaves the folder untouched -- verification then fails
-      // because the folder is still present, exactly like DataSourceChangesetApplyServiceTest's
+      // because the folder is still present, exactly like former DataSourceChangesetApplyServiceTest's
       // own "silently no-ops rather than throws" precedent for forcing a verified: false outcome
       // (as opposed to the unknown-state-on-throw path, a structurally different failure class
       // covered separately below).
@@ -459,7 +459,7 @@ class ViewsheetChangesetApplyServiceTest {
    @Test void deleteIsNeverRolledBackWhenAnotherChangeInTheSamePlanFails() throws Exception {
       folderStore.put(folderKey("Examples/DoomedFolder", null), true);
       // A no-op (not a throw) that leaves the folder untouched -- verification then fails
-      // because the folder is still present, exactly like DataSourceChangesetApplyServiceTest's
+      // because the folder is still present, exactly like former DataSourceChangesetApplyServiceTest's
       // own "silently no-ops rather than throws" precedent for forcing a verified: false outcome
       // (as opposed to the unknown-state-on-throw path, a structurally different failure class
       // covered separately below).
@@ -495,7 +495,7 @@ class ViewsheetChangesetApplyServiceTest {
    @Test void folderCreateRollbackRemovesTheCreatedFolder() throws Exception {
       folderStore.put(folderKey("Examples/DoomedFolder", null), true);
       // A no-op (not a throw) that leaves the folder untouched -- verification then fails
-      // because the folder is still present, exactly like DataSourceChangesetApplyServiceTest's
+      // because the folder is still present, exactly like former DataSourceChangesetApplyServiceTest's
       // own "silently no-ops rather than throws" precedent for forcing a verified: false outcome
       // (as opposed to the unknown-state-on-throw path, a structurally different failure class
       // covered separately below).
@@ -626,7 +626,7 @@ class ViewsheetChangesetApplyServiceTest {
       folderStore.put(folderKey("Examples/Old Folder", null), true);
       folderStore.put(folderKey("Examples/DoomedFolder", null), true);
       // A no-op (not a throw) that leaves the folder untouched -- verification then fails
-      // because the folder is still present, exactly like DataSourceChangesetApplyServiceTest's
+      // because the folder is still present, exactly like former DataSourceChangesetApplyServiceTest's
       // own "silently no-ops rather than throws" precedent for forcing a verified: false outcome
       // (as opposed to the unknown-state-on-throw path, a structurally different failure class
       // covered separately below).
@@ -701,7 +701,7 @@ class ViewsheetChangesetApplyServiceTest {
       folderStore.put(folderKey("Examples/Old Folder", null), true);
       folderStore.put(folderKey("Examples/DoomedFolder", null), true);
       // A no-op (not a throw) that leaves the folder untouched -- verification then fails
-      // because the folder is still present, exactly like DataSourceChangesetApplyServiceTest's
+      // because the folder is still present, exactly like former DataSourceChangesetApplyServiceTest's
       // own "silently no-ops rather than throws" precedent for forcing a verified: false outcome
       // (as opposed to the unknown-state-on-throw path, a structurally different failure class
       // covered separately below).

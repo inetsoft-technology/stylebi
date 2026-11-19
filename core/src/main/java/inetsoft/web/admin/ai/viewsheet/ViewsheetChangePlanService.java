@@ -51,7 +51,7 @@ import java.util.*;
 /**
  * Resolves a requested list of viewsheet/folder changes into a {@link ResolvedPlan} and hashes it
  * -- the viewsheets analog of {@code inetsoft.web.admin.ai.AdminChangePlanService} and (within this
- * run) {@code DataSourceChangePlanService}/{@code ProviderChangePlanService}/etc, replicated rather
+ * run) {@code former DataSourceChangePlanService}/{@code ProviderChangePlanService}/etc, replicated rather
  * than shared (01-spec.md section 6, carry-forward item 5).
  *
  * <p>The genuine novelty this area introduces (01-spec.md section 4/7, 03-reconcile.md): risk
@@ -768,7 +768,7 @@ public class ViewsheetChangePlanService {
     * AbstractAssetEngine.changeSheetDependents} (Redmine #76459 Part 2; not fixed here, out of scope
     * for this plugin-support service -- see 03-fix.md). {@code DependencyTool.getDependencies} is
     * the established pattern for this exact preflight ({@code
-    * DataSourceChangePlanService.findDependencies}, {@code
+    * former DataSourceChangePlanService.findDependencies}, {@code
     * RepositoryObjectService.checkAssetEntryDependencies}) and, like those callers, is used
     * unfiltered here. Package-visible so {@link ViewsheetChangesetApplyService} re-runs it at apply
     * time (a concurrent change between preview and apply could add a new dependency). */

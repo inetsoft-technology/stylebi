@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 /**
  * Applies a whole viewsheet/folder changeset, all-or-nothing, and audits every attempt -- the
  * viewsheets analog of {@code inetsoft.web.admin.ai.AdminChangesetApplyService} and (within this
- * run) {@code DataSourceChangesetApplyService}/{@code ProviderChangesetApplyService}, replicated
+ * run) {@code former DataSourceChangesetApplyService}/{@code ProviderChangesetApplyService}, replicated
  * rather than shared (01-spec.md section 6, carry-forward item 5).
  *
  * <p>Undo order is newest-first across the WHOLE plan (unchanged from every prior area), but
@@ -170,7 +170,7 @@ public class ViewsheetChangesetApplyService {
          // the throw -- only that case is a genuine partial-mutation risk that must force
          // STATUS_ROLLBACK_FAILED on its own; a throw that fires strictly before the mutating call
          // means the item was never touched, so it must not by itself override an otherwise
-         // fully-verified rollback (bug #76856, mirroring bug #76808's DataSourceChangesetApplyService
+         // fully-verified rollback (bug #76856, mirroring bug #76808's former DataSourceChangesetApplyService
          // fix).
          boolean unknownStateMutationEntered = false;
 

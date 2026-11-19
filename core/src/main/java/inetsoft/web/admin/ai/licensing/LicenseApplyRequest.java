@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * from {@code preview}. {@code acknowledgeDelicensing} must be exactly {@code true} when the
  * freshly re-resolved plan would leave zero installed license keys (01-spec.md section 5/6) --
  * an advisory gate, not a hard refusal (section 14 D3), mirroring
- * {@code DataSourceApplyRequest.acknowledgeIrreversibleDelete}'s shape, not its meaning: that flag
+ * {@code former DataSourceApplyRequest.acknowledgeIrreversibleDelete}'s shape, not its meaning: that flag
  * gates a non-compensable action, this one gates a reversible-but-severe one.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

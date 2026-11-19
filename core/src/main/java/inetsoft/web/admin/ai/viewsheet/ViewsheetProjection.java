@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * Builds the canonical, human-readable projection of a viewsheet or folder -- used as both the
  * plan hash input (01-spec.md section 5) and the audit before/after value (section 8). No
  * secret-classified field exists in this area's scope (section 9), so full disclosure is used
- * throughout, unlike {@code DataSourceProjection}'s password substitution.
+ * throughout, unlike {@code former DataSourceProjection}'s password substitution.
  */
 final class ViewsheetProjection {
    private ViewsheetProjection() {
