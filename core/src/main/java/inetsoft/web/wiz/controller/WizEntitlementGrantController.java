@@ -124,6 +124,14 @@ public class WizEntitlementGrantController {
          updated.setOrgEditedGrantAll(existing == null || existing.getOrgEditedGrantAll() == null ?
             new HashMap<>() : new HashMap<>(existing.getOrgEditedGrantAll()));
          Set<String> names = ownGrantNames(updated, type, orgId);
+
+         // GET lists organization-less (global) grantees too, but only the caller's own bucket can
+         // be edited here, so a revoke of one must say so instead of silently doing nothing
+         if(!granted && !names.contains(id.getName()) && isGlobalGrant(updated, type, id.getName())) {
+            throw badRequest("principal: this grant is global (organization-less) and can only " +
+                             "be changed in the Enterprise Manager");
+         }
+
          changed = granted ? names.add(id.getName()) : names.remove(id.getName());
 
          if(changed) {
@@ -166,6 +174,9 @@ public class WizEntitlementGrantController {
     * unlike a grant it is also allowed for the global config.* names in multi-tenant mode (it is
     * the clean-up path). Only the caller's organization bucket is removed: grants with no
     * organization (global role grants) are kept, and the returned {@code roles} still lists them.
+    * The default-allow outcome of an end-user permission is not affected by them: it depends on
+    * the organization's edited flag, which the reset clears, so after a reset the permission is
+    * held by everybody again even while such a global grant remains.
     */
    @PostMapping("/api/wiz/v1/entitlements/grants/reset")
    public GrantEntry resetGrants(@RequestBody(required = false) ResetRequest request,
@@ -357,6 +368,11 @@ public class WizEntitlementGrantController {
          .filter(g -> orgId.equals(g.getOrganizationID()))
          .map(Permission.PermissionIdentity::getName)
          .collect(Collectors.toCollection(TreeSet::new));
+   }
+
+   private static boolean isGlobalGrant(Permission perm, int type, String name) {
+      return perm.getGrants(ResourceAction.ACCESS, type, null).stream()
+         .anyMatch(g -> g.getOrganizationID() == null && name.equals(g.getName()));
    }
 
    private static void setGrantNames(Permission perm, int type, Set<String> names, String orgId) {

@@ -853,6 +853,47 @@ class WizEntitlementGrantControllerTest {
          .setPermission(ResourceType.WIZ_PERMISSION, permission, edited, ORG_A);
    }
 
+   private void storeGlobalGrants(String permission) {
+      Permission global = new Permission();
+      global.setRoleGrantsForOrg(ResourceAction.ACCESS, Set.of("globalr"), null);
+      global.setUserGrantsForOrg(ResourceAction.ACCESS, Set.of("globalu"), null);
+      global.setGroupGrantsForOrg(ResourceAction.ACCESS, Set.of("globalg"), null);
+      SecurityEngine.getSecurity().getSecurityProvider()
+         .setPermission(ResourceType.WIZ_PERMISSION, permission, global, ORG_A);
+   }
+
+   @Test
+   void revokingAnOrganizationLessGrantIsAnExplicitErrorAndChangesNothing() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      storeGlobalGrants("config.read");
+      assertEquals(List.of("globalr"), entry(controller.getGrants(writer), "config.read").roles());
+
+      for(String[] target : new String[][] { { "role", "globalr" }, { "user", "globalu" },
+                                             { "group", "globalg" } })
+      {
+         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+            () -> post(request("config.read", target[0], target[1], false), writer), target[1]);
+         assertEquals(400, ex.getStatusCode().value());
+         assertEquals("principal: this grant is global (organization-less) and can only be " +
+                      "changed in the Enterprise Manager", ex.getReason());
+      }
+
+      assertEquals(List.of("globalr"), entry(controller.getGrants(writer), "config.read").roles());
+   }
+
+   @Test
+   void aNormalRevokeAndARevokeOfAnAbsentNameAreUnaffectedByGlobalGrants() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      storeGlobalGrants("config.read");
+      post(request("config.read", "user", "carol", true), writer);
+
+      assertTrue(post(request("config.read", "user", "carol", false), writer).users().isEmpty());
+      assertEquals(List.of("globalr"),
+                   post(request("config.read", "role", "r1", false), writer).roles());
+      assertEquals(List.of("globalr"),
+                   post(request("config.read", "user", "nobody", false), writer).roles());
+   }
+
    private GrantEntry post(GrantRequest request, Principal caller) {
       try {
          return controller.setGrant(request, caller);
