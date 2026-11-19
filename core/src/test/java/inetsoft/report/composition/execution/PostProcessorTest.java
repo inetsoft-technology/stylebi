@@ -188,7 +188,8 @@ public class PostProcessorTest {
    // the query cannot be merged into the database, AssetQuery.addExpression runs the same
    // text as script (ExpressionRef.getScriptExpression), and the script has no concat, so
    // reading the formula table fails (end to end, AssetQuery then shows the design-time
-   // sample table, see AssetQueryExpressionColumnTest). Current behavior, pending #81223
+   // sample table, see AssetQueryExpressionColumnTest). Known and kept: the script fallback
+   // does not support SQL-only functions and no script concat is added (decision in #81223)
    @Test
    void formula_sqlFunctionRunAsScript_failsTheTable() {
       ExpressionFailedException ex = assertThrows(ExpressionFailedException.class, () ->
