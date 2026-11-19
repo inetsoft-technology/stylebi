@@ -24,11 +24,15 @@ import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.test.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.wiz.WizPermissions;
 import inetsoft.web.wiz.controller.WizEntitlementGrantController.GrantEntry;
 import inetsoft.web.wiz.controller.WizEntitlementGrantController.GrantRequest;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.AdditionalAnswers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -39,9 +43,12 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * The Wiz grant endpoints against a real security engine, including the wiz bypass in
@@ -75,6 +82,8 @@ class WizEntitlementGrantControllerTest {
          .addUser("reader", ORG_A, "password")
          .addUser("writer", ORG_A, "password")
          .addUser("carol", ORG_A, "password")
+         .addGlobalRole("globalr")
+         .addUserToRole("carol", "globalr", null)
          .addGroup("g1", ORG_A)
          .addRole("r1", ORG_A)
          .addRole("orgAdminRole", ORG_A)
@@ -271,18 +280,36 @@ class WizEntitlementGrantControllerTest {
    }
 
    @Test
-   void multiTenantOrgAdminGrantOfGlobalConfigHasNoEffect() throws Exception {
+   void multiTenantRefusesToStoreGlobalConfigGrantsButNotOrgLevelOnes() throws Exception {
+      SRPrincipal orgAdmin = wiz("orgadmin", ORG_A);
+
       try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
          mocked.when(SUtil::isMultiTenant).thenReturn(true);
-         SRPrincipal orgAdmin = wiz("orgadmin", ORG_A);
+
+         for(String name : List.of("config.read", "config.write", "config.write.critical")) {
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+               () -> post(request(name, "user", "carol", true), orgAdmin));
+            assertEquals(400, ex.getStatusCode().value());
+            assertEquals("permission '" + name + "' is not grantable in multi-tenant mode",
+                         ex.getReason());
+         }
+
          assertEquals(List.of("carol"),
-                      post(request("config.write", "user", "carol", true), orgAdmin).users());
+                      post(request("orgconfig.read", "user", "carol", true), orgAdmin).users());
       }
 
-      // stored, but the multi-tenant check returns false before any grant is read
-      assertFalse(holds("carol", "config.write", true));
-      // the same stored grant is effective in single-tenant mode
-      assertTrue(holds("carol", "config.write", false));
+      GrantEntry config = entry(controller.getGrants(wiz("reader", ORG_A)), "config.write");
+      assertTrue(config.users().isEmpty(), "nothing may be stored");
+   }
+
+   @Test
+   void singleTenantStillStoresGlobalConfigGrants() throws Exception {
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(false);
+         assertEquals(List.of("carol"),
+                      post(request("config.write", "user", "carol", true), wiz("writer", ORG_A))
+                         .users());
+      }
    }
 
    @Test
@@ -292,7 +319,229 @@ class WizEntitlementGrantControllerTest {
       assertTrue(holds("writer", "config.write", false));
    }
 
-   private GrantEntry post(GrantRequest request, SRPrincipal caller) {
+   // ---- end-user permissions and the restricted flag -------------------------------------------
+
+   @Test
+   void endUserPermissionLifecycleKeepsTheDefaultAllowConsistent() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      assertTrue(holds("carol", "plugin.use", false));
+      assertTrue(holds("plain", "plugin.use", false));
+      assertFalse(entry(controller.getGrants(writer), "plugin.use").restricted());
+
+      GrantEntry first = post(request("plugin.use", "user", "carol", true), writer);
+      assertEquals(List.of("carol"), first.users());
+      assertTrue(first.restricted());
+      assertTrue(holds("carol", "plugin.use", false));
+      assertFalse(holds("plain", "plugin.use", false), "granting restricts everybody else");
+
+      assertTrue(post(request("plugin.use", "user", "carol", true), writer).restricted());
+      assertFalse(holds("plain", "plugin.use", false));
+
+      post(request("plugin.use", "user", "reader", true), writer);
+      GrantEntry afterRevoke = post(request("plugin.use", "user", "carol", false), writer);
+      assertEquals(List.of("reader"), afterRevoke.users());
+      assertTrue(afterRevoke.restricted());
+      assertFalse(holds("carol", "plugin.use", false));
+      assertTrue(holds("reader", "plugin.use", false));
+      assertTrue(entry(controller.getGrants(writer), "plugin.use").restricted());
+
+      GrantEntry last = post(request("plugin.use", "user", "reader", false), writer);
+      assertTrue(last.users().isEmpty());
+      assertFalse(last.restricted());
+      assertTrue(holds("plain", "plugin.use", false), "revoking the last grant restores default-allow");
+      assertTrue(holds("carol", "plugin.use", false));
+
+      assertFalse(post(request("plugin.use", "user", "reader", false), writer).restricted());
+      assertTrue(holds("plain", "plugin.use", false));
+   }
+
+   @Test
+   void adminPermissionGrantIsRestrictedOnlyWhenItHasGrants() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      assertFalse(post(request("config.read", "user", "carol", false), writer).restricted());
+      assertTrue(post(request("config.read", "user", "carol", true), writer).restricted());
+   }
+
+   // ---- failure atomicity and concurrency ---------------------------------------------------------
+
+   /** An engine and provider that delegate to the real ones, so single methods can be stubbed. */
+   private SecurityProvider[] delegating() {
+      SecurityEngine real = SecurityEngine.getSecurity();
+      SecurityProvider provider = mock(SecurityProvider.class,
+                                       AdditionalAnswers.delegatesTo(real.getSecurityProvider()));
+      SecurityEngine engine = mock(SecurityEngine.class, AdditionalAnswers.delegatesTo(real));
+      doReturn(provider).when(engine).getSecurityProvider();
+      controller = new WizEntitlementGrantController(engine);
+      return new SecurityProvider[] { provider };
+   }
+
+   private void failingProvider(String permission) {
+      SecurityProvider provider = delegating()[0];
+      doThrow(new RuntimeException("storage down")).when(provider).setPermission(
+         eq(ResourceType.WIZ_PERMISSION), eq(permission), any(Permission.class), anyString());
+   }
+
+   @Test
+   void failedFirstGrantLeavesTheStoredPermissionAndTheDefaultAllowUntouched() throws Exception {
+      SecurityProvider real = SecurityEngine.getSecurity().getSecurityProvider();
+      real.setPermission(ResourceType.WIZ_PERMISSION, "plugin.use", new Permission(), ORG_A);
+      Permission stored = real.getPermission(ResourceType.WIZ_PERMISSION, "plugin.use", ORG_A);
+      assertFalse(stored.hasOrgEditedGrantAll(ORG_A));
+      failingProvider("plugin.use");
+      SRPrincipal writer = wiz("writer", ORG_A);
+
+      assertEquals(500, status(() -> post(request("plugin.use", "user", "carol", true), writer)));
+
+      Permission after = real.getPermission(ResourceType.WIZ_PERMISSION, "plugin.use", ORG_A);
+      assertFalse(after.hasOrgEditedGrantAll(ORG_A), "the live edited flag must not flip");
+      assertTrue(after.getOrgScopedUserGrants(ResourceAction.ACCESS, ORG_A).isEmpty());
+      assertTrue(holds("plain", "plugin.use", false), "everybody keeps the default-allow");
+   }
+
+   @Test
+   void failedRevokeOfTheLastGrantKeepsTheRestriction() throws Exception {
+      post(request("plugin.use", "user", "carol", true), wiz("writer", ORG_A));
+      SecurityProvider real = SecurityEngine.getSecurity().getSecurityProvider();
+      assertTrue(real.getPermission(ResourceType.WIZ_PERMISSION, "plugin.use", ORG_A)
+                    .hasOrgEditedGrantAll(ORG_A));
+      failingProvider("plugin.use");
+      SRPrincipal writer = wiz("writer", ORG_A);
+
+      assertEquals(500, status(() -> post(request("plugin.use", "user", "carol", false), writer)));
+
+      Permission after = real.getPermission(ResourceType.WIZ_PERMISSION, "plugin.use", ORG_A);
+      assertTrue(after.hasOrgEditedGrantAll(ORG_A), "the live edited flag must not be removed");
+      assertEquals(1, after.getOrgScopedUserGrants(ResourceAction.ACCESS, ORG_A).size());
+      assertFalse(holds("plain", "plugin.use", false));
+      assertTrue(holds("carol", "plugin.use", false));
+   }
+
+   @Test
+   void concurrentGrantsOfTheSamePermissionAreNotLost() throws Exception {
+      SecurityProvider realProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = delegating()[0];
+      WizEntitlementGrantController racing = controller;
+      CountDownLatch bothRead = new CountDownLatch(2);
+      doAnswer(inv -> {
+         Object result = realProvider.getPermission(
+            ResourceType.WIZ_PERMISSION, "config.read", inv.<String>getArgument(2));
+         bothRead.countDown();
+         bothRead.await(1500, TimeUnit.MILLISECONDS);
+         return result;
+      }).when(provider).getPermission(
+         eq(ResourceType.WIZ_PERMISSION), eq("config.read"), anyString());
+      SRPrincipal writer = wiz("writer", ORG_A);
+      ExecutorService pool = Executors.newFixedThreadPool(2);
+
+      try {
+         List<Future<GrantEntry>> results = new ArrayList<>();
+
+         for(String user : List.of("carol", "reader")) {
+            results.add(pool.submit(() -> {
+               MockHttpServletRequest request = new MockHttpServletRequest();
+               request.addHeader("Authorization", "Bearer test-jwt");
+               RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+               ThreadContext.setContextPrincipal(writer);
+               return racing.setGrant(request("config.read", "user", user, true), writer);
+            }));
+         }
+
+         for(Future<GrantEntry> f : results) {
+            f.get(30, TimeUnit.SECONDS);
+         }
+      }
+      finally {
+         pool.shutdownNow();
+      }
+
+      assertEquals(List.of("carol", "reader"),
+                   entry(controller.getGrants(writer), "config.read").users());
+   }
+
+   // ---- validation details -------------------------------------------------------------------------
+
+   @Test
+   void principalResolutionFailuresAllGiveTheSameMessage() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      Set<String> messages = new HashSet<>();
+
+      for(String bad : List.of("carol^" + ORG_B, "carol^nosuchorg", "carol:" + ORG_B,
+                               "carol:nosuchorg", "nobody", "nobody^" + ORG_B, "a~;~b"))
+      {
+         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+            () -> post(request("config.read", "user", bad, true), writer), bad);
+         assertEquals(400, ex.getStatusCode().value());
+         messages.add(ex.getReason());
+      }
+
+      assertEquals(1, messages.size(), messages.toString());
+      assertFalse(messages.iterator().next().contains(ORG_B));
+   }
+
+   @Test
+   void grantedMustBeARealBooleanAndPrincipalIsLengthCapped() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+
+      for(Object notBoolean : new Object[] { 1, "true", "false", 0 }) {
+         assertEquals(400, status(() ->
+            post(new GrantRequest("config.read", "user", "carol", notBoolean), writer)));
+      }
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> post(request("config.read", "user", "x".repeat(257), true), writer));
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().startsWith("principal:"));
+      assertTrue(entry(controller.getGrants(writer), "config.read").users().isEmpty());
+   }
+
+   @Test
+   void aNonXPrincipalIsUnauthorizedNotAServerError() {
+      Principal plain = mock(Principal.class);
+      assertEquals(401, status(() -> {
+         try {
+            controller.getGrants(plain);
+         }
+         catch(inetsoft.sree.security.SecurityException e) {
+            throw new RuntimeException(e);
+         }
+      }));
+      assertEquals(401, status(() ->
+         post(request("config.read", "user", "carol", true), plain)));
+   }
+
+   // ---- audit -------------------------------------------------------------------------------------------
+
+   @Test
+   void theAuditRecordCarriesTheCallersOrganizationAndNoErrorText() throws Exception {
+      Audit audit = mock(Audit.class);
+
+      try(MockedStatic<Audit> mocked = Mockito.mockStatic(Audit.class)) {
+         mocked.when(Audit::getInstance).thenReturn(audit);
+         post(request("config.read", "user", "carol", true), wiz("writer", ORG_A));
+      }
+
+      ArgumentCaptor<ActionRecord> captor = ArgumentCaptor.forClass(ActionRecord.class);
+      verify(audit).auditAction(captor.capture(), any());
+      ActionRecord record = captor.getValue();
+      assertEquals(ORG_A, record.getResourceOrganization());
+      assertEquals("wizGrantOrgAName", record.getResourceOrganizationName());
+      assertEquals(ActionRecord.ACTION_STATUS_SUCCESS, record.getActionStatus());
+      assertTrue(record.getActionError() == null || record.getActionError().isEmpty());
+      assertTrue(record.getObjectName().contains("config.read"));
+   }
+
+   // ---- facts about global roles (pinned) ---------------------------------------------------------
+
+   @Test
+   void aGlobalRoleGrantIsStoredUnderTheCallersOrganizationAndMatchesItsMember() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      GrantEntry entry = post(request("config.read", "role", "globalr", true), writer);
+      System.out.println("WIZ-FACT roles=" + entry.roles() +
+                         " carolHolds=" + holds("carol", "config.read", false));
+      assertEquals(List.of("globalr"), entry.roles());
+   }
+
+   private GrantEntry post(GrantRequest request, Principal caller) {
       try {
          return controller.setGrant(request, caller);
       }

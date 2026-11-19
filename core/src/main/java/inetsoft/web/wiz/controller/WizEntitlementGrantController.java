@@ -26,6 +26,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminIdentityRefs;
+import inetsoft.web.admin.security.action.ActionPermissionService;
 import inetsoft.web.wiz.WizPermissions;
 import inetsoft.web.wiz.WizUtil;
 import org.slf4j.Logger;
@@ -90,33 +91,61 @@ public class WizEntitlementGrantController {
 
       int type = identityType(request.principalType());
 
-      if(request.granted() == null) {
-         throw badRequest("granted: required (true or false)");
+      if(!(request.granted() instanceof Boolean)) {
+         throw badRequest("granted: must be the JSON boolean true or false");
+      }
+
+      boolean granted = (Boolean) request.granted();
+
+      if(granted && SUtil.isMultiTenant() &&
+         !ActionPermissionService.isOrgAdminAction(ResourceType.WIZ_PERMISSION, permission))
+      {
+         throw badRequest("permission '" + permission +
+                          "' is not grantable in multi-tenant mode");
       }
 
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
       IdentityID id = resolveIdentity(request.principal(), type, orgId);
-      SecurityProvider provider = securityEngine.getSecurityProvider();
-      Permission existing = provider.getPermission(ResourceType.WIZ_PERMISSION, permission, orgId);
-      Permission updated = existing == null ? new Permission() : (Permission) existing.clone();
-      Set<String> names = ownGrantNames(updated, type, orgId);
-      boolean changed = request.granted() ? names.add(id.getName()) : names.remove(id.getName());
 
-      if(changed) {
-         setGrantNames(updated, type, names, orgId);
+      // One node only: this serializes the read-modify-write below inside this JVM. A cluster
+      // would need storage-level help (compare-and-set), which this does not provide.
+      synchronized(WRITE_LOCK) {
+         SecurityProvider provider = securityEngine.getSecurityProvider();
+         Permission existing =
+            provider.getPermission(ResourceType.WIZ_PERMISSION, permission, orgId);
+         // The stored object is live and Permission.clone() shares its edited-flag map, so the
+         // update works on a copy whose flag map is also its own: nothing reachable from the stored
+         // permission may change before setPermission succeeds.
+         Permission updated = existing == null ? new Permission() : (Permission) existing.clone();
+         updated.setOrgEditedGrantAll(existing == null || existing.getOrgEditedGrantAll() == null ?
+            new HashMap<>() : new HashMap<>(existing.getOrgEditedGrantAll()));
+         Set<String> names = ownGrantNames(updated, type, orgId);
+         boolean changed = granted ? names.add(id.getName()) : names.remove(id.getName());
 
-         if(hasAnyGrant(updated, orgId)) {
-            updated.updateGrantAllByOrg(orgId, true);
+         if(changed) {
+            setGrantNames(updated, type, names, orgId);
+
+            if(hasAnyGrant(updated, orgId)) {
+               updated.updateGrantAllByOrg(orgId, true);
+            }
+            else {
+               updated.removeGrantAllByOrg(orgId);
+            }
+
+            try {
+               provider.setPermission(ResourceType.WIZ_PERMISSION, permission, updated, orgId);
+            }
+            catch(RuntimeException e) {
+               LOG.error("Failed to store Wiz permission {}", permission, e);
+               throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                                                 "the grant could not be stored");
+            }
+
+            audit(principal, permission, request.principalType(), granted, id, orgId, provider);
          }
-         else {
-            updated.removeGrantAllByOrg(orgId);
-         }
 
-         provider.setPermission(ResourceType.WIZ_PERMISSION, permission, updated, orgId);
-         audit(principal, permission, request, id);
+         return read(provider, permission, orgId);
       }
-
-      return read(provider, permission, orgId);
    }
 
    private void requirePermission(Principal principal, String permission)
@@ -124,12 +153,11 @@ public class WizEntitlementGrantController {
    {
       AdminAiCallerGuard.requireBearerAuthenticatedRequest();
 
-      if(principal == null) {
+      if(!(principal instanceof XPrincipal)) {
          throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
       }
 
-      Principal real = principal instanceof XPrincipal ?
-         WizUtil.saveCheckPrincipal((XPrincipal) principal) : principal;
+      Principal real = WizUtil.saveCheckPrincipal((XPrincipal) principal);
 
       if(!securityEngine.checkPermission(
          real, ResourceType.WIZ_PERMISSION, permission, ResourceAction.ACCESS))
@@ -160,6 +188,10 @@ public class WizEntitlementGrantController {
          throw badRequest("principal: required");
       }
 
+      if(raw.length() > MAX_PRINCIPAL_LENGTH) {
+         throw badRequest("principal: must be at most " + MAX_PRINCIPAL_LENGTH + " characters");
+      }
+
       AdminIdentityRefs.Kind kind = switch(type) {
          case Identity.USER -> AdminIdentityRefs.Kind.USER;
          case Identity.GROUP -> AdminIdentityRefs.Kind.GROUP;
@@ -167,18 +199,21 @@ public class WizEntitlementGrantController {
       };
       AdminIdentityRefs.Directory directory =
          AdminIdentityRefs.of(() -> securityEngine.getSecurityProvider());
+      // every failure gets the same message: the parser's own messages would tell a caller which
+      // organization ids exist
+      String notFound = "principal: no such " + kind.name().toLowerCase() +
+         " in the caller's organization";
       IdentityID id;
 
       try {
          id = AdminIdentityRefs.parse("principal", raw, orgId, kind, false, false, directory);
       }
       catch(IllegalArgumentException e) {
-         throw badRequest(e.getMessage());
+         throw badRequest(notFound);
       }
 
-      if(!directory.exists(kind, id)) {
-         throw badRequest("principal: no " + kind.name().toLowerCase() + " named \"" +
-                          raw.trim() + "\" in the caller's organization");
+      if(id == null || !directory.exists(kind, id)) {
+         throw badRequest(notFound);
       }
 
       return id;
@@ -188,13 +223,14 @@ public class WizEntitlementGrantController {
       Permission perm = provider.getPermission(ResourceType.WIZ_PERMISSION, permission, orgId);
 
       if(perm == null) {
-         return new GrantEntry(permission, List.of(), List.of(), List.of());
+         return new GrantEntry(permission, List.of(), List.of(), List.of(), false);
       }
 
       return new GrantEntry(permission,
                             names(perm.getOrgScopedUserGrants(ResourceAction.ACCESS, orgId)),
                             names(perm.getOrgScopedGroupGrants(ResourceAction.ACCESS, orgId)),
-                            names(perm.getOrgScopedRoleGrants(ResourceAction.ACCESS, orgId)));
+                            names(perm.getOrgScopedRoleGrants(ResourceAction.ACCESS, orgId)),
+                            perm.hasOrgEditedGrantAll(orgId) && hasAnyGrant(perm, orgId));
    }
 
    private static List<String> names(Set<IdentityID> ids) {
@@ -223,17 +259,19 @@ public class WizEntitlementGrantController {
          !perm.getOrgScopedRoleGrants(ResourceAction.ACCESS, orgId).isEmpty();
    }
 
-   private static void audit(Principal principal, String permission, GrantRequest request,
-                             IdentityID id)
+   private static void audit(Principal principal, String permission, String principalType,
+                             boolean granted, IdentityID id, String orgId,
+                             SecurityProvider provider)
    {
       try {
-         ActionRecord record = new ActionRecord(
-            SUtil.getUserName(principal), ActionRecord.ACTION_NAME_EDIT,
-            ResourceType.WIZ_PERMISSION + ":" + permission,
-            ActionRecord.OBJECT_TYPE_OBJECTPERMISSION,
-            new Timestamp(System.currentTimeMillis()), ActionRecord.ACTION_STATUS_SUCCESS,
-            (request.granted() ? "grant " : "revoke ") + request.principalType() + " " +
-               id.getName());
+         ActionRecord record = SUtil.getActionRecord(
+            principal, ActionRecord.ACTION_NAME_EDIT,
+            ResourceType.WIZ_PERMISSION + ":" + permission + " [" +
+               (granted ? "grant " : "revoke ") + principalType + " " + id.getName() + "]",
+            ActionRecord.OBJECT_TYPE_OBJECTPERMISSION);
+         String orgName = provider.getOrgNameFromID(orgId);
+         record.setResourceOrganization(orgId);
+         record.setResourceOrganizationName(orgName == null ? orgId : orgName);
          Audit.getInstance().auditAction(record, principal);
       }
       catch(Exception e) {
@@ -246,16 +284,24 @@ public class WizEntitlementGrantController {
       return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
    }
 
+   /**
+    * @param restricted true when the organization's record is edited and has at least one grant,
+    *                   i.e. the permission is limited to its grantees (granting an end-user
+    *                   permission therefore takes it away from everybody else).
+    */
    public record GrantEntry(String permission, List<String> users, List<String> groups,
-                            List<String> roles)
+                            List<String> roles, boolean restricted)
    {
    }
 
+   /** {@code granted} is read as an Object so that only a real JSON boolean is accepted. */
    public record GrantRequest(String permission, String principalType, String principal,
-                              Boolean granted)
+                              Object granted)
    {
    }
 
+   private static final int MAX_PRINCIPAL_LENGTH = 256;
+   private static final Object WRITE_LOCK = new Object();
    private static final Logger LOG = LoggerFactory.getLogger(WizEntitlementGrantController.class);
    private final SecurityEngine securityEngine;
 }
