@@ -4,55 +4,725 @@
       "name": "Collaboration Whitelist",
       "paged": true,
       "suffix": "/2.0/collaboration_whitelist_entries?marker={Marker?}",
-      "description": "The external domains this enterprise permits collaboration with, and the direction each is allowed in. When entries exist, collaboration with any other domain is blocked -- so this is the explanation for invitations that silently fail, and the boundary of who can be shared with at all."
+      "description": "The external domains this enterprise permits collaboration with, and the direction each is allowed in. When entries exist, collaboration with any other domain is blocked -- so this is the explanation for invitations that silently fail, and the boundary of who can be shared with at all.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "domain": "string",
+            "direction": "string",
+            "enterprise": {
+              "id": "string",
+              "type": "string",
+              "name": "string"
+            },
+            "created_at": "date"
+          }
+        ]
+      }
     },
     {
       "name": "Collaboration Whitelist Entry",
       "paged": false,
       "suffix": "/2.0/collaboration_whitelist_entries/{Collaboration ID}",
-      "description": "One allowed domain entry by id."
+      "description": "One allowed domain entry by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "domain": "string",
+        "direction": "string",
+        "enterprise": {
+          "id": "string",
+          "type": "string",
+          "name": "string"
+        },
+        "created_at": "date"
+      }
     },
     {
       "name": "Collaboration Whitelist Exempt Targets",
       "paged": true,
       "suffix": "/2.0/collaboration_whitelist_exempt_targets?marker={Marker?}",
-      "description": "The users exempted from the domain restrictions. Every row here is someone who can share outside the permitted domains, which makes this a short and important list for an access review."
+      "description": "The users exempted from the domain restrictions. Every row here is someone who can share outside the permitted domains, which makes this a short and important list for an access review.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "enterprise": {
+              "id": "string",
+              "type": "string",
+              "name": "string"
+            },
+            "user": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "created_at": "date",
+            "modified_at": "date"
+          }
+        ]
+      }
     },
     {
       "name": "Collaboration Whitelist Exempt Target",
       "paged": false,
       "suffix": "/2.0/collaboration_whitelist_exempt_targets/{Collaboration Exempt ID}",
-      "description": "One exempt user by id."
+      "description": "One exempt user by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "enterprise": {
+          "id": "string",
+          "type": "string",
+          "name": "string"
+        },
+        "user": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "created_at": "date",
+        "modified_at": "date"
+      }
     },
     {
       "name": "Collaboration",
       "paged": false,
       "suffix": "/2.0/collaborations/{Collaboration ID}?fields={Fields?}",
-      "description": "One collaboration by id: who was granted access to which file or folder, the ROLE they hold, the status, who invited them and when, and any expiry. Roles run editor, viewer, previewer, uploader, previewer uploader, viewer uploader, co-owner and owner -- the distinction that matters most is that anything from editor upward can change or remove content."
+      "description": "One collaboration by id: who was granted access to which file or folder, the ROLE they hold, the status, who invited them and when, and any expiry. Roles run editor, viewer, previewer, uploader, previewer uploader, viewer uploader, co-owner and owner -- the distinction that matters most is that anything from editor upward can change or remove content.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "item": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string",
+          "description": "string",
+          "path_collection": {
+            "total_count": "double",
+            "entries": [
+              {
+                "id": "string",
+                "etag": "string",
+                "type": "string",
+                "sequence_id": "string",
+                "name": "string"
+              }
+            ]
+          },
+          "created_at": "date",
+          "modified_at": "date",
+          "trashed_at": "date",
+          "purged_at": "date",
+          "created_by": {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "login": "string"
+          },
+          "modified_by": {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "login": "string"
+          },
+          "owned_by": {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "login": "string"
+          },
+          "shared_link": {
+            "url": "string",
+            "download_url": "string",
+            "vanity_url": "string",
+            "vanity_name": "string",
+            "access": "string",
+            "effective_access": "string",
+            "effective_permission": "string",
+            "unshared_at": "date",
+            "is_password_enabled": "boolean",
+            "permissions": {
+              "can_download": "boolean",
+              "can_preview": "boolean",
+              "can_edit": "boolean"
+            },
+            "download_count": "double",
+            "preview_count": "double"
+          },
+          "parent": {
+            "id": "string",
+            "etag": "string",
+            "type": "string",
+            "sequence_id": "string",
+            "name": "string"
+          },
+          "item_status": "string"
+        },
+        "app_item": {
+          "id": "string",
+          "type": "string",
+          "application_type": "string"
+        },
+        "accessible_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string"
+        },
+        "invite_email": "string",
+        "role": "string",
+        "expires_at": "date",
+        "is_access_only": "boolean",
+        "status": "string",
+        "acknowledged_at": "date",
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string",
+          "is_active": "boolean"
+        },
+        "created_at": "date",
+        "modified_at": "date",
+        "acceptance_requirements_status": {
+          "terms_of_service_requirement": {
+            "is_accepted": "boolean",
+            "terms_of_service": {
+              "id": "string",
+              "type": "string"
+            }
+          },
+          "strong_password_requirement": {
+            "enterprise_has_strong_password_required_for_external_users": "boolean",
+            "user_has_strong_password": "boolean"
+          },
+          "two_factor_authentication_requirement": {
+            "enterprise_has_two_factor_auth_enabled": "boolean",
+            "user_has_two_factor_authentication_enabled": "boolean"
+          }
+        }
+      }
     },
     {
       "name": "File Collaborations",
       "paged": true,
       "suffix": "/2.0/files/{File ID}/collaborations?fields={Fields?}&marker={Marker?}",
-      "description": "Everyone with explicit access to one file, with their role and status. Requires a file id. Note it lists collaborations granted ON THIS FILE; access inherited from a parent folder does not appear here, so an empty result does not mean the file is private."
+      "description": "Everyone with explicit access to one file, with their role and status. Requires a file id. Note it lists collaborations granted ON THIS FILE; access inherited from a parent folder does not appear here, so an empty result does not mean the file is private.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "item": {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string",
+              "description": "string",
+              "path_collection": {
+                "total_count": "double",
+                "entries": [
+                  {
+                    "id": "string",
+                    "etag": "string",
+                    "type": "string",
+                    "sequence_id": "string",
+                    "name": "string"
+                  }
+                ]
+              },
+              "created_at": "date",
+              "modified_at": "date",
+              "trashed_at": "date",
+              "purged_at": "date",
+              "created_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "modified_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "owned_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "shared_link": {
+                "url": "string",
+                "download_url": "string",
+                "vanity_url": "string",
+                "vanity_name": "string",
+                "access": "string",
+                "effective_access": "string",
+                "effective_permission": "string",
+                "unshared_at": "date",
+                "is_password_enabled": "boolean",
+                "permissions": {
+                  "can_download": "boolean",
+                  "can_preview": "boolean",
+                  "can_edit": "boolean"
+                },
+                "download_count": "double",
+                "preview_count": "double"
+              },
+              "parent": {
+                "id": "string",
+                "etag": "string",
+                "type": "string",
+                "sequence_id": "string",
+                "name": "string"
+              },
+              "item_status": "string"
+            },
+            "app_item": {
+              "id": "string",
+              "type": "string",
+              "application_type": "string"
+            },
+            "accessible_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string"
+            },
+            "invite_email": "string",
+            "role": "string",
+            "expires_at": "date",
+            "is_access_only": "boolean",
+            "status": "string",
+            "acknowledged_at": "date",
+            "created_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string",
+              "is_active": "boolean"
+            },
+            "created_at": "date",
+            "modified_at": "date",
+            "acceptance_requirements_status": {
+              "terms_of_service_requirement": {
+                "is_accepted": "boolean",
+                "terms_of_service": {
+                  "id": "string",
+                  "type": "string"
+                }
+              },
+              "strong_password_requirement": {
+                "enterprise_has_strong_password_required_for_external_users": "boolean",
+                "user_has_strong_password": "boolean"
+              },
+              "two_factor_authentication_requirement": {
+                "enterprise_has_two_factor_auth_enabled": "boolean",
+                "user_has_two_factor_authentication_enabled": "boolean"
+              }
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Folder Collaborations",
       "paged": true,
       "suffix": "/2.0/folders/{Folder ID}/collaborations?fields={Fields?}",
-      "description": "Everyone with explicit access to one folder, with role and status. Requires a folder id. Because access is normally granted at folder level and inherited downward, this is where sharing actually lives -- and where an external collaborator on a whole tree shows up."
+      "description": "Everyone with explicit access to one folder, with role and status. Requires a folder id. Because access is normally granted at folder level and inherited downward, this is where sharing actually lives -- and where an external collaborator on a whole tree shows up.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "item": {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string",
+              "description": "string",
+              "path_collection": {
+                "total_count": "double",
+                "entries": [
+                  {
+                    "id": "string",
+                    "etag": "string",
+                    "type": "string",
+                    "sequence_id": "string",
+                    "name": "string"
+                  }
+                ]
+              },
+              "created_at": "date",
+              "modified_at": "date",
+              "trashed_at": "date",
+              "purged_at": "date",
+              "created_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "modified_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "owned_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "shared_link": {
+                "url": "string",
+                "download_url": "string",
+                "vanity_url": "string",
+                "vanity_name": "string",
+                "access": "string",
+                "effective_access": "string",
+                "effective_permission": "string",
+                "unshared_at": "date",
+                "is_password_enabled": "boolean",
+                "permissions": {
+                  "can_download": "boolean",
+                  "can_preview": "boolean",
+                  "can_edit": "boolean"
+                },
+                "download_count": "double",
+                "preview_count": "double"
+              },
+              "parent": {
+                "id": "string",
+                "etag": "string",
+                "type": "string",
+                "sequence_id": "string",
+                "name": "string"
+              },
+              "item_status": "string"
+            },
+            "app_item": {
+              "id": "string",
+              "type": "string",
+              "application_type": "string"
+            },
+            "accessible_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string"
+            },
+            "invite_email": "string",
+            "role": "string",
+            "expires_at": "date",
+            "is_access_only": "boolean",
+            "status": "string",
+            "acknowledged_at": "date",
+            "created_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string",
+              "is_active": "boolean"
+            },
+            "created_at": "date",
+            "modified_at": "date",
+            "acceptance_requirements_status": {
+              "terms_of_service_requirement": {
+                "is_accepted": "boolean",
+                "terms_of_service": {
+                  "id": "string",
+                  "type": "string"
+                }
+              },
+              "strong_password_requirement": {
+                "enterprise_has_strong_password_required_for_external_users": "boolean",
+                "user_has_strong_password": "boolean"
+              },
+              "two_factor_authentication_requirement": {
+                "enterprise_has_two_factor_auth_enabled": "boolean",
+                "user_has_two_factor_authentication_enabled": "boolean"
+              }
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Pending Collaborations",
       "paged": true,
       "suffix": "/2.0/collaborations?status=pending&fields={Fields?}",
-      "description": "READ THE NAME LITERALLY: this returns ONLY collaborations awaiting the caller's acceptance, not the account's collaborations. Box has no endpoint that lists every collaboration -- they are reachable per file or per folder, so an access review has to walk the content tree. Treating this as the sharing table understates access to almost nothing."
+      "description": "READ THE NAME LITERALLY: this returns ONLY collaborations awaiting the caller's acceptance, not the account's collaborations. Box has no endpoint that lists every collaboration -- they are reachable per file or per folder, so an access review has to walk the content tree. Treating this as the sharing table understates access to almost nothing.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "item": {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string",
+              "description": "string",
+              "path_collection": {
+                "total_count": "double",
+                "entries": [
+                  {
+                    "id": "string",
+                    "etag": "string",
+                    "type": "string",
+                    "sequence_id": "string",
+                    "name": "string"
+                  }
+                ]
+              },
+              "created_at": "date",
+              "modified_at": "date",
+              "trashed_at": "date",
+              "purged_at": "date",
+              "created_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "modified_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "owned_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "shared_link": {
+                "url": "string",
+                "download_url": "string",
+                "vanity_url": "string",
+                "vanity_name": "string",
+                "access": "string",
+                "effective_access": "string",
+                "effective_permission": "string",
+                "unshared_at": "date",
+                "is_password_enabled": "boolean",
+                "permissions": {
+                  "can_download": "boolean",
+                  "can_preview": "boolean",
+                  "can_edit": "boolean"
+                },
+                "download_count": "double",
+                "preview_count": "double"
+              },
+              "parent": {
+                "id": "string",
+                "etag": "string",
+                "type": "string",
+                "sequence_id": "string",
+                "name": "string"
+              },
+              "item_status": "string"
+            },
+            "app_item": {
+              "id": "string",
+              "type": "string",
+              "application_type": "string"
+            },
+            "accessible_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string"
+            },
+            "invite_email": "string",
+            "role": "string",
+            "expires_at": "date",
+            "is_access_only": "boolean",
+            "status": "string",
+            "acknowledged_at": "date",
+            "created_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string",
+              "is_active": "boolean"
+            },
+            "created_at": "date",
+            "modified_at": "date",
+            "acceptance_requirements_status": {
+              "terms_of_service_requirement": {
+                "is_accepted": "boolean",
+                "terms_of_service": {
+                  "id": "string",
+                  "type": "string"
+                }
+              },
+              "strong_password_requirement": {
+                "enterprise_has_strong_password_required_for_external_users": "boolean",
+                "user_has_strong_password": "boolean"
+              },
+              "two_factor_authentication_requirement": {
+                "enterprise_has_two_factor_auth_enabled": "boolean",
+                "user_has_two_factor_authentication_enabled": "boolean"
+              }
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Group Collaborations",
       "paged": true,
       "suffix": "/2.0/groups/{Group ID}/collaborations",
-      "description": "The folders and files one group has been granted access to, with the role on each. Requires a group id. The reverse view: what a team can reach, rather than who can reach one item."
+      "description": "The folders and files one group has been granted access to, with the role on each. Requires a group id. The reverse view: what a team can reach, rather than who can reach one item.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "item": {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string",
+              "description": "string",
+              "path_collection": {
+                "total_count": "double",
+                "entries": [
+                  {
+                    "id": "string",
+                    "etag": "string",
+                    "type": "string",
+                    "sequence_id": "string",
+                    "name": "string"
+                  }
+                ]
+              },
+              "created_at": "date",
+              "modified_at": "date",
+              "trashed_at": "date",
+              "purged_at": "date",
+              "created_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "modified_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "owned_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "shared_link": {
+                "url": "string",
+                "download_url": "string",
+                "vanity_url": "string",
+                "vanity_name": "string",
+                "access": "string",
+                "effective_access": "string",
+                "effective_permission": "string",
+                "unshared_at": "date",
+                "is_password_enabled": "boolean",
+                "permissions": {
+                  "can_download": "boolean",
+                  "can_preview": "boolean",
+                  "can_edit": "boolean"
+                },
+                "download_count": "double",
+                "preview_count": "double"
+              },
+              "parent": {
+                "id": "string",
+                "etag": "string",
+                "type": "string",
+                "sequence_id": "string",
+                "name": "string"
+              },
+              "item_status": "string"
+            },
+            "app_item": {
+              "id": "string",
+              "type": "string",
+              "application_type": "string"
+            },
+            "accessible_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string"
+            },
+            "invite_email": "string",
+            "role": "string",
+            "expires_at": "date",
+            "is_access_only": "boolean",
+            "status": "string",
+            "acknowledged_at": "date",
+            "created_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string",
+              "is_active": "boolean"
+            },
+            "created_at": "date",
+            "modified_at": "date",
+            "acceptance_requirements_status": {
+              "terms_of_service_requirement": {
+                "is_accepted": "boolean",
+                "terms_of_service": {
+                  "id": "string",
+                  "type": "string"
+                }
+              },
+              "strong_password_requirement": {
+                "enterprise_has_strong_password_required_for_external_users": "boolean",
+                "user_has_strong_password": "boolean"
+              },
+              "two_factor_authentication_requirement": {
+                "enterprise_has_two_factor_auth_enabled": "boolean",
+                "user_has_two_factor_authentication_enabled": "boolean"
+              }
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Collections",
@@ -66,37 +736,161 @@
           "parameterName": "Collection ID"
         }
       ],
-      "description": "The calling user's collections -- in practice the Favorites collection, which is the only type Box currently supports. Scoped to the caller."
+      "description": "The calling user's collections -- in practice the Favorites collection, which is the only type Box currently supports. Scoped to the caller.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "collection_type": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Collection Items",
       "paged": true,
       "suffix": "/2.0/collections/{Collection ID}/items?fields={Fields?}",
-      "description": "The items in one collection. Requires a collection id. Same fields rule as folder items."
+      "description": "The items in one collection. Requires a collection id. Same fields rule as folder items.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "id": "string",
+            "etag": "string",
+            "type": "string",
+            "sequence_id": "string",
+            "name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "File Comments",
       "paged": true,
       "suffix": "/2.0/files/{File ID}/comments?fields={Fields?}",
-      "description": "The comments left on one file, with the message, the author and when it was posted. Requires a file id. Where discussion about a document lives; the file record carries no indication that any exists."
+      "description": "The comments left on one file, with the message, the author and when it was posted. Requires a file id. Where discussion about a document lives; the file record carries no indication that any exists.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "is_reply_comment": "boolean",
+            "message": "string",
+            "created_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "created_at": "date",
+            "modified_at": "date",
+            "item": {
+              "id": "string",
+              "type": "string"
+            },
+            "tagged_message": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Comment",
       "paged": false,
       "suffix": "/2.0/comments/{Comment ID}?fields={Fields?}",
-      "description": "One comment by id, with its message and author."
+      "description": "One comment by id, with its message and author.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "is_reply_comment": "boolean",
+        "message": "string",
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "created_at": "date",
+        "modified_at": "date",
+        "item": {
+          "id": "string",
+          "type": "string"
+        },
+        "tagged_message": "string"
+      }
     },
     {
       "name": "Device Pin",
       "paged": false,
       "suffix": "/2.0/device_pinners/{Device Pinner ID}",
-      "description": "One device pin by id."
+      "description": "One device pin by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "owned_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "product_name": "string"
+      }
     },
     {
       "name": "Enterprise Device Pins",
       "paged": true,
       "suffix": "/2.0/enterprises/{Enterprise ID}/device_pinners?marker={Marker?}",
-      "description": "The mobile devices authorised for the enterprise, with the user, device name and platform. Requires an enterprise id. A device inventory: it shows which endpoints hold synced content, which no user or file table reveals."
+      "description": "The mobile devices authorised for the enterprise, with the user, device name and platform. Requires an enterprise id. A device inventory: it shows which endpoints hold synced content, which no user or file table reveals.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "owned_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "product_name": "string"
+          }
+        ],
+        "limit": "double",
+        "next_marker": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Download File",
@@ -108,67 +902,696 @@
       "name": "User's Email Aliases",
       "paged": true,
       "suffix": "/2.0/users/{User ID}/email_aliases",
-      "description": "The additional email addresses registered to one user. Requires a user id. Relevant because collaborations and events can reference any of them, so matching activity to a person by primary email alone misses some of it."
+      "description": "The additional email addresses registered to one user. Requires a user id. Relevant because collaborations and events can reference any of them, so matching activity to a person by primary email alone misses some of it.",
+      "responseSchema": {
+        "total_count": "double",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "email": "string",
+            "is_confirmed": "boolean"
+          }
+        ]
+      }
     },
     {
       "name": "User and Enterprise Events",
       "paged": true,
       "suffix": "/2.0/events?created_after={Created After?:yyyy-MM-dd’T’HH:mm:ssZ}&created_before={Created Before?:yyyy-MM-dd’T’HH:mm:ssZ}&event_type={Event Type?:ACCESS_GRANTED|ACCESS_REVOKED|ADD_DEVICE_ASSOCIATION}&stream_position={Stream Position?}&stream_type={Stream Type?:all|changes|sync|admin_logs}",
-      "description": "The event stream of the account -- who did what to which item and when. TWO DIFFERENT STREAMS come from this one endpoint and the stream_type parameter chooses between them. The user stream returns the calling user's own recent activity. The ADMIN LOGS stream returns enterprise-wide events -- logins, downloads, shares, deletions, permission changes -- and is the audit trail an access or compliance question needs; it requires admin credentials. Two limits worth stating: the enterprise stream is not real time and lags by a period Box does not guarantee, and history is bounded by the retention Box keeps for the account, so questions about long-past activity may find nothing rather than an empty answer."
+      "description": "The event stream of the account -- who did what to which item and when. TWO DIFFERENT STREAMS come from this one endpoint and the stream_type parameter chooses between them. The user stream returns the calling user's own recent activity. The ADMIN LOGS stream returns enterprise-wide events -- logins, downloads, shares, deletions, permission changes -- and is the audit trail an access or compliance question needs; it requires admin credentials. Two limits worth stating: the enterprise stream is not real time and lags by a period Box does not guarantee, and history is bounded by the retention Box keeps for the account, so questions about long-past activity may find nothing rather than an empty answer.",
+      "responseSchema": {
+        "chunk_size": "double",
+        "next_stream_position": "double",
+        "entries": [
+          {
+            "type": "string",
+            "created_at": "date",
+            "recorded_at": "date",
+            "event_id": "string",
+            "created_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "event_type": "string",
+            "session_id": "string"
+          }
+        ]
+      }
     },
     {
       "name": "File Version Legal Hold",
       "paged": false,
       "suffix": "/2.0/file_version_legal_holds/{File Version Legal ID}",
-      "description": "One file version legal hold record by id."
+      "description": "One file version legal hold record by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "file_version": {
+          "id": "string",
+          "type": "string",
+          "sha1": "string"
+        },
+        "file": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string",
+          "sha1": "string",
+          "file_version": {
+            "id": "string",
+            "type": "string",
+            "sha1": "string"
+          }
+        },
+        "legal_hold_policy_assignments": [
+          {
+            "id": "string",
+            "type": "string",
+            "legal_hold_policy": {
+              "id": "string",
+              "type": "string"
+            },
+            "assigned_to": {
+              "type": "string",
+              "id": "string"
+            },
+            "assigned_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "assigned_at": "date",
+            "deleted_at": "date"
+          }
+        ],
+        "deleted_at": "date"
+      }
     },
     {
       "name": "File Version Legal Holds",
       "paged": true,
       "suffix": "/2.0/file_version_legal_holds?marker={Marker?}&policy_id={Policy ID?}",
-      "description": "The individual file versions frozen by legal holds, one row each, with the hold that froze them. Filter by a legal hold policy assignment. This is the version-level record of what is actually under hold -- the assignment says what a hold reaches, this says which specific versions it caught, which matters because a hold placed on a user or folder pulls in versions nobody named."
+      "description": "The individual file versions frozen by legal holds, one row each, with the hold that froze them. Filter by a legal hold policy assignment. This is the version-level record of what is actually under hold -- the assignment says what a hold reaches, this says which specific versions it caught, which matters because a hold placed on a user or folder pulls in versions nobody named.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "file_version": {
+              "id": "string",
+              "type": "string",
+              "sha1": "string"
+            },
+            "file": {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string",
+              "sha1": "string",
+              "file_version": {
+                "id": "string",
+                "type": "string",
+                "sha1": "string"
+              }
+            },
+            "legal_hold_policy_assignments": [
+              {
+                "id": "string",
+                "type": "string",
+                "legal_hold_policy": {
+                  "id": "string",
+                  "type": "string"
+                },
+                "assigned_to": {
+                  "type": "string",
+                  "id": "string"
+                },
+                "assigned_by": {
+                  "id": "string",
+                  "type": "string",
+                  "name": "string",
+                  "login": "string"
+                },
+                "assigned_at": "date",
+                "deleted_at": "date"
+              }
+            ],
+            "deleted_at": "date"
+          }
+        ]
+      }
     },
     {
       "name": "Retention on File",
       "paged": false,
       "suffix": "/2.0/file_version_retentions/{File Version Retention ID}",
-      "description": "One file version retention record by id."
+      "description": "One file version retention record by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "file_version": {
+          "id": "string",
+          "type": "string",
+          "sha1": "string"
+        },
+        "file": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string",
+          "sha1": "string",
+          "file_version": {
+            "id": "string",
+            "type": "string",
+            "sha1": "string"
+          }
+        },
+        "applied_at": "date",
+        "disposition_at": "date",
+        "winning_retention_policy": {
+          "id": "string",
+          "type": "string",
+          "policy_name": "string",
+          "retention_length": "string",
+          "disposition_action": "string",
+          "max_extension_length": "string"
+        }
+      }
     },
     {
       "name": "File Version Retentions",
       "paged": true,
       "suffix": "/2.0/file_version_retentions?disposition_action={Disposition Action?:permanently_delete|remove_retention}&disposition_after={Disposition After?:yyyy-MM-dd’T’HH:mm:ssZ}&disposition_before={Disposition Before?:yyyy-MM-dd’T’HH:mm:ssZ}&file_id={File ID?}&file_version_id={File Version ID?}&marker={Marker?}&policy_id={Policy ID?}",
-      "description": "The individual file versions currently held under retention, with the applicable policy and the disposition date. The record of what is actually retained, as opposed to what the policies say should be -- and the way to find what is due for disposition."
+      "description": "The individual file versions currently held under retention, with the applicable policy and the disposition date. The record of what is actually retained, as opposed to what the policies say should be -- and the way to find what is due for disposition.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "file_version": {
+              "id": "string",
+              "type": "string",
+              "sha1": "string"
+            },
+            "file": {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string",
+              "sha1": "string",
+              "file_version": {
+                "id": "string",
+                "type": "string",
+                "sha1": "string"
+              }
+            },
+            "applied_at": "date",
+            "disposition_at": "date",
+            "winning_retention_policy": {
+              "id": "string",
+              "type": "string",
+              "policy_name": "string",
+              "retention_length": "string",
+              "disposition_action": "string",
+              "max_extension_length": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "File Versions",
       "paged": true,
       "suffix": "/2.0/files/{File ID}/versions?fields={Fields?}",
-      "description": "The version history of one file, one row per prior version, with the version id, size, who created it, and when it was uploaded or restored. Requires a file id. NOTE that the CURRENT version is not among them -- this lists previous versions only, so a file never revised returns an empty list rather than one row. Storage questions want this: a heavily revised file consumes the sum of its versions, not the size shown on the file."
+      "description": "The version history of one file, one row per prior version, with the version id, size, who created it, and when it was uploaded or restored. Requires a file id. NOTE that the CURRENT version is not among them -- this lists previous versions only, so a file never revised returns an empty list rather than one row. Storage questions want this: a heavily revised file consumes the sum of its versions, not the size shown on the file.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "sha1": "string",
+            "name": "string",
+            "size": "double",
+            "created_at": "date",
+            "modified_at": "date",
+            "modified_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "trashed_at": "date",
+            "trashed_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "restored_at": "date",
+            "restored_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "purged_at": "date",
+            "uploader_display_name": "string",
+            "version_number": "string"
+          }
+        ]
+      }
     },
     {
       "name": "File Version",
       "paged": false,
       "suffix": "/2.0/files/{File ID}/versions/{File Version ID}?fields={Fields?}",
-      "description": "One prior version of a file by version id. Requires the file id as well."
+      "description": "One prior version of a file by version id. Requires the file id as well.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "sha1": "string",
+        "name": "string",
+        "size": "double",
+        "created_at": "date",
+        "modified_at": "date",
+        "modified_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "trashed_at": "date",
+        "trashed_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "restored_at": "date",
+        "restored_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "purged_at": "date",
+        "uploader_display_name": "string",
+        "version_number": "string"
+      }
     },
     {
       "name": "File Information",
       "paged": true,
       "suffix": "/2.0/files/{File ID}?fields={Fields?}",
-      "description": "One file's metadata. Requires a file id. Can carry name, size in bytes, created_at and modified_at, created_by, modified_by and owned_by, the parent folder, path_collection giving its full ancestry, sha1, item_status, and any shared link. Subject to the same fields rule as everything else here -- ask for what is needed by name or most of that list does not arrive. path_collection is the only place a file's full path exists; the record otherwise names just its immediate parent."
+      "description": "One file's metadata. Requires a file id. Can carry name, size in bytes, created_at and modified_at, created_by, modified_by and owned_by, the parent folder, path_collection giving its full ancestry, sha1, item_status, and any shared link. Subject to the same fields rule as everything else here -- ask for what is needed by name or most of that list does not arrive. path_collection is the only place a file's full path exists; the record otherwise names just its immediate parent.",
+      "responseSchema": {
+        "id": "string",
+        "etag": "string",
+        "type": "string",
+        "sequence_id": "string",
+        "name": "string",
+        "sha1": "string",
+        "file_version": {
+          "id": "string",
+          "type": "string",
+          "sha1": "string"
+        },
+        "description": "string",
+        "size": "double",
+        "path_collection": {
+          "total_count": "double",
+          "entries": [
+            {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string"
+            }
+          ]
+        },
+        "created_at": "date",
+        "modified_at": "date",
+        "trashed_at": "date",
+        "purged_at": "date",
+        "content_created_at": "date",
+        "content_modified_at": "date",
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "modified_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "owned_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "shared_link": {
+          "url": "string",
+          "download_url": "string",
+          "vanity_url": "string",
+          "vanity_name": "string",
+          "access": "string",
+          "effective_access": "string",
+          "effective_permission": "string",
+          "unshared_at": "date",
+          "is_password_enabled": "boolean",
+          "permissions": {
+            "can_download": "boolean",
+            "can_preview": "boolean",
+            "can_edit": "boolean"
+          },
+          "download_count": "double",
+          "preview_count": "double"
+        },
+        "parent": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string"
+        },
+        "item_status": "string",
+        "version_number": "string",
+        "comment_count": "double",
+        "permissions": {
+          "can_delete": "boolean",
+          "can_download": "boolean",
+          "can_invite_collaborator": "boolean",
+          "can_rename": "boolean",
+          "can_set_share_access": "boolean",
+          "can_share": "boolean",
+          "can_annotate": "boolean",
+          "can_comment": "boolean",
+          "can_preview": "boolean",
+          "can_upload": "boolean",
+          "can_view_annotations_all": "boolean",
+          "can_view_annotations_self": "boolean",
+          "can_apply_watermark": "boolean"
+        },
+        "tags": [
+          "string"
+        ],
+        "lock": {
+          "id": "string",
+          "type": "string",
+          "created_by": {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "login": "string"
+          },
+          "created_at": "date",
+          "expired_at": "date",
+          "is_download_prevented": "boolean",
+          "app_type": "string"
+        },
+        "extension": "string",
+        "is_package": "boolean",
+        "expiring_embed_link": {
+          "access_token": "string",
+          "expires_in": "double",
+          "token_type": "string",
+          "restricted_to": [
+            {
+              "scope": "string",
+              "object": {
+                "id": "string",
+                "etag": "string",
+                "type": "string",
+                "sequence_id": "string",
+                "name": "string"
+              }
+            }
+          ],
+          "url": "string"
+        },
+        "watermark_info": {
+          "is_watermarked": "boolean",
+          "is_watermark_inherited": "boolean",
+          "is_watermarked_by_access_policy": "boolean"
+        },
+        "is_accessible_via_shared_link": "boolean",
+        "allowed_invitee_roles": [
+          "string"
+        ],
+        "is_externally_owned": "boolean",
+        "has_collaborations": "boolean",
+        "expires_at": "date",
+        "representations": {
+          "entries": [
+            {
+              "content": {
+                "url_template": "string"
+              },
+              "info": {
+                "url": "string"
+              },
+              "properties": {
+                "dimensions": "string",
+                "paged": "string",
+                "thumb": "string"
+              },
+              "representation": "string",
+              "status": {
+                "state": "string"
+              }
+            }
+          ]
+        },
+        "classification": {
+          "name": "string",
+          "definition": "string",
+          "color": "string"
+        },
+        "uploader_display_name": "string",
+        "disposition_at": "date",
+        "shared_link_permission_options": [
+          "string"
+        ],
+        "is_associated_with_app_item": "boolean",
+        "collections": [
+          {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "collection_type": "string"
+          }
+        ],
+        "is_download_available": "boolean",
+        "download_url": "string",
+        "authenticated_download_url": "string",
+        "allowed_shared_link_access_levels": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Folder Information",
       "paged": true,
       "suffix": "/2.0/folders/{Folder ID}?fields={Fields?}",
-      "description": "One folder's metadata, with the same shape as a file plus item counts and, when requested, size roll-ups. Requires a folder id, where 0 is the root. Same fields rule."
+      "description": "One folder's metadata, with the same shape as a file plus item counts and, when requested, size roll-ups. Requires a folder id, where 0 is the root. Same fields rule.",
+      "responseSchema": {
+        "id": "string",
+        "etag": "string",
+        "type": "string",
+        "sequence_id": "string",
+        "name": "string",
+        "created_at": "date",
+        "modified_at": "date",
+        "description": "string",
+        "size": "double",
+        "path_collection": {
+          "total_count": "double",
+          "entries": [
+            {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string"
+            }
+          ]
+        },
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "modified_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "trashed_at": "date",
+        "purged_at": "date",
+        "content_created_at": "date",
+        "content_modified_at": "date",
+        "owned_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "shared_link": {
+          "url": "string",
+          "download_url": "string",
+          "vanity_url": "string",
+          "vanity_name": "string",
+          "access": "string",
+          "effective_access": "string",
+          "effective_permission": "string",
+          "unshared_at": "date",
+          "is_password_enabled": "boolean",
+          "permissions": {
+            "can_download": "boolean",
+            "can_preview": "boolean",
+            "can_edit": "boolean"
+          },
+          "download_count": "double",
+          "preview_count": "double"
+        },
+        "folder_upload_email": {
+          "access": "string",
+          "email": "string"
+        },
+        "parent": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string"
+        },
+        "item_status": "string",
+        "item_collection": {
+          "limit": "double",
+          "next_marker": "string",
+          "prev_marker": "string",
+          "total_count": "double",
+          "offset": "double",
+          "order": [
+            {
+              "by": "string",
+              "direction": "string"
+            }
+          ],
+          "entries": [
+            {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string"
+            }
+          ]
+        },
+        "sync_state": "string",
+        "has_collaborations": "boolean",
+        "permissions": {
+          "can_delete": "boolean",
+          "can_download": "boolean",
+          "can_invite_collaborator": "boolean",
+          "can_rename": "boolean",
+          "can_set_share_access": "boolean",
+          "can_share": "boolean",
+          "can_upload": "boolean",
+          "can_apply_watermark": "boolean"
+        },
+        "tags": [
+          "string"
+        ],
+        "can_non_owners_invite": "boolean",
+        "is_externally_owned": "boolean",
+        "is_collaboration_restricted_to_enterprise": "boolean",
+        "allowed_shared_link_access_levels": [
+          "string"
+        ],
+        "allowed_invitee_roles": [
+          "string"
+        ],
+        "watermark_info": {
+          "is_watermarked": "boolean",
+          "is_watermark_inherited": "boolean",
+          "is_watermarked_by_access_policy": "boolean"
+        },
+        "is_accessible_via_shared_link": "boolean",
+        "can_non_owners_view_collaborators": "boolean",
+        "classification": {
+          "name": "string",
+          "definition": "string",
+          "color": "string"
+        },
+        "is_associated_with_app_item": "boolean",
+        "collections": [
+          {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "collection_type": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Folder Items",
       "paged": true,
       "suffix": "/2.0/folders/{Folder ID}/items?fields={Fields?}",
-      "description": "The direct contents of one folder -- files, subfolders and web links -- one row each, told apart by the type column. Requires a folder id, and FOLDER ID 0 IS THE ROOT of the account. This is the workhorse of the whole connector, because BOX HAS NO ENDPOINT THAT LISTS ALL FILES: content is reached by walking this folder by folder from the root, or by Search for Content. Two things decide whether the rows are usable. THE fields PARAMETER IS ALMOST ALWAYS REQUIRED -- Box returns a minimal record by default, carrying little more than type, id, name and etag, so size, timestamps, owner and parent are ABSENT unless asked for by name, and their absence looks like empty data rather than an unmade request. And large folders must be paged with marker rather than offset: pass usemarker=true, since offset paging is capped and silently stops."
+      "description": "The direct contents of one folder -- files, subfolders and web links -- one row each, told apart by the type column. Requires a folder id, and FOLDER ID 0 IS THE ROOT of the account. This is the workhorse of the whole connector, because BOX HAS NO ENDPOINT THAT LISTS ALL FILES: content is reached by walking this folder by folder from the root, or by Search for Content. Two things decide whether the rows are usable. THE fields PARAMETER IS ALMOST ALWAYS REQUIRED -- Box returns a minimal record by default, carrying little more than type, id, name and etag, so size, timestamps, owner and parent are ABSENT unless asked for by name, and their absence looks like empty data rather than an unmade request. And large folders must be paged with marker rather than offset: pass usemarker=true, since offset paging is capped and silently stops.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "total_count": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "id": "string",
+            "etag": "string",
+            "type": "string",
+            "sequence_id": "string",
+            "name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "User's Groups",
@@ -188,19 +1611,102 @@
           "parameterName": "Group ID"
         }
       ],
-      "description": "The groups one user belongs to. Requires a user id. The per-person view of group-derived access, which no collaboration table gives."
+      "description": "The groups one user belongs to. Requires a user id. The per-person view of group-derived access, which no collaboration table gives.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "user": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "group": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "group_type": "string"
+            },
+            "role": "string",
+            "created_at": "date",
+            "modified_at": "date"
+          }
+        ]
+      }
     },
     {
       "name": "Group Members",
       "paged": true,
       "suffix": "/2.0/groups/{Group ID}/memberships",
-      "description": "The members of one group, as membership records carrying the user and their role in the group. Requires a group id."
+      "description": "The members of one group, as membership records carrying the user and their role in the group. Requires a group id.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "user": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "group": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "group_type": "string"
+            },
+            "role": "string",
+            "created_at": "date",
+            "modified_at": "date"
+          }
+        ]
+      }
     },
     {
       "name": "Group Membership",
       "paged": false,
       "suffix": "/2.0/group_memberships/{Group Membership ID}?fields={Fields?}",
-      "description": "One group membership by id, with the user, the group and the role."
+      "description": "One group membership by id, with the user, the group and the role.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "user": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "group": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "group_type": "string"
+        },
+        "role": "string",
+        "created_at": "date",
+        "modified_at": "date"
+      }
     },
     {
       "name": "Enterprise Groups",
@@ -226,31 +1732,161 @@
           "parameterName": "Group ID"
         }
       ],
-      "description": "The groups defined in the enterprise, with name, and the settings governing who may view members and invite them. Groups are how access is granted at scale, so this is the dimension that explains permissions no individual collaboration records."
+      "description": "The groups defined in the enterprise, with name, and the settings governing who may view members and invite them. Groups are how access is granted at scale, so this is the dimension that explains permissions no individual collaboration records.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "group_type": "string",
+            "created_at": "date",
+            "modified_at": "date",
+            "provenance": "string",
+            "external_sync_identifier": "string",
+            "description": "string",
+            "invitability_level": "string",
+            "member_viewability_level": "string",
+            "permissions": {
+              "can_invite_as_collaborator": "boolean"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Group",
       "paged": false,
       "suffix": "/2.0/groups/{Group ID}?fields={Fields?}",
-      "description": "One group by id, with its settings."
+      "description": "One group by id, with its settings.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "name": "string",
+        "group_type": "string",
+        "created_at": "date",
+        "modified_at": "date",
+        "provenance": "string",
+        "external_sync_identifier": "string",
+        "description": "string",
+        "invitability_level": "string",
+        "member_viewability_level": "string",
+        "permissions": {
+          "can_invite_as_collaborator": "boolean"
+        }
+      }
     },
     {
       "name": "User Invite Status",
       "paged": false,
       "suffix": "/2.0/invites/{Invite ID}?fields={Fields?}",
-      "description": "The state of one invitation to join the enterprise. Requires an invite id. Pending onboarding, which the user list does not show."
+      "description": "The state of one invitation to join the enterprise. Requires an invite id. Pending onboarding, which the user list does not show.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "invited_to": {
+          "id": "string",
+          "type": "string",
+          "name": "string"
+        },
+        "actionable_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "invited_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "status": "string",
+        "created_at": "date",
+        "modified_at": "date"
+      }
     },
     {
       "name": "Legal Hold Policies",
       "paged": true,
       "suffix": "/2.0/legal_hold_policies?fields={Fields?}&marker={Marker?}&policy_name={Policy Name?}",
-      "description": "The legal holds in force, each with its name, description, and the period it covers. A legal hold freezes content against deletion regardless of retention policy, so anything under hold is exempt from the normal lifecycle -- which is why deletion counts and storage figures can behave unexpectedly during litigation."
+      "description": "The legal holds in force, each with its name, description, and the period it covers. A legal hold freezes content against deletion regardless of retention policy, so anything under hold is exempt from the normal lifecycle -- which is why deletion counts and storage figures can behave unexpectedly during litigation.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "policy_name": "string",
+            "description": "string",
+            "status": "string",
+            "assignment_counts": {
+              "user": "double",
+              "folder": "double",
+              "file": "double",
+              "file_version": "double",
+              "ownership": "double",
+              "interactions": "double"
+            },
+            "created_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "created_at": "date",
+            "modified_at": "date",
+            "deleted_at": "date",
+            "filter_started_at": "date",
+            "filter_ended_at": "date",
+            "release_notes": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Legal Hold Policy",
       "paged": false,
       "suffix": "/2.0/legal_hold_policies/{Legal Hold Policy ID}",
-      "description": "One legal hold policy by id, with counts of its assignments."
+      "description": "One legal hold policy by id, with counts of its assignments.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "policy_name": "string",
+        "description": "string",
+        "status": "string",
+        "assignment_counts": {
+          "user": "double",
+          "folder": "double",
+          "file": "double",
+          "file_version": "double",
+          "ownership": "double",
+          "interactions": "double"
+        },
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "created_at": "date",
+        "modified_at": "date",
+        "deleted_at": "date",
+        "filter_started_at": "date",
+        "filter_ended_at": "date",
+        "release_notes": "string"
+      }
     },
     {
       "name": "Legal Hold Policy Assignments",
@@ -264,37 +1900,177 @@
           "parameterName": "Legal Hold Policy Assignment ID"
         }
       ],
-      "description": "What one hold applies to -- users, folders or files. Requires a policy id. The scope of the freeze."
+      "description": "What one hold applies to -- users, folders or files. Requires a policy id. The scope of the freeze.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "legal_hold_policy": {
+              "id": "string",
+              "type": "string"
+            },
+            "assigned_to": {
+              "type": "string",
+              "id": "string"
+            },
+            "assigned_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "assigned_at": "date",
+            "deleted_at": "date"
+          }
+        ]
+      }
     },
     {
       "name": "Legal Hold Policy Assignment",
       "paged": false,
       "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}",
-      "description": "One legal hold assignment by id."
+      "description": "One legal hold assignment by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "legal_hold_policy": {
+          "id": "string",
+          "type": "string"
+        },
+        "assigned_to": {
+          "type": "string",
+          "id": "string"
+        },
+        "assigned_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "assigned_at": "date",
+        "deleted_at": "date"
+      }
     },
     {
       "name": "Current File Versions",
       "paged": true,
       "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}/files_on_hold?fields={Fields?}&marker={Marker?}",
-      "description": "The files whose CURRENT version is held under one legal hold assignment. Requires an assignment id. What is frozen as it stands today."
+      "description": "The files whose CURRENT version is held under one legal hold assignment. Requires an assignment id. What is frozen as it stands today.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "etag": "string",
+            "type": "string",
+            "sequence_id": "string",
+            "name": "string",
+            "sha1": "string",
+            "file_version": {
+              "id": "string",
+              "type": "string",
+              "sha1": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Previous File Versions",
       "paged": true,
       "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}/file_versions_on_hold?fields={Fields?}&marker={Marker?}",
-      "description": "The PRIOR versions held under one legal hold assignment. Requires an assignment id. Held separately from current versions because a hold preserves the history as well as the present state, and the two lists rarely match."
+      "description": "The PRIOR versions held under one legal hold assignment. Requires an assignment id. Held separately from current versions because a hold preserves the history as well as the present state, and the two lists rarely match.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "sha1": "string",
+            "name": "string",
+            "size": "double",
+            "created_at": "date",
+            "modified_at": "date",
+            "modified_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "trashed_at": "date",
+            "trashed_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "restored_at": "date",
+            "restored_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "purged_at": "date",
+            "uploader_display_name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Metadata Cascade Policies",
       "paged": true,
       "suffix": "/2.0/metadata_cascade_policies?folder_id={Folder_id}&marker={Marker?}&owner_enterprise_id={Owner Enterprise ID}",
-      "description": "The policies that push a folder's metadata down onto everything inside it. Requires a folder id. Explains metadata appearing on files nobody set it on -- without this, inherited values look like they were applied individually."
+      "description": "The policies that push a folder's metadata down onto everything inside it. Requires a folder id. Explains metadata appearing on files nobody set it on -- without this, inherited values look like they were applied individually.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "owner_enterprise": {
+              "type": "string",
+              "id": "string"
+            },
+            "parent": {
+              "type": "string",
+              "id": "string"
+            },
+            "scope": "string",
+            "templateKey": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Metadata Cascade Policy",
       "paged": false,
       "suffix": "/2.0/metadata_cascade_policies/{Metadata Cascade Policy ID}",
-      "description": "One cascade policy by id."
+      "description": "One cascade policy by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "owner_enterprise": {
+          "type": "string",
+          "id": "string"
+        },
+        "parent": {
+          "type": "string",
+          "id": "string"
+        },
+        "scope": "string",
+        "templateKey": "string"
+      }
     },
     {
       "name": "File Metadata Instances",
@@ -324,67 +2100,579 @@
       "name": "Metadata Template by Instance ID",
       "paged": false,
       "suffix": "/2.0/metadata_templates?metadata_instance_id={Metadata Instance ID}",
-      "description": "The template behind a given metadata instance id. The reverse lookup, for when an instance is in hand and its shape is not."
+      "description": "The template behind a given metadata instance id. The reverse lookup, for when an instance is in hand and its shape is not.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "scope": "string",
+            "templateKey": "string",
+            "displayName": "string",
+            "hidden": "boolean",
+            "fields": [
+              {
+                "type": "string",
+                "key": "string",
+                "displayName": "string",
+                "description": "string",
+                "hidden": "boolean",
+                "options": [
+                  {
+                    "key": "string",
+                    "id": "string"
+                  }
+                ],
+                "taxonomyKey": "string",
+                "taxonomyId": "string",
+                "namespace": "string",
+                "optionsRules": {
+                  "multiSelect": "boolean",
+                  "selectableLevels": [
+                    "double"
+                  ]
+                },
+                "id": "string"
+              }
+            ],
+            "copyInstanceOnItemCopy": "boolean"
+          }
+        ]
+      }
     },
     {
       "name": "Metadata Template by Name",
       "paged": false,
       "suffix": "/2.0/metadata_templates/{Scope}/{Template Key}/schema",
-      "description": "One metadata template by its scope and template key, with every field it defines: the field key, its display name, its type, and for enum fields the allowed options. THE DECODER for metadata instances -- an instance returns values under field keys and nothing else identifies them."
+      "description": "One metadata template by its scope and template key, with every field it defines: the field key, its display name, its type, and for enum fields the allowed options. THE DECODER for metadata instances -- an instance returns values under field keys and nothing else identifies them.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "scope": "string",
+        "templateKey": "string",
+        "displayName": "string",
+        "hidden": "boolean",
+        "fields": [
+          {
+            "type": "string",
+            "key": "string",
+            "displayName": "string",
+            "description": "string",
+            "hidden": "boolean",
+            "options": [
+              {
+                "key": "string",
+                "id": "string"
+              }
+            ],
+            "taxonomyKey": "string",
+            "taxonomyId": "string",
+            "namespace": "string",
+            "optionsRules": {
+              "multiSelect": "boolean",
+              "selectableLevels": [
+                "double"
+              ]
+            },
+            "id": "string"
+          }
+        ],
+        "copyInstanceOnItemCopy": "boolean"
+      }
     },
     {
       "name": "Metadata Template by ID",
       "paged": false,
       "suffix": "/2.0/metadata_templates/{Template ID}",
-      "description": "The same template found by its id rather than by name."
+      "description": "The same template found by its id rather than by name.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "scope": "string",
+        "templateKey": "string",
+        "displayName": "string",
+        "hidden": "boolean",
+        "fields": [
+          {
+            "type": "string",
+            "key": "string",
+            "displayName": "string",
+            "description": "string",
+            "hidden": "boolean",
+            "options": [
+              {
+                "key": "string",
+                "id": "string"
+              }
+            ],
+            "taxonomyKey": "string",
+            "taxonomyId": "string",
+            "namespace": "string",
+            "optionsRules": {
+              "multiSelect": "boolean",
+              "selectableLevels": [
+                "double"
+              ]
+            },
+            "id": "string"
+          }
+        ],
+        "copyInstanceOnItemCopy": "boolean"
+      }
     },
     {
       "name": "Global Templates",
       "paged": true,
       "suffix": "/2.0/metadata_templates/global",
-      "description": "The metadata templates Box provides to every account, chiefly the properties template used for arbitrary key-value pairs. Reference data, identical everywhere."
+      "description": "The metadata templates Box provides to every account, chiefly the properties template used for arbitrary key-value pairs. Reference data, identical everywhere.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "scope": "string",
+            "templateKey": "string",
+            "displayName": "string",
+            "hidden": "boolean",
+            "fields": [
+              {
+                "type": "string",
+                "key": "string",
+                "displayName": "string",
+                "description": "string",
+                "hidden": "boolean",
+                "options": [
+                  {
+                    "key": "string",
+                    "id": "string"
+                  }
+                ],
+                "taxonomyKey": "string",
+                "taxonomyId": "string",
+                "namespace": "string",
+                "optionsRules": {
+                  "multiSelect": "boolean",
+                  "selectableLevels": [
+                    "double"
+                  ]
+                },
+                "id": "string"
+              }
+            ],
+            "copyInstanceOnItemCopy": "boolean"
+          }
+        ]
+      }
     },
     {
       "name": "Enterprise Templates",
       "paged": true,
       "suffix": "/2.0/metadata_templates/enterprise?marker={Marker?}",
-      "description": "Every metadata template defined by this enterprise, with their fields. The account's own vocabulary for describing content, and the natural starting point before reading any metadata."
+      "description": "Every metadata template defined by this enterprise, with their fields. The account's own vocabulary for describing content, and the natural starting point before reading any metadata.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "scope": "string",
+            "templateKey": "string",
+            "displayName": "string",
+            "hidden": "boolean",
+            "fields": [
+              {
+                "type": "string",
+                "key": "string",
+                "displayName": "string",
+                "description": "string",
+                "hidden": "boolean",
+                "options": [
+                  {
+                    "key": "string",
+                    "id": "string"
+                  }
+                ],
+                "taxonomyKey": "string",
+                "taxonomyId": "string",
+                "namespace": "string",
+                "optionsRules": {
+                  "multiSelect": "boolean",
+                  "selectableLevels": [
+                    "double"
+                  ]
+                },
+                "id": "string"
+              }
+            ],
+            "copyInstanceOnItemCopy": "boolean"
+          }
+        ]
+      }
     },
     {
       "name": "Recently Accessed Items",
       "paged": true,
       "suffix": "/2.0/recent_items?fields={Fields?}&marker={Marker?}",
-      "description": "The items the calling user has recently opened, with the interaction type and time. Scoped to the caller, so it describes one person's activity rather than the account's."
+      "description": "The items the calling user has recently opened, with the interaction type and time. Scoped to the caller, so it describes one person's activity rather than the account's.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "type": "string",
+            "item": {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string",
+              "description": "string",
+              "path_collection": {
+                "total_count": "double",
+                "entries": [
+                  {
+                    "id": "string",
+                    "etag": "string",
+                    "type": "string",
+                    "sequence_id": "string",
+                    "name": "string"
+                  }
+                ]
+              },
+              "created_at": "date",
+              "modified_at": "date",
+              "trashed_at": "date",
+              "purged_at": "date",
+              "created_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "modified_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "owned_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "shared_link": {
+                "url": "string",
+                "download_url": "string",
+                "vanity_url": "string",
+                "vanity_name": "string",
+                "access": "string",
+                "effective_access": "string",
+                "effective_permission": "string",
+                "unshared_at": "date",
+                "is_password_enabled": "boolean",
+                "permissions": {
+                  "can_download": "boolean",
+                  "can_preview": "boolean",
+                  "can_edit": "boolean"
+                },
+                "download_count": "double",
+                "preview_count": "double"
+              },
+              "parent": {
+                "id": "string",
+                "etag": "string",
+                "type": "string",
+                "sequence_id": "string",
+                "name": "string"
+              },
+              "item_status": "string",
+              "collections": [
+                {
+                  "id": "string",
+                  "type": "string",
+                  "name": "string",
+                  "collection_type": "string"
+                }
+              ],
+              "allowed_shared_link_access_levels": [
+                "string"
+              ]
+            },
+            "interaction_type": "string",
+            "interacted_at": "date",
+            "interaction_shared_link": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Retention Policies",
       "paged": true,
       "suffix": "/2.0/retention_policies?created_by_user_id={Created By User ID?}&policy_name={Policy Name?}&policy_type={Policy Type?:finite|indefinite}",
-      "description": "The retention policies defined in the enterprise, with the name, the retention length, the disposition action, and whether the policy is finite or indefinite. Retention decides how long content survives deletion, so this is what explains why some files cannot be removed and others vanish on schedule."
+      "description": "The retention policies defined in the enterprise, with the name, the retention length, the disposition action, and whether the policy is finite or indefinite. Retention decides how long content survives deletion, so this is what explains why some files cannot be removed and others vanish on schedule.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "policy_name": "string",
+            "retention_length": "string",
+            "disposition_action": "string",
+            "max_extension_length": "string",
+            "description": "string",
+            "policy_type": "string",
+            "retention_type": "string",
+            "status": "string",
+            "created_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "created_at": "date",
+            "modified_at": "date",
+            "can_owner_extend_retention": "boolean",
+            "are_owners_notified": "boolean",
+            "custom_notification_recipients": [
+              {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              }
+            ],
+            "assignment_counts": {
+              "enterprise": "double",
+              "folder": "double",
+              "metadata_template": "double"
+            }
+          }
+        ],
+        "limit": "double",
+        "next_marker": "string"
+      }
     },
     {
       "name": "Retention Policy",
       "paged": false,
       "suffix": "/2.0/retention_policies/{Retention Policy ID}",
-      "description": "One retention policy by id."
+      "description": "One retention policy by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "policy_name": "string",
+        "retention_length": "string",
+        "disposition_action": "string",
+        "max_extension_length": "string",
+        "description": "string",
+        "policy_type": "string",
+        "retention_type": "string",
+        "status": "string",
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "created_at": "date",
+        "modified_at": "date",
+        "can_owner_extend_retention": "boolean",
+        "are_owners_notified": "boolean",
+        "custom_notification_recipients": [
+          {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "login": "string"
+          }
+        ],
+        "assignment_counts": {
+          "enterprise": "double",
+          "folder": "double",
+          "metadata_template": "double"
+        }
+      }
     },
     {
       "name": "Retention Policy Assignments",
       "paged": true,
       "suffix": "/2.0/retention_policies/{Retention Policy ID}/assignments?marker={Marker?}&type={Type?:folder|enterprise}",
-      "description": "What one policy applies to -- an enterprise, a folder, or a metadata template. Requires a policy id. The policy says the rule; this says its reach, and a policy assigned to nothing has no effect at all."
+      "description": "What one policy applies to -- an enterprise, a folder, or a metadata template. Requires a policy id. The policy says the rule; this says its reach, and a policy assigned to nothing has no effect at all.",
+      "responseSchema": {
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "retention_policy": {
+              "id": "string",
+              "type": "string",
+              "policy_name": "string",
+              "retention_length": "string",
+              "disposition_action": "string",
+              "max_extension_length": "string"
+            },
+            "assigned_to": {
+              "id": "string",
+              "type": "string"
+            },
+            "filter_fields": [
+              {
+                "field": "string",
+                "value": "string"
+              }
+            ],
+            "assigned_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "assigned_at": "date",
+            "start_date_field": "string"
+          }
+        ],
+        "limit": "double",
+        "next_marker": "string"
+      }
     },
     {
       "name": "Retention Policy Assignment",
       "paged": false,
       "suffix": "/2.0/retention_policy_assignments/{Retention Policy Assignment ID}",
-      "description": "One retention policy assignment by id."
+      "description": "One retention policy assignment by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "retention_policy": {
+          "id": "string",
+          "type": "string",
+          "policy_name": "string",
+          "retention_length": "string",
+          "disposition_action": "string",
+          "max_extension_length": "string"
+        },
+        "assigned_to": {
+          "id": "string",
+          "type": "string"
+        },
+        "filter_fields": [
+          {
+            "field": "string",
+            "value": "string"
+          }
+        ],
+        "assigned_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "assigned_at": "date",
+        "start_date_field": "string"
+      }
     },
     {
       "name": "Search for Content",
       "paged": true,
       "suffix": "/2.0/search?query={Query}&ancestor_folder_ids={Ancestor Folder IDs?}&content_types={Content Types?name|description|file_content|comments|tag}&created_at_range={Created At Range?}&fields={Fields?}&file_extensions={File Extensions?}",
-      "description": "Searches the account's content by keyword, with filters for file extension, size range, date range, owner, ancestor folder and content type. The alternative to walking the folder tree, and usually the faster route to a set of files. Note that search indexes content and metadata, is eventually consistent so very recent uploads may be missing, and returns trashed items only when explicitly asked for."
+      "description": "Searches the account's content by keyword, with filters for file extension, size range, date range, owner, ancestor folder and content type. The alternative to walking the folder tree, and usually the faster route to a set of files. Note that search indexes content and metadata, is eventually consistent so very recent uploads may be missing, and returns trashed items only when explicitly asked for.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "type": "string",
+        "entries": [
+          {
+            "id": "string",
+            "etag": "string",
+            "type": "string",
+            "sequence_id": "string",
+            "name": "string",
+            "description": "string",
+            "path_collection": {
+              "total_count": "double",
+              "entries": [
+                {
+                  "id": "string",
+                  "etag": "string",
+                  "type": "string",
+                  "sequence_id": "string",
+                  "name": "string"
+                }
+              ]
+            },
+            "created_at": "date",
+            "modified_at": "date",
+            "trashed_at": "date",
+            "purged_at": "date",
+            "created_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "modified_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "owned_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "shared_link": {
+              "url": "string",
+              "download_url": "string",
+              "vanity_url": "string",
+              "vanity_name": "string",
+              "access": "string",
+              "effective_access": "string",
+              "effective_permission": "string",
+              "unshared_at": "date",
+              "is_password_enabled": "boolean",
+              "permissions": {
+                "can_download": "boolean",
+                "can_preview": "boolean",
+                "can_edit": "boolean"
+              },
+              "download_count": "double",
+              "preview_count": "double"
+            },
+            "parent": {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string"
+            },
+            "item_status": "string",
+            "collections": [
+              {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "collection_type": "string"
+              }
+            ],
+            "allowed_shared_link_access_levels": [
+              "string"
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Find Item for Shared Link",
@@ -396,103 +2684,645 @@
       "name": "Storage Policies",
       "paged": true,
       "suffix": "/2.0/storage_policies?fields={Fields?}&marker={Marker?}",
-      "description": "The storage policies available to the enterprise, which determine the geographic region content is stored in. Data-residency configuration -- relevant to compliance questions about where content physically lives."
+      "description": "The storage policies available to the enterprise, which determine the geographic region content is stored in. Data-residency configuration -- relevant to compliance questions about where content physically lives.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Storage Policy",
       "paged": false,
       "suffix": "/2.0/storage_policies/{Storage Policy ID}",
-      "description": "One storage policy by id."
+      "description": "One storage policy by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "name": "string"
+      }
     },
     {
       "name": "Storage Policy Assignments",
       "paged": true,
       "suffix": "/2.0/storage_policy_assignments?resolved_for_id={Resolved For ID}&resolved_for_type={Resolved For Type:user|enterprise}&marker={Marker?}",
-      "description": "Which users or enterprises each storage policy is assigned to. The reach of a residency rule."
+      "description": "Which users or enterprises each storage policy is assigned to. The reach of a residency rule.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "storage_policy": {
+              "id": "string",
+              "type": "string"
+            },
+            "assigned_to": {
+              "id": "string",
+              "type": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Storage Policy Assignment",
       "paged": false,
       "suffix": "/2.0/storage_policy_assignments/{Storage Policy Assignment ID}",
-      "description": "One storage policy assignment by id."
+      "description": "One storage policy assignment by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "storage_policy": {
+          "id": "string",
+          "type": "string"
+        },
+        "assigned_to": {
+          "id": "string",
+          "type": "string"
+        }
+      }
     },
     {
       "name": "Task Assignments",
       "paged": true,
       "suffix": "/2.0/tasks/{Task ID}/assignments",
-      "description": "Who a task was assigned to, with each assignee's resolution state and when they responded. Requires a task id. The task says what was asked; this says who answered and how."
+      "description": "Who a task was assigned to, with each assignee's resolution state and when they responded. Requires a task id. The task says what was asked; this says who answered and how.",
+      "responseSchema": {
+        "total_count": "double",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "item": {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string",
+              "sha1": "string",
+              "file_version": {
+                "id": "string",
+                "type": "string",
+                "sha1": "string"
+              }
+            },
+            "assigned_to": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "message": "string",
+            "completed_at": "date",
+            "assigned_at": "date",
+            "reminded_at": "date",
+            "resolution_state": "string",
+            "assigned_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Task Assignment",
       "paged": false,
       "suffix": "/2.0/task_assignments/{Task Assignment ID}",
-      "description": "One task assignment by id."
+      "description": "One task assignment by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "item": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string",
+          "sha1": "string",
+          "file_version": {
+            "id": "string",
+            "type": "string",
+            "sha1": "string"
+          }
+        },
+        "assigned_to": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "message": "string",
+        "completed_at": "date",
+        "assigned_at": "date",
+        "reminded_at": "date",
+        "resolution_state": "string",
+        "assigned_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        }
+      }
     },
     {
       "name": "Tasks on File",
       "paged": true,
       "suffix": "/2.0/files/{File ID}/tasks",
-      "description": "The review or approval tasks attached to one file, with the action required, the message, the due date, and the completion rule. Requires a file id. Box tasks are how a document is routed for approval, so this plus its assignments is the audit of who was asked to sign off."
+      "description": "The review or approval tasks attached to one file, with the action required, the message, the due date, and the completion rule. Requires a file id. Box tasks are how a document is routed for approval, so this plus its assignments is the audit of who was asked to sign off.",
+      "responseSchema": {
+        "total_count": "double",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "item": {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string",
+              "sha1": "string",
+              "file_version": {
+                "id": "string",
+                "type": "string",
+                "sha1": "string"
+              }
+            },
+            "due_at": "date",
+            "action": "string",
+            "message": "string",
+            "task_assignment_collection": {
+              "total_count": "double",
+              "entries": [
+                {
+                  "id": "string",
+                  "type": "string",
+                  "item": {
+                    "id": "string",
+                    "etag": "string",
+                    "type": "string",
+                    "sequence_id": "string",
+                    "name": "string",
+                    "sha1": "string",
+                    "file_version": {
+                      "id": "string",
+                      "type": "string",
+                      "sha1": "string"
+                    }
+                  },
+                  "assigned_to": {
+                    "id": "string",
+                    "type": "string",
+                    "name": "string",
+                    "login": "string"
+                  },
+                  "message": "string",
+                  "completed_at": "date",
+                  "assigned_at": "date",
+                  "reminded_at": "date",
+                  "resolution_state": "string",
+                  "assigned_by": {
+                    "id": "string",
+                    "type": "string",
+                    "name": "string",
+                    "login": "string"
+                  }
+                }
+              ]
+            },
+            "is_completed": "boolean",
+            "created_by": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "created_at": "date",
+            "completion_rule": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Task",
       "paged": false,
       "suffix": "/2.0/tasks/{Task ID}",
-      "description": "One task by id, with its assignments and completion state."
+      "description": "One task by id, with its assignments and completion state.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "item": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string",
+          "sha1": "string",
+          "file_version": {
+            "id": "string",
+            "type": "string",
+            "sha1": "string"
+          }
+        },
+        "due_at": "date",
+        "action": "string",
+        "message": "string",
+        "task_assignment_collection": {
+          "total_count": "double",
+          "entries": [
+            {
+              "id": "string",
+              "type": "string",
+              "item": {
+                "id": "string",
+                "etag": "string",
+                "type": "string",
+                "sequence_id": "string",
+                "name": "string",
+                "sha1": "string",
+                "file_version": {
+                  "id": "string",
+                  "type": "string",
+                  "sha1": "string"
+                }
+              },
+              "assigned_to": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              },
+              "message": "string",
+              "completed_at": "date",
+              "assigned_at": "date",
+              "reminded_at": "date",
+              "resolution_state": "string",
+              "assigned_by": {
+                "id": "string",
+                "type": "string",
+                "name": "string",
+                "login": "string"
+              }
+            }
+          ]
+        },
+        "is_completed": "boolean",
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "created_at": "date",
+        "completion_rule": "string"
+      }
     },
     {
       "name": "Terms of Services",
       "paged": true,
       "suffix": "/2.0/terms_of_services?tos_type={Terms of Service Type?:external|managed}",
-      "description": "The terms of service configured for the enterprise, with their text, whether each is enabled, and whether it applies to managed users or to external collaborators. Configuration."
+      "description": "The terms of service configured for the enterprise, with their text, whether each is enabled, and whether it applies to managed users or to external collaborators. Configuration.",
+      "responseSchema": {
+        "total_count": "double",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "status": "string",
+            "enterprise": {
+              "id": "string",
+              "type": "string",
+              "name": "string"
+            },
+            "tos_type": "string",
+            "text": "string",
+            "created_at": "date",
+            "modified_at": "date"
+          }
+        ]
+      }
     },
     {
       "name": "Terms of Service",
       "paged": false,
       "suffix": "/2.0/terms_of_services/{Terms Of Service ID}",
-      "description": "One terms of service by id."
+      "description": "One terms of service by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "status": "string",
+        "enterprise": {
+          "id": "string",
+          "type": "string",
+          "name": "string"
+        },
+        "tos_type": "string",
+        "text": "string",
+        "created_at": "date",
+        "modified_at": "date"
+      }
     },
     {
       "name": "Terms of Service User Statuses",
       "paged": true,
       "suffix": "/2.0/terms_of_service_user_statuses?tos_id={Terms of Service ID}&user_id={User ID?}",
-      "description": "Who has accepted a given terms of service and when. Requires a terms of service id. The acceptance record, and therefore the compliance evidence -- the policy alone proves nothing about uptake."
+      "description": "Who has accepted a given terms of service and when. Requires a terms of service id. The acceptance record, and therefore the compliance evidence -- the policy alone proves nothing about uptake.",
+      "responseSchema": {
+        "total_count": "double",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "tos": {
+              "id": "string",
+              "type": "string"
+            },
+            "user": {
+              "id": "string",
+              "type": "string",
+              "name": "string",
+              "login": "string"
+            },
+            "is_accepted": "boolean",
+            "created_at": "date",
+            "modified_at": "date"
+          }
+        ]
+      }
     },
     {
       "name": "Trashed File",
       "paged": false,
       "suffix": "/2.0/files/{File ID}/trash?fields={Fields?}",
-      "description": "One trashed file's metadata by file id. Confirms an item is in the trash and reports when it was deleted; a file not in the trash is not found here."
+      "description": "One trashed file's metadata by file id. Confirms an item is in the trash and reports when it was deleted; a file not in the trash is not found here.",
+      "responseSchema": {
+        "id": "string",
+        "etag": "string",
+        "type": "string",
+        "sequence_id": "string",
+        "name": "string",
+        "sha1": "string",
+        "file_version": {
+          "id": "string",
+          "type": "string",
+          "sha1": "string"
+        },
+        "description": "string",
+        "size": "double",
+        "path_collection": {
+          "total_count": "double",
+          "entries": [
+            {
+              "type": "string",
+              "id": "string",
+              "sequence_id": "string",
+              "etag": "string",
+              "name": "string"
+            }
+          ]
+        },
+        "created_at": "date",
+        "modified_at": "date",
+        "trashed_at": "date",
+        "purged_at": "date",
+        "content_created_at": "date",
+        "content_modified_at": "date",
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "modified_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "owned_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "shared_link": "string",
+        "parent": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string"
+        },
+        "item_status": "string"
+      }
     },
     {
       "name": "Trashed Folder",
       "paged": false,
       "suffix": "/2.0/folders/{Folder ID}/trash?fields={Fields?}",
-      "description": "One trashed folder's metadata by folder id."
+      "description": "One trashed folder's metadata by folder id.",
+      "responseSchema": {
+        "id": "string",
+        "etag": "string",
+        "type": "string",
+        "sequence_id": "string",
+        "name": "string",
+        "created_at": "date",
+        "modified_at": "date",
+        "description": "string",
+        "size": "double",
+        "path_collection": {
+          "total_count": "double",
+          "entries": [
+            {
+              "type": "string",
+              "id": "string",
+              "sequence_id": "string",
+              "etag": "string",
+              "name": "string"
+            }
+          ]
+        },
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "modified_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "trashed_at": "date",
+        "purged_at": "date",
+        "content_created_at": "date",
+        "content_modified_at": "date",
+        "owned_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "shared_link": "string",
+        "folder_upload_email": "string",
+        "parent": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string"
+        },
+        "item_status": "string"
+      }
     },
     {
       "name": "Trashed Items",
       "paged": true,
       "suffix": "/2.0/folders/trash/items?fields={Fields?}&marker={Marker?}&usemarker={Use Marker?false|true}",
-      "description": "Everything currently in the account's trash -- files, folders and web links -- with when each was moved there. Deleted content is EXCLUDED from Folder Items and from search, so a count taken there does not include it; this is where it went. Items leave trash permanently after the retention period, so this is a window, not a history."
+      "description": "Everything currently in the account's trash -- files, folders and web links -- with when each was moved there. Deleted content is EXCLUDED from Folder Items and from search, so a count taken there does not include it; this is where it went. Items leave trash permanently after the retention period, so this is a window, not a history.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "total_count": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "id": "string",
+            "etag": "string",
+            "type": "string",
+            "sequence_id": "string",
+            "name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Trashed Web Link",
       "paged": false,
       "suffix": "/2.0/web_links/{Web Link ID}/trash?fields={Fields?}",
-      "description": "One trashed web link by id."
+      "description": "One trashed web link by id.",
+      "responseSchema": {
+        "type": "string",
+        "id": "string",
+        "sequence_id": "string",
+        "etag": "string",
+        "name": "string",
+        "url": "string",
+        "parent": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string"
+        },
+        "description": "string",
+        "path_collection": {
+          "total_count": "double",
+          "entries": [
+            {
+              "type": "string",
+              "id": "string",
+              "sequence_id": "string",
+              "etag": "string",
+              "name": "string"
+            }
+          ]
+        },
+        "created_at": "date",
+        "modified_at": "date",
+        "trashed_at": "date",
+        "purged_at": "date",
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "modified_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "owned_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "shared_link": "string",
+        "item_status": "string"
+      }
     },
     {
       "name": "Upload Session",
       "paged": false,
       "suffix": "/2.0/files/upload_sessions/{Upload Session ID}",
-      "description": "The state of one chunked upload in progress, with the total parts expected and how many have arrived. Requires a session id. Operational, and short-lived -- it describes an upload happening now, not any file that exists."
+      "description": "The state of one chunked upload in progress, with the total parts expected and how many have arrived. Requires a session id. Operational, and short-lived -- it describes an upload happening now, not any file that exists.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "session_expires_at": "date",
+        "part_size": "double",
+        "total_parts": "double",
+        "num_parts_processed": "double",
+        "session_endpoints": {
+          "plan": "string",
+          "upload_part": "string",
+          "commit": "string",
+          "abort": "string",
+          "list_parts": "string",
+          "status": "string",
+          "log_event": "string"
+        }
+      }
     },
     {
       "name": "Upload Session Parts",
       "paged": true,
       "suffix": "/2.0/files/upload_sessions/{Upload Session ID}/parts",
-      "description": "The parts already uploaded in one chunked session, with their offsets and sizes. Requires a session id. Same short-lived scope."
+      "description": "The parts already uploaded in one chunked session, with their offsets and sizes. Requires a session id. Same short-lived scope.",
+      "responseSchema": {
+        "total_count": "double",
+        "limit": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "part_id": "string",
+            "offset": "double",
+            "size": "double",
+            "sha1": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Enterprise Users",
@@ -512,49 +3342,331 @@
           "parameterName": "User ID"
         }
       ],
-      "description": "The user accounts in the enterprise, one row each. Carries name, login, status (active, inactive, cannot delete or edit, and so on), role, created_at, and -- when requested by name -- SPACE_AMOUNT and SPACE_USED in bytes. Those two are the storage-per-user answer and are among the fields Box omits unless the fields parameter asks for them. Note that inactive users still own their content, so excluding them from a storage total loses that content rather than tidying the figure."
+      "description": "The user accounts in the enterprise, one row each. Carries name, login, status (active, inactive, cannot delete or edit, and so on), role, created_at, and -- when requested by name -- SPACE_AMOUNT and SPACE_USED in bytes. Those two are the storage-per-user answer and are among the fields Box omits unless the fields parameter asks for them. Note that inactive users still own their content, so excluding them from a storage total loses that content rather than tidying the figure.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "total_count": "double",
+        "offset": "double",
+        "order": [
+          {
+            "by": "string",
+            "direction": "string"
+          }
+        ],
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "login": "string",
+            "created_at": "date",
+            "modified_at": "date",
+            "language": "string",
+            "timezone": "string",
+            "space_amount": "double",
+            "space_used": "double",
+            "max_upload_size": "double",
+            "status": "string",
+            "job_title": "string",
+            "phone": "string",
+            "address": "string",
+            "avatar_url": "string",
+            "notification_email": {
+              "email": "string",
+              "is_confirmed": "boolean"
+            },
+            "role": "string",
+            "tracking_codes": [
+              {
+                "type": "string",
+                "name": "string",
+                "value": "string"
+              }
+            ],
+            "can_see_managed_users": "boolean",
+            "is_sync_enabled": "boolean",
+            "is_external_collab_restricted": "boolean",
+            "is_exempt_from_device_limits": "boolean",
+            "is_exempt_from_login_verification": "boolean",
+            "is_collaborated_content_available_when_owner_inactive": "boolean",
+            "enterprise": {
+              "id": "string",
+              "type": "string",
+              "name": "string"
+            },
+            "my_tags": [
+              "string"
+            ],
+            "hostname": "string",
+            "is_platform_access_only": "boolean",
+            "external_app_user_id": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Current User",
       "paged": true,
       "suffix": "/2.0/users/me?fields={Fields?}",
-      "description": "The account the credentials belong to. One record, always the caller -- and worth reading first, because most listings here are scoped to what this user can see, and an admin token and a user token return very different pictures of the same account."
+      "description": "The account the credentials belong to. One record, always the caller -- and worth reading first, because most listings here are scoped to what this user can see, and an admin token and a user token return very different pictures of the same account.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "name": "string",
+        "login": "string",
+        "created_at": "date",
+        "modified_at": "date",
+        "language": "string",
+        "timezone": "string",
+        "space_amount": "double",
+        "space_used": "double",
+        "max_upload_size": "double",
+        "status": "string",
+        "job_title": "string",
+        "phone": "string",
+        "address": "string",
+        "avatar_url": "string",
+        "notification_email": {
+          "email": "string",
+          "is_confirmed": "boolean"
+        },
+        "role": "string",
+        "tracking_codes": [
+          {
+            "type": "string",
+            "name": "string",
+            "value": "string"
+          }
+        ],
+        "can_see_managed_users": "boolean",
+        "is_sync_enabled": "boolean",
+        "is_external_collab_restricted": "boolean",
+        "is_exempt_from_device_limits": "boolean",
+        "is_exempt_from_login_verification": "boolean",
+        "is_collaborated_content_available_when_owner_inactive": "boolean",
+        "enterprise": {
+          "id": "string",
+          "type": "string",
+          "name": "string"
+        },
+        "my_tags": [
+          "string"
+        ],
+        "hostname": "string",
+        "is_platform_access_only": "boolean",
+        "external_app_user_id": "string"
+      }
     },
     {
       "name": "User",
       "paged": false,
       "suffix": "/2.0/users/{User ID}?fields={Fields?}",
-      "description": "One user by id. Same fields and the same fields-parameter rule."
+      "description": "One user by id. Same fields and the same fields-parameter rule.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "name": "string",
+        "login": "string",
+        "created_at": "date",
+        "modified_at": "date",
+        "language": "string",
+        "timezone": "string",
+        "space_amount": "double",
+        "space_used": "double",
+        "max_upload_size": "double",
+        "status": "string",
+        "job_title": "string",
+        "phone": "string",
+        "address": "string",
+        "avatar_url": "string",
+        "notification_email": {
+          "email": "string",
+          "is_confirmed": "boolean"
+        },
+        "role": "string",
+        "tracking_codes": [
+          {
+            "type": "string",
+            "name": "string",
+            "value": "string"
+          }
+        ],
+        "can_see_managed_users": "boolean",
+        "is_sync_enabled": "boolean",
+        "is_external_collab_restricted": "boolean",
+        "is_exempt_from_device_limits": "boolean",
+        "is_exempt_from_login_verification": "boolean",
+        "is_collaborated_content_available_when_owner_inactive": "boolean",
+        "enterprise": {
+          "id": "string",
+          "type": "string",
+          "name": "string"
+        },
+        "my_tags": [
+          "string"
+        ],
+        "hostname": "string",
+        "is_platform_access_only": "boolean",
+        "external_app_user_id": "string"
+      }
     },
     {
       "name": "File Watermark",
       "paged": false,
       "suffix": "/2.0/files/{File ID}/watermark",
-      "description": "Whether a watermark is applied to one file, and when it was set. Requires a file id. A protection setting; its presence usually indicates content the business treats as sensitive."
+      "description": "Whether a watermark is applied to one file, and when it was set. Requires a file id. A protection setting; its presence usually indicates content the business treats as sensitive.",
+      "responseSchema": {
+        "watermark": {
+          "created_at": "date",
+          "modified_at": "date"
+        }
+      }
     },
     {
       "name": "Folder Watermark",
       "paged": false,
       "suffix": "/2.0/folders/{Folder ID}/watermark",
-      "description": "Whether a watermark is applied to one folder, cascading to its contents. Requires a folder id."
+      "description": "Whether a watermark is applied to one folder, cascading to its contents. Requires a folder id.",
+      "responseSchema": {
+        "watermark": {
+          "created_at": "date",
+          "modified_at": "date"
+        }
+      }
     },
     {
       "name": "Web Link",
       "paged": true,
       "suffix": "/2.0/web_links/{Web Link ID}",
-      "description": "One web link by id -- a bookmark stored in the folder tree alongside files, with its url, name and parent folder. Web links appear as rows in Folder Items and are neither files nor folders, so a naive file count that does not filter on type includes them."
+      "description": "One web link by id -- a bookmark stored in the folder tree alongside files, with its url, name and parent folder. Web links appear as rows in Folder Items and are neither files nor folders, so a naive file count that does not filter on type includes them.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "etag": "string",
+        "url": "string",
+        "sequence_id": "string",
+        "name": "string",
+        "parent": {
+          "id": "string",
+          "etag": "string",
+          "type": "string",
+          "sequence_id": "string",
+          "name": "string"
+        },
+        "description": "string",
+        "path_collection": {
+          "total_count": "double",
+          "entries": [
+            {
+              "id": "string",
+              "etag": "string",
+              "type": "string",
+              "sequence_id": "string",
+              "name": "string"
+            }
+          ]
+        },
+        "created_at": "date",
+        "modified_at": "date",
+        "trashed_at": "date",
+        "purged_at": "date",
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "modified_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "owned_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "shared_link": {
+          "url": "string",
+          "download_url": "string",
+          "vanity_url": "string",
+          "vanity_name": "string",
+          "access": "string",
+          "effective_access": "string",
+          "effective_permission": "string",
+          "unshared_at": "date",
+          "is_password_enabled": "boolean",
+          "permissions": {
+            "can_download": "boolean",
+            "can_preview": "boolean",
+            "can_edit": "boolean"
+          },
+          "download_count": "double",
+          "preview_count": "double"
+        },
+        "item_status": "string",
+        "collections": [
+          {
+            "id": "string",
+            "type": "string",
+            "name": "string",
+            "collection_type": "string"
+          }
+        ],
+        "allowed_shared_link_access_levels": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Webhooks",
       "paged": true,
       "suffix": "/2.0/webhooks?marker={Marker?}",
-      "description": "The webhooks configured on the account: the item each watches, the events it fires on, and its target URL. Integration configuration; deliveries are not recorded here. Worth checking to see whether an external system already receives this content in real time."
+      "description": "The webhooks configured on the account: the item each watches, the events it fires on, and its target URL. Integration configuration; deliveries are not recorded here. Worth checking to see whether an external system already receives this content in real time.",
+      "responseSchema": {
+        "limit": "double",
+        "next_marker": "string",
+        "prev_marker": "string",
+        "entries": [
+          {
+            "id": "string",
+            "type": "string",
+            "target": {
+              "id": "string",
+              "type": "string"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Webhook",
       "paged": false,
       "suffix": "/2.0/webhooks/{Webhook ID}",
-      "description": "One webhook by id."
+      "description": "One webhook by id.",
+      "responseSchema": {
+        "id": "string",
+        "type": "string",
+        "target": {
+          "id": "string",
+          "type": "string"
+        },
+        "created_by": {
+          "id": "string",
+          "type": "string",
+          "name": "string",
+          "login": "string"
+        },
+        "created_at": "date",
+        "address": "string",
+        "triggers": [
+          "string"
+        ]
+      }
     }
   ]
 }

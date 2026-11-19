@@ -4,6 +4,70 @@
       "name": "Activities",
       "paged": true,
       "suffix": "/api/v2/activities?owner_id={Owner ID?}&filter_id={Filter ID?}&deal_id={Deal ID?}&person_id={Person ID?}&org_id={Organization ID?}&done={Done?:true|false}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "subject": "string",
+            "type": "string",
+            "owner_id": "double",
+            "creator_user_id": "double",
+            "is_deleted": "boolean",
+            "add_time": "string",
+            "update_time": "string",
+            "deal_id": "double",
+            "lead_id": "string",
+            "person_id": "double",
+            "org_id": "double",
+            "project_id": "double",
+            "due_date": "string",
+            "due_time": "string",
+            "duration": "string",
+            "busy": "boolean",
+            "done": "boolean",
+            "marked_as_done_time": "string",
+            "location": {
+              "value": "string",
+              "country": "string",
+              "admin_area_level_1": "string",
+              "admin_area_level_2": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "route": "string",
+              "street_number": "string",
+              "subpremise": "string",
+              "postal_code": "string"
+            },
+            "participants": [
+              {
+                "person_id": "double",
+                "primary": "boolean"
+              }
+            ],
+            "attendees": [
+              {
+                "email": "string",
+                "name": "string",
+                "status": "string",
+                "is_organizer": "boolean",
+                "person_id": "double",
+                "user_id": "double"
+              }
+            ],
+            "conference_meeting_client": "string",
+            "conference_meeting_url": "string",
+            "conference_meeting_id": "string",
+            "public_description": "string",
+            "priority": "double",
+            "outcome": "double",
+            "note": "string"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "lookups": [
         {
           "endpoint": "User",
@@ -36,30 +100,202 @@
       "name": "Activity",
       "paged": false,
       "suffix": "/api/v2/activities/{Activity ID}?include_fields={Include Fields?}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "subject": "string",
+          "type": "string",
+          "owner_id": "double",
+          "creator_user_id": "double",
+          "is_deleted": "boolean",
+          "add_time": "string",
+          "update_time": "string",
+          "deal_id": "double",
+          "lead_id": "string",
+          "person_id": "double",
+          "org_id": "double",
+          "project_id": "double",
+          "due_date": "string",
+          "due_time": "string",
+          "duration": "string",
+          "busy": "boolean",
+          "done": "boolean",
+          "marked_as_done_time": "string",
+          "location": {
+            "value": "string",
+            "country": "string",
+            "admin_area_level_1": "string",
+            "admin_area_level_2": "string",
+            "locality": "string",
+            "sublocality": "string",
+            "route": "string",
+            "street_number": "string",
+            "subpremise": "string",
+            "postal_code": "string"
+          },
+          "participants": [
+            {
+              "person_id": "double",
+              "primary": "boolean"
+            }
+          ],
+          "attendees": [
+            {
+              "email": "string",
+              "name": "string",
+              "status": "string",
+              "is_organizer": "boolean",
+              "person_id": "double",
+              "user_id": "double"
+            }
+          ],
+          "conference_meeting_client": "string",
+          "conference_meeting_url": "string",
+          "conference_meeting_id": "string",
+          "public_description": "string",
+          "priority": "double",
+          "outcome": "double",
+          "note": "string"
+        }
+      },
       "description": "One activity by id."
     },
     {
       "name": "Activity Fields",
       "paged": true,
       "suffix": "/v1/activityFields",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "key": "string",
+            "name": "string",
+            "order_nr": "double",
+            "field_type": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "last_updated_by_user_id": "double",
+            "created_by_user_id": "double",
+            "active_flag": "boolean",
+            "edit_flag": "boolean",
+            "index_visible_flag": "boolean",
+            "details_visible_flag": "boolean",
+            "add_visible_flag": "boolean",
+            "important_flag": "boolean",
+            "bulk_edit_allowed": "boolean",
+            "searchable_flag": "boolean",
+            "filtering_allowed": "boolean",
+            "sortable_flag": "boolean",
+            "mandatory_flag": "boolean",
+            "is_subfield": "boolean",
+            "options": [
+              {
+                "id": "double",
+                "label": "string"
+              }
+            ]
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "Every field an activity can carry, standard and custom, with key, name and type. The decoder for hash-keyed custom fields on activities, as Deal Fields is for deals."
     },
     {
       "name": "Activity Types",
       "paged": true,
       "suffix": "/v1/activityTypes",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "icon_key": "string",
+            "color": "string",
+            "order_nr": "double",
+            "key_string": "string",
+            "active_flag": "boolean",
+            "is_custom_flag": "boolean",
+            "add_time": "string",
+            "update_time": "string"
+          }
+        ]
+      },
       "description": "The activity types configured on the account -- call, meeting, task, deadline, email, lunch and any custom ones -- with name, key_string, icon and order. Activities carry a type key, so this is what turns it into a readable label; custom types make the set account-specific, so it cannot be assumed."
     },
     {
       "name": "Currencies",
       "paged": true,
       "suffix": "/v1/currencies?term={Term?}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "code": "string",
+            "name": "string",
+            "decimal_points": "double",
+            "symbol": "string",
+            "active_flag": "boolean",
+            "is_custom_flag": "boolean"
+          }
+        ]
+      },
       "description": "The currencies Pipedrive supports, with code, name, symbol, decimal places and whether each is a custom currency. Small reference table, and a necessary one: deal, product and goal values are each stored in their own currency with no conversion anywhere in the API, so any total spanning currencies has to be built deliberately rather than summed."
     },
     {
       "name": "Deals",
       "paged": true,
       "suffix": "/api/v2/deals?owner_id={Owner ID?}&filter_id={Filter ID?}&person_id={Person ID?}&org_id={Organization ID?}&pipeline_id={Pipeline ID?}&stage_id={Stage ID?}&status={Status?:open|won|lost|deleted}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "title": "string",
+            "owner_id": "double",
+            "person_id": "double",
+            "org_id": "double",
+            "pipeline_id": "double",
+            "stage_id": "double",
+            "value": "double",
+            "currency": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "stage_change_time": "string",
+            "is_deleted": "boolean",
+            "is_archived": "boolean",
+            "status": "string",
+            "probability": "double",
+            "lost_reason": "string",
+            "visible_to": "double",
+            "close_time": "string",
+            "won_time": "string",
+            "lost_time": "string",
+            "expected_close_date": "string",
+            "label_ids": [
+              "double"
+            ],
+            "origin": "string",
+            "origin_id": "string",
+            "channel": "double",
+            "channel_id": "string",
+            "source_lead_id": "string",
+            "arr": "double",
+            "mrr": "double",
+            "acv": "double"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "lookups": [
         {
           "endpoints": [
@@ -84,30 +320,282 @@
       "name": "Deal Search",
       "paged": true,
       "suffix": "/api/v2/deals/search?term={Term}&fields={Fields?:custom_fields,notes,title}&exact_match={Exact Match?:true|false}&person_id={Person ID?}&organization_id={Organization ID?}&status={Status?:open|won|lost}&include_fields={Include Fields?}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "items": [
+            {
+              "result_score": "double",
+              "item": {
+                "id": "double",
+                "type": "string",
+                "title": "string",
+                "value": "double",
+                "currency": "string",
+                "status": "string",
+                "visible_to": "double",
+                "owner": {
+                  "id": "double"
+                },
+                "stage": {
+                  "id": "double",
+                  "name": "string"
+                },
+                "person": {
+                  "id": "double",
+                  "name": "string"
+                },
+                "organization": {
+                  "id": "double",
+                  "name": "string"
+                },
+                "custom_fields": [
+                  "string"
+                ],
+                "notes": [
+                  "string"
+                ],
+                "is_archived": "boolean"
+              }
+            }
+          ]
+        },
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "Deals matching a search term across title, notes and custom fields. Returns matches with a relevance score rather than the full deal record, so it locates deals rather than reporting on them. Narrow with person_id, organization_id or status."
     },
     {
       "name": "Deal Summary",
       "paged": true,
       "suffix": "/v1/deals/summary?status={Status?:open|won|lost}&filter_id={Filter ID?}&user_id={User ID?}&stage_id={Stage ID?}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "values_total": {
+            "value": "double",
+            "count": "double",
+            "value_converted": "double",
+            "value_formatted": "string",
+            "value_converted_formatted": "string"
+          },
+          "weighted_values_total": {
+            "value": "double",
+            "count": "double",
+            "value_formatted": "string"
+          },
+          "total_count": "double",
+          "total_currency_converted_value": "double",
+          "total_weighted_currency_converted_value": "double",
+          "total_currency_converted_value_formatted": "string",
+          "total_weighted_currency_converted_value_formatted": "string"
+        }
+      },
       "description": "Aggregate totals across deals -- count and value, broken down by currency and by status, optionally scoped to a filter, user or stage. A ready-made roll-up: it answers 'how much is in the pipeline' without paging a single deal, and it splits by currency, which matters because deal values are stored in their own currencies and cannot be summed directly."
     },
     {
       "name": "Deal Timeline",
       "paged": true,
       "suffix": "/v1/deals/timeline?start_date={Start Date:YYYY-MM-DD}?interval={Interval:day|week|...}&amount={Amount}&field_key={Field Key}&user_id={User ID?}&pipeline_id={Pipeline ID?}&filter_id={Filter ID?}&exclude_deals={Exclude Deals?:0|1}&totals_convert_currency={Totals Convert Currency?}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "period_start": "string",
+          "period_end": "string",
+          "deals": [
+            {
+              "id": "double",
+              "creator_user_id": "double",
+              "user_id": "double",
+              "person_id": "double",
+              "org_id": "double",
+              "stage_id": "double",
+              "title": "string",
+              "value": "double",
+              "currency": "string",
+              "add_time": "string",
+              "update_time": "string",
+              "stage_change_time": "string",
+              "active": "boolean",
+              "deleted": "boolean",
+              "is_archived": "boolean",
+              "status": "string",
+              "probability": "double",
+              "next_activity_date": "string",
+              "next_activity_time": "string",
+              "next_activity_id": "double",
+              "last_activity_id": "double",
+              "last_activity_date": "string",
+              "lost_reason": "string",
+              "visible_to": "string",
+              "close_time": "string",
+              "pipeline_id": "double",
+              "won_time": "string",
+              "first_won_time": "string",
+              "lost_time": "string",
+              "products_count": "double",
+              "files_count": "double",
+              "notes_count": "double",
+              "followers_count": "double",
+              "email_messages_count": "double",
+              "activities_count": "double",
+              "done_activities_count": "double",
+              "undone_activities_count": "double",
+              "participants_count": "double",
+              "expected_close_date": "string",
+              "last_incoming_mail_time": "string",
+              "last_outgoing_mail_time": "string",
+              "label": "string",
+              "stage_order_nr": "double",
+              "person_name": "string",
+              "org_name": "string",
+              "next_activity_subject": "string",
+              "next_activity_type": "string",
+              "next_activity_duration": "string",
+              "next_activity_note": "string",
+              "formatted_value": "string",
+              "weighted_value": "double",
+              "formatted_weighted_value": "string",
+              "weighted_value_currency": "string",
+              "rotten_time": "string",
+              "owner_name": "string",
+              "cc_email": "string",
+              "org_hidden": "boolean",
+              "person_hidden": "boolean",
+              "origin": "string",
+              "origin_id": "string",
+              "channel": "double",
+              "channel_id": "string",
+              "arr": "double",
+              "mrr": "double",
+              "acv": "double",
+              "arr_currency": "string",
+              "mrr_currency": "string",
+              "acv_currency": "string"
+            }
+          ],
+          "totals": {
+            "count": "double",
+            "open_count": "double",
+            "won_count": "double"
+          }
+        }
+      },
       "description": "Deals grouped into time periods -- by day, week, month or quarter -- with the count and total value opened in each, and separate totals for won and lost. The trend table: it answers how the pipeline moved over time, which Deals itself can only give by aggregating every row. Choose the field the periods are cut on (add_time, close_time and so on), since the same deals produce a different picture depending on which date is used."
     },
     {
       "name": "Deal",
       "paged": false,
       "suffix": "/api/v2/deals/{Deal ID}?include_fields={Include Fields?}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "title": "string",
+          "owner_id": "double",
+          "person_id": "double",
+          "org_id": "double",
+          "pipeline_id": "double",
+          "stage_id": "double",
+          "value": "double",
+          "currency": "string",
+          "add_time": "string",
+          "update_time": "string",
+          "stage_change_time": "string",
+          "is_deleted": "boolean",
+          "is_archived": "boolean",
+          "status": "string",
+          "probability": "double",
+          "lost_reason": "string",
+          "visible_to": "double",
+          "close_time": "string",
+          "won_time": "string",
+          "lost_time": "string",
+          "expected_close_date": "string",
+          "label_ids": [
+            "double"
+          ],
+          "origin": "string",
+          "origin_id": "string",
+          "channel": "double",
+          "channel_id": "string",
+          "source_lead_id": "string",
+          "arr": "double",
+          "mrr": "double",
+          "acv": "double"
+        }
+      },
       "description": "One deal by id. Same fields as Deals, and the same custom_fields rule -- name the keys wanted or none arrive."
     },
     {
       "name": "Deal Activities",
       "paged": true,
       "suffix": "/api/v2/activities?deal_id={Deal ID}&done={Done?:true|false}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "subject": "string",
+            "type": "string",
+            "owner_id": "double",
+            "creator_user_id": "double",
+            "is_deleted": "boolean",
+            "add_time": "string",
+            "update_time": "string",
+            "deal_id": "double",
+            "lead_id": "string",
+            "person_id": "double",
+            "org_id": "double",
+            "project_id": "double",
+            "due_date": "string",
+            "due_time": "string",
+            "duration": "string",
+            "busy": "boolean",
+            "done": "boolean",
+            "marked_as_done_time": "string",
+            "location": {
+              "value": "string",
+              "country": "string",
+              "admin_area_level_1": "string",
+              "admin_area_level_2": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "route": "string",
+              "street_number": "string",
+              "subpremise": "string",
+              "postal_code": "string"
+            },
+            "participants": [
+              {
+                "person_id": "double",
+                "primary": "boolean"
+              }
+            ],
+            "attendees": [
+              {
+                "email": "string",
+                "name": "string",
+                "status": "string",
+                "is_organizer": "boolean",
+                "person_id": "double",
+                "user_id": "double"
+              }
+            ],
+            "conference_meeting_client": "string",
+            "conference_meeting_url": "string",
+            "conference_meeting_id": "string",
+            "public_description": "string",
+            "priority": "double",
+            "outcome": "double",
+            "note": "string"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "lookups": [
         {
           "endpoint": "User",
@@ -140,18 +628,143 @@
       "name": "Deal Files",
       "paged": true,
       "suffix": "/v1/deals/{Deal ID}/files?include_deleted_files={Include Deleted Files?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "user_id": "double",
+            "deal_id": "double",
+            "person_id": "double",
+            "org_id": "double",
+            "product_id": "double",
+            "activity_id": "double",
+            "lead_id": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "file_name": "string",
+            "file_size": "double",
+            "active_flag": "boolean",
+            "inline_flag": "boolean",
+            "remote_location": "string",
+            "remote_id": "string",
+            "cid": "string",
+            "s3_bucket": "string",
+            "mail_message_id": "string",
+            "mail_template_id": "string",
+            "deal_name": "string",
+            "person_name": "string",
+            "org_name": "string",
+            "product_name": "string",
+            "lead_name": "string",
+            "url": "string",
+            "name": "string",
+            "description": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The files attached to one deal, with name, type, size and who added them. Requires a deal id."
     },
     {
       "name": "Deal Updates",
       "paged": true,
       "suffix": "/v1/deals/{Deal ID}/flow",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "object": "string",
+            "timestamp": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        },
+        "related_objects": {
+          "deal": {
+            "DEAL_ID": {
+              "id": "double",
+              "title": "string",
+              "status": "string",
+              "value": "double",
+              "currency": "string",
+              "stage_id": "double",
+              "pipeline_id": "double"
+            }
+          },
+          "organization": {
+            "ORGANIZATION_ID": {
+              "id": "double",
+              "name": "string",
+              "people_count": "double",
+              "owner_id": "double",
+              "address": "string",
+              "cc_email": "string"
+            }
+          },
+          "user": {
+            "USER_ID": {
+              "id": "double",
+              "name": "string",
+              "email": "string",
+              "has_pic": "double",
+              "pic_hash": "string",
+              "active_flag": "boolean"
+            }
+          },
+          "person": {
+            "PERSON_ID": {
+              "active_flag": "boolean",
+              "id": "double",
+              "name": "string",
+              "email": [
+                {
+                  "label": "string",
+                  "value": "string",
+                  "primary": "boolean"
+                }
+              ],
+              "phone": [
+                {
+                  "label": "string",
+                  "value": "string",
+                  "primary": "boolean"
+                }
+              ],
+              "owner_id": "double"
+            }
+          }
+        }
+      },
       "description": "The change history of one deal: every field that changed, with its old and new value, who changed it and when. Requires a deal id. The deal record carries only its CURRENT stage and status -- this is the only source for when it entered a stage, how long it sat there, and how often its value was revised. Note the feed also carries notes, activities and file additions, so filter by change type before treating it as a field-change log."
     },
     {
       "name": "Deal Followers",
       "paged": true,
       "suffix": "/v1/deals/{Deal ID}/followers",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "user_id": "double",
+            "id": "double",
+            "deal_id": "double",
+            "add_time": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "lookups": [
         {
           "endpoint": "User",
@@ -166,60 +779,594 @@
       "name": "Deal Mail Messages",
       "paged": true,
       "suffix": "/v1/deals/{Deal ID}/mailMessages",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "object": "string",
+            "timestamp": "string",
+            "data": {
+              "id": "double",
+              "from": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "to": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "cc": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "bcc": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "body_url": "string",
+              "body": "string",
+              "account_id": "string",
+              "user_id": "double",
+              "mail_thread_id": "double",
+              "subject": "string",
+              "snippet": "string",
+              "mail_tracking_status": "string",
+              "mail_link_tracking_enabled_flag": "double",
+              "read_flag": "double",
+              "draft": "string",
+              "draft_flag": "double",
+              "synced_flag": "double",
+              "deleted_flag": "double",
+              "has_body_flag": "double",
+              "sent_flag": "double",
+              "sent_from_pipedrive_flag": "double",
+              "smart_bcc_flag": "double",
+              "message_time": "string",
+              "add_time": "string",
+              "update_time": "string",
+              "has_attachments_flag": "double",
+              "has_inline_attachments_flag": "double",
+              "has_real_attachments_flag": "double",
+              "nylas_id": "string",
+              "s3_bucket": "string",
+              "s3_bucket_path": "string",
+              "external_deleted_flag": "boolean",
+              "mua_message_id": "string",
+              "template_id": "double",
+              "timestamp": "string",
+              "item_type": "string",
+              "company_id": "double"
+            }
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The email correspondence linked to one deal, with subject, sender, recipients and timestamps. Requires a deal id. Where email sync is enabled this is the record of actual customer contact, which activities alone do not capture."
     },
     {
       "name": "Deal Participants",
       "paged": true,
       "suffix": "/v1/deals/{Deal ID}/participants",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "person_id": {
+              "active_flag": "boolean",
+              "name": "string",
+              "email": [
+                {
+                  "value": "string",
+                  "primary": "boolean",
+                  "label": "string"
+                }
+              ],
+              "phone": [
+                {
+                  "value": "string",
+                  "primary": "boolean",
+                  "label": "string"
+                }
+              ],
+              "owner_id": "double",
+              "company_id": "double",
+              "value": "double"
+            },
+            "add_time": "string",
+            "active_flag": "boolean",
+            "related_item_data": {
+              "deal_id": "double",
+              "title": "string"
+            },
+            "person": {
+              "id": "double",
+              "company_id": "double",
+              "active_flag": "boolean",
+              "phone": [
+                {
+                  "value": "string",
+                  "primary": "boolean",
+                  "label": "string"
+                }
+              ],
+              "email": [
+                {
+                  "value": "string",
+                  "primary": "boolean",
+                  "label": "string"
+                }
+              ],
+              "first_char": "string",
+              "add_time": "string",
+              "update_time": "string",
+              "visible_to": "string",
+              "picture_id": {
+                "id": "double",
+                "item_type": "string",
+                "item_id": "double",
+                "active_flag": "boolean",
+                "add_time": "string",
+                "update_time": "string",
+                "added_by_user_id": "double",
+                "pictures": {
+                  "128": "string",
+                  "512": "string"
+                }
+              },
+              "label": "double",
+              "label_ids": [
+                "double"
+              ],
+              "org_name": "string",
+              "owner_name": "string",
+              "cc_email": "string",
+              "owner_id": {
+                "id": "double",
+                "name": "string",
+                "email": "string",
+                "has_pic": "double",
+                "pic_hash": "string",
+                "active_flag": "boolean",
+                "value": "double"
+              },
+              "org_id": {
+                "name": "string",
+                "people_count": "double",
+                "owner_id": "double",
+                "address": "string",
+                "cc_email": "string",
+                "label_ids": [
+                  "double"
+                ],
+                "value": "double",
+                "active_flag": "boolean"
+              },
+              "name": "string",
+              "first_name": "string",
+              "last_name": "string",
+              "email_messages_count": "double",
+              "activities_count": "double",
+              "done_activities_count": "double",
+              "undone_activities_count": "double",
+              "files_count": "double",
+              "notes_count": "double",
+              "followers_count": "double",
+              "last_incoming_mail_time": "string",
+              "last_outgoing_mail_time": "string",
+              "open_deals_count": "double",
+              "related_open_deals_count": "double",
+              "closed_deals_count": "double",
+              "related_closed_deals_count": "double",
+              "won_deals_count": "double",
+              "related_won_deals_count": "double",
+              "lost_deals_count": "double",
+              "related_lost_deals_count": "double",
+              "next_activity_date": "string",
+              "next_activity_time": "string",
+              "next_activity_id": "double",
+              "last_activity_id": "double",
+              "last_activity_date": "string"
+            },
+            "related_item_type": "string",
+            "related_item_id": "double"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        },
+        "related_objects": {
+          "user": {
+            "USER_ID": {
+              "id": "double",
+              "name": "string",
+              "email": "string",
+              "has_pic": "double",
+              "pic_hash": "string",
+              "active_flag": "boolean"
+            }
+          },
+          "organization": {
+            "ORGANIZATION_ID": {
+              "active_flag": "boolean",
+              "id": "double",
+              "name": "string",
+              "people_count": "double",
+              "owner_id": "double",
+              "address": "string",
+              "cc_email": "string"
+            }
+          },
+          "person": {
+            "PERSON_ID": {
+              "active_flag": "boolean",
+              "id": "double",
+              "name": "string",
+              "email": [
+                {
+                  "label": "string",
+                  "value": "string",
+                  "primary": "boolean"
+                }
+              ],
+              "phone": [
+                {
+                  "label": "string",
+                  "value": "string",
+                  "primary": "boolean"
+                }
+              ],
+              "owner_id": "double"
+            }
+          }
+        }
+      },
       "description": "The people involved in one deal beyond its primary contact. Requires a deal id. A deal has one person_id but often several real participants, so this is the honest answer to who was involved."
     },
     {
       "name": "Deal Permitted Users",
       "paged": true,
       "suffix": "/v1/deals/{Deal ID}/permittedUsers",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          "double"
+        ]
+      },
       "description": "The users allowed to see one deal. Requires a deal id. Visibility configuration, and the explanation for why two people counting the same pipeline get different totals."
     },
     {
       "name": "Deal People",
       "paged": true,
       "suffix": "/api/v2/persons?deal_id={Deal ID}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "owner_id": "double",
+            "org_id": "double",
+            "add_time": "string",
+            "update_time": "string",
+            "emails": [
+              {
+                "value": "string",
+                "primary": "boolean",
+                "label": "string"
+              }
+            ],
+            "phones": [
+              {
+                "value": "string",
+                "primary": "boolean",
+                "label": "string"
+              }
+            ],
+            "is_deleted": "boolean",
+            "visible_to": "double",
+            "label_ids": [
+              "double"
+            ],
+            "picture_id": "double",
+            "postal_address": {
+              "value": "string",
+              "country": "string",
+              "admin_area_level_1": "string",
+              "admin_area_level_2": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "route": "string",
+              "street_number": "string",
+              "subpremise": "string",
+              "postal_code": "string"
+            },
+            "notes": "string",
+            "im": [
+              {
+                "value": "string",
+                "primary": "boolean",
+                "label": "string"
+              }
+            ],
+            "birthday": "string",
+            "job_title": "string"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "The people linked to one deal. Requires a deal id. The persons collection filtered by deal_id, for the same reason."
     },
     {
       "name": "Deal Products",
       "paged": true,
       "suffix": "/api/v2/deals/{Deal ID}/products?sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "sum": "double",
+            "tax": "double",
+            "deal_id": "double",
+            "name": "string",
+            "product_id": "double",
+            "product_variation_id": "double",
+            "order_nr": "double",
+            "add_time": "string",
+            "update_time": "string",
+            "comments": "string",
+            "currency": "string",
+            "discount": "double",
+            "discount_type": "string",
+            "quantity": "double",
+            "item_price": "double",
+            "tax_method": "string",
+            "is_enabled": "boolean",
+            "billing_frequency": "string",
+            "billing_frequency_cycles": "double",
+            "billing_start_date": "string"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "The products attached to one deal, with quantity, item price, discount and the resulting sum. Requires a deal id. A deal's value is a single number; what makes it up is only here."
     },
     {
       "name": "Deal Fields",
       "paged": true,
       "suffix": "/v1/dealFields",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "key": "string",
+            "name": "string",
+            "order_nr": "double",
+            "field_type": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "last_updated_by_user_id": "double",
+            "created_by_user_id": "double",
+            "active_flag": "boolean",
+            "edit_flag": "boolean",
+            "index_visible_flag": "boolean",
+            "details_visible_flag": "boolean",
+            "add_visible_flag": "boolean",
+            "important_flag": "boolean",
+            "bulk_edit_allowed": "boolean",
+            "searchable_flag": "boolean",
+            "filtering_allowed": "boolean",
+            "sortable_flag": "boolean",
+            "mandatory_flag": "boolean",
+            "is_subfield": "boolean",
+            "options": [
+              {
+                "id": "double",
+                "label": "string"
+              }
+            ]
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "Every field a deal can carry, standard and custom, with the field KEY, its human name, field_type, and for enum and set fields the option list with each option's id and label. THE KEY TO DEAL DATA. Pipedrive names custom fields with a 40-character hash, and deals return values under those hashes with nothing else to identify them -- so a column of hashes is unreadable without this table, and single-select values are option ids that only the options list here resolves."
     },
     {
       "name": "Deal Field",
       "paged": false,
       "suffix": "/v1/dealFields/{Field ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "key": "string",
+          "name": "string",
+          "order_nr": "double",
+          "field_type": "string",
+          "add_time": "string",
+          "update_time": "string",
+          "last_updated_by_user_id": "double",
+          "created_by_user_id": "double",
+          "active_flag": "boolean",
+          "edit_flag": "boolean",
+          "index_visible_flag": "boolean",
+          "details_visible_flag": "boolean",
+          "add_visible_flag": "boolean",
+          "important_flag": "boolean",
+          "bulk_edit_allowed": "boolean",
+          "searchable_flag": "boolean",
+          "filtering_allowed": "boolean",
+          "sortable_flag": "boolean",
+          "mandatory_flag": "boolean",
+          "is_subfield": "boolean",
+          "options": [
+            {
+              "id": "double",
+              "label": "string"
+            }
+          ]
+        }
+      },
       "description": "One deal field by id, with its options."
     },
     {
       "name": "Files",
       "paged": true,
       "suffix": "/v1/files?include_deleted_files={Include Deleted Files?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "user_id": "double",
+            "deal_id": "double",
+            "person_id": "double",
+            "org_id": "double",
+            "product_id": "double",
+            "activity_id": "double",
+            "lead_id": "string",
+            "project_id": "double",
+            "add_time": "string",
+            "update_time": "string",
+            "file_name": "string",
+            "file_size": "double",
+            "active_flag": "boolean",
+            "inline_flag": "boolean",
+            "remote_location": "string",
+            "remote_id": "string",
+            "cid": "string",
+            "s3_bucket": "string",
+            "mail_message_id": "string",
+            "mail_template_id": "string",
+            "deal_name": "string",
+            "person_name": "string",
+            "org_name": "string",
+            "product_name": "string",
+            "lead_name": "string",
+            "project_name": "string",
+            "url": "string",
+            "name": "string",
+            "description": "string"
+          }
+        ],
+        "additional_data": {
+          "pagination": {
+            "start": "double",
+            "limit": "double",
+            "more_items_in_collection": "boolean",
+            "next_start": "double"
+          }
+        }
+      },
       "description": "Every file uploaded to the account, with name, type, size, who added it, and the deal, person, organization, product or activity it is attached to. Metadata only -- the contents are a separate download. Useful for storage review and for finding which records carry supporting documents."
     },
     {
       "name": "File",
       "paged": false,
       "suffix": "/v1/files/{File ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "user_id": "double",
+          "deal_id": "double",
+          "person_id": "double",
+          "org_id": "double",
+          "product_id": "double",
+          "activity_id": "double",
+          "lead_id": "string",
+          "project_id": "double",
+          "add_time": "string",
+          "update_time": "string",
+          "file_name": "string",
+          "file_size": "double",
+          "active_flag": "boolean",
+          "inline_flag": "boolean",
+          "remote_location": "string",
+          "remote_id": "string",
+          "cid": "string",
+          "s3_bucket": "string",
+          "mail_message_id": "string",
+          "mail_template_id": "string",
+          "deal_name": "string",
+          "person_name": "string",
+          "org_name": "string",
+          "product_name": "string",
+          "lead_name": "string",
+          "project_name": "string",
+          "url": "string",
+          "name": "string",
+          "description": "string"
+        }
+      },
       "description": "One file's metadata by id."
     },
     {
       "name": "Filters",
       "paged": true,
       "suffix": "/v1/filters?type={Type?:deals|org|...}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "filter_code": "string",
+            "is_editable": "boolean",
+            "active_flag": "boolean",
+            "type": "string",
+            "temporary_flag": "boolean",
+            "user_id": "double",
+            "add_time": "string",
+            "update_time": "string",
+            "visible_to": "string",
+            "last_used_time": "string",
+            "custom_view_id": "double"
+          }
+        ]
+      },
       "lookups": [
         {
           "endpoint": "User",
@@ -240,6 +1387,43 @@
       "name": "Filter",
       "paged": false,
       "suffix": "/v1/filters/{Filter ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "name": "string",
+          "filter_code": "string",
+          "is_editable": "boolean",
+          "active_flag": "boolean",
+          "type": "string",
+          "temporary_flag": "boolean",
+          "user_id": "double",
+          "add_time": "string",
+          "update_time": "string",
+          "visible_to": "string",
+          "last_used_time": "string",
+          "custom_view_id": "double",
+          "conditions": {
+            "glue": "string",
+            "conditions": [
+              {
+                "glue": "string",
+                "conditions": [
+                  {
+                    "object": "string",
+                    "field_id": "string",
+                    "operator": "string",
+                    "value": "string",
+                    "extra_value": "string",
+                    "json_value_flag": "boolean",
+                    "field_code": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
       "description": "One filter by id, with its full condition tree. The conditions are the filter's real meaning; the name rarely states them."
     },
     {
@@ -252,42 +1436,472 @@
       "name": "Goals",
       "paged": true,
       "suffix": "/v1/goals/find?type.name={Type Name?}&title={Title?}&is_active={Is Active?}&assignee.id={Assignee ID?}&assignee.type={Assignee Type?:person|company|term}&expected_outcome.target={Expected Outcome Target?}&expected_outcome.tracking_metric={Expected Outcome Tracking Metric?:quantity|sum}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "goals": [
+            {
+              "id": "string",
+              "owner_id": "double",
+              "title": "string",
+              "type": {
+                "name": "string",
+                "params": {
+                  "pipeline_id": [
+                    "double"
+                  ],
+                  "activity_type_id": [
+                    "double"
+                  ]
+                }
+              },
+              "assignee": {
+                "id": "double",
+                "type": "string"
+              },
+              "interval": "string",
+              "duration": {
+                "start": "string",
+                "end": "string"
+              },
+              "expected_outcome": {
+                "target": "double",
+                "tracking_metric": "string"
+              },
+              "is_active": "boolean",
+              "report_ids": [
+                "string"
+              ]
+            }
+          ]
+        }
+      },
       "description": "The sales targets set on the account, each with what is being measured (deals won, deals progressed, activities completed or revenue), the target value, the period it covers, its interval, and whether it is assigned to a user, a team or the whole company. Targets stated by the business rather than derived from the data -- so this is what turns a number into 'ahead' or 'behind', which no deal table can say on its own. Progress against them is in Goal Result."
     },
     {
       "name": "Goal Result",
       "paged": true,
       "suffix": "/v1/goals/{Goal ID}/results?period.start={Period Start:YYYY-MM-DD}&period.end={Period End:YYYY-MM-DD}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "progress": "double",
+          "goal": {
+            "id": "string",
+            "owner_id": "double",
+            "title": "string",
+            "type": {
+              "name": "string",
+              "params": {
+                "pipeline_id": [
+                  "double"
+                ],
+                "activity_type_id": [
+                  "double"
+                ]
+              }
+            },
+            "assignee": {
+              "id": "double",
+              "type": "string"
+            },
+            "interval": "string",
+            "duration": {
+              "start": "string",
+              "end": "string"
+            },
+            "expected_outcome": {
+              "target": "double",
+              "tracking_metric": "string"
+            },
+            "is_active": "boolean",
+            "report_ids": [
+              "string"
+            ]
+          }
+        }
+      },
       "description": "The progress of one goal: the achieved value against the target for each period in its range. Requires a goal id and a date range. Pipedrive computes this, so attainment does not have to be reconstructed from the deals."
     },
     {
       "name": "Mail Message",
       "paged": false,
       "suffix": "/v1/mailbox/mailMessages/{Message ID}?include_body={Include Body?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "statusCode": "double",
+        "statusText": "string",
+        "service": "string",
+        "data": {
+          "id": "double",
+          "from": [
+            {
+              "id": "double",
+              "email_address": "string",
+              "name": "string",
+              "linked_person_id": "double",
+              "linked_person_name": "string",
+              "mail_message_party_id": "double"
+            }
+          ],
+          "to": [
+            {
+              "id": "double",
+              "email_address": "string",
+              "name": "string",
+              "linked_person_id": "double",
+              "linked_person_name": "string",
+              "mail_message_party_id": "double"
+            }
+          ],
+          "cc": [
+            {
+              "id": "double",
+              "email_address": "string",
+              "name": "string",
+              "linked_person_id": "double",
+              "linked_person_name": "string",
+              "mail_message_party_id": "double"
+            }
+          ],
+          "bcc": [
+            {
+              "id": "double",
+              "email_address": "string",
+              "name": "string",
+              "linked_person_id": "double",
+              "linked_person_name": "string",
+              "mail_message_party_id": "double"
+            }
+          ],
+          "body_url": "string",
+          "body": "string",
+          "account_id": "string",
+          "user_id": "double",
+          "mail_thread_id": "double",
+          "subject": "string",
+          "snippet": "string",
+          "mail_tracking_status": "string",
+          "mail_link_tracking_enabled_flag": "double",
+          "read_flag": "double",
+          "draft": "string",
+          "draft_flag": "double",
+          "synced_flag": "double",
+          "deleted_flag": "double",
+          "has_body_flag": "double",
+          "sent_flag": "double",
+          "sent_from_pipedrive_flag": "double",
+          "smart_bcc_flag": "double",
+          "message_time": "string",
+          "add_time": "string",
+          "update_time": "string",
+          "has_attachments_flag": "double",
+          "has_inline_attachments_flag": "double",
+          "has_real_attachments_flag": "double"
+        }
+      },
       "description": "One mail message by id, with its full body and headers."
     },
     {
       "name": "Mail Threads",
       "paged": true,
       "suffix": "/v1/mailbox/mailThreads?folder={Folder:inbox|drafts|...}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "account_id": "string",
+            "user_id": "double",
+            "subject": "string",
+            "snippet": "string",
+            "read_flag": "double",
+            "mail_tracking_status": "string",
+            "has_attachments_flag": "double",
+            "has_inline_attachments_flag": "double",
+            "has_real_attachments_flag": "double",
+            "deleted_flag": "double",
+            "synced_flag": "double",
+            "smart_bcc_flag": "double",
+            "mail_link_tracking_enabled_flag": "double",
+            "parties": {
+              "to": [
+                {
+                  "id": "double",
+                  "name": "string",
+                  "latest_sent": "boolean",
+                  "email_address": "string",
+                  "message_time": "double",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double",
+                  "linked_organization_id": "double"
+                }
+              ],
+              "from": [
+                {
+                  "id": "double",
+                  "name": "string",
+                  "latest_sent": "boolean",
+                  "email_address": "string",
+                  "message_time": "double",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double",
+                  "linked_organization_id": "double"
+                }
+              ]
+            },
+            "folders": [
+              "string"
+            ],
+            "version": "double",
+            "snippet_draft": "string",
+            "snippet_sent": "string",
+            "message_count": "double",
+            "has_draft_flag": "double",
+            "has_sent_flag": "double",
+            "archived_flag": "double",
+            "shared_flag": "double",
+            "external_deleted_flag": "double",
+            "first_message_to_me_flag": "double",
+            "last_message_timestamp": "string",
+            "first_message_timestamp": "string",
+            "last_message_sent_timestamp": "string",
+            "last_message_received_timestamp": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "deal_id": "double",
+            "deal_status": "string",
+            "lead_id": "string",
+            "all_messages_sent_flag": "double"
+          }
+        ]
+      },
       "description": "The email conversations synced into the account, one thread each, with subject, participants, message count, and the deal or contact they are linked to. Requires a folder such as inbox, drafts or sent. Depends on email sync being enabled for the user; without it these tables are empty, which is not the same as no email having been exchanged."
     },
     {
       "name": "Mail Thread",
       "paged": false,
       "suffix": "/v1/mailbox/mailThreads/{Mail Thread ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "account_id": "string",
+          "user_id": "double",
+          "subject": "string",
+          "snippet": "string",
+          "read_flag": "double",
+          "mail_tracking_status": "string",
+          "has_attachments_flag": "double",
+          "has_inline_attachments_flag": "double",
+          "has_real_attachments_flag": "double",
+          "deleted_flag": "double",
+          "synced_flag": "double",
+          "smart_bcc_flag": "double",
+          "mail_link_tracking_enabled_flag": "double",
+          "parties": {
+            "to": [
+              {
+                "id": "double",
+                "name": "string",
+                "latest_sent": "boolean",
+                "email_address": "string",
+                "message_time": "double",
+                "linked_person_id": "double",
+                "linked_person_name": "string",
+                "mail_message_party_id": "double",
+                "linked_organization_id": "double"
+              }
+            ],
+            "from": [
+              {
+                "id": "double",
+                "name": "string",
+                "latest_sent": "boolean",
+                "email_address": "string",
+                "message_time": "double",
+                "linked_person_id": "double",
+                "linked_person_name": "string",
+                "mail_message_party_id": "double",
+                "linked_organization_id": "double"
+              }
+            ]
+          },
+          "folders": [
+            "string"
+          ],
+          "version": "double",
+          "snippet_draft": "string",
+          "snippet_sent": "string",
+          "message_count": "double",
+          "has_draft_flag": "double",
+          "has_sent_flag": "double",
+          "archived_flag": "double",
+          "shared_flag": "double",
+          "external_deleted_flag": "double",
+          "first_message_to_me_flag": "double",
+          "last_message_timestamp": "string",
+          "first_message_timestamp": "string",
+          "last_message_sent_timestamp": "string",
+          "last_message_received_timestamp": "string",
+          "add_time": "string",
+          "update_time": "string",
+          "deal_id": "double",
+          "deal_status": "string",
+          "lead_id": "string",
+          "all_messages_sent_flag": "double"
+        }
+      },
       "description": "One mail thread by id, with its participants and linkage."
     },
     {
       "name": "Mail Thread Messages",
       "paged": true,
       "suffix": "/v1/mailbox/mailThreads/{Mail Thread ID}/mailMessages",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "account_id": "string",
+            "user_id": "double",
+            "subject": "string",
+            "snippet": "string",
+            "read_flag": "double",
+            "mail_tracking_status": "string",
+            "has_attachments_flag": "double",
+            "has_inline_attachments_flag": "double",
+            "has_real_attachments_flag": "double",
+            "deleted_flag": "double",
+            "synced_flag": "double",
+            "smart_bcc_flag": "double",
+            "mail_link_tracking_enabled_flag": "double",
+            "from": [
+              {
+                "id": "double",
+                "name": "string",
+                "latest_sent": "boolean",
+                "email_address": "string",
+                "message_time": "double",
+                "linked_person_id": "double",
+                "linked_person_name": "string",
+                "mail_message_party_id": "double",
+                "linked_organization_id": "double"
+              }
+            ],
+            "to": [
+              {
+                "id": "double",
+                "name": "string",
+                "latest_sent": "boolean",
+                "email_address": "string",
+                "message_time": "double",
+                "linked_person_id": "double",
+                "linked_person_name": "string",
+                "mail_message_party_id": "double",
+                "linked_organization_id": "double"
+              }
+            ],
+            "cc": [
+              {
+                "id": "double",
+                "name": "string",
+                "latest_sent": "boolean",
+                "email_address": "string",
+                "message_time": "double",
+                "linked_person_id": "double",
+                "linked_person_name": "string",
+                "mail_message_party_id": "double",
+                "linked_organization_id": "double"
+              }
+            ],
+            "bcc": [
+              {
+                "id": "double",
+                "name": "string",
+                "latest_sent": "boolean",
+                "email_address": "string",
+                "message_time": "double",
+                "linked_person_id": "double",
+                "linked_person_name": "string",
+                "mail_message_party_id": "double",
+                "linked_organization_id": "double"
+              }
+            ],
+            "body_url": "string",
+            "mail_thread_id": "double",
+            "draft": "string",
+            "has_body_flag": "double",
+            "sent_flag": "double",
+            "sent_from_pipedrive_flag": "double",
+            "message_time": "string",
+            "add_time": "string",
+            "update_time": "string"
+          }
+        ]
+      },
       "description": "The individual messages within one thread, with sender, recipients, subject, body and timestamp. Requires a thread id. The message-level detail behind the thread summary."
     },
     {
       "name": "Notes",
       "paged": true,
       "suffix": "/v1/notes?user_id={User ID?}&deal_id={Deal ID?}&person_id={Person ID?}&org_id={Organization ID?}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "active_flag": "boolean",
+            "add_time": "string",
+            "content": "string",
+            "deal": {
+              "title": "string"
+            },
+            "lead_id": "string",
+            "deal_id": "double",
+            "last_update_user_id": "double",
+            "org_id": "double",
+            "organization": {
+              "name": "string"
+            },
+            "person": {
+              "name": "string"
+            },
+            "person_id": "double",
+            "project_id": "double",
+            "project": {
+              "title": "string"
+            },
+            "task_id": "double",
+            "task": {
+              "title": "string"
+            },
+            "pinned_to_deal_flag": "boolean",
+            "pinned_to_organization_flag": "boolean",
+            "pinned_to_person_flag": "boolean",
+            "pinned_to_project_flag": "boolean",
+            "pinned_to_task_flag": "boolean",
+            "update_time": "string",
+            "user": {
+              "email": "string",
+              "icon_url": "string",
+              "is_you": "boolean",
+              "name": "string"
+            },
+            "user_id": "double"
+          }
+        ],
+        "additional_data": {
+          "pagination": {
+            "next_start": "double",
+            "start": "double",
+            "limit": "double",
+            "more_items_in_collection": "boolean"
+          }
+        }
+      },
       "lookups": [
         {
           "endpoint": "User",
@@ -320,30 +1934,208 @@
       "name": "Note",
       "paged": false,
       "suffix": "/v1/notes/{Note ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "active_flag": "boolean",
+          "add_time": "string",
+          "content": "string",
+          "deal": {
+            "title": "string"
+          },
+          "lead_id": "string",
+          "deal_id": "double",
+          "last_update_user_id": "double",
+          "org_id": "double",
+          "organization": {
+            "name": "string"
+          },
+          "person": {
+            "name": "string"
+          },
+          "person_id": "double",
+          "project_id": "double",
+          "project": {
+            "title": "string"
+          },
+          "task_id": "double",
+          "task": {
+            "title": "string"
+          },
+          "pinned_to_deal_flag": "boolean",
+          "pinned_to_organization_flag": "boolean",
+          "pinned_to_person_flag": "boolean",
+          "pinned_to_project_flag": "boolean",
+          "pinned_to_task_flag": "boolean",
+          "update_time": "string",
+          "user": {
+            "email": "string",
+            "icon_url": "string",
+            "is_you": "boolean",
+            "name": "string"
+          },
+          "user_id": "double"
+        }
+      },
       "description": "One note by id."
     },
     {
       "name": "Note Fields",
       "paged": true,
       "suffix": "/v1/noteFields",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "key": "string",
+            "name": "string",
+            "field_type": "string",
+            "active_flag": "boolean",
+            "edit_flag": "boolean",
+            "bulk_edit_allowed": "boolean",
+            "mandatory_flag": "boolean",
+            "options": [
+              {
+                "id": "double",
+                "label": "string"
+              }
+            ]
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The fields a note can carry. A small reference list; notes have few fields and no custom ones in the way deals do."
     },
     {
       "name": "Organization Fields",
       "paged": true,
       "suffix": "/v1/organizationFields",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "key": "string",
+            "name": "string",
+            "order_nr": "double",
+            "field_type": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "last_updated_by_user_id": "double",
+            "created_by_user_id": "double",
+            "active_flag": "boolean",
+            "edit_flag": "boolean",
+            "index_visible_flag": "boolean",
+            "details_visible_flag": "boolean",
+            "add_visible_flag": "boolean",
+            "important_flag": "boolean",
+            "bulk_edit_allowed": "boolean",
+            "searchable_flag": "boolean",
+            "filtering_allowed": "boolean",
+            "sortable_flag": "boolean",
+            "mandatory_flag": "boolean",
+            "is_subfield": "boolean",
+            "options": [
+              {
+                "id": "double",
+                "label": "string"
+              }
+            ]
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "Every field a company can carry, standard and custom, with key, name, type and option lists. The decoder for the hash-keyed custom fields on organizations."
     },
     {
       "name": "Organization Field",
       "paged": true,
       "suffix": "/v1/organizationFields/{Field ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "key": "string",
+          "name": "string",
+          "order_nr": "double",
+          "field_type": "string",
+          "add_time": "string",
+          "update_time": "string",
+          "last_updated_by_user_id": "double",
+          "created_by_user_id": "double",
+          "active_flag": "boolean",
+          "edit_flag": "boolean",
+          "index_visible_flag": "boolean",
+          "details_visible_flag": "boolean",
+          "add_visible_flag": "boolean",
+          "important_flag": "boolean",
+          "bulk_edit_allowed": "boolean",
+          "searchable_flag": "boolean",
+          "filtering_allowed": "boolean",
+          "sortable_flag": "boolean",
+          "mandatory_flag": "boolean",
+          "is_subfield": "boolean",
+          "options": [
+            {
+              "id": "double",
+              "label": "string"
+            }
+          ]
+        }
+      },
       "description": "One organization field by id, with its options."
     },
     {
       "name": "Organizations",
       "paged": true,
       "suffix": "/api/v2/organizations?owner_id={Owner ID?}&filter_id={Filter ID?}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "owner_id": "double",
+            "add_time": "string",
+            "update_time": "string",
+            "is_deleted": "boolean",
+            "visible_to": "double",
+            "address": {
+              "value": "string",
+              "country": "string",
+              "admin_area_level_1": "string",
+              "admin_area_level_2": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "route": "string",
+              "street_number": "string",
+              "subpremise": "string",
+              "postal_code": "string"
+            },
+            "label_ids": [
+              "double"
+            ],
+            "website": "string",
+            "linkedin": "string",
+            "industry": "double",
+            "annual_revenue": "double",
+            "employee_count": "double"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "lookups": [
         {
           "endpoints": [
@@ -368,78 +2160,598 @@
       "name": "Organization Search",
       "paged": true,
       "suffix": "/api/v2/organizations/search?term={Term}&fields={Fields?:address,custom_fields,notes,name}&exact_match={Exact Match?:true|false}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "items": [
+            {
+              "result_score": "double",
+              "item": {
+                "id": "double",
+                "type": "string",
+                "name": "string",
+                "address": "string",
+                "visible_to": "double",
+                "owner": {
+                  "id": "double"
+                },
+                "custom_fields": [
+                  "string"
+                ],
+                "notes": [
+                  "string"
+                ]
+              }
+            }
+          ]
+        },
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "Companies matching a search term across name, address and custom fields. Returns scored matches."
     },
     {
       "name": "Organization",
       "paged": false,
       "suffix": "/api/v2/organizations/{Organization ID}?include_fields={Include Fields?}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "name": "string",
+          "owner_id": "double",
+          "add_time": "string",
+          "update_time": "string",
+          "is_deleted": "boolean",
+          "visible_to": "double",
+          "address": {
+            "value": "string",
+            "country": "string",
+            "admin_area_level_1": "string",
+            "admin_area_level_2": "string",
+            "locality": "string",
+            "sublocality": "string",
+            "route": "string",
+            "street_number": "string",
+            "subpremise": "string",
+            "postal_code": "string"
+          },
+          "label_ids": [
+            "double"
+          ],
+          "website": "string",
+          "linkedin": "string",
+          "industry": "double",
+          "annual_revenue": "double",
+          "employee_count": "double"
+        }
+      },
       "description": "One company by id. Same custom_fields rule."
     },
     {
       "name": "Organization Activities",
       "paged": true,
       "suffix": "/api/v2/activities?org_id={Organization ID}&done={Done?:true|false}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "subject": "string",
+            "type": "string",
+            "owner_id": "double",
+            "creator_user_id": "double",
+            "is_deleted": "boolean",
+            "add_time": "string",
+            "update_time": "string",
+            "deal_id": "double",
+            "lead_id": "string",
+            "person_id": "double",
+            "org_id": "double",
+            "project_id": "double",
+            "due_date": "string",
+            "due_time": "string",
+            "duration": "string",
+            "busy": "boolean",
+            "done": "boolean",
+            "marked_as_done_time": "string",
+            "location": {
+              "value": "string",
+              "country": "string",
+              "admin_area_level_1": "string",
+              "admin_area_level_2": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "route": "string",
+              "street_number": "string",
+              "subpremise": "string",
+              "postal_code": "string"
+            },
+            "participants": [
+              {
+                "person_id": "double",
+                "primary": "boolean"
+              }
+            ],
+            "attendees": [
+              {
+                "email": "string",
+                "name": "string",
+                "status": "string",
+                "is_organizer": "boolean",
+                "person_id": "double",
+                "user_id": "double"
+              }
+            ],
+            "conference_meeting_client": "string",
+            "conference_meeting_url": "string",
+            "conference_meeting_id": "string",
+            "public_description": "string",
+            "priority": "double",
+            "outcome": "double",
+            "note": "string"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "The activities linked to one company. Requires an organization id. The activities collection filtered by org_id."
     },
     {
       "name": "Organization Deals",
       "paged": true,
       "suffix": "/api/v2/deals?org_id={Organization ID}&status={Status?:open|won|lost|deleted}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "title": "string",
+            "owner_id": "double",
+            "person_id": "double",
+            "org_id": "double",
+            "pipeline_id": "double",
+            "stage_id": "double",
+            "value": "double",
+            "currency": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "stage_change_time": "string",
+            "is_deleted": "boolean",
+            "is_archived": "boolean",
+            "status": "string",
+            "probability": "double",
+            "lost_reason": "string",
+            "visible_to": "double",
+            "close_time": "string",
+            "won_time": "string",
+            "lost_time": "string",
+            "expected_close_date": "string",
+            "label_ids": [
+              "double"
+            ],
+            "origin": "string",
+            "origin_id": "string",
+            "channel": "double",
+            "channel_id": "string",
+            "source_lead_id": "string",
+            "arr": "double",
+            "mrr": "double",
+            "acv": "double"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "The deals linked to one company. Requires an organization id. The deals collection filtered by org_id."
     },
     {
       "name": "Organization Files",
       "paged": true,
       "suffix": "/v1/organizations/{Organization ID}/files?include_deleted_files={Include Deleted Files?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "user_id": "double",
+            "deal_id": "double",
+            "person_id": "double",
+            "org_id": "double",
+            "product_id": "double",
+            "activity_id": "double",
+            "lead_id": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "file_name": "string",
+            "file_size": "double",
+            "active_flag": "boolean",
+            "inline_flag": "boolean",
+            "remote_location": "string",
+            "remote_id": "string",
+            "cid": "string",
+            "s3_bucket": "string",
+            "mail_message_id": "string",
+            "mail_template_id": "string",
+            "deal_name": "string",
+            "person_name": "string",
+            "org_name": "string",
+            "product_name": "string",
+            "lead_name": "string",
+            "url": "string",
+            "name": "string",
+            "description": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The files attached to one company. Requires an organization id."
     },
     {
       "name": "Organization Updates",
       "paged": true,
       "suffix": "/v1/organizations/{Organization ID}/flow",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "object": "string",
+            "timestamp": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        },
+        "related_objects": {
+          "organization": {
+            "ORGANIZATION_ID": {
+              "id": "double",
+              "name": "string",
+              "people_count": "double",
+              "owner_id": "double",
+              "address": "string",
+              "cc_email": "string"
+            }
+          },
+          "user": {
+            "USER_ID": {
+              "id": "double",
+              "name": "string",
+              "email": "string",
+              "has_pic": "double",
+              "pic_hash": "string",
+              "active_flag": "boolean"
+            }
+          }
+        }
+      },
       "description": "The change history of one company, with field changes and linked records. Requires an organization id."
     },
     {
       "name": "Organization Followers",
       "paged": true,
       "suffix": "/v1/organizations/{Organization ID}/followers",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "org_id": "double",
+            "user_id": "double",
+            "id": "double",
+            "add_time": "string"
+          }
+        ],
+        "additional_data": {
+          "pagination": {
+            "start": "double",
+            "limit": "double",
+            "more_items_in_collection": "boolean",
+            "next_start": "double"
+          }
+        }
+      },
       "description": "The users following one company. Requires an organization id."
     },
     {
       "name": "Organization Mail Messages",
       "paged": true,
       "suffix": "/v1/organizations/{Organization ID}/mailMessages",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "object": "string",
+            "timestamp": "string",
+            "data": {
+              "id": "double",
+              "from": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "to": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "cc": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "bcc": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "body_url": "string",
+              "body": "string",
+              "account_id": "string",
+              "user_id": "double",
+              "mail_thread_id": "double",
+              "subject": "string",
+              "snippet": "string",
+              "mail_tracking_status": "string",
+              "mail_link_tracking_enabled_flag": "double",
+              "read_flag": "double",
+              "draft": "string",
+              "draft_flag": "double",
+              "synced_flag": "double",
+              "deleted_flag": "double",
+              "has_body_flag": "double",
+              "sent_flag": "double",
+              "sent_from_pipedrive_flag": "double",
+              "smart_bcc_flag": "double",
+              "message_time": "string",
+              "add_time": "string",
+              "update_time": "string",
+              "has_attachments_flag": "double",
+              "has_inline_attachments_flag": "double",
+              "has_real_attachments_flag": "double",
+              "nylas_id": "string",
+              "s3_bucket": "string",
+              "s3_bucket_path": "string",
+              "external_deleted_flag": "boolean",
+              "mua_message_id": "string",
+              "template_id": "double",
+              "timestamp": "string",
+              "item_type": "string",
+              "company_id": "double"
+            }
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The email correspondence linked to one company. Requires an organization id. Depends on email sync being enabled."
     },
     {
       "name": "Organization Permitted Users",
       "paged": true,
       "suffix": "/v1/organizations/{Organization ID}/permittedUsers",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          "double"
+        ]
+      },
       "description": "The users allowed to see one company. Requires an organization id."
     },
     {
       "name": "Organization People",
       "paged": true,
       "suffix": "/api/v2/persons?org_id={Organization ID}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "owner_id": "double",
+            "org_id": "double",
+            "add_time": "string",
+            "update_time": "string",
+            "emails": [
+              {
+                "value": "string",
+                "primary": "boolean",
+                "label": "string"
+              }
+            ],
+            "phones": [
+              {
+                "value": "string",
+                "primary": "boolean",
+                "label": "string"
+              }
+            ],
+            "is_deleted": "boolean",
+            "visible_to": "double",
+            "label_ids": [
+              "double"
+            ],
+            "picture_id": "double",
+            "postal_address": {
+              "value": "string",
+              "country": "string",
+              "admin_area_level_1": "string",
+              "admin_area_level_2": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "route": "string",
+              "street_number": "string",
+              "subpremise": "string",
+              "postal_code": "string"
+            },
+            "notes": "string",
+            "im": [
+              {
+                "value": "string",
+                "primary": "boolean",
+                "label": "string"
+              }
+            ],
+            "birthday": "string",
+            "job_title": "string"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "The contacts belonging to one company. Requires an organization id. The persons collection filtered by org_id."
     },
     {
       "name": "Organization Relationships",
       "paged": true,
       "suffix": "/v1/organizationRelationships?org_id={Organization ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "type": "string",
+            "rel_owner_org_id": {
+              "name": "string",
+              "people_count": "double",
+              "owner_id": "double",
+              "address": "string",
+              "cc_email": "string",
+              "value": "double"
+            },
+            "rel_linked_org_id": {
+              "name": "string",
+              "people_count": "double",
+              "owner_id": "double",
+              "address": "string",
+              "cc_email": "string",
+              "value": "double"
+            },
+            "add_time": "string",
+            "update_time": "string",
+            "active_flag": "string",
+            "calculated_type": "string",
+            "calculated_related_org_id": "double",
+            "related_organization_name": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        },
+        "related_objects": {
+          "organization": {
+            "ORGANIZATION_ID": {
+              "id": "double",
+              "name": "string",
+              "people_count": "double",
+              "owner_id": "double",
+              "address": "string",
+              "cc_email": "string"
+            }
+          }
+        }
+      },
       "description": "The links between one company and others -- parent, subsidiary and related. Requires an organization id. Corporate structure, which the organization record itself does not express: without this a parent group and its subsidiaries look like unrelated customers."
     },
     {
       "name": "Organization Relationship",
       "paged": true,
       "suffix": "/v1/organizationRelationships/{Organization Relationship ID}?org_id={Organization ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "type": "string",
+          "rel_owner_org_id": {
+            "name": "string",
+            "people_count": "double",
+            "owner_id": "double",
+            "address": "string",
+            "cc_email": "string",
+            "value": "double"
+          },
+          "rel_linked_org_id": {
+            "name": "string",
+            "people_count": "double",
+            "owner_id": "double",
+            "address": "string",
+            "cc_email": "string",
+            "value": "double"
+          },
+          "add_time": "string",
+          "update_time": "string",
+          "active_flag": "string",
+          "calculated_type": "string",
+          "calculated_related_org_id": "double"
+        },
+        "related_objects": {
+          "organization": {
+            "ORGANIZATION_ID": {
+              "id": "double",
+              "name": "string",
+              "people_count": "double",
+              "owner_id": "double",
+              "address": "string",
+              "cc_email": "string"
+            }
+          }
+        }
+      },
       "description": "One organization relationship by id, with both sides and the relationship type."
     },
     {
       "name": "Permission Sets",
       "paged": true,
       "suffix": "/v1/permissionSets",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "string",
+            "name": "string",
+            "description": "string",
+            "app": "string",
+            "type": "string",
+            "assignment_count": "double"
+          }
+        ]
+      },
       "lookups": [
         {
           "endpoints": [
@@ -463,6 +2775,16 @@
       "name": "Permission Set Assignments",
       "paged": true,
       "suffix": "/v1/permissionSets/{Permission Set ID}/assignments",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "user_id": "double",
+            "permission_set_id": "string",
+            "name": "string"
+          }
+        ]
+      },
       "lookups": [
         {
           "endpoint": "User",
@@ -477,6 +2799,66 @@
       "name": "People",
       "paged": true,
       "suffix": "/api/v2/persons?owner_id={Owner ID?}&filter_id={Filter ID?}&org_id={Organization ID?}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "owner_id": "double",
+            "org_id": "double",
+            "add_time": "string",
+            "update_time": "string",
+            "emails": [
+              {
+                "value": "string",
+                "primary": "boolean",
+                "label": "string"
+              }
+            ],
+            "phones": [
+              {
+                "value": "string",
+                "primary": "boolean",
+                "label": "string"
+              }
+            ],
+            "is_deleted": "boolean",
+            "visible_to": "double",
+            "label_ids": [
+              "double"
+            ],
+            "picture_id": "double",
+            "postal_address": {
+              "value": "string",
+              "country": "string",
+              "admin_area_level_1": "string",
+              "admin_area_level_2": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "route": "string",
+              "street_number": "string",
+              "subpremise": "string",
+              "postal_code": "string"
+            },
+            "notes": "string",
+            "im": [
+              {
+                "value": "string",
+                "primary": "boolean",
+                "label": "string"
+              }
+            ],
+            "birthday": "string",
+            "job_title": "string"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "lookups": [
         {
           "endpoints": [
@@ -500,18 +2882,175 @@
       "name": "Person Search",
       "paged": true,
       "suffix": "/api/v2/persons/search?term={Term}&fields={Fields?:custom_fields,email,notes,phone,name}&exact_match={Exact Match?:true|false}&organization_id={Organization ID?}&include_fields={Include Fields?}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "items": [
+            {
+              "result_score": "double",
+              "item": {
+                "id": "double",
+                "type": "string",
+                "name": "string",
+                "phones": [
+                  "string"
+                ],
+                "emails": [
+                  "string"
+                ],
+                "visible_to": "double",
+                "owner": {
+                  "id": "double"
+                },
+                "organization": {
+                  "id": "double",
+                  "name": "string"
+                },
+                "custom_fields": [
+                  "string"
+                ],
+                "notes": [
+                  "string"
+                ]
+              }
+            }
+          ]
+        },
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "Contacts matching a search term across name, email, phone and custom fields. Returns scored matches rather than full records."
     },
     {
       "name": "Person",
       "paged": false,
       "suffix": "/api/v2/persons/{Person ID}?include_fields={Include Fields?}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "name": "string",
+          "first_name": "string",
+          "last_name": "string",
+          "owner_id": "double",
+          "org_id": "double",
+          "add_time": "string",
+          "update_time": "string",
+          "emails": [
+            {
+              "value": "string",
+              "primary": "boolean",
+              "label": "string"
+            }
+          ],
+          "phones": [
+            {
+              "value": "string",
+              "primary": "boolean",
+              "label": "string"
+            }
+          ],
+          "is_deleted": "boolean",
+          "visible_to": "double",
+          "label_ids": [
+            "double"
+          ],
+          "picture_id": "double",
+          "postal_address": {
+            "value": "string",
+            "country": "string",
+            "admin_area_level_1": "string",
+            "admin_area_level_2": "string",
+            "locality": "string",
+            "sublocality": "string",
+            "route": "string",
+            "street_number": "string",
+            "subpremise": "string",
+            "postal_code": "string"
+          },
+          "notes": "string",
+          "im": [
+            {
+              "value": "string",
+              "primary": "boolean",
+              "label": "string"
+            }
+          ],
+          "birthday": "string",
+          "job_title": "string"
+        }
+      },
       "description": "One contact by id. Same array-shaped emails and phones, same custom_fields rule."
     },
     {
       "name": "Person Activities",
       "paged": true,
       "suffix": "/api/v2/activities?person_id={Person ID}&done={Done?:true|false}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "subject": "string",
+            "type": "string",
+            "owner_id": "double",
+            "creator_user_id": "double",
+            "is_deleted": "boolean",
+            "add_time": "string",
+            "update_time": "string",
+            "deal_id": "double",
+            "lead_id": "string",
+            "person_id": "double",
+            "org_id": "double",
+            "project_id": "double",
+            "due_date": "string",
+            "due_time": "string",
+            "duration": "string",
+            "busy": "boolean",
+            "done": "boolean",
+            "marked_as_done_time": "string",
+            "location": {
+              "value": "string",
+              "country": "string",
+              "admin_area_level_1": "string",
+              "admin_area_level_2": "string",
+              "locality": "string",
+              "sublocality": "string",
+              "route": "string",
+              "street_number": "string",
+              "subpremise": "string",
+              "postal_code": "string"
+            },
+            "participants": [
+              {
+                "person_id": "double",
+                "primary": "boolean"
+              }
+            ],
+            "attendees": [
+              {
+                "email": "string",
+                "name": "string",
+                "status": "string",
+                "is_organizer": "boolean",
+                "person_id": "double",
+                "user_id": "double"
+              }
+            ],
+            "conference_meeting_client": "string",
+            "conference_meeting_url": "string",
+            "conference_meeting_id": "string",
+            "public_description": "string",
+            "priority": "double",
+            "outcome": "double",
+            "note": "string"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "lookups": [
         {
           "endpoint": "User",
@@ -526,60 +3065,493 @@
       "name": "Person Deals",
       "paged": true,
       "suffix": "/api/v2/deals?person_id={Person ID}&status={Status?:open|won|lost|deleted}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&updated_until={Updated Until?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "title": "string",
+            "owner_id": "double",
+            "person_id": "double",
+            "org_id": "double",
+            "pipeline_id": "double",
+            "stage_id": "double",
+            "value": "double",
+            "currency": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "stage_change_time": "string",
+            "is_deleted": "boolean",
+            "is_archived": "boolean",
+            "status": "string",
+            "probability": "double",
+            "lost_reason": "string",
+            "visible_to": "double",
+            "close_time": "string",
+            "won_time": "string",
+            "lost_time": "string",
+            "expected_close_date": "string",
+            "label_ids": [
+              "double"
+            ],
+            "origin": "string",
+            "origin_id": "string",
+            "channel": "double",
+            "channel_id": "string",
+            "source_lead_id": "string",
+            "arr": "double",
+            "mrr": "double",
+            "acv": "double"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "The deals linked to one contact. Requires a person id. The deals collection filtered by person_id, so the deal filters -- status, update-time range, custom fields -- all apply here too."
     },
     {
       "name": "Person Files",
       "paged": true,
       "suffix": "/v1/persons/{Person ID}/files?include_deleted_files={Include Deleted Files?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "user_id": "double",
+            "deal_id": "double",
+            "person_id": "double",
+            "org_id": "double",
+            "product_id": "double",
+            "activity_id": "double",
+            "lead_id": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "file_name": "string",
+            "file_size": "double",
+            "active_flag": "boolean",
+            "inline_flag": "boolean",
+            "remote_location": "string",
+            "remote_id": "string",
+            "cid": "string",
+            "s3_bucket": "string",
+            "mail_message_id": "string",
+            "mail_template_id": "string",
+            "deal_name": "string",
+            "person_name": "string",
+            "org_name": "string",
+            "product_name": "string",
+            "lead_name": "string",
+            "url": "string",
+            "name": "string",
+            "description": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The files attached to one contact. Requires a person id."
     },
     {
       "name": "Person Updates",
       "paged": true,
       "suffix": "/v1/persons/{Person ID}/flow",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "object": "string",
+            "timestamp": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        },
+        "related_objects": {
+          "deal": {
+            "DEAL_ID": {
+              "id": "double",
+              "title": "string",
+              "status": "string",
+              "value": "double",
+              "currency": "string",
+              "stage_id": "double",
+              "pipeline_id": "double"
+            }
+          },
+          "organization": {
+            "ORGANIZATION_ID": {
+              "id": "double",
+              "name": "string",
+              "people_count": "double",
+              "owner_id": "double",
+              "address": "string",
+              "cc_email": "string"
+            }
+          },
+          "user": {
+            "USER_ID": {
+              "id": "double",
+              "name": "string",
+              "email": "string",
+              "has_pic": "double",
+              "pic_hash": "string",
+              "active_flag": "boolean"
+            }
+          },
+          "person": {
+            "PERSON_ID": {
+              "active_flag": "boolean",
+              "id": "double",
+              "name": "string",
+              "email": [
+                {
+                  "label": "string",
+                  "value": "string",
+                  "primary": "boolean"
+                }
+              ],
+              "phone": [
+                {
+                  "label": "string",
+                  "value": "string",
+                  "primary": "boolean"
+                }
+              ],
+              "owner_id": "double"
+            }
+          }
+        }
+      },
       "description": "The change history of one contact: field changes with old and new values, plus linked notes, activities and files. Requires a person id. The contact record carries only its current state, so this is the only source for when it changed."
     },
     {
       "name": "Person Followers",
       "paged": true,
       "suffix": "/v1/persons/{Person ID}/followers",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "user_id": "double",
+            "id": "double",
+            "deal_id": "double",
+            "add_time": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The users following one contact. Requires a person id. Internal interest."
     },
     {
       "name": "Person Mail Messages",
       "paged": true,
       "suffix": "/v1/persons/{Person ID}/mailMessages",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "object": "string",
+            "timestamp": "string",
+            "data": {
+              "id": "double",
+              "from": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "to": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "cc": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "bcc": [
+                {
+                  "id": "double",
+                  "email_address": "string",
+                  "name": "string",
+                  "linked_person_id": "double",
+                  "linked_person_name": "string",
+                  "mail_message_party_id": "double"
+                }
+              ],
+              "body_url": "string",
+              "body": "string",
+              "account_id": "string",
+              "user_id": "double",
+              "mail_thread_id": "double",
+              "subject": "string",
+              "snippet": "string",
+              "mail_tracking_status": "string",
+              "mail_link_tracking_enabled_flag": "double",
+              "read_flag": "double",
+              "draft": "string",
+              "draft_flag": "double",
+              "synced_flag": "double",
+              "deleted_flag": "double",
+              "has_body_flag": "double",
+              "sent_flag": "double",
+              "sent_from_pipedrive_flag": "double",
+              "smart_bcc_flag": "double",
+              "message_time": "string",
+              "add_time": "string",
+              "update_time": "string",
+              "has_attachments_flag": "double",
+              "has_inline_attachments_flag": "double",
+              "has_real_attachments_flag": "double",
+              "nylas_id": "string",
+              "s3_bucket": "string",
+              "s3_bucket_path": "string",
+              "external_deleted_flag": "boolean",
+              "mua_message_id": "string",
+              "template_id": "double",
+              "timestamp": "string",
+              "item_type": "string",
+              "company_id": "double"
+            }
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The email correspondence linked to one contact. Requires a person id. Requires email sync to be enabled; without it this is empty rather than absent, which reads as 'no contact was made'."
     },
     {
       "name": "Person Permitted Users",
       "paged": true,
       "suffix": "/v1/persons/{Person ID}/permittedUsers",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          "double"
+        ]
+      },
       "description": "The users allowed to see one contact. Requires a person id. Visibility configuration."
     },
     {
       "name": "Person Products",
       "paged": true,
       "suffix": "/v1/persons/{Person ID}/products",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "DEAL_ID": {
+              "deal": {
+                "id": "double",
+                "company_id": "double",
+                "creator_user_id": "double",
+                "user_id": "double",
+                "person_id": "double",
+                "org_id": "double",
+                "stage_id": "double",
+                "title": "string",
+                "value": "double",
+                "currency": "string",
+                "add_time": "string",
+                "first_add_time": "string",
+                "update_time": "string",
+                "stage_change_time": "string",
+                "active": "boolean",
+                "deleted": "boolean",
+                "status": "string",
+                "probability": "double",
+                "next_activity_date": "string",
+                "next_activity_time": "string",
+                "next_activity_id": "double",
+                "last_activity_id": "double",
+                "last_activity_date": "string",
+                "lost_reason": "string",
+                "visible_to": "string",
+                "close_time": "string",
+                "pipeline_id": "double",
+                "won_time": "string",
+                "first_won_time": "string",
+                "lost_time": "string",
+                "products_count": "double",
+                "files_count": "double",
+                "notes_count": "double",
+                "followers_count": "double",
+                "email_messages_count": "double",
+                "activities_count": "double",
+                "done_activities_count": "double",
+                "undone_activities_count": "double",
+                "participants_count": "double",
+                "expected_close_date": "string",
+                "last_incoming_mail_time": "string",
+                "last_outgoing_mail_time": "string",
+                "label": "string"
+              },
+              "product": {
+                "id": "double",
+                "company_id": "double",
+                "name": "string",
+                "code": "string",
+                "description": "string",
+                "unit": "string",
+                "tax": "double",
+                "category": "string",
+                "active_flag": "boolean",
+                "selectable": "boolean",
+                "first_char": "string",
+                "visible_to": "string",
+                "owner_id": "double",
+                "files_count": "double",
+                "add_time": "string",
+                "update_time": "string",
+                "deal_id": "double"
+              }
+            }
+          }
+        ],
+        "additional_data": {
+          "pagination": {
+            "start": "double",
+            "limit": "double",
+            "more_items_in_collection": "boolean",
+            "next_start": "double"
+          }
+        }
+      },
       "description": "The products associated with one contact. Requires a person id. Derived from the deals they are on, so it reflects what they have been quoted rather than a purchase history."
     },
     {
       "name": "Person Fields",
       "paged": true,
       "suffix": "/v1/personFields",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "key": "string",
+            "name": "string",
+            "order_nr": "double",
+            "field_type": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "last_updated_by_user_id": "double",
+            "created_by_user_id": "double",
+            "active_flag": "boolean",
+            "edit_flag": "boolean",
+            "index_visible_flag": "boolean",
+            "details_visible_flag": "boolean",
+            "add_visible_flag": "boolean",
+            "important_flag": "boolean",
+            "bulk_edit_allowed": "boolean",
+            "searchable_flag": "boolean",
+            "filtering_allowed": "boolean",
+            "sortable_flag": "boolean",
+            "mandatory_flag": "boolean",
+            "is_subfield": "boolean",
+            "options": [
+              {
+                "id": "double",
+                "label": "string"
+              }
+            ]
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "Every field a contact can carry, standard and custom, with the field key, name, field_type, and the option list for enum and set fields. THE KEY TO CONTACT DATA -- custom fields appear on persons as 40-character hashes and single-select values as option ids, neither readable without this table."
     },
     {
       "name": "Person Field",
       "paged": false,
       "suffix": "/v1/personFields/{Field ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "key": "string",
+          "name": "string",
+          "order_nr": "double",
+          "field_type": "string",
+          "add_time": "string",
+          "update_time": "string",
+          "last_updated_by_user_id": "double",
+          "created_by_user_id": "double",
+          "active_flag": "boolean",
+          "edit_flag": "boolean",
+          "index_visible_flag": "boolean",
+          "details_visible_flag": "boolean",
+          "add_visible_flag": "boolean",
+          "important_flag": "boolean",
+          "bulk_edit_allowed": "boolean",
+          "searchable_flag": "boolean",
+          "filtering_allowed": "boolean",
+          "sortable_flag": "boolean",
+          "mandatory_flag": "boolean",
+          "is_subfield": "boolean",
+          "options": [
+            {
+              "id": "double",
+              "label": "string"
+            }
+          ]
+        }
+      },
       "description": "One person field by id, with its options."
     },
     {
       "name": "Pipelines",
       "paged": true,
       "suffix": "/api/v2/pipelines?sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "order_nr": "double",
+            "is_deleted": "boolean",
+            "is_deal_probability_enabled": "boolean",
+            "add_time": "string",
+            "update_time": "string"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "lookups": [
         {
           "endpoints": [
@@ -598,30 +3570,236 @@
       "name": "Pipeline",
       "paged": false,
       "suffix": "/api/v2/pipelines/{Pipeline ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "name": "string",
+          "order_nr": "double",
+          "is_deleted": "boolean",
+          "is_deal_probability_enabled": "boolean",
+          "add_time": "string",
+          "update_time": "string"
+        }
+      },
       "description": "One pipeline by id."
     },
     {
       "name": "Pipeline Conversion Rates",
       "paged": true,
       "suffix": "/v1/pipelines/{Pipeline ID}/conversion_statistics?start_date={Start Date:YYYY-MM-DD}&end_date={End Date:YYYY-MM-DD}&user_id={User ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "stage_conversions": [
+            {
+              "from_stage_id": "double",
+              "to_stage_id": "double",
+              "conversion_rate": "double"
+            }
+          ],
+          "won_conversion": "double",
+          "lost_conversion": "double"
+        }
+      },
       "description": "Stage-to-stage conversion for one pipeline over a period: how many deals moved from each stage to the next, the conversion rate at each step, and the overall won rate. Requires a pipeline id and a date range. A READY-MADE FUNNEL -- computing this from the deal records would need the full stage history out of Deal Updates, one request per deal, so this endpoint saves a great deal and is the right answer to where deals stall."
     },
     {
       "name": "Pipeline Deals",
       "paged": false,
       "suffix": "/v1/pipelines/{Pipeline ID}/deals?filter_id={Filter ID?}&user_id={User ID?}&everyone={Everyone?:0|1}&stage_id={Stage ID?}&get_summary={Get Summary?:0|1}&totals_convert_currency={Totals Convert Currency?}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "creator_user_id": "double",
+            "user_id": "double",
+            "person_id": "double",
+            "org_id": "double",
+            "stage_id": "double",
+            "title": "string",
+            "value": "double",
+            "currency": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "stage_change_time": "string",
+            "active": "boolean",
+            "deleted": "boolean",
+            "is_archived": "boolean",
+            "status": "string",
+            "probability": "double",
+            "next_activity_date": "string",
+            "next_activity_time": "string",
+            "next_activity_id": "double",
+            "last_activity_id": "double",
+            "last_activity_date": "string",
+            "lost_reason": "string",
+            "visible_to": "string",
+            "close_time": "string",
+            "pipeline_id": "double",
+            "won_time": "string",
+            "first_won_time": "string",
+            "lost_time": "string",
+            "products_count": "double",
+            "files_count": "double",
+            "notes_count": "double",
+            "followers_count": "double",
+            "email_messages_count": "double",
+            "activities_count": "double",
+            "done_activities_count": "double",
+            "undone_activities_count": "double",
+            "participants_count": "double",
+            "expected_close_date": "string",
+            "last_incoming_mail_time": "string",
+            "last_outgoing_mail_time": "string",
+            "label": "string",
+            "stage_order_nr": "double",
+            "person_name": "string",
+            "org_name": "string",
+            "next_activity_subject": "string",
+            "next_activity_type": "string",
+            "next_activity_duration": "string",
+            "next_activity_note": "string",
+            "formatted_value": "string",
+            "weighted_value": "double",
+            "formatted_weighted_value": "string",
+            "weighted_value_currency": "string",
+            "rotten_time": "string",
+            "owner_name": "string",
+            "cc_email": "string",
+            "org_hidden": "boolean",
+            "person_hidden": "boolean",
+            "origin": "string",
+            "origin_id": "string",
+            "channel": "double",
+            "channel_id": "string",
+            "arr": "double",
+            "mrr": "double",
+            "acv": "double",
+            "arr_currency": "string",
+            "mrr_currency": "string",
+            "acv_currency": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The deals currently in one pipeline. Requires a pipeline id. Equivalent to filtering Deals by pipeline_id, and it can be grouped by stage in the response, which is what makes it convenient for a funnel snapshot."
     },
     {
       "name": "Pipeline Deal Movement",
       "paged": true,
       "suffix": "/v1/pipelines/{Pipeline ID}/movement_statistics?start_date={Start Date:YYYY-MM-DD}&end_date={End Date:YYYY-MM-DD}&user_id={User ID?}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "movements_between_stages": {
+            "count": "double"
+          },
+          "new_deals": {
+            "count": "double",
+            "deals_ids": [
+              "double"
+            ],
+            "values": {
+              "CURRENCY_ID": "double"
+            },
+            "formatted_values": {
+              "CURRENCY_ID": "string"
+            }
+          },
+          "deals_left_open": {
+            "count": "double",
+            "deals_ids": [
+              "double"
+            ],
+            "values": {
+              "CURRENCY_ID": "double"
+            },
+            "formatted_values": {
+              "CURRENCY_ID": "string"
+            }
+          },
+          "won_deals": {
+            "count": "double",
+            "deals_ids": [
+              "double"
+            ],
+            "values": {
+              "CURRENCY_ID": "double"
+            },
+            "formatted_values": {
+              "CURRENCY_ID": "string"
+            }
+          },
+          "lost_deals": {
+            "count": "double",
+            "deals_ids": [
+              "double"
+            ],
+            "values": {
+              "CURRENCY_ID": "double"
+            },
+            "formatted_values": {
+              "CURRENCY_ID": "string"
+            }
+          },
+          "average_age_in_days": {
+            "across_all_stages": "double",
+            "by_stages": [
+              {
+                "stage_id": "double",
+                "value": "double"
+              }
+            ]
+          }
+        }
+      },
       "description": "How deals moved through one pipeline over a period: what entered each stage, what left, what was won and lost, and the average time spent per stage. Requires a pipeline id and a date range. The velocity companion to the conversion rates -- it answers how LONG a stage takes, not just how many survive it."
     },
     {
       "name": "Products",
       "paged": true,
       "suffix": "/api/v2/products?owner_id={Owner ID?}&filter_id={Filter ID?}&updated_since={Updated Since?:yyyy-MM-ddTHH:mm:ssZ}&custom_fields={Custom Field Keys?:key1,key2,... (max 15)}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "code": "string",
+            "unit": "string",
+            "tax": "double",
+            "is_deleted": "boolean",
+            "is_linkable": "boolean",
+            "visible_to": "double",
+            "owner_id": "double",
+            "add_time": "string",
+            "update_time": "string",
+            "description": "string",
+            "category": "string",
+            "billing_frequency": "string",
+            "billing_frequency_cycles": "double",
+            "prices": [
+              {
+                "price": "double",
+                "cost": "double",
+                "product_id": "double",
+                "currency": "string",
+                "direct_cost": "double",
+                "notes": "string"
+              }
+            ]
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "lookups": [
         {
           "endpoints": [
@@ -641,48 +3819,403 @@
       "name": "Product Search",
       "paged": true,
       "suffix": "/api/v2/products/search?term={Term}&fields={Fields?:code,custom_fields,name}&exact_match={Exact Match?:true|false}&include_fields={Include Fields?}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "items": [
+            {
+              "result_score": "double",
+              "item": {
+                "id": "double",
+                "type": "string",
+                "name": "string",
+                "code": "double",
+                "visible_to": "double",
+                "owner": {
+                  "id": "double"
+                },
+                "custom_fields": [
+                  "string"
+                ]
+              }
+            }
+          ]
+        },
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "Products matching a search term across name, code and custom fields. Returns scored matches."
     },
     {
       "name": "Product",
       "paged": false,
       "suffix": "/api/v2/products/{Product ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "name": "string",
+          "code": "string",
+          "unit": "string",
+          "tax": "double",
+          "is_deleted": "boolean",
+          "is_linkable": "boolean",
+          "visible_to": "double",
+          "owner_id": "double",
+          "add_time": "string",
+          "update_time": "string",
+          "description": "string",
+          "category": "string",
+          "billing_frequency": "string",
+          "billing_frequency_cycles": "double",
+          "prices": [
+            {
+              "price": "double",
+              "cost": "double",
+              "product_id": "double",
+              "currency": "string",
+              "direct_cost": "double",
+              "notes": "string"
+            }
+          ]
+        }
+      },
       "description": "One product by id, with its full per-currency price array."
     },
     {
       "name": "Product Deals",
       "paged": true,
       "suffix": "/v1/products/{Product ID}/deals?status={Status?:all_not_deleted|open|…}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "creator_user_id": {
+              "id": "double",
+              "name": "string",
+              "email": "string",
+              "has_pic": "boolean",
+              "pic_hash": "string",
+              "active_flag": "boolean",
+              "value": "double"
+            },
+            "user_id": {
+              "id": "double",
+              "name": "string",
+              "email": "string",
+              "has_pic": "boolean",
+              "pic_hash": "string",
+              "active_flag": "boolean",
+              "value": "double"
+            },
+            "person_id": {
+              "active_flag": "boolean",
+              "name": "string",
+              "email": [
+                {
+                  "label": "string",
+                  "value": "string",
+                  "primary": "boolean"
+                }
+              ],
+              "phone": [
+                {
+                  "label": "string",
+                  "value": "string",
+                  "primary": "boolean"
+                }
+              ],
+              "owner_id": "double",
+              "value": "double"
+            },
+            "org_id": {
+              "name": "string",
+              "people_count": "double",
+              "owner_id": "double",
+              "address": "string",
+              "active_flag": "boolean",
+              "cc_email": "string",
+              "value": "double"
+            },
+            "stage_id": "double",
+            "title": "string",
+            "value": "double",
+            "currency": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "stage_change_time": "string",
+            "active": "boolean",
+            "deleted": "boolean",
+            "is_archived": "boolean",
+            "status": "string",
+            "probability": "double",
+            "next_activity_date": "string",
+            "next_activity_time": "string",
+            "next_activity_id": "double",
+            "last_activity_id": "double",
+            "last_activity_date": "string",
+            "lost_reason": "string",
+            "visible_to": "string",
+            "close_time": "string",
+            "pipeline_id": "double",
+            "won_time": "string",
+            "first_won_time": "string",
+            "lost_time": "string",
+            "products_count": "double",
+            "files_count": "double",
+            "notes_count": "double",
+            "followers_count": "double",
+            "email_messages_count": "double",
+            "activities_count": "double",
+            "done_activities_count": "double",
+            "undone_activities_count": "double",
+            "participants_count": "double",
+            "expected_close_date": "string",
+            "last_incoming_mail_time": "string",
+            "last_outgoing_mail_time": "string",
+            "label": "string",
+            "stage_order_nr": "double",
+            "person_name": "string",
+            "org_name": "string",
+            "next_activity_subject": "string",
+            "next_activity_type": "string",
+            "next_activity_duration": "string",
+            "next_activity_note": "string",
+            "formatted_value": "string",
+            "weighted_value": "double",
+            "formatted_weighted_value": "string",
+            "weighted_value_currency": "string",
+            "rotten_time": "string",
+            "owner_name": "string",
+            "cc_email": "string",
+            "org_hidden": "boolean",
+            "person_hidden": "boolean",
+            "origin": "string",
+            "origin_id": "string",
+            "channel": "double",
+            "channel_id": "string",
+            "arr": "double",
+            "mrr": "double",
+            "acv": "double",
+            "arr_currency": "string",
+            "mrr_currency": "string",
+            "acv_currency": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        },
+        "related_objects": {
+          "organization": {
+            "ORGANIZATION_ID": {
+              "active_flag": "boolean",
+              "id": "double",
+              "name": "string",
+              "people_count": "double",
+              "owner_id": "double",
+              "address": "string",
+              "cc_email": "string"
+            }
+          },
+          "person": {
+            "PERSON_ID": {
+              "active_flag": "boolean",
+              "id": "double",
+              "name": "string",
+              "email": [
+                {
+                  "label": "string",
+                  "value": "string",
+                  "primary": "boolean"
+                }
+              ],
+              "phone": [
+                {
+                  "label": "string",
+                  "value": "string",
+                  "primary": "boolean"
+                }
+              ],
+              "owner_id": "double"
+            }
+          },
+          "user": {
+            "USER_ID": {
+              "id": "double",
+              "name": "string",
+              "email": "string",
+              "has_pic": "double",
+              "pic_hash": "string",
+              "active_flag": "boolean"
+            }
+          },
+          "stage": {
+            "id": "double",
+            "order_nr": "double",
+            "name": "string",
+            "active_flag": "boolean",
+            "deal_probability": "double",
+            "pipeline_id": "double",
+            "rotten_flag": "boolean",
+            "rotten_days": "double",
+            "add_time": "string",
+            "update_time": "string"
+          },
+          "pipeline": {
+            "id": "double",
+            "name": "string",
+            "url_title": "string",
+            "order_nr": "double",
+            "active": "boolean",
+            "deal_probability": "boolean",
+            "add_time": "string",
+            "update_time": "string"
+          }
+        }
+      },
       "description": "The deals a given product is attached to, with the quantity and price on each. Requires a product id. Revenue per product is built from here -- the product record itself carries a list price, not what was actually sold."
     },
     {
       "name": "Product Files",
       "paged": true,
       "suffix": "/v1/products/{Product ID}/files?include_deleted_files={Include Deleted Files?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "product_id": "double",
+            "add_time": "string",
+            "update_time": "string",
+            "file_name": "string",
+            "file_size": "double",
+            "active_flag": "boolean",
+            "inline_flag": "boolean",
+            "remote_location": "string",
+            "remote_id": "string",
+            "s3_bucket": "string",
+            "product_name": "string",
+            "url": "string",
+            "name": "string",
+            "description": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The files attached to one product. Requires a product id."
     },
     {
       "name": "Product Followers",
       "paged": true,
       "suffix": "/v1/products/{Product ID}/followers",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "user_id": "double",
+            "id": "double",
+            "product_id": "double",
+            "add_time": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The users following one product. Requires a product id."
     },
     {
       "name": "Product Permitted Users",
       "paged": true,
       "suffix": "/v1/products/{Product ID}/permittedUsers",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          "double"
+        ]
+      },
       "description": "The users allowed to see one product. Requires a product id."
     },
     {
       "name": "Product Fields",
       "paged": true,
       "suffix": "/v1/productFields",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "name": "string",
+            "field_type": "string",
+            "id": "double",
+            "key": "string",
+            "order_nr": "double",
+            "add_time": "string",
+            "update_time": "string",
+            "last_updated_by_user_id": "double",
+            "created_by_user_id": "double",
+            "active_flag": "boolean",
+            "edit_flag": "boolean",
+            "add_visible_flag": "boolean",
+            "important_flag": "boolean",
+            "bulk_edit_allowed": "boolean",
+            "searchable_flag": "boolean",
+            "filtering_allowed": "boolean",
+            "sortable_flag": "boolean",
+            "mandatory_flag": "boolean",
+            "options": [
+              {
+                "id": "double",
+                "label": "string"
+              }
+            ]
+          }
+        ]
+      },
       "description": "Every field a product can carry, standard and custom, with key, name, type and options. The decoder for hash-keyed product custom fields."
     },
     {
       "name": "Product Field",
       "paged": false,
       "suffix": "/v1/productFields/{Product Field ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "name": "string",
+          "field_type": "string",
+          "id": "double",
+          "key": "string",
+          "order_nr": "double",
+          "add_time": "string",
+          "update_time": "string",
+          "last_updated_by_user_id": "double",
+          "created_by_user_id": "double",
+          "active_flag": "boolean",
+          "edit_flag": "boolean",
+          "add_visible_flag": "boolean",
+          "important_flag": "boolean",
+          "bulk_edit_allowed": "boolean",
+          "searchable_flag": "boolean",
+          "filtering_allowed": "boolean",
+          "sortable_flag": "boolean",
+          "mandatory_flag": "boolean",
+          "options": [
+            {
+              "id": "double",
+              "label": "string"
+            }
+          ]
+        }
+      },
       "description": "One product field by id, with its options."
     },
     {
@@ -695,6 +4228,27 @@
       "name": "Roles",
       "paged": true,
       "suffix": "/v1/roles",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "parent_role_id": "double",
+            "name": "string",
+            "id": "double",
+            "active_flag": "boolean",
+            "assignment_count": "string",
+            "sub_role_count": "string",
+            "level": "double"
+          }
+        ],
+        "additional_data": {
+          "pagination": {
+            "start": "double",
+            "limit": "double",
+            "more_items_in_collection": "boolean"
+          }
+        }
+      },
       "lookups": [
         {
           "endpoints": [
@@ -713,12 +4267,56 @@
       "name": "Role",
       "paged": false,
       "suffix": "/v1/roles/{Role ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "parent_role_id": "double",
+          "name": "string",
+          "id": "double",
+          "active_flag": "boolean",
+          "assignment_count": "string",
+          "sub_role_count": "string"
+        },
+        "additional_data": {
+          "settings": {
+            "deal_default_visibility": "double",
+            "lead_default_visibility": "double",
+            "org_default_visibility": "double",
+            "person_default_visibility": "double",
+            "product_default_visibility": "double",
+            "deal_access_level": "double",
+            "org_access_level": "double",
+            "person_access_level": "double",
+            "product_access_level": "double"
+          }
+        }
+      },
       "description": "One role by id, with its parent and counts."
     },
     {
       "name": "Role Assignments",
       "paged": true,
       "suffix": "/v1/roles/{Role ID}/assignments",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "parent_role_id": "double",
+            "name": "string",
+            "user_id": "double",
+            "role_id": "double",
+            "active_flag": "boolean",
+            "type": "string"
+          }
+        ],
+        "additional_data": {
+          "pagination": {
+            "start": "double",
+            "limit": "double",
+            "more_items_in_collection": "boolean"
+          }
+        }
+      },
       "description": "The users assigned to one role. Requires a role id. The membership behind a role, which the role record only counts."
     },
     {
@@ -731,24 +4329,87 @@
       "name": "Role Settings",
       "paged": true,
       "suffix": "/v1/roles/{Role ID}/settings",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "deal_default_visibility": "double",
+          "lead_default_visibility": "double",
+          "org_default_visibility": "double",
+          "person_default_visibility": "double",
+          "product_default_visibility": "double",
+          "deal_access_level": "double",
+          "org_access_level": "double",
+          "person_access_level": "double",
+          "product_access_level": "double"
+        }
+      },
       "description": "The permission settings of one role -- what its members may see and do. Requires a role id. Where visibility rules are actually written, and therefore the explanation for records that some users cannot see at all."
     },
     {
       "name": "Search",
       "paged": true,
       "suffix": "/api/v2/itemSearch?term={Term}&item_types={Item Types?:deal,person,organization,product,...}&fields={Fields?:field1,field2,...}&search_for_related_items={Search for Related Items?:true|false}&exact_match={Exact Match?:true|false}&include_fields={Include Fields?}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "items": [
+            {
+              "result_score": "double"
+            }
+          ],
+          "related_items": [
+            {
+              "result_score": "double"
+            }
+          ]
+        },
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "Searches across several item types at once -- deals, persons, organizations, products and more -- for a term. Returns matches with a relevance score and an item type on each, so the result set is mixed-shape rather than one table. Reach for a specific resource's own search when the type is already known; this is for when it is not."
     },
     {
       "name": "Field Search",
       "paged": true,
       "suffix": "/api/v2/itemSearch/field?term={Term}&entity_type={Entity Type:deal|person|organization|product|lead|project}&field={Field Key}&match={Match?:exact|beginning|middle}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "result_score": "double"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "description": "Searches ONE named field of one entity type for a term, returning the matching values. Built for autocomplete, so it returns field values rather than whole records. NOTE V2 RENAMED EVERY PARAMETER HERE: the entity is now entity_type, the field is field, and the old exact_match became a three-valued match of exact, beginning or middle."
     },
     {
       "name": "Stages",
       "paged": true,
       "suffix": "/api/v2/stages?pipeline_id={Pipeline ID?}&sort_by={Sort By?:id|update_time|add_time}&sort_direction={Sort Direction?:asc|desc}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "order_nr": "double",
+            "name": "string",
+            "is_deleted": "boolean",
+            "deal_probability": "double",
+            "pipeline_id": "double",
+            "is_deal_rot_enabled": "boolean",
+            "days_to_rotten": "double",
+            "add_time": "string",
+            "update_time": "string"
+          }
+        ],
+        "additional_data": {
+          "next_cursor": "string"
+        }
+      },
       "lookups": [
         {
           "endpoint": "Stage Deals",
@@ -769,18 +4430,131 @@
       "name": "Stage",
       "paged": false,
       "suffix": "/api/v2/stages/{Stage ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "order_nr": "double",
+          "name": "string",
+          "is_deleted": "boolean",
+          "deal_probability": "double",
+          "pipeline_id": "double",
+          "is_deal_rot_enabled": "boolean",
+          "days_to_rotten": "double",
+          "add_time": "string",
+          "update_time": "string"
+        }
+      },
       "description": "One stage by id."
     },
     {
       "name": "Stage Deals",
       "paged": true,
       "suffix": "/v1/stages/{Stage ID}/deals?filter_id={Filter ID?}&user_id={User ID?}&everyone={Everyone?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "creator_user_id": "double",
+            "user_id": "double",
+            "person_id": "double",
+            "org_id": "double",
+            "stage_id": "double",
+            "title": "string",
+            "value": "double",
+            "currency": "string",
+            "add_time": "string",
+            "update_time": "string",
+            "stage_change_time": "string",
+            "active": "boolean",
+            "deleted": "boolean",
+            "is_archived": "boolean",
+            "status": "string",
+            "probability": "double",
+            "next_activity_date": "string",
+            "next_activity_time": "string",
+            "next_activity_id": "double",
+            "last_activity_id": "double",
+            "last_activity_date": "string",
+            "lost_reason": "string",
+            "visible_to": "string",
+            "close_time": "string",
+            "pipeline_id": "double",
+            "won_time": "string",
+            "first_won_time": "string",
+            "lost_time": "string",
+            "products_count": "double",
+            "files_count": "double",
+            "notes_count": "double",
+            "followers_count": "double",
+            "email_messages_count": "double",
+            "activities_count": "double",
+            "done_activities_count": "double",
+            "undone_activities_count": "double",
+            "participants_count": "double",
+            "expected_close_date": "string",
+            "last_incoming_mail_time": "string",
+            "last_outgoing_mail_time": "string",
+            "label": "string",
+            "stage_order_nr": "double",
+            "person_name": "string",
+            "org_name": "string",
+            "next_activity_subject": "string",
+            "next_activity_type": "string",
+            "next_activity_duration": "string",
+            "next_activity_note": "string",
+            "formatted_value": "string",
+            "weighted_value": "double",
+            "formatted_weighted_value": "string",
+            "weighted_value_currency": "string",
+            "rotten_time": "string",
+            "owner_name": "string",
+            "cc_email": "string",
+            "org_hidden": "boolean",
+            "person_hidden": "boolean",
+            "origin": "string",
+            "origin_id": "string",
+            "channel": "double",
+            "channel_id": "string",
+            "arr": "double",
+            "mrr": "double",
+            "acv": "double",
+            "arr_currency": "string",
+            "mrr_currency": "string",
+            "acv_currency": "string"
+          }
+        ],
+        "additional_data": {
+          "start": "double",
+          "limit": "double",
+          "more_items_in_collection": "boolean"
+        }
+      },
       "description": "The deals currently sitting in one stage. Requires a stage id. A snapshot of the stage's contents; how deals arrived and how long they have been there comes from Pipeline Deal Movement."
     },
     {
       "name": "Teams",
       "paged": true,
       "suffix": "/v1/legacyTeams?skip_users={Skip Users?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "manager_id": "double",
+            "users": [
+              "double"
+            ],
+            "active_flag": "double",
+            "deleted_flag": "double",
+            "add_time": "string",
+            "created_by_user_id": "double"
+          }
+        ]
+      },
       "lookups": [
         {
           "endpoint": "Team Users",
@@ -795,24 +4569,97 @@
       "name": "Team",
       "paged": false,
       "suffix": "/v1/legacyTeams/{Team ID}?skip_users={Skip Users?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "name": "string",
+          "description": "string",
+          "manager_id": "double",
+          "users": [
+            "double"
+          ],
+          "active_flag": "double",
+          "deleted_flag": "double",
+          "add_time": "string",
+          "created_by_user_id": "double"
+        }
+      },
       "description": "One team by id, with its members."
     },
     {
       "name": "Team Users",
       "paged": true,
       "suffix": "/v1/legacyTeams/{Team ID}/users",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          "double"
+        ]
+      },
       "description": "The users in one team. Requires a team id."
     },
     {
       "name": "User Teams",
       "paged": true,
       "suffix": "/v1/legacyTeams/user/{User ID}?skip_users={Skip Users?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "description": "string",
+            "manager_id": "double",
+            "users": [
+              "double"
+            ],
+            "active_flag": "double",
+            "deleted_flag": "double",
+            "add_time": "string",
+            "created_by_user_id": "double"
+          }
+        ]
+      },
       "description": "The teams one user belongs to. Requires a user id. A user can be in several."
     },
     {
       "name": "Users",
       "paged": true,
       "suffix": "/v1/users",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "default_currency": "string",
+            "locale": "string",
+            "lang": "double",
+            "email": "string",
+            "phone": "string",
+            "activated": "boolean",
+            "last_login": "string",
+            "created": "string",
+            "modified": "string",
+            "has_created_company": "boolean",
+            "access": [
+              {
+                "app": "string",
+                "admin": "boolean",
+                "permission_set_id": "string"
+              }
+            ],
+            "active_flag": "boolean",
+            "timezone_name": "string",
+            "timezone_offset": "string",
+            "role_id": "double",
+            "icon_url": "string",
+            "is_you": "boolean",
+            "is_deleted": "boolean"
+          }
+        ]
+      },
       "lookups": [
         {
           "endpoints": [
@@ -833,18 +4680,122 @@
       "name": "User Search",
       "paged": true,
       "suffix": "/v1/users/find?term={Term}&search_by_email={Search By Email?:0|1}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "name": "string",
+            "default_currency": "string",
+            "locale": "string",
+            "lang": "double",
+            "email": "string",
+            "phone": "string",
+            "activated": "boolean",
+            "last_login": "string",
+            "created": "string",
+            "modified": "string",
+            "has_created_company": "boolean",
+            "access": [
+              {
+                "app": "string",
+                "admin": "boolean",
+                "permission_set_id": "string"
+              }
+            ],
+            "active_flag": "boolean",
+            "timezone_name": "string",
+            "timezone_offset": "string",
+            "role_id": "double",
+            "icon_url": "string",
+            "is_you": "boolean",
+            "is_deleted": "boolean"
+          }
+        ]
+      },
       "description": "Users matching a name or email term. The lookup route when the user id is not known."
     },
     {
       "name": "Currenct User",
       "paged": true,
       "suffix": "/v1/users/me",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "name": "string",
+          "default_currency": "string",
+          "locale": "string",
+          "lang": "double",
+          "email": "string",
+          "phone": "string",
+          "activated": "boolean",
+          "last_login": "string",
+          "created": "string",
+          "modified": "string",
+          "has_created_company": "boolean",
+          "access": [
+            {
+              "app": "string",
+              "admin": "boolean",
+              "permission_set_id": "string"
+            }
+          ],
+          "active_flag": "boolean",
+          "timezone_name": "string",
+          "timezone_offset": "string",
+          "role_id": "double",
+          "icon_url": "string",
+          "is_you": "boolean",
+          "is_deleted": "boolean",
+          "company_id": "double",
+          "company_name": "string",
+          "company_domain": "string",
+          "company_country": "string",
+          "company_industry": "string",
+          "language": {
+            "language_code": "string",
+            "country_code": "string"
+          }
+        }
+      },
       "description": "The account the API token belongs to, with its company, locale and access rights. One record, always the caller. Worth reading first when results look short, since visibility rules filter nearly every listing by what this user may see. (The endpoint name carries a typo in the connector; the resource is the current user.)"
     },
     {
       "name": "User",
       "paged": false,
       "suffix": "/v1/users/{User ID}",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "double",
+          "name": "string",
+          "default_currency": "string",
+          "locale": "string",
+          "lang": "double",
+          "email": "string",
+          "phone": "string",
+          "activated": "boolean",
+          "last_login": "string",
+          "created": "string",
+          "modified": "string",
+          "has_created_company": "boolean",
+          "access": [
+            {
+              "app": "string",
+              "admin": "boolean",
+              "permission_set_id": "string"
+            }
+          ],
+          "active_flag": "boolean",
+          "timezone_name": "string",
+          "timezone_offset": "string",
+          "role_id": "double",
+          "icon_url": "string",
+          "is_you": "boolean",
+          "is_deleted": "boolean"
+        }
+      },
       "description": "One user by id. Same fields."
     },
     {
@@ -857,42 +4808,164 @@
       "name": "User Followers",
       "paged": false,
       "suffix": "/v1/users/{User ID}/followers",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          "double"
+        ]
+      },
       "description": "The users following one user. Requires a user id."
     },
     {
       "name": "User Permissions",
       "paged": true,
       "suffix": "/v1/users/{User ID}/permissions",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "can_add_custom_fields": "boolean",
+          "can_add_products": "boolean",
+          "can_add_prospects_as_leads": "boolean",
+          "can_bulk_edit_items": "boolean",
+          "can_change_visibility_of_items": "boolean",
+          "can_convert_deals_to_leads": "boolean",
+          "can_create_own_workflow": "boolean",
+          "can_delete_activities": "boolean",
+          "can_delete_custom_fields": "boolean",
+          "can_delete_deals": "boolean",
+          "can_edit_custom_fields": "boolean",
+          "can_edit_deals_closed_date": "boolean",
+          "can_edit_products": "boolean",
+          "can_edit_shared_filters": "boolean",
+          "can_export_data_from_lists": "boolean",
+          "can_follow_other_users": "boolean",
+          "can_merge_deals": "boolean",
+          "can_merge_organizations": "boolean",
+          "can_merge_people": "boolean",
+          "can_modify_labels": "boolean",
+          "can_see_company_wide_statistics": "boolean",
+          "can_see_deals_list_summary": "boolean",
+          "can_see_hidden_items_names": "boolean",
+          "can_see_other_users": "boolean",
+          "can_see_other_users_statistics": "boolean",
+          "can_see_security_dashboard": "boolean",
+          "can_share_filters": "boolean",
+          "can_share_insights": "boolean",
+          "can_use_api": "boolean",
+          "can_use_email_tracking": "boolean",
+          "can_use_import": "boolean"
+        }
+      },
       "description": "The permissions one user holds: whether they can add or delete deals, see other users' records, export data and so on. Requires a user id. The direct explanation for why one person's totals differ from another's."
     },
     {
       "name": "User Roles",
       "paged": true,
       "suffix": "/v1/users/{User ID}/roleAssignments",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "parent_role_id": "double",
+            "name": "string",
+            "user_id": "double",
+            "role_id": "double",
+            "active_flag": "boolean",
+            "type": "string"
+          }
+        ],
+        "additional_data": {
+          "pagination": {
+            "start": "double",
+            "limit": "double",
+            "more_items_in_collection": "boolean"
+          }
+        }
+      },
       "description": "The roles assigned to one user. Requires a user id. Roles carry the permission settings, so this is one half of what a person can do; Role Settings is the other."
     },
     {
       "name": "User Role Settings",
       "paged": true,
       "suffix": "/v1/users/{User ID}/roleSettings",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "deal_default_visibility": "double",
+          "lead_default_visibility": "double",
+          "org_default_visibility": "double",
+          "person_default_visibility": "double",
+          "product_default_visibility": "double",
+          "deal_access_level": "double",
+          "org_access_level": "double",
+          "person_access_level": "double",
+          "product_access_level": "double"
+        }
+      },
       "description": "The permission settings that apply to one user through their role. Requires a user id. The resolved answer, as opposed to the role assignment alone."
     },
     {
       "name": "User Connections",
       "paged": true,
       "suffix": "/v1/userConnections",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "google": "string"
+        }
+      },
       "description": "The third-party accounts the calling user has connected, such as Google or Microsoft. Integration state, and what determines whether the mail and calendar tables have anything in them."
     },
     {
       "name": "Current User Settings",
       "paged": true,
       "suffix": "/v1/userSettings",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "marketplace_team": "boolean",
+          "list_limit": "double",
+          "beta_app": "boolean",
+          "prevent_salesphone_callto_override": "boolean",
+          "file_upload_destination": "string",
+          "callto_link_syntax": "string",
+          "autofill_deal_expected_close_date": "boolean",
+          "person_duplicate_condition": "string"
+        }
+      },
       "description": "The calling user's own settings -- display preferences, default currency, timezone. Personal configuration."
     },
     {
       "name": "Webhooks",
       "paged": true,
       "suffix": "/v1/webhooks",
+      "responseSchema": {
+        "success": "boolean",
+        "status": "string",
+        "data": [
+          {
+            "id": "double",
+            "company_id": "double",
+            "owner_id": "double",
+            "user_id": "double",
+            "event_action": "string",
+            "event_object": "string",
+            "subscription_url": "string",
+            "version": "string",
+            "is_active": "double",
+            "add_time": "string",
+            "remove_time": "string",
+            "type": "string",
+            "http_auth_user": "string",
+            "http_auth_password": "string",
+            "remove_reason": "string",
+            "last_delivery_time": "string",
+            "last_http_status": "double",
+            "admin_id": "double",
+            "name": "string"
+          }
+        ]
+      },
       "description": "The webhooks configured on the account: the target URL, the event and object each subscribes to, and its owner. Integration configuration -- deliveries are not recorded here. Worth checking to find out whether an external system is already receiving this data in real time."
     }
   ]

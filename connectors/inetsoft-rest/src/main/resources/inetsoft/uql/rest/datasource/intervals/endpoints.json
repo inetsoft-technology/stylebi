@@ -4,25 +4,88 @@
       "paged": "true",
       "name": "Clients",
       "suffix": "/client?localid={Local ID?}&active={Active?:t|f}&search={Search Text?}&projectsonly={With Active Projects Only?:t|f}",
-      "description": "The client organisations, filterable by active state and search term. The billing entity projects belong to."
+      "description": "The client organisations, filterable by active state and search term. The billing entity projects belong to.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "client": [
+          {
+            "id": "string",
+            "name": "string",
+            "datecreated": "string",
+            "description": "string",
+            "email": "string",
+            "website": "string",
+            "phone": "string",
+            "fax": "string",
+            "address": "string",
+            "active": "string",
+            "localidunpadded": "double",
+            "localid": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Client",
       "suffix": "/client/{Client ID}",
-      "description": "One client by id."
+      "description": "One client by id.",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "datecreated": "string",
+        "description": "string",
+        "email": "string",
+        "website": "string",
+        "phone": "string",
+        "fax": "string",
+        "address": "string",
+        "active": "string",
+        "localidunpadded": "double",
+        "localid": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Contact Descriptors",
       "suffix": "/contactdescriptor?contacttypeid={Contact Type ID?}",
-      "description": "The descriptors within one contact type -- work, home, mobile. Requires the contact type id."
+      "description": "The descriptors within one contact type -- work, home, mobile. Requires the contact type id.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "contactdescriptor": [
+          {
+            "id": "string",
+            "contact_type_id": "string",
+            "name": "string",
+            "contact_type": "string",
+            "rank": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Contact Types",
       "suffix": "/contacttype",
-      "description": "The contact types available -- phone, email, address and so on. The decoder for a person contact's type."
+      "description": "The contact types available -- phone, email, address and so on. The decoder for a person contact's type.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "contacttype": [
+          {
+            "id": "string",
+            "name": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
@@ -34,313 +97,1443 @@
       "paged": "true",
       "name": "Documents",
       "suffix": "/document?public={Visible to Executive-level Only?:t|f}&taskid={Task ID?}&milestoneid={Milestone ID?}&queueid={Queue ID?}&clientid={Client ID?}&projectid={Project ID?}&moduleid={Module ID?}&personId={Person ID?}&search={Search Text?}&projectactive={Active Projects?:t|f}&taskassignedorownedby={Tasks Assigned or Owned By?:Person ID}&tag={Tag?}&datebegin={Uploaded On or After?:yyyy-MM-dd}&dateend={Uploaded On or Before?:yyyy-MM-dd}",
-      "description": "The documents stored, filterable by visibility and tags. Metadata rather than content."
+      "description": "The documents stored, filterable by visibility and tags. Metadata rather than content.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "document": [
+          {
+            "id": "string",
+            "personid": "string",
+            "title": "string",
+            "notes": "string",
+            "public": "string",
+            "datemodified": "string",
+            "active": "string",
+            "parent_visible": "string",
+            "filename": "string",
+            "filesize": "string",
+            "vlocalid": "string",
+            "mimetype": "string",
+            "versionid": "string",
+            "itemid": "string",
+            "targetid": "string",
+            "location_title": "string",
+            "project": "string",
+            "projectid": "string",
+            "projectlocalidunpadded": "string",
+            "projectlabelid": "string",
+            "projectlabel": "string",
+            "projectlabel_order": "string",
+            "client": "string",
+            "clientid": "string",
+            "author": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Document",
       "suffix": "/document/{Document ID}",
-      "description": "One document by id."
+      "description": "One document by id.",
+      "responseSchema": {
+        "id": "string",
+        "personid": "string",
+        "title": "string",
+        "notes": "string",
+        "public": "string",
+        "datemodified": "string",
+        "active": "string",
+        "parent_visible": "string",
+        "filename": "string",
+        "filesize": "string",
+        "vlocalid": "string",
+        "mimetype": "string",
+        "versionid": "string",
+        "itemid": "string",
+        "targetid": "string",
+        "location_title": "string",
+        "project": "string",
+        "projectid": "string",
+        "projectlocalidunpadded": "string",
+        "projectlabelid": "string",
+        "projectlabel": "string",
+        "projectlabel_order": "string",
+        "client": "string",
+        "clientid": "string",
+        "author": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Expenses",
       "suffix": "/expense?projectid={Project ID?}&personid={Person ID?}&clientid={Client ID?}&managerid={Manager ID?}&datebegin={Passed On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&date={Date Passed?:yyyy-MM-dd}",
-      "description": "The expenses recorded, filterable by project, person, client and date. Carries the amount, the expense type, whether billable, and the project. Project profitability is time cost plus these, so an expense-blind margin overstates it."
+      "description": "The expenses recorded, filterable by project, person, client and date. Carries the amount, the expense type, whether billable, and the project. Project profitability is time cost plus these, so an expense-blind margin overstates it.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "expense": [
+          {
+            "id": "string",
+            "projectid": "string",
+            "date": "string",
+            "expense": "string",
+            "fee": "string",
+            "note": "string",
+            "personid": "string",
+            "dateiso": "string",
+            "project": "string",
+            "projectlabel": "string",
+            "projectlabelcolor": "string",
+            "client": "string",
+            "person": "string",
+            "clientlocalid": "string",
+            "projectlocalidunpadded": "string",
+            "clientid": "string",
+            "clientlocalidunpadded": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Expense",
       "suffix": "/expense/{Expense ID}",
-      "description": "One expense by id."
+      "description": "One expense by id.",
+      "responseSchema": {
+        "id": "string",
+        "projectid": "string",
+        "date": "string",
+        "expense": "string",
+        "fee": "string",
+        "note": "string",
+        "personid": "string",
+        "dateiso": "string",
+        "project": "string",
+        "projectlabel": "string",
+        "projectlabelcolor": "string",
+        "client": "string",
+        "person": "string",
+        "clientlocalid": "string",
+        "projectlocalidunpadded": "string",
+        "clientid": "string",
+        "clientlocalidunpadded": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Groups",
       "suffix": "/group",
-      "description": "The groups people belong to. The team dimension."
+      "description": "The groups people belong to. The team dimension.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "group": [
+          {
+            "id": "string",
+            "name": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Invoices",
       "suffix": "/invoice?localid={Local ID?}&clientid={Client ID?}&projectid={Project ID?}&datebegin={Passed On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&status={Status?:outstanding|paid}&search={Search Text?}",
-      "description": "The invoices issued, filterable by client, project and status. Carries the client, dates, status and totals. Only issued invoices are revenue; drafts are not."
+      "description": "The invoices issued, filterable by client, project and status. Carries the client, dates, status and totals. Only issued invoices are revenue; drafts are not.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "invoice": [
+          {
+            "id": "string",
+            "projectid": "string",
+            "date": "string",
+            "termid": "string",
+            "termother": "string",
+            "termotherdatedue": "string",
+            "title": "string",
+            "description": "string",
+            "localid": "string",
+            "addressfrom": "string",
+            "addressto": "string",
+            "purchaseorder": "string",
+            "tax": "string",
+            "disclaimer": "string",
+            "datebegin": "string",
+            "dateend": "string",
+            "second_tax": "string",
+            "second_tax_compound": "string",
+            "project": "string",
+            "client": "string",
+            "clientid": "string",
+            "term": "string",
+            "datepaid": "string",
+            "subtotal": "string",
+            "taxamount": "string",
+            "secondtaxamount": "string",
+            "numitems": "string",
+            "total": "string",
+            "payments": "string",
+            "balance": "string",
+            "datedue": "string",
+            "daysoverdue": "string",
+            "daysoverduepaid": "string",
+            "status": "string",
+            "projectlabel": "string",
+            "projectlabel_order": "string",
+            "projectlabelid": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Invoice",
       "suffix": "/invoice/{Invoice ID}",
-      "description": "One invoice by id."
+      "description": "One invoice by id.",
+      "responseSchema": {
+        "id": "string",
+        "projectid": "string",
+        "date": "string",
+        "termid": "string",
+        "termother": "string",
+        "termotherdatedue": "string",
+        "title": "string",
+        "description": "string",
+        "localid": "string",
+        "addressfrom": "string",
+        "addressto": "string",
+        "purchaseorder": "string",
+        "tax": "string",
+        "disclaimer": "string",
+        "datebegin": "string",
+        "dateend": "string",
+        "second_tax": "string",
+        "second_tax_compound": "string",
+        "project": "string",
+        "client": "string",
+        "clientid": "string",
+        "term": "string",
+        "datepaid": "string",
+        "subtotal": "string",
+        "taxamount": "string",
+        "secondtaxamount": "string",
+        "numitems": "string",
+        "total": "string",
+        "payments": "string",
+        "balance": "string",
+        "datedue": "string",
+        "daysoverdue": "string",
+        "daysoverduepaid": "string",
+        "status": "string",
+        "projectlabel": "string",
+        "projectlabel_order": "string",
+        "projectlabelid": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Invoice Items",
       "suffix": "/invoiceitem?invoiceid={Invoice ID?}",
-      "description": "The line items on one invoice, optionally filtered by invoice. Requires an invoice id in practice. What was billed, as opposed to the invoice total."
+      "description": "The line items on one invoice, optionally filtered by invoice. Requires an invoice id in practice. What was billed, as opposed to the invoice total.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "invoiceitem": [
+          {
+            "id": "string",
+            "invoiceid": "string",
+            "name": "string",
+            "description": "string",
+            "quantity": "string",
+            "rate": "string",
+            "amount": "string",
+            "custom": "string",
+            "priority": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Invoice Item",
       "suffix": "/invoiceitem/{Invoice Item ID}",
-      "description": "One invoice item by id."
+      "description": "One invoice item by id.",
+      "responseSchema": {
+        "id": "string",
+        "invoiceid": "string",
+        "name": "string",
+        "description": "string",
+        "quantity": "string",
+        "rate": "string",
+        "amount": "string",
+        "custom": "string",
+        "priority": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Invoice Notes",
       "suffix": "/invoicenote?invoiceid={Invoice ID?}&authorid={Author ID?}",
-      "description": "Notes attached to invoices, filterable by invoice and author."
+      "description": "Notes attached to invoices, filterable by invoice and author.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "invoicenote": [
+          {
+            "id": "string",
+            "invoiceid": "string",
+            "authorid": "string",
+            "title": "string",
+            "note": "string",
+            "date": "string",
+            "actions": "string",
+            "author": "string",
+            "authorlocalid": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Invoice Note",
       "suffix": "/invoicenote/{Invoice Note ID}",
-      "description": "One invoice note by id."
+      "description": "One invoice note by id.",
+      "responseSchema": {
+        "id": "string",
+        "invoiceid": "string",
+        "authorid": "string",
+        "title": "string",
+        "note": "string",
+        "date": "string",
+        "actions": "string",
+        "author": "string",
+        "authorlocalid": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Invoice Terms",
       "suffix": "/invoiceterm",
-      "description": "The payment terms available. The decoder for an invoice's term, and what determines its due date."
+      "description": "The payment terms available. The decoder for an invoice's term, and what determines its due date.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "invoiceterm": [
+          {
+            "id": "string",
+            "name": "string",
+            "duration": "string",
+            "priority": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Current User",
       "suffix": "/me",
-      "description": "The account the credentials belong to, with its permissions. Worth reading first, since Intervals restricts visibility by role and two users legitimately see different rows."
+      "description": "The account the credentials belong to, with its permissions. Worth reading first, since Intervals restricts visibility by role and two users legitimately see different rows.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "me": [
+          {
+            "id": "string",
+            "localid": "string",
+            "clientid": "string",
+            "title": "string",
+            "firstname": "string",
+            "lastname": "string",
+            "primaryaccount": "string",
+            "notes": "string",
+            "allprojects": "string",
+            "private": "string",
+            "tips": "string",
+            "username": "string",
+            "groupid": "string",
+            "group": "string",
+            "client": "string",
+            "numlogins": "string",
+            "lastlogin": "string",
+            "timezone": "string",
+            "timezone_offset": "string",
+            "clientlocalid": "string",
+            "calendarorientation": "string",
+            "editordisabled": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "Milestones",
       "suffix": "/milestone?localid={Local ID?}&search={Search Text?}&clientid={Client ID?}&projectid={Project ID?}&ownerid={Owner ID?}&hasmilestonerelation={Related To?:Person ID}&complete={Complete?:t|f}&dateduebegin={Due Date On or After?:yyyy-MM-dd}&datedueend={Due Date On or Before?:yyyy-MM-dd}&title={Title Contains?}",
-      "description": "The project milestones, filterable by client, project and search term. Carries the title, date and the project it belongs to. The planning layer above tasks."
+      "description": "The project milestones, filterable by client, project and search term. Carries the title, date and the project it belongs to. The planning layer above tasks.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "milestone": [
+          {
+            "id": "string",
+            "projectid": "string",
+            "ownerid": "string",
+            "title": "string",
+            "datedue": "string",
+            "description": "string",
+            "complete": "string",
+            "localid": "string",
+            "dateclosed": "string",
+            "project": "string",
+            "client": "string",
+            "clientid": "string",
+            "numtasksclosed": "string",
+            "numtaskstotal": "string",
+            "progress": "string",
+            "estimate": "string",
+            "actual": "string",
+            "remaining": "string",
+            "owner": "string",
+            "projectlabel": "string",
+            "projectlabel_order": "string",
+            "projectlabelid": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Milestone",
       "suffix": "/milestone/{Milestone ID}",
-      "description": "One milestone by id."
+      "description": "One milestone by id.",
+      "responseSchema": {
+        "id": "string",
+        "projectid": "string",
+        "ownerid": "string",
+        "title": "string",
+        "datedue": "string",
+        "description": "string",
+        "complete": "string",
+        "localid": "string",
+        "dateclosed": "string",
+        "project": "string",
+        "client": "string",
+        "clientid": "string",
+        "numtasksclosed": "string",
+        "numtaskstotal": "string",
+        "progress": "string",
+        "estimate": "string",
+        "actual": "string",
+        "remaining": "string",
+        "owner": "string",
+        "projectlabel": "string",
+        "projectlabel_order": "string",
+        "projectlabelid": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Milestone Notes",
       "suffix": "/milestonenote?milestoneid={Milestone ID?}",
-      "description": "Notes on one milestone. Requires the milestone id."
+      "description": "Notes on one milestone. Requires the milestone id.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "milestonenote": [
+          {
+            "id": "string",
+            "milestoneid": "string",
+            "title": "string",
+            "date": "string",
+            "authorid": "string",
+            "note": "string",
+            "public": "string",
+            "actions": "string",
+            "state": "string",
+            "meta": "string",
+            "author": "string",
+            "authorlocalid": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Milestone Note",
       "suffix": "/milestonenote/{Milestone Note ID}",
-      "description": "One milestone note by id."
+      "description": "One milestone note by id.",
+      "responseSchema": {
+        "id": "string",
+        "milestoneid": "string",
+        "title": "string",
+        "date": "string",
+        "authorid": "string",
+        "note": "string",
+        "public": "string",
+        "actions": "string",
+        "state": "string",
+        "meta": "string",
+        "author": "string",
+        "authorlocalid": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Modules",
       "suffix": "/module?active={Active?:t|f}",
-      "description": "The module definitions available across the account, filterable by active state. The catalogue; which are enabled per project is in Project Modules."
+      "description": "The module definitions available across the account, filterable by active state. The catalogue; which are enabled per project is in Project Modules.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "module": [
+          {
+            "id": "string",
+            "name": "string",
+            "description": "string",
+            "active": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Module",
       "suffix": "/module/{Module ID}",
-      "description": "One module by id."
+      "description": "One module by id.",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "active": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Payments",
       "suffix": "/payment?clientid={Client ID?}&projectid={Project ID?}&personid={Person ID?}&date={Date Passed?:yyyy-MM-dd}&typeid={Type ID?}&invoiceid={Invoice ID?}",
-      "description": "The payments received, filterable by client, project and person. The invoice carries a balance; this says when money actually arrived, which is what a collection-time question needs."
+      "description": "The payments received, filterable by client, project and person. The invoice carries a balance; this says when money actually arrived, which is what a collection-time question needs.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "payment": [
+          {
+            "id": "string",
+            "projectid": "string",
+            "date": "string",
+            "amount": "string",
+            "typeid": "string",
+            "reference": "string",
+            "note": "string",
+            "invoiceid": "string",
+            "personid": "string",
+            "type": "string",
+            "project": "string",
+            "person": "string",
+            "invoice": "string",
+            "client": "string",
+            "clientid": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Payment",
       "suffix": "/payment/{Payment ID}",
-      "description": "One payment by id."
+      "description": "One payment by id.",
+      "responseSchema": {
+        "id": "string",
+        "projectid": "string",
+        "date": "string",
+        "amount": "string",
+        "typeid": "string",
+        "reference": "string",
+        "note": "string",
+        "invoiceid": "string",
+        "personid": "string",
+        "type": "string",
+        "project": "string",
+        "person": "string",
+        "invoice": "string",
+        "client": "string",
+        "clientid": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Payment Types",
       "suffix": "/paymenttype",
-      "description": "The payment methods configured. The decoder for a payment's type."
+      "description": "The payment methods configured. The decoder for a payment's type.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "paymenttype": [
+          {
+            "id": "string",
+            "name": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "true",
       "name": "People",
       "suffix": "/person?localid={Local ID?}&username={Username?}&email={Email?}&firstname={First Name?}&lastname={Last Name?}&excludegroupids={Exclude Group IDs?:1,2,...}&projectid={Project IDs?:1,2,...}&clientid={Client IDs?:1,2,...}&projectclientid={Projects Belonging to Clients?:clientId1,clientId2,...}&search={Search Text?}&active={Active?:t|f}&groupId={Group ID?}&allprojects={Should be Added to All Future Projects?:t|f}&restricttasks={Restricted to Owned or Assigned Tasks?:t|f}",
-      "description": "The people in the account, filterable by username, email and active state. Carries name, email, role and active state."
+      "description": "The people in the account, filterable by username, email and active state. Carries name, email, role and active state.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "person": [
+          {
+            "id": "string",
+            "localid": "string",
+            "clientid": "string",
+            "title": "string",
+            "firstname": "string",
+            "lastname": "string",
+            "primaryaccount": "string",
+            "notes": "string",
+            "allprojects": "string",
+            "active": "string",
+            "private": "string",
+            "tips": "string",
+            "username": "string",
+            "groupid": "string",
+            "group": "string",
+            "client": "string",
+            "numlogins": "string",
+            "lastlogin": "string",
+            "timezone": "string",
+            "timezone_offset": "string",
+            "restricttasks": "string",
+            "clientlocalid": "string",
+            "calendarorientation": "string",
+            "editordisabled": "string",
+            "email": "string",
+            "hourlyrate": "string",
+            "cancomment": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Person",
       "suffix": "/person/{Person ID}",
-      "description": "One person by id."
+      "description": "One person by id.",
+      "responseSchema": {
+        "id": "string",
+        "localid": "string",
+        "clientid": "string",
+        "title": "string",
+        "firstname": "string",
+        "lastname": "string",
+        "primaryaccount": "string",
+        "notes": "string",
+        "allprojects": "string",
+        "active": "string",
+        "private": "string",
+        "tips": "string",
+        "username": "string",
+        "groupid": "string",
+        "group": "string",
+        "client": "string",
+        "numlogins": "string",
+        "lastlogin": "string",
+        "timezone": "string",
+        "timezone_offset": "string",
+        "restricttasks": "string",
+        "clientlocalid": "string",
+        "calendarorientation": "string",
+        "editordisabled": "string",
+        "email": "string",
+        "hourlyrate": "string",
+        "cancomment": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Person Contacts",
       "suffix": "/personcontact?personid={Person ID?}&contacttypeid={Contact Type ID?}&contactdescriptorid={Contact Descriptor ID?}",
-      "description": "The contact details recorded for one person, by contact type. Requires the person id."
+      "description": "The contact details recorded for one person, by contact type. Requires the person id.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "personcontact": [
+          {
+            "id": "string",
+            "personid": "string",
+            "contact_type_id": "string",
+            "contact_descriptor_id": "string",
+            "value": "string",
+            "contact_type": "string",
+            "contact_descriptor": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Person Contact",
       "suffix": "/personcontact/{Person Contact ID}",
-      "description": "One person contact entry by id."
+      "description": "One person contact entry by id.",
+      "responseSchema": {
+        "id": "string",
+        "personid": "string",
+        "contact_type_id": "string",
+        "contact_descriptor_id": "string",
+        "value": "string",
+        "contact_type": "string",
+        "contact_descriptor": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Projects",
       "suffix": "/project?localid={Local ID?}&clientid={Client ID?}&managerid={Manager ID?}&name={Name?}&datestart={Beginning On?:yyyy-MM-dd}&dateend={Ending On?:yyyy-MM-dd}&search={Search Text?}&active={Active?:t|f}&billable={Billable?:t|f}&personid={Accessable By?:Person ID}",
-      "description": "The projects, filterable by client, manager and active state. Carries the name, client, manager, dates, and the budget. The container time and expenses are booked against."
+      "description": "The projects, filterable by client, manager and active state. Carries the name, client, manager, dates, and the budget. The container time and expenses are booked against.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "project": [
+          {
+            "id": "string",
+            "name": "string",
+            "description": "string",
+            "datestart": "string",
+            "dateend": "string",
+            "alert_percent": "string",
+            "alert_date": "string",
+            "active": "string",
+            "billable": "string",
+            "budget": "string",
+            "clientid": "string",
+            "client": "string",
+            "clientlocalid": "string",
+            "labelid": "string",
+            "label": "string",
+            "labelcolor": "string",
+            "label_order": "string",
+            "localidunpadded": "double",
+            "localid": "string",
+            "manager": "string",
+            "managerid": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Project",
       "suffix": "/project/{Project ID}",
-      "description": "One project by id."
+      "description": "One project by id.",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "datestart": "string",
+        "dateend": "string",
+        "alert_percent": "string",
+        "alert_date": "string",
+        "active": "string",
+        "billable": "string",
+        "budget": "string",
+        "clientid": "string",
+        "client": "string",
+        "clientlocalid": "string",
+        "labelid": "string",
+        "label": "string",
+        "labelcolor": "string",
+        "label_order": "string",
+        "localidunpadded": "double",
+        "localid": "string",
+        "manager": "string",
+        "managerid": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Project Modules",
       "suffix": "/projectmodule?projectid={Project ID}&active={Active?:t|f}&personid={Accessable By?:Person ID}",
-      "description": "The modules enabled on one project, with their budgets. Requires a project id. A MODULE IS INTERVALS'S SUB-PROJECT DIVISION -- phases or workstreams -- and budgets can be set per module, so project-level budget tracking misses where the overrun actually is."
+      "description": "The modules enabled on one project, with their budgets. Requires a project id. A MODULE IS INTERVALS'S SUB-PROJECT DIVISION -- phases or workstreams -- and budgets can be set per module, so project-level budget tracking misses where the overrun actually is.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "projectmodule": [
+          {
+            "id": "string",
+            "projectid": "string",
+            "moduleid": "string",
+            "description": "string",
+            "active": "string",
+            "modulename": "string",
+            "module": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Project Module",
       "suffix": "/projectmodule/{Project Module ID}",
-      "description": "One project module by id."
+      "description": "One project module by id.",
+      "responseSchema": {
+        "id": "string",
+        "projectid": "string",
+        "moduleid": "string",
+        "description": "string",
+        "active": "string",
+        "modulename": "string",
+        "module": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Project Notes",
       "suffix": "/projectnote?localid={Local ID?}&clientid={Client ID?}&projectid={Project ID?}&authorid={Author ID?}&title={Title?}&search={Search Text?}&noteid={Note ID?}",
-      "description": "Notes recorded against projects, filterable by client, project and date. The narrative record of a project -- scope changes, client decisions, the reasons behind an overrun -- which no time or budget figure explains on its own."
+      "description": "Notes recorded against projects, filterable by client, project and date. The narrative record of a project -- scope changes, client decisions, the reasons behind an overrun -- which no time or budget figure explains on its own.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "projectnote": [
+          {
+            "id": "string",
+            "projectid": "string",
+            "authorid": "string",
+            "title": "string",
+            "note": "string",
+            "date": "string",
+            "secure": "string",
+            "localid": "string",
+            "projectactive": "string",
+            "author": "string",
+            "projectlocalid": "string",
+            "clientlocalid": "string",
+            "mod_authorlocalid": "string",
+            "projectlabel": "string",
+            "projectlabelcolor": "string",
+            "projectlabelactive": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Project Note",
       "suffix": "/projectnote/{Project Note ID}",
-      "description": "One project note by id."
+      "description": "One project note by id.",
+      "responseSchema": {
+        "id": "string",
+        "projectid": "string",
+        "authorid": "string",
+        "title": "string",
+        "note": "string",
+        "date": "string",
+        "secure": "string",
+        "localid": "string",
+        "projectactive": "string",
+        "author": "string",
+        "projectlocalid": "string",
+        "clientlocalid": "string",
+        "mod_authorlocalid": "string",
+        "projectlabel": "string",
+        "projectlabelcolor": "string",
+        "projectlabelactive": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Project Work Types",
       "suffix": "/projectworktype?projectid={Project ID?}&active={Active?:t|f}&personid={Person ID}",
-      "description": "The work types enabled on one project, each with its own billable rate. Requires a project id. THE RATE THAT ACTUALLY APPLIES: a time entry carries hours and a work type, and this is what prices it -- so revenue is a join, and the same work type can be priced differently on two projects."
+      "description": "The work types enabled on one project, each with its own billable rate. Requires a project id. THE RATE THAT ACTUALLY APPLIES: a time entry carries hours and a work type, and this is what prices it -- so revenue is a join, and the same work type can be priced differently on two projects.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "projectworktype": [
+          {
+            "id": "string",
+            "projectid": "string",
+            "worktypeid": "string",
+            "worktype": "string",
+            "active": "string",
+            "total": "string",
+            "hourlyrate": "string",
+            "esttime": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Project Work Type",
       "suffix": "/projectworktype/{Project Work Type ID}",
-      "description": "One project work type by id."
+      "description": "One project work type by id.",
+      "responseSchema": {
+        "id": "string",
+        "projectid": "string",
+        "worktypeid": "string",
+        "worktype": "string",
+        "active": "string",
+        "total": "string",
+        "hourlyrate": "string",
+        "esttime": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Work Requests",
       "suffix": "/request?priorityid={Priority ID?}&personid={Person ID?}&projectid={Project ID?}",
-      "description": "Incoming requests for work, filterable by priority, person and project. The intake queue before something becomes a task -- so demand that was never scheduled is only visible here."
+      "description": "Incoming requests for work, filterable by priority, person and project. The intake queue before something becomes a task -- so demand that was never scheduled is only visible here.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "request": [
+          {
+            "id": "string",
+            "personid": "string",
+            "title": "string",
+            "date": "string",
+            "description": "string",
+            "projectid": "string",
+            "priorityid": "string",
+            "datedue": "string",
+            "localid": "string",
+            "headers": "string",
+            "clientid": "string",
+            "client": "string",
+            "person": "string",
+            "person_localid": "string",
+            "email": "string",
+            "project": "string",
+            "projectactive": "string",
+            "priority": "string",
+            "projectlocalid": "string",
+            "personvisible": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Work Request",
       "suffix": "/request/{Work Request ID}",
-      "description": "One work request by id."
+      "description": "One work request by id.",
+      "responseSchema": {
+        "id": "string",
+        "personid": "string",
+        "title": "string",
+        "date": "string",
+        "description": "string",
+        "projectid": "string",
+        "priorityid": "string",
+        "datedue": "string",
+        "localid": "string",
+        "headers": "string",
+        "clientid": "string",
+        "client": "string",
+        "person": "string",
+        "person_localid": "string",
+        "email": "string",
+        "project": "string",
+        "projectactive": "string",
+        "priority": "string",
+        "projectlocalid": "string",
+        "personvisible": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Tasks",
       "suffix": "/task?localid={Local ID?}&personid={Person ID?}&assigneeid={Assignee ID?}&followerid={Follower ID?}&statusid={Status ID?}&clientid={Client ID?}&projectid={Project ID?}&moduleid={Module ID?}&milestoneid={Milestone ID?}&title={Title?}&dateopen={Opening On or After?:yyyy-MM-dd}&dateopenbegin={Starting After?:yyyy-MM-dd}&datedue={Date Due?:yyyy-MM-dd}&dateduebegin={Date Due After?:yyyy-MM-dd}&datedueend={Date Due Before?:yyyy-MM-dd}&dateclosed={Date Closed?:yyyy-MM-dd}&dateclosedbegin={Date Closed After?:yyyy-MM-dd}&dateclosedend={Date Closed Before?:yyyy-MM-dd}&hasduedate={Has Due Date?:t|f}&ownerid={Owner ID?}&priorityid={Priority ID?}&tasklistfilterid={Task List Filter ID?}&overdue={Overdue?:t|f}&excludeclosed={Exclude Closed?:t|f}&hastaskrelation={Related To?:Person ID}&search={Search Text?}",
-      "description": "The tasks work is booked against, filterable by person, assignee, project, status and priority. Carries the title, project, module, assignees, estimated hours, status and priority."
+      "description": "The tasks work is booked against, filterable by person, assignee, project, status and priority. Carries the title, project, module, assignees, estimated hours, status and priority.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "task": [
+          {
+            "id": "string",
+            "localid": "string",
+            "queueid": "string",
+            "assigneeid": "string",
+            "statusid": "string",
+            "projectid": "string",
+            "moduleid": "string",
+            "title": "string",
+            "summary": "string",
+            "dateopen": "string",
+            "datedue": "string",
+            "dateclosed": "string",
+            "estimate": "string",
+            "ownerid": "string",
+            "priorityid": "string",
+            "datemodified": "string",
+            "color": "string",
+            "priority": "string",
+            "severity": "string",
+            "status": "string",
+            "status_order": "string",
+            "project": "string",
+            "clientid": "string",
+            "clientlocalid": "string",
+            "client": "string",
+            "milestoneid": "string",
+            "milestone": "string",
+            "module": "string",
+            "projectlocalid": "string",
+            "assignees": "string",
+            "followers": "string",
+            "followerid": "string",
+            "owners": "string",
+            "billable": "string",
+            "unbillable": "string",
+            "actual": "string",
+            "datecreated": "string",
+            "projectlabel": "string",
+            "projectlabel_order": "string",
+            "projectlabelid": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Task",
       "suffix": "/task/{Task ID}",
-      "description": "One task by id."
+      "description": "One task by id.",
+      "responseSchema": {
+        "id": "string",
+        "localid": "string",
+        "queueid": "string",
+        "assigneeid": "string",
+        "statusid": "string",
+        "projectid": "string",
+        "moduleid": "string",
+        "title": "string",
+        "summary": "string",
+        "dateopen": "string",
+        "datedue": "string",
+        "dateclosed": "string",
+        "estimate": "string",
+        "ownerid": "string",
+        "priorityid": "string",
+        "datemodified": "string",
+        "color": "string",
+        "priority": "string",
+        "severity": "string",
+        "status": "string",
+        "status_order": "string",
+        "project": "string",
+        "clientid": "string",
+        "clientlocalid": "string",
+        "client": "string",
+        "milestoneid": "string",
+        "milestone": "string",
+        "module": "string",
+        "projectlocalid": "string",
+        "assignees": "string",
+        "followers": "string",
+        "followerid": "string",
+        "owners": "string",
+        "billable": "string",
+        "unbillable": "string",
+        "actual": "string",
+        "datecreated": "string",
+        "projectlabel": "string",
+        "projectlabel_order": "string",
+        "projectlabelid": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Task List Filters",
       "suffix": "/tasklistfilter",
-      "description": "The saved task filters defined. These encode the queues the team actually works from."
+      "description": "The saved task filters defined. These encode the queues the team actually works from.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "tasklistfilter": [
+          {
+            "id": "string",
+            "filtertypeid": "string",
+            "personid": "string",
+            "title": "string",
+            "subfilterid": "string",
+            "shared": "string",
+            "scheduled": "string",
+            "filtertype": "string",
+            "person": "string",
+            "datesent": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Task List Filter",
       "suffix": "/tasklistfilter/{Task List Filter ID}",
-      "description": "One saved task filter by id."
+      "description": "One saved task filter by id.",
+      "responseSchema": {
+        "id": "string",
+        "filtertypeid": "string",
+        "personid": "string",
+        "title": "string",
+        "subfilterid": "string",
+        "shared": "string",
+        "scheduled": "string",
+        "filtertype": "string",
+        "person": "string",
+        "datesent": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Task Notes",
       "suffix": "/tasknote?taskid={Task ID?}&title={Title?}&date={Date Created?:yyyy-MM-dd}&datebegin={Created On or After?:yyyy-MM-dd}&dateend={Created On or Before?:yyyy-MM-dd}&datemodifiedbegin={Modified On or After?:yyyy-MM-dd}&datemodifiedend={Modified On or Before?:yyyy-MM-dd}&authorid={Author ID?}&public={Public?:t|f}",
-      "description": "Notes on tasks, filterable by task, title and date. The discussion beside the task record."
+      "description": "Notes on tasks, filterable by task, title and date. The discussion beside the task record.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "tasknote": [
+          {
+            "id": "string",
+            "taskid": "string",
+            "title": "string",
+            "date": "string",
+            "authorid": "string",
+            "note": "string",
+            "public": "string",
+            "actions": "string",
+            "state": "string",
+            "mod_authorid": "string",
+            "mod_date": "string",
+            "meta": "string",
+            "author": "string",
+            "authorlocalid": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Task Note",
       "suffix": "/tasknote/{Task Note ID}",
-      "description": "One task note by id."
+      "description": "One task note by id.",
+      "responseSchema": {
+        "id": "string",
+        "taskid": "string",
+        "title": "string",
+        "date": "string",
+        "authorid": "string",
+        "note": "string",
+        "public": "string",
+        "actions": "string",
+        "state": "string",
+        "mod_authorid": "string",
+        "mod_date": "string",
+        "meta": "string",
+        "author": "string",
+        "authorlocalid": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Task Priorities",
       "suffix": "/taskpriority?active={Active?:t|f}",
-      "description": "The task priorities configured. The decoder for a task's priority id."
+      "description": "The task priorities configured. The decoder for a task's priority id.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "taskpriority": [
+          {
+            "id": "string",
+            "name": "string",
+            "color": "string",
+            "priority": "string",
+            "isdefault": "string",
+            "active": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Task Priority",
       "suffix": "/taskpriority/{Task Priority ID}",
-      "description": "One task priority by id."
+      "description": "One task priority by id.",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "color": "string",
+        "priority": "string",
+        "isdefault": "string",
+        "active": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Task Statuses",
       "suffix": "/taskstatus?active={Active?:t|f}",
-      "description": "The task statuses configured, filterable by active state. Account-specific, and the decoder for a task's status id."
+      "description": "The task statuses configured, filterable by active state. Account-specific, and the decoder for a task's status id.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "taskstatus": [
+          {
+            "id": "string",
+            "name": "string",
+            "priority": "string",
+            "frozen": "string",
+            "active": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Task Status",
       "suffix": "/taskstatus/{Task Status ID}",
-      "description": "One task status by id."
+      "description": "One task status by id.",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "priority": "string",
+        "frozen": "string",
+        "active": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Times",
       "suffix": "/time?activeonly={Active Only?:t|f}&moduleid={Module ID?}&taskid={Task ID?}&worktypeid={Work Type ID?}&personid={Person ID?}&clientid={Client ID?}&projectid={Project ID?}&milestoneid={Milestone ID?}&date={Date Passed?:yyyy-MM-dd}&datebegin={Pased On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&billable={Billable?:t|f}&approved={Approved?:t|f}",
-      "description": "The time entries recorded -- the central table. Carries the person, project, module, work type, task, the date, HOURS AS A DECIMAL, the billable flag, and whether it has been invoiced. Filterable by module, person, project and date. NOTE THE INVOICED FLAG: once time is billed it is locked to an invoice, so unbilled work in progress and already-invoiced revenue are distinguished here and nowhere else."
+      "description": "The time entries recorded -- the central table. Carries the person, project, module, work type, task, the date, HOURS AS A DECIMAL, the billable flag, and whether it has been invoiced. Filterable by module, person, project and date. NOTE THE INVOICED FLAG: once time is billed it is locked to an invoice, so unbilled work in progress and already-invoiced revenue are distinguished here and nowhere else.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "time": [
+          {
+            "id": "string",
+            "projectid": "string",
+            "moduleid": "string",
+            "taskid": "string",
+            "worktypeid": "string",
+            "personid": "string",
+            "date": "string",
+            "time": "string",
+            "description": "string",
+            "billable": "string",
+            "datemodified": "string",
+            "dateiso": "string",
+            "module": "string",
+            "project": "string",
+            "worktype": "string",
+            "tasklocalid": "string",
+            "task": "string",
+            "firstname": "string",
+            "lastname": "string",
+            "active": "string",
+            "person": "string",
+            "clientid": "string",
+            "client": "string",
+            "clientactive": "string",
+            "statusid": "string",
+            "hourlyrate": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Time",
       "suffix": "/time/{Time ID}",
-      "description": "One time entry by id."
+      "description": "One time entry by id.",
+      "responseSchema": {
+        "id": "string",
+        "projectid": "string",
+        "moduleid": "string",
+        "taskid": "string",
+        "worktypeid": "string",
+        "personid": "string",
+        "date": "string",
+        "time": "string",
+        "description": "string",
+        "billable": "string",
+        "datemodified": "string",
+        "dateiso": "string",
+        "module": "string",
+        "project": "string",
+        "worktype": "string",
+        "tasklocalid": "string",
+        "task": "string",
+        "firstname": "string",
+        "lastname": "string",
+        "active": "string",
+        "person": "string",
+        "clientid": "string",
+        "client": "string",
+        "clientactive": "string",
+        "statusid": "string",
+        "hourlyrate": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Timers",
       "suffix": "/timer?generaltimers={General Timers?:t|f}&gettimerinfo={Include Timer Info?:t|f}&taskid={Task ID?}&personid={Person ID?}&projectid={Project ID?}&clientid={Client ID?}",
-      "description": "The timers currently running, optionally with their detail. A live view of who is working on what right now, not history -- a running timer has produced no time entry yet, so work in progress is invisible in the Times table until it is stopped."
+      "description": "The timers currently running, optionally with their detail. A live view of who is working on what right now, not history -- a running timer has produced no time entry yet, so work in progress is invisible in the Times table until it is stopped.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "timer": [
+          {
+            "id": "string",
+            "taskid": "string",
+            "personid": "string",
+            "starttime": "string",
+            "time": "string",
+            "name": "string",
+            "lastupdate": "string",
+            "notified": "string",
+            "tasklocalid": "string",
+            "task": "string",
+            "timelapsed": "string",
+            "isrunning": "string",
+            "totaltime": "string",
+            "key": "string",
+            "personlocalid": "string",
+            "person": "string",
+            "profile_image": "string",
+            "datedue": "string",
+            "project": "string",
+            "task_status": "string",
+            "projectid": "string",
+            "projectactive": "string",
+            "client": "string",
+            "clientid": "string",
+            "clientactive": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Timer",
       "suffix": "/timer/{Timer ID}",
-      "description": "One timer by id."
+      "description": "One timer by id.",
+      "responseSchema": {
+        "id": "string",
+        "taskid": "string",
+        "personid": "string",
+        "starttime": "string",
+        "time": "string",
+        "name": "string",
+        "lastupdate": "string",
+        "notified": "string",
+        "tasklocalid": "string",
+        "task": "string",
+        "timelapsed": "string",
+        "isrunning": "string",
+        "totaltime": "string",
+        "key": "string",
+        "personlocalid": "string",
+        "person": "string",
+        "profile_image": "string",
+        "datedue": "string",
+        "project": "string",
+        "task_status": "string",
+        "projectid": "string",
+        "projectactive": "string",
+        "client": "string",
+        "clientid": "string",
+        "clientactive": "string"
+      }
     },
     {
       "paged": "true",
       "name": "Work Types",
       "suffix": "/worktype?active={Active?:t|f}",
-      "description": "The work type definitions across the account -- design, development, project management -- with their default rates. The catalogue behind the per-project overrides."
+      "description": "The work type definitions across the account -- design, development, project management -- with their default rates. The catalogue behind the per-project overrides.",
+      "responseSchema": {
+        "personid": "double",
+        "status": "string",
+        "code": "double",
+        "listcount": "double",
+        "worktype": [
+          {
+            "id": "string",
+            "name": "string",
+            "defaulthourlyrate": "string",
+            "active": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Work Type",
       "suffix": "/worktype/{Work Type ID}",
-      "description": "One work type by id."
+      "description": "One work type by id.",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "defaulthourlyrate": "string",
+        "active": "string"
+      }
     }
   ]
 }

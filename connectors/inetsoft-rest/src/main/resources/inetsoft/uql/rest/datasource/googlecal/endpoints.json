@@ -4,6 +4,53 @@
       "name": "Calendar Lists",
       "paged": true,
       "suffix": "/v3/users/me/calendarList?minAccessRole={Minimum Access Role?:freeBusyReader|owner|reader|writer}&showDeleted={Show Deleted?:True|False}&showHidden={Show Hidden?:True|False}",
+      "responseSchema": {
+        "etag": "string",
+        "items": [
+          {
+            "accessRole": "string",
+            "autoAcceptInvitations": "boolean",
+            "backgroundColor": "string",
+            "colorId": "string",
+            "conferenceProperties": {
+              "allowedConferenceSolutionTypes": [
+                "string"
+              ]
+            },
+            "dataOwner": "string",
+            "defaultReminders": [
+              {
+                "method": "string",
+                "minutes": "double"
+              }
+            ],
+            "deleted": "boolean",
+            "description": "string",
+            "etag": "string",
+            "foregroundColor": "string",
+            "hidden": "boolean",
+            "id": "string",
+            "kind": "string",
+            "location": "string",
+            "notificationSettings": {
+              "notifications": [
+                {
+                  "method": "string",
+                  "type": "string"
+                }
+              ]
+            },
+            "primary": "boolean",
+            "selected": "boolean",
+            "summary": "string",
+            "summaryOverride": "string",
+            "timeZone": "string"
+          }
+        ],
+        "kind": "string",
+        "nextPageToken": "string",
+        "nextSyncToken": "string"
+      },
       "lookups": [
         {
           "endpoints": [
@@ -21,24 +68,262 @@
       "name": "Calendar List",
       "paged": false,
       "suffix": "/v3/users/me/calendarList/{Calendar ID}",
+      "responseSchema": {
+        "accessRole": "string",
+        "autoAcceptInvitations": "boolean",
+        "backgroundColor": "string",
+        "colorId": "string",
+        "conferenceProperties": {
+          "allowedConferenceSolutionTypes": [
+            "string"
+          ]
+        },
+        "dataOwner": "string",
+        "defaultReminders": [
+          {
+            "method": "string",
+            "minutes": "double"
+          }
+        ],
+        "deleted": "boolean",
+        "description": "string",
+        "etag": "string",
+        "foregroundColor": "string",
+        "hidden": "boolean",
+        "id": "string",
+        "kind": "string",
+        "location": "string",
+        "notificationSettings": {
+          "notifications": [
+            {
+              "method": "string",
+              "type": "string"
+            }
+          ]
+        },
+        "primary": "boolean",
+        "selected": "boolean",
+        "summary": "string",
+        "summaryOverride": "string",
+        "timeZone": "string"
+      },
       "description": "One calendar list entry by id, with the user's own settings for it -- colour, notifications, default reminders."
     },
     {
       "name": "Calendar",
       "paged": false,
       "suffix": "/v3/calendars/{Calendar ID}",
+      "responseSchema": {
+        "autoAcceptInvitations": "boolean",
+        "conferenceProperties": {
+          "allowedConferenceSolutionTypes": [
+            "string"
+          ]
+        },
+        "dataOwner": "string",
+        "description": "string",
+        "etag": "string",
+        "id": "string",
+        "kind": "string",
+        "labelProperties": {
+          "eventLabels": [
+            {
+              "backgroundColor": "string",
+              "id": "string",
+              "name": "string"
+            }
+          ]
+        },
+        "location": "string",
+        "summary": "string",
+        "timeZone": "string"
+      },
       "description": "One calendar's own properties: summary, description, location and time zone. Distinct from the list entry, which holds the USER's settings for that calendar; this holds the calendar's, and the time zone here is what recurrence rules are evaluated against."
     },
     {
       "name": "Colors",
       "paged": false,
       "suffix": "/v3/colors",
+      "responseSchema": {
+        "calendar": {
+          "*": {
+            "background": "string",
+            "foreground": "string"
+          }
+        },
+        "event": {
+          "*": {
+            "background": "string",
+            "foreground": "string"
+          }
+        },
+        "kind": "string",
+        "updated": "timeInstant"
+      },
       "description": "The colour palette calendars and events can use, as id-to-hex pairs. A small decoder: events carry a colorId and nothing else, so the actual colour is only readable through this."
     },
     {
       "name": "Events",
       "paged": true,
       "suffix": "/v3/calendars/{Calendar ID}/events?iCalUID={iCalendar Event ID?}&maxAttendees={Max Attendees?}&privateExtendedProperty={Private Extended Properties?,:prop1=value,prop2=value,...}&q={Search Text?}&sharedExtendedProperty={Shared Extended Properties?,:prop1=value,prop2=value,...}&singleEvents={Single Events Only?:True|False}&timeMax={Before Time?:yyyy-MM-ddTHH:mm:ssZ}&timeMin={After Time?:yyyy-MM-ddTHH:mm:ssZ}&timeZone={Time Zone?}&updatedMin={Updated After?:yyyy-MM-ddTHH:mm:ssZ}",
+      "responseSchema": {
+        "accessRole": "string",
+        "defaultReminders": [
+          {
+            "method": "string",
+            "minutes": "double"
+          }
+        ],
+        "description": "string",
+        "etag": "string",
+        "items": [
+          {
+            "anyoneCanAddSelf": "boolean",
+            "attachments": [
+              {
+                "fileId": "string",
+                "fileUrl": "string",
+                "iconLink": "string",
+                "mimeType": "string",
+                "title": "string"
+              }
+            ],
+            "attendees": [
+              {
+                "additionalGuests": "double",
+                "asyncOperation": "string",
+                "comment": "string",
+                "displayName": "string",
+                "email": "string",
+                "id": "string",
+                "optional": "boolean",
+                "organizer": "boolean",
+                "resource": "boolean",
+                "responseStatus": "string",
+                "self": "boolean"
+              }
+            ],
+            "attendeesOmitted": "boolean",
+            "colorId": "string",
+            "conferenceData": {
+              "conferenceId": "string",
+              "conferenceSolution": {
+                "iconUri": "string",
+                "key": {
+                  "type": "string"
+                },
+                "name": "string"
+              },
+              "entryPoints": [
+                {
+                  "accessCode": "string",
+                  "entryPointFeatures": [
+                    "string"
+                  ],
+                  "entryPointType": "string",
+                  "label": "string",
+                  "meetingCode": "string",
+                  "passcode": "string",
+                  "password": "string",
+                  "pin": "string",
+                  "regionCode": "string",
+                  "uri": "string"
+                }
+              ],
+              "notes": "string",
+              "parameters": {
+                "addOnParameters": {
+                  "parameters": {
+                    "*": "string"
+                  }
+                }
+              },
+              "signature": "string"
+            },
+            "created": "timeInstant",
+            "creator": {
+              "displayName": "string",
+              "email": "string",
+              "id": "string",
+              "self": "boolean"
+            },
+            "description": "string",
+            "end": {
+              "date": "date",
+              "dateTime": "timeInstant",
+              "timeZone": "string"
+            },
+            "endTimeUnspecified": "boolean",
+            "etag": "string",
+            "eventLabelId": "string",
+            "eventType": "string",
+            "extendedProperties": {
+              "private": {
+                "*": "string"
+              },
+              "shared": {
+                "*": "string"
+              }
+            },
+            "guestsCanInviteOthers": "boolean",
+            "guestsCanModify": "boolean",
+            "guestsCanSeeOtherGuests": "boolean",
+            "hangoutLink": "string",
+            "htmlLink": "string",
+            "iCalUID": "string",
+            "id": "string",
+            "kind": "string",
+            "location": "string",
+            "locked": "boolean",
+            "organizer": {
+              "displayName": "string",
+              "email": "string",
+              "id": "string",
+              "self": "boolean"
+            },
+            "originalStartTime": {
+              "date": "date",
+              "dateTime": "timeInstant",
+              "timeZone": "string"
+            },
+            "privateCopy": "boolean",
+            "recurrence": [
+              "string"
+            ],
+            "recurringEventId": "string",
+            "reminders": {
+              "overrides": [
+                {
+                  "method": "string",
+                  "minutes": "double"
+                }
+              ],
+              "useDefault": "boolean"
+            },
+            "sequence": "double",
+            "source": {
+              "title": "string",
+              "url": "string"
+            },
+            "start": {
+              "date": "date",
+              "dateTime": "timeInstant",
+              "timeZone": "string"
+            },
+            "status": "string",
+            "summary": "string",
+            "transparency": "string",
+            "updated": "timeInstant",
+            "visibility": "string"
+          }
+        ],
+        "kind": "string",
+        "nextPageToken": "string",
+        "nextSyncToken": "string",
+        "summary": "string",
+        "timeZone": "string",
+        "updated": "timeInstant"
+      },
       "lookups": [
         {
           "endpoints": [
@@ -55,24 +340,341 @@
       "name": "Event",
       "paged": false,
       "suffix": "/v3/calendars/{Calendar ID}/events/{Event ID}?maxAttendees={Max Attendees?}&timeZone={Time Zone?}",
+      "responseSchema": {
+        "anyoneCanAddSelf": "boolean",
+        "attachments": [
+          {
+            "fileId": "string",
+            "fileUrl": "string",
+            "iconLink": "string",
+            "mimeType": "string",
+            "title": "string"
+          }
+        ],
+        "attendees": [
+          {
+            "additionalGuests": "double",
+            "asyncOperation": "string",
+            "comment": "string",
+            "displayName": "string",
+            "email": "string",
+            "id": "string",
+            "optional": "boolean",
+            "organizer": "boolean",
+            "resource": "boolean",
+            "responseStatus": "string",
+            "self": "boolean"
+          }
+        ],
+        "attendeesOmitted": "boolean",
+        "colorId": "string",
+        "conferenceData": {
+          "conferenceId": "string",
+          "conferenceSolution": {
+            "iconUri": "string",
+            "key": {
+              "type": "string"
+            },
+            "name": "string"
+          },
+          "entryPoints": [
+            {
+              "accessCode": "string",
+              "entryPointFeatures": [
+                "string"
+              ],
+              "entryPointType": "string",
+              "label": "string",
+              "meetingCode": "string",
+              "passcode": "string",
+              "password": "string",
+              "pin": "string",
+              "regionCode": "string",
+              "uri": "string"
+            }
+          ],
+          "notes": "string",
+          "parameters": {
+            "addOnParameters": {
+              "parameters": {
+                "*": "string"
+              }
+            }
+          },
+          "signature": "string"
+        },
+        "created": "timeInstant",
+        "creator": {
+          "displayName": "string",
+          "email": "string",
+          "id": "string",
+          "self": "boolean"
+        },
+        "description": "string",
+        "end": {
+          "date": "date",
+          "dateTime": "timeInstant",
+          "timeZone": "string"
+        },
+        "endTimeUnspecified": "boolean",
+        "etag": "string",
+        "eventLabelId": "string",
+        "eventType": "string",
+        "extendedProperties": {
+          "private": {
+            "*": "string"
+          },
+          "shared": {
+            "*": "string"
+          }
+        },
+        "guestsCanInviteOthers": "boolean",
+        "guestsCanModify": "boolean",
+        "guestsCanSeeOtherGuests": "boolean",
+        "hangoutLink": "string",
+        "htmlLink": "string",
+        "iCalUID": "string",
+        "id": "string",
+        "kind": "string",
+        "location": "string",
+        "locked": "boolean",
+        "organizer": {
+          "displayName": "string",
+          "email": "string",
+          "id": "string",
+          "self": "boolean"
+        },
+        "originalStartTime": {
+          "date": "date",
+          "dateTime": "timeInstant",
+          "timeZone": "string"
+        },
+        "privateCopy": "boolean",
+        "recurrence": [
+          "string"
+        ],
+        "recurringEventId": "string",
+        "reminders": {
+          "overrides": [
+            {
+              "method": "string",
+              "minutes": "double"
+            }
+          ],
+          "useDefault": "boolean"
+        },
+        "sequence": "double",
+        "source": {
+          "title": "string",
+          "url": "string"
+        },
+        "start": {
+          "date": "date",
+          "dateTime": "timeInstant",
+          "timeZone": "string"
+        },
+        "status": "string",
+        "summary": "string",
+        "transparency": "string",
+        "updated": "timeInstant",
+        "visibility": "string"
+      },
       "description": "One event by id. Requires the calendar id. Same polymorphic start and end."
     },
     {
       "name": "Recurring Event Instances",
       "paged": true,
       "suffix": "/v3/calendars/{Calendar ID}/events/{Event ID}/instances?maxAttendees={Max Attendees?}&originalStart={Original Start Time?}&showDeleted={Show Deleted?:True|False}&timeMax={Before Time?:yyyy-MM-ddTHH:mm:ssZ}&timeMin={After Time?:yyyy-MM-ddTHH:mm:ssZ}&timeZone={Time Zone?}",
+      "responseSchema": {
+        "accessRole": "string",
+        "defaultReminders": [
+          {
+            "method": "string",
+            "minutes": "double"
+          }
+        ],
+        "description": "string",
+        "etag": "string",
+        "items": [
+          {
+            "anyoneCanAddSelf": "boolean",
+            "attachments": [
+              {
+                "fileId": "string",
+                "fileUrl": "string",
+                "iconLink": "string",
+                "mimeType": "string",
+                "title": "string"
+              }
+            ],
+            "attendees": [
+              {
+                "additionalGuests": "double",
+                "asyncOperation": "string",
+                "comment": "string",
+                "displayName": "string",
+                "email": "string",
+                "id": "string",
+                "optional": "boolean",
+                "organizer": "boolean",
+                "resource": "boolean",
+                "responseStatus": "string",
+                "self": "boolean"
+              }
+            ],
+            "attendeesOmitted": "boolean",
+            "colorId": "string",
+            "conferenceData": {
+              "conferenceId": "string",
+              "conferenceSolution": {
+                "iconUri": "string",
+                "key": {
+                  "type": "string"
+                },
+                "name": "string"
+              },
+              "entryPoints": [
+                {
+                  "accessCode": "string",
+                  "entryPointFeatures": [
+                    "string"
+                  ],
+                  "entryPointType": "string",
+                  "label": "string",
+                  "meetingCode": "string",
+                  "passcode": "string",
+                  "password": "string",
+                  "pin": "string",
+                  "regionCode": "string",
+                  "uri": "string"
+                }
+              ],
+              "notes": "string",
+              "parameters": {
+                "addOnParameters": {
+                  "parameters": {
+                    "*": "string"
+                  }
+                }
+              },
+              "signature": "string"
+            },
+            "created": "timeInstant",
+            "creator": {
+              "displayName": "string",
+              "email": "string",
+              "id": "string",
+              "self": "boolean"
+            },
+            "description": "string",
+            "end": {
+              "date": "date",
+              "dateTime": "timeInstant",
+              "timeZone": "string"
+            },
+            "endTimeUnspecified": "boolean",
+            "etag": "string",
+            "eventLabelId": "string",
+            "eventType": "string",
+            "extendedProperties": {
+              "private": {
+                "*": "string"
+              },
+              "shared": {
+                "*": "string"
+              }
+            },
+            "guestsCanInviteOthers": "boolean",
+            "guestsCanModify": "boolean",
+            "guestsCanSeeOtherGuests": "boolean",
+            "hangoutLink": "string",
+            "htmlLink": "string",
+            "iCalUID": "string",
+            "id": "string",
+            "kind": "string",
+            "location": "string",
+            "locked": "boolean",
+            "organizer": {
+              "displayName": "string",
+              "email": "string",
+              "id": "string",
+              "self": "boolean"
+            },
+            "originalStartTime": {
+              "date": "date",
+              "dateTime": "timeInstant",
+              "timeZone": "string"
+            },
+            "privateCopy": "boolean",
+            "recurrence": [
+              "string"
+            ],
+            "recurringEventId": "string",
+            "reminders": {
+              "overrides": [
+                {
+                  "method": "string",
+                  "minutes": "double"
+                }
+              ],
+              "useDefault": "boolean"
+            },
+            "sequence": "double",
+            "source": {
+              "title": "string",
+              "url": "string"
+            },
+            "start": {
+              "date": "date",
+              "dateTime": "timeInstant",
+              "timeZone": "string"
+            },
+            "status": "string",
+            "summary": "string",
+            "transparency": "string",
+            "updated": "timeInstant",
+            "visibility": "string"
+          }
+        ],
+        "kind": "string",
+        "nextPageToken": "string",
+        "nextSyncToken": "string",
+        "summary": "string",
+        "timeZone": "string",
+        "updated": "timeInstant"
+      },
       "description": "The individual occurrences of one recurring event, expanded. Requires the calendar id and the recurring event id. The explicit way to turn a rule into dated rows, including any occurrence that was moved or cancelled -- which the rule alone cannot express."
     },
     {
       "name": "Settings",
       "paged": true,
       "suffix": "/v3/users/me/settings",
+      "responseSchema": {
+        "etag": "string",
+        "items": [
+          {
+            "etag": "string",
+            "id": "string",
+            "kind": "string",
+            "value": "string"
+          }
+        ],
+        "kind": "string",
+        "nextPageToken": "string",
+        "nextSyncToken": "string"
+      },
       "description": "The authenticated user's calendar settings -- default time zone, week start, working-hours and locale preferences. Relevant because the user's time zone is what the interface renders events in, which need not match the calendar's own."
     },
     {
       "name": "Setting",
       "paged": false,
       "suffix": "/v3/users/me/settings/{Setting ID}",
+      "responseSchema": {
+        "etag": "string",
+        "id": "string",
+        "kind": "string",
+        "value": "string"
+      },
       "description": "One setting by id."
     }
   ]

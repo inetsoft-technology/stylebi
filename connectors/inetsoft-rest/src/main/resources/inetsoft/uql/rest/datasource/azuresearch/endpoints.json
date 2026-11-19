@@ -4,7 +4,103 @@
       "paged": "false",
       "name": "Index",
       "suffix": "/indexes/{Index Name}?api-version=2019-05-06",
-      "description": "One index by name, with its full field definitions, analyzers, scoring profiles and suggesters."
+      "description": "One index by name, with its full field definitions, analyzers, scoring profiles and suggesters.",
+      "responseSchema": {
+        "name": "string",
+        "fields": [
+          {
+            "name": "string",
+            "type": "string",
+            "key": "boolean",
+            "retrievable": "boolean",
+            "searchable": "boolean",
+            "filterable": "boolean",
+            "sortable": "boolean",
+            "facetable": "boolean",
+            "analyzer": "string",
+            "searchAnalyzer": "string",
+            "indexAnalyzer": "string",
+            "synonymMaps": [
+              "string"
+            ]
+          }
+        ],
+        "scoringProfiles": [
+          {
+            "name": "string",
+            "text": {
+              "weights": {
+                "*": "double"
+              }
+            },
+            "functions": [
+              {
+                "type": "string",
+                "fieldName": "string",
+                "boost": "double",
+                "interpolation": "string",
+                "distance": {
+                  "referencePointParameter": "string",
+                  "boostingDistance": "double"
+                },
+                "freshness": {
+                  "boostingDuration": "string"
+                },
+                "magnitude": {
+                  "boostingRangeStart": "double",
+                  "boostingRangeEnd": "double",
+                  "constantBoostBeyondRange": "boolean"
+                },
+                "tag": {
+                  "tagsParameter": "string"
+                }
+              }
+            ],
+            "functionAggregation": "string"
+          }
+        ],
+        "defaultScoringProfile": "string",
+        "corsOptions": {
+          "allowedOrigins": [
+            "string"
+          ],
+          "maxAgeInSeconds": "double"
+        },
+        "suggesters": [
+          {
+            "name": "string",
+            "searchMode": "string",
+            "sourceFields": [
+              "string"
+            ]
+          }
+        ],
+        "analyzers": [
+          {
+            "@odata.type": "string",
+            "name": "string"
+          }
+        ],
+        "tokenizers": [
+          {
+            "@odata.type": "string",
+            "name": "string"
+          }
+        ],
+        "tokenFilters": [
+          {
+            "@odata.type": "string",
+            "name": "string"
+          }
+        ],
+        "charFilters": [
+          {
+            "@odata.type": "string",
+            "name": "string"
+          }
+        ],
+        "@odata.etag": "string"
+      }
     },
     {
       "paged": "false",
@@ -23,19 +119,131 @@
           "parameterName": "Index Name"
         }
       ],
-      "description": "The search indexes defined on the service, each with its fields, their types, and which are searchable, filterable, sortable, facetable and retrievable. The schema of a search service; every document query needs an index name, so this is the first request. THE PER-FIELD FLAGS ARE WHAT DECIDE WHAT IS POSSIBLE: a field that is not filterable cannot be filtered on, and the query fails rather than returning nothing."
+      "description": "The search indexes defined on the service, each with its fields, their types, and which are searchable, filterable, sortable, facetable and retrievable. The schema of a search service; every document query needs an index name, so this is the first request. THE PER-FIELD FLAGS ARE WHAT DECIDE WHAT IS POSSIBLE: a field that is not filterable cannot be filtered on, and the query fails rather than returning nothing.",
+      "responseSchema": {
+        "value": [
+          {
+            "name": "string",
+            "fields": [
+              {
+                "name": "string",
+                "type": "string",
+                "key": "boolean",
+                "retrievable": "boolean",
+                "searchable": "boolean",
+                "filterable": "boolean",
+                "sortable": "boolean",
+                "facetable": "boolean",
+                "analyzer": "string",
+                "searchAnalyzer": "string",
+                "indexAnalyzer": "string",
+                "synonymMaps": [
+                  "string"
+                ]
+              }
+            ],
+            "scoringProfiles": [
+              {
+                "name": "string",
+                "text": {
+                  "weights": {
+                    "*": "double"
+                  }
+                },
+                "functions": [
+                  {
+                    "type": "string",
+                    "fieldName": "string",
+                    "boost": "double",
+                    "interpolation": "string",
+                    "distance": {
+                      "referencePointParameter": "string",
+                      "boostingDistance": "double"
+                    },
+                    "freshness": {
+                      "boostingDuration": "string"
+                    },
+                    "magnitude": {
+                      "boostingRangeStart": "double",
+                      "boostingRangeEnd": "double",
+                      "constantBoostBeyondRange": "boolean"
+                    },
+                    "tag": {
+                      "tagsParameter": "string"
+                    }
+                  }
+                ],
+                "functionAggregation": "string"
+              }
+            ],
+            "defaultScoringProfile": "string",
+            "corsOptions": {
+              "allowedOrigins": [
+                "string"
+              ],
+              "maxAgeInSeconds": "double"
+            },
+            "suggesters": [
+              {
+                "name": "string",
+                "searchMode": "string",
+                "sourceFields": [
+                  "string"
+                ]
+              }
+            ],
+            "analyzers": [
+              {
+                "@odata.type": "string",
+                "name": "string"
+              }
+            ],
+            "tokenizers": [
+              {
+                "@odata.type": "string",
+                "name": "string"
+              }
+            ],
+            "tokenFilters": [
+              {
+                "@odata.type": "string",
+                "name": "string"
+              }
+            ],
+            "charFilters": [
+              {
+                "@odata.type": "string",
+                "name": "string"
+              }
+            ],
+            "@odata.etag": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Index Statistics",
       "suffix": "/indexes/{Index Name}/stats?api-version=2019-05-06",
-      "description": "The document count and storage size of one index. Requires an index name. The cheap way to size an index without counting documents."
+      "description": "The document count and storage size of one index. Requires an index name. The cheap way to size an index without counting documents.",
+      "responseSchema": {
+        "documentCount": "double",
+        "storageSize": "double"
+      }
     },
     {
       "paged": "true",
       "name": "Document Search",
       "suffix": "/indexes/{Index Name}/docs?api-version=2019-05-06&search={Search Text?}",
-      "description": "Searches one index. Requires an index name; takes the search text plus optional filter, select, orderby, facet, top and skip. The main data endpoint. NOTE THE PAGING LIMIT: skip is capped at 100,000, so an index cannot be exhaustively paged this way -- large extracts need a filter that partitions the data. Facets are the cheap way to get counts by field without retrieving documents at all."
+      "description": "Searches one index. Requires an index name; takes the search text plus optional filter, select, orderby, facet, top and skip. The main data endpoint. NOTE THE PAGING LIMIT: skip is capped at 100,000, so an index cannot be exhaustively paged this way -- large extracts need a filter that partitions the data. Facets are the cheap way to get counts by field without retrieving documents at all.",
+      "responseSchema": {
+        "value": [
+          {
+            "@search.score": "double"
+          }
+        ],
+        "@odata.nextLink": "string"
+      }
     },
     {
       "paged": "false",
@@ -47,13 +255,36 @@
       "paged": "false",
       "name": "Document Count",
       "suffix": "/indexes/{Index Name}/docs/$count?api-version=2019-05-06",
-      "description": "The number of documents in one index. Requires an index name. A single number."
+      "description": "The number of documents in one index. Requires an index name. A single number.",
+      "responseSchema": "double"
     },
     {
       "paged": "false",
       "name": "Data Source",
       "suffix": "/datasources/{Data Source Name}?api-version=2019-05-06",
-      "description": "One data source by name, with its connection details and change-detection policy."
+      "description": "One data source by name, with its connection details and change-detection policy.",
+      "responseSchema": {
+        "name": "string",
+        "description": "string",
+        "type": "string",
+        "credentials": {
+          "connectionString": "string"
+        },
+        "container": {
+          "name": "string",
+          "query": "string"
+        },
+        "dataChangeDetectionPolicy": {
+          "@odata.type": "string",
+          "highWaterMarkColumnName": "string"
+        },
+        "dataDeletionDetectionPolicy": {
+          "@odata.type": "string",
+          "softDeleteColumnName": "string",
+          "softDeleteMarkerValue": "string"
+        },
+        "@odata.etag": "string"
+      }
     },
     {
       "paged": "false",
@@ -67,19 +298,150 @@
           "parameterName": "Data Source Name"
         }
       ],
-      "description": "The external stores indexers pull from -- Azure SQL, Cosmos DB, Blob Storage -- with their type and container. Configuration, and the answer to where an index's contents originate."
+      "description": "The external stores indexers pull from -- Azure SQL, Cosmos DB, Blob Storage -- with their type and container. Configuration, and the answer to where an index's contents originate.",
+      "responseSchema": {
+        "value": [
+          {
+            "name": "string",
+            "description": "string",
+            "type": "string",
+            "credentials": {
+              "connectionString": "string"
+            },
+            "container": {
+              "name": "string",
+              "query": "string"
+            },
+            "dataChangeDetectionPolicy": {
+              "@odata.type": "string",
+              "highWaterMarkColumnName": "string"
+            },
+            "dataDeletionDetectionPolicy": {
+              "@odata.type": "string",
+              "softDeleteColumnName": "string",
+              "softDeleteMarkerValue": "string"
+            },
+            "@odata.etag": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Indexer",
       "suffix": "/indexers/{Indexer Name}?api-version=2019-05-06",
-      "description": "One indexer by name, with its full configuration."
+      "description": "One indexer by name, with its full configuration.",
+      "responseSchema": {
+        "name": "string",
+        "description": "string",
+        "dataSourceName": "string",
+        "skillsetName": "string",
+        "targetIndexName": "string",
+        "schedule": {
+          "interval": "string",
+          "startTime": "string"
+        },
+        "parameters": {
+          "batchSize": "double",
+          "maxFailedItems": "double",
+          "maxFailedItemsPerBatch": "double",
+          "base64EncodeKeys": "boolean"
+        },
+        "fieldMappings": [
+          {
+            "sourceFieldName": "string",
+            "targetFieldName": "string",
+            "mappingFunction": {
+              "name": "string"
+            }
+          }
+        ],
+        "outputFieldMappings": [
+          {
+            "sourceFieldName": "string",
+            "targetFieldName": "string",
+            "mappingFunction": {
+              "name": "string"
+            }
+          }
+        ],
+        "disabled": "boolean",
+        "@odata.etag": "string"
+      }
     },
     {
       "paged": "false",
       "name": "Indexer Status",
       "suffix": "/indexers/{Indexer Name}/status?api-version=2019-05-06",
-      "description": "The execution history of one indexer: the last run and several before it, each with start and end times, the counts of items processed and FAILED, and any error messages. Requires an indexer name. THE ONLY PLACE A PARTIALLY FAILED INDEX IS VISIBLE -- an index missing documents looks identical to a source that never had them, and the failure counts here are what distinguish the two."
+      "description": "The execution history of one indexer: the last run and several before it, each with start and end times, the counts of items processed and FAILED, and any error messages. Requires an indexer name. THE ONLY PLACE A PARTIALLY FAILED INDEX IS VISIBLE -- an index missing documents looks identical to a source that never had them, and the failure counts here are what distinguish the two.",
+      "responseSchema": {
+        "status": "string",
+        "lastResult": {
+          "status": "string",
+          "errorMessage": "string",
+          "startTime": "string",
+          "endTime": "string",
+          "errors": [
+            {
+              "key": "string",
+              "errorMessage": "string",
+              "statusCode": "double",
+              "name": "string",
+              "details": "string",
+              "documentationLink": "string"
+            }
+          ],
+          "warnings": [
+            {
+              "key": "string",
+              "message": "string",
+              "name": "string",
+              "details": "string",
+              "documentationLink": "string"
+            }
+          ],
+          "itemsProcessed": "double",
+          "itemsFailed": "double",
+          "initialTrackingState": "string",
+          "finalTrackingState": "string"
+        },
+        "executionHistory": [
+          {
+            "status": "string",
+            "errorMessage": "string",
+            "startTime": "string",
+            "endTime": "string",
+            "errors": [
+              {
+                "key": "string",
+                "errorMessage": "string",
+                "statusCode": "double",
+                "name": "string",
+                "details": "string",
+                "documentationLink": "string"
+              }
+            ],
+            "warnings": [
+              {
+                "key": "string",
+                "message": "string",
+                "name": "string",
+                "details": "string",
+                "documentationLink": "string"
+              }
+            ],
+            "itemsProcessed": "double",
+            "itemsFailed": "double",
+            "initialTrackingState": "string",
+            "finalTrackingState": "string"
+          }
+        ],
+        "limits": {
+          "maxRunTime": "string",
+          "maxDocumentExtractionSize": "double",
+          "maxDocumentContentCharactersToExtract": "double"
+        }
+      }
     },
     {
       "paged": "false",
@@ -96,19 +458,125 @@
           "parameterName": "Indexer Name"
         }
       ],
-      "description": "The jobs that pull from a data source into an index, with their schedule, field mappings and the skillset applied. Configuration; their outcomes are in Indexer Status."
+      "description": "The jobs that pull from a data source into an index, with their schedule, field mappings and the skillset applied. Configuration; their outcomes are in Indexer Status.",
+      "responseSchema": {
+        "value": [
+          {
+            "name": "string",
+            "description": "string",
+            "dataSourceName": "string",
+            "skillsetName": "string",
+            "targetIndexName": "string",
+            "schedule": {
+              "interval": "string",
+              "startTime": "string"
+            },
+            "parameters": {
+              "batchSize": "double",
+              "maxFailedItems": "double",
+              "maxFailedItemsPerBatch": "double",
+              "base64EncodeKeys": "boolean"
+            },
+            "fieldMappings": [
+              {
+                "sourceFieldName": "string",
+                "targetFieldName": "string",
+                "mappingFunction": {
+                  "name": "string"
+                }
+              }
+            ],
+            "outputFieldMappings": [
+              {
+                "sourceFieldName": "string",
+                "targetFieldName": "string",
+                "mappingFunction": {
+                  "name": "string"
+                }
+              }
+            ],
+            "disabled": "boolean",
+            "@odata.etag": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Service Statistics",
       "suffix": "/servicestats?api-version=2019-05-06",
-      "description": "The service's usage against its limits -- how many indexes, indexers, data sources, storage and synonym maps are used out of the quota. One record. The place to look when creating something fails."
+      "description": "The service's usage against its limits -- how many indexes, indexers, data sources, storage and synonym maps are used out of the quota. One record. The place to look when creating something fails.",
+      "responseSchema": {
+        "counters": {
+          "documentCount": {
+            "usage": "double",
+            "quota": "double"
+          },
+          "indexesCount": {
+            "usage": "double",
+            "quota": "double"
+          },
+          "indexersCount": {
+            "usage": "double",
+            "quota": "double"
+          },
+          "dataSourcesCount": {
+            "usage": "double",
+            "quota": "double"
+          },
+          "storageSize": {
+            "usage": "double",
+            "quota": "double"
+          },
+          "synonymMaps": {
+            "usage": "double",
+            "quota": "double"
+          }
+        },
+        "limits": {
+          "maxFieldsPerIndex": "double",
+          "maxFieldNestingDepthPerIndex": "double",
+          "maxComplexCollectionFieldsPerIndex": "double",
+          "maxComplexObjectsInCollectionsPerDocument": "double"
+        }
+      }
     },
     {
       "paged": "false",
       "name": "Skillset",
       "suffix": "/skillsets/{Skillset Name}?api-version=2019-05-06",
-      "description": "One skillset by name, with its skills and their input and output mappings."
+      "description": "One skillset by name, with its skills and their input and output mappings.",
+      "responseSchema": {
+        "name": "string",
+        "description": "string",
+        "skills": [
+          {
+            "@odata.type": "string",
+            "name": "string",
+            "description": "string",
+            "context": "string",
+            "inputs": [
+              {
+                "name": "string",
+                "source": "string",
+                "sourceContext": "string"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "string",
+                "targetName": "string"
+              }
+            ]
+          }
+        ],
+        "cognitiveServices": {
+          "@odata.type": "string",
+          "description": "string",
+          "key": "string"
+        },
+        "@odata.etag": "string"
+      }
     },
     {
       "paged": "false",
@@ -122,13 +590,54 @@
           "parameterName": "Skillset Name"
         }
       ],
-      "description": "The AI enrichment pipelines applied during indexing -- OCR, entity recognition, key phrase extraction and custom skills. Configuration, and the explanation for fields in an index that exist in no source system."
+      "description": "The AI enrichment pipelines applied during indexing -- OCR, entity recognition, key phrase extraction and custom skills. Configuration, and the explanation for fields in an index that exist in no source system.",
+      "responseSchema": {
+        "value": [
+          {
+            "name": "string",
+            "description": "string",
+            "skills": [
+              {
+                "@odata.type": "string",
+                "name": "string",
+                "description": "string",
+                "context": "string",
+                "inputs": [
+                  {
+                    "name": "string",
+                    "source": "string",
+                    "sourceContext": "string"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "string",
+                    "targetName": "string"
+                  }
+                ]
+              }
+            ],
+            "cognitiveServices": {
+              "@odata.type": "string",
+              "description": "string",
+              "key": "string"
+            },
+            "@odata.etag": "string"
+          }
+        ]
+      }
     },
     {
       "paged": "false",
       "name": "Synonym Map",
       "suffix": "/synonymmaps/{Synonym Map Name}?api-version=2019-05-06",
-      "description": "One synonym map by name, with its rules."
+      "description": "One synonym map by name, with its rules.",
+      "responseSchema": {
+        "name": "string",
+        "format": "string",
+        "synonyms": "string",
+        "@odata.etag": "string"
+      }
     },
     {
       "paged": "false",
@@ -142,7 +651,17 @@
           "parameterName": "Synonym Map Name"
         }
       ],
-      "description": "The synonym rules applied at query time. Configuration, but it materially changes results: a search for one term can match documents containing another, which is otherwise inexplicable from the index contents."
+      "description": "The synonym rules applied at query time. Configuration, but it materially changes results: a search for one term can match documents containing another, which is otherwise inexplicable from the index contents.",
+      "responseSchema": {
+        "value": [
+          {
+            "name": "string",
+            "format": "string",
+            "synonyms": "string",
+            "@odata.etag": "string"
+          }
+        ]
+      }
     }
   ]
 }
