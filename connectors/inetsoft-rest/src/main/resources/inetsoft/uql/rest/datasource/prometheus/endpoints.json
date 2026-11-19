@@ -16,72 +16,282 @@
       "paged": "false",
       "name": "Metadata",
       "suffix": "/v1/series?match[]={Series Selector,}&start={Start Time:YYYY-MM-DDTHH:MM:SSZ}&end={End Time:YYYY-MM-DDTHH:MM:SSZ}",
+      "responseSchema": {
+        "status": "string",
+        "data": [
+          {
+            "*": "string"
+          }
+        ]
+      },
       "description": "The series matching one or more selectors, returned as their full label sets without any values. Requires at least one match[] selector and a time range. Use it to discover what exists -- which label combinations are actually present -- before writing a query against them. On a large installation this is expensive and may be refused for exceeding cardinality limits."
     },
     {
       "paged": "false",
       "name": "Label Names",
       "suffix": "/v1/labels",
+      "responseSchema": {
+        "status": "string",
+        "data": [
+          "string"
+        ]
+      },
       "description": "Every label name present in the data. The vocabulary of dimensions available to group by, and the natural first request when the metric structure is unknown."
     },
     {
       "paged": "false",
       "name": "Label Values",
       "suffix": "/v1/label/{Label Name}/values",
+      "responseSchema": {
+        "status": "string",
+        "data": [
+          "string"
+        ]
+      },
       "description": "The values one label takes. Requires the label name. Passing __name__ returns every metric name, which is the closest thing Prometheus has to a table listing."
     },
     {
       "paged": "false",
       "name": "Targets",
       "suffix": "/v1/targets?state={State?:active|dropped|any}",
+      "responseSchema": {
+        "status": "string",
+        "data": {
+          "activeTargets": [
+            {
+              "discoveredLabels": {
+                "*": "string"
+              },
+              "labels": {
+                "*": "string"
+              },
+              "scrapePool": "string",
+              "scrapeUrl": "string",
+              "globalUrl": "string",
+              "lastError": "string",
+              "lastScrape": "timeInstant",
+              "lastScrapeDuration": "double",
+              "health": "string",
+              "scrapeInterval": "string",
+              "scrapeTimeout": "string"
+            }
+          ],
+          "droppedTargets": [
+            {
+              "discoveredLabels": {
+                "*": "string"
+              }
+            }
+          ]
+        }
+      },
       "description": "The endpoints Prometheus scrapes, with their labels, the last scrape time and duration, and their health. Filter by active or dropped. OPERATIONAL AND IMPORTANT FOR TRUSTING DATA: a target that is down produces gaps rather than zeroes, so a metric that appears to have fallen may simply not have been collected, and this is where that is visible."
     },
     {
       "paged": "false",
       "name": "Rules",
       "suffix": "/v1/rules?type={Type:alert|record}",
+      "responseSchema": {
+        "status": "string",
+        "data": {
+          "groups": [
+            {
+              "name": "string",
+              "file": "string",
+              "rules": [
+                {
+                  "name": "string",
+                  "query": "string",
+                  "labels": {
+                    "*": "string"
+                  },
+                  "health": "string",
+                  "lastError": "string",
+                  "evaluationTime": "double",
+                  "lastEvaluation": "timeInstant",
+                  "type": "string",
+                  "state": "string",
+                  "duration": "double",
+                  "annotations": {
+                    "*": "string"
+                  },
+                  "alerts": [
+                    {
+                      "labels": {
+                        "*": "string"
+                      },
+                      "annotations": {
+                        "*": "string"
+                      },
+                      "state": "string",
+                      "activeAt": "timeInstant",
+                      "value": "string"
+                    }
+                  ]
+                }
+              ],
+              "interval": "double",
+              "evaluationTime": "double",
+              "lastEvaluation": "timeInstant"
+            }
+          ]
+        }
+      },
       "description": "The recording and alerting rules loaded, with their expressions, evaluation times and current state. Filter by type. Recording rules are pre-computed queries, so this is where to find that an expensive expression already has a cheaper precomputed name."
     },
     {
       "paged": "false",
       "name": "Alerts",
       "suffix": "/v1/alerts",
+      "responseSchema": {
+        "status": "string",
+        "data": {
+          "alerts": [
+            {
+              "labels": {
+                "*": "string"
+              },
+              "annotations": {
+                "*": "string"
+              },
+              "state": "string",
+              "activeAt": "timeInstant",
+              "value": "string"
+            }
+          ]
+        }
+      },
       "description": "The alerts currently firing or pending, with their labels, annotations, state and how long they have been active. A live snapshot -- Prometheus keeps no alert history here, so this answers what is wrong now and nothing about the past."
     },
     {
       "paged": "false",
       "name": "Target Metadata",
       "suffix": "/v1/targets/metadata?match_target={Match Target}&metric={Metric}&limit={Limit}",
+      "responseSchema": {
+        "status": "string",
+        "data": [
+          {
+            "target": {
+              "*": "string"
+            },
+            "type": "string",
+            "help": "string",
+            "unit": "string"
+          }
+        ]
+      },
       "description": "The metric metadata a specific target exposes -- the type (counter, gauge, histogram, summary) and help text for each metric. Requires a target matcher and metric. The TYPE matters for correctness: a counter only ever increases and must be read through rate(), while a gauge can be read directly, and treating one as the other gives a meaningless number."
     },
     {
       "paged": "false",
       "name": "Alert managers",
       "suffix": "/v1/alertmanagers",
+      "responseSchema": {
+        "status": "string",
+        "data": {
+          "activeAlertmanagers": [
+            {
+              "url": "string"
+            }
+          ],
+          "droppedAlertmanagers": [
+            {
+              "url": "string"
+            }
+          ]
+        }
+      },
       "description": "The Alertmanager instances Prometheus is sending alerts to, active and dropped. Configuration health; alerts firing here but not reaching anyone is usually visible as a dropped entry."
     },
     {
       "paged": "false",
       "name": "Status",
       "suffix": "/v1/status/config",
+      "responseSchema": {
+        "status": "string",
+        "data": {
+          "yaml": "string"
+        }
+      },
       "description": "The configuration Prometheus is currently running, as loaded YAML. One record. Useful for confirming which targets and rules should exist before concluding data is missing."
     },
     {
       "paged": "false",
       "name": "Runtime Information",
       "suffix": "/v1/status/runtimeinfo",
+      "responseSchema": {
+        "status": "string",
+        "data": {
+          "startTime": "timeInstant",
+          "CWD": "string",
+          "reloadConfigSuccess": "boolean",
+          "lastConfigTime": "timeInstant",
+          "corruptionCount": "double",
+          "goroutineCount": "double",
+          "GOMAXPROCS": "double",
+          "GOGC": "string",
+          "GODEBUG": "string",
+          "storageRetention": "string"
+        }
+      },
       "description": "The running server's uptime, storage retention, reload time and goroutine count. Retention in particular bounds every query here: data older than it does not exist regardless of what is asked for."
     },
     {
       "paged": "false",
       "name": "Build Information",
       "suffix": "/v1/status/buildinfo",
+      "responseSchema": {
+        "status": "string",
+        "data": {
+          "version": "string",
+          "revision": "string",
+          "branch": "string",
+          "buildUser": "string",
+          "buildDate": "string",
+          "goVersion": "string"
+        }
+      },
       "description": "The Prometheus version and build details. One record; behaviour and available endpoints vary by version."
     },
     {
       "paged": "false",
       "name": "TSDB Statistics",
       "suffix": "/v1/status/tsdb",
+      "responseSchema": {
+        "status": "string",
+        "data": {
+          "headStats": {
+            "numSeries": "double",
+            "chunkCount": "double",
+            "minTime": "double",
+            "maxTime": "double"
+          },
+          "seriesCountByMetricName": [
+            {
+              "name": "string",
+              "value": "double"
+            }
+          ],
+          "labelValueCountByLabelName": [
+            {
+              "name": "string",
+              "value": "double"
+            }
+          ],
+          "memoryInBytesByLabelName": [
+            {
+              "name": "string",
+              "value": "double"
+            }
+          ],
+          "seriesCountByLabelValuePair": [
+            {
+              "name": "string",
+              "value": "double"
+            }
+          ]
+        }
+      },
       "description": "Cardinality statistics for the time series database: the label names and metric names with the most series, and the largest label-value pairs. THE ENDPOINT FOR DIAGNOSING A SLOW OR OVERSIZED PROMETHEUS -- high cardinality is the usual cause, and this names the labels responsible."
     }
   ]
