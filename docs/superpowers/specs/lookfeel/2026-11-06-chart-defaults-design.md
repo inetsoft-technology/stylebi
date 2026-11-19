@@ -229,6 +229,7 @@ Some defaults choose the binding or the data, not the look. These are:
 There is no migration on load: the epic is unreleased.
 - Drawing rules (D) apply to marked charts at once.
 - Seeded values (V, N) reach a chart that was marked before this ships at its next re-seed: Revert then Modernize, a dark/light switch, a density change, a type change or a restore. Modernize on its own is not one: it skips charts that are already marked (`VizModernizeUtil.modernize` takes the unmarked ones only). One example is the corner (0.3 → 0.08), whose plain value is already stored. Seeds that were not saved before slice 0 come back as the field's own default until then.
+- The viewer and Preview re-seed on every open, because their state round trip is a restore (M3). An already-marked chart can therefore show new seeded values in the viewer before it does in the composer. Opening in the composer is a load, and it does not seed (live check RT-4).
 
 ### M9. Exports and older builds
 
@@ -985,7 +986,10 @@ S8 is built in two parts on one branch and shipped as one PR (D132). S8a holds t
   - When every spoke has the same scale (S5-6's test, `PolarCoord.isSameScale`): at its ticks.
   - Otherwise (D130): four rings a quarter of the radius apart, the same on every spoke, the outermost on the outer ring. They mark fractions of each spoke, not values; each spoke labels only its outermost value (D73).
 - **Spokes in the grid colour.** The spokes take the grid colour instead of the axis-line colour on marked radars ("Radar spokes and rings: same as grid line", common line specs, and the drawn card). An author's spoke line colour wins.
-- **Layer.** Rings draw under the series and the fill (the grid layer, z 30).
+- **Layer (D145).** Rings, spokes and the outer ring draw on the grid layer (z 30), under the series and the fill. Axis ticks and labels stay on top. On marked radars only, the spoke and outer-ring axis lines are drawn as grid lines:
+  - The spokes take the measure axes' line colour and visibility.
+  - The outer ring takes the label axis's line colour and visibility.
+  - An author's spoke colour still wins, and the Y grid row turns off only the rings.
 - **Author control.** The Lines tab offers the Y grid row on a marked radar, so an author can turn the rings off or recolour them. Scripts and `format.css` reach the same properties.
 
 **S8-3 funnel and waterfall values (D129, D136 to D138).**
@@ -1336,6 +1340,7 @@ S2b-2 numbered its rows D150 to D160 while it was built. They are D149 to D159 h
 | D142 | Marked tree boxes are tinted per node in `RelationVO` from a generator-set alpha and card composite: the seeded, author static and dimension colours are tinted, while a measure on colour and highlighted nodes stay solid. Labels inside take the title ink, and the outline draws anti-aliased (S8-6) | Design, from the drawn card |
 | D143 | A marked Gantt's time scale picks a round unit from the span and the plot width so every tick is labelled, and its labels sit on the ticks, so the grid draws only at labelled ticks. The units run from minute to year, never finer than the classic data-spaced unit. An author's increment turns the rule off for that axis and keeps its classic meaning (S8-7) | Design, from the drawn card and the builder check |
 | D144 | A Gantt does not scroll by default (`GraphUtil.isVScrollable` turns forced scrolling off for a time axis); D91's text that said it could is corrected (S5-1, S8-8) | Design, correction |
+| D145 | On a marked radar the spokes and the outer ring are drawn as grid lines on the grid layer (z 30), under the series and fill, instead of as axis lines over them. Ticks and labels stay on the axes, on top. Spokes take the measure axes' line colour and visibility, and the outer ring the label axis's. The Y grid row and `line_y` turn off only the inner rings. Classic radars, including a scripted `setWebGrid`, are unchanged (S8-2, live check R-2c) | Owner, 2026-11-19 |
 | D149 | A marked funnel coloured by its stage takes funnel order only when its Share Colors is off, or when no other chart on the dashboard colours by that column with Share Colors on. It then neither reads nor writes the dashboard's shared picks for that column. With such a partner it keeps the shared picks. Its legend lists the stages top first in every case. Revises S2b ruling Q9, which assumed automatic picks are not shared (S2-12) | Owner |
 | D150 | A sunburst or icicle node n levels below its base (n at most 3) is mixed toward the composited card colour in OKLab by 1 − 0.62ⁿ (38%, 62%, 76%), so it never turns white or passes the card. Replaces the fixed lightness step of S2b ruling Q8 and revises D17 (S2-11) | Owner |
 | D151 | On a marked chart, a label drawn on its mark takes whichever of black and white has the higher contrast with the fill, so every fill reaches 4.5:1 (C21). Classic charts keep today's white-leaning rule (S2-11, S1-6) | Design |
@@ -1414,7 +1419,11 @@ S2b-2 numbered its rows D150 to D160 while it was built. They are D149 to D159 h
   - Every item renders a classic chart identically before and after.
 - **Family items (S8):**
   - S8-1: a marked bar, horizontal bar, line, area, waterfall, candle and box plot with values on both sides of zero draw the zero line on the axis layer in the axis-line colour, and none when every value is positive, on a log scale or on a 3D bar. A scatter crossing zero on Y only draws the horizontal line; crossing on both draws both. Facet panels and a dual-axis chart (primary only) behave as D133 says. An author's axis line colour reaches the line. The bottom category axis line stays.
-  - S8-2: a one-measure and a multi-measure marked radar draw polygon rings in the grid colour under the fill, with spokes in the grid colour. Rings sit at the shared ticks when the spokes share a scale, and at four even steps when they do not. Y grid NONE from the dialog, script or `format.css` removes them. A classic radar, scripted `setWebGrid` included, draws as before.
+  - S8-2: a one-measure and a multi-measure marked radar draw polygon rings in the grid colour under the fill, with spokes in the grid colour.
+    - Rings sit at the shared ticks when the spokes share a scale, and at four even steps when they do not. After layout, each ring lies at its fraction of the outer ring's radius.
+    - The spokes and the outer ring are drawn under the series and fill too, with ticks and labels on top (D145).
+    - Y grid NONE from the dialog, script or `format.css` removes the rings only.
+    - A classic radar, scripted `setWebGrid` included, draws as before.
   - S8-3: a new marked funnel and waterfall show values centred inside every mark that fits in both directions, the Total included, and none on marks that do not. Labels are white on light-mode direction colours and black in dark. Show Values off survives a re-seed, Modernize and Revert, and the reset copy. A waterfall with a Text field gets no seeded values, and its text labels keep today's placement on narrow bars. A brushed waterfall shows values once. The funnel draws no grid.
   - S8-4: a point chart with a shape field shows the filled list on a marked chart and the classic list after Revert. An author's list survives both. A saved frame reads back by index. The pane's Reset and the wizard's plain point are filled on a marked chart.
   - S8-5: the four hierarchy types hide the size legend, also when it is the only legend. Show Legend and Show All bring it back and keep it after a re-seed. Changing to a bubble chart shows it. A treemap without a size field offers no Show Legend. Finishing the wizard on a marked treemap keeps its colour legend.
