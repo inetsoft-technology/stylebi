@@ -4,6 +4,35 @@
       "name": "Ad Account",
       "paged": false,
       "suffix": "/rest/adAccounts/{Ad Account ID}",
+      "responseSchema": {
+        "changeAuditStamps": {
+          "created": {
+            "actor": "string",
+            "time": "double"
+          },
+          "lastModified": {
+            "actor": "string",
+            "time": "double"
+          }
+        },
+        "currency": "string",
+        "id": "double",
+        "name": "string",
+        "notifiedOnCampaignOptimization": "boolean",
+        "notifiedOnCreativeApproval": "boolean",
+        "notifiedOnCreativeRejection": "boolean",
+        "notifiedOnEndOfCampaign": "boolean",
+        "reference": "string",
+        "servingStatuses": [
+          "string"
+        ],
+        "status": "string",
+        "test": "boolean",
+        "type": "string",
+        "version": {
+          "versionTag": "string"
+        }
+      },
       "description": "One advertising account by id, with its budget and status."
     },
     {
@@ -11,6 +40,42 @@
       "paged": true,
       "pageType": "ITERATION",
       "suffix": "/rest/adAccounts?q=search",
+      "responseSchema": {
+        "elements": [
+          {
+            "changeAuditStamps": {
+              "created": {
+                "actor": "string",
+                "time": "double"
+              },
+              "lastModified": {
+                "actor": "string",
+                "time": "double"
+              }
+            },
+            "currency": "string",
+            "id": "double",
+            "name": "string",
+            "notifiedOnCampaignOptimization": "boolean",
+            "notifiedOnCreativeApproval": "boolean",
+            "notifiedOnCreativeRejection": "boolean",
+            "notifiedOnEndOfCampaign": "boolean",
+            "reference": "string",
+            "servingStatuses": [
+              "string"
+            ],
+            "status": "string",
+            "test": "boolean",
+            "type": "string",
+            "version": {
+              "versionTag": "string"
+            }
+          }
+        ],
+        "metadata": {
+          "nextPageToken": "string"
+        }
+      },
       "description": "The advertising accounts the credentials can reach, with name, type, status, currency and the reference the advertiser assigned. THE STARTING POINT: nearly every endpoint here takes a sponsored account URN, and LINKEDIN IDENTIFIES EVERYTHING BY URN rather than by bare id -- a string like urn:li:sponsoredAccount:12345 -- so an id lifted from one response usually needs wrapping before another will accept it."
     },
     {
@@ -24,6 +89,33 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/adAccountUsers?q=authenticatedUser",
+      "responseSchema": {
+        "elements": [
+          {
+            "account": "string",
+            "changeAuditStamps": {
+              "created": {
+                "actor": "string",
+                "time": "double"
+              },
+              "lastModified": {
+                "actor": "string",
+                "time": "double"
+              }
+            },
+            "role": "string",
+            "user": "string",
+            "version": {
+              "versionTag": "string"
+            }
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The caller's own access records. Always the caller's, and the explanation for which accounts the rest of this connector can see."
     },
     {
@@ -31,6 +123,33 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/adAccountUsers?q=accounts&accounts={Sponsored Account URNs,:urn1,urn2,...}",
+      "responseSchema": {
+        "elements": [
+          {
+            "account": "string",
+            "changeAuditStamps": {
+              "created": {
+                "actor": "string",
+                "time": "double"
+              },
+              "lastModified": {
+                "actor": "string",
+                "time": "double"
+              }
+            },
+            "role": "string",
+            "user": "string",
+            "version": {
+              "versionTag": "string"
+            }
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "Access records across several named accounts at once. The efficient route for an agency managing many."
     },
     {
@@ -44,6 +163,39 @@
       "name": "Campaign Group",
       "paged": false,
       "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaignGroups/{Campaign Group ID}",
+      "responseSchema": {
+        "account": "string",
+        "allowedCampaignTypes": [
+          "string"
+        ],
+        "backfilled": "boolean",
+        "changeAuditStamps": {
+          "created": {
+            "actor": "string",
+            "time": "double"
+          },
+          "lastModified": {
+            "actor": "string",
+            "time": "double"
+          }
+        },
+        "id": "double",
+        "name": "string",
+        "objectiveType": "string",
+        "runSchedule": {
+          "start": "double",
+          "end": "double"
+        },
+        "servingStatuses": [
+          "string"
+        ],
+        "status": "string",
+        "test": "boolean",
+        "totalBudget": {
+          "amount": "string",
+          "currencyCode": "string"
+        }
+      },
       "description": "One campaign group by id."
     },
     {
@@ -51,12 +203,126 @@
       "paged": true,
       "pageType": "ITERATION",
       "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaignGroups?q=search",
+      "responseSchema": {
+        "elements": [
+          {
+            "account": "string",
+            "allowedCampaignTypes": [
+              "string"
+            ],
+            "backfilled": "boolean",
+            "changeAuditStamps": {
+              "created": {
+                "actor": "string",
+                "time": "double"
+              },
+              "lastModified": {
+                "actor": "string",
+                "time": "double"
+              }
+            },
+            "id": "double",
+            "name": "string",
+            "objectiveType": "string",
+            "runSchedule": {
+              "start": "double",
+              "end": "double"
+            },
+            "servingStatuses": [
+              "string"
+            ],
+            "status": "string",
+            "test": "boolean",
+            "totalBudget": {
+              "amount": "string",
+              "currencyCode": "string"
+            }
+          }
+        ],
+        "metadata": {
+          "nextPageToken": "string"
+        }
+      },
       "description": "The campaign groups within one account -- the budget and scheduling container above campaigns. Requires an account id. Budgets are frequently set here rather than per campaign, so campaign-level spend does not add up to the group's budget."
     },
     {
       "name": "Campaign",
       "paged": false,
       "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaigns/{Campaign ID}",
+      "responseSchema": {
+        "account": "string",
+        "associatedEntity": "string",
+        "audienceExpansionEnabled": "boolean",
+        "campaignGroup": "string",
+        "changeAuditStamps": {
+          "created": {
+            "actor": "string",
+            "time": "double"
+          },
+          "lastModified": {
+            "actor": "string",
+            "time": "double"
+          }
+        },
+        "costType": "string",
+        "creativeSelection": "string",
+        "dailyBudget": {
+          "amount": "string",
+          "currencyCode": "string"
+        },
+        "format": "string",
+        "id": "double",
+        "locale": {
+          "country": "string",
+          "language": "string"
+        },
+        "name": "string",
+        "objectiveType": "string",
+        "offsiteDeliveryEnabled": "boolean",
+        "optimizationTargetType": "string",
+        "pacingStrategy": "string",
+        "runSchedule": {
+          "start": "double",
+          "end": "double"
+        },
+        "servingStatuses": [
+          "string"
+        ],
+        "status": "string",
+        "targetingCriteria": {
+          "include": {
+            "and": [
+              {
+                "or": {
+                  "*": [
+                    "string"
+                  ]
+                }
+              }
+            ]
+          },
+          "exclude": {
+            "or": {
+              "*": [
+                "string"
+              ]
+            }
+          }
+        },
+        "test": "boolean",
+        "totalBudget": {
+          "amount": "string",
+          "currencyCode": "string"
+        },
+        "type": "string",
+        "unitCost": {
+          "amount": "string",
+          "currencyCode": "string"
+        },
+        "version": {
+          "versionTag": "string"
+        }
+      },
       "description": "One campaign by id, with its full targeting."
     },
     {
@@ -64,6 +330,87 @@
       "paged": true,
       "pageType": "ITERATION",
       "suffix": "/rest/adAccounts/{Ad Account ID}/adCampaigns?q=search",
+      "responseSchema": {
+        "elements": [
+          {
+            "account": "string",
+            "associatedEntity": "string",
+            "audienceExpansionEnabled": "boolean",
+            "campaignGroup": "string",
+            "changeAuditStamps": {
+              "created": {
+                "actor": "string",
+                "time": "double"
+              },
+              "lastModified": {
+                "actor": "string",
+                "time": "double"
+              }
+            },
+            "costType": "string",
+            "creativeSelection": "string",
+            "dailyBudget": {
+              "amount": "string",
+              "currencyCode": "string"
+            },
+            "format": "string",
+            "id": "double",
+            "locale": {
+              "country": "string",
+              "language": "string"
+            },
+            "name": "string",
+            "objectiveType": "string",
+            "offsiteDeliveryEnabled": "boolean",
+            "optimizationTargetType": "string",
+            "pacingStrategy": "string",
+            "runSchedule": {
+              "start": "double",
+              "end": "double"
+            },
+            "servingStatuses": [
+              "string"
+            ],
+            "status": "string",
+            "targetingCriteria": {
+              "include": {
+                "and": [
+                  {
+                    "or": {
+                      "*": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "exclude": {
+                "or": {
+                  "*": [
+                    "string"
+                  ]
+                }
+              }
+            },
+            "test": "boolean",
+            "totalBudget": {
+              "amount": "string",
+              "currencyCode": "string"
+            },
+            "type": "string",
+            "unitCost": {
+              "amount": "string",
+              "currencyCode": "string"
+            },
+            "version": {
+              "versionTag": "string"
+            }
+          }
+        ],
+        "metadata": {
+          "nextPageToken": "string"
+        }
+      },
       "description": "The campaigns within one account, with name, type, status, objective, the daily and total budget, bid, schedule and targeting criteria. Requires an account id. The unit most advertising questions are asked about. STATUS separates ACTIVE from PAUSED, DRAFT, ARCHIVED, COMPLETED and CANCELED, so an unfiltered spend or count includes campaigns that never ran."
     },
     {
@@ -84,6 +431,25 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/adTargetingFacets",
+      "responseSchema": {
+        "elements": [
+          {
+            "adTargetingFacetUrn": "string",
+            "availableEntityFinders": [
+              "string"
+            ],
+            "entityTypes": [
+              "string"
+            ],
+            "facetName": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The targeting dimensions available -- industry, job function, seniority, skills, company size and the rest. The vocabulary campaigns are targeted in."
     },
     {
@@ -91,6 +457,20 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/adTargetingEntities?q=adTargetingFacet&facet={Ad Targeting Facet URN}",
+      "responseSchema": {
+        "elements": [
+          {
+            "facetUrn": "string",
+            "name": "string",
+            "urn": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The specific values within one targeting facet. Requires the facet. THE DECODER for targeting criteria: a campaign's targeting is a set of URNs, and this is what resolves them to names."
     },
     {
@@ -98,6 +478,20 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/adTargetingEntities?q=similarEntities&facet={Ad Targeting Facet URN}&entities={Entity URN}",
+      "responseSchema": {
+        "elements": [
+          {
+            "facetUrn": "string",
+            "name": "string",
+            "urn": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "Targeting values similar to given ones. Audience expansion, for finding adjacent segments."
     },
     {
@@ -105,6 +499,19 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/audienceCounts?q=targetingCriteria&targetingCriteria={Targeting Criteria}",
+      "responseSchema": {
+        "elements": [
+          {
+            "active": "double",
+            "total": "double"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The estimated size of an audience matching given targeting criteria. Planning rather than reporting -- it says how many people could be reached, not how many were."
     },
     {
@@ -112,6 +519,29 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/adSupplyForecasts?q=criteriaV2&targetingCriteria={Targeting Criteria}",
+      "responseSchema": {
+        "elements": [
+          {
+            "granularity": "string",
+            "metricType": "string",
+            "timeSeries": [
+              {
+                "adForecastRange": {
+                  "highEnd": "double",
+                  "lowEnd": "double"
+                },
+                "timestamp": "double",
+                "value": "double"
+              }
+            ]
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The forecast impressions available for given targeting criteria. The inventory side of the same planning question."
     },
     {
@@ -213,6 +643,55 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/adBudgetPricing?q=criteriaV2&campaignType={Campaign Type}&account={Sponsored Account URN}&bidType={Bid Type}&currency={ISO Currency Code?}&countryCode={ISO Country Code}&matchType={Match Type}&targetingCriteria={Targeting Criteria}&dailyBudget={Daily Budget}&objectiveType={Objective Type}&optimizationTargetType={Optimization Target Type}",
+      "responseSchema": {
+        "elements": [
+          {
+            "bidLimits": {
+              "max": {
+                "amount": "string",
+                "currencyCode": "string"
+              },
+              "min": {
+                "amount": "string",
+                "currencyCode": "string"
+              }
+            },
+            "dailyBudgetLimits": {
+              "default": {
+                "amount": "string",
+                "currencyCode": "string"
+              },
+              "max": {
+                "amount": "string",
+                "currencyCode": "string"
+              },
+              "min": {
+                "amount": "string",
+                "currencyCode": "string"
+              }
+            },
+            "suggestedBid": {
+              "default": {
+                "amount": "string",
+                "currencyCode": "string"
+              },
+              "max": {
+                "amount": "string",
+                "currencyCode": "string"
+              },
+              "min": {
+                "amount": "string",
+                "currencyCode": "string"
+              }
+            }
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The estimated bid range for a given campaign type and targeting. Forward-looking market pricing, used before spending rather than after."
     },
     {
@@ -220,12 +699,37 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/insightTags?q=account&account={Sponsored Account URN}",
+      "responseSchema": {
+        "elements": [
+          {
+            "firstPartyTrackingEnabled": "boolean",
+            "id": "double",
+            "sponsoredAccounts": [
+              "string"
+            ],
+            "tag": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The LinkedIn Insight Tags in one account -- the tracking pixels installed on the advertiser's site. Requires the account URN. NO TAG MEANS NO CONVERSION DATA, so this is the first thing to check when conversions are absent."
     },
     {
       "name": "Insight Tag",
       "paged": false,
       "suffix": "/rest/insightTags/{Insight Tag ID}",
+      "responseSchema": {
+        "firstPartyTrackingEnabled": "boolean",
+        "id": "double",
+        "sponsoredAccounts": [
+          "string"
+        ],
+        "tag": "string"
+      },
       "description": "One insight tag by id."
     },
     {
@@ -240,12 +744,72 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/insightTagDomains?q=account&account={Sponsored Account URN}",
+      "responseSchema": {
+        "elements": [
+          {
+            "blocked": "boolean",
+            "created": "double",
+            "domainName": "string",
+            "insightTag": "string",
+            "lastCallbackAt": "double"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The domains an account's insight tags are firing on. Where tracking is actually installed, as opposed to where it was intended."
     },
     {
       "name": "Conversion",
       "paged": false,
       "suffix": "/rest/conversions/{Conversion ID}?account={Sponsored Account URN}",
+      "responseSchema": {
+        "account": "string",
+        "associatedCampaigns": [
+          {
+            "associatedAt": "double",
+            "campaign": "string",
+            "conversion": "string"
+          }
+        ],
+        "attributionType": "string",
+        "campaigns": [
+          "string"
+        ],
+        "created": "double",
+        "enabled": "boolean",
+        "id": "double",
+        "imagePixelTag": "string",
+        "lastCallbackAt": "double",
+        "lastModified": "double",
+        "latestFirstPartyCallbackAt": "double",
+        "name": "string",
+        "postClickAttributionWindowSize": "double",
+        "type": "string",
+        "urlMatchRuleExpression": [
+          [
+            {
+              "matchType": "string",
+              "matchValue": "string"
+            }
+          ]
+        ],
+        "urlRules": [
+          {
+            "matchValue": "string",
+            "type": "string"
+          }
+        ],
+        "value": {
+          "amount": "string",
+          "currencyCode": "string"
+        },
+        "valueType": "string",
+        "viewThroughAttributionWindowSize": "double"
+      },
       "description": "One conversion definition by id."
     },
     {
@@ -253,6 +817,54 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/conversions?account={Sponsored Account URN}&ids={Conversion IDs}",
+      "responseSchema": {
+        "results": {
+          "*": {
+            "account": "string",
+            "associatedCampaigns": [
+              {
+                "associatedAt": "double",
+                "campaign": "string",
+                "conversion": "string"
+              }
+            ],
+            "attributionType": "string",
+            "campaigns": [
+              "string"
+            ],
+            "created": "double",
+            "enabled": "boolean",
+            "id": "double",
+            "imagePixelTag": "string",
+            "lastCallbackAt": "double",
+            "lastModified": "double",
+            "latestFirstPartyCallbackAt": "double",
+            "name": "string",
+            "postClickAttributionWindowSize": "double",
+            "type": "string",
+            "urlMatchRuleExpression": [
+              [
+                {
+                  "matchType": "string",
+                  "matchValue": "string"
+                }
+              ]
+            ],
+            "urlRules": [
+              {
+                "matchValue": "string",
+                "type": "string"
+              }
+            ],
+            "value": {
+              "amount": "string",
+              "currencyCode": "string"
+            },
+            "valueType": "string",
+            "viewThroughAttributionWindowSize": "double"
+          }
+        }
+      },
       "description": "Several conversion definitions by id."
     },
     {
@@ -260,12 +872,70 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/conversions?q=account&account={Sponsored Account URN}",
+      "responseSchema": {
+        "elements": [
+          {
+            "account": "string",
+            "associatedCampaigns": [
+              {
+                "associatedAt": "double",
+                "campaign": "string",
+                "conversion": "string"
+              }
+            ],
+            "attributionType": "string",
+            "campaigns": [
+              "string"
+            ],
+            "created": "double",
+            "enabled": "boolean",
+            "id": "double",
+            "imagePixelTag": "string",
+            "lastCallbackAt": "double",
+            "lastModified": "double",
+            "latestFirstPartyCallbackAt": "double",
+            "name": "string",
+            "postClickAttributionWindowSize": "double",
+            "type": "string",
+            "urlMatchRuleExpression": [
+              [
+                {
+                  "matchType": "string",
+                  "matchValue": "string"
+                }
+              ]
+            ],
+            "urlRules": [
+              {
+                "matchValue": "string",
+                "type": "string"
+              }
+            ],
+            "value": {
+              "amount": "string",
+              "currencyCode": "string"
+            },
+            "valueType": "string",
+            "viewThroughAttributionWindowSize": "double"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The conversion definitions in one account -- the actions on the advertiser's own site that count as success, with their type and attribution window. Requires the account URN. Conversion COUNTS appear in analytics; what a conversion MEANS is defined here."
     },
     {
       "name": "Campaign Conversion",
       "paged": false,
       "suffix": "/rest/campaignConversions/{Campaign and Conversion URN}",
+      "responseSchema": {
+        "associatedAt": "double",
+        "campaign": "string",
+        "conversion": "string"
+      },
       "description": "One campaign-to-conversion association."
     },
     {
@@ -273,6 +943,15 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/campaignConversions?ids={Campaign and Conversion URNs}",
+      "responseSchema": {
+        "results": {
+          "*": {
+            "associatedAt": "double",
+            "campaign": "string",
+            "conversion": "string"
+          }
+        }
+      },
       "description": "Several campaign-to-conversion associations by URN."
     },
     {
@@ -280,6 +959,20 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/campaignConversions?q=campaigns&campaigns={Campaign URNs}",
+      "responseSchema": {
+        "elements": [
+          {
+            "associatedAt": "double",
+            "campaign": "string",
+            "conversion": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "Which conversions are attached to which campaigns. The link that decides what a campaign's conversion count is counting."
     },
     {
@@ -298,6 +991,18 @@
       "name": "Third-Party Tracking Tag",
       "paged": false,
       "suffix": "/rest/thirdPartyTrackingTags/{Tag ID}",
+      "responseSchema": {
+        "account": "string",
+        "changeTimeStamps": {
+          "created": "double",
+          "lastModified": "double"
+        },
+        "entity": "string",
+        "event": "string",
+        "id": "double",
+        "platform": "string",
+        "trackingUrl": "string"
+      },
       "description": "One third-party tracking tag by id."
     },
     {
@@ -305,6 +1010,27 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/thirdPartyTrackingTags?q=creative&totals=true&creative={Creative URN}",
+      "responseSchema": {
+        "elements": [
+          {
+            "account": "string",
+            "changeTimeStamps": {
+              "created": "double",
+              "lastModified": "double"
+            },
+            "entity": "string",
+            "event": "string",
+            "id": "double",
+            "platform": "string",
+            "trackingUrl": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The external tracking tags attached to one creative. Requires the creative URN. Third-party verification, which produces figures that will not match LinkedIn's own."
     },
     {
@@ -358,12 +1084,52 @@
       "name": "DMP Segments",
       "paged": false,
       "suffix": "/rest/dmpSegments?ids={Segment IDs}",
+      "responseSchema": {
+        "results": {
+          "*": {
+            "account": "string",
+            "created": "double",
+            "destinations": [
+              {
+                "created": "double",
+                "destinationSegmentId": "string",
+                "lastModified": "double",
+                "status": "string"
+              }
+            ],
+            "id": "double",
+            "inputCount": "double",
+            "lastModified": "double",
+            "name": "string",
+            "sourcePlatform": "string",
+            "type": "string"
+          }
+        }
+      },
       "description": "Several segments by id."
     },
     {
       "name": "DMP Segment",
       "paged": false,
       "suffix": "/rest/dmpSegments/{Segment ID}",
+      "responseSchema": {
+        "account": "string",
+        "created": "double",
+        "destinations": [
+          {
+            "created": "double",
+            "destinationSegmentId": "string",
+            "lastModified": "double",
+            "status": "string"
+          }
+        ],
+        "id": "double",
+        "inputCount": "double",
+        "lastModified": "double",
+        "name": "string",
+        "sourcePlatform": "string",
+        "type": "string"
+      },
       "description": "One segment by id, with its size and status."
     },
     {
@@ -371,12 +1137,49 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/dmpSegments?q=account&account={Sponsored Account URN}",
+      "responseSchema": {
+        "elements": [
+          {
+            "account": "string",
+            "created": "double",
+            "destinations": [
+              {
+                "created": "double",
+                "destinationSegmentId": "string",
+                "lastModified": "double",
+                "status": "string"
+              }
+            ],
+            "id": "double",
+            "inputCount": "double",
+            "lastModified": "double",
+            "name": "string",
+            "sourcePlatform": "string",
+            "type": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The matched audience segments in one account -- uploaded contact lists, website retargeting audiences and lookalikes. Requires the account URN. Carries the match rate, which is what determines whether an uploaded list is usable: a low match rate means most of the uploaded people were not found on LinkedIn."
     },
     {
       "name": "DMP Segment Destination",
       "paged": false,
       "suffix": "/rest/dmpSegments/{Segment ID}/destinations/{Destination}",
+      "responseSchema": {
+        "audienceSize": "double",
+        "created": "double",
+        "destination": "string",
+        "destinationSegmentId": "string",
+        "dmpSegmentId": "double",
+        "lastModified": "double",
+        "matchedCount": "double",
+        "status": "string"
+      },
       "description": "One segment destination."
     },
     {
@@ -384,6 +1187,25 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/dmpSegments/{Segment ID}/destinations",
+      "responseSchema": {
+        "elements": [
+          {
+            "audienceSize": "double",
+            "created": "double",
+            "destination": "string",
+            "destinationSegmentId": "string",
+            "dmpSegmentId": "double",
+            "lastModified": "double",
+            "matchedCount": "double",
+            "status": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "Where one segment is shared to. Requires the segment id."
     },
     {
@@ -397,12 +1219,122 @@
       "name": "Ad Segment Status",
       "paged": false,
       "suffix": "/rest/adSegments/{Segment ID}",
+      "responseSchema": {
+        "account": "string",
+        "approximateMemberCount": "double",
+        "created": {
+          "actor": "string",
+          "time": "double"
+        },
+        "description": "string",
+        "id": "double",
+        "lastModified": {
+          "actor": "string",
+          "time": "double"
+        },
+        "name": "string",
+        "status": "string",
+        "type": "string",
+        "versionTag": "string"
+      },
       "description": "The processing status of one audience segment. Segments take time to build after upload, so this explains a segment that exists but cannot yet be targeted."
     },
     {
       "name": "Organization",
       "paged": false,
       "suffix": "/rest/organizations/{Organization ID}",
+      "responseSchema": {
+        "$URN": "string",
+        "alternativeNames": [
+          {
+            "locale": {
+              "country": "string",
+              "language": "string"
+            },
+            "value": "string"
+          }
+        ],
+        "coverPhotoV2": {
+          "cropped": "string",
+          "original": "string",
+          "cropInfo": {
+            "x": "double",
+            "y": "double",
+            "width": "double",
+            "height": "double"
+          }
+        },
+        "defaultLocale": {
+          "country": "string",
+          "language": "string"
+        },
+        "description": {
+          "localized": {
+            "*": "string"
+          },
+          "preferredLocale": {
+            "country": "string",
+            "language": "string"
+          }
+        },
+        "foundedOn": {
+          "day": "double",
+          "month": "double",
+          "year": "double"
+        },
+        "groups": [
+          "string"
+        ],
+        "id": "double",
+        "industries": [
+          "string"
+        ],
+        "localizedDescription": "string",
+        "localizedName": "string",
+        "localizedSpecialties": [
+          "string"
+        ],
+        "localizedWebsite": "string",
+        "logoV2": {
+          "cropped": "string",
+          "original": "string",
+          "cropInfo": {
+            "x": "double",
+            "y": "double",
+            "width": "double",
+            "height": "double"
+          }
+        },
+        "name": {
+          "localized": {
+            "*": "string"
+          },
+          "preferredLocale": {
+            "country": "string",
+            "language": "string"
+          }
+        },
+        "organizationStatus": "string",
+        "organizationType": "string",
+        "parentRelationship": {
+          "organizationRelationshipType": "string",
+          "parent": "string",
+          "relationshipStatus": "string"
+        },
+        "primaryOrganizationType": "string",
+        "staffCountRange": "string",
+        "vanityName": "string",
+        "versionTag": "string",
+        "website": {
+          "localized": {
+            "*": "string"
+          },
+          "preferredLocale": {
+            "country": "string",
+            "language": "string"
+          }
+        }
+      },
       "description": "One organisation by id -- the company page behind an advertiser. Carries the name, vanity name, description, industry, size and locations."
     },
     {
@@ -416,6 +1348,9 @@
       "name": "Organization Follower Count",
       "paged": false,
       "suffix": "/rest/networkSizes/{Organization URN}?edgeType=CompanyFollowedByMember",
+      "responseSchema": {
+        "firstDegreeSize": "double"
+      },
       "description": "The follower count of one organisation. Requires the organisation URN. A single number and the cheapest audience-size check."
     },
     {
@@ -429,6 +1364,30 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/organizations?q=parentOrganization&parent={Parent Organization URN}",
+      "responseSchema": {
+        "elements": [
+          {
+            "id": "double",
+            "localizedName": "string",
+            "name": {
+              "localized": {
+                "*": "string"
+              },
+              "preferredLocale": {
+                "country": "string",
+                "language": "string"
+              }
+            },
+            "primaryOrganizationType": "string",
+            "vanityName": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The brand pages under one parent organisation. Large companies run several brand pages, so a total for the company means summing them."
     },
     {
@@ -450,6 +1409,67 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/organizationPageStatistics?q=organization&organization={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}",
+      "responseSchema": {
+        "elements": [
+          {
+            "organization": "string",
+            "totalPageStatistics": {
+              "views": {
+                "allDesktopPageViews": {
+                  "pageViews": "double"
+                },
+                "allMobilePageViews": {
+                  "pageViews": "double"
+                },
+                "allPageViews": {
+                  "pageViews": "double"
+                },
+                "careersPageViews": {
+                  "pageViews": "double"
+                },
+                "desktopCareersPageViews": {
+                  "pageViews": "double"
+                },
+                "desktopJobsPageViews": {
+                  "pageViews": "double"
+                },
+                "desktopLifeAtPageViews": {
+                  "pageViews": "double"
+                },
+                "desktopOverviewPageViews": {
+                  "pageViews": "double"
+                },
+                "jobsPageViews": {
+                  "pageViews": "double"
+                },
+                "lifeAtPageViews": {
+                  "pageViews": "double"
+                },
+                "mobileCareersPageViews": {
+                  "pageViews": "double"
+                },
+                "mobileJobsPageViews": {
+                  "pageViews": "double"
+                },
+                "mobileLifeAtPageViews": {
+                  "pageViews": "double"
+                },
+                "mobileOverviewPageViews": {
+                  "pageViews": "double"
+                },
+                "overviewPageViews": {
+                  "pageViews": "double"
+                }
+              }
+            }
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "Page views and unique visitors for one organisation's page, by section and by viewer demographic, over a time range. The organic counterpart to ad analytics."
     },
     {
@@ -457,6 +1477,40 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/brandPageStatistics?q=brand&brand={Brand URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}",
+      "responseSchema": {
+        "elements": [
+          {
+            "brand": "string",
+            "totalPageStatistics": {
+              "views": {
+                "allDesktopPageViews": {
+                  "pageViews": "double"
+                },
+                "allMobilePageViews": {
+                  "pageViews": "double"
+                },
+                "allPageViews": {
+                  "pageViews": "double"
+                },
+                "desktopOverviewPageViews": {
+                  "pageViews": "double"
+                },
+                "mobileOverviewPageViews": {
+                  "pageViews": "double"
+                },
+                "overviewPageViews": {
+                  "pageViews": "double"
+                }
+              }
+            }
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The same page statistics for one brand page. Requires the brand URN."
     },
     {
@@ -464,6 +1518,27 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}",
+      "responseSchema": {
+        "elements": [
+          {
+            "organizationalEntity": "string",
+            "totalShareStatistics": {
+              "clickCount": "double",
+              "commentCount": "double",
+              "engagement": "double",
+              "impressionCount": "double",
+              "likeCount": "double",
+              "shareCount": "double",
+              "uniqueImpressionsCount": "double"
+            }
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "Engagement statistics for one organisation's posts -- impressions, clicks, likes, comments, shares and engagement rate. ORGANIC PERFORMANCE, which the advertising analytics does not cover: a company's own posting reach lives here."
     },
     {
@@ -471,6 +1546,39 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/posts/{Post or Share URN}?viewContext={View Context:AUTHOR|READER}",
+      "responseSchema": {
+        "adContext": {
+          "dscAdAccount": "string",
+          "dscAdType": "string",
+          "dscName": "string",
+          "dscStatus": "string",
+          "isDsc": "boolean"
+        },
+        "author": "string",
+        "commentary": "string",
+        "container": "string",
+        "contentCallToActionLabel": "string",
+        "contentLandingPage": "string",
+        "createdAt": "double",
+        "distribution": {
+          "feedDistribution": "string"
+        },
+        "id": "string",
+        "isReshareDisabledByAuthor": "boolean",
+        "lastModifiedAt": "double",
+        "lifecycleState": "string",
+        "lifecycleStateInfo": {
+          "contentStatus": "string",
+          "isEditedByAuthor": "boolean",
+          "reviewStatus": "string"
+        },
+        "publishedAt": "double",
+        "reshareContext": {
+          "parent": "string",
+          "root": "string"
+        },
+        "visibility": "string"
+      },
       "description": "One post by its URN, in a given view context."
     },
     {
@@ -478,6 +1586,43 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/posts?ids={Post URNs}",
+      "responseSchema": {
+        "results": {
+          "*": {
+            "adContext": {
+              "dscAdAccount": "string",
+              "dscAdType": "string",
+              "dscName": "string",
+              "dscStatus": "string",
+              "isDsc": "boolean"
+            },
+            "author": "string",
+            "commentary": "string",
+            "container": "string",
+            "contentCallToActionLabel": "string",
+            "contentLandingPage": "string",
+            "createdAt": "double",
+            "distribution": {
+              "feedDistribution": "string"
+            },
+            "id": "string",
+            "isReshareDisabledByAuthor": "boolean",
+            "lastModifiedAt": "double",
+            "lifecycleState": "string",
+            "lifecycleStateInfo": {
+              "contentStatus": "string",
+              "isEditedByAuthor": "boolean",
+              "reviewStatus": "string"
+            },
+            "publishedAt": "double",
+            "reshareContext": {
+              "parent": "string",
+              "root": "string"
+            },
+            "visibility": "string"
+          }
+        }
+      },
       "description": "Several posts by URN."
     },
     {
@@ -532,6 +1677,25 @@
       "name": "Social Actions Summary",
       "paged": false,
       "suffix": "/rest/socialActions/{Share/Post/Comment URN}",
+      "responseSchema": {
+        "commentsSummary": {
+          "aggregatedTotalComments": "double",
+          "commentsState": "string",
+          "selectedComments": [
+            "string"
+          ],
+          "totalFirstLevelComments": "double"
+        },
+        "likesSummary": {
+          "aggregatedTotalLikes": "double",
+          "likedByCurrentUser": "boolean",
+          "selectedLikes": [
+            "string"
+          ],
+          "totalLikes": "double"
+        },
+        "target": "string"
+      },
       "description": "The like, comment and share counts on one post, share or comment. Requires its URN. The engagement totals; the individual actions are separate endpoints."
     },
     {
@@ -539,6 +1703,31 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/socialActions/{Share/Post/Comment URN}/likes",
+      "responseSchema": {
+        "elements": [
+          {
+            "actor": "string",
+            "agent": "string",
+            "created": {
+              "actor": "string",
+              "impersonator": "string",
+              "time": "double"
+            },
+            "id": "string",
+            "lastModified": {
+              "actor": "string",
+              "impersonator": "string",
+              "time": "double"
+            },
+            "object": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The individual likes on one post or comment. Requires its URN. Who engaged, as opposed to how many."
     },
     {
@@ -546,6 +1735,61 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/socialActions/{Share/Post/Comment URN}/comments",
+      "responseSchema": {
+        "elements": [
+          {
+            "actor": "string",
+            "agent": "string",
+            "commentUrn": "string",
+            "commentsSummary": {
+              "aggregatedTotalComments": "double",
+              "commentsState": "string",
+              "selectedComments": [
+                "string"
+              ],
+              "totalFirstLevelComments": "double"
+            },
+            "content": [
+              {
+                "entity": {
+                  "image": "string"
+                },
+                "type": "string",
+                "url": "string"
+              }
+            ],
+            "created": {
+              "actor": "string",
+              "impersonator": "string",
+              "time": "double"
+            },
+            "id": "string",
+            "lastModified": {
+              "actor": "string",
+              "impersonator": "string",
+              "time": "double"
+            },
+            "likesSummary": {
+              "aggregatedTotalLikes": "double",
+              "likedByCurrentUser": "boolean",
+              "selectedLikes": [
+                "string"
+              ],
+              "totalLikes": "double"
+            },
+            "message": {
+              "text": "string"
+            },
+            "object": "string",
+            "parentComment": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The comments on one post, with their authors and text. Requires the post URN. The qualitative response to content, which no engagement count conveys."
     },
     {
@@ -553,6 +1797,20 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/socialMetadata/{Share/Post/Comment URN}",
+      "responseSchema": {
+        "commentSummary": {
+          "count": "double",
+          "topLevelCount": "double"
+        },
+        "commentsState": "string",
+        "entity": "string",
+        "reactionSummaries": {
+          "*": {
+            "count": "double",
+            "reactionType": "string"
+          }
+        }
+      },
       "description": "The social metadata of one entity -- comment and reaction settings and totals. Requires its URN."
     },
     {
@@ -560,6 +1818,24 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/socialMetadata?ids={Share/Post/Comment URNs}",
+      "responseSchema": {
+        "results": {
+          "*": {
+            "commentSummary": {
+              "count": "double",
+              "topLevelCount": "double"
+            },
+            "commentsState": "string",
+            "entity": "string",
+            "reactionSummaries": {
+              "*": {
+                "count": "double",
+                "reactionType": "string"
+              }
+            }
+          }
+        }
+      },
       "description": "The same for several entities at once."
     },
     {
@@ -567,6 +1843,28 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/reactions/{Share/Post/Comment URN}?q=entity",
+      "responseSchema": {
+        "elements": [
+          {
+            "created": {
+              "actor": "string",
+              "time": "double"
+            },
+            "id": "string",
+            "lastModified": {
+              "actor": "string",
+              "time": "double"
+            },
+            "reactionType": "string",
+            "root": "string"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The reactions on one post, by reaction type -- like, celebrate, support, insightful and the rest. Requires the post URN. Finer than a like count, and the reaction mix says something a total cannot."
     },
     {
@@ -574,18 +1872,87 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/videoAnalytics?q=entity&entity={Post URN}&type={Type:VIDEO_VIEW|VIEWER|TIME_WATCHED|TIME_WATCHED_FOR_VIDEO_VIEWS}&aggregation={Aggregation?:DAY|WEEK|ALL}",
+      "responseSchema": {
+        "elements": [
+          {
+            "entity": "string",
+            "timeRange": {
+              "start": "double",
+              "end": "double"
+            },
+            "value": "double"
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double",
+          "total": "double"
+        }
+      },
       "description": "The view statistics of one video post -- views, view rate and completion. Requires the post URN. Video completion is measured here rather than in the general analytics endpoint."
     },
     {
       "name": "Current User Profile",
       "paged": false,
       "suffix": "/v2/me",
+      "responseSchema": {
+        "firstName": {
+          "localized": {
+            "*": "string"
+          },
+          "preferredLocale": {
+            "country": "string",
+            "language": "string"
+          }
+        },
+        "id": "string",
+        "lastName": {
+          "localized": {
+            "*": "string"
+          },
+          "preferredLocale": {
+            "country": "string",
+            "language": "string"
+          }
+        },
+        "localizedFirstName": "string",
+        "localizedLastName": "string",
+        "profilePicture": {
+          "displayImage": "string"
+        }
+      },
       "description": "The member profile the credentials belong to. One record, always the caller. Note LinkedIn restricts profile fields severely: what comes back depends on the permissions granted, and most fields available in the interface are not available through the API at all."
     },
     {
       "name": "User Profile",
       "paged": false,
       "suffix": "/v2/people/{Person ID}",
+      "responseSchema": {
+        "firstName": {
+          "localized": {
+            "*": "string"
+          },
+          "preferredLocale": {
+            "country": "string",
+            "language": "string"
+          }
+        },
+        "id": "string",
+        "lastName": {
+          "localized": {
+            "*": "string"
+          },
+          "preferredLocale": {
+            "country": "string",
+            "language": "string"
+          }
+        },
+        "localizedFirstName": "string",
+        "localizedLastName": "string",
+        "profilePicture": {
+          "displayImage": "string"
+        }
+      },
       "description": "One member profile by id. Subject to the same severe field restrictions -- LinkedIn does not permit general profile lookup, so this works only for members who have authorised the application."
     },
     {
@@ -593,6 +1960,36 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/v2/people?ids={Person IDs}",
+      "responseSchema": {
+        "results": {
+          "*": {
+            "firstName": {
+              "localized": {
+                "*": "string"
+              },
+              "preferredLocale": {
+                "country": "string",
+                "language": "string"
+              }
+            },
+            "id": "string",
+            "lastName": {
+              "localized": {
+                "*": "string"
+              },
+              "preferredLocale": {
+                "country": "string",
+                "language": "string"
+              }
+            },
+            "localizedFirstName": "string",
+            "localizedLastName": "string",
+            "profilePicture": {
+              "displayImage": "string"
+            }
+          }
+        }
+      },
       "description": "Several member profiles by id, with the same restrictions."
     }
   ]
