@@ -105,12 +105,16 @@ public class WizEntitlementGrantController {
       }
 
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
-      IdentityID id = resolveIdentity(request.principal(), type, orgId);
+      IdentityID id = resolveIdentity(request.principal(), type, orgId, granted);
 
       // One node only: this serializes the read-modify-write below inside this JVM. A cluster
       // would need storage-level help (compare-and-set), which this does not provide.
+      GrantEntry result;
+      boolean changed;
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+
       synchronized(WRITE_LOCK) {
-         SecurityProvider provider = securityEngine.getSecurityProvider();
+         provider = securityEngine.getSecurityProvider();
          Permission existing =
             provider.getPermission(ResourceType.WIZ_PERMISSION, permission, orgId);
          // The stored object is live and Permission.clone() shares its edited-flag map, so the
@@ -120,7 +124,7 @@ public class WizEntitlementGrantController {
          updated.setOrgEditedGrantAll(existing == null || existing.getOrgEditedGrantAll() == null ?
             new HashMap<>() : new HashMap<>(existing.getOrgEditedGrantAll()));
          Set<String> names = ownGrantNames(updated, type, orgId);
-         boolean changed = granted ? names.add(id.getName()) : names.remove(id.getName());
+         changed = granted ? names.add(id.getName()) : names.remove(id.getName());
 
          if(changed) {
             setGrantNames(updated, type, names, orgId);
@@ -141,11 +145,17 @@ public class WizEntitlementGrantController {
                                                  "the grant could not be stored");
             }
 
-            audit(principal, permission, request.principalType(), granted, id, orgId, provider);
          }
 
-         return read(provider, permission, orgId);
+         result = read(provider, permission, orgId);
       }
+
+      // outside the lock: the audit backend may do database I/O
+      if(changed) {
+         audit(principal, permission, request.principalType(), granted, id, orgId, provider);
+      }
+
+      return result;
    }
 
    private void requirePermission(Principal principal, String permission)
@@ -183,7 +193,7 @@ public class WizEntitlementGrantController {
       throw badRequest("principalType: must be one of user, group, role");
    }
 
-   private IdentityID resolveIdentity(String raw, int type, String orgId) {
+   private IdentityID resolveIdentity(String raw, int type, String orgId, boolean mustExist) {
       if(raw == null || raw.isBlank()) {
          throw badRequest("principal: required");
       }
@@ -212,7 +222,17 @@ public class WizEntitlementGrantController {
          throw badRequest(notFound);
       }
 
-      if(id == null || !directory.exists(kind, id)) {
+      if(id == null) {
+         throw badRequest(notFound);
+      }
+
+      // A revoke only has to name an org-scoped identity: the grantee may have been deleted since,
+      // and a grant that is not there is an idempotent no-op.
+      if(!mustExist) {
+         return id;
+      }
+
+      if(!directory.exists(kind, id)) {
          throw badRequest(notFound);
       }
 

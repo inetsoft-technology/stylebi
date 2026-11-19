@@ -535,16 +535,14 @@ class WizEntitlementGrantControllerTest {
    // ---- facts about global roles (pinned) ---------------------------------------------------------
 
    @Test
-   void aGlobalRoleCannotBeGrantedOrRevoked() throws Exception {
+   void aGlobalRoleCannotBeGranted() throws Exception {
       SRPrincipal writer = wiz("writer", ORG_A);
 
-      for(boolean granted : new boolean[] { true, false }) {
-         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-            () -> post(request("config.read", "role", "globalr", granted), writer));
-         assertEquals(400, ex.getStatusCode().value());
-         assertEquals("principal: global roles cannot be granted Wiz permissions; " +
-                      "use an organization role", ex.getReason());
-      }
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> post(request("config.read", "role", "globalr", true), writer));
+      assertEquals(400, ex.getStatusCode().value());
+      assertEquals("principal: global roles cannot be granted Wiz permissions; " +
+                   "use an organization role", ex.getReason());
 
       assertTrue(entry(controller.getGrants(writer), "config.read").roles().isEmpty());
       assertFalse(holds("carol", "config.read", false));
@@ -566,6 +564,118 @@ class WizEntitlementGrantControllerTest {
          assertFalse(holds("plain", "orgconfig.read", multiTenant));
          post(request("orgconfig.read", "role", "r1", false), wiz("writer", ORG_A));
       }
+   }
+
+   // ---- revoke of stale grants ---------------------------------------------------------------------
+
+   /** A record as an older write could have left it: a grant of a user that no longer exists. */
+   private void storeStaleUserGrant(String permission, String ghost) {
+      Permission stale = new Permission();
+      stale.setUserGrantsForOrg(ResourceAction.ACCESS, Set.of(ghost), ORG_A);
+      stale.updateGrantAllByOrg(ORG_A, true);
+      SecurityEngine.getSecurity().getSecurityProvider()
+         .setPermission(ResourceType.WIZ_PERMISSION, permission, stale, ORG_A);
+   }
+
+   @Test
+   void aStaleGrantOfAVanishedUserCanBeRevokedAndRestoresDefaultAllow() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      storeStaleUserGrant("plugin.use", "ghost");
+      assertFalse(holds("plain", "plugin.use", false));
+      // a grant of that vanished user cannot be made, only removed
+      assertEquals(400, status(() -> post(request("plugin.use", "user", "ghost", true), writer)));
+
+      GrantEntry result = post(request("plugin.use", "user", "ghost", false), writer);
+
+      assertTrue(result.users().isEmpty(), result.toString());
+      assertFalse(result.restricted());
+      assertTrue(holds("plain", "plugin.use", false));
+   }
+
+   @Test
+   void deletingAGrantedUserRemovesItsGrantButLeavesTheRecordEdited() throws Exception {
+      // characterization: FileAuthorizationProvider.authenticationChanged rewrites the stored
+      // permissions when an identity is removed, but the org's edited flag is not touched, so an
+      // end-user permission whose only grantee was deleted is left denied for everybody
+      SRPrincipal writer = wiz("writer", ORG_A);
+      post(request("plugin.use", "user", "carol", true), writer);
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      ((AuthenticationChain) provider.getAuthenticationProvider()).getProviders().stream()
+         .filter(EditableAuthenticationProvider.class::isInstance)
+         .map(EditableAuthenticationProvider.class::cast)
+         .forEach(p -> p.removeUser(new IdentityID("carol", ORG_A)));
+
+      Permission stored = provider.getPermission(ResourceType.WIZ_PERMISSION, "plugin.use", ORG_A);
+      assertTrue(stored.getOrgScopedUserGrants(ResourceAction.ACCESS, ORG_A).isEmpty());
+      assertTrue(stored.hasOrgEditedGrantAll(ORG_A));
+      assertFalse(holds("plain", "plugin.use", false));
+   }
+
+   @Test
+   void aRevokeNamingAnotherOrganizationIsRejectedAndChangesNothing() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      post(request("config.read", "user", "carol", true), writer);
+
+      for(String other : List.of("carol:" + ORG_B, "carol^" + ORG_B, "dave:" + ORG_B)) {
+         assertEquals(400, status(() -> post(request("config.read", "user", other, false), writer)),
+                      other);
+      }
+
+      assertEquals(List.of("carol"), entry(controller.getGrants(writer), "config.read").users());
+   }
+
+   @Test
+   void aRevokeOfAGlobalRoleNameIsTheIdempotentNoOp() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      post(request("config.read", "role", "r1", true), writer);
+
+      GrantEntry result = post(request("config.read", "role", "globalr", false), writer);
+
+      assertEquals(List.of("r1"), result.roles());
+   }
+
+   // ---- audit outside the lock --------------------------------------------------------------------------
+
+   @Test
+   void theAuditCallRunsAfterTheWriteLockIsReleased() throws Exception {
+      Audit audit = mock(Audit.class);
+      SRPrincipal writer = wiz("writer", ORG_A);
+      ExecutorService pool = Executors.newSingleThreadExecutor();
+      boolean[] otherWriteFinishedDuringAudit = { false };
+      doAnswer(inv -> {
+         if(otherWriteFinishedDuringAudit[0]) {
+            return null;
+         }
+
+         Future<?> other = pool.submit(() -> {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.addHeader("Authorization", "Bearer test-jwt");
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+            ThreadContext.setContextPrincipal(writer);
+            return controller.setGrant(request("config.write", "user", "reader", true), writer);
+         });
+
+         try {
+            other.get(5, TimeUnit.SECONDS);
+            otherWriteFinishedDuringAudit[0] = true;
+         }
+         catch(TimeoutException e) {
+            other.cancel(true);
+         }
+
+         return null;
+      }).when(audit).auditAction(any(ActionRecord.class), any());
+
+      try(MockedStatic<Audit> mocked = Mockito.mockStatic(Audit.class)) {
+         mocked.when(Audit::getInstance).thenReturn(audit);
+         post(request("config.read", "user", "carol", true), writer);
+      }
+      finally {
+         pool.shutdownNow();
+      }
+
+      assertTrue(otherWriteFinishedDuringAudit[0],
+                 "another write must be able to run while the audit call is in progress");
    }
 
    private GrantEntry post(GrantRequest request, Principal caller) {
