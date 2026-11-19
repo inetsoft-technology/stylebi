@@ -18,8 +18,13 @@
 package inetsoft.uql.rest.datasource.influxdb;
 
 import inetsoft.uql.rest.json.EndpointJsonQuery;
+import inetsoft.uql.rest.pagination.PaginationParamType;
+import inetsoft.uql.rest.pagination.PaginationSpec;
+import inetsoft.uql.rest.pagination.PaginationType;
 import inetsoft.uql.tabular.*;
+import inetsoft.uql.util.HeadersAndRowsJsonTable;
 import inetsoft.sree.SreeEnv;
+import org.w3c.dom.Element;
 
 import java.util.Map;
 
@@ -101,6 +106,9 @@ public class InfluxDBQuery extends EndpointJsonQuery<InfluxDBEndpoint> {
 
    @Override
    protected void updatePagination(InfluxDBEndpoint endpoint) {
+      setHeadersPath(null);
+      setRowsPath(null);
+
       if(endpoint.isPost()) {
          setRequestType("POST");
          setContentType("application/json");
@@ -110,16 +118,92 @@ public class InfluxDBQuery extends EndpointJsonQuery<InfluxDBEndpoint> {
          setContentType(null);
          super.setRequestBody(null);
 
-
-         if(endpoint.getName().equals("Query")) {
-            setHeadersPath("results[0].series[0].columns");
-            setRowsPath("results[0].series[0].values");
-         }
-         else {
-            setHeadersPath(null);
-            setRowsPath(null);
+         if(endpoint.isInfluxql()) {
+            setHeadersPath(InfluxQLJsonTable.HEADERS_PATH);
+            setRowsPath(InfluxQLJsonTable.ROWS_PATH);
          }
       }
+
+      paginationSpec = createPaginationSpec(endpoint);
+   }
+
+   /**
+    * The paging a catalogue endpoint needs, which InfluxDB does not do the same way everywhere:
+    * the list endpoints take {@code limit}/{@code offset} and say nothing about a next page (users
+    * and orgs carry no {@code links.next} at all), so they are read until a page comes back empty;
+    * tasks take only an {@code after} cursor and do hand back {@code links.next} while the page is
+    * full. The page size is the most each endpoint accepts: 100, or 500 for tasks, where it is
+    * already in the suffix.
+    */
+   private PaginationSpec createPaginationSpec(InfluxDBEndpoint endpoint) {
+      if(!endpoint.isPost() && endpoint.isPaged()) {
+         if(endpoint.getPageType() == InfluxDBEndpoint.PAGE_OFFSET &&
+            endpoint.getPageItems() != null && !endpoint.getPageItems().isEmpty())
+         {
+            return PaginationSpec.builder()
+               .type(PaginationType.OFFSET)
+               .offsetParam(PaginationParamType.QUERY, "offset")
+               .maxResultsPerPageParam(PaginationParamType.QUERY, "limit")
+               .maxResultsPerPage(100)
+               .recordCountPath("$." + endpoint.getPageItems() + ".length()")
+               .baseRecordLength(0)
+               .zeroBasedPageIndex(true)
+               .build();
+         }
+
+         if(endpoint.getPageType() == InfluxDBEndpoint.PAGE_LINK) {
+            return PaginationSpec.builder()
+               .type(PaginationType.LINK_ITERATION)
+               .linkParam(PaginationParamType.JSON_PATH, "$.links.next")
+               .build();
+         }
+      }
+
+      return PaginationSpec.builder()
+         .type(PaginationType.NONE)
+         .build();
+   }
+
+   /**
+    * A saved query keeps the paging and column paths it was built with, and they are only worked
+    * out again when the endpoint changes. Work them out on load for a catalogue endpoint so a query
+    * saved before they were right reads correctly too.
+    */
+   @Override
+   public void parseContents(Element root) throws Exception {
+      super.parseContents(root);
+      final String name = getEndpoint();
+
+      if(name != null && !isCustomEndpoint()) {
+         final InfluxDBEndpoint endpoint = getEndpointMap().get(name);
+
+         if(endpoint != null) {
+            updatePagination(endpoint);
+         }
+      }
+   }
+
+   /**
+    * The InfluxQL table reads {@code results[0].series[0]} of the whole response, so it must be
+    * handed the whole response. A JSON path that narrows it first, such as
+    * {@code $.results[0].series[0].values[*]}, would leave it rows with no column names.
+    */
+   @Override
+   public String getValidJsonPath() {
+      if(isEmpty(getHeadersPath()) || isEmpty(getRowsPath())) {
+         return super.getValidJsonPath();
+      }
+
+      return "$";
+   }
+
+   @Override
+   public HeadersAndRowsJsonTable createHeadersAndRowsTable() {
+      return new InfluxQLJsonTable(getHeadersPath(), getRowsPath());
+   }
+
+   private static boolean isEmpty(String s) {
+      return s == null || s.isEmpty();
    }
 
 

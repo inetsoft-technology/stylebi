@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import inetsoft.uql.rest.pagination.PaginationSpec;
 import inetsoft.uql.rest.pagination.PaginationType;
 import inetsoft.uql.tabular.*;
+import inetsoft.uql.util.HeadersAndRowsJsonTable;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
 
@@ -172,6 +173,15 @@ public abstract class AbstractRestQuery extends TabularQuery {
 
    public void setHeadersPath(String headersPath) {
       this.headersPath = headersPath;
+   }
+
+   /**
+    * The table that reads a response whose headers and rows sit at {@link #getHeadersPath()} and
+    * {@link #getRowsPath()}. A query whose response needs more than reading those two paths
+    * overrides it.
+    */
+   public HeadersAndRowsJsonTable createHeadersAndRowsTable() {
+      return new HeadersAndRowsJsonTable(headersPath, rowsPath);
    }
 
    @Override
