@@ -181,7 +181,7 @@ public abstract class Axis extends VContainer {
    }
 
    /**
-    * Set whether a grid line under the plot draws the axis line instead.
+    * Set whether a grid line under the series draws the axis line instead.
     * @hidden
     */
    public void setLineAsGrid(boolean lineAsGrid) {

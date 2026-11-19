@@ -223,6 +223,63 @@ class RadarWebTest {
    }
 
    @Test
+   void aOneMeasureModernRadarRingsSitAtTheirRadius() {
+      VGraph vgraph = oneVar(true, true, 400, 240);
+      double outer = outerRadius(vgraph);
+      List<DefaultAxis> spokes = spokesOf(vgraph);
+
+      assertEquals(5, spokes.size(), "premise: a spoke per category");
+
+      for(DefaultAxis spoke : spokes) {
+         double[] ticks = spoke.getScale().getTicks();
+         double max = ((LinearScale) spoke.getScale()).getMax();
+         assertTrue(spoke.getGridLineCount() > 1, "premise: several rings");
+
+         for(int k = 0; k < spoke.getGridLineCount(); k++) {
+            assertEquals(ticks[k] / max * outer, paintedRadius(spoke, k), 0.5,
+                         "tick " + ticks[k]);
+         }
+      }
+   }
+
+   @Test
+   void aOneMeasureModernRadarHasAnOuterPolygonThroughItsSpokes() {
+      VGraph vgraph = oneVar(true, true, 400, 240);
+      double outer = outerRadius(vgraph);
+      Point2D centre = centre(vgraph);
+      List<GridLine> spokeLines = spokeWebLines(vgraph);
+
+      assertEquals(5, spokeLines.size(), "one spoke web line per category");
+
+      List<Point2D> ends = new ArrayList<>();
+
+      for(GridLine line : spokeLines) {
+         List<Point2D> pts = vertices(painted(line));
+         Point2D end = pts.get(0).distance(centre) > pts.get(pts.size() - 1).distance(centre) ?
+            pts.get(0) : pts.get(pts.size() - 1);
+         assertEquals(outer, end.distance(centre), 0.5, "a spoke ends at the outer radius");
+         ends.add(end);
+      }
+
+      List<Point2D> corners = vertices(painted(outerWebLine(vgraph)));
+      // a closed path repeats its first vertex
+      int n = corners.size();
+
+      if(n > 1 && corners.get(0).distance(corners.get(n - 1)) < 0.5) {
+         n--;
+      }
+
+      assertEquals(5, n, "one vertex per spoke");
+
+      for(int i = 0; i < n; i++) {
+         Point2D corner = corners.get(i);
+         assertEquals(outer, corner.distance(centre), 0.5, "a corner at the outer radius");
+         assertTrue(ends.stream().anyMatch(e -> e.distance(corner) <= 0.5),
+                    "a corner is a spoke end");
+      }
+   }
+
+   @Test
    void classicRingsKeepTodaysRadius() {
       VGraph vgraph = vgraph(true, new double[] { 100, 7, 2000 }, GraphConstants.THIN_LINE,
                              false, 400, 240);
@@ -636,6 +693,10 @@ class RadarWebTest {
    }
 
    private static VGraph oneVar(boolean sides) {
+      return oneVar(sides, false, 400, 400);
+   }
+
+   private static VGraph oneVar(boolean sides, boolean modern, int width, int height) {
       EGraph graph = new EGraph();
       graph.addElement(new AreaElement("cat", "m"));
       Object[][] rows = new Object[6][];
@@ -653,9 +714,10 @@ class RadarWebTest {
       PolarCoord polar = new PolarCoord(inner);
       polar.setWebGrid(true);
       polar.setSidesFromSpokes(sides);
+      polar.setModernWeb(modern);
       graph.setCoordinate(polar);
 
-      return Plotter.getPlotter(graph).plotAndLayout(data, 0, 0, 400, 400);
+      return Plotter.getPlotter(graph).plotAndLayout(data, 0, 0, width, height);
    }
 
    private static List<DefaultAxis> spokesOf(VGraph vgraph) {
