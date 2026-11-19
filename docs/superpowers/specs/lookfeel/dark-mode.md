@@ -18,7 +18,7 @@ This is the single place dark-mode decisions are recorded. See "Relationship to 
 
 ## Two surfaces
 
-| | Shell (portal converted; composer is phase 2, not started) | Designed dashboards |
+| | Shell (portal converted; composer-only surfaces are phase 2, not started) | Designed dashboards |
 |---|---|---|
 | What it is | Navigation, panels, dialogs, lists, forms | Charts, tables, KPIs, selection, calendar, titles |
 | Selected by | A `shell-dark` class on `<html>`, written by the server | The assembly's `VizMark` |
@@ -104,7 +104,7 @@ The viewer's Print button is a server PDF export
 like any export. The portal styles contain no `@media print` rules: browser printing of a dark shell
 drops the backgrounds and darkens light text by default (Chrome), which stays readable.
 
-## Shell dark (portal converted, composer phase 2 not started; hidden behind `portal.shellDark`)
+## Shell dark (portal converted, composer-only surfaces phase 2; hidden behind `portal.shellDark`)
 
 **Implementation phases, not release phases:** phase 1 is the portal, phase 2 is the composer. Shell
 dark is not released until **both** are complete. Until then only engineers and testers see it, behind
@@ -131,8 +131,9 @@ How it works (Feature #80673):
   to release.
 - **Before first paint:** one server-rendered index serves the portal, viewer, composer, wizard and
   embed routes, and the class is in that HTML, so a dark user never sees a light frame. Embed routes
-  (`/app/embed/**`) are the exception and always render light: they are shown inside a customer's
-  own page, which shell dark must not restyle (the cookie still records the user's mode). The login
+  (`/app/embed/**`) are the exception: they are shown inside a customer's own page, which shell dark
+  must not restyle, so they always render light, as does the login page shown for one, and they
+  leave the cookie alone. The login
   page and the workspace chooser (`/`) use the `inetsoft.shellDark` cookie, which remembers the last
   mode the portal resolved (HttpOnly, one year, expired when the mode goes light), otherwise the
   organization default. The cookie is per browser, not per organization: in a multi-tenant server
@@ -144,18 +145,19 @@ How it works (Feature #80673):
   pending design sign-off (palette follow-up).
 - **Dashboard content keeps the light look:** inside the canvas (`$dashboard-content`; the boundary
   variables `$dashboard-content`, `$content-popup` and `$outside-content` are in `_variables.scss`,
-  because light-and-dark shell rules use them too) the light tokens are restored and the dark-only roles reset, so content computes exactly as in a light
-  shell. The same applies to a dashboard control's own popups attached to body (the combo box value
-  list over 500 labels, the combo box / text input / table cell date calendar). App command menus
-  (context menus, the mini-toolbar More menu) and tooltips are shell chrome; annotation tooltips are
-  the exception and keep the annotation's own fill (white by default), as in a light shell.
+  because light-and-dark shell rules use them too) the light tokens are restored and the dark-only
+  roles reset, so content computes exactly as in a light shell. The same applies to a dashboard
+  control's own popups attached to body (the combo box value list over 500 labels, the combo box /
+  text input / table cell date calendar). App command menus (context menus, the mini-toolbar More
+  menu) and tooltips are shell chrome; annotation tooltips are the exception and keep the
+  annotation's own fill (white by default), as in a light shell.
 - **Clickable cards** (home cards, workspace chooser tiles, New Data Source cards) hover the same as
   in the light shell's "Clickable cards" rule (shell-design-spec.md): primary border plus the dark
   medium shadow, no lift and **no hover ring** in either shell. Hover, focus and selected are three
   distinct states, and a light hover with the ring was pixel-identical to focus. Focus keeps the
   `2px` ring at the dark strength (`.75`); the New Data Source cards are not keyboard-focusable yet
   (Bug #81489).
-- **Dark states** (the shell's interaction states, in a dark shell; Material 3 states, m3.material.io):
+- **Dark states** (the shell's interaction states in a dark shell; Material 3 states, m3.material.io):
   - hover uses the shell's neutral fills (`#37353B`; selected `#45424B`); icon buttons show a neutral
     chip; a selected item keeps its selected fill on hover; states get lighter as they get stronger;
   - primary buttons keep the orange fill with the dark on-primary text (`#1C1B1F`, 5.5:1); hover and
@@ -165,7 +167,8 @@ How it works (Feature #80673):
     disabled checked checkbox, radio or switch uses on-surface at 38% with its mark, dot or knob in
     the surface color, both at full opacity (the light shell's faded orange turns brown on dark
     surfaces); forced colors keep the fade;
-  - focus is the `2px` ring at `.75` (`--inet-focus-ring-color`) for all shell focus, cards included;
+  - focus is the `2px` ring at `.75` (`--inet-focus-ring-color`) for all shell focus, the home
+    cards and workspace chooser tiles included;
   - tooltips and popovers are opaque raised surfaces; danger text uses its own dark role (the danger
     color is kept for borders and fills).
 - **Authored and third-party surfaces stay as designed for white:** CKEditor editing areas (email
@@ -178,8 +181,8 @@ widgets and the named symptoms (table header hover/sort, calendar day-of-week ro
 placeholder), plus one hover language across the shell. Verified with an axe contrast and
 light-bleed sweep over the portal, content parity, and a pixel diff of the light shell against a
 build without the feature; the results are summarized in the descriptions of #8420 and the hover
-consistency PR. The composer (phase 2) has not started: it already gets the class, and the dialogs
-and widgets it shares with the portal are converted, but its own surfaces are not done.
+consistency PR. The composer's own surfaces (phase 2) have not started: the composer already gets
+the class, and the dialogs and widgets it shares with the portal are converted.
 
 ### Rollout
 
