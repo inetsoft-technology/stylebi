@@ -121,6 +121,21 @@ class StackedLegendOrderTest {
    }
 
    @Test
+   void aMarkedFunnelStageLegendIsNotReversed() {
+      assertEquals("A", topmost(funnelItems(true, "X")));
+   }
+
+   @Test
+   void aClassicFunnelLegendStillReverses() {
+      assertEquals("C", topmost(funnelItems(false, "X")));
+   }
+
+   @Test
+   void aMarkedFunnelColouredByAnotherFieldStillReverses() {
+      assertEquals("C", topmost(funnelItems(true, "Color")));
+   }
+
+   @Test
    void stackedMeasuresSubFrameLegendsDrawOnTop() {
       List<List<Object>> classic = measureLegends(false);
       List<List<Object>> modern = measureLegends(true);
@@ -186,9 +201,21 @@ class StackedLegendOrderTest {
       return items(layout, transposed, inMarkOrder, stacked, width, count, "Color");
    }
 
+   // a side legend on a funnel element, which stacks its stages from the middle
+   private static List<LegendItem> funnelItems(boolean inMarkOrder, String colorField) {
+      return items(GraphConstants.RIGHT, true, inMarkOrder, true, 400, 3, colorField, true);
+   }
+
    private static List<LegendItem> items(int layout, boolean transposed, boolean inMarkOrder,
                                          boolean stacked, int width, int count,
                                          String colorField)
+   {
+      return items(layout, transposed, inMarkOrder, stacked, width, count, colorField, false);
+   }
+
+   private static List<LegendItem> items(int layout, boolean transposed, boolean inMarkOrder,
+                                         boolean stacked, int width, int count,
+                                         String colorField, boolean funnel)
    {
       Object[][] rows = new Object[count + 1][];
       rows[0] = new Object[] { "X", "Color", "V" };
@@ -202,7 +229,11 @@ class StackedLegendOrderTest {
       EGraph graph = new EGraph();
       IntervalElement elem = new IntervalElement("X", "V");
 
-      if(stacked) {
+      if(funnel) {
+         elem.setCollisionModifier(GraphElement.MOVE_MIDDLE | GraphElement.MOVE_CENTER |
+                                   GraphElement.MOVE_STACK);
+      }
+      else if(stacked) {
          elem.setCollisionModifier(GraphElement.MOVE_STACK);
       }
 

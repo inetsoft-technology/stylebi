@@ -212,6 +212,13 @@ public abstract class GraphGenerator {
    protected abstract void createEGraph0();
 
    /**
+    * The stage a marked funnel orders its colours by, from the top, or null.
+    */
+   XDimensionRef getFunnelStage() {
+      return cstrategy.getFunnelStage();
+   }
+
+   /**
     * Get the axis descriptor of a column.
     */
    protected abstract AxisDescriptor getAxisDescriptor(String col);
@@ -336,6 +343,14 @@ public abstract class GraphGenerator {
          String vsrc = GraphUtil.getVisualSource(chart);
 
          cstrategy = new VSColorFrameStrategy(info, vizContext);
+         XDimensionRef funnelStage = info instanceof VSChartInfo ?
+            FunnelColorOrder.stage(vizContext, (VSChartInfo) info) : null;
+
+         if(funnelStage != null) {
+            cstrategy.setFunnelOrder(funnelStage, FunnelColorOrder.standalone(
+               (VSChartInfo) info, chart.getViewsheet(), chart.getAbsoluteName(), sourceType));
+         }
+
          cvisitor = new VSFrameVisitor(info, fdata, cstrategy, global, vdata, cubeType, vsrc,
             sourceType, dateComparison, getFrameInitializer());
 

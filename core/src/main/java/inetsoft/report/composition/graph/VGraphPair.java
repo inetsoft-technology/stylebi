@@ -610,8 +610,8 @@ public class VGraphPair {
                }
             }
 
-            sortFrameValues(egraph, this.data);
-            sortFrameValues(egraph2, this.data);
+            sortFrameValues(egraph, this.data, creator.getFunnelStage());
+            sortFrameValues(egraph2, this.data, creator2.getFunnelStage());
 
             // repopulate the properties changed by script
             info = chart.getVSChartInfo();
@@ -1149,8 +1149,10 @@ public class VGraphPair {
 
    /**
     * Sort the categorical scale values if the comparator is changed by script.
+    *
+    * @param funnelStage the stage a marked funnel orders its colours by, or null.
     */
-   private void sortFrameValues(EGraph egraph, DataSet data) {
+   private void sortFrameValues(EGraph egraph, DataSet data, XDimensionRef funnelStage) {
       if(data != null) {
          VisualFrame[] frames = egraph.getVisualFrames();
 
@@ -1160,6 +1162,7 @@ public class VGraphPair {
 
                if(comp != null && !(comp instanceof DefaultComparer)) {
                   VSFrameVisitor.syncCategoricalFrame(frame, data);
+                  FunnelColorOrder.relist(egraph, frame, funnelStage, data);
                }
             }
          }
@@ -2906,6 +2909,7 @@ public class VGraphPair {
 
             graph = gen.createEGraph();
             graphdata = gen.getData();
+            funnelStage = gen.getFunnelStage();
          }
 
          // if the EGraph is generated, we take a snapshot of the ChartInfo
@@ -2943,6 +2947,13 @@ public class VGraphPair {
          return legendSize;
       }
 
+      /**
+       * The stage the generated graph's funnel orders its colours by, or null.
+       */
+      public XDimensionRef getFunnelStage() {
+         return funnelStage;
+      }
+
       private void addScriptables() {
          if(vbox == null || vars == null || ainfo == null) {
             return;
@@ -2962,6 +2973,7 @@ public class VGraphPair {
       private VariableTable vars;
       private double legendSize;
       private Dimension size;
+      private XDimensionRef funnelStage;
    }
 
    public ChartInfo getChartInfo() {
