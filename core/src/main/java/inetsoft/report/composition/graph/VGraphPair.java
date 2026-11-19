@@ -753,6 +753,10 @@ public class VGraphPair {
       try {
          plotter1 = Plotter.getPlotter(egraph);
          vgraph = plotter1.plotAndLayout(this.data, 0, 0, width2, height2);
+
+         if(box.getMode() == Viewsheet.SHEET_DESIGN_MODE && ainfo.getVSChartInfo() != null) {
+            ainfo.getVSChartInfo().setDivergingColorFields(DivergingRamps.drawnFields(egraph));
+         }
          plotter1 = null;
 
          if(cancelled) {

@@ -1613,6 +1613,20 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
    }
 
    /**
+    * Get the colour fields whose seeded ramp is drawn diverging (runtime only).
+    */
+   public Set<String> getDivergingColorFields() {
+      return divergingColorFields;
+   }
+
+   /**
+    * Set the colour fields whose seeded ramp is drawn diverging (runtime only).
+    */
+   public void setDivergingColorFields(Set<String> fields) {
+      this.divergingColorFields = fields == null ? Set.of() : Set.copyOf(fields);
+   }
+
+   /**
     * Set selections.
     */
    public void setLinkSelections(Hashtable<String, SelectionVSAssembly> sel) {
@@ -2322,6 +2336,7 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
    private boolean period = false; // flag add period field or not
    private boolean resetShape; // flag indicates reset shape frame or not
    private VariableTable linkVarTable; // the variable for hyperlink
+   private Set<String> divergingColorFields = Set.of(); // runtime only
    private AxisDescriptor rdesc; // runtime axis desc
    private AxisDescriptor rdesc2; // runtime 2nd axis desc
    private String rmapType = null; // runtime map type

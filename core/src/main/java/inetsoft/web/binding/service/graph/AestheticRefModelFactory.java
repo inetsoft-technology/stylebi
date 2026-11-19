@@ -19,8 +19,10 @@ package inetsoft.web.binding.service.graph;
 
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.TealColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.VisualFrameWrapper;
 import inetsoft.web.binding.model.graph.*;
+import inetsoft.web.binding.model.graph.aesthetic.VarianceColorModel;
 import inetsoft.web.binding.model.graph.aesthetic.VisualFrameModel;
 import inetsoft.web.binding.service.graph.aesthetic.VisualFrameModelFactoryService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +45,7 @@ public class AestheticRefModelFactory {
          return null;
       }
 
-      VisualFrameModel frameModel =
+      VisualFrameModel frameModel = drawnDiverging(aref, cinfo) ? new VarianceColorModel() :
          vFactoryService.createVisualFrameModel(aref.getVisualFrameWrapper());
 
       // textfield is edited by set and gettextformat request,
@@ -93,6 +95,14 @@ public class AestheticRefModelFactory {
       }
 
       return ref;
+   }
+
+   // seeded Teal that draws diverging is shown as the Variance ramp it looks like
+   private boolean drawnDiverging(AestheticRef aref, ChartInfo cinfo) {
+      return cinfo instanceof VSChartInfo &&
+         aref.getVisualFrameWrapper() instanceof TealColorFrameWrapper teal &&
+         !teal.isAuthorRamp() &&
+         ((VSChartInfo) cinfo).getDivergingColorFields().contains(aref.getFullName());
    }
 
    private AestheticRef createAestheticRef(ChartInfo cinfo) {
