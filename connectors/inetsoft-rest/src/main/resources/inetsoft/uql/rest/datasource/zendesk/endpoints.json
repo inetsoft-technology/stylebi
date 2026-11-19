@@ -7175,6 +7175,35 @@
       "name": "Support App Installations",
       "pageType": "link",
       "suffix": "/api/v2/apps/installations.json",
+      "responseSchema": {
+        "installations": [
+          {
+            "app_id": "double",
+            "collapsible": "boolean",
+            "created_at": "timeInstant",
+            "enabled": "boolean",
+            "has_incomplete_subscription": "boolean",
+            "has_unpaid_subscription": "boolean",
+            "id": "double",
+            "paid": "boolean",
+            "pending_installation": "boolean",
+            "pending_job_id": "string",
+            "product": "string",
+            "recurring_payment": "boolean",
+            "servable": "boolean",
+            "settings_objects": [
+              {
+                "name": "string"
+              }
+            ],
+            "stripe_account": "string",
+            "stripe_publishable_key": "string",
+            "stripe_subscription_id": "string",
+            "updated": "string",
+            "updated_at": "timeInstant"
+          }
+        ]
+      },
       "lookups": [
         {
           "endpoint": "Support App Requirements",
@@ -7189,6 +7218,31 @@
       "name": "Support App Installation",
       "pageType": "none",
       "suffix": "/api/v2/apps/installations/{Installation ID}.json",
+      "responseSchema": {
+        "app_id": "double",
+        "collapsible": "boolean",
+        "created_at": "timeInstant",
+        "enabled": "boolean",
+        "has_incomplete_subscription": "boolean",
+        "has_unpaid_subscription": "boolean",
+        "id": "double",
+        "paid": "boolean",
+        "pending_installation": "boolean",
+        "pending_job_id": "string",
+        "product": "string",
+        "recurring_payment": "boolean",
+        "servable": "boolean",
+        "settings_objects": [
+          {
+            "name": "string"
+          }
+        ],
+        "stripe_account": "string",
+        "stripe_publishable_key": "string",
+        "stripe_subscription_id": "string",
+        "updated": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "One app installation by id, with its settings as configured on this account."
     },
     {
@@ -7201,6 +7255,18 @@
       "name": "Support App Requirements",
       "pageType": "link",
       "suffix": "/api/v2/apps/installations/{Installation ID}/requirements.json",
+      "responseSchema": {
+        "requirements": [
+          {
+            "account_id": "double",
+            "created_at": "timeInstant",
+            "identifier": "string",
+            "requirement_id": "double",
+            "requirement_type": "string",
+            "updated_at": "timeInstant"
+          }
+        ]
+      },
       "description": "The Zendesk objects an installed app created for itself -- custom ticket fields, targets, triggers and the like. Requires an installation id. THE ANSWER TO WHERE AN UNEXPLAINED FIELD CAME FROM: objects listed here were created by the app rather than by an administrator, and removing the app removes them."
     },
     {
@@ -9647,6 +9713,28 @@
       "name": "Talk Phone Number Search",
       "pageType": "link",
       "suffix": "/api/v2/channels/voice/phone_numbers/search.json?country={Country ISO Code}&toll_free={Toll Free?:true|false}&area_code={Area Code?}&contains={Contains?:regular expression}",
+      "responseSchema": {
+        "count": "double",
+        "next_page": "string",
+        "phone_numbers": [
+          {
+            "address_requirements": "string",
+            "capabilities": {
+              "mms": "boolean",
+              "sms": "boolean",
+              "voice": "boolean"
+            },
+            "country_code": "string",
+            "display_number": "string",
+            "location": "string",
+            "number": "string",
+            "price": "string",
+            "token": "string",
+            "toll_free": "boolean"
+          }
+        ],
+        "previous_page": "string"
+      },
       "description": "Available numbers to purchase, by country and pattern. A procurement lookup against Zendesk's inventory rather than anything the account holds."
     },
     {
