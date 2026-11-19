@@ -626,14 +626,14 @@ public class TimeScale extends Scale {
          }
 
          cal.setTime(new Date(min));
-         long alignFloor = -1;
+         boolean align = false;
 
          // set the first tick, or use min if it's explicitly set
          if(this.umin == null) {
             truncate(cal, type);
 
             if(fitStep > 0) {
-               alignFloor = cal.getTimeInMillis();
+               align = true;
                alignToStep(cal, type, fitStep);
             }
          }
@@ -675,12 +675,10 @@ public class TimeScale extends Scale {
                }
             }
 
-            // ticks aligned before the unaligned start would widen the range, keep them only
-            // when nothing else remains
-            final long floor = alignFloor;
-
-            if(floor >= 0 && !nullValue && dates.stream().anyMatch(d -> d.getTime() >= floor)) {
-               dates.removeIf(d -> d.getTime() < floor);
+            // ticks truncated before the data min would widen the range, keep them only when
+            // nothing else remains
+            if(align && !nullValue && dates.stream().anyMatch(d -> d.getTime() >= min)) {
+               dates.removeIf(d -> d.getTime() < min);
             }
 
             // enforce maxTicks for hasDup in case the format interval steps are uneven

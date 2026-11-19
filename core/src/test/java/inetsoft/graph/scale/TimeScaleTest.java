@@ -309,16 +309,69 @@ class TimeScaleTest {
    }
 
    private static DefaultDataSet dailyData() {
+      return dailyData(date(2026, Calendar.JANUARY, 1, 0, 0, 0), 120);
+   }
+
+   private static DefaultDataSet dailyData(long start, int days) {
       List<Object[]> rows = new ArrayList<>();
       rows.add(new Object[] { "Date" });
-      long start = date(2026, Calendar.JANUARY, 1, 0, 0, 0);
-      long end = date(2026, Calendar.APRIL, 30, 0, 0, 0);
 
-      for(long t = start; t <= end; t += DAY_MS) {
-         rows.add(new Object[] { new Date(t) });
+      for(int i = 0; i < days; i++) {
+         rows.add(new Object[] { new Date(start + i * DAY_MS) });
       }
 
       return new DefaultDataSet(rows.toArray(new Object[0][]));
+   }
+
+   @Test
+   void aFittedAxisStartsAtTheDataMin() {
+      long start = date(2026, Calendar.JANUARY, 5, 0, 0, 0);
+      TimeScale scale = new TimeScale("Date");
+      scale.setLabelFit(300, 45);
+      scale.setFill(true);
+      scale.init(dailyData(start, 91));
+
+      assertEquals(TimeScale.MONTH, scale.getType());
+      assertEquals(1, scale.getFitStep());
+      assertEquals(start, scale.getMin(), 0);
+      assertEquals(date(2026, Calendar.FEBRUARY, 1, 0, 0, 0), scale.getTicks()[0], 0);
+      assertEquals(start + 90 * DAY_MS, scale.getMax(), 0);
+   }
+
+   @Test
+   void aFittedAxisBeforeNineteenSeventyStartsAtTheDataMin() {
+      long start = date(1965, Calendar.FEBRUARY, 16, 0, 0, 0);
+      TimeScale scale = new TimeScale("Date");
+      scale.setLabelFit(302, 49);
+      scale.setFill(true);
+      scale.init(dailyData(start, 400));
+
+      assertEquals(TimeScale.QUARTER, scale.getType());
+      assertEquals(date(1965, Calendar.APRIL, 1, 0, 0, 0), scale.getTicks()[0], 0);
+      assertEquals(start, scale.getMin(), 0);
+   }
+
+   @Test
+   void aFittedAxisStartingOnABoundaryKeepsThatTick() {
+      TimeScale scale = new TimeScale("Date");
+      scale.setLabelFit(300, 45);
+      scale.setFill(true);
+      scale.init(dailyData());
+      long jan1 = date(2026, Calendar.JANUARY, 1, 0, 0, 0);
+
+      assertEquals(jan1, scale.getTicks()[0], 0);
+      assertEquals(jan1, scale.getMin(), 0);
+   }
+
+   @Test
+   void anAuthorMinKeepsTodaysTicks() {
+      long start = date(2026, Calendar.JANUARY, 5, 0, 0, 0);
+      TimeScale scale = new TimeScale("Date");
+      scale.setLabelFit(300, 45);
+      scale.setMin(new Date(start));
+      scale.init(dailyData(start, 91));
+
+      assertEquals(start, scale.getTicks()[0], 0);
    }
 
    @Test
