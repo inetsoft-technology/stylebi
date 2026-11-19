@@ -4,24 +4,142 @@
       "name": "Me",
       "paged": false,
       "suffix": "/users/me",
+      "responseSchema": {
+        "account_type": "string",
+        "date_created": "timeInstant",
+        "date_last_login": "timeInstant",
+        "email": "string",
+        "email_verified": "boolean",
+        "first_name": "string",
+        "href": "string",
+        "id": "string",
+        "language": "string",
+        "last_name": "string",
+        "question_types": {
+          "comment_box_question_type": "boolean",
+          "file_upload_question_type": "boolean",
+          "matrix_question_type": "boolean",
+          "ranking_question_type": "boolean",
+          "rating_question_type": "boolean",
+          "slider_question_type": "boolean",
+          "star_rating_question_type": "boolean",
+          "textbox_multiple_question_type": "boolean",
+          "video_question_type": "boolean"
+        },
+        "scopes": {
+          "available": [
+            "string"
+          ],
+          "granted": [
+            "string"
+          ]
+        },
+        "sso_connections": [
+          "string"
+        ],
+        "username": "string"
+      },
       "description": "The account the credentials belong to, with its plan and language. One record, and the plan matters because several endpoints here are plan-gated."
     },
     {
       "name": "User Workgroups",
       "paged": true,
       "suffix": "/users/{User ID}/workgroups",
+      "responseSchema": {
+        "data": [
+          {
+            "created_at": "timeInstant",
+            "default_role": {
+              "description": "string",
+              "id": "string",
+              "is_enabled": "boolean",
+              "name": "string"
+            },
+            "description": "string",
+            "id": "string",
+            "is_visible": "boolean",
+            "members": [
+              {
+                "is_owner": "boolean",
+                "user_id": "string"
+              }
+            ],
+            "members_count": "double",
+            "membership": {
+              "is_owner": "boolean",
+              "status": "string"
+            },
+            "name": "string",
+            "organization_id": "string",
+            "shares_count": "double",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The workgroups one user belongs to. Requires a user id."
     },
     {
       "name": "Shared",
       "paged": true,
       "suffix": "/users/{User ID}/shared?resource_type={Resource Type?: survey}&resource_id={Resource ID?}&include={Include?}",
+      "responseSchema": {
+        "data": [
+          {
+            "privileges": [
+              "string"
+            ],
+            "resource_id": "string",
+            "resource_type": "string",
+            "share_id": "string",
+            "workgroup_id": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The resources shared with one user, by resource type. Requires a user id. The access view, and the reason two users see different survey lists."
     },
     {
       "name": "Groups",
       "paged": true,
       "suffix": "/groups",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string",
+            "name": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "lookups": [
         {
           "endpoint": "Group Members",
@@ -36,24 +154,85 @@
       "name": "Group",
       "paged": false,
       "suffix": "/groups/{Group ID}",
+      "responseSchema": {
+        "date_created": "timeInstant",
+        "href": "string",
+        "id": "string",
+        "max_invites": "double",
+        "member_count": "double",
+        "name": "string"
+      },
       "description": "One group by id."
     },
     {
       "name": "Group Members",
       "paged": true,
       "suffix": "/groups/{Group ID}/members",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string",
+            "username": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The members of one group. Requires a group id."
     },
     {
       "name": "Group Member",
       "paged": false,
       "suffix": "/groups/{Group ID}/members/{Member ID}",
+      "responseSchema": {
+        "date_created": "timeInstant",
+        "email": "string",
+        "first_name": "string",
+        "href": "string",
+        "id": "string",
+        "language": "string",
+        "last_name": "string",
+        "status": "string",
+        "type": "string",
+        "user_id": "string",
+        "username": "string"
+      },
       "description": "One group member by id."
     },
     {
       "name": "Surveys",
       "paged": true,
       "suffix": "/surveys?include={Include?}&title={Title?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&folder_id={Folder ID?}",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string",
+            "nickname": "string",
+            "owner": "string",
+            "title": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "lookups": [
         {
           "endpoints": [
@@ -77,30 +256,209 @@
       "name": "Survey",
       "paged": false,
       "suffix": "/surveys/{Survey ID}",
+      "responseSchema": {
+        "analyze_url": "string",
+        "buttons_text": {
+          "done_button": "string",
+          "exit_button": "string",
+          "next_button": "string",
+          "prev_button": "string"
+        },
+        "category": "string",
+        "collect_url": "string",
+        "custom_variables": {
+          "*": "string"
+        },
+        "date_created": "timeInstant",
+        "date_modified": "timeInstant",
+        "edit_url": "string",
+        "folder_id": "string",
+        "footer": "boolean",
+        "href": "string",
+        "id": "string",
+        "is_owner": "boolean",
+        "language": "string",
+        "nickname": "string",
+        "owner": "string",
+        "page_count": "double",
+        "preview": "string",
+        "question_count": "double",
+        "response_count": "double",
+        "summary_url": "string",
+        "title": "string"
+      },
       "description": "One survey by id, with its top-level detail and counts."
     },
     {
       "name": "Survey Details",
       "paged": false,
       "suffix": "/surveys/{Survey ID}/details",
+      "responseSchema": {
+        "analyze_url": "string",
+        "buttons_text": {
+          "done_button": "string",
+          "exit_button": "string",
+          "next_button": "string",
+          "prev_button": "string"
+        },
+        "category": "string",
+        "collect_url": "string",
+        "custom_variables": {
+          "*": "string"
+        },
+        "date_created": "timeInstant",
+        "date_modified": "timeInstant",
+        "edit_url": "string",
+        "folder_id": "string",
+        "footer": "boolean",
+        "href": "string",
+        "id": "string",
+        "is_owner": "boolean",
+        "language": "string",
+        "nickname": "string",
+        "owner": "string",
+        "page_count": "double",
+        "preview": "string",
+        "question_count": "double",
+        "response_count": "double",
+        "summary_url": "string",
+        "title": "string",
+        "pages": [
+          {
+            "description": "string",
+            "href": "string",
+            "id": "string",
+            "position": "double",
+            "question_count": "double",
+            "title": "string",
+            "questions": [
+              {
+                "answers": {
+                  "choices": [
+                    {
+                      "id": "string",
+                      "position": "double",
+                      "text": "string"
+                    }
+                  ],
+                  "rows": [
+                    {
+                      "id": "string",
+                      "position": "double",
+                      "text": "string"
+                    }
+                  ]
+                },
+                "family": "string",
+                "forced_ranking": "boolean",
+                "headings": [
+                  {
+                    "heading": "string"
+                  }
+                ],
+                "id": "string",
+                "position": "double",
+                "required": {
+                  "amount": "string",
+                  "text": "string",
+                  "type": "string"
+                },
+                "sorting": {
+                  "ignore_last": "boolean",
+                  "type": "string"
+                },
+                "subtype": "string",
+                "validation": {
+                  "sum": "double",
+                  "sum_text": "string",
+                  "text": "string",
+                  "type": "string"
+                },
+                "visible": "boolean"
+              }
+            ]
+          }
+        ]
+      },
       "description": "One survey WITH its full structure inlined -- every page, question, answer choice and row, in one response. Requires a survey id. THE ENDPOINT THAT MAKES RESPONSES READABLE: a response returns answers as question ids and choice ids, so without this the data is a graph of opaque identifiers. It replaces walking pages and questions separately."
     },
     {
       "name": "Survey Categories",
       "paged": false,
       "suffix": "/survey_categories?language={Language?}",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "name": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The categories SurveyMonkey publishes for template browsing. Reference data."
     },
     {
       "name": "Survey Template",
       "paged": true,
       "suffix": "/survey_templates?language={Language?}&category={Category?}",
+      "responseSchema": {
+        "data": [
+          {
+            "available": "boolean",
+            "category": "string",
+            "description": "string",
+            "id": "string",
+            "name": "string",
+            "num_questions": "double",
+            "preview_link": "string",
+            "title": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The survey templates available, by category and language. Reference content rather than account data."
     },
     {
       "name": "All Languages",
       "paged": true,
       "suffix": "/survey_languages",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "name": "string",
+            "native_name": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The languages SurveyMonkey supports. Reference data."
     },
     {
@@ -108,54 +466,257 @@
       "paged": true,
       "pageLimit": 100,
       "suffix": "/surveys/{Survey ID}/pages",
+      "responseSchema": {
+        "data": [
+          {
+            "description": "string",
+            "href": "string",
+            "id": "string",
+            "position": "double",
+            "title": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The pages of one survey. Requires a survey id. The structural level between survey and question."
     },
     {
       "name": "Survey Page",
       "paged": false,
       "suffix": "/surveys/{Survey ID}/pages/{Page ID}",
+      "responseSchema": {
+        "description": "string",
+        "href": "string",
+        "id": "string",
+        "position": "double",
+        "question_count": "double",
+        "title": "string"
+      },
       "description": "One page by id."
     },
     {
       "name": "Survey Questions",
       "paged": true,
       "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions",
+      "responseSchema": {
+        "data": [
+          {
+            "heading": "string",
+            "href": "string",
+            "id": "string",
+            "position": "double"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The questions on one page, with their family and subtype, headings, and answer choices. Requires the survey and page ids. THE QUESTION FAMILY DECIDES HOW ITS ANSWERS ARE SHAPED -- single choice, multiple choice, matrix, open ended and demographic all store answers differently, so a single parsing rule does not work across a survey."
     },
     {
       "name": "Survey Question",
       "paged": false,
       "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}",
+      "responseSchema": {
+        "answers": {
+          "choices": [
+            {
+              "id": "string",
+              "position": "double",
+              "text": "string"
+            }
+          ],
+          "rows": [
+            {
+              "id": "string",
+              "position": "double",
+              "text": "string"
+            }
+          ]
+        },
+        "family": "string",
+        "forced_ranking": "boolean",
+        "headings": [
+          {
+            "heading": "string"
+          }
+        ],
+        "id": "string",
+        "position": "double",
+        "required": {
+          "amount": "string",
+          "text": "string",
+          "type": "string"
+        },
+        "sorting": {
+          "ignore_last": "boolean",
+          "type": "string"
+        },
+        "subtype": "string",
+        "validation": {
+          "sum": "double",
+          "sum_text": "string",
+          "text": "string",
+          "type": "string"
+        },
+        "visible": "boolean"
+      },
       "description": "One question by id, with its choices."
     },
     {
       "name": "Questions",
       "paged": true,
       "suffix": "/question_bank/questions?locale={Locale?}&search={Search}&custom={Custom?:true|false}",
+      "responseSchema": {
+        "data": [
+          {
+            "locales": [
+              "string"
+            ],
+            "modifiers": [
+              {
+                "modifier_id": "string",
+                "modifier_type": "string",
+                "options": [
+                  {
+                    "modifier_options_id": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ],
+            "question_id": "string",
+            "text": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The question bank -- SurveyMonkey's library of pre-written questions, searchable by locale. Reference content for building surveys, not account data."
     },
     {
       "name": "Survey Folders",
       "paged": true,
       "suffix": "/survey_folders",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string",
+            "num_surveys": "double",
+            "title": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The folders surveys are organised into."
     },
     {
       "name": "Survey Languages",
       "paged": true,
       "suffix": "/surveys/{Survey ID}/languages",
+      "responseSchema": {
+        "data": [
+          {
+            "enabled": "boolean",
+            "href": "string",
+            "id": "string",
+            "inherited_string_count": "double",
+            "name": "string",
+            "native_name": "string",
+            "stale_string_count": "double",
+            "string_count": "double",
+            "translated_string_count": "double"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The languages one survey is translated into. Requires a survey id."
     },
     {
       "name": "Survey Language",
       "paged": false,
       "suffix": "/surveys/{Survey ID}/languages/{Language Code}?enabled={Enabled?:true|false}&translations={Translations}",
+      "responseSchema": {
+        "enabled": "boolean",
+        "href": "string",
+        "id": "string",
+        "translations": [
+          {
+            "context": "string",
+            "default": "string",
+            "resource_id": "string",
+            "translation": "string"
+          }
+        ]
+      },
       "description": "One language version of a survey, and whether it is enabled."
     },
     {
       "name": "Contact Lists",
       "paged": true,
       "suffix": "/contact_lists",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string",
+            "name": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "lookups": [
         {
           "endpoints": [
@@ -173,30 +734,135 @@
       "name": "Contact List",
       "paged": false,
       "suffix": "/contact_lists/{Contact List ID}",
+      "responseSchema": {
+        "href": "string",
+        "id": "string",
+        "name": "string"
+      },
       "description": "One contact list by id."
     },
     {
       "name": "Contact List Contact",
       "paged": true,
       "suffix": "/contact_lists/{Contact List ID}/contacts?status={Status?:active|optout|bounced}&search_by={Search By?}&search={Search?}",
+      "responseSchema": {
+        "data": [
+          {
+            "custom_fields": {
+              "*": "string"
+            },
+            "email": "string",
+            "first_name": "string",
+            "href": "string",
+            "id": "string",
+            "last_name": "string",
+            "phone_number": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The contacts on one list, filterable by status. Requires a list id."
     },
     {
       "name": "Bulk Contact",
       "paged": false,
       "suffix": "/contact_lists/{Contact List ID}/contacts/bulk",
+      "responseSchema": {
+        "data": [
+          {
+            "custom_fields": {
+              "*": "string"
+            },
+            "email": "string",
+            "first_name": "string",
+            "href": "string",
+            "id": "string",
+            "last_name": "string",
+            "phone_number": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The contacts on one list in bulk. Requires a list id. The extract route for a large list."
     },
     {
       "name": "Contacts",
       "paged": true,
       "suffix": "/contacts?status={Status?:active|optout|bounced}&search_by={Search By?}&search={Search?}",
+      "responseSchema": {
+        "data": [
+          {
+            "custom_fields": {
+              "*": "string"
+            },
+            "email": "string",
+            "first_name": "string",
+            "href": "string",
+            "id": "string",
+            "last_name": "string",
+            "phone_number": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "All contacts on the account, filterable by status and search term. Status separates active from opted out and bounced -- and opted-out contacts cannot be invited, so a mailable audience count has to exclude them."
     },
     {
       "name": "Bulk Contacts",
       "paged": false,
       "suffix": "/contacts/bulk",
+      "responseSchema": {
+        "data": [
+          {
+            "custom_fields": {
+              "*": "string"
+            },
+            "email": "string",
+            "first_name": "string",
+            "href": "string",
+            "id": "string",
+            "last_name": "string",
+            "phone_number": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "All contacts in bulk. The account-wide extract route."
     },
     {
@@ -209,126 +875,607 @@
       "name": "Contact Fields",
       "paged": true,
       "suffix": "/contact_fields",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string",
+            "label": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The custom fields defined on contacts. The decoder for custom values."
     },
     {
       "name": "Contact Field",
       "paged": false,
       "suffix": "/contact_fields/{Contact Field ID}",
+      "responseSchema": {
+        "href": "string",
+        "id": "string",
+        "label": "string"
+      },
       "description": "One contact field by id."
     },
     {
       "name": "Survey Collectors",
       "paged": true,
       "suffix": "/surveys/{Survey ID}/collectors?name={Name?}&start_date={Start Date?}&end_date={End Date?}&include={Include?}",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string",
+            "name": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The collectors of one survey -- the channels it was distributed through, such as a web link, email invitation or embedded widget. Requires a survey id. THE COLLECTOR IS THE DIMENSION MOST RESPONSE ANALYSIS NEEDS: the same survey sent by email and posted as a link produces very different response profiles, and only the collector distinguishes them."
     },
     {
       "name": "Collector",
       "paged": false,
       "suffix": "/collectors/{Collector ID}",
+      "responseSchema": {
+        "allow_multiple_responses": "boolean",
+        "anonymous_type": "string",
+        "close_date": "timeInstant",
+        "closed_page_message": "string",
+        "date_created": "timeInstant",
+        "date_modified": "timeInstant",
+        "disqualification_message": "string",
+        "disqualification_url": "string",
+        "display_survey_results": "boolean",
+        "edit_response_type": "string",
+        "href": "string",
+        "id": "string",
+        "name": "string",
+        "password_enabled": "boolean",
+        "redirect_type": "string",
+        "redirect_url": "string",
+        "respondent_authentication": "boolean",
+        "response_limit": "double",
+        "sender_email": "string",
+        "status": "string",
+        "survey_id": "string",
+        "thank_you_message": "string",
+        "thank_you_page": {
+          "is_enabled": "boolean",
+          "message": "string"
+        },
+        "type": "string",
+        "url": "string"
+      },
       "description": "One collector by id, with its type, status and response count."
     },
     {
       "name": "Collector Messages",
       "paged": true,
       "suffix": "/collectors/{Collector ID}/messages",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string",
+            "status": "string",
+            "type": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The email invitations and reminders sent through one collector. Requires a collector id. Where the send that produced a batch of responses is recorded."
     },
     {
       "name": "Collector Message",
       "paged": false,
       "suffix": "/collectors/{Collector ID}/messages/{Message ID}",
+      "responseSchema": {
+        "body": "string",
+        "date_created": "timeInstant",
+        "href": "string",
+        "id": "string",
+        "is_branding_enabled": "boolean",
+        "is_scheduled": "boolean",
+        "recipient_status": "string",
+        "status": "string",
+        "subject": "string",
+        "type": "string"
+      },
       "description": "One message by id."
     },
     {
       "name": "Message Recipients",
       "paged": true,
       "suffix": "/collectors/{Collector ID}/messages/{Message ID}/recipients?include={Include?}",
+      "responseSchema": {
+        "data": [
+          {
+            "email": "string",
+            "href": "string",
+            "id": "string",
+            "phone_number": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "Who one message was sent to. Requires the collector and message ids."
     },
     {
       "name": "Recipients",
       "paged": true,
       "suffix": "/collectors/{Collector ID}/recipients?include={Include?}",
+      "responseSchema": {
+        "data": [
+          {
+            "email": "string",
+            "href": "string",
+            "id": "string",
+            "phone_number": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "Everyone invited through one collector, with their status -- sent, opened, responded, bounced, opted out. Requires a collector id. THE DENOMINATOR FOR A RESPONSE RATE, which the responses alone cannot give."
     },
     {
       "name": "Recipient",
       "paged": false,
       "suffix": "/collectors/{Collector ID}/recipients/{Recipient ID}?include={Include?}",
+      "responseSchema": {
+        "email": "string",
+        "first_name": "string",
+        "id": "string",
+        "last_name": "string"
+      },
       "description": "One recipient by id."
     },
     {
       "name": "Stats",
       "paged": false,
       "suffix": "/collectors/{Collector ID}/stats",
+      "responseSchema": {
+        "mail_status": {
+          "bounced": "double",
+          "link_clicked": "double",
+          "not_sent": "double",
+          "opened": "double",
+          "opted_out": "double",
+          "sent": "double"
+        },
+        "recipients": "double",
+        "survey_response_status": {
+          "completely_responded": "double",
+          "not_responded": "double",
+          "partially_responded": "double"
+        }
+      },
       "description": "The aggregate statistics of one collector -- sent, opened, clicked, responded, bounced, opted out. Requires a collector id. Response rate without paging recipients."
     },
     {
       "name": "Message Stats",
       "paged": false,
       "suffix": "/collectors/{Collector ID}/messages/{Message ID}/stats",
+      "responseSchema": {
+        "mail_status": {
+          "bounced": "double",
+          "link_clicked": "double",
+          "not_sent": "double",
+          "opened": "double",
+          "opted_out": "double",
+          "sent": "double"
+        },
+        "recipients": "double",
+        "survey_response_status": {
+          "completely_responded": "double",
+          "not_responded": "double",
+          "partially_responded": "double"
+        }
+      },
       "description": "The same statistics for one individual message. Requires the collector and message ids. Which send performed, as opposed to the collector overall."
     },
     {
       "name": "Survey Responses",
       "paged": true,
       "suffix": "/surveys/{Survey ID}/responses",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The responses to one survey, with the respondent, collector, status, and the dates started and modified -- but NOT the answers. Requires a survey id. The index; answers come from the details variants below."
     },
     {
       "name": "Collector Responses",
       "paged": true,
       "suffix": "/collectors/{Collector ID}/responses?start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name}&last_name={Last Name}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The responses gathered through one collector. Requires a collector id. The per-channel slice."
     },
     {
       "name": "Bulk Collector Responses",
       "paged": true,
       "suffix": "/collectors/{Collector ID}/responses/bulk?simple={Simple?}&collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}&page_ids={Page IDs?}&question_ids={Question IDs?}",
+      "responseSchema": {
+        "data": [
+          {
+            "analyze_url": "string",
+            "collection_mode": "string",
+            "collector_id": "string",
+            "custom_value": "string",
+            "custom_variables": {
+              "*": "string"
+            },
+            "date_created": "timeInstant",
+            "date_modified": "timeInstant",
+            "edit_url": "string",
+            "href": "string",
+            "id": "string",
+            "ip_address": "string",
+            "recipient_id": "string",
+            "response_status": "string",
+            "survey_id": "string",
+            "total_time": "double",
+            "pages": [
+              {
+                "id": "string",
+                "questions": [
+                  {
+                    "answers": [
+                      {
+                        "choice_id": "string",
+                        "choice_metadata": {
+                          "weight": "string"
+                        },
+                        "col_id": "string",
+                        "content_type": "string",
+                        "download_url": "string",
+                        "human_download_url": "string",
+                        "other_id": "string",
+                        "row_id": "string",
+                        "text": "string"
+                      }
+                    ],
+                    "id": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "Every response through one collector with answers, paged. The per-channel bulk extract."
     },
     {
       "name": "Bulk Survey Responses",
       "paged": true,
       "suffix": "/surveys/{Survey ID}/responses/bulk?simple={Simple?}&collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}&page_ids={Page IDs?}&question_ids={Question IDs?}",
+      "responseSchema": {
+        "data": [
+          {
+            "analyze_url": "string",
+            "collection_mode": "string",
+            "collector_id": "string",
+            "custom_value": "string",
+            "custom_variables": {
+              "*": "string"
+            },
+            "date_created": "timeInstant",
+            "date_modified": "timeInstant",
+            "edit_url": "string",
+            "href": "string",
+            "id": "string",
+            "ip_address": "string",
+            "recipient_id": "string",
+            "response_status": "string",
+            "survey_id": "string",
+            "total_time": "double",
+            "pages": [
+              {
+                "id": "string",
+                "questions": [
+                  {
+                    "answers": [
+                      {
+                        "choice_id": "string",
+                        "choice_metadata": {
+                          "weight": "string"
+                        },
+                        "col_id": "string",
+                        "content_type": "string",
+                        "download_url": "string",
+                        "human_download_url": "string",
+                        "other_id": "string",
+                        "row_id": "string",
+                        "text": "string"
+                      }
+                    ],
+                    "id": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "Every response to one survey WITH answers, in one paged request. Requires a survey id. THE PRACTICAL EXTRACT ROUTE -- fetching details one response at a time is prohibitive on any real survey. The simple parameter returns answers as text rather than ids, which trades fidelity for readability."
     },
     {
       "name": "Survey Response",
       "paged": false,
       "suffix": "/surveys/{Survey ID}/responses/{Response ID}",
+      "responseSchema": {
+        "analyze_url": "string",
+        "collection_mode": "string",
+        "collector_id": "string",
+        "custom_value": "string",
+        "custom_variables": {
+          "*": "string"
+        },
+        "date_created": "timeInstant",
+        "date_modified": "timeInstant",
+        "edit_url": "string",
+        "href": "string",
+        "id": "string",
+        "ip_address": "string",
+        "recipient_id": "string",
+        "response_status": "string",
+        "survey_id": "string",
+        "total_time": "double"
+      },
       "description": "One response by id, without its answers."
     },
     {
       "name": "Collector Response",
       "paged": false,
       "suffix": "/collectors/{Collector ID}/responses/{Response ID}?survey_id={Survey ID?}&collector_id={Collector ID?}&recipient_id={Recipient ID?}&total_time={Total Time?}&custom_value={Custom Value?}&edit_url={Edit URL?}&analyze_url={Analyze URL?}&ip_address={IP Address?}&custom_variables={Custom Variables?}&logic_path={Logic Path?}&metadata={Metadata?}&response_status={Response Status?}&page_path={Page Path?}&collection_mode={Collection Mode?}&date_created={Date Created?}&date_modified={Date Modified?}",
+      "responseSchema": {
+        "analyze_url": "string",
+        "collection_mode": "string",
+        "collector_id": "string",
+        "custom_value": "string",
+        "custom_variables": {
+          "*": "string"
+        },
+        "date_created": "timeInstant",
+        "date_modified": "timeInstant",
+        "edit_url": "string",
+        "href": "string",
+        "id": "string",
+        "ip_address": "string",
+        "recipient_id": "string",
+        "response_status": "string",
+        "survey_id": "string",
+        "total_time": "double"
+      },
       "description": "One response by id within a collector."
     },
     {
       "name": "Survey Response Details",
       "paged": false,
       "suffix": "/surveys/{Survey ID}/responses/{Response ID}/details",
+      "responseSchema": {
+        "analyze_url": "string",
+        "collection_mode": "string",
+        "collector_id": "string",
+        "custom_value": "string",
+        "custom_variables": {
+          "*": "string"
+        },
+        "date_created": "timeInstant",
+        "date_modified": "timeInstant",
+        "edit_url": "string",
+        "href": "string",
+        "id": "string",
+        "ip_address": "string",
+        "recipient_id": "string",
+        "response_status": "string",
+        "survey_id": "string",
+        "total_time": "double",
+        "pages": [
+          {
+            "id": "string",
+            "questions": [
+              {
+                "answers": [
+                  {
+                    "choice_id": "string",
+                    "choice_metadata": {
+                      "weight": "string"
+                    },
+                    "col_id": "string",
+                    "content_type": "string",
+                    "download_url": "string",
+                    "human_download_url": "string",
+                    "other_id": "string",
+                    "row_id": "string",
+                    "text": "string"
+                  }
+                ],
+                "id": "string"
+              }
+            ]
+          }
+        ]
+      },
       "description": "One response WITH its answers, as question ids paired with choice ids or text. Requires the survey and response ids. Only interpretable alongside Survey Details, which supplies what those ids mean."
     },
     {
       "name": "Collector Response Details",
       "paged": false,
       "suffix": "/collectors/{Collector ID}/responses/{Response ID}/details?page_ids={Page IDs?}&question_ids={Question IDs?}",
+      "responseSchema": {
+        "analyze_url": "string",
+        "collection_mode": "string",
+        "collector_id": "string",
+        "custom_value": "string",
+        "custom_variables": {
+          "*": "string"
+        },
+        "date_created": "timeInstant",
+        "date_modified": "timeInstant",
+        "edit_url": "string",
+        "href": "string",
+        "id": "string",
+        "ip_address": "string",
+        "recipient_id": "string",
+        "response_status": "string",
+        "survey_id": "string",
+        "total_time": "double",
+        "pages": [
+          {
+            "id": "string",
+            "questions": [
+              {
+                "answers": [
+                  {
+                    "choice_id": "string",
+                    "choice_metadata": {
+                      "weight": "string"
+                    },
+                    "col_id": "string",
+                    "content_type": "string",
+                    "download_url": "string",
+                    "human_download_url": "string",
+                    "other_id": "string",
+                    "row_id": "string",
+                    "text": "string"
+                  }
+                ],
+                "id": "string"
+              }
+            ]
+          }
+        ]
+      },
       "description": "One collector response with its answers."
     },
     {
       "name": "Survey Rollups",
       "paged": true,
       "suffix": "/surveys/{Survey ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}",
+      "responseSchema": {
+        "data": [
+          {
+            "family": "string",
+            "href": "string",
+            "id": "string",
+            "subtype": "string"
+          }
+        ]
+      },
       "description": "Pre-computed aggregates for one survey -- per question, the counts and percentages for each answer choice. Requires a survey id. SURVEYMONKEY HAS ALREADY DONE THE TABULATION, so the usual cross-tab of a survey does not require reading a single response."
     },
     {
       "name": "Survey Page Rollups",
       "paged": true,
       "suffix": "/surveys/{Survey ID}/pages/{Page ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}",
+      "responseSchema": {
+        "data": [
+          {
+            "family": "string",
+            "href": "string",
+            "id": "string",
+            "subtype": "string"
+          }
+        ]
+      },
       "description": "The same aggregates restricted to one page."
     },
     {
@@ -359,18 +1506,67 @@
       "name": "Webhooks",
       "paged": true,
       "suffix": "/webhooks",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string",
+            "name": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The webhooks registered, with the events and objects each watches. Integration configuration; deliveries are not recorded."
     },
     {
       "name": "Webhook",
       "paged": false,
       "suffix": "/webhooks/{Webhook ID}",
+      "responseSchema": {
+        "event_type": "string",
+        "href": "string",
+        "id": "string",
+        "name": "string",
+        "object_ids": [
+          "string"
+        ],
+        "object_type": "string",
+        "subscription_url": "string"
+      },
       "description": "One webhook by id."
     },
     {
       "name": "Benchmark Bundles",
       "paged": true,
       "suffix": "/benchmark_bundles?country={Country?}",
+      "responseSchema": {
+        "data": [
+          {
+            "href": "string",
+            "id": "string",
+            "title": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "lookups": [
         {
           "endpoint": "Benchmark Bundle Questions",
@@ -385,24 +1581,138 @@
       "name": "Benchmark Bundle Questions",
       "paged": false,
       "suffix": "/benchmark_bundles/{Benchmark Bundle ID}",
+      "responseSchema": {
+        "details": {
+          "bullets": [
+            "string"
+          ],
+          "subtext": "string"
+        },
+        "href": "string",
+        "id": "string",
+        "questions": [
+          {
+            "answer_order": "string",
+            "answers": {
+              "choices": [
+                {
+                  "text": "string"
+                }
+              ]
+            },
+            "id": "string",
+            "title": "string"
+          }
+        ],
+        "title": "string"
+      },
       "description": "The questions in one benchmark bundle. Requires a bundle id."
     },
     {
       "name": "Benchmark Bundle Benchmarks",
       "paged": false,
       "suffix": "/benchmark_bundles/{Bundle ID}/analyze?question_ids={Question IDs}&percentile_start={Percentile Start?}&percentile_end={Percentile End?}",
+      "responseSchema": {
+        "benchmarks": [
+          {
+            "question": {
+              "answer_order": "string",
+              "answers": {
+                "choices": [
+                  {
+                    "text": "string"
+                  }
+                ]
+              },
+              "id": "string",
+              "title": "string"
+            },
+            "distribution_values": {
+              "*": "double"
+            },
+            "num_data_points": "double",
+            "num_responses": "double",
+            "quartile_values": {
+              "*": "double"
+            }
+          }
+        ],
+        "date_end": "timeInstant",
+        "date_start": "timeInstant",
+        "id": "string"
+      },
       "description": "The benchmark values for chosen questions in a bundle. Requires the bundle id and question ids. The external comparison figures."
     },
     {
       "name": "Survey Question Benchmark",
       "paged": false,
       "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}/benchmark?percentile_start={Percentile Start?}&percentile_end={Percentile End?}",
+      "responseSchema": {
+        "benchmark": {
+          "data_point_type_distribution": {
+            "entity_data_points": "double",
+            "respondent_data_points": "double"
+          },
+          "distribution_values": {
+            "*": "double"
+          },
+          "num_data_points": "double",
+          "num_responses": "double",
+          "quartile_values": {
+            "*": "double"
+          }
+        },
+        "date_end": "timeInstant",
+        "date_start": "timeInstant",
+        "id": "string"
+      },
       "description": "The benchmark comparison for one question in one survey. Requires the survey, page and question ids. Where an account's own result is placed against the benchmark."
     },
     {
       "name": "Workgroups",
       "paged": true,
       "suffix": "/workgroups",
+      "responseSchema": {
+        "data": [
+          {
+            "created_at": "timeInstant",
+            "default_role": {
+              "description": "string",
+              "id": "string",
+              "is_enabled": "boolean",
+              "name": "string"
+            },
+            "description": "string",
+            "id": "string",
+            "is_visible": "boolean",
+            "members": [
+              {
+                "is_owner": "boolean",
+                "user_id": "string"
+              }
+            ],
+            "members_count": "double",
+            "membership": {
+              "is_owner": "boolean",
+              "status": "string"
+            },
+            "name": "string",
+            "organization_id": "string",
+            "shares_count": "double",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "lookups": [
         {
           "endpoints": [
@@ -420,12 +1730,62 @@
       "name": "Workgroup",
       "paged": false,
       "suffix": "/workgroups/{Workgroup ID}",
+      "responseSchema": {
+        "created_at": "timeInstant",
+        "default_role": {
+          "description": "string",
+          "id": "string",
+          "is_enabled": "boolean",
+          "name": "string"
+        },
+        "description": "string",
+        "id": "string",
+        "is_visible": "boolean",
+        "members": [
+          {
+            "is_owner": "boolean",
+            "user_id": "string"
+          }
+        ],
+        "members_count": "double",
+        "membership": {
+          "is_owner": "boolean",
+          "status": "string"
+        },
+        "name": "string",
+        "organization_id": "string",
+        "shares_count": "double",
+        "updated_at": "timeInstant"
+      },
       "description": "One workgroup by id."
     },
     {
       "name": "Workgroup Members",
       "paged": true,
       "suffix": "/workgroups/{Workgroup ID}/members",
+      "responseSchema": {
+        "data": [
+          {
+            "created_at": "timeInstant",
+            "id": "string",
+            "is_workgroup_owner": "boolean",
+            "role_assignment_id": "string",
+            "status": "string",
+            "updated_at": "timeInstant",
+            "workgroup_id": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The members of one workgroup. Requires a workgroup id."
     },
     {
@@ -438,30 +1798,116 @@
       "name": "Workgroup Shares",
       "paged": true,
       "suffix": "/workgroups/{Workgroup ID}/shares?include={Include?}",
+      "responseSchema": {
+        "data": [
+          {
+            "created_at": "timeInstant",
+            "id": "string",
+            "organization_id": "string",
+            "owner_user_id": "string",
+            "resource_id": "string",
+            "resource_type": "string",
+            "workgroup_id": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The resources shared with one workgroup. Requires a workgroup id."
     },
     {
       "name": "Workgroup Share",
       "paged": false,
       "suffix": "/workgroups/{Workgroup ID}/shares/{Share ID}",
+      "responseSchema": {
+        "created_at": "timeInstant",
+        "id": "string",
+        "organization_id": "string",
+        "owner_user_id": "string",
+        "resource_id": "string",
+        "resource_type": "string",
+        "workgroup_id": "string"
+      },
       "description": "One workgroup share by id. Requires the workgroup id."
     },
     {
       "name": "Roles",
       "paged": true,
       "suffix": "/roles",
+      "responseSchema": {
+        "data": [
+          {
+            "created_at": "timeInstant",
+            "description": "string",
+            "id": "string",
+            "is_enabled": "boolean",
+            "is_system_role": "boolean",
+            "name": "string",
+            "privileges": [
+              "string"
+            ],
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The roles available on the account, with the permissions each grants."
     },
     {
       "name": "Errors",
       "paged": true,
       "suffix": "/errors",
+      "responseSchema": {
+        "data": [
+          {
+            "docs": "string",
+            "href": "string",
+            "id": "string",
+            "message": "string",
+            "name": "string"
+          }
+        ],
+        "per_page": "double",
+        "page": "double",
+        "total": "double",
+        "links": {
+          "self": "string",
+          "prev": "string",
+          "next": "string",
+          "first": "string",
+          "last": "string"
+        }
+      },
       "description": "The API errors SurveyMonkey defines, with their codes and meanings. Reference data for interpreting a failure, not a log of failures that occurred."
     },
     {
       "name": "Error",
       "paged": false,
       "suffix": "/errors/{Error ID}",
+      "responseSchema": {
+        "docs": "string",
+        "href": "string",
+        "id": "string",
+        "message": "string",
+        "name": "string"
+      },
       "description": "One error definition by id."
     }
   ]
