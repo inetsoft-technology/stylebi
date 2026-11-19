@@ -99,6 +99,15 @@ class InfluxDBCatalogueTest {
    }
 
    @Test
+   void dbrpMappingByIdAcceptsAnOptionalOrganization() {
+      // InfluxDB answers 400 "either 'org' or 'orgID' must be provided" without one of the two
+      String suffix = suffix("Database Retention Policy Mapping");
+      assertTrue(suffix.startsWith("/api/v2/dbrps/{dbrpsID}?"), suffix);
+      assertTrue(suffix.contains("org={Organization Name?}"), suffix);
+      assertTrue(suffix.contains("orgID={Organization ID?}"), suffix);
+   }
+
+   @Test
    void organizationFiltersTheServerHonoursAreLeftAsTheyWere() {
       // by design: a call without an organization is unscoped, and for these it is the contract
       assertTrue(suffix("Checks").contains("orgID={Organization ID}"));
