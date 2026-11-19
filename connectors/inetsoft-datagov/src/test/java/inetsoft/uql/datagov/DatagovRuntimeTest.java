@@ -109,7 +109,10 @@ class DatagovRuntimeTest {
                Object[] rowData = new Object[row.length];
 
                for(int i = 0; i < row.length; i++) {
-                  if(i == 0 || i == 2 || i == 3 || i == 5) {
+                  if(i == 7) {
+                     rowData[i] = null; // JSON null in rows.json is a real null
+                  }
+                  else if(i == 0 || i == 2 || i == 3 || i == 5) {
                      rowData[i] = new BigDecimal(row[i]);
                   }
                   else {
@@ -130,6 +133,12 @@ class DatagovRuntimeTest {
 
          for(int i = 0; i < row.length; i++) {
             Object value = data.getObject(i);
+            if(i == 7) {
+               assertNull(value);
+               row[i] = null;
+               continue;
+            }
+
             assertNotNull(value);
             Class<?> expectedType = (i == 0 || i == 2 || i == 3 || i == 5) ?
                BigDecimal.class : String.class;

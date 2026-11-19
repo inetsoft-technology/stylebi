@@ -132,6 +132,10 @@ class DatagovTable extends XTableNode {
    private Object parseValueType(JsonValue val, Class javaType,
                                  String dataGovType)
    {
+      if(val == null || val.getValueType() == JsonValue.ValueType.NULL) {
+         return null;
+      }
+
       JsonValue.ValueType valtype = val.getValueType();
       String valStr = TextUtil.stripOffQuote(val.toString());
       Object jsonValue = valStr;
