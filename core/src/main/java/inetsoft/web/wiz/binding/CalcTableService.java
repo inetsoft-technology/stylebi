@@ -404,6 +404,11 @@ public class CalcTableService {
                                aggregatesOf(rvs, assembly), row, col)
             : toCellBindingInfo(binding, rvs, assembly);
 
+         if(!cellScoped) {
+            keepStoredTopnOthers(cellBindingInfo, binding,
+                                 layoutService.getCellBindingInfo(assembly, row, col));
+         }
+
          if(cellBindingInfo.getType() == CellBinding.BIND_COLUMN) {
             cellBindingInfo.setValue(
                requireBindableColumn(runtimeId, user, assemblyName, cellBindingInfo.getValue()));
@@ -1833,6 +1838,27 @@ public class CalcTableService {
       else {
          model.setOthers(false);
       }
+   }
+
+   /**
+    * Bug #81772: every write builds a fresh CellBindingInfo, so a topn that omits {@code others}
+    * must take the cell's stored Others setting here -- the tool schema promises "Omitted keeps
+    * the stored setting". Does nothing when the call carries an explicit {@code others}, has no
+    * active topn, or the cell has no stored binding.
+    */
+   static void keepStoredTopnOthers(CellBindingInfo fresh, Map<String, Object> binding,
+                                    CellBindingInfo stored)
+   {
+      Map<String, Object> topn = asMap(binding.get("topn"));
+
+      if(topn == null || topn.get("others") != null || stored == null ||
+         stored.getTopn() == null || fresh.getTopn() == null ||
+         fresh.getTopn().getType() == XCondition.NONE)
+      {
+         return;
+      }
+
+      fresh.getTopn().setOthers(stored.getTopn().getOthers());
    }
 
    /**
