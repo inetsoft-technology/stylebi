@@ -44,34 +44,23 @@
   }
 }
 
-// The default button's focus ring (.btn-default:focus and the press rule, box-shadow
-// var(--inet-focus-ring)) is a 2px ring outside the focused half, which doubles the group's outline
-// (a box bolted onto a box), and being on :focus it also shows on every mouse press. In the group a
-// half never draws a ring of its own (so none on mouse focus or press); on keyboard focus
-// (:focus-visible) the ring goes around the whole split group instead, below, and the focused half
-// shows the neutral chip fill so it is clear which half has focus. !important for the same reason
+// Focus. The two halves are separate tab stops with different actions, so the focus mark is on the
+// focused half, as in every grouped control in the shell (Bootstrap btn-group and input-group,
+// .toolbar-ghost-actions) and in other split buttons (web.dev's split button, Esri Calcite, Material
+// 3's): the shell's 2px ring outside that half plus the neutral chip; the half sits above the other
+// half, so the ring is not hidden under its edge. The default button draws that ring on :focus, so also on
+// every mouse press; here it is keyboard focus (:focus-visible) only. !important for the same reason
 // as above.
 .input-group > .btn.btn-default:is(.input-group-btn, .input-group-btn-addon):not(:disabled) {
   &:focus {
     box-shadow: none !important;
   }
 
+  // (Bootstrap's .input-group .btn:focus already raises the focused half: z-index 5 over 2)
   &:focus-visible {
     background-color: var(--inet-ui-neutral-hover-bg-color);
+    box-shadow: var(--inet-focus-ring) !important;
   }
-}
-
-// The keyboard focus ring of the split button: the shell's 2px ring outside the group's one outline,
-// rounded like its outer corners (both halves are --inet-radius-md, with the inner corners squared
-// by the input group). The group is width: 100% by default; fit-content keeps the ring on the
-// buttons (they sit at its start, so nothing moves). A lone Apply has neither class.
-.input-group:has(> .btn.btn-default.input-group-btn-addon) {
-  width: fit-content;
-}
-
-.input-group:has(> .btn.btn-default:is(.input-group-btn, .input-group-btn-addon):not(:disabled):focus-visible) {
-  border-radius: var(--inet-radius-md);
-  box-shadow: var(--inet-focus-ring);
 }
 
 .input-group > .btn.btn-default.input-group-btn:not(:disabled) {
