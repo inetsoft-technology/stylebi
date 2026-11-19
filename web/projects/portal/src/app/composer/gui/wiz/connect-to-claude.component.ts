@@ -65,6 +65,15 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     *  user can change without confirming. Reported with `sqlMode` so `get_pane_context` lists
     *  the location's own column under it. Undefined for a host with no such choice. */
    @Input() returnType?: string;
+   /**
+    * Feature #80547. True when the host is the portal Viewer toolbar rather than the Composer.
+    * The server decides the session's mode from the runtime itself and never from the browser, so
+    * this flag carries nothing on the wire (the mint payload is unchanged). It only drives this
+    * component's own behaviour: no Follow Focus block (a viewer has no panes to follow), a short
+    * read-only note, and a `viewer-detach` for the old runtime when the viewer re-opens in the
+    * same page (see {@link #ngOnChanges}). Default false, so every Composer host is unchanged.
+    */
+   @Input() viewerMode = false;
 
    code: string | null = null;
    loading = false;
@@ -193,7 +202,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     * needs an agent present to be written (see FollowFocusService#setEnabled).
     */
    get followFocusToggleVisible(): boolean {
-      return !this.editorContext;
+      return !this.editorContext && !this.viewerMode;
    }
 
    /**
@@ -279,6 +288,13 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       }
 
       if(changes["runtimeId"] && !changes["runtimeId"].firstChange) {
+         // Read before the reset below clears hasMinted. The viewer re-opened in the same page
+         // (reopenExpiredViewsheet) on the SAME socket, so the server never sees a socket close
+         // and must be told to end the session paired to the runtime that is going away.
+         if(this.viewerMode && this.hasMinted) {
+            this.detachViewer(changes["runtimeId"].previousValue);
+         }
+
          this.code = null;
          this.error = null;
          this.loading = false;
@@ -582,6 +598,21 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       this.socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
          conn.send("/events/wiz/pairing/detach", {},
                    JSON.stringify({ editorContext: context }));
+      });
+   }
+
+   /**
+    * Fire-and-forget: ends this socket's viewer-mode sessions on {@code runtimeId}, the runtime
+    * the viewer just left. The server binds it to the caller's own socket session and ignores any
+    * identity in the payload. Viewer hosts only.
+    */
+   private detachViewer(runtimeId: string | null | undefined): void {
+      if(!runtimeId || !this.socketConnection) {
+         return;
+      }
+
+      this.socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
+         conn.send("/events/wiz/pairing/viewer-detach", {}, JSON.stringify({ runtimeId }));
       });
    }
 
