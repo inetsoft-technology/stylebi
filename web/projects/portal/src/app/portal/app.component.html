@@ -308,7 +308,7 @@
   </div>
 </div>
 @if (model && !hideNav && !mobile && model.wizVisible && !(aiAssistantService.panelOpen$ | async)) {
-  <a class="wiz-floating-button" data-testid="wiz-portal-link"
+  <a class="wiz-floating-button" data-testid="wiz-portal-link" wizDraggableButton draggable="false"
     [attr.href]="model.wizUrl" target="_blank" rel="noopener noreferrer"
     title="_#(AI Analysis)" aria-label="_#(AI Analysis)">
     <i class="report-wizard-icon" aria-hidden="true"></i>
