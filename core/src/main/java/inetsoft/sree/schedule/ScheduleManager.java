@@ -1890,9 +1890,9 @@ public class ScheduleManager implements MessageListener {
       }
       else {
          Vector<ScheduleTask> allTasks = getScheduleTasks(principal);
-         boolean dependency = hasDependency(allTasks, taskName);
+         String dependant = findDependant(allTasks, taskName);
 
-         if(!dependency) {
+         if(dependant == null) {
             removeScheduleTask(taskName, principal);
          }
          else {
@@ -1902,7 +1902,7 @@ public class ScheduleManager implements MessageListener {
             }
             else {
                throw new Exception(Catalog.getCatalog().getString(
-                  "em.schedule.task.removeDependency", taskName));
+                  "em.schedule.task.removeDependencyOn", taskName, dependant));
             }
          }
       }
@@ -2256,8 +2256,15 @@ public class ScheduleManager implements MessageListener {
     * Check task dependency for rename &amp; delete action.
     */
    public boolean hasDependency(Vector<ScheduleTask> allTasks, String taskId) {
-      boolean dependency = false;
+      return findDependant(allTasks, taskId) != null;
+   }
 
+   /**
+    * Finds a task that depends on the given task (Bug #81816).
+    *
+    * @return the id of a dependant task, or null if none depends on it.
+    */
+   public String findDependant(Vector<ScheduleTask> allTasks, String taskId) {
       for(Iterator<ScheduleTask> i = allTasks.iterator(); i.hasNext();) {
          ScheduleTask task = i.next();
          String id = task.getTaskId();
@@ -2275,17 +2282,12 @@ public class ScheduleManager implements MessageListener {
 
          while(en.hasMoreElements()) {
             if(taskId.equals(en.nextElement())) {
-               dependency = true;
-               break;
+               return id;
             }
-         }
-
-         if(dependency) {
-            break;
          }
       }
 
-      return dependency;
+      return null;
    }
 
    public List<AssetObject> getDependentTasks(String target, String orgId) {

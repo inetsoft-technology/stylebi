@@ -292,17 +292,66 @@ public class JobCompletionListener extends JobListenerSupport {
       ScheduleTask task = (ScheduleTask) context.getJobDetail().getJobDataMap()
          .get(ScheduleTask.class.getName());
 
-      if(task != null && status == Scheduler.Status.FINISHED && task.isDeleteIfNoMoreRun() &&
-         !task.hasNextRuntime(System.currentTimeMillis()))
+      boolean mvStopped = task != null && status == Scheduler.Status.INTERRUPTED &&
+         isBackgroundMVTask(task);
+
+      // Bug #81816, a stage 2 background MV task runs only after stage 1 FINISHED, so when stage 1
+      // is stopped or fails it can never run and would be left behind for good
+      if(task != null && (mvStopped || status == Scheduler.Status.FAILED) &&
+         isBackgroundMVTask(task))
+      {
+         removeUnrunnableDependants(context, taskName, principal);
+      }
+
+      if(task != null && (status == Scheduler.Status.FINISHED || mvStopped) &&
+         task.isDeleteIfNoMoreRun() && !task.hasNextRuntime(System.currentTimeMillis()))
       {
          removeTask(taskName, principal);
+         deleteJob(context, key);
+      }
+   }
 
-         try {
-            context.getScheduler().deleteJob(key);
+   private static boolean isBackgroundMVTask(ScheduleTask task) {
+      return task.getType() == ScheduleTask.Type.MV_TASK && task.isDeleteIfNoMoreRun() &&
+         !task.isEditable();
+   }
+
+   private void deleteJob(JobExecutionContext context, JobKey key) {
+      try {
+         context.getScheduler().deleteJob(key);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove schedule job", e);
+      }
+   }
+
+   /**
+    * Removes the background MV tasks whose only trigger is the completion of the given task,
+    * which did not finish.
+    */
+   private void removeUnrunnableDependants(JobExecutionContext context, String taskName,
+                                           Principal principal)
+   {
+      try {
+         for(JobKey jobKey : context.getScheduler()
+             .getJobKeys(GroupMatcher.jobGroupEquals(Scheduler.GROUP_NAME)))
+         {
+            JobDetail jobDetail = context.getScheduler().getJobDetail(jobKey);
+            ScheduleTask dependant = jobDetail == null ? null :
+               (ScheduleTask) jobDetail.getJobDataMap().get(ScheduleTask.class.getName());
+
+            if(dependant != null && isBackgroundMVTask(dependant) &&
+               dependant.getConditionStream().allMatch(cond -> cond instanceof CompletionCondition) &&
+               dependant.getConditionStream().anyMatch(cond ->
+                  taskName.equals(((CompletionCondition) cond).getTaskName())))
+            {
+               removeTask(jobKey.getName(), principal);
+               deleteJob(context, jobKey);
+            }
          }
-         catch(Exception e) {
-            LOG.warn("Failed to remove schedule job", e);
-         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the dependants of task " + taskName, e);
       }
    }
 
