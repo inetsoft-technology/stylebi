@@ -91,16 +91,6 @@
     {
       "name": "Online Browsers",
       "suffix": "/now/v3/browsers/presenter={Presenter?:truncatedList|list|truncatedObject|object}",
-      "responseSchema": {
-        "list": [
-          {
-            "key": "string",
-            "value": "double",
-            "name": "string"
-          }
-        ],
-        "cardinality": "double"
-      },
       "description": "The browsers current visitors are using."
     },
     {
