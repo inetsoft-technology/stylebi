@@ -142,16 +142,17 @@ class DatagovTable extends XTableNode {
 
       switch(valtype) {
       case ARRAY:
+         JsonArray array = (JsonArray) val;
+
          if("location".equals(dataGovType)) {
-            JsonArray addressArray = (JsonArray) val;
-            JsonValue jLong = addressArray.get(1);
-            JsonValue jLat = addressArray.get(2);
-            jsonValue = TextUtil.stripOffQuote("(" + jLong.toString() +
-                                                  ", " + jLat.toString() + ")");
+            // Socrata legacy location: [human_address, latitude, longitude, ...]
+            String lat = arrayElement(array, 1);
+            String lon = arrayElement(array, 2);
+            jsonValue = lat == null || lon == null ? null : "(" + lat + ", " + lon + ")";
          }
-         else if("phone".equals(dataGovType)) {
-            JsonArray phoneArray = (JsonArray) val;
-            jsonValue = TextUtil.stripOffQuote(phoneArray.get(0).toString());
+         else if("phone".equals(dataGovType) || "url".equals(dataGovType)) {
+            // phone: [number, type]; url: [url, description]
+            jsonValue = arrayElement(array, 0);
          }
          else {
             jsonValue = valStr;
@@ -207,6 +208,29 @@ class DatagovTable extends XTableNode {
       }
 
       return jsonValue;
+   }
+
+   /**
+    * Gets an element of a JSON array as plain text.
+    *
+    * @return the text, or null if the element is missing or a JSON null.
+    */
+   private static String arrayElement(JsonArray array, int index) {
+      if(index >= array.size()) {
+         return null;
+      }
+
+      JsonValue elem = array.get(index);
+
+      if(elem == null || elem.getValueType() == JsonValue.ValueType.NULL) {
+         return null;
+      }
+
+      if(elem.getValueType() == JsonValue.ValueType.STRING) {
+         return ((javax.json.JsonString) elem).getString();
+      }
+
+      return elem.toString();
    }
 
    private Object transform(DatagovQuery query, String header, Object oldValue) {

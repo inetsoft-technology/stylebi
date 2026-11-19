@@ -145,6 +145,59 @@ class DatagovTableNullValueTest {
       assertEquals("null", t.getObject(0));
    }
 
+   private static DatagovTable arrayTable(String type, javax.json.JsonValue... elems) {
+      JsonArrayBuilder cell = Json.createArrayBuilder();
+
+      for(javax.json.JsonValue e : elems) {
+         cell.add(e);
+      }
+
+      JsonObject base = json(new String[] { type }, new Object[] { "x" });
+      JsonObjectBuilder b = Json.createObjectBuilder(base);
+      b.add("data", Json.createArrayBuilder().add(Json.createArrayBuilder().add(cell)));
+      DatagovTable t = new DatagovTable(b.build(), 0, new DatagovQuery());
+      t.next();
+      return t;
+   }
+
+   private static javax.json.JsonValue str(String s) {
+      return Json.createValue(s);
+   }
+
+   // bug #81824
+   @Test
+   void urlArrayYieldsUrlOnly() {
+      DatagovTable t = arrayTable("url", str("https://example.com/a"), javax.json.JsonValue.NULL);
+      assertEquals("https://example.com/a", t.getObject(0));
+   }
+
+   @Test
+   void urlArrayWithNullOrMissingUrlIsNull() {
+      assertNull(arrayTable("url", javax.json.JsonValue.NULL, str("desc")).getObject(0));
+      assertNull(arrayTable("url").getObject(0));
+   }
+
+   @Test
+   void locationArrayRendersLatLonWithoutQuotes() {
+      DatagovTable t = arrayTable("location", javax.json.JsonValue.NULL, str("41.85269133"),
+                                  str("-87.69627777"), javax.json.JsonValue.NULL,
+                                  javax.json.JsonValue.FALSE);
+      assertEquals("(41.85269133, -87.69627777)", t.getObject(0));
+   }
+
+   @Test
+   void locationArrayWithNullCoordinatesOrShortIsNull() {
+      assertNull(arrayTable("location", javax.json.JsonValue.NULL, javax.json.JsonValue.NULL,
+                            javax.json.JsonValue.NULL).getObject(0));
+      assertNull(arrayTable("location", javax.json.JsonValue.NULL).getObject(0));
+   }
+
+   @Test
+   void phoneArrayYieldsNumber() {
+      assertEquals("555-1234", arrayTable("phone", str("555-1234"), str("Home")).getObject(0));
+      assertNull(arrayTable("phone").getObject(0));
+   }
+
    @Configuration
    static class TestConfig {
       @Bean
