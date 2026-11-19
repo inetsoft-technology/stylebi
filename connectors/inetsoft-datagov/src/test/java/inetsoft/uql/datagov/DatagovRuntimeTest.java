@@ -58,6 +58,31 @@ class DatagovRuntimeTest {
       ConfigurationContext.getContext().setApplicationContext(null);
    }
 
+   @Test
+   void testTimestampColumnsAreDates() throws Exception {
+      URL url = getClass().getResource("timestamps.json");
+      DatagovDataSource dataSource = new DatagovDataSource();
+      dataSource.setURL(url.toExternalForm());
+      DatagovQuery query = new DatagovQuery();
+      query.setDataSource(dataSource);
+
+      XTableNode data = new DatagovRuntime().runQuery(query, new VariableTable());
+      assertEquals("FloatingTs", data.getName(0));
+      assertEquals("FixedTs", data.getName(1));
+      assertTrue(data.next());
+      assertThat(data.getObject(0), instanceOf(java.util.Date.class));
+      assertThat(data.getObject(1), instanceOf(java.util.Date.class));
+      assertEquals(java.time.Instant.parse("2024-01-15T13:45:30Z").toEpochMilli(),
+                   ((java.util.Date) data.getObject(1)).getTime());
+      assertEquals(java.time.LocalDateTime.parse("2024-01-15T13:45:30")
+                      .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                   ((java.util.Date) data.getObject(0)).getTime());
+      assertTrue(data.next());
+      assertNull(data.getObject(0));
+      assertNull(data.getObject(1));
+      assertEquals(java.util.Date.class, data.getType(1));
+   }
+
    /**
     * Tests the <tt>runQuery()</tt> method for proper operation.
     *
