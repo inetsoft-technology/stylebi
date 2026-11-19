@@ -169,7 +169,12 @@ class DatagovTable extends XTableNode {
          break;
       default:
          if(Date.class.isAssignableFrom(javaType)) {
-            valStr = valStr.replace("T", " ");
+            if(valtype == JsonValue.ValueType.NULL) {
+               // keep a null date null so the column type still follows the declared type
+               return null;
+            }
+
+            valStr =valStr.replace("T", " ");
 
             try {
                synchronized(formatter) { // SimpleDateFormat is not thread-safe
