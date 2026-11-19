@@ -234,6 +234,10 @@ $dark-ws-row-hover-bg: #302D27;
   // (230, 224, 233 = $dark-text-strong, the dark on-surface)
   --inet-dark-disabled-primary-bg: rgba(230, 224, 233, 0.12);
   --inet-dark-disabled-primary-text: rgba(230, 224, 233, 0.38);
+  // A disabled checked checkbox, radio or switch: the same fade (.5 opacity) turns its orange fill
+  // brown. Material 3's selected-disabled checkbox and radio use on-surface at 38%; the white check
+  // mark, dot and knob stay on it (about 5.6:1).
+  --inet-dark-disabled-selected-color: rgba(230, 224, 233, 0.38);
   // error text: the danger color is kept for borders and fills, which pass 3:1, but as text it
   // reads 3.4:1 on the dark surface
   --inet-dark-danger-text-color: #{$dark-danger-text};
@@ -495,6 +499,16 @@ $dark-ws-row-hover-bg: #302D27;
     border-color: var(--inet-dark-disabled-primary-bg);
   }
 
+  // a disabled checked checkbox, radio or switch takes the dark selected-disabled value (see the
+  // token) at full opacity instead of a faded orange; an unchecked one and the label keep their
+  // neutral fade. Same specificity as the checked rules, later, so it wins. Dashboard content keeps
+  // the light shell's faded orange.
+  .form-check-input:checked:disabled#{$outside-content} {
+    opacity: 1;
+    background-color: var(--inet-dark-disabled-selected-color);
+    border-color: var(--inet-dark-disabled-selected-color);
+  }
+
   .btn.btn-light-no-bg#{$outside-content} {
     --bs-btn-active-color: var(--inet-text-color);
     --bs-btn-active-bg: var(--inet-shell-selected-bg-color);
@@ -555,7 +569,7 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
   drag-indicator-bg, drag-indicator-text-color, shadow-color, shadow-low-filter,
   on-primary-text-color, danger-text-color, warning-soft-color, info-soft-color, check-halo-color,
   selected-tint-color, neutral-chip-color, neutral-chip-border-color,
-  disabled-primary-bg, disabled-primary-text;
+  disabled-primary-bg, disabled-primary-text, disabled-selected-color;
 
 // The hidden-annotation tooltip and the visible annotation's overflow tooltip. Other tooltips are
 // body-attached shell chrome and go dark, but these show the annotation's own rich text on the

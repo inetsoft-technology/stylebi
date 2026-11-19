@@ -170,3 +170,21 @@ describe("dark-only token reset list", () => {
       expect(css).not.toMatch(/--inet-dark-hover-ring-color\s*:/);
    });
 });
+
+describe("dark shell disabled checked checkbox, radio and switch", () => {
+   it("declares Material 3's selected-disabled value (on-surface at 38%) for the dark shell", () => {
+      const root = block(read("scss/_shell-dark.scss"), ":root.shell-dark");
+
+      expect(root).toMatch(/--inet-dark-disabled-selected-color:\s*rgba\(230, 224, 233, 0\.38\);/);
+   });
+
+   it("fills a disabled checked control with it at full opacity, dark-only and outside dashboard content", () => {
+      const dark = block(read("scss/_shell-dark.scss"), ":where(.shell-dark)");
+      const rule = dark.match(/\.form-check-input:checked:disabled#\{\$outside-content\}\s*\{[^}]*\}/);
+
+      expect(rule).not.toBeNull();
+      expect(rule[0]).toMatch(/opacity:\s*1;/);
+      expect(rule[0]).toMatch(/background-color:\s*var\(--inet-dark-disabled-selected-color\);/);
+      expect(rule[0]).toMatch(/border-color:\s*var\(--inet-dark-disabled-selected-color\);/);
+   });
+});
