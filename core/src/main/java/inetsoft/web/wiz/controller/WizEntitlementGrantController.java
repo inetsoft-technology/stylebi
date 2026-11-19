@@ -152,10 +152,91 @@ public class WizEntitlementGrantController {
 
       // outside the lock: the audit backend may do database I/O
       if(changed) {
-         audit(principal, permission, request.principalType(), granted, id, orgId, provider);
+         audit(principal, permission,
+               (granted ? "grant " : "revoke ") + request.principalType() + " " + id.getName(),
+               orgId, provider);
       }
 
       return result;
+   }
+
+   /**
+    * Removes every grantee of the permission's ACCESS action in the caller's organization and
+    * clears the organization's edited flag, restoring the default behaviour. It only removes, so
+    * unlike a grant it is also allowed for the global config.* names in multi-tenant mode (it is
+    * the clean-up path).
+    */
+   @PostMapping("/api/wiz/v1/entitlements/grants/reset")
+   public GrantEntry resetGrants(@RequestBody(required = false) ResetRequest request,
+                                 Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      requirePermission(principal, "entitlement.write");
+
+      if(request == null) {
+         throw badRequest("body: required");
+      }
+
+      String permission = request.permission();
+
+      if(permission == null || !WizPermissions.ALL.contains(permission)) {
+         throw badRequest("permission: must be one of " + WizPermissions.ALL);
+      }
+
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      GrantEntry result;
+      boolean changed = false;
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+
+      synchronized(WRITE_LOCK) {
+         Permission existing =
+            provider.getPermission(ResourceType.WIZ_PERMISSION, permission, orgId);
+
+         if(existing != null && (existing.hasOrgEditedGrantAll(orgId) || hasOwnGrants(existing, orgId))) {
+            Permission updated = (Permission) existing.clone();
+            updated.setOrgEditedGrantAll(existing.getOrgEditedGrantAll() == null ?
+               new HashMap<>() : new HashMap<>(existing.getOrgEditedGrantAll()));
+            Set<String> none = Set.of();
+            updated.setUserGrantsForOrg(ResourceAction.ACCESS, none, orgId);
+            updated.setGroupGrantsForOrg(ResourceAction.ACCESS, none, orgId);
+            updated.setRoleGrantsForOrg(ResourceAction.ACCESS, none, orgId);
+            updated.setOrganizationGrantsForOrg(ResourceAction.ACCESS, none, orgId);
+            updated.removeGrantAllByOrg(orgId);
+
+            try {
+               provider.setPermission(ResourceType.WIZ_PERMISSION, permission, updated, orgId);
+            }
+            catch(RuntimeException e) {
+               LOG.error("Failed to reset Wiz permission {}", permission, e);
+               throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                                                 "the reset could not be stored");
+            }
+
+            changed = true;
+         }
+
+         result = read(provider, permission, orgId);
+      }
+
+      if(changed) {
+         audit(principal, permission, "reset all grants", orgId, provider);
+      }
+
+      return result;
+   }
+
+   private static boolean hasOwnGrants(Permission perm, String orgId) {
+      for(int type : new int[] { Identity.USER, Identity.GROUP, Identity.ROLE,
+                                 Identity.ORGANIZATION })
+      {
+         if(perm.getGrants(ResourceAction.ACCESS, type, orgId).stream()
+            .anyMatch(g -> orgId.equals(g.getOrganizationID())))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private void requirePermission(Principal principal, String permission)
@@ -253,14 +334,15 @@ public class WizEntitlementGrantController {
       Permission perm = provider.getPermission(ResourceType.WIZ_PERMISSION, permission, orgId);
 
       if(perm == null) {
-         return new GrantEntry(permission, List.of(), List.of(), List.of(), false);
+         return new GrantEntry(permission, List.of(), List.of(), List.of(), false,
+                               WizPermissions.isEndUser(permission));
       }
 
       return new GrantEntry(permission,
                             names(perm.getOrgScopedUserGrants(ResourceAction.ACCESS, orgId)),
                             names(perm.getOrgScopedGroupGrants(ResourceAction.ACCESS, orgId)),
                             names(perm.getOrgScopedRoleGrants(ResourceAction.ACCESS, orgId)),
-                            perm.hasOrgEditedGrantAll(orgId) && hasAnyGrant(perm, orgId));
+                            perm.hasOrgEditedGrantAll(orgId), WizPermissions.isEndUser(permission));
    }
 
    private static List<String> names(Set<IdentityID> ids) {
@@ -289,15 +371,13 @@ public class WizEntitlementGrantController {
          !perm.getOrgScopedRoleGrants(ResourceAction.ACCESS, orgId).isEmpty();
    }
 
-   private static void audit(Principal principal, String permission, String principalType,
-                             boolean granted, IdentityID id, String orgId,
-                             SecurityProvider provider)
+   private static void audit(Principal principal, String permission, String description,
+                             String orgId, SecurityProvider provider)
    {
       try {
          ActionRecord record = SUtil.getActionRecord(
             principal, ActionRecord.ACTION_NAME_EDIT,
-            ResourceType.WIZ_PERMISSION + ":" + permission + " [" +
-               (granted ? "grant " : "revoke ") + principalType + " " + id.getName() + "]",
+            ResourceType.WIZ_PERMISSION + ":" + permission + " [" + description + "]",
             ActionRecord.OBJECT_TYPE_OBJECTPERMISSION);
          String orgName = provider.getOrgNameFromID(orgId);
          record.setResourceOrganization(orgId);
@@ -315,13 +395,18 @@ public class WizEntitlementGrantController {
    }
 
    /**
-    * @param restricted true when the organization's record is edited and has at least one grant,
-    *                   i.e. the permission is limited to its grantees (granting an end-user
-    *                   permission therefore takes it away from everybody else).
+    * @param restricted   true when the organization's record is edited, whatever number of
+    *                     grantees remain: the permission is limited to them (to nobody but
+    *                     administrators when there are none).
+    * @param defaultAllow true for an end-user permission, which everybody holds while it is not
+    *                     restricted; false for an admin permission, denied unless granted.
     */
    public record GrantEntry(String permission, List<String> users, List<String> groups,
-                            List<String> roles, boolean restricted)
+                            List<String> roles, boolean restricted, boolean defaultAllow)
    {
+   }
+
+   public record ResetRequest(String permission) {
    }
 
    /** {@code granted} is read as an Object so that only a real JSON boolean is accepted. */

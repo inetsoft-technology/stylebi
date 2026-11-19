@@ -678,6 +678,134 @@ class WizEntitlementGrantControllerTest {
                  "another write must be able to run while the audit call is in progress");
    }
 
+   // ---- restricted-to-nobody and reset ---------------------------------------------------------------
+
+   private GrantEntry reset(String permission, Principal caller) {
+      try {
+         return controller.resetGrants(new WizEntitlementGrantController.ResetRequest(permission),
+                                       caller);
+      }
+      catch(inetsoft.sree.security.SecurityException e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   private void deleteUser(String name) {
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      ((AuthenticationChain) provider.getAuthenticationProvider()).getProviders().stream()
+         .filter(EditableAuthenticationProvider.class::isInstance)
+         .map(EditableAuthenticationProvider.class::cast)
+         .forEach(p -> p.removeUser(new IdentityID(name, ORG_A)));
+   }
+
+   @Test
+   void resetClearsTheRestrictedToNobodyStateLeftByADeletedGrantee() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      post(request("plugin.use", "user", "carol", true), writer);
+      deleteUser("carol");
+
+      assertFalse(holds("plain", "plugin.use", false));
+      GrantEntry seen = entry(controller.getGrants(writer), "plugin.use");
+      assertTrue(seen.restricted());
+      assertTrue(seen.defaultAllow());
+      assertTrue(seen.users().isEmpty());
+
+      GrantEntry result = reset("plugin.use", writer);
+
+      assertFalse(result.restricted());
+      assertTrue(result.defaultAllow());
+      assertTrue(holds("plain", "plugin.use", false));
+   }
+
+   @Test
+   void defaultAllowTellsEndUserFromAdminPermissions() throws Exception {
+      List<GrantEntry> all = controller.getGrants(wiz("reader", ORG_A));
+      assertTrue(entry(all, "plugin.use").defaultAllow());
+      assertFalse(entry(all, "config.read").defaultAllow());
+      assertFalse(entry(all, "plugin.use").restricted());
+   }
+
+   @Test
+   void resetNeedsEntitlementWrite() throws Exception {
+      post(request("config.read", "user", "carol", true), wiz("writer", ORG_A));
+
+      for(String user : List.of("plain", "reader")) {
+         SRPrincipal caller = wiz(user, ORG_A);
+         assertEquals(403, status(() -> reset("config.read", caller)));
+      }
+
+      assertEquals(List.of("carol"),
+                   entry(controller.getGrants(wiz("reader", ORG_A)), "config.read").users());
+   }
+
+   @Test
+   void resetOnlyAffectsTheCallersOrganization() throws Exception {
+      // dave holds config.read in org B
+      post(request("config.read", "user", "carol", true), wiz("writer", ORG_A));
+
+      GrantEntry result = reset("config.read", wiz("writer", ORG_A));
+
+      assertTrue(result.users().isEmpty());
+      assertEquals(List.of("dave"),
+                   entry(controller.getGrants(wiz("readerb", ORG_B)), "config.read").users());
+   }
+
+   @Test
+   void aFailedStoreDuringResetLeavesTheStoredPermissionUnchanged() throws Exception {
+      post(request("plugin.use", "user", "carol", true), wiz("writer", ORG_A));
+      SecurityProvider real = SecurityEngine.getSecurity().getSecurityProvider();
+      failingProvider("plugin.use");
+      SRPrincipal writer = wiz("writer", ORG_A);
+
+      assertEquals(500, status(() -> reset("plugin.use", writer)));
+
+      Permission after = real.getPermission(ResourceType.WIZ_PERMISSION, "plugin.use", ORG_A);
+      assertTrue(after.hasOrgEditedGrantAll(ORG_A));
+      assertEquals(1, after.getOrgScopedUserGrants(ResourceAction.ACCESS, ORG_A).size());
+      assertFalse(holds("plain", "plugin.use", false));
+   }
+
+   @Test
+   void resetOfAnUntouchedPermissionIsANoOpWithoutAWrite() throws Exception {
+      SecurityProvider provider = delegating()[0];
+
+      GrantEntry result = reset("plugin.use", wiz("writer", ORG_A));
+
+      assertFalse(result.restricted());
+      verify(provider, never()).setPermission(any(ResourceType.class), anyString(),
+                                              any(Permission.class), anyString());
+   }
+
+   @Test
+   void resetRejectsAnUnknownPermission() {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      assertEquals(400, status(() -> reset("nope.read", writer)));
+      assertEquals(400, status(() -> reset(null, writer)));
+   }
+
+   @Test
+   void resettingAnAdminPermissionRemovesItsGrantsAndDeniesItAgain() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      post(request("entitlement.read", "user", "plain", true), writer);
+      assertTrue(holds("plain", "entitlement.read", false));
+
+      GrantEntry result = reset("entitlement.read", writer);
+
+      assertTrue(result.users().isEmpty());
+      assertFalse(result.defaultAllow());
+      assertFalse(holds("plain", "entitlement.read", false));
+   }
+
+   @Test
+   void resetIsAllowedForGlobalConfigInMultiTenantMode() throws Exception {
+      post(request("config.read", "user", "carol", true), wiz("writer", ORG_A));
+
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(true);
+         assertTrue(reset("config.read", wiz("orgadmin", ORG_A)).users().isEmpty());
+      }
+   }
+
    private GrantEntry post(GrantRequest request, Principal caller) {
       try {
          return controller.setGrant(request, caller);
