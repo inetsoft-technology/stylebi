@@ -1456,6 +1456,8 @@ public abstract class GraphGenerator {
       return !GDefaults.DEFAULT_TEXT_COLOR.equals(spec.getColor());
    }
 
+   private static final double BOX_TINT_ALPHA = 0.15;
+
    private void initRelationElement(PlotDescriptor plotdesc, RelationElement elem) {
       // set source format
       String sdim = elem.getSourceDim();
@@ -1594,6 +1596,7 @@ public abstract class GraphGenerator {
          */
       }
 
+      boolean measureColor = colorFrame instanceof LinearColorFrame;
       colorFrame = applyHighlight(colorFrame, data);
 
       if(isBrushingSource()) {
@@ -1606,6 +1609,19 @@ public abstract class GraphGenerator {
       }
 
       elem.setNodeColorFrame(colorFrame);
+
+      // marked tree boxes are a tint of their colour; a measure on colour and brushing stay solid
+      if(vizContext.modern && info.getChartType() == CHART_TREE && !measureColor &&
+         !isBrushingSource() && !isBrusingTarget())
+      {
+         elem.setBoxTint(BOX_TINT_ALPHA, VSObjectChromeDefaults.cardComposite(vizContext));
+
+         if(highlight == null && highlight2 == null && !isTextColorSet(sourceFmt, sourceSpec) &&
+            !isTextColorSet(fmt2, textSpec))
+         {
+            elem.setBoxInk(VSChartChromeDefaults.titleColor(vizContext));
+         }
+      }
 
       for(VisualFrame frame : LegendGroup.getLegendFrames(colorFrame)) {
          processColorLegend(desc.getLegendsDescriptor(), elem, frame);
