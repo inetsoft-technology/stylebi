@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
@@ -28,6 +29,7 @@ import inetsoft.sree.security.SecurityProvider;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.ConfirmException;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.command.OpenComposerAssetCommand;
 import inetsoft.web.wiz.pairing.EditorContext;
@@ -540,6 +542,116 @@ class SheetOpenServiceSavedSheetTest {
 
       service.openSavedSheet("tok-acting", agent(), SheetType.WORKSHEET, "Sales/WS", null, false);
 
+      assertNull(Tool.getUserMessage());
+   }
+
+   private RuntimeWorksheet openWorksheet(String id, String path, Worksheet live) {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getID()).thenReturn(id);
+      when(rws.getLastAccessed()).thenReturn(1L);
+      when(rws.getEntry()).thenReturn(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, path, null, "host-org"));
+      when(rws.getWorksheet()).thenReturn(live);
+      when(worksheetService.getRuntimeSheets(same(browser))).thenReturn(new RuntimeSheet[] { rws });
+      when(sheetSessions.findAllOnRuntime(id)).thenReturn(List.of());
+      when(sheetSessions.open(eq(id), eq(OWNER), eq(SheetType.WORKSHEET), any(), any(), isNull()))
+         .thenReturn(session("tok-" + id, id, SheetType.WORKSHEET));
+      return rws;
+   }
+
+   private SheetOpenService.OpenedSheet attachWorksheet() throws Exception {
+      return service.openSavedSheet("tok-acting", agent(), SheetType.WORKSHEET, "Sales/WS", null,
+                                    false);
+   }
+
+   @Test
+   void attachingToAnOpenWorksheetReportsAnOuterMirrorThatCannotBeUpdated() throws Exception {
+      AssetRepository repository = mock(AssetRepository.class);
+      when(worksheetService.getAssetRepository()).thenReturn(repository);
+      Worksheet live = mock(Worksheet.class);
+      Worksheet scratch = mock(Worksheet.class);
+      when(live.hasUpdatableOuterMirror()).thenReturn(true);
+      when(live.clone()).thenReturn(scratch);
+      RuntimeWorksheet tab = openWorksheet("ws-tab", "Sales/WS", live);
+      when(scratch.updateMirrors(any(), any(), any())).thenAnswer(invocation -> {
+         Tool.addUserMessage("Failed to update dependencies for sheet B:Primary assembly not " +
+                             "found in Data Worksheet: A", ConfirmException.WARNING);
+         return false;
+      });
+
+      SheetOpenService.OpenedSheet opened = attachWorksheet();
+
+      assertEquals("tok-ws-tab", opened.session().sessionToken());
+      assertEquals(1, opened.warnings().size());
+      assertTrue(opened.warnings().get(0).contains("Primary assembly not found"),
+                 opened.warnings().toString());
+      AssetEntry tabEntry = tab.getEntry();
+      verify(scratch).updateMirrors(same(repository), same(browser), same(tabEntry));
+      verify(live, never()).updateMirrors(any(), any(), any());
+      verify(worksheetService, never()).openWorksheet(any(AssetEntry.class), any(Principal.class));
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
+   void attachingToAnOpenWorksheetWithAHealthyMirrorReportsNothing() throws Exception {
+      Worksheet live = mock(Worksheet.class);
+      Worksheet scratch = mock(Worksheet.class);
+      when(live.hasUpdatableOuterMirror()).thenReturn(true);
+      when(live.clone()).thenReturn(scratch);
+      when(scratch.updateMirrors(any(), any(), any())).thenReturn(true);
+      openWorksheet("ws-tab", "Sales/WS", live);
+
+      assertTrue(attachWorksheet().warnings().isEmpty());
+   }
+
+   @Test
+   void attachingToAnOpenWorksheetWithoutAnUpdatableOuterMirrorCopiesNothing() throws Exception {
+      Worksheet live = mock(Worksheet.class);
+      when(live.hasUpdatableOuterMirror()).thenReturn(false);
+      openWorksheet("ws-tab", "Sales/WS", live);
+      Tool.addUserWarning("left over from an earlier step in this request");
+
+      SheetOpenService.OpenedSheet opened = attachWorksheet();
+
+      assertTrue(opened.warnings().isEmpty(), opened.warnings().toString());
+      verify(live, never()).clone();
+   }
+
+   @Test
+   void aFailedCopyOfTheOpenWorksheetDoesNotFailOrBlockTheAttach() throws Exception {
+      Worksheet live = mock(Worksheet.class);
+      when(live.hasUpdatableOuterMirror()).thenReturn(true);
+      when(live.clone()).thenReturn(null);
+      openWorksheet("ws-tab", "Sales/WS", live);
+
+      assertEquals("tok-ws-tab", attachWorksheet().session().sessionToken());
+
+      Worksheet other = mock(Worksheet.class);
+      when(other.hasUpdatableOuterMirror()).thenThrow(new IllegalStateException("boom"));
+      openWorksheet("ws-tab", "Sales/WS", other);
+
+      SheetOpenService.OpenedSheet opened = attachWorksheet();
+
+      assertEquals("tok-ws-tab", opened.session().sessionToken());
+      assertTrue(opened.warnings().isEmpty());
+   }
+
+   @Test
+   void aFailureWhileUpdatingTheScratchMirrorsDoesNotFailTheAttach() throws Exception {
+      Worksheet live = mock(Worksheet.class);
+      Worksheet scratch = mock(Worksheet.class);
+      when(live.hasUpdatableOuterMirror()).thenReturn(true);
+      when(live.clone()).thenReturn(scratch);
+      when(scratch.updateMirrors(any(), any(), any())).thenAnswer(invocation -> {
+         Tool.addUserWarning("partial");
+         throw new IllegalStateException("boom");
+      });
+      openWorksheet("ws-tab", "Sales/WS", live);
+
+      SheetOpenService.OpenedSheet opened = attachWorksheet();
+
+      assertEquals("tok-ws-tab", opened.session().sessionToken());
+      assertTrue(opened.warnings().isEmpty());
       assertNull(Tool.getUserMessage());
    }
 

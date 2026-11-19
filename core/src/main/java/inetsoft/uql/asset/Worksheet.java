@@ -722,6 +722,20 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
    }
 
    /**
+    * Check if opening this worksheet would copy the assemblies of at least one outer mirror
+    * again from its source worksheet, i.e. if {@link #updateMirrors} has anything to do.
+    */
+   public synchronized boolean hasUpdatableOuterMirror() {
+      for(WSAssembly assembly : assemblies) {
+         if(assembly instanceof MirrorAssembly && isUpdatedOnLoad((MirrorAssembly) assembly)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Check if an outer mirror's assemblies are copied again from its worksheet when this
     * worksheet is opened.
     */
