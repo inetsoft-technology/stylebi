@@ -38,22 +38,24 @@
       </div>
       <div class="shell-form-row--field row">
         <div class="col d-flex flex-column">
-          <label class="form-label">_#(Cell Height)</label>
+          <div class="d-flex align-items-center column-gap-3 mb-2">
+            <label class="form-label mb-0">_#(Cell Height)</label>
+            @if (followsDensity != null) {
+              <div class="form-check mb-0">
+                <input type="checkbox" class="form-check-input" id="cellHeightFollowsDensity"
+                       formControlName="followsDensity">
+                <label class="form-check-label" for="cellHeightFollowsDensity">
+                  _#(composer.vs.followDefaultDensity)
+                </label>
+              </div>
+            }
+          </div>
           <number-stepper formControlName="cellHeight" [min]="0"
                           [invalid]="!!cellHeight.errors">
           </number-stepper>
           @if (cellHeight.errors) {
             <div class="shell-alert shell-alert--danger">
               _#(composer.vs.table.cellSize.error)
-            </div>
-          }
-          @if (followsDensity != null) {
-            <div class="form-check mt-1">
-              <input type="checkbox" class="form-check-input" id="cellHeightFollowsDensity"
-                     formControlName="followsDensity">
-              <label class="form-check-label" for="cellHeightFollowsDensity">
-                _#(composer.vs.followDefaultDensity)
-              </label>
             </div>
           }
         </div>

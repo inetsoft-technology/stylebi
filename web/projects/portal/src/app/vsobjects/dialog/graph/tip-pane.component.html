@@ -100,7 +100,10 @@
   </fieldset>
 </form>
 <form *ngIf="!tooltipOnly" ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
-  <fieldset>
+  <!-- The large-form-field below has no bottom margin, unlike the form row that ends other groups.
+       mb-4, not mb-3: this margin collapses with the 8px under the form, so 1.5rem is what
+       gives the same 24px group gap. -->
+  <fieldset class="mb-4">
     <legend>_#(Flyover)</legend>
     <w-large-form-field>
       <div class="bordered-box p-1 flyover_list_id tip-pane__flyover-surface" largeFieldElement>

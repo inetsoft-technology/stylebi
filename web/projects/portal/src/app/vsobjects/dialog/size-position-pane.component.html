@@ -17,7 +17,22 @@
   -->
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
-    <legend>_#(Layout)</legend>
+    <legend class="d-flex align-items-center">
+      <!-- The checkbox starts over the Width column (the 4 columns below split the row evenly),
+           so it reads as belonging to Width and Height, not to Top and Left. -->
+      <span class="w-50">_#(Layout)</span>
+      @if (showSizeFollow && !isGroup && !isViewsheet) {
+        <div class="form-check mb-0 fw-normal">
+          <input type="checkbox" class="form-check-input" id="sizeFollowsDensity"
+                 [ngModel]="model.sizeFollowsDensity"
+                 (ngModelChange)="sizeFollowChanged($event)"
+                 [ngModelOptions]="{standalone: true}">
+          <label class="form-check-label" for="sizeFollowsDensity">
+            _#(composer.vs.followDefaultDensity)
+          </label>
+        </div>
+      }
+    </legend>
     <div class="row shell-form-row--field">
       <div class="col">
         <div class="d-flex flex-column">
@@ -64,64 +79,53 @@
         </div>
       }
     </div>
-    @if (showSizeFollow && !isGroup && !isViewsheet) {
-      <div class="row shell-form-row--field">
-        <div class="col-6 offset-6">
-          <div class="form-check mt-1">
-            <input type="checkbox" class="form-check-input" id="sizeFollowsDensity"
-                   [ngModel]="model.sizeFollowsDensity"
-                   (ngModelChange)="sizeFollowChanged($event)"
-                   [ngModelOptions]="{standalone: true}">
-            <label class="form-check-label" for="sizeFollowsDensity">
-              _#(composer.vs.followDefaultDensity)
-            </label>
-          </div>
-        </div>
-      </div>
-    }
     @if (showTitleHeight || showCellHeight) {
       <div class="row shell-form-row--field">
         @if (showTitleHeight) {
           <div class="col">
             <div class="d-flex flex-column">
-              <label class="form-label fw-bold mt-2">_#(Title Height)</label>
+              <div class="d-flex align-items-center column-gap-3 mt-2 mb-2">
+                <label class="form-label fw-bold mb-0">_#(Title Height)</label>
+                @if (showTitleHeightFollow) {
+                  <div class="form-check mb-0">
+                    <input type="checkbox" class="form-check-input" id="titleHeightFollowsDensity"
+                           [ngModel]="model.titleHeightFollowsDensity"
+                           (ngModelChange)="titleHeightFollowChanged($event)"
+                           [ngModelOptions]="{standalone: true}">
+                    <label class="form-check-label" for="titleHeightFollowsDensity">
+                      _#(composer.vs.followDefaultDensity)
+                    </label>
+                  </div>
+                }
+              </div>
               <number-stepper formControlName="titleHeight"
                               (valueChange)="model.titleHeight = $event"
                               [invalid]="!!form.controls['titleHeight'].errors">
               </number-stepper>
-              @if (showTitleHeightFollow) {
-                <div class="form-check mt-1">
-                  <input type="checkbox" class="form-check-input" id="titleHeightFollowsDensity"
-                         [ngModel]="model.titleHeightFollowsDensity"
-                         (ngModelChange)="titleHeightFollowChanged($event)"
-                         [ngModelOptions]="{standalone: true}">
-                  <label class="form-check-label" for="titleHeightFollowsDensity">
-                    _#(composer.vs.followDefaultDensity)
-                  </label>
-                </div>
-              }
             </div>
           </div>
         }
         @if (showCellHeight) {
           <div class="col">
             <div class="d-flex flex-column">
-              <label class="form-label fw-bold mt-2">_#(Cell Height)</label>
+              <div class="d-flex align-items-center column-gap-3 mt-2 mb-2">
+                <label class="form-label fw-bold mb-0">_#(Cell Height)</label>
+                @if (showCellHeightFollow) {
+                  <div class="form-check mb-0">
+                    <input type="checkbox" class="form-check-input" id="cellHeightFollowsDensity"
+                           [ngModel]="model.cellHeightFollowsDensity"
+                           (ngModelChange)="cellHeightFollowChanged($event)"
+                           [ngModelOptions]="{standalone: true}">
+                    <label class="form-check-label" for="cellHeightFollowsDensity">
+                      _#(composer.vs.followDefaultDensity)
+                    </label>
+                  </div>
+                }
+              </div>
               <number-stepper formControlName="cellHeight"
                               (valueChange)="model.cellHeight = $event"
                               [invalid]="!!form.controls['cellHeight'].errors">
               </number-stepper>
-              @if (showCellHeightFollow) {
-                <div class="form-check mt-1">
-                  <input type="checkbox" class="form-check-input" id="cellHeightFollowsDensity"
-                         [ngModel]="model.cellHeightFollowsDensity"
-                         (ngModelChange)="cellHeightFollowChanged($event)"
-                         [ngModelOptions]="{standalone: true}">
-                  <label class="form-check-label" for="cellHeightFollowsDensity">
-                    _#(composer.vs.followDefaultDensity)
-                  </label>
-                </div>
-              }
             </div>
           </div>
         }
