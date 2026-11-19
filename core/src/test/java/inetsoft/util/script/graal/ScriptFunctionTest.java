@@ -236,6 +236,28 @@ class ScriptFunctionTest {
    }
 
    @Test
+   void arrayArgIsJoinedForStringParam() {
+      // Bug #81781: a JS array bound to a String parameter must be joined with
+      // commas like JS ToString ("1,2"), not the Java identity text
+      // "[Ljava.lang.Object;@<hash>".
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setLabel", new ScriptFunction(t, Target.class, "setLabel", String.class));
+
+      ctx.eval("js", "setLabel([1, 2])");
+      assertEquals("1,2", t.label);
+
+      ctx.eval("js", "setLabel(['a', 'b'])");
+      assertEquals("a,b", t.label);
+
+      ctx.eval("js", "setLabel([1, [2, 3], null, 'x'])");
+      assertEquals("1,2,3,,x", t.label);
+
+      ctx.eval("js", "setLabel([])");
+      assertEquals("", t.label);
+   }
+
+   @Test
    void fractionalNumberArgIsCoercedToString() {
       // A fractional JS number bound to a String parameter keeps its decimal
       // form ("3.5"), exercising the String.valueOf branch of toStringValue.
