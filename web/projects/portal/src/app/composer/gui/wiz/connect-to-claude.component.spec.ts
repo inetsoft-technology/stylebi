@@ -1470,4 +1470,177 @@ describe("ConnectToClaudeComponent", () => {
          expect(JSON.parse(detach[2]).editorContext).toEqual(script);
       });
    });
+
+   /*
+    * Feature #80547: the portal Viewer hosts this component with viewerMode. A1 / C1 (client half)
+    * / A7 / C6. Composer hosts leave viewerMode at its default and must behave exactly as before.
+    */
+   describe("viewer host (Feature #80547)", () => {
+      const DETACH = "/events/wiz/pairing/viewer-detach";
+
+      const detachCalls = () =>
+         mockStompConnection.send.mock.calls.filter((c: any[]) => c[0] === DETACH);
+
+      const mintCalls = () =>
+         mockStompConnection.send.mock.calls.filter((c: any[]) => c[0] === "/events/wiz/pairing/mint");
+
+      const asViewer = (viewer: boolean) => {
+         component.runtimeId = "rt-viewer-1";
+         component.sheetType = "VIEWSHEET";
+         component.viewerMode = viewer;
+         fixture.detectChanges();
+      };
+
+      /** Completes the mint round trip so the instance holds a code of its own. */
+      const mintCode = () => {
+         let handler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation((dest: string, h: (msg: any) => void) => {
+            if(dest === "/user/commands/wiz/pairing/mint") {
+               handler = h;
+            }
+
+            return { unsubscribe: vi.fn() };
+         });
+         component.requestCode();
+         handler!({ frame: { body: JSON.stringify({ code: "VIEW-123" }) } });
+      };
+
+      const changeRuntime = (previous: string, current: string) => {
+         component.runtimeId = current;
+         component.ngOnChanges(
+            { runtimeId: { currentValue: current, previousValue: previous,
+                           firstChange: false, isFirstChange: () => false } } as any);
+      };
+
+      it("[C1/A1] mints with exactly {runtimeId, sheetType:VIEWSHEET}: no mode, no editorContext", () => {
+         asViewer(true);
+         component.requestCode();
+
+         expect(mintCalls().length).toBe(1);
+         expect(mintCalls()[0][2]).toBe(
+            JSON.stringify({ runtimeId: "rt-viewer-1", sheetType: "VIEWSHEET" }));
+         expect(Object.keys(JSON.parse(mintCalls()[0][2])).sort()).toEqual(["runtimeId", "sheetType"]);
+      });
+
+      it("shows the read-only note and no Follow Focus for a viewer host", () => {
+         asViewer(true);
+
+         expect(component.followFocusToggleVisible).toBe(false);
+         expect(fixture.nativeElement.querySelector("#wiz-follow-focus-toggle")).toBeNull();
+         expect(fixture.nativeElement.querySelector(".wiz-viewer-note")).toBeTruthy();
+      });
+
+      it("[C6] a Composer host (viewerMode default false) keeps Follow Focus and has no note", () => {
+         component.runtimeId = "vs-1";
+         component.sheetType = "VIEWSHEET";
+         fixture.detectChanges();
+
+         expect(component.viewerMode).toBe(false);
+         expect(component.followFocusToggleVisible).toBe(true);
+         expect(fixture.nativeElement.querySelector("#wiz-follow-focus-toggle")).toBeTruthy();
+         expect(fixture.nativeElement.querySelector(".wiz-viewer-note")).toBeNull();
+      });
+
+      it("[A7] a runtime change after a mint detaches the PREVIOUS runtime", () => {
+         asViewer(true);
+         mintCode();
+         expect(component.code).toBe("VIEW-123");
+
+         changeRuntime("rt-viewer-1", "rt-viewer-2");
+
+         expect(detachCalls().length).toBe(1);
+         expect(detachCalls()[0][1]).toEqual({});
+         expect(detachCalls()[0][2]).toBe(JSON.stringify({ runtimeId: "rt-viewer-1" }));
+         // and the existing reset still happens
+         expect(component.code).toBeNull();
+         expect(component.connected).toBe(false);
+      });
+
+      it("[A7] detaches even after the agent joined (the code is consumed, the session is live)", () => {
+         asViewer(true);
+         mintCode();
+         const joined = mockStompConnection.subscribe.mock.calls
+            .find((c: any[]) => c[0] === "/user/commands/wiz/pairing/joined")[1];
+         joined({ frame: { body: JSON.stringify(
+            { runtimeId: "rt-viewer-1", sheetType: "VIEWSHEET", editorContext: null }) } });
+         expect(component.connected).toBe(true);
+
+         changeRuntime("rt-viewer-1", "rt-viewer-2");
+
+         expect(detachCalls().length).toBe(1);
+         expect(JSON.parse(detachCalls()[0][2]).runtimeId).toBe("rt-viewer-1");
+      });
+
+      it("[A7] sends no detach when nothing was minted for the old runtime", () => {
+         asViewer(true);
+
+         changeRuntime("rt-viewer-1", "rt-viewer-2");
+
+         expect(detachCalls().length).toBe(0);
+      });
+
+      it("[A7] detaches once only: a second runtime change without a new mint sends nothing", () => {
+         asViewer(true);
+         mintCode();
+
+         changeRuntime("rt-viewer-1", "rt-viewer-2");
+         changeRuntime("rt-viewer-2", "rt-viewer-3");
+
+         expect(detachCalls().length).toBe(1);
+      });
+
+      it("[A7] a mint for the new runtime is detached on the next change, with the new id", () => {
+         asViewer(true);
+         mintCode();
+         changeRuntime("rt-viewer-1", "rt-viewer-2");
+         mintCode();
+         changeRuntime("rt-viewer-2", "rt-viewer-3");
+
+         expect(detachCalls().map((c: any[]) => JSON.parse(c[2]).runtimeId))
+            .toEqual(["rt-viewer-1", "rt-viewer-2"]);
+      });
+
+      it("[A7] ignores the first binding of runtimeId", () => {
+         asViewer(true);
+         mintCode();
+
+         component.ngOnChanges(
+            { runtimeId: { currentValue: "rt-viewer-1", previousValue: undefined,
+                           firstChange: true, isFirstChange: () => true } } as any);
+
+         expect(detachCalls().length).toBe(0);
+      });
+
+      it("[C6] never sends viewer-detach from a Composer host, even after a mint and a runtime change", () => {
+         component.runtimeId = "vs-1";
+         component.sheetType = "VIEWSHEET";
+         fixture.detectChanges();
+         mintCode();
+
+         changeRuntime("vs-1", "vs-2");
+
+         expect(detachCalls().length).toBe(0);
+         // no other destination was added for a whole-sheet Composer mint either
+         const destinations = mockStompConnection.send.mock.calls.map((c: any[]) => c[0]);
+         expect(destinations).toEqual(["/events/wiz/pairing/mint"]);
+      });
+
+      it("[C6] a Composer worksheet host mint payload is unchanged", () => {
+         component.runtimeId = "ws-1";
+         component.sheetType = "WORKSHEET";
+         fixture.detectChanges();
+         component.requestCode();
+
+         expect(mintCalls()[0][2]).toBe(JSON.stringify({ runtimeId: "ws-1", sheetType: "WORKSHEET" }));
+      });
+
+      it("sends nothing and does not throw when there is no previous runtime id", () => {
+         asViewer(true);
+         mintCode();
+
+         changeRuntime(undefined as any, "rt-viewer-2");
+
+         expect(detachCalls().length).toBe(0);
+      });
+   });
 });
