@@ -266,7 +266,8 @@ describe("PortalAppComponent — Baseline: message listener registration", () =>
 // ---------------------------------------------------------------------------
 
 describe("PortalAppComponent — Wiz portal entry", () => {
-   async function renderWith(extra: Record<string, unknown>, panelOpen = false) {
+   async function renderWith(extra: Record<string, unknown>, panelOpen = false,
+                             queryParams: Record<string, string> = {}) {
       setupPortalMsw();
       server.use(
          http.get("*/api/portal/get-portal-model", () =>
@@ -283,6 +284,7 @@ describe("PortalAppComponent — Wiz portal entry", () => {
                   panelOpen$:         new BehaviorSubject<boolean>(panelOpen),
                }
             },
+            { provide: ActivatedRoute, useValue: { queryParams: of(queryParams) } },
          ],
       });
    }
@@ -337,5 +339,25 @@ describe("PortalAppComponent — Wiz portal entry", () => {
       await waitFor(() =>
          expect(result.container.querySelector("header.portal-navbar")).not.toBeNull());
       expect(wizLink(result)).toBeNull();
+   });
+
+   it("renders no Wiz link when the portal navigation is hidden (hideNav=true)", async () => {
+      const result = await renderWith({ wizVisible: true, wizUrl: "https://wiz.example.com/" },
+                                      false, { hideNav: "true" });
+
+      const comp = result.fixture.componentInstance as PortalAppComponent;
+      await waitFor(() => expect(comp.model).toBeTruthy());
+      result.fixture.detectChanges();
+      expect(comp.hideNav).toBe(true);
+      expect(result.container.querySelector("header.portal-navbar")).toBeNull();
+      expect(wizLink(result)).toBeNull();
+   });
+
+   it("renders the Wiz link when hideNav is explicitly false", async () => {
+      const result = await renderWith({ wizVisible: true, wizUrl: "https://wiz.example.com/" },
+                                      false, { hideNav: "false" });
+
+      await waitFor(() => expect(wizLink(result)).not.toBeNull());
+      expect(result.container.querySelector("header.portal-navbar")).not.toBeNull();
    });
 });
