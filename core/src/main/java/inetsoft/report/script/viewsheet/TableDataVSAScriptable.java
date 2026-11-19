@@ -1443,6 +1443,11 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          return null;
       }
 
+      @Override
+      public boolean isIndexValid(long index) {
+         return index >= 0 && index < table.getColCount();
+      }
+
       private int rowState;
       private FormTableRow formRow;
    }
