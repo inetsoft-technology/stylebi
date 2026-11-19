@@ -1741,6 +1741,39 @@ public abstract class VSAQuery {
       }
    }
 
+   /**
+    * Get the names of the hidden columns that only the private selection holds, with the
+    * literal parts of a name built at run time joined, field['o' + 'k'] reads "ok".
+    *
+    * @return the names, or null if the private selection differs from the public one in
+    *         another way (a selection), or a name is built from more than literals.
+    */
+   private static List<String> getHiddenExtraNames(ColumnSelection priv, ColumnSelection pub) {
+      ColumnSelection visible = new ColumnSelection();
+      List<String> names = new ArrayList<>();
+
+      for(int i = 0; i < priv.getAttributeCount(); i++) {
+         DataRef ref = priv.getAttribute(i);
+
+         if(pub.getAttribute(ref.getName()) != null ||
+            !(ref instanceof ColumnRef) || ((ColumnRef) ref).isVisible())
+         {
+            visible.addAttribute(ref);
+         }
+         else {
+            String name = ref.getName().replaceAll("['\"]\\s*\\+\\s*['\"]", "");
+
+            if(name.contains("'") || name.contains("\"") || name.contains("+")) {
+               return null;
+            }
+
+            names.add(name);
+         }
+      }
+
+      return visible.equals(pub) ? names : null;
+   }
+
    private boolean removeUnusedCalcField(TableAssembly table) {
       // the structure of the table assembly is
       //   table - aggragetInfo and public columnSelection reflects whether field is used
@@ -1758,8 +1791,13 @@ public abstract class VSAQuery {
          return false;
       }
 
-      // should not have any selection
-      if(!childPriv.equals(childPub)) {
+      // should not have any selection. the hidden columns that only the private selection
+      // holds are the base columns of the calc field expressions (VSUtil.addCalcBaseRefs),
+      // a name built at run time, field['o' + 'k'], adds one that is no column of the table,
+      // and they are not a selection (bug #81627)
+      List<String> hiddenNames = getHiddenExtraNames(childPriv, childPub);
+
+      if(hiddenNames == null) {
          return false;
       }
 
@@ -1782,6 +1820,11 @@ public abstract class VSAQuery {
          .map(ref -> ref instanceof ExpressionRef ? ((ExpressionRef) ref).getExpression()
                : ref.getAttribute())
          .collect(Collectors.joining(";"));
+
+      // the columns read by a name built at run time are used by the calc fields
+      for(String name : hiddenNames) {
+         allCols += ";" + name;
+      }
 
       if(calcTable) {
          allCols += ";" + getCalcTableUsedText((CalcTableVSAssembly) getAssembly(), table);
@@ -1823,7 +1866,8 @@ public abstract class VSAQuery {
             {
                pubcols.getAttribute(ref.getName());
                childPriv.removeAttribute(i);
-               childPub.removeAttribute(i);
+               // the private selection can hold hidden columns, so its index is not the public one
+               childPub.removeAttribute(childPub.getAttribute(ref.getName()));
 
                // the table of a calc table holds the column of the removed calc field too
                if(calcTable) {
