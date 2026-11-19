@@ -17,6 +17,9 @@
  */
 package inetsoft.uql.rest.json;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.jayway.jsonpath.*;
 import com.jayway.jsonpath.spi.json.JacksonJsonProvider;
 import com.jayway.jsonpath.spi.json.JsonProvider;
@@ -27,7 +30,10 @@ import inetsoft.util.FileSystemService;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.zip.*;
 
 /**
@@ -45,7 +51,7 @@ public class JsonTransformer implements InputTransformer {
    @Override
    public Object transform(InputStream input, String path) {
       try {
-         return parseContext.parse(fixInput(input)).read(path);
+         return parseContext.parse(readJson(fixInput(input))).read(path);
       }
       catch(IllegalArgumentException e) {
          // Server response returned a null value
@@ -71,7 +77,7 @@ public class JsonTransformer implements InputTransformer {
    @Override
    public Object transform(InputStream input) {
       try {
-         return parseContext.parse(fixInput(input)).json();
+         return parseContext.parse(readJson(fixInput(input))).json();
       }
       catch(IllegalArgumentException e) {
          // Server response returned a null value
@@ -83,6 +89,95 @@ public class JsonTransformer implements InputTransformer {
    public String updateOutputString(String output, String path, Object value) {
       output = createParents(output, path);
       return parseContext.parse(output).set(path, value).jsonString();
+   }
+
+   /**
+    * Reads the JSON document from the stream. A response made of several concatenated JSON
+    * objects, such as the one InfluxDB returns for a chunked v1 query (one {"results":[...]}
+    * object per series, one per line), is merged into a single document. The stream is only read
+    * past its first value when that value is such a "results" object, so any other response is
+    * parsed exactly as before.
+    */
+   @SuppressWarnings("unchecked")
+   private Object readJson(InputStream input) {
+      try {
+         return doReadJson(input);
+      }
+      catch(IOException e) {
+         throw new InvalidJsonException(e);
+      }
+   }
+
+   private Object doReadJson(InputStream input) throws IOException {
+      final ObjectMapper mapper = ((JacksonJsonProvider) jsonProvider).getObjectMapper();
+      final ObjectReader reader = mapper.readerFor(Object.class);
+      final JsonParser parser = mapper.getFactory().createParser(input);
+
+      if(parser.nextToken() == null) {
+         // empty body: let the parser report it the same way as a single-value read does
+         return parseContext.parse(input).json();
+      }
+
+      final Object first = reader.readValue(parser);
+
+      if(!isResultsObject(first)) {
+         return first;
+      }
+
+      final Map<String, Object> merged = (Map<String, Object>) first;
+
+      while(parser.nextToken() != null) {
+         final Object next = reader.readValue(parser);
+
+         if(!isResultsObject(next)) {
+            throw new IOException("Unexpected value in a chunked JSON response: expected an " +
+                                  "object with a \"results\" array");
+         }
+
+         mergeResults((List<Object>) merged.get("results"),
+                      (List<Object>) ((Map<String, Object>) next).get("results"));
+      }
+
+      return merged;
+   }
+
+   private static boolean isResultsObject(Object value) {
+      return value instanceof Map && ((Map<?, ?>) value).get("results") instanceof List;
+   }
+
+   /**
+    * Appends the series of each statement result of a later chunk to the statement result at the
+    * same position in the first chunk.
+    */
+   @SuppressWarnings("unchecked")
+   private static void mergeResults(List<Object> target, List<Object> chunk) {
+      for(int i = 0; i < chunk.size(); i++) {
+         if(i >= target.size()) {
+            target.add(chunk.get(i));
+            continue;
+         }
+
+         final Object t = target.get(i);
+         final Object c = chunk.get(i);
+
+         if(!(t instanceof Map) || !(c instanceof Map)) {
+            continue;
+         }
+
+         final Map<String, Object> tmap = (Map<String, Object>) t;
+         final Object series = ((Map<String, Object>) c).get("series");
+
+         if(series instanceof List) {
+            Object existing = tmap.get("series");
+
+            if(!(existing instanceof List)) {
+               existing = new ArrayList<>();
+               tmap.put("series", existing);
+            }
+
+            ((List<Object>) existing).addAll((List<Object>) series);
+         }
+      }
    }
 
    private ParseContext createJsonPath() {
