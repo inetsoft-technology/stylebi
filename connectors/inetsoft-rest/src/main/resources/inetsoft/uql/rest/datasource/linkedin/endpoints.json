@@ -1342,39 +1342,6 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/organizations?q=emailDomain&emailDomain={Email Domain}",
-      "responseSchema": {
-        "elements": [
-          {
-            "id": "double",
-            "localizedName": "string",
-            "logoV2": {
-              "cropped": "string",
-              "original": "string",
-              "cropInfo": {
-                "x": "double",
-                "y": "double",
-                "width": "double",
-                "height": "double"
-              }
-            },
-            "name": {
-              "localized": {
-                "*": "string"
-              },
-              "preferredLocale": {
-                "country": "string",
-                "language": "string"
-              }
-            },
-            "vanityName": "string"
-          }
-        ],
-        "paging": {
-          "count": "double",
-          "start": "double",
-          "total": "double"
-        }
-      },
       "description": "The organisation matching an email domain. The lookup from a company's mail domain to its LinkedIn page."
     },
     {
@@ -1400,67 +1367,8 @@
       "responseSchema": {
         "elements": [
           {
-            "$URN": "string",
-            "alternativeNames": [
-              {
-                "locale": {
-                  "country": "string",
-                  "language": "string"
-                },
-                "value": "string"
-              }
-            ],
-            "coverPhotoV2": {
-              "cropped": "string",
-              "original": "string",
-              "cropInfo": {
-                "x": "double",
-                "y": "double",
-                "width": "double",
-                "height": "double"
-              }
-            },
-            "defaultLocale": {
-              "country": "string",
-              "language": "string"
-            },
-            "description": {
-              "localized": {
-                "*": "string"
-              },
-              "preferredLocale": {
-                "country": "string",
-                "language": "string"
-              }
-            },
-            "foundedOn": {
-              "day": "double",
-              "month": "double",
-              "year": "double"
-            },
-            "groups": [
-              "string"
-            ],
             "id": "double",
-            "industries": [
-              "string"
-            ],
-            "localizedDescription": "string",
             "localizedName": "string",
-            "localizedSpecialties": [
-              "string"
-            ],
-            "localizedWebsite": "string",
-            "logoV2": {
-              "cropped": "string",
-              "original": "string",
-              "cropInfo": {
-                "x": "double",
-                "y": "double",
-                "width": "double",
-                "height": "double"
-              }
-            },
             "name": {
               "localized": {
                 "*": "string"
@@ -1470,26 +1378,8 @@
                 "language": "string"
               }
             },
-            "organizationStatus": "string",
-            "organizationType": "string",
-            "parentRelationship": {
-              "organizationRelationshipType": "string",
-              "parent": "string",
-              "relationshipStatus": "string"
-            },
             "primaryOrganizationType": "string",
-            "staffCountRange": "string",
-            "vanityName": "string",
-            "versionTag": "string",
-            "website": {
-              "localized": {
-                "*": "string"
-              },
-              "preferredLocale": {
-                "country": "string",
-                "language": "string"
-              }
-            }
+            "vanityName": "string"
           }
         ],
         "paging": {
@@ -1523,10 +1413,6 @@
         "elements": [
           {
             "organization": "string",
-            "timeRange": {
-              "start": "double",
-              "end": "double"
-            },
             "totalPageStatistics": {
               "views": {
                 "allDesktopPageViews": {
@@ -1536,12 +1422,10 @@
                   "pageViews": "double"
                 },
                 "allPageViews": {
-                  "pageViews": "double",
-                  "uniquePageViews": "double"
+                  "pageViews": "double"
                 },
                 "careersPageViews": {
-                  "pageViews": "double",
-                  "uniquePageViews": "double"
+                  "pageViews": "double"
                 },
                 "desktopCareersPageViews": {
                   "pageViews": "double"
@@ -1574,281 +1458,10 @@
                   "pageViews": "double"
                 },
                 "overviewPageViews": {
-                  "pageViews": "double",
-                  "uniquePageViews": "double"
+                  "pageViews": "double"
                 }
               }
-            },
-            "pageStatisticsByFunction": [
-              {
-                "function": "string",
-                "pageStatistics": {
-                  "views": {
-                    "allDesktopPageViews": {
-                      "pageViews": "double"
-                    },
-                    "allMobilePageViews": {
-                      "pageViews": "double"
-                    },
-                    "allPageViews": {
-                      "pageViews": "double"
-                    },
-                    "careersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopCareersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopJobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopLifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopOverviewPageViews": {
-                      "pageViews": "double"
-                    },
-                    "jobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "lifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileCareersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileJobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileLifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileOverviewPageViews": {
-                      "pageViews": "double"
-                    },
-                    "overviewPageViews": {
-                      "pageViews": "double"
-                    }
-                  }
-                }
-              }
-            ],
-            "pageStatisticsByGeo": [
-              {
-                "geo": "string",
-                "pageStatistics": {
-                  "views": {
-                    "allDesktopPageViews": {
-                      "pageViews": "double"
-                    },
-                    "allMobilePageViews": {
-                      "pageViews": "double"
-                    },
-                    "allPageViews": {
-                      "pageViews": "double"
-                    },
-                    "careersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopCareersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopJobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopLifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopOverviewPageViews": {
-                      "pageViews": "double"
-                    },
-                    "jobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "lifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileCareersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileJobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileLifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileOverviewPageViews": {
-                      "pageViews": "double"
-                    },
-                    "overviewPageViews": {
-                      "pageViews": "double"
-                    }
-                  }
-                }
-              }
-            ],
-            "pageStatisticsByGeoCountry": [
-              {
-                "geo": "string",
-                "pageStatistics": {
-                  "views": {
-                    "allDesktopPageViews": {
-                      "pageViews": "double"
-                    },
-                    "allMobilePageViews": {
-                      "pageViews": "double"
-                    },
-                    "allPageViews": {
-                      "pageViews": "double"
-                    },
-                    "careersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopCareersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopJobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopLifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopOverviewPageViews": {
-                      "pageViews": "double"
-                    },
-                    "jobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "lifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileCareersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileJobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileLifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileOverviewPageViews": {
-                      "pageViews": "double"
-                    },
-                    "overviewPageViews": {
-                      "pageViews": "double"
-                    }
-                  }
-                }
-              }
-            ],
-            "pageStatisticsBySeniority": [
-              {
-                "seniority": "string",
-                "pageStatistics": {
-                  "views": {
-                    "allDesktopPageViews": {
-                      "pageViews": "double"
-                    },
-                    "allMobilePageViews": {
-                      "pageViews": "double"
-                    },
-                    "allPageViews": {
-                      "pageViews": "double"
-                    },
-                    "careersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopCareersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopJobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopLifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopOverviewPageViews": {
-                      "pageViews": "double"
-                    },
-                    "jobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "lifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileCareersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileJobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileLifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileOverviewPageViews": {
-                      "pageViews": "double"
-                    },
-                    "overviewPageViews": {
-                      "pageViews": "double"
-                    }
-                  }
-                }
-              }
-            ],
-            "pageStatisticsByStaffCountRange": [
-              {
-                "staffCountRange": "string",
-                "pageStatistics": {
-                  "views": {
-                    "allDesktopPageViews": {
-                      "pageViews": "double"
-                    },
-                    "allMobilePageViews": {
-                      "pageViews": "double"
-                    },
-                    "allPageViews": {
-                      "pageViews": "double"
-                    },
-                    "careersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopCareersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopJobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopLifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "desktopOverviewPageViews": {
-                      "pageViews": "double"
-                    },
-                    "jobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "lifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileCareersPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileJobsPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileLifeAtPageViews": {
-                      "pageViews": "double"
-                    },
-                    "mobileOverviewPageViews": {
-                      "pageViews": "double"
-                    },
-                    "overviewPageViews": {
-                      "pageViews": "double"
-                    }
-                  }
-                }
-              }
-            ]
+            }
           }
         ],
         "paging": {
@@ -1868,10 +1481,6 @@
         "elements": [
           {
             "brand": "string",
-            "timeRange": {
-              "start": "double",
-              "end": "double"
-            },
             "totalPageStatistics": {
               "views": {
                 "allDesktopPageViews": {
@@ -1913,10 +1522,6 @@
         "elements": [
           {
             "organizationalEntity": "string",
-            "timeRange": {
-              "start": "double",
-              "end": "double"
-            },
             "totalShareStatistics": {
               "clickCount": "double",
               "commentCount": "double",
