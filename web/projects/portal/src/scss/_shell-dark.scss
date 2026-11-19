@@ -20,6 +20,10 @@
 // $dashboard-content, $content-popup and $outside-content (the content boundary) live in
 // _variables.scss, so light-shell rules can stay out of dashboard content too.
 
+// The popups the shell resets to light: a dark-marked calendar is left out, it follows its mark (see
+// the .dropdown-datepicker.viz-dark block at the end of this file). Same specificity as the others.
+$content-popup-light: ".vs-combo-box__list, .dropdown-datepicker:not(.viz-dark)";
+
 /***
  * Shell dark
  *

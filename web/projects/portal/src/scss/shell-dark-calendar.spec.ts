@@ -27,6 +27,9 @@ import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const shellDark = readFileSync(join(__dirname, "_shell-dark.scss"), "utf-8");
+// the content boundary ($dashboard-content, $content-popup, $outside-content) is shared with the light
+// shell's rules, so it is declared in _variables.scss
+const variables = readFileSync(join(__dirname, "_variables.scss"), "utf-8");
 
 describe("dark-marked date calendar styles", () => {
    const block = () => {
@@ -66,6 +69,6 @@ describe("dark-marked date calendar styles", () => {
    });
 
    it("keeps $outside-content on the full popup list", () => {
-      expect(shellDark).toMatch(/\$outside-content:[^;]*#\{\$content-popup\}/);
+      expect(variables).toMatch(/\$outside-content:[^;]*#\{\$content-popup\}/);
    });
 });

@@ -289,9 +289,6 @@ $dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly
 // (the .dropdown-datepicker.viz-dark block at the end of _shell-dark.scss). The combo box list stays
 // light when marked.
 $content-popup: ".vs-combo-box__list, .dropdown-datepicker";
-// The popups the shell resets to light: a dark-marked calendar is left out, it follows its mark (see
-// the .dropdown-datepicker.viz-dark block at the end of _shell-dark.scss). Same specificity as the others.
-$content-popup-light: ".vs-combo-box__list, .dropdown-datepicker:not(.viz-dark)";
 // Matches an element outside dashboard content without adding specificity, for shell rules that
 // would otherwise also reach the content.
 $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))";
