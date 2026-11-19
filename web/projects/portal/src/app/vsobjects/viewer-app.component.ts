@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NgIf, NgFor } from "@angular/common";
+import { NgbDropdown, NgbDropdownMenu, NgbDropdownToggle } from "@ng-bootstrap/ng-bootstrap";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
   AfterContentInit,
@@ -29,6 +30,7 @@ import {
   Inject,
   Injector,
   Input,
+  inject,
   NgZone,
   OnDestroy,
   OnInit,
@@ -90,6 +92,8 @@ import { EditViewsheetEvent } from "../composer/gui/vs/event/edit-viewsheet-even
 import { ExpiredSheetCommand } from "../composer/gui/ws/socket/expired-sheet/expired-sheet-command";
 import { TouchAssetEvent } from "../composer/gui/ws/socket/touch-asset-event";
 import { EmbedErrorCommand } from "../embed/embed-error-command";
+import { ConnectToClaudeComponent } from "../composer/gui/wiz/connect-to-claude.component";
+import { WizService } from "../composer/gui/wiz/services/wiz.service";
 import { ChartTool } from "../graph/model/chart-tool";
 import { ChartService } from "../graph/services/chart.service";
 import { PageTabService } from "../viewer/services/page-tab.service";
@@ -334,7 +338,7 @@ export interface ScrollViewportRect {
         ViewDataService,
         FirstDayOfWeekService,
     ],
-    imports: [NgIf, PagingControlComponent, OutOfZoneDirective, VsToolbarButtonDirective, FixedDropdownDirective, DefaultFocusDirective, EnterClickDirective, NgFor, BlockMouseDirective, ViewerMobileToolbarComponent, VsBookmarkPaneComponent, InteractContainerDirective, ViewerFormatPane, VSObjectContainer, StatusBar, VSLoadingDisplay, ExportDialog, EmailDialog, ScheduleDialog, BookmarkPropertyDialog, VariableInputDialog, ShareEmailDialogComponent, ShareGoogleChatDialog, ShareSlackDialog, ShareLinkDialog, RemoveBookmarksDialog, NotificationsComponent]
+    imports: [NgIf, PagingControlComponent, OutOfZoneDirective, VsToolbarButtonDirective, FixedDropdownDirective, DefaultFocusDirective, EnterClickDirective, NgFor, BlockMouseDirective, ViewerMobileToolbarComponent, VsBookmarkPaneComponent, InteractContainerDirective, ViewerFormatPane, VSObjectContainer, StatusBar, VSLoadingDisplay, ExportDialog, EmailDialog, ScheduleDialog, BookmarkPropertyDialog, VariableInputDialog, ShareEmailDialogComponent, ShareGoogleChatDialog, ShareSlackDialog, ShareLinkDialog, RemoveBookmarksDialog, NotificationsComponent, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, ConnectToClaudeComponent]
 })
 export class ViewerAppComponent extends CommandProcessor implements OnInit, AfterViewInit,
    AfterViewChecked, AfterContentInit, OnDestroy
@@ -539,6 +543,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    private intersectionObserver: IntersectionObserver;
    private _tabsHeight: number = 0;
    drillTabsTop: boolean = false;
+
+   // inject(), not a constructor parameter: keeps the 4500-line constructor and every spec's
+   // fixture untouched.
+   private readonly wizService = inject(WizService);
 
    constructor(public viewsheetClient: ViewsheetClientService,
                private stompClientService: StompClientService,
@@ -3931,6 +3939,20 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    isPrintViewsheetVisible(): boolean {
       return !this.isPermissionForbidden("PrintVS", "Print");
+   }
+
+   /**
+    * Feature #80547. The "Connect to Claude" toolbar control, which pairs the agent plugin to this
+    * viewer's runtime (read and export only; the server enforces that, not this client).
+    *
+    * Portal viewer toolbar only: not the dashboard tab, the embed viewer, Composer Preview, mobile,
+    * a link view or an iframe. The feature flag is the same one the Composer button uses, read per
+    * change detection from {@link WizService}, so flag off means no button at all.
+    */
+   isConnectToClaudeVisible(): boolean {
+      return this.wizService.sheetAgentPairingEnabled && this.inPortal && !this.inDashboard &&
+         !this.embed && !this.preview && !this.mobileDevice && !this.linkView && !this.isIframe &&
+         !!this.runtimeId && !!this.viewsheetClient;
    }
 
    isExportVisible(): boolean {
