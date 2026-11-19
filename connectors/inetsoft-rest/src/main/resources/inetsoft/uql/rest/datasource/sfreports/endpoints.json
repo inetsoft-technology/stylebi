@@ -13,10 +13,6 @@
           "lastModifiedDate": "timeInstant",
           "name": "string",
           "recordId": "string",
-          "runAs": {
-            "id": "string",
-            "name": "string"
-          },
           "schedule": {
             "details": {
               "time": "double",
@@ -77,10 +73,6 @@
         "lastModifiedDate": "timeInstant",
         "name": "string",
         "recordId": "string",
-        "runAs": {
-          "id": "string",
-          "name": "string"
-        },
         "schedule": {
           "details": {
             "time": "double",
@@ -364,9 +356,7 @@
           {
             "shareType": "string",
             "shareWithId": "string",
-            "shareWithLabel": "string",
-            "imageUrl": "string",
-            "imageColor": "string"
+            "shareWithLabel": "string"
           }
         ]
       },
