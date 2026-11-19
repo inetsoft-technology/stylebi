@@ -31,6 +31,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.log.logback.LogbackUtil;
 import inetsoft.web.admin.authz.ComponentAuthorizationService;
 import inetsoft.web.admin.authz.ViewComponent;
+import inetsoft.web.wiz.WizPermissions;
 
 import java.security.Principal;
 import java.util.*;
@@ -209,6 +210,8 @@ public class ActionPermissionService {
                           .grant(true)
                           .actions(EnumSet.of(ResourceAction.ACCESS))
                           .build());
+
+      root.addFilteredChildren(getWizPermissionsNode(catalog));
 
       root.addFilteredChildren(ActionTreeNode.builder()
                           .label(catalog.getString("Cross Join"))
@@ -419,6 +422,26 @@ public class ActionPermissionService {
                                    .actions(EnumSet.of(ResourceAction.ACCESS))
                                    .build());
          }
+      }
+
+      return builder.build();
+   }
+
+   private ActionTreeNode getWizPermissionsNode(Catalog catalog) {
+      ActionTreeNode.Builder builder = ActionTreeNode.builder()
+         .label(catalog.getString("Wiz Permissions"))
+         .folder(true)
+         .actions(EnumSet.noneOf(ResourceAction.class));
+
+      for(String permission : WizPermissions.ALL) {
+         builder.addFilteredChildren(ActionTreeNode.builder()
+                                        .label(permission)
+                                        .resource(permission)
+                                        .folder(false)
+                                        .grant(WizPermissions.isEndUser(permission))
+                                        .type(ResourceType.WIZ_PERMISSION)
+                                        .actions(EnumSet.of(ResourceAction.ACCESS))
+                                        .build());
       }
 
       return builder.build();

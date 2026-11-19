@@ -23,6 +23,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.security.action.ActionPermissionService;
+import inetsoft.web.wiz.WizPermissions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -365,7 +366,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             type == ResourceType.CHART_TYPE_FOLDER ||
             type == ResourceType.WORKSHEET_EXPRESSION_COLUMN ||
             type == ResourceType.VIEWSHEET_CALCULATED_FIELD ||
-            type == ResourceType.AI_ASSISTANT)
+            type == ResourceType.AI_ASSISTANT ||
+            type == ResourceType.WIZ_PERMISSION && WizPermissions.isEndUser(resource))
          {
             return true;
          }
