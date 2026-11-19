@@ -883,4 +883,127 @@ class WorksheetScriptServiceTest {
 
       assertTrue(ex.getMessage().contains("editor"), ex.getMessage());
    }
+
+   // ---------------------------------------------------------------------------
+   // SQL/Script mode and return type (Bug #81790) -- dialog drafts, never worksheet writes
+   // ---------------------------------------------------------------------------
+
+   private void stubDraftPush(boolean reachable) throws PairingException {
+      RuntimeWorksheet rws = editService.resolve("TOK", agent);
+      when(broadcast.pushScriptDraft(eq(rws), any(), any(), any(), any(), any(), any(), any(),
+                                     any()))
+         .thenReturn(reachable);
+   }
+
+   @Test
+   void modeAndReturnTypeOnAnExistingExpressionAreADraftNotAWorksheetWrite() throws Exception {
+      seedExpressionColumn("Query1", "Margin", "field['price']", false);
+      stubDraftPush(true);
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetExpression", "Query1", "Margin", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Margin");
+
+      var result = service.write(session, agent, target, null, true, "Integer", Map.of());
+
+      assertEquals(Boolean.TRUE, result.pending());
+      assertTrue(result.note().contains("mode SQL"), result.note());
+      assertTrue(result.note().contains("return type integer"), result.note());
+      verify(broadcast).pushScriptDraft(any(RuntimeWorksheet.class), eq("Worksheet/ws-1"),
+         eq(agent), eq("worksheetExpression"), eq("Query1"), eq("Margin"), isNull(),
+         eq(Boolean.TRUE), eq("integer"));
+      verifyNoInteractions(worksheetController);
+   }
+
+   @Test
+   void modeAndTextOnAPendingExpressionAreDraftedTogether() throws Exception {
+      seedTableWithoutExpressions("Query1");
+      stubDraftPush(true);
+
+      var result = service.write(sessionScopedTo(pendingExpression()), agent, pendingTarget(),
+                                 "price * 2", false, null, Map.of());
+
+      assertEquals(Boolean.TRUE, result.pending());
+      verify(broadcast).pushScriptDraft(any(RuntimeWorksheet.class), eq("Worksheet/ws-1"),
+         eq(agent), eq("worksheetExpression"), eq("Query1"), eq("Expression1"),
+         eq("price * 2"), eq(Boolean.FALSE), isNull());
+      verifyNoInteractions(worksheetController);
+   }
+
+   @Test
+   void anUnknownReturnTypeIsRefusedNamingTheFieldAndNothingIsPushed() throws Exception {
+      seedTableWithoutExpressions("Query1");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.write(sessionScopedTo(pendingExpression()), agent, pendingTarget(), null,
+                             null, "varchar", Map.of()));
+
+      assertTrue(ex.getMessage().contains("return type 'varchar'"), ex.getMessage());
+      verifyNoInteractions(worksheetController);
+      verify(broadcast, never()).pushScriptDraft(any(), any(), any(), any(), any(), any(), any(),
+                                                  any(), any());
+   }
+
+   @Test
+   void aModeDraftFailsLoudWhenTheDialogCannotBeReached() throws Exception {
+      seedTableWithoutExpressions("Query1");
+      stubDraftPush(false);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.write(sessionScopedTo(pendingExpression()), agent, pendingTarget(), null,
+                             true, null, Map.of()));
+
+      assertTrue(ex.getMessage().contains("not reachable"), ex.getMessage());
+   }
+
+   @Test
+   void aConditionValueTakesTheModeButRefusesAReturnType() throws Exception {
+      seedCondition("Query1", "Price", ">", "0");
+      stubDraftPush(true);
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      var result = service.write(session, agent, target, null, true, null, Map.of());
+      assertEquals(Boolean.TRUE, result.pending());
+      verify(broadcast).pushScriptDraft(any(RuntimeWorksheet.class), eq("Worksheet/ws-1"),
+         eq(agent), eq("worksheetConditionValue"), eq("Query1"), eq("Price"), isNull(),
+         eq(Boolean.TRUE), isNull());
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.write(session, agent, target, null, null, "integer", Map.of()));
+      assertTrue(ex.getMessage().contains("no return type"), ex.getMessage());
+      verifyNoInteractions(worksheetController);
+   }
+
+   @Test
+   void aWholeConditionRefusesModeAndReturnType() throws Exception {
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetCondition", "Query1", "price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION, "Query1", "price");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.write(session, agent, target, "> 0", true, null, Map.of()));
+
+      assertTrue(ex.getMessage().contains("worksheetExpression or worksheetConditionValue"),
+                 ex.getMessage());
+      verifyNoInteractions(worksheetController);
+   }
+
+   @Test
+   void aPlainWriteWithoutTextIsStillRefused() throws Exception {
+      seedExpressionColumn("Query1", "Margin", "field['price']", false);
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetExpression", "Query1", "Margin", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Margin");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.write(session, agent, target, null, null, null, Map.of()));
+
+      assertTrue(ex.getMessage().contains("text is required"), ex.getMessage());
+      verifyNoInteractions(worksheetController);
+   }
 }

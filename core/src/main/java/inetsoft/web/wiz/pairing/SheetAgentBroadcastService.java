@@ -887,6 +887,21 @@ public class SheetAgentBroadcastService {
    public boolean pushScriptRefresh(RuntimeSheet rs, String runtimeId, Principal owner,
                                     String kind, String assembly, String name, String text)
    {
+      return pushScriptDraft(rs, runtimeId, owner, kind, assembly, name, text, null, null);
+   }
+
+   /**
+    * Same push as {@link #pushScriptRefresh}, additionally carrying the dialog's SQL/Script
+    * switch and return data type as a draft (applied by the user's OK, like the text).
+    *
+    * @param text       the new text, or {@code null} to leave the dialog's text alone
+    * @param sql        {@code true} for SQL, {@code false} for Script, {@code null} to leave it
+    * @param returnType the return data type, or {@code null} to leave it
+    */
+   public boolean pushScriptDraft(RuntimeSheet rs, String runtimeId, Principal owner,
+                                  String kind, String assembly, String name, String text,
+                                  Boolean sql, String returnType)
+   {
       String sessionId = rs.getSocketSessionId();
 
       if(sessionId == null) {
@@ -905,6 +920,8 @@ public class SheetAgentBroadcastService {
          command.setAssembly(assembly);
          command.setName(name);
          command.setText(text);
+         command.setSql(sql);
+         command.setReturnType(returnType);
          sendCommand(user, sessionId, runtimeId, command);
          return true;
       }

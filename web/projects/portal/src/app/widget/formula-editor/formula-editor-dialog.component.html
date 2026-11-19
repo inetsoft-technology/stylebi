@@ -117,7 +117,7 @@
         }
       }
     </div>
-    @if (staleExpression != null) {
+    @if (hasStalePush) {
       <div class="row">
         <div class="col alert alert-warning d-flex justify-content-between align-items-center">
           <span>_#(An agent changed this expression; your unsaved edits were kept.)</span>

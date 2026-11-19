@@ -27,5 +27,10 @@ export interface RefreshAgentScriptCommand extends ViewsheetCommand {
    kind: string;
    assembly?: string;
    name?: string;
-   text: string;
+   /** The new text; null/absent when the push only drafts the SQL/Script switch or return type. */
+   text?: string | null;
+   /** The SQL/Script switch the agent drafted (true: SQL, false: Script); null/absent: untouched. */
+   sql?: boolean | null;
+   /** The return data type the agent drafted; null/absent: untouched. */
+   returnType?: string | null;
 }

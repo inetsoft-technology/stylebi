@@ -27,6 +27,8 @@
  */
 import { Subject } from "rxjs";
 import { ViewsheetCommandMessage } from "../../common/viewsheet-client";
+import { ConditionOperation } from "../../common/data/condition/condition-operation";
+import { ExpressionType } from "../../common/data/condition/expression-type";
 import { createDialog } from "./formula-editor-dialog.component.test-helpers";
 
 function socket() {
@@ -162,5 +164,98 @@ describe("FormulaEditorDialog — worksheet expression agent push (bug #80462)",
       commands.next(worksheetExpressionCommand("Margin", "field['cost']"));
 
       expect(comp.expression).toBe("field['cost']");
+   });
+});
+
+function modeCommand(overrides: Record<string, any>) {
+   return new ViewsheetCommandMessage(null, "RefreshAgentScriptCommand", {
+      kind: "worksheetExpression", assembly: "Query1", name: "Margin", text: null, ...overrides,
+   } as any);
+}
+
+describe("FormulaEditorDialog — agent SQL/Script mode and return type draft (bug #81790)", () => {
+   function dialog(formulaType: string, dataType: string) {
+      const { comp, ...rest } = createDialog();
+      const { commands, connection } = socket();
+      comp.isCalc = false;
+      comp.isVSContext = false;
+      comp.contextTable = "Query1";
+      comp.formulaName = "Margin";
+      comp.runtimeId = "Worksheet1";
+      comp.socketConnection = connection;
+      comp.expression = "field['price']";
+      comp.formulaType = formulaType;
+      comp.dataType = dataType;
+      comp.ngOnInit();
+      return { comp, commands, ...rest };
+   }
+
+   it("switches the dialog to SQL and sets the return type, leaving the text alone", () => {
+      const { comp, commands } = dialog("Script", "string");
+
+      commands.next(modeCommand({ sql: true, returnType: "integer" }));
+
+      expect(comp.form.get("formulaType").value).toBe("SQL");
+      expect(comp.form.get("dataType").value).toBe("integer");
+      expect(comp.expression).toBe("field['price']");
+      expect(comp.hasStalePush).toBe(false);
+   });
+
+   it("switches back to Script when sql is false", () => {
+      const { comp, commands } = dialog("SQL", "string");
+
+      commands.next(modeCommand({ sql: false }));
+
+      expect(comp.form.get("formulaType").value).toBe("Script");
+   });
+
+   it("parks the mode behind the reload prompt when the user already changed it", () => {
+      const { comp, commands } = dialog("Script", "string");
+      comp.form.get("formulaType").setValue("SQL");
+      comp.form.get("dataType").setValue("double");
+
+      commands.next(modeCommand({ sql: false, returnType: "integer" }));
+
+      expect(comp.form.get("formulaType").value).toBe("SQL");
+      expect(comp.form.get("dataType").value).toBe("double");
+      expect(comp.hasStalePush).toBe(true);
+
+      comp.reloadStaleExpression();
+
+      expect(comp.form.get("formulaType").value).toBe("Script");
+      expect(comp.form.get("dataType").value).toBe("integer");
+      expect(comp.hasStalePush).toBe(false);
+   });
+
+   it("ignores a mode push addressed to another column", () => {
+      const { comp, commands } = dialog("Script", "string");
+
+      commands.next(modeCommand({ name: "Other", sql: true }));
+
+      expect(comp.form.get("formulaType").value).toBe("Script");
+   });
+
+   it("flips a worksheet condition value's ExpressionType, which has no radio control", () => {
+      const { comp, ...rest } = createDialog();
+      const { commands, connection } = socket();
+      comp.isVSContext = false;
+      comp.isCondition = true;
+      comp.returnTypeVisible = false;
+      comp.contextTable = "Query1";
+      comp.formulaName = "Price";
+      comp.conditionOperation = ConditionOperation.GREATER_THAN;
+      comp.runtimeId = "Worksheet1";
+      comp.socketConnection = connection;
+      comp.expression = "0";
+      comp.formulaType = ExpressionType.JS;
+      comp.ngOnInit();
+      expect(comp.editorContext?.kind).toBe("worksheetConditionValue");
+
+      commands.next(modeCommand({ kind: "worksheetConditionValue", name: "Price", sql: true }));
+      expect(comp.formulaType).toBe(ExpressionType.SQL);
+      expect(comp.isSqlType()).toBe(true);
+
+      commands.next(modeCommand({ kind: "worksheetConditionValue", name: "Price", sql: false }));
+      expect(comp.formulaType).toBe(ExpressionType.JS);
    });
 });

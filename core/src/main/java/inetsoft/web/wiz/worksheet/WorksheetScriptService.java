@@ -132,10 +132,36 @@ public class WorksheetScriptService {
                                   String text, Map<String, Object> extras)
       throws Exception
    {
+      return write(session, agent, target, text, null, null, extras);
+   }
+
+   /**
+    * Like {@link #write(JoinSession, Principal, ScriptTarget, String, Map)}, also accepting the
+    * dialog's SQL/Script switch and return data type.
+    *
+    * <p>Either of those makes the whole call a DRAFT push into the user's open dialog, for an
+    * existing location as much as a pending one: the switch and the return type are dialog state
+    * the user confirms with OK, so applying them to the worksheet here would bypass the dialog
+    * (and survive its Cancel). {@code text} is then optional; omitted, the dialog keeps its text.
+    *
+    * @param sql        {@code true} for SQL, {@code false} for Script, {@code null} to leave the
+    *                   switch alone. Served for worksheetExpression and worksheetConditionValue
+    * @param returnType the return data type, {@code null} to leave it alone. Served for
+    *                   worksheetExpression only (a condition value has no return type)
+    */
+   public ScriptWriteResult write(JoinSession session, Principal agent, ScriptTarget target,
+                                  String text, Boolean sql, String returnType,
+                                  Map<String, Object> extras)
+      throws Exception
+   {
       requireServedKind(target);
       requireWorksheetSession(session);
       requirePaneScope(session, target);
       rejectExtras(extras);
+
+      if(sql != null || returnType != null) {
+         return pushModeDraft(session, agent, target, text, sql, returnType);
+      }
 
       if(target.kind().isDraftOnly()) {
          return writeDraft(session, agent, target, text);
@@ -146,6 +172,11 @@ public class WorksheetScriptService {
       // it), so it can never edit an unrelated column.
       if(isPendingExpression(session, target)) {
          return pushPendingDraft(session, agent, target, text);
+      }
+
+      if(text == null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+                                    "text is required (omit it only when setting 'sql' or 'type').");
       }
 
       EditRequest req = switch(target.kind()) {
@@ -269,6 +300,95 @@ public class WorksheetScriptService {
    /** Overridable seam: the script engine is not initialised in unit tests. */
    String syntaxProblem(String text) {
       return DraftText.jsSyntaxProblem(text);
+   }
+
+   /** The return data types the formula dialog's Return Data Type select offers. */
+   private static final Set<String> RETURN_TYPES = new LinkedHashSet<>(List.of(
+      "string", "boolean", "float", "double", "character", "byte", "short", "integer", "long",
+      "timeInstant", "date", "time"));
+
+   /**
+    * Pushes a SQL/Script switch and/or return data type (and optionally text) into the user's open
+    * formula dialog as a draft. The worksheet is never touched; the user's OK applies it.
+    */
+   private ScriptWriteResult pushModeDraft(JoinSession session, Principal agent,
+                                           ScriptTarget target, String text, Boolean sql,
+                                           String returnType)
+      throws Exception
+   {
+      boolean expression = target.kind() == ScriptTarget.Kind.WORKSHEET_EXPRESSION;
+
+      if(!expression && target.kind() != ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE) {
+         throw new PairingException(
+            PairingException.Kind.INVALID_ARGUMENT,
+            "'sql' (SQL/Script mode) and 'type' (return type) can only be set on a " +
+            "worksheetExpression or worksheetConditionValue target, not on '" +
+            target.kind().wireName() + "'.");
+      }
+
+      if(returnType != null && !expression) {
+         throw new PairingException(
+            PairingException.Kind.INVALID_ARGUMENT,
+            "'type' (return type) is not available on a worksheetConditionValue target: a " +
+            "condition value has no return type, only the SQL/Script mode ('sql').");
+      }
+
+      String canonicalType = null;
+
+      if(returnType != null) {
+         canonicalType = RETURN_TYPES.stream()
+            .filter(t -> t.equalsIgnoreCase(returnType.trim())).findFirst().orElse(null);
+
+         if(canonicalType == null) {
+            throw new PairingException(
+               PairingException.Kind.INVALID_ARGUMENT,
+               "Unknown return type '" + returnType + "'. Expected one of " +
+               String.join(", ", RETURN_TYPES) + ".");
+         }
+      }
+
+      RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
+
+      if(rws == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                    "Runtime not found or expired: " + session.runtimeId());
+      }
+
+      stampSocketSession(rws, session);
+      boolean sent = broadcast.pushScriptDraft(rws, session.runtimeId(), agent,
+                                               target.kind().wireName(), target.assemblyName(),
+                                               target.name(), text, sql, canonicalType);
+
+      if(!sent) {
+         throw new PairingException(
+            "The formula dialog for '" + target.name() + "' on '" + target.assemblyName() +
+            "' is not reachable (closed or disconnected), so nothing was changed. Ask the user " +
+            "to reopen it and click Connect Agent.");
+      }
+
+      List<String> parts = new ArrayList<>();
+
+      if(sql != null) {
+         parts.add("mode " + (sql ? "SQL" : "Script"));
+      }
+
+      if(canonicalType != null) {
+         parts.add("return type " + canonicalType);
+      }
+
+      if(text != null) {
+         parts.add("text");
+      }
+
+      return new ScriptWriteResult(
+         true, true,
+         "Pushed " + String.join(" and ", parts) + " to the open formula dialog for '" +
+         target.name() + "' on '" + target.assemblyName() + "' as a draft. Nothing is applied " +
+         "to the worksheet until the user clicks OK (Cancel discards it), and the server cannot " +
+         "see whether the dialog showed it: if the user had already changed that setting, the " +
+         "draft waits behind the dialog's reload prompt instead. Do not retry or read back to " +
+         "verify.",
+         null);
    }
 
    private static boolean isPendingExpression(JoinSession session, ScriptTarget target) {

@@ -66,7 +66,7 @@ public class RefreshAgentScriptCommand implements ViewsheetCommand {
       this.name = name;
    }
 
-   /** The new script/expression text, as just written. */
+   /** The new script/expression text, as just written ({@code null}: leave the text alone). */
    public String getText() {
       return text;
    }
@@ -75,8 +75,34 @@ public class RefreshAgentScriptCommand implements ViewsheetCommand {
       this.text = text;
    }
 
+   /**
+    * The SQL/Script switch the agent drafted: {@code true} for SQL, {@code false} for Script,
+    * {@code null} when the push does not touch the mode.
+    */
+   public Boolean getSql() {
+      return sql;
+   }
+
+   public void setSql(Boolean sql) {
+      this.sql = sql;
+   }
+
+   /**
+    * The return data type the agent drafted (a {@code FormulaEditorService.returnTypes} value,
+    * e.g. {@code "integer"}), or {@code null} when the push does not touch it.
+    */
+   public String getReturnType() {
+      return returnType;
+   }
+
+   public void setReturnType(String returnType) {
+      this.returnType = returnType;
+   }
+
    private String kind;
    private String assembly;
    private String name;
    private String text;
+   private Boolean sql;
+   private String returnType;
 }
