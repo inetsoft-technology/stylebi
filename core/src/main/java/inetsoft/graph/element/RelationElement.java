@@ -1285,6 +1285,44 @@ public class RelationElement extends GraphElement {
       this.nodeShape = nodeShape;
    }
 
+   /**
+    * Tint node boxes instead of filling them solid.
+    * @param alpha the share of the node colour in the fill, 0 for solid boxes.
+    * @param backdrop the colour the node colour is blended over.
+    */
+   public void setBoxTint(double alpha, Color backdrop) {
+      this.boxTintAlpha = alpha;
+      this.boxTintBackdrop = backdrop;
+   }
+
+   /**
+    * Get the share of the node colour in a tinted box fill, 0 for solid boxes.
+    */
+   public double getBoxTintAlpha() {
+      return boxTintAlpha;
+   }
+
+   /**
+    * Get the colour a tinted box fill is blended over.
+    */
+   public Color getBoxTintBackdrop() {
+      return boxTintBackdrop;
+   }
+
+   /**
+    * Set the colour of labels drawn inside tinted boxes, null for the automatic colour.
+    */
+   public void setBoxInk(Color boxInk) {
+      this.boxInk = boxInk;
+   }
+
+   /**
+    * Get the colour of labels drawn inside tinted boxes.
+    */
+   public Color getBoxInk() {
+      return boxInk;
+   }
+
    @Override
    public boolean equalsContent(Object obj) {
       if(!super.equalsContent(obj)) {
@@ -1304,6 +1342,9 @@ public class RelationElement extends GraphElement {
             horizontal == elem.horizontal &&
             flipped == elem.flipped &&
             Objects.equals(nodeShape, elem.nodeShape) &&
+            boxTintAlpha == elem.boxTintAlpha &&
+            Objects.equals(boxTintBackdrop, elem.boxTintBackdrop) &&
+            Objects.equals(boxInk, elem.boxInk) &&
             Objects.equals(nodeColors, elem.nodeColors) &&
             Objects.equals(nodeSizes, elem.nodeSizes) &&
             Objects.equals(layoutSize, elem.layoutSize) &&
@@ -1345,6 +1386,9 @@ public class RelationElement extends GraphElement {
    private Color shapeBorderColor;
    private GLine shapeBorderLine;
    private GShape nodeShape;
+   private double boxTintAlpha = 0;
+   private Color boxTintBackdrop;
+   private Color boxInk;
    // derived; populated by mxLayout, not part of element identity
    private transient Point2D layoutCenter;
    private transient double layoutRadius;
