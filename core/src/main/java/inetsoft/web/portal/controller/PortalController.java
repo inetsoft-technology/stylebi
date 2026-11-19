@@ -33,6 +33,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.admin.presentation.AISettingsService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.GlobalParameterProvider;
+import inetsoft.web.portal.WizPortalEntry;
 import inetsoft.web.portal.model.*;
 import inetsoft.web.reportviewer.model.ParameterPageModel;
 import inetsoft.web.security.RequiredPermission;
@@ -121,6 +122,8 @@ public class PortalController {
          .helpVisible(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON))
          .aiAssistantVisible(aiAssistantVisible)
          .aiAssistantVisible(aiAssistantVisible)
+         .wizVisible(WizPortalEntry.isVisible())
+         .wizUrl(WizPortalEntry.getUrl())
          .preferencesVisible(manager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON))
          .logoutVisible(manager.isButtonVisible(PortalThemesManager.LOGOUT_BUTTON))
          .homeLink(homeLink)
