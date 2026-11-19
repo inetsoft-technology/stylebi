@@ -16,26 +16,25 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (bindingModel) {
-  <ul class="nav nav-pills chart-nav-bar btn-group justify-content-end">
-    <li class="nav-item chart-nav-bar-item">
-      <chart-type-button [chartType]="bindingModel.chartType"
-        [multiStyles]="bindingModel.multiStyles" [stackMeasures]="bindingModel.stackMeasures">
-      </chart-type-button>
-    </li>
-    <li class="nav-item chart-nav-bar-item">
-      <button class="d-flex btn btn-secondary btn-sm" [title]="getSeparatedTitle()"
-        (click)="changeSeparateStatus()">
-        <a [ngClass]="getSeparatedIcon()"
-        [style.opacity]="isSeparateDisabled() ? 0.5 : 1"></a>
-      </button>
-    </li>
+  <div class="chart-toolbar-group" role="group" aria-label="_#(Chart type and layout)">
+    <chart-type-button [toolbar]="true" [chartType]="bindingModel.chartType"
+      [multiStyles]="bindingModel.multiStyles" [stackMeasures]="bindingModel.stackMeasures">
+    </chart-type-button>
+    <button type="button" class="chart-toolbar-btn"
+      [attr.title]="isSeparateDisabled() ? '_#(Separate graphs are not available for this chart type)' : getSeparatedTitle()"
+      aria-label="_#(Separate graphs)"
+      [attr.aria-pressed]="bindingModel.separated ? 'true' : 'false'"
+      [attr.aria-disabled]="isSeparateDisabled() ? 'true' : null"
+      (click)="changeSeparateStatus()">
+      <span [ngClass]="getSeparatedIcon()" aria-hidden="true"></span>
+    </button>
     @if (isSwapVisible()) {
-      <li class="nav-item chart-nav-bar-item">
-        <button class="d-flex btn btn-secondary btn-sm" title="_#(Swap XY)"
-          (click)="swapXYBinding()">
-          <a class="rotate-icon" [style.opacity]="isSwapEnabled() ? 1 : 0.5"></a>
-        </button>
-      </li>
+      <button type="button" class="chart-toolbar-btn" title="_#(Swap XY)"
+        aria-label="_#(Swap XY)"
+        [attr.aria-disabled]="isSwapEnabled() ? null : 'true'"
+        (click)="swapXYBinding()">
+        <span class="rotate-icon" aria-hidden="true"></span>
+      </button>
     }
-  </ul>
+  </div>
 }

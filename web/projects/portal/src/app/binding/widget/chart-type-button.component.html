@@ -15,9 +15,16 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<button class="d-flex btn btn-primary btn-sm" [fixedDropdown]="dropdownMenu" [autoClose]="false"
+<button type="button" [fixedDropdown]="dropdownMenu" [autoClose]="false"
+   [class.d-flex]="!toolbar" [class.btn]="!toolbar" [class.btn-primary]="!toolbar"
+   [class.btn-sm]="!toolbar" [class.chart-toolbar-btn]="toolbar"
+   aria-haspopup="dialog" [attr.aria-expanded]="menuOpen ? 'true' : 'false'"
+   aria-label="_#(Select Chart Style)"
    (openChange)="toggled($event)" title="_#(Select Chart Style)">
-   <a [ngClass]="getIconPath()"></a>
+   <span [ngClass]="getIconPath()" aria-hidden="true"></span>
+   @if (toolbar) {
+     <span class="chevron-down-icon icon-size-small0" aria-hidden="true"></span>
+   }
 </button>
 <ng-template #dropdownMenu>
   <div class="dropdown-pane" blockMouse>
