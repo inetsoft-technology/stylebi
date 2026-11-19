@@ -63,6 +63,8 @@ import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.composer.ws.joins.JoinUtil;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.model.DatabaseTableMeta;
+import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
@@ -129,7 +131,6 @@ public class WorksheetEditService {
     *                        cannot take the name of a source column that is merely not selected
     *                        (Bug #81675); {@code null} skips that check.
     */
-   @Autowired
    public WorksheetEditService(SheetSessionService sessions,
                                SheetRuntimeAccess runtimeAccess,
                                SheetAgentBroadcastService broadcast,
@@ -138,6 +139,27 @@ public class WorksheetEditService {
                                ExpressionDialogService expressionDialogService,
                                WorksheetService worksheetEngine)
    {
+      this(sessions, runtimeAccess, broadcast, securityEngine, innerJoinService,
+           expressionDialogService, worksheetEngine, null);
+   }
+
+   /**
+    * @param metadataApiService reads the columns of a physical-table-bound table from the
+    *                           datasource metadata, which {@code worksheetEngine} cannot
+    *                           (Bug #81675); {@code null} skips the source-column check for
+    *                           such tables.
+    */
+   @Autowired
+   public WorksheetEditService(SheetSessionService sessions,
+                               SheetRuntimeAccess runtimeAccess,
+                               SheetAgentBroadcastService broadcast,
+                               SecurityEngine securityEngine,
+                               InnerJoinService innerJoinService,
+                               ExpressionDialogService expressionDialogService,
+                               WorksheetService worksheetEngine,
+                               MetadataApiService metadataApiService)
+   {
+      this.metadataApiService = metadataApiService;
       this.worksheetEngine = worksheetEngine;
       this.sessions = sessions;
       this.runtimeAccess = runtimeAccess;
@@ -191,7 +213,7 @@ public class WorksheetEditService {
 
       Editor editor = new Editor(rws.getWorksheet(), agent, securityEngine, innerJoinService,
          expressionDialogService, scriptEnvSupplier,
-         t -> ExpressionNameSupport.sourceColumns(worksheetEngine, rws, t));
+         t -> sourceColumnsOf(rws, t));
 
       // Bug #79074: a mutator can itself execute a live query synchronously (e.g.
       // convertToEmbedded's AssetEventUtil.convertEmbeddedTable -> box.getTableLens(...)), which
@@ -670,6 +692,12 @@ public class WorksheetEditService {
    // Dependencies
    // -------------------------------------------------------------------------
 
+   /**
+    * The {@link SourceInfo} property holding the table path add_table was given: what the
+    * datasource metadata lookup resolves, which the source's qualified name is not always.
+    */
+   public static final String SOURCE_TABLE_PATH = "wizTablePath";
+
    private final SheetSessionService sessions;
    private final SheetRuntimeAccess runtimeAccess;
    private final SheetAgentBroadcastService broadcast;
@@ -677,6 +705,54 @@ public class WorksheetEditService {
    private final InnerJoinService innerJoinService;
    private final ExpressionDialogService expressionDialogService;
    private final WorksheetService worksheetEngine;
+   private final MetadataApiService metadataApiService;
+   /**
+    * Bug #81675: the columns of {@code table}'s bound source. {@code
+    * ExpressionNameSupport.sourceColumns} reads only logical-model sources and returns an empty
+    * selection for a table bound to a physical database table, so those are read from the
+    * datasource metadata instead. An empty result for such a table means the read failed (a real
+    * table has columns); {@link Editor#addExpressionColumn} then refuses rather than skip the
+    * check. {@code null} means there is nothing to check against.
+    */
+   ColumnSelection sourceColumnsOf(RuntimeWorksheet rws, TableAssembly table) {
+      if(!isPhysicalTable(table)) {
+         return ExpressionNameSupport.sourceColumns(worksheetEngine, rws, table);
+      }
+
+      if(metadataApiService == null) {
+         return null;
+      }
+
+      SourceInfo info = ((BoundTableAssembly) table).getSourceInfo();
+      String path = info.getProperty(SOURCE_TABLE_PATH);
+
+      try {
+         DatabaseTableMeta meta = metadataApiService.getTableDetails(
+            info.getPrefix(), path != null ? path : info.getSource(),
+            info.getProperty(SourceInfo.CATALOG), info.getProperty(SourceInfo.SCHEMA),
+            rws.getUser());
+         ColumnSelection columns = new ColumnSelection();
+
+         for(DatabaseTableMeta.ColumnMeta column : meta.getColumns()) {
+            columns.addAttribute(new ColumnRef(new AttributeRef(null, column.getName())));
+         }
+
+         return columns;
+      }
+      catch(Exception ex) {
+         LOG.warn("Could not read the source columns of table {} for expression name check",
+                  table.getName(), ex);
+         return new ColumnSelection();
+      }
+   }
+
+   /** A table added from a database table (not from SQL), bound to it by a physical source. */
+   private static boolean isPhysicalTable(TableAssembly table) {
+      return table instanceof PhysicalBoundTableAssembly bound &&
+         bound.getSourceInfo() != null &&
+         bound.getSourceInfo().getType() == SourceInfo.PHYSICAL_TABLE;
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetEditService.class);
 
    /**
@@ -1437,6 +1513,14 @@ public class WorksheetEditService {
          // shadowed by the computed one.
          if(name != null && t instanceof BoundTableAssembly) {
             ColumnSelection source = sourceColumnsProvider.apply(t);
+
+            if(source != null && source.getAttributeCount() == 0 && isPhysicalTable(t)) {
+               throw new PairingException(
+                  "Could not read the source columns of table '" + table + "' to check the " +
+                  "name '" + name + "' against them; nothing was changed. Retry, or check " +
+                  "that the datasource is reachable.");
+            }
+
             ColumnRef conflict = source == null ? null :
                AssetUtil.findColumnConflictingWithAlias(source, null, name, false);
 
