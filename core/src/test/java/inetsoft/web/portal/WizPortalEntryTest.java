@@ -65,11 +65,25 @@ class WizPortalEntryTest {
    }
 
    @ParameterizedTest
-   @ValueSource(strings = { "", "   ", "javascript:alert(1)", "ftp://x", "wiz.example.com" })
+   @ValueSource(strings = {
+      "", "   ", "javascript:alert(1)", "ftp://x", "wiz.example.com", "data:text/html,x",
+      "//evil.example/x", "/\\evil.example", "\\\\evil.example", "https://x\n.evil",
+      "https://x\t.evil", "https://exa mple.com", "/wiz /x", "/wiz\u0000", "https:///",
+      "https:evil", "https://", "https://user@evil.example/", "https://x\\.evil"
+   })
    void notVisibleWhenUrlIsBlankOrUnsafe(String url) {
       configure("true", url);
       assertFalse(WizPortalEntry.isVisible());
       assertNull(WizPortalEntry.getUrl());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "HTTP://localhost:8000/", "HTTPS://wiz.example.com/", "/", "/wiz/",
+                            "/wiz/?a=b#c" })
+   void acceptsLegitimateForms(String url) {
+      configure("true", url);
+      assertEquals(url, WizPortalEntry.getUrl());
+      assertTrue(WizPortalEntry.isVisible());
    }
 
    @Test
