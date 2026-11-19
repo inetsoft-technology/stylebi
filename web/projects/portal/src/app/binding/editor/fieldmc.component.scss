@@ -66,12 +66,24 @@
   line-height: 1;
   margin-left: 0.25em;
   margin-right: 0.25em;
-  border-radius: 0.25rem;
+  border-radius: var(--inet-radius-lg);
 
+  // an icon button: the neutral chip and a stronger glyph on hover, like the sort and eye buttons
+  // beside it (the <i> glyph carries its own icon colour, so it is set on the glyph)
+  &:hover {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+
+    i {
+      color: var(--inet-hover-text-color);
+    }
+  }
+
+  // keyboard focus and an open menu: the chip plus the ring, as on every shell icon button
   &:focus,
   &:focus-visible,
   &:focus-within,
   &.fieldEditIcon--open {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
     border-color: var(--inet-primary-color);
     box-shadow: var(--inet-focus-ring);
     outline: var(--inet-focus-ring-outline);
