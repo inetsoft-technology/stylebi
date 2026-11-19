@@ -588,7 +588,7 @@ class WizEntitlementGrantControllerTest {
    }
 
    @Test
-   void aStaleGrantOfAVanishedUserCanBeRevokedAndRestoresDefaultAllow() throws Exception {
+   void aStaleGrantOfAVanishedUserCanBeRevokedButStaysRestrictedUntilReset() throws Exception {
       SRPrincipal writer = wiz("writer", ORG_A);
       storeStaleUserGrant("plugin.use", "ghost");
       assertFalse(holds("plain", "plugin.use", false));
