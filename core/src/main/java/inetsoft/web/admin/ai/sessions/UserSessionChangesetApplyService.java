@@ -53,8 +53,17 @@ public class UserSessionChangesetApplyService {
    public UserSessionChangesetApplyService(UserSessionChangePlanService planService,
                                            UserService userService)
    {
+      this(planService, userService, VERIFY_TIMEOUT_MS, VERIFY_POLL_MS);
+   }
+
+   UserSessionChangesetApplyService(UserSessionChangePlanService planService,
+                                    UserService userService, long verifyTimeoutMs,
+                                    long verifyPollMs)
+   {
       this.planService = planService;
       this.userService = userService;
+      this.verifyTimeoutMs = verifyTimeoutMs;
+      this.verifyPollMs = verifyPollMs;
    }
 
    public UserSessionApplyResult apply(UserSessionApplyRequest req, Principal user) {
@@ -93,9 +102,7 @@ public class UserSessionChangesetApplyService {
             callError = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
          }
 
-         Set<String> remaining = userService.getServerSessionModel(address, user).stream()
-            .map(UserSessionMonitoringTableModel::sessionID)
-            .collect(Collectors.toSet());
+         Set<String> remaining = awaitLogout(address, user, ids);
          List<UserSessionApplyOutcome> results = new ArrayList<>();
 
          for(PlanChange change : plan.changes()) {
@@ -121,6 +128,37 @@ public class UserSessionChangesetApplyService {
       }
       finally {
          APPLY_LOCK.unlock();
+      }
+   }
+
+   /**
+    * Reads the session list back until none of the requested sessions is listed or the timeout
+    * elapses. The session list comes from a cached metrics snapshot that is refreshed with a
+    * debounce after a logout, so the first read-back usually still lists the sessions.
+    */
+   private Set<String> awaitLogout(String address, Principal user, String[] ids) {
+      long deadline = System.currentTimeMillis() + verifyTimeoutMs;
+      Set<String> requested = new HashSet<>(Arrays.asList(ids));
+      Set<String> remaining;
+
+      while(true) {
+         remaining = userService.getServerSessionModel(address, user).stream()
+            .map(UserSessionMonitoringTableModel::sessionID)
+            .collect(Collectors.toSet());
+
+         if(remaining.stream().noneMatch(requested::contains) ||
+            System.currentTimeMillis() >= deadline)
+         {
+            return remaining;
+         }
+
+         try {
+            Thread.sleep(verifyPollMs);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return remaining;
+         }
       }
    }
 
@@ -175,8 +213,12 @@ public class UserSessionChangesetApplyService {
    private static final Logger LOG =
       LoggerFactory.getLogger(UserSessionChangesetApplyService.class);
    private static final String OBJECT_TYPE_USER_SESSION = "user-session";
+   private static final long VERIFY_TIMEOUT_MS = 10000L;
+   private static final long VERIFY_POLL_MS = 500L;
    private static final SecureRandom RANDOM = new SecureRandom();
    private static final ReentrantLock APPLY_LOCK = new ReentrantLock();
    private final UserSessionChangePlanService planService;
    private final UserService userService;
+   private final long verifyTimeoutMs;
+   private final long verifyPollMs;
 }

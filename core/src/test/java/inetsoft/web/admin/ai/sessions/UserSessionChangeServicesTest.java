@@ -59,7 +59,7 @@ class UserSessionChangeServicesTest {
 
    @BeforeEach void setUp() {
       planService = new UserSessionChangePlanService(userService);
-      applyService = new UserSessionChangesetApplyService(planService, userService);
+      applyService = new UserSessionChangesetApplyService(planService, userService, 200L, 10L);
       tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString())).thenAnswer(inv -> "TKN:" + inv.getArgument(0));
@@ -159,6 +159,24 @@ class UserSessionChangeServicesTest {
       assertEquals("user-session", captor.getValue().getObjectType());
       assertEquals("s1", captor.getValue().getProperty());
       assertEquals(AdminChangeRecord.RISK_HIGH, captor.getValue().getRiskLevel());
+   }
+
+   @Test void applyWaitsForDelayedSessionListRefresh() {
+      ResolvedPlan plan = planService.resolve(request("t", "s1"), user);
+      java.util.concurrent.atomic.AtomicInteger reads = new java.util.concurrent.atomic.AtomicInteger();
+      // the cached session list only drops s1 on the third read, as after a debounced refresh
+      when(userService.getServerSessionModel(any(), any())).thenAnswer(inv -> {
+         if(reads.incrementAndGet() >= 3) {
+            sessions.removeIf(s -> s.sessionID().equals("s1"));
+         }
+
+         return sessions;
+      });
+
+      UserSessionApplyResult result = applyService.apply(
+         apply("t", plan.planHash(), plan.taskToken(), "ok", "s1"), user);
+      assertEquals("applied", result.status());
+      assertEquals("verified", result.results().get(0).status());
    }
 
    @Test void applyReportsFailureWhenSessionStillListed() {
