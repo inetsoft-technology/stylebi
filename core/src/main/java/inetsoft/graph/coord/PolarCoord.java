@@ -279,16 +279,23 @@ public class PolarCoord extends Coordinate {
          double r = getR(p1.getY());
          double yratio = getRatioY();
          int n = webGrid ? getSidesCount() : 0;
+         boolean clockwise = drawsClockwise();
 
          if(n >= 3) {
-            return createPolygonRing(r, yratio, p1.getX() / GWIDTH, p2.getX() / GWIDTH);
+            double f1 = p1.getX() / GWIDTH;
+            double f2 = p2.getX() / GWIDTH;
+
+            // a quarter turn less the fraction is the clockwise angle
+            return clockwise ? createPolygonRing(r, yratio, 0.25 - f1, 0.25 - f2)
+               : createPolygonRing(r, yratio, f1, f2);
          }
 
          double start = p1.getX() * 360 / GWIDTH;
          double end = p2.getX() * 360 / GWIDTH;
 
          return new Arc2D.Double(-r, -r * yratio, 2 * r, 2 * r * yratio,
-                                 -start, -(end - start), Arc2D.OPEN);
+                                 clockwise ? start - 90 : -start,
+                                 clockwise ? end - start : -(end - start), Arc2D.OPEN);
       }
 
       // convert to a curve
@@ -366,6 +373,10 @@ public class PolarCoord extends Coordinate {
    // create donut or simplified donut
    private Shape createShape(double r, double r2, double start, double extent) {
       double yratio = getRatioY();
+      boolean clockwise = drawsClockwise();
+      // Arc2D takes y as down, so its angles are the graph angles negated
+      double arcStart = clockwise ? start - 90 : -start;
+      double arcExtent = clockwise ? extent : -extent;
 
       // donut has small margin of error that can leave a thin border at the edge in
       // some case, avoid this with Arc if donut is not necessary. it's also faster.
@@ -375,12 +386,12 @@ public class PolarCoord extends Coordinate {
             return new Ellipse2D.Double(-r, -r * yratio, 2 * r, 2 * r * yratio);
          }
 
-         return new Arc2D.Double(-r, -r * yratio, 2 * r, 2 * r * yratio, -start, -extent,
+         return new Arc2D.Double(-r, -r * yratio, 2 * r, 2 * r * yratio, arcStart, arcExtent,
                                  Arc2D.PIE);
       }
 
       return new Donut(-r, -r * yratio, 2 * r, 2 * r * yratio,
-                       2 * r2, 2 * r2 * yratio, -start, -extent);
+                       2 * r2, 2 * r2 * yratio, arcStart, arcExtent);
    }
 
    /**
@@ -402,28 +413,28 @@ public class PolarCoord extends Coordinate {
       switch(type) {
       case THETA: {
          double r = maxr;
-         double theta = y * Math.PI * 2 / GWIDTH;
+         double theta = drawnTheta(y * Math.PI * 2 / GWIDTH);
 
          return new Point2D.Double(r * Math.cos(theta),
                                    r * Math.sin(theta) * yratio);
       }
       case RHO: {
          double r = y * maxr / GHEIGHT;
-         double theta = Math.PI * 2;
+         double theta = drawnTheta(Math.PI * 2);
 
          return new Point2D.Double(r * Math.cos(theta),
                                    r * Math.sin(theta) * yratio);
       }
       case PLUS: {
          double r = getR(y);
-         double theta = x * Math.PI * 2 / GWIDTH;
+         double theta = drawnTheta(x * Math.PI * 2 / GWIDTH);
 
          return new Point2D.Double(r * Math.cos(theta),
                                    r * Math.sin(theta) * yratio);
       }
       case THETA_RHO: {
          double r = y * maxr / GHEIGHT;
-         double theta = x * Math.PI * 2 / GWIDTH;
+         double theta = drawnTheta(x * Math.PI * 2 / GWIDTH);
 
          return new Point2D.Double(r * Math.cos(theta),
                                    r * Math.sin(theta) * yratio);
@@ -431,6 +442,13 @@ public class PolarCoord extends Coordinate {
       default:
          throw new RuntimeException("Unsupported transformation: " + type);
       }
+   }
+
+   /**
+    * Get the angle a classic angle (counter-clockwise from three o'clock) is drawn at.
+    */
+   private double drawnTheta(double theta) {
+      return drawsClockwise() ? Math.PI / 2 - theta : theta;
    }
 
    /**
@@ -1114,6 +1132,10 @@ public class PolarCoord extends Coordinate {
             }
          }
 
+         if(pieCapRatio > 0 && pieRatio == 0) {
+            radius = Math.min(radius, Math.min(w, h) * pieCapRatio / 2);
+         }
+
          // leave gap so the edge doesn't overlap border
          radius = Math.min(radius - 1, Math.min(w, h) / 2 - 2);
          radius = Math.max(radius, 1);
@@ -1155,6 +1177,49 @@ public class PolarCoord extends Coordinate {
    @TernMethod
    public void setPieRatio(double pieRatio) {
       this.pieRatio = pieRatio;
+   }
+
+   /**
+    * Get the share of the shorter side that an automatic pie may span.
+    * @hidden
+    */
+   public double getPieCapRatio() {
+      return pieCapRatio;
+   }
+
+   /**
+    * Set the share of the shorter side that an automatic pie may span. Default is 0,
+    * which is no cap.
+    * @hidden
+    */
+   public void setPieCapRatio(double pieCapRatio) {
+      this.pieCapRatio = pieCapRatio;
+   }
+
+   /**
+    * Set whether the angle runs clockwise from twelve o'clock instead of counter-clockwise
+    * from three o'clock. Default is false.
+    * @hidden
+    */
+   public void setClockwiseFromTop(boolean clockwiseFromTop) {
+      this.clockwiseFromTop = clockwiseFromTop;
+   }
+
+   /**
+    * Check whether the angle runs clockwise from twelve o'clock.
+    * @hidden
+    */
+   public boolean isClockwiseFromTop() {
+      return clockwiseFromTop;
+   }
+
+   /**
+    * Check if the angle is drawn clockwise from twelve o'clock, which a rotated or
+    * reflected coordinate never is.
+    * @hidden
+    */
+   public boolean drawsClockwise() {
+      return clockwiseFromTop && getCoordTransform().isIdentity();
    }
 
    /**
@@ -1200,7 +1265,9 @@ public class PolarCoord extends Coordinate {
 
       PolarCoord coord = (PolarCoord) obj;
       return type == coord.type && holeRatio == coord.holeRatio &&
-             pieRatio == coord.pieRatio && webGrid == coord.webGrid &&
+             pieRatio == coord.pieRatio && pieCapRatio == coord.pieCapRatio &&
+             clockwiseFromTop == coord.clockwiseFromTop &&
+             webGrid == coord.webGrid &&
              spokeLabelRule == coord.spokeLabelRule;
    }
 
@@ -1277,6 +1344,8 @@ public class PolarCoord extends Coordinate {
    private Double pradius = null; // polar radius
    private double holeRatio = 0.3;
    private double pieRatio = 0;
+   private double pieCapRatio = 0;
+   private boolean clockwiseFromTop = false;
    private boolean webGrid = false;
    private boolean spokeLabelRule = false;
    private boolean minApplied;

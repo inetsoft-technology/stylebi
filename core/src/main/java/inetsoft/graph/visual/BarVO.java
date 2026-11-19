@@ -160,10 +160,14 @@ public class BarVO extends ElementVO {
    @Override
    public void transform(Coordinate coord) {
       Object over = overShape == null ? null : coord.transformShape(overShape);
-      shape = (Shape) explode(coord.transformShape(shape), this, over);
+      boolean clockwise = drawsClockwise(coord);
+      shape = (Shape) explode(coord.transformShape(shape), this, over, clockwise);
       Arc2D arc = getOuterArc(shape);
 
-      if(arc != null && arc.getAngleStart() == 0 && Math.abs(arc.getAngleExtent()) == 360) {
+      // a clockwise whole circle starts at twelve o'clock
+      if(arc != null && (arc.getAngleStart() == 0 || clockwise) &&
+         Math.abs(arc.getAngleExtent()) == 360)
+      {
          if(vtext instanceof ArcVOText) {
             VGraph vgraph = coord.getVGraph();
             IntervalGeometry gobj = (IntervalGeometry) getGeometry();
@@ -622,7 +626,9 @@ public class BarVO extends ElementVO {
       // center label, changed to VOText in transform().
       // only place label in middle for center/auto placement, or the label of outer
       // pie would collide with middle label in donut chart. (57561)
-      else if(autoCenter && arc.getAngleStart() == 0 && arc.getAngleExtent() == 360) {
+      else if(autoCenter && (arc.getAngleStart() == 0 || drawsClockwise(coord)) &&
+         arc.getAngleExtent() == 360)
+      {
          if(placement == GraphConstants.CENTER_FILL) {
             vtext.setFont(PolarUtil.fillCircle(Math.min(wr, hr), vtext.getText(),
                                                vtext.getFont(), 24));
@@ -649,7 +655,9 @@ public class BarVO extends ElementVO {
          ArcVOText vtext2 = (ArcVOText) vtext;
          vtext2.setArc(cx, cy, wr, hr, 0);
          vtext2.layout(angle);
-         vtext2.setExtent(Math.toRadians(arc.getAngleExtent()));
+         // the label layout expects the counter-clockwise sign
+         double extent = drawsClockwise(coord) ? -arc.getAngleExtent() : arc.getAngleExtent();
+         vtext2.setExtent(Math.toRadians(extent));
       }
    }
 
@@ -1382,6 +1390,20 @@ public class BarVO extends ElementVO {
    }
 
    /**
+    * Check if the coordinate draws its slices clockwise from twelve o'clock.
+    */
+   private static boolean drawsClockwise(Coordinate coord) {
+      return coord instanceof PolarCoord && ((PolarCoord) coord).drawsClockwise();
+   }
+
+   /**
+    * Check if a slice extent (degrees, sign flipped from Arc2D) is a whole circle.
+    */
+   private static boolean isWholeCircle(double extent, boolean clockwise) {
+      return clockwise ? Math.abs(extent) == 360 : extent == 360;
+   }
+
+   /**
     * Visual middle of an arc slice as an x,y fraction of its device bounding box, or null for a
     * plain bar whose box centre already lands on the mark. A fraction rather than a coordinate so
     * the client need not reproduce the transform chain; point and box are both taken in device
@@ -1522,6 +1544,14 @@ public class BarVO extends ElementVO {
     * Explode a pie slice.
     */
    static Object explode(Object shape, ElementVO elem, Object overShape) {
+      return explode(shape, elem, overShape, false);
+   }
+
+   /**
+    * Explode a pie slice.
+    * @param clockwise true if the slices run clockwise, so their extents are negative here.
+    */
+   static Object explode(Object shape, ElementVO elem, Object overShape, boolean clockwise) {
       if(!"true".equals(elem.getHint(GraphElement.HINT_EXPLODED))) {
          return shape;
       }
@@ -1548,9 +1578,9 @@ public class BarVO extends ElementVO {
          }
       }
 
-      extent = Math.min(360, extent);
+      extent = clockwise ? Math.max(-360, extent) : Math.min(360, extent);
 
-      if(extent == 360.0 || overext == 360.0) {
+      if(isWholeCircle(extent, clockwise) || isWholeCircle(overext, clockwise)) {
          return shape;
       }
 

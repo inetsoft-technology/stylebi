@@ -197,4 +197,66 @@ class TimeScaleTest {
    private static long date(int year, int month, int day, int hour, int minute, int second) {
       return new GregorianCalendar(year, month, day, hour, minute, second).getTimeInMillis();
    }
+
+   private static final long JAN_31_2024 =
+      new GregorianCalendar(2024, Calendar.JANUARY, 31).getTimeInMillis();
+
+   private static TimeScale filledScale() {
+      TimeScale scale = new TimeScale("Date");
+      scale.setFill(true);
+      scale.init(new inetsoft.graph.data.DefaultDataSet(new Object[][] {
+         { "Date" },
+         { new java.util.Date(JAN_1_2024) },
+         { new java.util.Date(JAN_31_2024) } }));
+      return scale;
+   }
+
+   @Test
+   void anEndPadExtendsOnlyTheMax() {
+      TimeScale plain = filledScale();
+      TimeScale padded = filledScale();
+      padded.setEndPadRatio(0.1);
+
+      assertEquals(JAN_31_2024 + 3L * 86400000L, padded.getMax(), 3600000);
+      assertEquals(plain.getMin(), padded.getMin(), 0);
+      assertArrayEquals(plain.getTicks(), padded.getTicks(), 0);
+   }
+
+   @Test
+   void aMinPastTheDataGetsNoNegativePad() {
+      TimeScale plain = filledScale();
+      TimeScale padded = filledScale();
+      java.util.Date min = new java.util.Date(JAN_31_2024 + 10L * 86400000L);
+      plain.setMin(min);
+      padded.setMin(min);
+      padded.setEndPadRatio(0.1);
+
+      assertEquals(plain.getMax(), padded.getMax(), 0);
+   }
+
+   @Test
+   void anAuthorMaxTurnsThePadOff() {
+      TimeScale scale = filledScale();
+      scale.setEndPadRatio(0.1);
+      java.util.Date max = new java.util.Date(JAN_31_2024 + 10L * 86400000L);
+      scale.setMax(max);
+
+      assertEquals(max.getTime(), scale.getMax(), 0);
+   }
+
+   @Test
+   void aZeroRangeOrNarrowPlotGetsNoPad() {
+      TimeScale plain = new TimeScale("Date");
+      plain.setFill(true);
+      TimeScale padded = new TimeScale("Date");
+      padded.setFill(true);
+      padded.setEndPadRatio(0.1);
+      inetsoft.graph.data.DefaultDataSet data = new inetsoft.graph.data.DefaultDataSet(
+         new Object[][] { { "Date" }, { new java.util.Date(JAN_1_2024) } });
+      plain.init(data);
+      padded.init(data);
+
+      assertTrue(Double.isFinite(padded.getMax()));
+      assertEquals(plain.getMax(), padded.getMax(), 0);
+   }
 }

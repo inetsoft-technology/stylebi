@@ -49,6 +49,12 @@ public abstract class Plot extends ChartObject {
    @Nullable
    public abstract Double geoPadding();
 
+   @Nullable
+   public abstract Double scrollAnchorX();
+
+   @Nullable
+   public abstract Double scrollAnchorY();
+
    public static Builder builder() {
       return new Builder();
    }

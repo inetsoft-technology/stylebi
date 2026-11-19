@@ -165,6 +165,7 @@ public class VGraph extends BoundedContainer {
 
       if(coord.getParentCoordinate() == null) {
          createTitle();
+         topInset = egraph.getTopInset();
       }
 
       if(isCancelled()) {
@@ -608,7 +609,7 @@ public class VGraph extends BoundedContainer {
       // java drawRect(0, 0, w, h) actually draws outside of the bounds
       w--; h--;
 
-      layout0(x, y, w, h);
+      layout0(x, y, w, topInset > 0 ? Math.max(0, h - topInset) : h);
    }
 
    /**
@@ -2072,6 +2073,7 @@ public class VGraph extends BoundedContainer {
    private double legendPreferredSize = 0;
    private double legendMaxRatio = 0;
    private int legendAlignment = 0;
+   private transient double topInset;
 
    private transient PlotWidth pwidth;
    private transient PlotHeight pheight;

@@ -331,6 +331,56 @@ describe("ChartArea — resetScrollPosition", () => {
       expect(comp.scrollLeft).toBe(10);
       expect(comp.scrollTop).toBe(20);
    });
+
+   const treePlot = (width: number, height: number, ax?: number, ay?: number) =>
+      makePlot({
+         bounds: new Rectangle(0, 0, width, height),
+         layoutBounds: new Rectangle(0, 0, 370, 190),
+         scrollAnchorX: ax,
+         scrollAnchorY: ay
+      });
+
+   it("should centre a tree's root on the first draw", () => {
+      const { comp } = createComponent();
+      comp.resetScrollPosition(null, treePlot(1000, 200, 500, 15));
+      expect(comp.scrollLeft).toBe(315);
+      expect(comp.scrollTop).toBe(0);
+   });
+
+   it("should clamp the root to the scroll range", () => {
+      const { comp } = createComponent();
+      comp.resetScrollPosition(null, treePlot(1000, 200, 990, 15));
+      expect(comp.scrollLeft).toBe(630);
+      comp.resetScrollPosition(null, treePlot(1000, 200, 10, 15));
+      expect(comp.scrollLeft).toBe(0);
+   });
+
+   it("should centre the root again when the plot width changes", () => {
+      const { comp } = createComponent();
+      const emitted: Point[] = [];
+      comp.onScroll.subscribe(p => emitted.push(p));
+      comp.scrollLeft = 10;
+      comp.resetScrollPosition(treePlot(800, 200, 400, 15), treePlot(1000, 200, 500, 15));
+      expect(comp.scrollLeft).toBe(315);
+      expect(emitted.length).toBeGreaterThanOrEqual(1);
+      expect(emitted[emitted.length - 1].x).toBe(315);
+   });
+
+   it("should centre a left-to-right tree vertically", () => {
+      const { comp } = createComponent();
+      comp.resetScrollPosition(null, treePlot(370, 900, 15, 450));
+      expect(comp.scrollLeft).toBe(0);
+      expect(comp.scrollTop).toBe(355);
+   });
+
+   it("should keep the scroll when the size is unchanged, even with an anchor", () => {
+      const { comp } = createComponent();
+      comp.scrollLeft = 10;
+      comp.scrollTop = 20;
+      comp.resetScrollPosition(treePlot(1000, 900, 500, 450), treePlot(1000, 900, 500, 450));
+      expect(comp.scrollLeft).toBe(10);
+      expect(comp.scrollTop).toBe(20);
+   });
 });
 
 // ---------------------------------------------------------------------------

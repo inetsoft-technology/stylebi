@@ -395,6 +395,7 @@ public class MapGenerator extends MergedGraphGenerator {
       LinearScale xscale = getScale(xmeasures);
       LinearScale yscale = getScale(ymeasures);
       GeoCoord coord = null;
+      boolean modernContour = isModernContour();
 
       if(xscale != null && yscale != null) {
          PlotDescriptor plotdesc = desc.getPlotDescriptor();
@@ -422,6 +423,11 @@ public class MapGenerator extends MergedGraphGenerator {
          else if(info.isFacet()) {
             coord.setPadding(0.01);
          }
+         // a modern contour map frames its points instead of the world
+         else if(fitsToData(modernContour, isZooming(), plotdesc)) {
+            coord.setFullMap(false);
+            coord.setPadding(0.1);
+         }
       }
 
       if(coord == null && xmeasures.size() > 0 && ymeasures.size() > 0) {
@@ -435,6 +441,17 @@ public class MapGenerator extends MergedGraphGenerator {
       graph.setCoordinate(graphCoord);
 
       applyWebMap(graphCoord);
+
+      // keep the saved extent as the base, and let the nav bar zoom out to the layer
+      if(modernContour && coord != null) {
+         Rectangle2D lonlat = desc.getPlotDescriptor().getLonLat();
+         coord.setZoomOutToLayer(true);
+
+         if(lonlat != null) {
+            coord.setExtent(lonlat.getMinX(), lonlat.getMinY(), lonlat.getMaxX(),
+                            lonlat.getMaxY());
+         }
+      }
 
       if(oinfo != null) {
          oinfo.setFacet(info.isFacet());
@@ -1121,6 +1138,7 @@ public class MapGenerator extends MergedGraphGenerator {
       PlotDescriptor plotdesc = desc.getPlotDescriptor();
       // make sure we don't repeat geo labels across different elements (e.g. polygon and shape)
       final Set<String> usedLabels = new HashSet<>();
+      boolean modernContour = isModernContour();
 
       for(int i = 0; i < graph.getElementCount(); i++) {
          GraphElement elem = graph.getElement(i);
@@ -1206,7 +1224,8 @@ public class MapGenerator extends MergedGraphGenerator {
             }
          }
 
-         if(isZooming() && elem instanceof PolygonElement) {
+         // polygons left in the fit would shrink a fitted or pinned contour map to the world
+         if((isZooming() || modernContour) && elem instanceof PolygonElement) {
             elem.setInPlot(false);
          }
       }
@@ -1236,6 +1255,29 @@ public class MapGenerator extends MergedGraphGenerator {
 
    private boolean isWebMap() {
       return isWebMap(info, desc, graphSize);
+   }
+
+   /**
+    * Check if this map is a marked contour map that is neither a web map nor faceted.
+    */
+   private boolean isModernContour() {
+      return isModernContour(vizContext.modern, info.getRTChartType(), isWebMap(),
+                             info.isFacet());
+   }
+
+   /**
+    * Check if a map is a marked contour map that is neither a web map nor faceted.
+    */
+   static boolean isModernContour(boolean modern, int rtType, boolean webMap, boolean facet) {
+      return modern && GraphTypes.isMapContour(rtType) && !webMap && !facet;
+   }
+
+   /**
+    * Check if a modern contour map fits its extent to the points, which it does until
+    * the author zooms or pans it or the viewer zooms its data.
+    */
+   static boolean fitsToData(boolean modernContour, boolean zooming, PlotDescriptor plot) {
+      return modernContour && !zooming && !plot.hasPanZoom() && plot.getLonLat() == null;
    }
 
    public static boolean isWebMap(ChartInfo info, ChartDescriptor desc, Dimension graphSize) {

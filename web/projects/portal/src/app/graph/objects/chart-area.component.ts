@@ -441,8 +441,15 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
    public resetScrollPosition(oplot: Plot, nplot: Plot) {
       if(oplot == null || nplot == null) {
-         this.scrollLeft = 0;
-         this.scrollTop = 0;
+         this.scrollLeft = ChartArea.anchoredScroll(
+            nplot?.scrollAnchorX, nplot?.layoutBounds?.width, nplot?.bounds?.width);
+         this.scrollTop = ChartArea.anchoredScroll(
+            nplot?.scrollAnchorY, nplot?.layoutBounds?.height, nplot?.bounds?.height);
+
+         if(nplot != null && (this.scrollLeft != 0 || this.scrollTop != 0)) {
+            this.onScroll.emit(new Point(this.scrollLeft, this.scrollTop));
+         }
+
          return;
       }
 
@@ -454,16 +461,27 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       if(oldBounds == null || newBounds == null || oldBounds.width != newBounds.width
          || oldLayoutBounds == null || newLayoutBounds == null || oldLayoutBounds.width != newLayoutBounds.width)
       {
-         this.scrollLeft = 0;
+         this.scrollLeft = ChartArea.anchoredScroll(
+            nplot.scrollAnchorX, newLayoutBounds?.width, newBounds?.width);
          this.onScroll.emit(new Point(this.scrollLeft, this.scrollTop));
       }
 
       if(oldBounds == null || newBounds == null || oldBounds.height != newBounds.height
          || oldLayoutBounds == null || newLayoutBounds == null || oldLayoutBounds.height != newLayoutBounds.height)
       {
-         this.scrollTop = 0;
+         this.scrollTop = ChartArea.anchoredScroll(
+            nplot.scrollAnchorY, newLayoutBounds?.height, newBounds?.height);
          this.onScroll.emit(new Point(this.scrollLeft, this.scrollTop));
       }
+   }
+
+   // scroll offset that centres the anchor in the view, clamped to the content
+   private static anchoredScroll(anchor: number, view: number, content: number): number {
+      if(anchor == null || view == null || content == null) {
+         return 0;
+      }
+
+      return Math.min(Math.max(anchor - view / 2, 0), Math.max(0, content - view));
    }
 
    private getSelectedString(chartSelection: ChartSelection = this.chartSelection): string {

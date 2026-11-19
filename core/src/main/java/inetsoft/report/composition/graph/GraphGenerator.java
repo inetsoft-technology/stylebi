@@ -223,6 +223,7 @@ public abstract class GraphGenerator {
       super();
 
       this.vizContext = VizContext.of(chart);
+      this.chartPadding = chart.getPadding();
       this.companionBrushing = resolveCompanionBrushing(vizContext);
       this.graphSize = size;
       this.bconds = chart.getBrushConditionList(null, false);
@@ -455,6 +456,7 @@ public abstract class GraphGenerator {
       super();
 
       this.vizContext = VizContext.LEGACY;
+      this.chartPadding = null;
       this.companionBrushing = resolveCompanionBrushing(vizContext);
       this.graphSize = size;
       adata = getFixedDataSet(info, adata, true);
@@ -944,6 +946,9 @@ public abstract class GraphGenerator {
 
       if(GraphTypeUtil.isPolar(info, true)) {
          coord.setPieRatio(desc.getPlotDescriptor().getPieRatio());
+         coord.setPieCapRatio(vizContext.modern && GraphTypes.isPie(type) ? 0.8 : 0);
+         coord.setClockwiseFromTop(vizContext.modern && GraphTypes.isPie(type) &&
+                                   type != CHART_3D_PIE);
       }
 
       return coord;
@@ -4003,8 +4008,13 @@ public abstract class GraphGenerator {
             break;
          }
 
-         elem.setWidthRatio(info.getUnitWidthRatio());
-         elem.setHeightRatio(info.getUnitHeightRatio());
+         AbstractChartInfo ainfo = info instanceof AbstractChartInfo a ? a : null;
+         elem.setWidthRatio(getRelationRatio(
+            info.isWidthResized(), info.getUnitWidthRatio(),
+            ainfo != null ? ainfo.getUnitWidthRatioPercent() : 0));
+         elem.setHeightRatio(getRelationRatio(
+            info.isHeightResized(), info.getUnitHeightRatio(),
+            ainfo != null ? ainfo.getUnitHeightRatioPercent() : 0));
          elements.add(elem);
       }
       else if(GraphTypes.isMekko(chartType)) {
@@ -5184,6 +5194,15 @@ public abstract class GraphGenerator {
    }
 
    /**
+    * Get the ratio a relation element draws an axis at. A resized axis takes the author's
+    * percent, as VGraphPair folds it against the initial ratio 1; an axis the author has not
+    * resized keeps no stale ratio.
+    */
+   private static double getRelationRatio(boolean resized, double ratio, double percent) {
+      return !resized ? 1 : percent >= 1 ? percent : ratio;
+   }
+
+   /**
     * Set the drawing rules the modern mark adds to an element. The graph package has no mark
     * context, so each rule is a flag on the element that is off for a classic chart.
     */
@@ -5223,6 +5242,11 @@ public abstract class GraphGenerator {
       }
       else if(elem instanceof AreaElement area && chartType == GraphTypes.CHART_FILL_RADAR) {
          area.setSolidOutline(true);
+      }
+      else if(elem instanceof RelationElement relation) {
+         relation.setCornerFloor(true);
+         // an author's plot resize keeps today's layout
+         relation.setPlotFit(!info.isWidthResized() && !info.isHeightResized());
       }
    }
 
@@ -8214,6 +8238,7 @@ public abstract class GraphGenerator {
     * assembly; the report constructor knows there is none.
     */
    protected final VizContext vizContext;
+   protected final Insets chartPadding; // the assembly's padding, null without an assembly
    private final Set<AxisSpec> seededOffLines = Collections.newSetFromMap(new IdentityHashMap<>());
    protected EGraph graph; // element graph
    protected DataSet adata; // all data if brushing exists, null otherwise

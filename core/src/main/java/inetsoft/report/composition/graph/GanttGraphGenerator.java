@@ -27,6 +27,7 @@ import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
 import inetsoft.util.*;
 
 import java.awt.*;
@@ -146,6 +147,19 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
       if(yScale != null) {
          // centre month labels between their boundary ticks on the time axis.
          yScale.getAxisSpec().setLabelBetween(true);
+
+         if(vizContext.modern && yScale instanceof TimeScale) {
+            // the chart's own padding, as the title gap uses
+            Insets padding = chartPadding != null ? chartPadding
+               : VSDensityDefaults.chartPadding(vizContext);
+            // a script-built graph has no size; nominal width as the label rules use
+            double width = graphSize != null ? graphSize.width : 1000;
+            double tasks = coord.getXScale() == null ? 0 :
+               ModernLabelRule.columnLimitPx(
+                  coord.getXScale().getAxisSpec().getTextSpec().getFont(), width);
+            double plot = width - padding.left - padding.right - tasks;
+            ((TimeScale) yScale).setEndPadRatio(endPadRatio(padding.right, plot));
+         }
       }
 
       Scale xScale = coord.getXScale();
@@ -153,6 +167,13 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
          // draw grid lines between task rows rather than through the labels.
          xScale.getAxisSpec().setGridBetween(true);
       }
+   }
+
+   /**
+    * The range fraction that makes a pad of padPx pixels on an axis of plotPx pixels.
+    */
+   static double endPadRatio(double padPx, double plotPx) {
+      return plotPx > 2 * padPx ? padPx / (plotPx - padPx) : 0;
    }
 
    @Override

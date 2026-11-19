@@ -293,7 +293,7 @@ public class RelationVO extends ElementVO {
          // null (NIL) or full-bbox Rectangle2D (SQUARE): no shrinking needed
       }
       else {
-         double r = elem.getNodeCornerRadius();
+         double r = getCornerFraction(elem, w, h);
 
          if(r > 0) {
             double aRadius = r * Math.min(w, h);
@@ -384,7 +384,7 @@ public class RelationVO extends ElementVO {
          return nodeShape.getShape(b.getX(), b.getY(), b.getWidth(), b.getHeight());
       }
 
-      double r = elem.getNodeCornerRadius();
+      double r = getCornerFraction(elem, b.getWidth(), b.getHeight());
 
       if(r > 0) {
          double shortDim = Math.min(b.getWidth(), b.getHeight());
@@ -395,6 +395,23 @@ public class RelationVO extends ElementVO {
       }
 
       return null;
+   }
+
+   /**
+    * Get the corner radius fraction this node draws with, after the corner floor.
+    */
+   public double getEffectiveCornerRadius() {
+      RelationElement elem = (RelationElement) ((RelationGeometry) getGeometry()).getElement();
+      Rectangle2D b = getBounds();
+
+      return b == null ? elem.getNodeCornerRadius()
+         : getCornerFraction(elem, b.getWidth(), b.getHeight());
+   }
+
+   // the node corner fraction, floored for a node this size when the element asks for it
+   private static double getCornerFraction(RelationElement elem, double w, double h) {
+      double r = elem.getNodeCornerRadius();
+      return elem.isCornerFloor() ? BarVO.flooredCornerFraction(r, Math.min(w, h)) : r;
    }
 
    @Override

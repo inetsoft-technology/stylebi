@@ -21,9 +21,11 @@ import com.inetsoft.build.tern.TernMethod;
 import inetsoft.graph.*;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.coord.RelationCoord;
 import inetsoft.graph.data.*;
 import inetsoft.graph.geometry.*;
 import inetsoft.graph.guide.form.GraphForm;
+import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import inetsoft.graph.mxgraph.layout.*;
@@ -115,6 +117,7 @@ public class RelationElement extends GraphElement {
 
    @Override
    public void createGeometry(DataSet data0, GGraph graph) {
+      laidOutBox = null;
       VisualModel vmodel = createVisualModel(data0);
       SortedDataSet sdata = sortData(data0, graph);
 
@@ -246,6 +249,7 @@ public class RelationElement extends GraphElement {
                int nodeSidx = rootRepresentativeRows.getOrDefault(fromId, sidx);
                fromNode = createGeometry(fromId, mxgraph, graph, vmodel, from, i, nodeSidx,
                                          data, fromDim);
+               fromNode.setRoot(true);
                roots.add(fromNode);
                nodes.put(fromId, fromNode);
 
@@ -296,6 +300,7 @@ public class RelationElement extends GraphElement {
             }
          }
 
+         laidOutBox = resolveLayoutBox(graph);
          mxLayout(nodes, edges, mxgraph, mxroot, graph);
 
          if(shapeBorderShape != null && layoutCenter != null && layoutRadius > 0) {
@@ -309,12 +314,38 @@ public class RelationElement extends GraphElement {
       CoreTool.addUserMessage(msg);
    }
 
+   // the plot box to lay out in, or null when the layout does not follow the plot
+   private Dimension2D resolveLayoutBox(GGraph graph) {
+      if(!plotFit || getHint("overlay") != null || !isFittedAlgorithm()) {
+         return null;
+      }
+
+      if(!(graph.getCoordinate() instanceof RelationCoord coord) ||
+         coord.getParentCoordinate() != null)
+      {
+         return null;
+      }
+
+      Dimension2D box = coord.getPlotBox();
+      return box != null ? box : new DimensionD(layoutSize.width, layoutSize.height);
+   }
+
+   /**
+    * Check whether the algorithm lays out inside the plot box under plotFit.
+    * @hidden
+    */
+   public boolean isFittedAlgorithm() {
+      return algorithm == Algorithm.CIRCLE || algorithm == Algorithm.ORGANIC ||
+         algorithm == Algorithm.COMPACT_TREE;
+   }
+
    private void mxLayout(Map<Object, RelationGeometry> nodes, List<RelationEdgeGeometry> edges,
                          mxGraph mxgraph, Object mxroot, GGraph ggraph)
    {
       mxGraphLayout layout0;
       boolean scalePositions = true;
-      int layoutW = layoutSize.width, layoutH = layoutSize.height;
+      double layoutW = laidOutBox != null ? laidOutBox.getWidth() : layoutSize.width;
+      double layoutH = laidOutBox != null ? laidOutBox.getHeight() : layoutSize.height;
 
       // leave space for label since mxLayout is not aware of labels and the labels are
       // laid out later.
@@ -330,8 +361,17 @@ public class RelationElement extends GraphElement {
             .mapToDouble(n -> Math.max(n.getMxCell().getGeometry().getWidth(),
                                        n.getMxCell().getGeometry().getHeight()))
             .max().orElse(1);
-         double minr = Math.min(layoutW * widthRatio, layoutH * heightRatio);
-         layout.setRadius((minr - maxNodeSize) * 0.9 / 2);
+
+         if(laidOutBox != null) {
+            double minr = Math.min(laidOutBox.getWidth(), laidOutBox.getHeight());
+            layout.setSizeFactor(0);
+            layout.setRadius(Math.max(0, (0.8 * minr - maxNodeSize) / 2));
+         }
+         else {
+            double minr = Math.min(layoutW * widthRatio, layoutH * heightRatio);
+            layout.setRadius((minr - maxNodeSize) * 0.9 / 2);
+         }
+
          //double maxr = Math.max(nodeWidth, nodeHeight);
          //layout.setSizeFactor(Math.max(0.75, 15 * Math.max(widthRatio, heightRatio) / maxr));
          layout0 = layout;
@@ -406,6 +446,12 @@ public class RelationElement extends GraphElement {
 
       layout0.setUseBoundingBox(false);
       layout0.execute(mxroot);
+      double treeScale = 1;
+
+      if(laidOutBox != null && layout0 instanceof mxCompactTreeLayout tree) {
+         treeScale = fitTreeBreadth(tree, nodes.values(), mxroot, horizontal ? layoutH : layoutW);
+      }
+
       flipY(ggraph);
 
       if(scalePositions) {
@@ -421,6 +467,14 @@ public class RelationElement extends GraphElement {
          .forEach(v -> v.getMxCell().getGeometry().translate(-minX, -minY));
       edges.stream()
          .forEach(v -> v.getEdge().getGeometry().translate(-minX, -minY));
+
+      if(laidOutBox != null && algorithm == Algorithm.ORGANIC) {
+         fitPositions(nodes, edges, layoutW, layoutH);
+      }
+
+      if(treeScale != 1) {
+         scaleTree(nodes.values(), edges, treeScale);
+      }
 
       // Cache centroid of node centres for smooth-edge rendering. Only CIRCLE consumes it;
       // skip the O(n) pass for other algorithms. Computed in the same post-flip /
@@ -477,6 +531,82 @@ public class RelationElement extends GraphElement {
       if(flipped && algorithm == Algorithm.COMPACT_TREE) {
          flipMajorAxis(nodes, edges, horizontal);
       }
+   }
+
+   // close the sibling gaps of a tree wider than available, then fit its breadth down to 75%
+   private double fitTreeBreadth(mxCompactTreeLayout layout, Collection<RelationGeometry> nodes,
+                                 Object mxroot, double available)
+   {
+      if(getTreeBreadth(nodes) <= available) {
+         return 1;
+      }
+
+      layout.setNodeDistance(4);
+      layout.setLevelDistance(18);
+      layout.execute(mxroot);
+      double breadth = getTreeBreadth(nodes);
+
+      return breadth > available ? Math.max(0.75, available / breadth) : 1;
+   }
+
+   // the extent of the nodes across the levels (the hidden forest root is not a node)
+   private double getTreeBreadth(Collection<RelationGeometry> nodes) {
+      double min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
+
+      for(RelationGeometry node : nodes) {
+         mxGeometry g = node.getMxCell().getGeometry();
+         min = Math.min(min, horizontal ? g.getY() : g.getX());
+         max = Math.max(max, horizontal ? g.getY() + g.getHeight() : g.getX() + g.getWidth());
+      }
+
+      return nodes.isEmpty() ? 0 : max - min;
+   }
+
+   // scale positions and sizes about the origin (mxRectangle.transform scales about the centre)
+   private static void scaleTree(Collection<RelationGeometry> nodes,
+                                 List<RelationEdgeGeometry> edges, double scale)
+   {
+      for(RelationGeometry node : nodes) {
+         mxGeometry g = node.getMxCell().getGeometry();
+         g.setRect(g.getX() * scale, g.getY() * scale, g.getWidth() * scale,
+                   g.getHeight() * scale);
+      }
+
+      // an edge geometry has no size, so this scales its position and points about the origin
+      AffineTransform trans = AffineTransform.getScaleInstance(scale, scale);
+      edges.forEach(v -> v.getEdge().getGeometry().transformPosition(trans));
+   }
+
+   // spread node positions so the node boxes fill the available width and height
+   private void fitPositions(Map<Object, RelationGeometry> nodes, List<RelationEdgeGeometry> edges,
+                             double availW, double availH)
+   {
+      double sx = Double.MAX_VALUE, sy = Double.MAX_VALUE;
+
+      for(RelationGeometry node : nodes.values()) {
+         mxGeometry g = node.getMxCell().getGeometry();
+
+         if(g.getX() > 0) {
+            sx = Math.min(sx, (availW - g.getWidth()) / g.getX());
+         }
+
+         if(g.getY() > 0) {
+            sy = Math.min(sy, (availH - g.getHeight()) / g.getY());
+         }
+      }
+
+      sx = sx == Double.MAX_VALUE ? 1 : Math.max(0, sx);
+      sy = sy == Double.MAX_VALUE ? 1 : Math.max(0, sy);
+      AffineTransform trans = AffineTransform.getScaleInstance(sx, sy);
+
+      // scale the top-left corner (not the centre) so the nodes stay anchored at the origin
+      for(RelationGeometry node : nodes.values()) {
+         mxGeometry g = node.getMxCell().getGeometry();
+         g.setX(g.getX() * sx);
+         g.setY(g.getY() * sy);
+      }
+
+      edges.forEach(v -> v.getEdge().getGeometry().transformPosition(trans));
    }
 
    // 180° flip on the major axis (X if horizontal, otherwise Y).
@@ -858,6 +988,25 @@ public class RelationElement extends GraphElement {
    }
 
    /**
+    * Whether to lay out inside the plot box (circle, network, tree). Off keeps the layout
+    * in the layout size.
+    */
+   public boolean isPlotFit() {
+      return plotFit;
+   }
+
+   public void setPlotFit(boolean plotFit) {
+      this.plotFit = plotFit;
+   }
+
+   /**
+    * Get the box the last createGeometry laid out in, or null if it used no box.
+    */
+   public Dimension2D getLaidOutBox() {
+      return laidOutBox;
+   }
+
+   /**
     * Centroid of all node positions after layout, in graph coordinates. Populated by mxLayout()
     * and consumed by RelationEdgeGeometry to bend curves toward the ring centre. Null until
     * layout runs.
@@ -1069,6 +1218,22 @@ public class RelationElement extends GraphElement {
    }
 
    /**
+    * Check whether a rounded node's corner is kept at least 2px (or a quarter of a smaller
+    * node).
+    */
+   public boolean isCornerFloor() {
+      return cornerFloor;
+   }
+
+   /**
+    * Set whether a rounded node's corner is kept at least 2px (or a quarter of a smaller
+    * node).
+    */
+   public void setCornerFloor(boolean cornerFloor) {
+      this.cornerFloor = cornerFloor;
+   }
+
+   /**
     * Check if the tree layout is horizontal (root on left, children to the right).
     */
    public boolean isHorizontal() {
@@ -1133,7 +1298,9 @@ public class RelationElement extends GraphElement {
             heightRatio == elem.heightRatio &&
             applyAestheticsToSource == elem.applyAestheticsToSource &&
             nodeCornerRadius == elem.nodeCornerRadius &&
+            cornerFloor == elem.cornerFloor &&
             smoothEdges == elem.smoothEdges &&
+            plotFit == elem.plotFit &&
             horizontal == elem.horizontal &&
             flipped == elem.flipped &&
             Objects.equals(nodeShape, elem.nodeShape) &&
@@ -1171,7 +1338,9 @@ public class RelationElement extends GraphElement {
    private Color fillColor;
    private boolean applyAestheticsToSource = false;
    private double nodeCornerRadius = 0;
+   private boolean cornerFloor = false;
    private boolean smoothEdges = false;
+   private boolean plotFit = false;
    private GShape shapeBorderShape;
    private Color shapeBorderColor;
    private GLine shapeBorderLine;
@@ -1179,6 +1348,7 @@ public class RelationElement extends GraphElement {
    // derived; populated by mxLayout, not part of element identity
    private transient Point2D layoutCenter;
    private transient double layoutRadius;
+   private transient Dimension2D laidOutBox;
    private boolean horizontal = false;
    private boolean flipped = false;
 

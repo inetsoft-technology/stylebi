@@ -189,6 +189,17 @@ public class RelationGeometry extends ElementGeometry {
       this.multiParent = multiParent;
    }
 
+   /**
+    * Check if this node is never a target.
+    */
+   public boolean isRoot() {
+      return root;
+   }
+
+   public void setRoot(boolean root) {
+      this.root = root;
+   }
+
    @Override
    public int compareTo(Object obj) {
       // draw point on top of edge
@@ -200,4 +211,5 @@ public class RelationGeometry extends ElementGeometry {
    private short cidx; // root col
    private mxCell mxcell;
    private boolean multiParent = false;
+   private boolean root = false;
 }

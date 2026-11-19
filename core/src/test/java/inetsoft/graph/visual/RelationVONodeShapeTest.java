@@ -97,4 +97,49 @@ class RelationVONodeShapeTest {
       elem.setNodeShape(GShape.CIRCLE);
       assertInstanceOf(Ellipse2D.class, RelationVO.resolveNodeShape(BOX, elem));
    }
+
+   @Test
+   void aShortMarkedNodeTakesTheTwoPixelCorner() {
+      assertEquals(4, arc(corner(0.08, true), 33, 23), 0.01);
+   }
+
+   @Test
+   void aTallMarkedNodeKeepsItsFraction() {
+      assertEquals(4.8, arc(corner(0.08, true), 44, 30), 0.01);
+   }
+
+   @Test
+   void aClassicNodeIsNotFloored() {
+      assertEquals(3.68, arc(corner(0.08, false), 33, 23), 0.01);
+   }
+
+   @Test
+   void aSquareNodeStaysSquare() {
+      assertNull(RelationVO.resolveNodeShape(new Rectangle2D.Double(0, 0, 33, 23),
+                                             corner(0, true)));
+   }
+
+   @Test
+   void theTextBoxFollowsTheFlooredCorner() {
+      Rectangle2D box = new Rectangle2D.Double(0, 0, 33, 23);
+      Rectangle2D text = RelationVO.getInsideTextBox(box, corner(0.08, true));
+      double inset = 2 * (1 - 1 / Math.sqrt(2));
+
+      assertEquals(33 - 2 * inset, text.getWidth(), 1e-9);
+      assertEquals(23 - 2 * inset, text.getHeight(), 1e-9);
+   }
+
+   private static RelationElement corner(double fraction, boolean floor) {
+      RelationElement elem = new RelationElement("From", "To");
+      elem.setNodeCornerRadius(fraction);
+      elem.setCornerFloor(floor);
+      return elem;
+   }
+
+   private static double arc(RelationElement elem, double w, double h) {
+      Shape s = RelationVO.resolveNodeShape(new Rectangle2D.Double(0, 0, w, h), elem);
+      RoundRectangle2D round = assertInstanceOf(RoundRectangle2D.class, s);
+      assertEquals(round.getArcWidth(), round.getArcHeight(), 1e-9);
+      return round.getArcWidth();
+   }
 }
