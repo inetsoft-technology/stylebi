@@ -66,6 +66,7 @@ public class RelationVO extends ElementVO {
 
             if(elem.isAutoTextColor() && elem.isLabelInside()) {
                vtext.setAutoBackground(obj.getColor());
+               vtext.setContrastInk(elem.isContrastInk());
             }
 
             // avoid edge line strikes through labels.

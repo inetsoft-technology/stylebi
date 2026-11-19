@@ -1269,6 +1269,19 @@ public final class GTool {
    }
 
    /**
+    * Get the text color for the bg. If maxContrast is true, pick the ink with the higher
+    * contrast ratio, otherwise prefer white.
+    */
+   public static Color getTextColor(Color bg, boolean maxContrast) {
+      if(!maxContrast) {
+         return getTextColor(bg);
+      }
+
+      double bgL = getLuminance(bg);
+      return (bgL + 0.05) / 0.05 >= 1.05 / (bgL + 0.05) ? Color.BLACK : Color.WHITE;
+   }
+
+   /**
     * Get the color with the highest contrast with the bg.
     */
    public static Color getComplementaryColor(Color bg) {

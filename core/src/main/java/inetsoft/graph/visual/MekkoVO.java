@@ -70,6 +70,7 @@ public class MekkoVO extends ElementVO {
 
             if(elem.isAutoTextColor()) {
                vtext.setAutoBackground(obj.getColor(0));
+               vtext.setContrastInk(elem.isContrastInk());
             }
          }
       }

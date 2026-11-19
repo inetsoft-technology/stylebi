@@ -5251,6 +5251,8 @@ public abstract class GraphGenerator {
          return;
       }
 
+      elem.setContrastInk(true);
+
       if(elem instanceof IntervalElement interval) {
          interval.setCornerFloor(true);
          interval.setWidthClamp(isWidthClamped(interval, chartType));

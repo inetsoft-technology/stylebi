@@ -109,6 +109,7 @@ public class TreemapVO extends ElementVO {
 
             if(elem.isAutoTextColor()) {
                vtext.setAutoBackground(obj.getColor(0));
+               vtext.setContrastInk(elem.isContrastInk());
             }
 
             TextFrame textFrame = elem.getTextFrame();
