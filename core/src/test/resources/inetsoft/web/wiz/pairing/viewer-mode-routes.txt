@@ -22,7 +22,6 @@ DENIED GET /api/wiz/v1/agent/script/{sessionToken}/context
 DENIED GET /api/wiz/v1/agent/script/{sessionToken}/image
 DENIED GET /api/wiz/v1/agent/script/{sessionToken}/pane-context
 DENIED GET /api/wiz/v1/agent/script/{sessionToken}/script
-DENIED GET /api/wiz/v1/agent/script/{sessionToken}/session
 DENIED GET /api/wiz/v1/agent/script/{sessionToken}/targets
 UNGATED GET /api/wiz/v1/agent/viewsheet/convert/vocabulary
 UNGATED GET /api/wiz/v1/agent/viewsheet/selection/vocabulary

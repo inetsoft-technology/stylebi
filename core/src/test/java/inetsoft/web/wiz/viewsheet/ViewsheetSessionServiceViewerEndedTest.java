@@ -83,4 +83,23 @@ class ViewsheetSessionServiceViewerEndedTest {
                     e.getMessage());
       }
    }
+
+   /** The plugin reaps on errorCode SESSION_EXPIRED, so the W4 answer must keep it on the wire. */
+   @Test
+   void theW4AnswerOnTheWireKeepsSessionExpiredAndTheClosedPageWording() throws Exception {
+      JoinSession v = sessions.open("vs-1", OWNER, SheetType.VIEWSHEET, "sock-1", "alice", null,
+                                    JoinSession.ConnectionMode.VIEWER);
+      sessions.socketClosed("sock-1");
+      PairingException e = assertThrows(PairingException.class,
+         () -> svc.requireSession(v.sessionToken(), agent));
+      ViewsheetAssemblyAgentController handler = mock(ViewsheetAssemblyAgentController.class,
+         org.mockito.Mockito.withSettings().defaultAnswer(org.mockito.Mockito.CALLS_REAL_METHODS));
+
+      org.springframework.http.ResponseEntity<java.util.Map<String, String>> r =
+         handler.handlePairingException(e);
+
+      assertEquals(404, r.getStatusCode().value());
+      assertEquals("SESSION_EXPIRED", r.getBody().get("errorCode"));
+      assertTrue(r.getBody().get("error").contains("closed or reloaded"), r.getBody().get("error"));
+   }
 }

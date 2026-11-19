@@ -76,6 +76,8 @@ public final class ViewerModePolicy {
       new Route("GET", VS + "/bookmarks"),
       new Route("GET", VS + "/parameters"),
       new Route("POST", VS + "/detach"),
+      // the plugin's liveness probe for every viewsheet session; read-only (runtime id, type, scope)
+      new Route("GET", "/api/wiz/v1/agent/script/{sessionToken}/session"),
       new Route("POST", "/api/wiz/v1/agent/sheet/{sessionToken}/keep-alive"));
 
    /** Prefix every gated route lives under. */

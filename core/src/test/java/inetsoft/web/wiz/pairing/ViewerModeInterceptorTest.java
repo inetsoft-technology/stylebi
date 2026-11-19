@@ -134,6 +134,28 @@ class ViewerModeInterceptorTest {
       assertTrue(call(method, pattern, token, ALICE_P, new MockHttpServletResponse()));
    }
 
+   /** Lead ruling: the plugin's liveness probe is allowed; every sibling under /script/{t}/ is not. */
+   @Test
+   void theScriptSessionProbeIsAllowedButItsSiblingsAreStillRefused() throws Exception {
+      String token = open(JoinSession.ConnectionMode.VIEWER).sessionToken();
+      String script = BASE + "script/{sessionToken}";
+
+      assertTrue(call("GET", script + "/session", token, ALICE_P, new MockHttpServletResponse()));
+      assertFalse(call("POST", script + "/session", token, ALICE_P, new MockHttpServletResponse()));
+
+      for(String[] sibling : new String[][] {
+         { "GET", "/script" }, { "POST", "/script" }, { "POST", "/enable" },
+         { "POST", "/execute" }, { "POST", "/execute-live" }, { "POST", "/save" },
+         { "GET", "/targets" }, { "GET", "/context" }, { "GET", "/image" },
+         { "GET", "/pane-context" }, { "POST", "/detach" } })
+      {
+         MockHttpServletResponse response = new MockHttpServletResponse();
+         assertFalse(call(sibling[0], script + sibling[1], token, ALICE_P, response),
+                     sibling[0] + " " + sibling[1]);
+         assertEquals(403, response.getStatus());
+      }
+   }
+
    @Test
    void theSamePathIsJudgedByMethod() throws Exception {
       String token = open(JoinSession.ConnectionMode.VIEWER).sessionToken();
