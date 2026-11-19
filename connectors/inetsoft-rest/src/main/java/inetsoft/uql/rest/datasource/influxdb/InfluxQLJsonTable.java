@@ -100,47 +100,89 @@ public class InfluxQLJsonTable extends HeadersAndRowsJsonTable {
          return;
       }
 
+      // Each series is laid out against the columns of all of them: the table maps a row to
+      // its columns by position, so series with different columns (SELECT * FROM cpu, mem) would
+      // otherwise put one series' values under another's column names.
+      final List<Map<?, ?>> all = new ArrayList<>();
+      final List<List<String>> names = new ArrayList<>();
+      final List<String> merged = new ArrayList<>();
+
       for(Object s : (List<?>) series) {
          if(s instanceof Map) {
-            super.loadStreamed(singleSeries((Map<?, ?>) s));
+            final List<String> own = columnNames((Map<?, ?>) s);
+            all.add((Map<?, ?>) s);
+            names.add(own);
+
+            for(String name : own) {
+               if(!merged.contains(name)) {
+                  merged.add(name);
+               }
+            }
          }
+      }
+
+      for(int i = 0; i < all.size(); i++) {
+         super.loadStreamed(singleSeries(all.get(i), names.get(i), merged));
       }
    }
 
    /**
-    * The response as {@link HeadersAndRowsJsonTable} reads it, holding the one series, with the
-    * tag values of the series added as columns.
+    * The columns of a series: its own, then one per tag. A tag that has the name of a column of the
+    * series is called {@code tag.<name>}, so it does not take that column's place.
     */
-   private Map<String, Object> singleSeries(Map<?, ?> series) {
-      final List<Object> columns = new ArrayList<>();
-      final Object seriesColumns = series.get("columns");
+   private List<String> columnNames(Map<?, ?> series) {
+      final List<String> columns = new ArrayList<>();
 
-      if(seriesColumns instanceof List) {
-         columns.addAll((List<?>) seriesColumns);
+      if(series.get("columns") instanceof List) {
+         for(Object column : (List<?>) series.get("columns")) {
+            columns.add(String.valueOf(column));
+         }
       }
 
-      final Map<?, ?> tags = series.get("tags") instanceof Map ? (Map<?, ?>) series.get("tags") : null;
+      if(series.get("tags") instanceof Map) {
+         for(Object tag : ((Map<?, ?>) series.get("tags")).keySet()) {
+            final String name = String.valueOf(tag);
+            columns.add(columns.contains(name) ? "tag." + name : name);
+         }
+      }
+
+      return columns;
+   }
+
+   /**
+    * The response as {@link HeadersAndRowsJsonTable} reads it, holding the one series with its
+    * values (and tag values) placed under {@code merged}; a column the series does not have is null.
+    */
+   private Map<String, Object> singleSeries(Map<?, ?> series, List<String> own,
+                                            List<String> merged)
+   {
+      final List<Object> tagValues = new ArrayList<>();
+
+      if(series.get("tags") instanceof Map) {
+         tagValues.addAll(((Map<?, ?>) series.get("tags")).values());
+      }
+
       final List<Object> values = new ArrayList<>();
-
-      if(tags != null) {
-         columns.addAll(tags.keySet());
-      }
 
       if(series.get("values") instanceof List) {
          for(Object row : (List<?>) series.get("values")) {
-            if(row instanceof List && tags != null) {
-               final List<Object> withTags = new ArrayList<>((List<?>) row);
-               withTags.addAll(tags.values());
-               values.add(withTags);
-            }
-            else {
-               values.add(row);
+            if(row instanceof List) {
+               final List<Object> cells = new ArrayList<>((List<?>) row);
+               cells.addAll(tagValues);
+               final List<Object> placed = new ArrayList<>();
+
+               for(String name : merged) {
+                  final int index = own.indexOf(name);
+                  placed.add(index >= 0 && index < cells.size() ? cells.get(index) : null);
+               }
+
+               values.add(placed);
             }
          }
       }
 
       final Map<String, Object> single = new LinkedHashMap<>();
-      single.put("columns", columns);
+      single.put("columns", new ArrayList<Object>(merged));
       single.put("values", values);
       final Map<String, Object> result = new LinkedHashMap<>();
       result.put("series", Collections.singletonList(single));

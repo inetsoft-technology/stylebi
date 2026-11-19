@@ -214,6 +214,27 @@ class InfluxDBConnectorTest {
    }
 
    @Test
+   void influxQLSeriesWithDifferentColumnsKeepTheirValuesUnderTheirOwnColumns() {
+      Result result = run(v1Query("measurements", null));
+
+      assertEquals(List.of("time", "usage", "used"), result.columns);
+      assertEquals(2, result.rows.size());
+      assertEquals(1.5, ((Number) result.rows.get(0).get(1)).doubleValue());
+      assertNull(result.rows.get(0).get(2));
+      assertNull(result.rows.get(1).get(1));
+      assertEquals(7.5, ((Number) result.rows.get(1).get(2)).doubleValue());
+   }
+
+   @Test
+   void influxQLTagNamedLikeAFieldDoesNotTakeTheFieldsColumn() {
+      Result result = run(v1Query("tagclash", null));
+
+      assertEquals(List.of("time", "host", "tag.host"), result.columns);
+      assertEquals("field-a", result.rows.get(0).get(1));
+      assertEquals("web-1", result.rows.get(0).get(2));
+   }
+
+   @Test
    void influxQLSeveralStatementsAreRefusedNotSilentlyCutToTheFirst() {
       CoreTool.clearUserMessage();
 

@@ -179,6 +179,13 @@ final class FakeInfluxDB implements AutoCloseable {
             "\"values\":[" + rows(0, 2) + "]}," +
             "{\"name\":\"cpu\",\"tags\":{\"host\":\"web-2\"},\"columns\":[\"time\",\"usage_user\"]," +
             "\"values\":[" + rows(2, 4) + "]}]}]}";
+      case "measurements":
+         return "{\"results\":[{\"statement_id\":0,\"series\":[" +
+            "{\"name\":\"cpu\",\"columns\":[\"time\",\"usage\"],\"values\":[[\"2023-11-14T22:00:00Z\",1.5]]}," +
+            "{\"name\":\"mem\",\"columns\":[\"time\",\"used\"],\"values\":[[\"2023-11-14T22:00:00Z\",7.5]]}]}]}";
+      case "tagclash":
+         return "{\"results\":[{\"statement_id\":0,\"series\":[" +
+            "{\"name\":\"cpu\",\"tags\":{\"host\":\"web-1\"},\"columns\":[\"time\",\"host\"],\"values\":[[\"2023-11-14T22:00:00Z\",\"field-a\"]]}]}]}";
       case "multi":
          return "{\"results\":[{\"statement_id\":0},{\"statement_id\":1,\"series\":[" + series +
             "]}]}";
