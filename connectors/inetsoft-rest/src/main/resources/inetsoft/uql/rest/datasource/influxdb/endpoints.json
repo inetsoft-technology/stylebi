@@ -897,7 +897,7 @@
     {
       "name": "Database Retention Policy Mapping",
       "paged": false,
-      "suffix": "/api/v2/dbrps/{dbrpsID}",
+      "suffix": "/api/v2/dbrps/{dbrpsID}?org={Organization Name?}&orgID={Organization ID?}",
       "post": false,
       "responseSchema": {
         "content": {
