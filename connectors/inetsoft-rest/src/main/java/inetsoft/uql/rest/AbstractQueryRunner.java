@@ -90,8 +90,11 @@ public abstract class AbstractQueryRunner<T extends AbstractRestQuery> implement
          return query.createHeadersAndRowsTable();
       }
 
+      // The lookup expand flag only governs the last lookup query, so it applies only when the
+      // endpoint query has a lookup chain; otherwise Expand Arrays alone decides.
       if(query.isExpanded() || (query instanceof EndpointJsonQuery<?> &&
-                                ((EndpointJsonQuery<?>) query).isLookupExpanded()))
+                                ((EndpointJsonQuery<?>) query).isLookupExpanded() &&
+                                !((EndpointJsonQuery<?>) query).getLookupQueries().isEmpty()))
       {
          String path = query.isExpandTop() ? null : query.getExpandedPath();
          ExpandedJsonTable tbl = new ExpandedJsonTable(path);
