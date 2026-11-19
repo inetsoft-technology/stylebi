@@ -310,6 +310,21 @@ class WizControllerErrorHandlerTest {
    }
 
    /**
+    * A dependency cycle refused by the viewsheet dependency check (Bug #81884) is a conflict with
+    * the sheet's state, not a server bug: it must answer 409 with the cycle message and not the
+    * catch-all's "StyleBI-side bug, retrying will fail the same way".
+    */
+   @Test
+   void aDependencyCycleMapsToConflictCarryingTheCycleMessage() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "invaliddep"))
+         .andExpect(status().isConflict())
+         .andExpect(content().string(containsString("Dependency cycle found!")))
+         .andExpect(content().string(containsString("INVALID_DEPENDENCY")))
+         .andExpect(content().string(org.hamcrest.Matchers.not(
+            containsString("StyleBI-side bug"))));
+   }
+
+   /**
     * Any exception none of the handlers above recognize — an NPE deep in a binding/viewsheet
     * service, for example — must still come back as JSON 500, not fall through to Tomcat's own
     * default HTML error page (which ignores the client's {@code Accept: application/json} header
@@ -478,6 +493,10 @@ class WizControllerErrorHandlerTest {
                throw new ResponseStatusException(
                   HttpStatus.UNPROCESSABLE_ENTITY, "The request cannot be processed");
             }
+         }
+
+         if("invaliddep".equals(type)) {
+            throw new inetsoft.uql.asset.InvalidDependencyException("Dependency cycle found!");
          }
 
          if("unexpected".equals(type)) {

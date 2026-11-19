@@ -103,6 +103,41 @@ class ViewsheetSessionServiceTest {
    }
 
    /**
+    * Bug #81884: a dependency cycle refused mid-edit leaves the runtime holding the partial
+    * edit that caused it, and every later call failed on it. The native Composer rolls back to the
+    * last checkpoint; so must the agent path, without adding an undo step for an edit that no
+    * longer exists.
+    */
+   @Test
+   void aDependencyCycleRollsTheEditBackAndTakesNoCheckpoint81884() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(
+         sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
+
+      assertThrows(inetsoft.uql.asset.InvalidDependencyException.class,
+                   () -> svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {
+                      throw new inetsoft.uql.asset.InvalidDependencyException("Dependency cycle found!");
+                   }));
+
+      verify(rvs).rollback();
+      verify(rvs, never()).addCheckpoint(any());
+      verify(broadcast).broadcastRefresh(any(), any(), anyString(), any(Principal.class), any());
+   }
+
+   /**
     * Bug #80379: a successful agent edit hints the Composer to follow it to this sheet, once, and
     * after the refresh that shows the edit.
     */
