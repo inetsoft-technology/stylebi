@@ -133,6 +133,15 @@ final class ChartChromeSlots {
                         legends.then(LegendsDescriptor::getShapeLegendDescriptor));
             legendTitle("chart:legends:size:titleVisible",
                         legends.then(LegendsDescriptor::getSizeLegendDescriptor));
+            // a shown or hidden size legend follows the seed again
+            slots.add(ChromeSlot.plain("chart:legends:size:visible", (info, fresh) -> {
+               LegendDescriptor size = legends.then(LegendsDescriptor::getSizeLegendDescriptor)
+                  .on(info);
+
+               if(size != null) {
+                  size.setUserVisible(false);
+               }
+            }));
             slots.add(ChromeSlot.plain("chart:legends:roundCorners", copy(legends,
                (to, from) -> to.setRoundCorners(from.isRoundCorners()))));
          }

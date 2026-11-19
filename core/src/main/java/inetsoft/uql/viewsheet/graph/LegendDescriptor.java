@@ -112,6 +112,33 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Set the visibility as the author's choice.
+    */
+   public void setAuthorVisible(boolean visible) {
+      this.visible = visible;
+      this.userVisible = true;
+   }
+
+   /**
+    * Set the max mode visibility as the author's choice.
+    */
+   public void setAuthorMaxModeVisible(boolean maxModeVisible) {
+      this.maxModeVisible = maxModeVisible;
+      this.userVisible = true;
+   }
+
+   /**
+    * Whether the author chose to show or hide the legend.
+    */
+   public boolean isUserVisible() {
+      return userVisible;
+   }
+
+   public void setUserVisible(boolean userVisible) {
+      this.userVisible = userVisible;
+   }
+
+   /**
     * Check if the legend title is displayed.
     */
    public boolean isTitleVisible() {
@@ -528,7 +555,8 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       }
 
       return logScale == des.logScale && reversed == des.reversed &&
-         visible == des.visible && notShowNull == des.notShowNull &&
+         visible == des.visible && userVisible == des.userVisible &&
+         notShowNull == des.notShowNull &&
          titleVisible == des.titleVisible && userTitleVisible == des.userTitleVisible &&
          maxModeVisible == des.maxModeVisible &&
          symbolSize == des.symbolSize && symbolRoundCorners == des.symbolRoundCorners;
@@ -571,6 +599,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       writer.print(" visible=\"" + visible + "\" ");
       writer.print(" maxModeVisible=\"" + maxModeVisible + "\" ");
       writer.print(" titleVisible=\"" + titleVisible + "\" ");
+      DerivedUserFlag.write(writer, "userVisible", userVisible, derivedUserVisible());
       DerivedUserFlag.write(writer, "userTitleVisible", userTitleVisible,
                             derivedUserTitleVisible());
       writer.print(" notShowNull=\"" + notShowNull + "\" ");
@@ -630,6 +659,13 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       // after the contents, as the derivation reads the text
       userTitleVisible = DerivedUserFlag.parse(Tool.getAttribute(tag, "userTitleVisible"),
                                                derivedUserTitleVisible());
+      userVisible = DerivedUserFlag.parse(Tool.getAttribute(tag, "userVisible"),
+                                          derivedUserVisible());
+   }
+
+   // a hidden legend is a choice every classic creation left unmade
+   private boolean derivedUserVisible() {
+      return !visible || !maxModeVisible;
    }
 
    // a hidden title or a typed one is a choice every classic creation left unmade
@@ -1021,6 +1057,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    private boolean maxModeVisible = true;
    private boolean titleVisible = true;
    private boolean userTitleVisible = false;
+   private boolean userVisible = false;
    private boolean notShowNull = false;
    private boolean includeZero = false;
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;

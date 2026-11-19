@@ -524,7 +524,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          }
 
          if(legend != null) {
-            legend.setVisible(visible);
+            legend.setAuthorVisible(visible);
          }
       }
    }
