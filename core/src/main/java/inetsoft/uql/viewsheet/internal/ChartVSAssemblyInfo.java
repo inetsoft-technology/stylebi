@@ -264,6 +264,34 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * The padding the chart is laid out, drawn and positioned with. It is the author's padding,
+    * except that a marked chart whose title is hidden takes extra top space: the top y-axis
+    * label is centred on the first gridline, so half its height sticks out above the plot and
+    * would otherwise eat into the top padding, leaving it visibly tighter than the bottom. With
+    * the title shown the title sits above the plot and absorbs the overhang. Unmarked (legacy)
+    * charts are untouched. Always a copy, never the stored instance.
+    */
+   public Insets getLayoutPadding() {
+      Insets padding = getPadding();
+
+      if(padding == null) {
+         return null;
+      }
+
+      padding = (Insets) padding.clone();
+
+      if(getVizMark() != null && !isTitleVisible()) {
+         padding.top += TOP_LABEL_OVERHANG;
+      }
+
+      return padding;
+   }
+
+   // about half the default axis label height (11px font), the part of the top y-axis label
+   // that rises above the first gridline
+   private static final int TOP_LABEL_OVERHANG = 6;
+
+   /**
     * Adds the chart's text, plot, legend, axis, shape and colour slots.
     */
    @Override
