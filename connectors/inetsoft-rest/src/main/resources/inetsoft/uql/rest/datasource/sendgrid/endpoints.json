@@ -690,8 +690,7 @@
               {
                 "name": "string",
                 "type": "string",
-                "id": "double",
-                "value": "string"
+                "id": "double"
               }
             ],
             "email": "string",
