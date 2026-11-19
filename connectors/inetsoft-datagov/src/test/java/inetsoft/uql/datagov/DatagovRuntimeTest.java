@@ -143,6 +143,23 @@ class DatagovRuntimeTest {
       assertEquals(expectedData.size(), rowCount);
    }
 
+   @Test
+   void testDataSourceUnknownHostFails() {
+      DatagovDataSource dataSource = new DatagovDataSource();
+      dataSource.setURL("http://no-such-host-qa-c1.invalid/");
+      DatagovRuntime runtime = new DatagovRuntime();
+
+      assertThrows(java.io.IOException.class,
+                   () -> runtime.testDataSource(dataSource, new VariableTable()));
+   }
+
+   @Test
+   void testDataSourceReachableUrlPasses() throws Exception {
+      DatagovDataSource dataSource = new DatagovDataSource();
+      dataSource.setURL(getClass().getResource("rows.json").toExternalForm());
+      new DatagovRuntime().testDataSource(dataSource, new VariableTable());
+   }
+
    @Configuration
    static class TestConfig {
       @Bean
