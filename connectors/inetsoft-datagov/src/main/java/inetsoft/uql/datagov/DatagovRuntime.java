@@ -20,6 +20,7 @@ package inetsoft.uql.datagov;
 import inetsoft.uql.*;
 
 import inetsoft.uql.tabular.*;
+import inetsoft.util.Tool;
 
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -67,6 +68,9 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       catch(Exception ex) {
          LOG.warn("Error executing data.gov query: " +
             createURL(query), ex);
+         // the column probe reads this message to say why the request failed; without it the
+         // caller can only be told to check credentials, which an anonymous datasource has none of
+         Tool.addUserMessage(describeFailure(createURL(query), ex));
          handleError(params, ex, () -> null);
       }
       finally {
@@ -74,6 +78,36 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       }
 
       return table;
+   }
+
+   /**
+    * Describes why a request failed, in terms of the cause rather than the exception class.
+    *
+    * @param url the URL that was requested.
+    * @param ex  the failure.
+    *
+    * @return a single-line description.
+    */
+   static String describeFailure(String url, Throwable ex) {
+      String message = ex.getMessage();
+
+      if(ex instanceof FileNotFoundException) {
+         return "The data.gov request to " + url + " failed: not found (HTTP 404), the dataset " +
+            "or path does not exist";
+      }
+
+      if(ex instanceof JsonException) {
+         return "The data.gov response from " + url + " is not in the rows.json shape this " +
+            "connector reads (a JSON object with 'meta' and 'data'); for example, a JSON array " +
+            "from a /resource/ endpoint is not supported. Use the dataset's /api/views/<id>/" +
+            "rows.json path instead";
+      }
+
+      if(message != null && message.contains("HTTP response code")) {
+         return "The data.gov request to " + url + " failed: " + message;
+      }
+
+      return "Error executing data.gov query: " + url + " (" + message + ")";
    }
 
    @Override
