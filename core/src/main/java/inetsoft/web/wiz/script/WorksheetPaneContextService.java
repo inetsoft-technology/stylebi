@@ -155,9 +155,18 @@ public class WorksheetPaneContextService {
 
    private static PaneContext.Table project(WorksheetModel.TableModel t, Boolean current) {
       List<PaneContext.Field> fields = t.columns() == null ? List.of() : t.columns().stream()
-         .map(c -> new PaneContext.Field(c.name(), c.type())).toList();
+         .map(c -> new PaneContext.Field(addressedAs(c), c.type())).toList();
 
       return new PaneContext.Table(t.name(), current, fields);
+   }
+
+   /**
+    * The name an expression addresses the column by. A column the table exposes under an alias
+    * (a duplicate join key such as ORDER_ID_1, or a renamed column) is only reachable by that
+    * alias, so it is listed by it; a column without one is listed by its name.
+    */
+   private static String addressedAs(WorksheetModel.ColumnModel c) {
+      return c.alias() != null && !c.alias().isBlank() ? c.alias() : c.name();
    }
 
    private final WorksheetReadService readService;

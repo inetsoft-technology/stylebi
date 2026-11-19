@@ -19,7 +19,10 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.asset.AssetVariable;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.DefaultVariableAssembly;
+import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
@@ -141,6 +144,28 @@ class WorksheetPaneContextControllerTest {
                       controller.paneContext("T-" + kind, agent).syntax().language(),
                       "switching back needs no re-pairing");
       }
+   }
+
+   /**
+    * Bug #81787: a column the table exposes under an alias (a duplicate join key, a renamed
+    * column) is only reachable by that alias, so the pane lists it by the alias, not its source
+    * name; a column without an alias keeps its name.
+    */
+   @Test
+   void aColumnExposedUnderAnAliasIsListedByTheAliasAndOthersByTheirName() throws Exception {
+      Worksheet ws = rws.getWorksheet();
+      EmbeddedTableAssembly joined =
+         TestWorksheets.tableWithColumns(ws, "Joined", "K", "K2", "RV", "LV");
+      ColumnSelection cs = joined.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute(1)).setAlias("K_1");
+      ((ColumnRef) cs.getAttribute(2)).setAlias("RVRenamed");
+      ws.addAssembly(joined);
+
+      PaneContext ctx = serve("T-ALIAS", new EditorContext("worksheetExpression", "Joined", "Expr",
+                                                           null, true));
+
+      assertEquals(List.of("K", "K_1", "RVRenamed", "LV"),
+                   ctx.columns().get(0).fields().stream().map(PaneContext.Field::column).toList());
    }
 
    @Test
