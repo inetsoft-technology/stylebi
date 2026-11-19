@@ -4,6 +4,32 @@
       "name": "Collection Articles",
       "paged": true,
       "suffix": "/v1/collections/{Collection ID}/articles?status={Status?:all|published|notpublished}",
+      "responseSchema": {
+        "articles": {
+          "page": "double",
+          "pages": "double",
+          "count": "double",
+          "items": [
+            {
+              "id": "string",
+              "number": "double",
+              "collectionId": "string",
+              "slug": "string",
+              "status": "string",
+              "hasDraft": "boolean",
+              "name": "string",
+              "publicUrl": "string",
+              "popularity": "double",
+              "viewCount": "double",
+              "createdBy": "double",
+              "updatedBy": "double",
+              "createdAt": "timeInstant",
+              "updatedAt": "timeInstant",
+              "lastPublishedAt": "timeInstant"
+            }
+          ]
+        }
+      },
       "lookups": [
         {
           "endpoint": "Article",
@@ -27,6 +53,32 @@
       "name": "Category Articles",
       "paged": true,
       "suffix": "/v1/categories/{Category ID}/articles?status={Status?:all|published|notpublished}",
+      "responseSchema": {
+        "articles": {
+          "page": "double",
+          "pages": "double",
+          "count": "double",
+          "items": [
+            {
+              "id": "string",
+              "number": "double",
+              "collectionId": "string",
+              "slug": "string",
+              "status": "string",
+              "hasDraft": "boolean",
+              "name": "string",
+              "publicUrl": "string",
+              "popularity": "double",
+              "viewCount": "double",
+              "createdBy": "double",
+              "updatedBy": "double",
+              "createdAt": "timeInstant",
+              "updatedAt": "timeInstant",
+              "lastPublishedAt": "timeInstant"
+            }
+          ]
+        }
+      },
       "lookups": [
         {
           "endpoint": "Article",
@@ -50,12 +102,62 @@
       "name": "Article Search",
       "paged": true,
       "suffix": "/v1/search/articles?query={Query}&collectionId={Collection ID?}&siteId={Site ID?}&status={Status?:all|published|notpublished}&visibility={Visibility?:all|public|private}",
+      "responseSchema": {
+        "articles": {
+          "page": "double",
+          "pages": "double",
+          "count": "double",
+          "items": [
+            {
+              "id": "string",
+              "collectionId": "string",
+              "categoryIds": [
+                "string"
+              ],
+              "slug": "string",
+              "name": "string",
+              "preview": "string",
+              "url": "string",
+              "docsUrl": "string",
+              "number": "double",
+              "status": "string",
+              "visibility": "string"
+            }
+          ]
+        }
+      },
       "description": "Articles matching a search term, optionally within one collection or site. Full-text across titles and bodies."
     },
     {
       "name": "Related Articles",
       "paged": true,
       "suffix": "/v1/articles/{Article ID}/related?status={Status?:all|published|notpublished}",
+      "responseSchema": {
+        "articles": {
+          "page": "double",
+          "pages": "double",
+          "count": "double",
+          "items": [
+            {
+              "id": "string",
+              "number": "double",
+              "collectionId": "string",
+              "slug": "string",
+              "status": "string",
+              "hasDraft": "boolean",
+              "name": "string",
+              "publicUrl": "string",
+              "popularity": "double",
+              "viewCount": "double",
+              "createdBy": "double",
+              "updatedBy": "double",
+              "createdAt": "timeInstant",
+              "updatedAt": "timeInstant",
+              "lastPublishedAt": "timeInstant"
+            }
+          ]
+        }
+      },
       "lookups": [
         {
           "endpoint": "Article",
@@ -79,24 +181,112 @@
       "name": "Revisions",
       "paged": true,
       "suffix": "/v1/articles/{Article ID}/revisions",
+      "responseSchema": {
+        "revisions": {
+          "page": "double",
+          "pages": "double",
+          "count": "double",
+          "items": [
+            {
+              "id": "string",
+              "articleId": "string",
+              "createdBy": {
+                "id": "double",
+                "firstName": "string",
+                "lastName": "string"
+              },
+              "createdAt": "timeInstant"
+            }
+          ]
+        }
+      },
       "description": "The edit history of one article, each revision with its author and timestamp. Requires an article id. The article carries only its current text, so this is the only record of when documentation changed and who changed it."
     },
     {
       "name": "Article",
       "paged": false,
       "suffix": "/v1/articles/{Article ID or Number}?draft={Draft: false|true}",
+      "responseSchema": {
+        "article": {
+          "id": "string",
+          "number": "double",
+          "collectionId": "string",
+          "slug": "string",
+          "status": "string",
+          "hasDraft": "boolean",
+          "name": "string",
+          "text": "string",
+          "categories": [
+            "string"
+          ],
+          "related": [
+            "string"
+          ],
+          "publicUrl": "string",
+          "popularity": "double",
+          "keywords": [
+            "string"
+          ],
+          "viewCount": "double",
+          "createdBy": "double",
+          "updatedBy": "double",
+          "createdAt": "timeInstant",
+          "updatedAt": "timeInstant",
+          "lastPublishedAt": "timeInstant"
+        }
+      },
       "description": "One article by id or number, with its full text. The draft parameter returns the unpublished version where one exists, which is how a pending rewrite is seen."
     },
     {
       "name": "Revision",
       "paged": false,
       "suffix": "/v1/revisions/{Revision ID}",
+      "responseSchema": {
+        "revision": {
+          "id": "string",
+          "articleId": "string",
+          "text": "string",
+          "createdBy": {
+            "id": "double",
+            "firstName": "string",
+            "lastName": "string"
+          },
+          "createdAt": "timeInstant"
+        }
+      },
       "description": "One revision by id, with the article text as it stood then."
     },
     {
       "name": "Categories",
       "paged": true,
       "suffix": "/v1/collections/{Collection ID}/categories",
+      "responseSchema": {
+        "categories": {
+          "page": "double",
+          "pages": "double",
+          "count": "double",
+          "items": [
+            {
+              "id": "string",
+              "number": "double",
+              "slug": "string",
+              "visibility": "string",
+              "collectionId": "string",
+              "order": "double",
+              "defaultSort": "string",
+              "name": "string",
+              "description": "string",
+              "articleCount": "double",
+              "publishedArticleCount": "double",
+              "publicUrl": "string",
+              "createdBy": "double",
+              "updatedBy": "double",
+              "createdAt": "timeInstant",
+              "updatedAt": "timeInstant"
+            }
+          ]
+        }
+      },
       "lookups": [
         {
           "endpoint": "Category Articles",
@@ -111,12 +301,58 @@
       "name": "Category",
       "paged": false,
       "suffix": "/v1/categories/{Category ID or Number}",
+      "responseSchema": {
+        "category": {
+          "id": "string",
+          "number": "double",
+          "slug": "string",
+          "visibility": "string",
+          "collectionId": "string",
+          "order": "double",
+          "defaultSort": "string",
+          "name": "string",
+          "description": "string",
+          "articleCount": "double",
+          "publishedArticleCount": "double",
+          "publicUrl": "string",
+          "createdBy": "double",
+          "updatedBy": "double",
+          "createdAt": "timeInstant",
+          "updatedAt": "timeInstant"
+        }
+      },
       "description": "One category by id or number."
     },
     {
       "name": "Collections",
       "paged": true,
       "suffix": "/v1/collections?siteId={Site ID?}&visibility={Visibility?:all|public|private}",
+      "responseSchema": {
+        "collections": {
+          "page": "double",
+          "pages": "double",
+          "count": "double",
+          "items": [
+            {
+              "id": "string",
+              "siteId": "string",
+              "number": "double",
+              "slug": "string",
+              "visibility": "string",
+              "order": "double",
+              "name": "string",
+              "description": "string",
+              "publicUrl": "string",
+              "articleCount": "double",
+              "publishedArticleCount": "double",
+              "createdBy": "double",
+              "updatedBy": "double",
+              "createdAt": "timeInstant",
+              "updatedAt": "timeInstant"
+            }
+          ]
+        }
+      },
       "lookups": [
         {
           "endpoints": [
@@ -134,36 +370,162 @@
       "name": "Collection",
       "paged": false,
       "suffix": "/v1/collections/{Collection ID or Number}",
+      "responseSchema": {
+        "collection": {
+          "id": "string",
+          "siteId": "string",
+          "number": "double",
+          "slug": "string",
+          "visibility": "string",
+          "order": "double",
+          "name": "string",
+          "description": "string",
+          "publicUrl": "string",
+          "articleCount": "double",
+          "publishedArticleCount": "double",
+          "createdBy": "double",
+          "updatedBy": "double",
+          "createdAt": "timeInstant",
+          "updatedAt": "timeInstant"
+        }
+      },
       "description": "One collection by id or number."
     },
     {
       "name": "Redirects",
       "paged": true,
       "suffix": "/v1/redirects/site/{Site ID}",
+      "responseSchema": {
+        "redirects": {
+          "page": "double",
+          "pages": "double",
+          "count": "double",
+          "items": [
+            {
+              "id": "string",
+              "siteId": "string",
+              "urlMapping": "string",
+              "documentId": "string",
+              "type": "string",
+              "redirect": "string",
+              "anchor": "string",
+              "createdBy": "double",
+              "createdAt": "timeInstant"
+            }
+          ]
+        }
+      },
       "description": "The URL redirects configured for one site. Requires a site id. Where an article was moved or renamed, this is what keeps the old link working -- and the record of what used to live at a given address."
     },
     {
       "name": "Redirect",
       "paged": false,
       "suffix": "/v1/redirects/{Redirect ID}",
+      "responseSchema": {
+        "redirect": {
+          "id": "string",
+          "siteId": "string",
+          "urlMapping": "string",
+          "documentId": "string",
+          "type": "string",
+          "redirect": "string",
+          "anchor": "string",
+          "createdBy": "double",
+          "createdAt": "timeInstant"
+        }
+      },
       "description": "One redirect by id."
     },
     {
       "name": "Redirect Search",
       "paged": false,
       "suffix": "v1/redirects?url={URL}&siteId={Site ID}",
+      "responseSchema": {
+        "redirectedUrl": {
+          "type": "string",
+          "redirect": "string",
+          "slug": "string",
+          "number": "double",
+          "anchor": "string"
+        }
+      },
       "description": "Finds the redirect matching a given URL. Requires the URL and site id. Answers where a specific old link now points."
     },
     {
       "name": "Sites",
       "paged": true,
       "suffix": "/v1/sites",
+      "responseSchema": {
+        "sites": {
+          "page": "double",
+          "pages": "double",
+          "count": "double",
+          "items": [
+            {
+              "id": "string",
+              "status": "string",
+              "subDomain": "string",
+              "cname": "string",
+              "hasPublicSite": "boolean",
+              "companyName": "string",
+              "title": "string",
+              "logoUrl": "string",
+              "logoWidth": "double",
+              "logoHeight": "double",
+              "favIconUrl": "string",
+              "touchIconUrl": "string",
+              "homeUrl": "string",
+              "homeLinkText": "string",
+              "bgColor": "string",
+              "description": "string",
+              "hasContactForm": "boolean",
+              "mailboxId": "double",
+              "contactEmail": "string",
+              "styleSheetUrl": "string",
+              "headerCode": "string",
+              "createdBy": "double",
+              "updatedBy": "double",
+              "createdAt": "timeInstant",
+              "updatedAt": "timeInstant"
+            }
+          ]
+        }
+      },
       "description": "The Docs sites on the account, each with its subdomain, title and status. A site is a knowledge base; everything else here belongs to one, so this is the first request on a multi-site account."
     },
     {
       "name": "Site",
       "paged": false,
       "suffix": "/v1/sites/{Site ID}",
+      "responseSchema": {
+        "site": {
+          "id": "string",
+          "status": "string",
+          "subDomain": "string",
+          "cname": "string",
+          "hasPublicSite": "boolean",
+          "companyName": "string",
+          "title": "string",
+          "logoUrl": "string",
+          "logoWidth": "double",
+          "logoHeight": "double",
+          "favIconUrl": "string",
+          "touchIconUrl": "string",
+          "homeUrl": "string",
+          "homeLinkText": "string",
+          "bgColor": "string",
+          "description": "string",
+          "hasContactForm": "boolean",
+          "mailboxId": "double",
+          "contactEmail": "string",
+          "styleSheetUrl": "string",
+          "headerCode": "string",
+          "createdBy": "double",
+          "updatedBy": "double",
+          "createdAt": "timeInstant",
+          "updatedAt": "timeInstant"
+        }
+      },
       "description": "One site by id."
     }
   ]
