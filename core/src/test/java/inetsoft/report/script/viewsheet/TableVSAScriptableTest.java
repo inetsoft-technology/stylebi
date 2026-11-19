@@ -24,6 +24,8 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.report.lens.AttributeTableLens;
+import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.report.TableLens;
 import inetsoft.report.painter.*;
 import inetsoft.report.script.TableArray;
 import inetsoft.report.script.TableRow;
@@ -372,6 +374,92 @@ public class TableVSAScriptableTest {
          RuntimeException.class, () -> tableVSAScriptable2.getFormRows(Boolean.TRUE));
       assertEquals("Unsupported state : true", boolError.getMessage());
       assertFalse(boolError instanceof NullPointerException);
+   }
+
+   /**
+    * A form row as the script sees it: rowState, length and rowIndex are members, a column is read by name or index.
+    */
+   @Test
+   void formRowIsReadByMemberNameAndIndex() throws Exception {
+      processAssembly("TableView2");
+
+      ScriptArrayScope row = formRow(1);
+      TableLens lens = (TableLens) tableVSAScriptable2.getMember("tablelens");
+      int cols = lens.getColCount();
+
+      assertEquals(FormTableRow.OLD, row.getMember("rowState"));
+      assertEquals(cols, row.getMember("length"));
+      assertNotNull(row.getMember("rowIndex"));
+
+      Object first = row.getArrayElement(0);
+      assertEquals(lens.getObject(1, 0), first);
+      assertEquals(first, row.getMember(String.valueOf(lens.getObject(0, 0))), "a column is also a member by header");
+
+      assertNull(row.getMember("noSuchColumn"));
+      assertNull(row.getArrayElement(-1));
+      assertNull(row.getArrayElement(cols));
+   }
+
+   @Test
+   void formRowsFollowTheRowStateAndAnOmittedStateMeansAll() throws Exception {
+      processAssembly("TableView2");
+
+      tableVSAScriptable2.setObject(1, 1, "999");
+      int all = formRows(null).length;
+
+      assertEquals(all, formRows(null).length);
+      assertEquals(1, formRows("changed").length);
+      assertEquals(FormTableRow.CHANGED, formRows("changed")[0].getMember("rowState"));
+      assertEquals(1, formRows(FormTableRow.CHANGED).length);
+      assertEquals(all - 1, formRows(FormTableRow.OLD).length);
+      assertEquals(0, formRows("deleted").length);
+   }
+
+   @Test
+   void disabledFormGivesAnEmptyRowAndNoRows() throws Exception {
+      processAssembly("TableView2");
+      tableVSAScriptable2.setDisableForm(true);
+
+      assertTrue(tableVSAScriptable2.isDisableForm());
+      assertEquals(0, formRows(null).length);
+      assertEquals(0, formRows("changed").length);
+
+      // the placeholder row is an empty added row, whatever the index
+      ScriptArrayScope row = formRow(1);
+      assertEquals(FormTableRow.ADDED, row.getMember("rowState"));
+      assertNull(row.getMember("noSuchColumn"));
+   }
+
+   @Test
+   void hiddenColumnValueIsNullForAVisibleOrUnknownColumn() throws Exception {
+      processAssembly("TableView2");
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) tableVSAssembly2.getVSAssemblyInfo();
+      String visible = null;
+
+      for(int i = 0; i < info.getColumnSelection().getAttributeCount(); i++) {
+         ColumnRef ref = (ColumnRef) info.getColumnSelection().getAttribute(i);
+
+         if(ref.isVisible()) {
+            visible = ref.getName();
+            break;
+         }
+      }
+
+      assertNotNull(visible);
+      assertNull(tableVSAScriptable2.getHiddenColumnValue(visible, 1));
+      assertNull(tableVSAScriptable2.getHiddenColumnValue("noSuchColumn", 1));
+   }
+
+   private ScriptArrayScope formRow(int r) {
+      // the row class is private to the scriptable, so it is only used through its interface
+      Object row = tableVSAScriptable2.getFormRow(r);
+      return (ScriptArrayScope) row;
+   }
+
+   private ScriptArrayScope[] formRows(Object state) {
+      Object[] rows = tableVSAScriptable2.getFormRows(state);
+      return Arrays.copyOf(rows, rows.length, ScriptArrayScope[].class);
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {
