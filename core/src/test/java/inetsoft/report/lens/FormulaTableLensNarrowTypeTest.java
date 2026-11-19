@@ -145,6 +145,33 @@ class FormulaTableLensNarrowTypeTest {
       assertEquals("abc", evaluate(Integer.class, "'abc'", false));
    }
 
+   /**
+    * Bug #81682: a Time column over a date-time value holds the time of day on 1970-01-01, so
+    * the same time on two dates is the same value.
+    */
+   @Test
+   void timeColumnOverTimestampDropsDate() throws Exception {
+      AssetQuerySandbox box = PoolTestSupport.poolBox(false);
+      DefaultTableLens base = new DefaultTableLens(new Object[][] {
+         { "ts" },
+         { java.sql.Timestamp.valueOf("2018-12-20 00:02:07") },
+         { java.sql.Timestamp.valueOf("2019-10-10 00:02:07") }
+      });
+      FormulaTableLens lens = new FormulaTableLens(
+         base, new String[] { "calc" }, new String[] { "field['ts']" }, box.getScriptEnv(),
+         box.getScope());
+      lens.setColType(base.getColCount(), java.sql.Time.class);
+
+      Object first = lens.getObject(1, base.getColCount());
+      Object second = lens.getObject(2, base.getColCount());
+      assertInstanceOf(java.sql.Time.class, first);
+      assertEquals(first, second);
+      assertEquals(java.time.LocalDate.of(1970, 1, 1),
+                   java.time.Instant.ofEpochMilli(((java.sql.Time) first).getTime())
+                      .atZone(java.time.ZoneId.systemDefault()).toLocalDate());
+      assertEquals(java.time.LocalTime.of(0, 2, 7), ((java.sql.Time) first).toLocalTime());
+   }
+
    private static Class<?> declared(String type) {
       return switch(type) {
          case "Integer" -> Integer.class;

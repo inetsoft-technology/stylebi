@@ -2258,7 +2258,21 @@ public class CoreTool {
    }
 
    /**
-    * Get the time data.
+    * Create a time whose date part is cleared to 1970-01-01 in the JVM default zone and whose
+    * time of day is that of the specified instant.
+    */
+   private static java.sql.Time toTimeOfDay(long millis) {
+      java.util.Calendar cal = new java.util.GregorianCalendar();
+      cal.setTimeInMillis(millis);
+      cal.set(java.util.Calendar.YEAR, 1970);
+      cal.set(java.util.Calendar.MONTH, java.util.Calendar.JANUARY);
+      cal.set(java.util.Calendar.DAY_OF_MONTH, 1);
+      return new java.sql.Time(cal.getTimeInMillis());
+   }
+
+   /**
+    * Get the time data. A date or date-time value is converted to its time of day on
+    * 1970-01-01, the same value the MV and JDBC time columns carry.
     * @param val the specified value.
     * @return the time data.
     */
@@ -2270,7 +2284,7 @@ public class CoreTool {
          return (java.sql.Time) val;
       }
       else if(val instanceof Date) {
-         return new java.sql.Time(((Date) val).getTime());
+         return toTimeOfDay(((Date) val).getTime());
       }
       else if(val instanceof String) {
          Object time = getData(TIME, (String) val);
@@ -2287,7 +2301,7 @@ public class CoreTool {
       }
       else {
          java.sql.Timestamp ts = getTemporalTimestamp(val);
-         return ts == null ? null : new java.sql.Time(ts.getTime());
+         return ts == null ? null : toTimeOfDay(ts.getTime());
       }
    }
 
