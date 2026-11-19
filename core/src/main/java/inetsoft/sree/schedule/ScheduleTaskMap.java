@@ -76,6 +76,9 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          curOrg = Organization.getDefaultOrganizationID();
       }
 
+      // Bug #81785, read before anything is loaded so that a write that lands while this call is
+      // loading is noticed when the loaded task is about to be cached
+      long epoch = writeEpoch.get();
       long ts = indexedStorage.lastModified(identifier, curOrg);
       TaskWrapper wrapper = cache.get(identifier);
 
@@ -92,7 +95,13 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
                task.setLegacyOwnerOrganization(curOrg);
             }
 
-            cache.put(identifier, new TaskWrapper(task, ts));
+            TaskWrapper loaded = new TaskWrapper(task, ts);
+
+            // Bug #81785, a put or remove of the task that ran while it was loaded evicted the
+            // cache entry; caching the older task here would bring it back, and when the write
+            // has the same millisecond as the one loaded, the timestamp can't tell them apart.
+            // The check and the store are atomic with the eviction (same key in the map).
+            cache.compute(identifier, (k, current) -> writeEpoch.get() == epoch ? loaded : current);
          }
       }
       catch(Exception e) {
@@ -100,6 +109,17 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       }
 
       return task;
+   }
+
+   /**
+    * Removes the cached task and records the write, so that a reader that loaded the task before
+    * the write doesn't put the older task back in the cache (see {@link #get(Object)}).
+    */
+   private void evict(String identifier) {
+      cache.compute(identifier, (k, v) -> {
+         writeEpoch.incrementAndGet();
+         return null;
+      });
    }
 
    public void clearCache() {
@@ -190,7 +210,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          // which doesn't change when the new task is written in the same millisecond as the old
          // one, so don't keep the old task cached. Also evicted after a failed write, since the
          // task may or may not have been written.
-         cache.remove(key);
+         evict(key);
          indexedStorage.close();
       }
 
@@ -208,7 +228,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          root.removeEntry(entry);
          indexedStorage.putXMLSerializable(getRootIdentifier(orgID), root);
          indexedStorage.remove(identifier);
-         cache.remove(identifier);
+         evict(identifier);
 
          // should remove the task from folder when delete a task.
          if(task != null && !StringUtils.isEmpty(task.getPath())) {
@@ -660,6 +680,8 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    private final IndexedStorage indexedStorage;
    private final String orgID;
    private final Map<String, TaskWrapper> cache = new ConcurrentHashMap<>();
+   private final java.util.concurrent.atomic.AtomicLong writeEpoch =
+      new java.util.concurrent.atomic.AtomicLong();
    private final Map<String, Long> rootTS = new ConcurrentHashMap<>();
    private Map<String, AssetFolder> rootFolders = new ConcurrentHashMap<>();
    private static final Logger LOG =
