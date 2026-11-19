@@ -299,7 +299,6 @@ class ScheduleTaskMultiCompletionTest {
    // counted once every parent pass has returned and no trigger of it is left.
 
    @Test
-   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
    void twoParentsEndTogether_dependantRunsExactlyOnceEveryRound() throws Exception {
       int rounds = 15;
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(8);
@@ -334,7 +333,6 @@ class ScheduleTaskMultiCompletionTest {
    }
 
    @Test
-   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
    void threeParentsEndTogether_dependantRunsExactlyOnceEveryRound() throws Exception {
       int rounds = 10;
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(8);
@@ -373,7 +371,6 @@ class ScheduleTaskMultiCompletionTest {
    }
 
    @Test
-   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
    void dependantRunning_twoParentsEndTogetherAgain_dependantRunsOnceMoreNotTwice()
       throws Throwable
    {

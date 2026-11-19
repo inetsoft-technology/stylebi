@@ -60,7 +60,7 @@ import static org.mockito.Mockito.*;
  * storage and real Quartz. Split from {@link JobCompletionListenerStatusTest} because every test
  * of those classes pays about half a second to start and stop the harness.
  */
-@Tag("core")
+@Tag("slow")
 class JobCompletionListenerParentsTogetherTest {
    private SchedulerTestHarness harness;
    private JobCompletionListener listener;
@@ -69,6 +69,7 @@ class JobCompletionListenerParentsTogetherTest {
    private Principal savedPrincipal;
    private final Map<String, AtomicInteger> runs = new ConcurrentHashMap<>();
    private final Map<String, AtomicInteger> arrivals = new ConcurrentHashMap<>();
+   private final Map<String, Long> starts = new ConcurrentHashMap<>();
    private final AtomicReference<CountDownLatch> gate =
       new AtomicReference<>(new CountDownLatch(0));
 
@@ -107,7 +108,6 @@ class JobCompletionListenerParentsTogetherTest {
    // ---------------------------------------------------------------------------------------
 
    @Test
-   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
    void twoParentsFinishTogether_dependantStartHeld_dependantRunsExactlyOnce() throws Exception {
       installListeners(true);
       ScheduleTask p1 = parent("gated-two-p1");
@@ -126,7 +126,6 @@ class JobCompletionListenerParentsTogetherTest {
    }
 
    @Test
-   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
    void twoParentsFinishTogetherInReverseOrder_dependantStartHeld_dependantRunsExactlyOnce()
       throws Exception
    {
@@ -168,7 +167,6 @@ class JobCompletionListenerParentsTogetherTest {
    }
 
    @Test
-   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
    void threeParentsFinishTogether_dependantStartHeld_dependantRunsExactlyOnce() throws Exception {
       installListeners(true);
       ScheduleTask p1 = parent("gated-three-p1");
@@ -207,7 +205,6 @@ class JobCompletionListenerParentsTogetherTest {
    }
 
    @Test
-   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
    void twoParentsFinishOnTwoThreadsAtOnce_dependantRunsExactlyOnceEveryRound() throws Exception {
       installListeners(true);
       int rounds = 50;
@@ -243,7 +240,6 @@ class JobCompletionListenerParentsTogetherTest {
    }
 
    @Test
-   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
    void threeParentsFinishOnThreeThreadsAtOnce_dependantRunsExactlyOnceEveryRound()
       throws Exception
    {
@@ -284,7 +280,6 @@ class JobCompletionListenerParentsTogetherTest {
    }
 
    @Test
-   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
    void dependantAlreadyRunning_twoParentsFinishAgain_dependantIsTriggeredExactlyOnceMore()
       throws Exception
    {
@@ -519,8 +514,14 @@ class JobCompletionListenerParentsTogetherTest {
       return child;
    }
 
+   // Every parent ends once: the end time written before the passes is the end time of that
+   // parent's own pass, so the same start (and end) is used for both.
+   private long startOf(ScheduleTask task) {
+      return starts.computeIfAbsent(task.getTaskId(), k -> System.currentTimeMillis() - 5000);
+   }
+
    private void markFinished(ScheduleTask task) {
-      markFinished(task, System.currentTimeMillis() - 5000);
+      markFinished(task, startOf(task));
    }
 
    private void markFinished(ScheduleTask task, long start) {
@@ -529,8 +530,7 @@ class JobCompletionListenerParentsTogetherTest {
    }
 
    private JobExecutionContext finishedContext(ScheduleTask task) {
-      return context(task, jobData(task), new JobDataMap(),
-                     new Date(System.currentTimeMillis() - 5000), 10L);
+      return context(task, jobData(task), new JobDataMap(), new Date(startOf(task)), 10L);
    }
 
    private void finish(ScheduleTask task) throws Exception {
