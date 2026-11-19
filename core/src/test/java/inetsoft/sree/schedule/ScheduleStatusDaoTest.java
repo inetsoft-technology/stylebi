@@ -39,6 +39,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import ch.qos.logback.classic.Level;
@@ -339,6 +346,45 @@ public class ScheduleStatusDaoTest {
       dao.clearStatus("task");
 
       assertTrue(Thread.interrupted()); // returns true and clears flag; currently FAILS
+   }
+
+   @Test
+   void setStatus_eightThreadsOnEightTasks_everyTaskReadsBackItsOwnStatusAndTimes()
+      throws Exception
+   {
+      InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
+      ScheduleStatusDao dao = newDao(storage);
+      int threads = 8;
+      CyclicBarrier barrier = new CyclicBarrier(threads);
+      ExecutorService pool =
+         Executors.newFixedThreadPool(threads);
+
+      try {
+         List<Future<?>> futures = new ArrayList<>();
+
+         for(int i = 0; i < threads; i++) {
+            int n = i;
+            futures.add(pool.submit(() -> {
+               barrier.await(10, TimeUnit.SECONDS);
+               dao.setStatus("parallel-task-" + n, Scheduler.Status.FINISHED, 1000L + n,
+                             2000L + n, null, false);
+               return null;
+            }));
+         }
+
+         for(Future<?> future : futures) {
+            future.get(10, TimeUnit.SECONDS);
+         }
+      }
+      finally {
+         pool.shutdownNow();
+         assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+      }
+
+      for(int i = 0; i < threads; i++) {
+         assertStatus(dao.getStatus("parallel-task-" + i), Scheduler.Status.FINISHED, 1000L + i,
+                      2000L + i, null, 1000L + i);
+      }
    }
 
    private static ScheduleStatusDao newDao(InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage) {

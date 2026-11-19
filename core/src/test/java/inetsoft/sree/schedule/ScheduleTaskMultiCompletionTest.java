@@ -22,8 +22,12 @@ import org.quartz.*;
 import org.quartz.listeners.JobListenerSupport;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static inetsoft.sree.schedule.Scheduler.Status.*;
@@ -45,6 +49,8 @@ import static org.mockito.Mockito.*;
 class ScheduleTaskMultiCompletionTest {
    private SchedulerTestHarness harness;
    private final Map<String, AtomicInteger> runs = new ConcurrentHashMap<>();
+   private final AtomicInteger barrierTrips = new AtomicInteger();
+   private final AtomicBoolean barrierBroken = new AtomicBoolean();
 
    @BeforeEach
    void setUp() throws Exception {
@@ -286,6 +292,194 @@ class ScheduleTaskMultiCompletionTest {
       run(p1, 1);
       run(p2, 1);
       assertRunsStay(dep, 0);
+   }
+
+   // Two or more parents of a real Quartz scheduler end their runs together, held by a barrier
+   // placed before the completion listener, so their listener passes overlap. The dependant is
+   // counted once every parent pass has returned and no trigger of it is left.
+
+   @Test
+   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
+   void twoParentsEndTogether_dependantRunsExactlyOnceEveryRound() throws Exception {
+      int rounds = 15;
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(8);
+      List<String> wrong = new ArrayList<>();
+      CyclicBarrier barrier = new CyclicBarrier(2);
+      Set<String> parentIds = ConcurrentHashMap.newKeySet();
+      installFinishBarrier(barrier, parentIds);
+
+      int played = 0;
+      for(int round = 0; round < rounds && System.nanoTime() < deadline; round++) {
+         ScheduleTask p1 = register(buildTask("p1-together2-" + round));
+         ScheduleTask p2 = register(buildTask("p2-together2-" + round));
+         ScheduleTask dep = register(buildTask("dep-together2-" + round, p1, p2));
+         parentIds.add(p1.getTaskId());
+         parentIds.add(p2.getTaskId());
+
+         harness.triggerNow(p1.getTaskId());
+         harness.triggerNow(p2.getTaskId());
+         waitForPasses(p1, 1);
+         waitForPasses(p2, 1);
+         awaitSettled(dep);
+
+         played++;
+         if(runs(dep) != 1) {
+            wrong.add("round " + round + ": " + runs(dep) + " runs");
+         }
+      }
+
+      assertParentsOverlapped(2, played);
+      assertTrue(wrong.isEmpty(),
+                 "the dependant must run exactly once every round, wrong rounds: " + wrong);
+   }
+
+   @Test
+   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
+   void threeParentsEndTogether_dependantRunsExactlyOnceEveryRound() throws Exception {
+      int rounds = 10;
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(8);
+      List<String> wrong = new ArrayList<>();
+      CyclicBarrier barrier = new CyclicBarrier(3);
+      Set<String> parentIds = ConcurrentHashMap.newKeySet();
+      installFinishBarrier(barrier, parentIds);
+
+      int played = 0;
+      for(int round = 0; round < rounds && System.nanoTime() < deadline; round++) {
+         ScheduleTask p1 = register(buildTask("p1-together3-" + round));
+         ScheduleTask p2 = register(buildTask("p2-together3-" + round));
+         ScheduleTask p3 = register(buildTask("p3-together3-" + round));
+         ScheduleTask dep = register(buildTask("dep-together3-" + round, p1, p2, p3));
+         parentIds.add(p1.getTaskId());
+         parentIds.add(p2.getTaskId());
+         parentIds.add(p3.getTaskId());
+
+         harness.triggerNow(p1.getTaskId());
+         harness.triggerNow(p2.getTaskId());
+         harness.triggerNow(p3.getTaskId());
+         waitForPasses(p1, 1);
+         waitForPasses(p2, 1);
+         waitForPasses(p3, 1);
+         awaitSettled(dep);
+
+         played++;
+         if(runs(dep) != 1) {
+            wrong.add("round " + round + ": " + runs(dep) + " runs");
+         }
+      }
+
+      assertParentsOverlapped(3, played);
+      assertTrue(wrong.isEmpty(),
+                 "the dependant must run exactly once every round, wrong rounds: " + wrong);
+   }
+
+   @Test
+   @Disabled("Bug #81706: A task with two parent tasks is triggered twice when both parents finish within a few milliseconds")
+   void dependantRunning_twoParentsEndTogetherAgain_dependantRunsOnceMoreNotTwice()
+      throws Throwable
+   {
+      CountDownLatch release = new CountDownLatch(1);
+      ScheduleTask p1 = register(buildTask("p1-busy-together"));
+      ScheduleTask p2 = register(buildTask("p2-busy-together"));
+      ScheduleTask dep = buildTask("dep-busy-together", blockingAction(release, 1));
+      dep.addCondition(new CompletionCondition(p1.getTaskId()));
+      dep.addCondition(new CompletionCondition(p2.getTaskId()));
+      registerSerial(dep);
+
+      run(p1, 1);
+      run(p2, 1);
+      harness.waitForStatus(dep.getTaskId(), STARTED, Duration.ofSeconds(10));
+
+      Set<String> parentIds = ConcurrentHashMap.newKeySet();
+      parentIds.add(p1.getTaskId());
+      parentIds.add(p2.getTaskId());
+      installFinishBarrier(new CyclicBarrier(2), parentIds);
+      harness.triggerNow(p1.getTaskId());
+      harness.triggerNow(p2.getTaskId());
+      waitForPasses(p1, 2);
+      waitForPasses(p2, 2);
+      release.countDown();
+      awaitSettled(dep);
+
+      assertParentsOverlapped(2, 1);
+      assertEquals(2, runs(dep),
+                   "the first run plus one more for the two parents that ended again together");
+   }
+
+   /**
+    * Puts a listener in front of the completion listener (after the gap listener) that makes the
+    * listener passes of the given parent tasks wait for each other.
+    */
+   private void installFinishBarrier(CyclicBarrier barrier, Set<String> parentIds)
+      throws SchedulerException
+   {
+      ListenerManager listeners = harness.getQuartz().getListenerManager();
+      JobListener completionListener = listeners.getJobListener("test-listener");
+      JobListener countListener = listeners.getJobListener("count-listener");
+      listeners.removeJobListener("test-listener");
+      listeners.removeJobListener("count-listener");
+      listeners.addJobListener(new JobListenerSupport() {
+         @Override
+         public String getName() {
+            return "finish-barrier-listener";
+         }
+
+         @Override
+         public void jobWasExecuted(JobExecutionContext context, JobExecutionException e) {
+            if(!parentIds.contains(context.getJobDetail().getKey().getName())) {
+               return;
+            }
+
+            try {
+               barrier.await(10, TimeUnit.SECONDS);
+               barrierTrips.incrementAndGet();
+            }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+               barrierBroken.set(true);
+            }
+            catch(Exception ex) {
+               // the parents did not meet: the test then reports it, see assertParentsOverlapped
+               barrierBroken.set(true);
+            }
+         }
+      });
+      listeners.addJobListener(completionListener);
+      listeners.addJobListener(countListener);
+   }
+
+   /**
+    * The parents of every round met at the barrier before the completion listener, so their
+    * listener passes did overlap. Without this a test could pass because nothing overlapped.
+    */
+   private void assertParentsOverlapped(int parties, int rounds) {
+      assertFalse(barrierBroken.get(), "the parents did not meet at the barrier");
+      assertEquals(parties * rounds, barrierTrips.get(), "listener passes that met at the barrier");
+   }
+
+   /** Waits for the n-th listener pass of the task, without asserting that none follows. */
+   private void waitForPasses(ScheduleTask task, int n) {
+      await().atMost(Duration.ofSeconds(10)).until(() -> runs(task) >= n);
+   }
+
+   /**
+    * Waits until the task has no trigger left (a trigger stays stored until its run is complete,
+    * listener passes included) and no run in progress.
+    */
+   private void awaitSettled(ScheduleTask task) {
+      JobKey key = new JobKey(task.getTaskId(), Scheduler.GROUP_NAME);
+      await().pollInterval(Duration.ofMillis(5)).atMost(Duration.ofSeconds(10)).until(() -> {
+         int pending = 0;
+
+         for(Trigger trigger : harness.getQuartz().getTriggersOfJob(key)) {
+            pending += trigger.getKey().getName().endsWith("-park") ? 0 : 1;
+         }
+
+         for(JobExecutionContext running : harness.getQuartz().getCurrentlyExecutingJobs()) {
+            pending += running.getJobDetail().getKey().equals(key) ? 1 : 0;
+         }
+
+         return pending == 0;
+      });
    }
 
    // -----------------------------------------------------------------------
