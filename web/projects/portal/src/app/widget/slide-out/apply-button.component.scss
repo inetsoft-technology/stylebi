@@ -75,6 +75,12 @@
   }
 }
 
+// the same seam when the addon has keyboard focus: its ring's left edge lies over Apply's dashed
+// divider, which shows through the translucent ring, so the divider hides then too
+.input-group:has(> .btn.btn-default.input-group-btn-addon:not(:disabled):focus-visible) > .btn.btn-default.input-group-btn {
+  border-right-color: transparent !important;
+}
+
 .input-group > .btn.btn-default.input-group-btn-addon:not(:disabled) {
   &:hover, &:active, &:focus {
     border-left: none !important;

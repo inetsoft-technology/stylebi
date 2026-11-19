@@ -148,3 +148,25 @@ describe("dark shell button press", () => {
       expect(press[0]).toMatch(/filter:\s*brightness\(1\.12\);/);
    });
 });
+
+describe("slide-out Apply split button seam", () => {
+   it("hides Apply's dashed divider while the addon has keyboard focus, as it does for Apply", () => {
+      const css = read("app/widget/slide-out/apply-button.component.scss");
+      const rule = css.match(
+         /^\.input-group:has\(> \.btn\.btn-default\.input-group-btn-addon:not\(:disabled\):focus-visible\) > \.btn\.btn-default\.input-group-btn\s*\{[^}]*\}/m);
+
+      expect(rule).not.toBeNull();
+      expect(rule[0]).toMatch(/border-right-color:\s*transparent !important;/);
+   });
+});
+
+describe("dark-only token reset list", () => {
+   it("names no token the dark shell no longer declares", () => {
+      const css = read("scss/_shell-dark.scss");
+      const list = css.match(/\$dark-only-tokens:([^;]*);/);
+
+      expect(list).not.toBeNull();
+      expect(list[1]).not.toMatch(/\bhover-ring-color\b/);
+      expect(css).not.toMatch(/--inet-dark-hover-ring-color\s*:/);
+   });
+});
