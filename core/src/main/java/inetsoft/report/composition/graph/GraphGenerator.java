@@ -1505,6 +1505,8 @@ public abstract class GraphGenerator {
          }
 
          colorFrame = (ColorFrame) rinfo.getNodeColorField().getVisualFrame().clone();
+         colorFrame = (ColorFrame) DivergingRamps.substitute(
+            colorFrame, rinfo.getNodeColorField().getVisualFrameWrapper(), vizContext);
          colorFrame.setField(rinfo.getNodeColorField().getFullName());
          colorFrame.getLegendSpec().setTitle(GraphUtil.getCaption(rinfo.getRTNodeColorField()));
 

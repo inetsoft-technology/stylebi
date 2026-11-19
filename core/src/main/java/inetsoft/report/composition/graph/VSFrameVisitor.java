@@ -402,6 +402,12 @@ public class VSFrameVisitor {
       }
 
       frame = (VisualFrame) frame.clone();
+
+      if(strategy instanceof VSColorFrameStrategy) {
+         frame = DivergingRamps.substitute(frame, tref.getVisualFrameWrapper(),
+                                           ((VSColorFrameStrategy) strategy).getVizContext());
+      }
+
       // legendSpec is only set at runtime by graph generator, clear it so no
       // leftovers from last run
       frame.setLegendSpec(new LegendSpec());
