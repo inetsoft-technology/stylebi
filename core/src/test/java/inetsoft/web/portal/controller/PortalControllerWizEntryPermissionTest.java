@@ -124,6 +124,24 @@ class PortalControllerWizEntryPermissionTest {
       }
    }
 
+   private String wizUrlFor(String user) throws Exception {
+      SRPrincipal principal = builder.principalOf(user, ORG);
+      ThreadContext.setContextPrincipal(principal);
+      return controller.getUserPortal(principal, "/").wizUrl();
+   }
+
+   @Test
+   void theWizUrlIsNotSentToAUserWhoCannotSeeTheButton() throws Exception {
+      assertNull(wizUrlFor(OTHER));
+      assertEquals("https://wiz.example.com/", wizUrlFor(GRANTEE));
+   }
+
+   @Test
+   void theWizUrlIsNotSentWhenTheButtonIsSwitchedOff() throws Exception {
+      SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "false");
+      assertNull(wizUrlFor(GRANTEE));
+   }
+
    private boolean wizVisibleFor(String user) throws Exception {
       SRPrincipal principal = builder.principalOf(user, ORG);
       ThreadContext.setContextPrincipal(principal);
