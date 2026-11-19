@@ -164,6 +164,32 @@ class SSOTokenServiceTest {
    }
 
    @Test
+   void createSSOToken_principalWithNullOrg_fallsBackToResolvedOrganization() throws Exception {
+      SRPrincipal p = new SRPrincipal(new IdentityID("carol", null), new IdentityID[0],
+                                      new String[0], null, 1L);
+      assertNull(p.getOrgId(), "precondition: principal has no org id");
+
+      String token = service.createSSOToken(p, "https://test.example.com");
+
+      String claim = SignedJWT.parse(token).getJWTClaimsSet().getStringClaim("organizationId");
+      assertNotNull(claim, "organizationId claim must always be present");
+      assertFalse(claim.isBlank(), "organizationId claim must not be blank");
+      assertEquals(OrganizationManager.getInstance().getCurrentOrgID(p), claim);
+   }
+
+   @Test
+   void createSSOToken_principalWithBlankOrg_fallsBackToResolvedOrganization() throws Exception {
+      SRPrincipal p = new SRPrincipal(new IdentityID("dave", null), new IdentityID[0],
+                                      new String[0], "  ", 1L);
+
+      String token = service.createSSOToken(p, "https://test.example.com");
+
+      String claim = SignedJWT.parse(token).getJWTClaimsSet().getStringClaim("organizationId");
+      assertNotNull(claim);
+      assertFalse(claim.isBlank());
+   }
+
+   @Test
    void createSSOToken_issuerUrl_isNormalizedWithoutTrailingSlash() throws Exception {
       SRPrincipal p = principal("user", "org");
 

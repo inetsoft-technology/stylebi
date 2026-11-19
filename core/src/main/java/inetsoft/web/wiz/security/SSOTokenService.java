@@ -119,7 +119,7 @@ public class SSOTokenService {
             .expirationTime(expirationTime)
             .claim("roles", roles)
             .claim("groups", srPrincipal.getGroups())
-            .claim("organizationId", srPrincipal.getOrgId())
+            .claim("organizationId", resolveOrganizationId(srPrincipal))
             .claim("appDomain", AppDomainUtils.getAppDomain(srPrincipal))
             .claim("secureId", srPrincipal.getSecureID())
             .claim("clientAddress", clientAddress)
@@ -192,6 +192,25 @@ public class SSOTokenService {
          // Fallback to a simple hash if thumbprint fails
          return Integer.toHexString(ssoKeyPair.getPublic().hashCode());
       }
+   }
+
+   /**
+    * The principal's org id can be null (security disabled / single tenant); the token must
+    * still carry an organization, so fall back to the resolved current organization.
+    */
+   private String resolveOrganizationId(SRPrincipal principal) {
+      String orgId = principal.getOrgId();
+
+      if(orgId == null || orgId.isBlank()) {
+         orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      }
+
+      // getCurrentOrgID treats only null/"" as missing, so a whitespace-only id can pass through
+      if(orgId == null || orgId.isBlank()) {
+         orgId = Organization.getDefaultOrganizationID();
+      }
+
+      return orgId;
    }
 
    private SRPrincipal convertPrincipal(Principal principal) {
