@@ -96,11 +96,20 @@ class PortalControllerWizEntryTest {
       ThreadContext.setContextPrincipal(savedContextPrincipal);
       ThreadContext.setPrincipal(savedPrincipal);
       SreeEnv.setProperty("security.provider", oldProvider == null ? "" : oldProvider);
-      SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, oldVisible == null ? "" : oldVisible);
-      SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_URL, oldUrl == null ? "" : oldUrl);
+      restore(WizPortalEntry.WIZ_PORTAL_VISIBLE, oldVisible);
+      restore(WizPortalEntry.WIZ_PORTAL_URL, oldUrl);
 
       if(builder != null) {
          builder.teardown();
+      }
+   }
+
+   private static void restore(String name, String oldValue) {
+      if(oldValue == null) {
+         SreeEnv.remove(name);
+      }
+      else {
+         SreeEnv.setProperty(name, oldValue);
       }
    }
 
