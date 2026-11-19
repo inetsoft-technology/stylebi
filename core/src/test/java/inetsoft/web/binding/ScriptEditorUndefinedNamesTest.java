@@ -68,6 +68,26 @@ class ScriptEditorUndefinedNamesTest {
    }
 
    @Test
+   void functionTreeHasNoUndefinedNames() throws Exception {
+      try(java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(
+         getClass().getResourceAsStream("/inetsoft/report/gui/jsFunctions.tree"),
+         java.nio.charset.StandardCharsets.UTF_8)))
+      {
+         String line;
+
+         while((line = in.readLine()) != null) {
+            if(!line.startsWith("	")) {
+               continue;
+            }
+
+            String name = line.trim().split("[(\s]")[0];
+            assertFalse(RHINO_ERA.contains(name),
+                        name + " in jsFunctions.tree is not defined by the script engine");
+         }
+      }
+   }
+
+   @Test
    void crosstabAndCalcTableDoNotListFormTableMethods() throws Exception {
       Properties props = new Properties();
 
