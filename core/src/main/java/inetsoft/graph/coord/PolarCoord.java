@@ -276,7 +276,7 @@ public class PolarCoord extends Coordinate {
       }
       // horizontal line into arc (or polygon segment when webGrid is on)
       else if(p1.getY() == p2.getY()) {
-         double r = getR(p1.getY());
+         double r = modernWeb ? dataRadius(p1.getY()) : getR(p1.getY());
          double yratio = getRatioY();
          int n = webGrid ? getSidesCount() : 0;
          boolean clockwise = drawsClockwise();
@@ -325,6 +325,11 @@ public class PolarCoord extends Coordinate {
    private double getR(double y) {
       double maxr = GHEIGHT / 2;
       return (type != PLUS) ? y : ((y / GHEIGHT) * (1 - holeRatio) + holeRatio) * maxr;
+   }
+
+   // the radius a data point at y is drawn at
+   private double dataRadius(double y) {
+      return type == PLUS ? getR(y) : y * Math.min(GWIDTH, GHEIGHT) / 2 / GHEIGHT;
    }
 
    /**
@@ -843,7 +848,8 @@ public class PolarCoord extends Coordinate {
    private void layoutGridLines(double plotd, DefaultAxis yaxis) {
       AffineTransform scale = AffineTransform.getScaleInstance(plotd / GWIDTH, plotd / GHEIGHT);
 
-      for(int k = 0; k < yaxis.getGridLineCount(); k++) {
+      // the grid line transform already scales a modern web's rings
+      for(int k = 0; !modernWeb && k < yaxis.getGridLineCount(); k++) {
          GridLine gridLine = yaxis.getGridLine(k);
          gridLine.setShape(scale.createTransformedShape(gridLine.getShape()));
       }
@@ -1269,7 +1275,8 @@ public class PolarCoord extends Coordinate {
              clockwiseFromTop == coord.clockwiseFromTop &&
              webGrid == coord.webGrid &&
              spokeLabelRule == coord.spokeLabelRule &&
-             sidesFromSpokes == coord.sidesFromSpokes;
+             sidesFromSpokes == coord.sidesFromSpokes &&
+             modernWeb == coord.modernWeb;
    }
 
    /**
@@ -1315,6 +1322,21 @@ public class PolarCoord extends Coordinate {
     */
    public boolean isSidesFromSpokes() {
       return sidesFromSpokes;
+   }
+
+   /**
+    * Set whether the rings of a radar are placed at their radius.
+    * @hidden
+    */
+   public void setModernWeb(boolean modernWeb) {
+      this.modernWeb = modernWeb;
+   }
+
+   /**
+    * @hidden
+    */
+   public boolean isModernWeb() {
+      return modernWeb;
    }
 
    private int getSidesCount() {
@@ -1369,6 +1391,7 @@ public class PolarCoord extends Coordinate {
    private boolean webGrid = false;
    private boolean spokeLabelRule = false;
    private boolean sidesFromSpokes = false;
+   private boolean modernWeb = false;
    private boolean minApplied;
    private transient double rx0 = Double.NaN; // cached radio ratio x
    private transient double rc0 = Double.NaN; // cached radio ratio c

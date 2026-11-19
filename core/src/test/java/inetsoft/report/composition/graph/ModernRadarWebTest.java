@@ -120,6 +120,7 @@ class ModernRadarWebTest {
 
       assertTrue(polar.isWebGrid());
       assertTrue(polar.isSidesFromSpokes());
+      assertTrue(polar.isModernWeb());
       assertTrue(((AbstractParallelCoord) polar.getCoordinate()).isEvenRings());
    }
 
@@ -130,6 +131,7 @@ class ModernRadarWebTest {
 
       assertFalse(polar.isWebGrid());
       assertFalse(polar.isSidesFromSpokes());
+      assertFalse(polar.isModernWeb());
       assertFalse(inner.isEvenRings());
 
       int checked = 0;

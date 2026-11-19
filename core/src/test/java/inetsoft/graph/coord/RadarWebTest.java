@@ -25,6 +25,7 @@ import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.AreaElement;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.guide.axis.DefaultAxis;
+import inetsoft.graph.guide.axis.PolarAxis;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.LinearScale;
@@ -40,6 +41,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Shape;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
@@ -160,6 +162,92 @@ class RadarWebTest {
       }
    }
 
+   @Test
+   void modernQuarterRingsSitAtTheirFraction() {
+      for(int[] size : new int[][] { { 400, 240 }, { 1200, 1200 } }) {
+         VGraph vgraph = vgraph(true, new double[] { 100, 7, 2000 }, GraphConstants.THIN_LINE,
+                                true, size[0], size[1]);
+         double outer = outerRadius(vgraph);
+
+         for(DefaultAxis spoke : spokesOf(vgraph)) {
+            assertEquals(3, spoke.getGridLineCount());
+
+            for(int k = 0; k < 3; k++) {
+               assertEquals((k + 1) / 4.0 * outer, paintedRadius(spoke, k), 0.5,
+                            size[0] + "x" + size[1] + " ring " + k);
+            }
+         }
+      }
+   }
+
+   @Test
+   void modernSharedTickRingsSitAtTheirValue() {
+      for(int[] size : new int[][] { { 400, 240 }, { 1200, 1200 } }) {
+         VGraph vgraph = vgraph(true, new double[] { 100, 100, 100 }, GraphConstants.THIN_LINE,
+                                true, size[0], size[1]);
+         double outer = outerRadius(vgraph);
+
+         for(DefaultAxis spoke : spokesOf(vgraph)) {
+            double[] ticks = spoke.getScale().getTicks();
+            assertTrue(spoke.getGridLineCount() > 1, "premise: several rings");
+
+            for(int k = 0; k < spoke.getGridLineCount(); k++) {
+               assertEquals(ticks[k] / 100 * outer, paintedRadius(spoke, k), 0.5,
+                            size[0] + "x" + size[1] + " tick " + ticks[k]);
+            }
+         }
+      }
+   }
+
+   @Test
+   void aTwoSpokeModernRadarRingsSitAtTheirFraction() {
+      VGraph vgraph = vgraph(true, new double[] { 100, 2000 }, GraphConstants.THIN_LINE,
+                             true, 400, 240);
+      double outer = outerRadius(vgraph);
+
+      for(DefaultAxis spoke : spokesOf(vgraph)) {
+         assertEquals(3, spoke.getGridLineCount());
+
+         for(int k = 0; k < 3; k++) {
+            assertEquals((k + 1) / 4.0 * outer, paintedRadius(spoke, k), 0.5, "arc " + k);
+         }
+      }
+   }
+
+   @Test
+   void classicRingsKeepTodaysRadius() {
+      VGraph vgraph = vgraph(true, new double[] { 100, 7, 2000 }, GraphConstants.THIN_LINE,
+                             false, 400, 240);
+      double outer = outerRadius(vgraph);
+
+      for(DefaultAxis spoke : spokesOf(vgraph)) {
+         for(int k = 0; k < 3; k++) {
+            assertEquals((k + 1) / 4.0 * 4 * outer * outer / 1000, paintedRadius(spoke, k), 0.5,
+                         "ring " + k);
+         }
+      }
+   }
+
+   // the outer ring radius after layout
+   private static double outerRadius(VGraph vgraph) {
+      for(Axis axis : vgraph.getCoordinate().getAxes(false)) {
+         if(axis instanceof PolarAxis polarAxis) {
+            return polarAxis.getWidth() / 2;
+         }
+      }
+
+      throw new AssertionError("no polar axis");
+   }
+
+   // the painted distance from the centre to a ring of a spoke
+   private static double paintedRadius(DefaultAxis spoke, int k) {
+      AffineTransform trans = spoke.getGridLineTransform();
+      Point2D c = trans.transform(new Point2D.Double(0, 0), null);
+      Point2D p = start(trans.createTransformedShape(spoke.getGridLine(k).getShape()));
+
+      return p.distance(c);
+   }
+
    // the distinct ring radii in ascending order; the centre is the mean of the segment starts
    private static List<Double> radii(List<DefaultAxis> spokes) {
       List<Point2D> starts = new ArrayList<>();
@@ -238,6 +326,12 @@ class RadarWebTest {
 
    // a 400x400 radar over one measure per max, each spoke from 0 to its max
    private static VGraph vgraph(boolean even, double[] max, int gridStyle) {
+      return vgraph(even, max, gridStyle, false, 400, 400);
+   }
+
+   private static VGraph vgraph(boolean even, double[] max, int gridStyle, boolean modern,
+                                int width, int height)
+   {
       int n = max.length;
       String[] names = new String[n];
       Scale[] scales = new Scale[n];
@@ -267,10 +361,12 @@ class RadarWebTest {
       inner.setEvenRings(even);
       PolarCoord polar = new PolarCoord(inner);
       polar.setWebGrid(true);
+      polar.setModernWeb(modern);
       graph.setCoordinate(polar);
       Object[][] rows = { names, low, high };
 
-      return Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, 400, 400);
+      return Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, width,
+                                                     height);
    }
 
    private static VGraph oneVar(boolean sides) {
