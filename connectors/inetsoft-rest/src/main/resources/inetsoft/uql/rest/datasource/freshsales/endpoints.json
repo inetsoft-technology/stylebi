@@ -418,7 +418,6 @@
       "suffix": "/deals/{Deal ID}?include={Include?:owner|creater|updater|...}",
       "responseSchema": {
         "deal": {
-          "age": "double",
           "amount": "string",
           "created_at": "timeInstant",
           "expected_close": "date",
@@ -439,13 +438,11 @@
       "responseSchema": {
         "deals": [
           {
-            "age": "double",
             "amount": "string",
             "created_at": "timeInstant",
             "expected_close": "date",
             "id": "double",
             "name": "string",
-            "owner_id": "double",
             "probability": "double",
             "stage_updated_time": "timeInstant",
             "updated_at": "timeInstant"
