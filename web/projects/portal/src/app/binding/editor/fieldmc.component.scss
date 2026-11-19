@@ -69,8 +69,9 @@
   border-radius: var(--inet-radius-lg);
 
   // an icon button: the neutral chip and a stronger glyph on hover, like the sort and eye buttons
-  // beside it (the <i> glyph carries its own icon colour, so it is set on the glyph)
-  &:hover {
+  // beside it (the <i> glyph carries its own icon colour, so it is set on the glyph); a disabled icon
+  // (.icon-disabled, e.g. in the aesthetic Color, Shape and Size panes) stays inert
+  &:hover:not(:has(> i.icon-disabled)) {
     background-color: var(--inet-ui-neutral-hover-bg-color);
 
     i {

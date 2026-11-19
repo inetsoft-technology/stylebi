@@ -48,15 +48,24 @@ describe("Data tab search clear", () => {
       expect(clear[0]).toMatch(/\bicon-btn-ghost\b/);
       expect(clear[0]).toMatch(/\bicon-btn-ghost--glyph\b/);
    });
+
+   it("lets the glyph strengthen on hover (no !important icon-color-default pinning its colour)", () => {
+      const html = read("app/portal/data/data-navigation-tree/data-sources-tree-view.component.html");
+      const clear = html.match(/<i\b[^>]*\bclose-icon\b[^>]*>/);
+
+      expect(clear[0]).not.toMatch(/\bicon-color-default\b/);
+   });
 });
 
 describe("binding field option icon", () => {
    const fieldEditIcon = () => block(read("app/binding/editor/fieldmc.component.scss"), ".fieldEditIcon");
 
    it("hovers with the neutral chip and a stronger glyph, like the sort and eye buttons", () => {
-      const hover = fieldEditIcon().match(/&:hover\s*\{[\s\S]*?\n {2}\}/);
+      const hover = fieldEditIcon().match(/&:hover[^{]*\{[\s\S]*?\n {2}\}/);
 
       expect(hover).not.toBeNull();
+      // a disabled icon (the aesthetic Color/Shape/Size panes) stays inert: no chip, no stronger glyph
+      expect(hover[0]).toMatch(/^&:hover:not\(:has\(> i\.icon-disabled\)\)\s*\{/);
       expect(hover[0]).toMatch(/background-color:\s*var\(--inet-ui-neutral-hover-bg-color\)/);
       expect(hover[0]).toMatch(/\bi\s*\{\s*color:\s*var\(--inet-hover-text-color\)/);
    });
