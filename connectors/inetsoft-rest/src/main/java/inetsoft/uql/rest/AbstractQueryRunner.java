@@ -24,7 +24,6 @@ import inetsoft.uql.rest.json.EndpointJsonQuery;
 import inetsoft.uql.rest.pagination.PaginationParameter;
 import inetsoft.uql.util.BaseJsonTable;
 import inetsoft.uql.util.ExpandedJsonTable;
-import inetsoft.uql.util.HeadersAndRowsJsonTable;
 import inetsoft.uql.util.JsonTable;
 import inetsoft.util.CoreTool;
 import inetsoft.util.ThreadContext;
@@ -88,7 +87,7 @@ public abstract class AbstractQueryRunner<T extends AbstractRestQuery> implement
 
    private BaseJsonTable createTable() {
       if(!isEmpty(query.getHeadersPath()) && !isEmpty(query.getRowsPath())) {
-         return new HeadersAndRowsJsonTable(query.getHeadersPath(), query.getRowsPath());
+         return query.createHeadersAndRowsTable();
       }
 
       if(query.isExpanded() || (query instanceof EndpointJsonQuery<?> &&

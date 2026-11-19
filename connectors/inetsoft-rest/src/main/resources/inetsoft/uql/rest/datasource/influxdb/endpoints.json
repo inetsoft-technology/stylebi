@@ -28,6 +28,7 @@
     {
       "name": "V1 Query",
       "paged": false,
+      "influxql": true,
       "suffix": "/query?db={Database Name}&q={Query Statement}&chunked={Chunked?:true|false}&epoch={Epoch?:ns|U|ms|s|m|h}",
       "post": false,
       "description": "Runs an INFLUXQL query against a v1-style database. Requires the database name and the statement. The compatibility endpoint for installations and tools written against InfluxDB 1.x; it returns JSON rather than the CSV the Flux endpoint returns, which is why both exist.",
@@ -155,7 +156,9 @@
     {
       "name": "Buckets",
       "paged": true,
-      "suffix": "/api/v2/buckets?id={Bucket ID?}&name={Bucket Name?}&org={Organization Name?}&orgID={Organization ID?}&after={After ID?}",
+      "pageType": 1,
+      "pageItems": "buckets",
+      "suffix": "/api/v2/buckets?id={Bucket ID?}&name={Bucket Name?}&org={Organization Name?}&orgID={Organization ID?}",
       "post": false,
       "lookups": [
         {
@@ -219,7 +222,7 @@
     {
       "name": "Bucket",
       "paged": false,
-      "suffix": "/api/v2/buckets/{Bucket ID?}",
+      "suffix": "/api/v2/buckets/{Bucket ID}",
       "post": false,
       "responseSchema": {
         "links": {
@@ -262,7 +265,7 @@
     {
       "name": "Bucket Labels",
       "paged": false,
-      "suffix": "/api/v2/buckets/{Bucket ID?}/labels",
+      "suffix": "/api/v2/buckets/{Bucket ID}/labels",
       "post": false,
       "responseSchema": {
         "labels": [
@@ -286,7 +289,7 @@
     {
       "name": "Bucket Members",
       "paged": false,
-      "suffix": "/api/v2/buckets/{Bucket ID?}/members",
+      "suffix": "/api/v2/buckets/{Bucket ID}/members",
       "post": false,
       "responseSchema": {
         "links": {
@@ -309,7 +312,7 @@
     {
       "name": "Bucket Owners",
       "paged": false,
-      "suffix": "/api/v2/buckets/{Bucket ID?}/owners",
+      "suffix": "/api/v2/buckets/{Bucket ID}/owners",
       "post": false,
       "responseSchema": {
         "links": {
@@ -442,6 +445,8 @@
     {
       "name": "Checks",
       "paged": true,
+      "pageType": 1,
+      "pageItems": "checks",
       "suffix": "/api/v2/checks?orgID={Organization ID}",
       "post": false,
       "lookups": [
@@ -676,8 +681,22 @@
     {
       "name": "Dashboards",
       "paged": true,
+      "pageType": 1,
+      "pageItems": "dashboards",
       "suffix": "/api/v2/dashboards?descending={Descending?:true|false}&id={Dashboard ID?}&org={Organization Name?}&orgID={Organization ID?}&owner={Owner?}",
       "post": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Dashboard Labels",
+            "Dashboard Members",
+            "Dashboard Owners"
+          ],
+          "jsonPath": "$.dashboards[*]",
+          "key": "id",
+          "parameterName": "Dashboard ID"
+        }
+      ],
       "responseSchema": {
         "links": {
           "next": "string",
@@ -733,21 +752,9 @@
     },
     {
       "name": "Dashboard",
-      "paged": true,
-      "suffix": "/api/v2/dashboards/{Dashboard ID?}",
+      "paged": false,
+      "suffix": "/api/v2/dashboards/{Dashboard ID}",
       "post": false,
-      "lookups": [
-        {
-          "endpoints": [
-            "Dashboard Labels",
-            "Dashboard Members",
-            "Dashboard Owners"
-          ],
-          "jsonPath": "$.dashboards[*]",
-          "key": "id",
-          "parameterName": "Dashboard ID"
-        }
-      ],
       "responseSchema": {
         "orgID": "string",
         "name": "string",
@@ -794,8 +801,8 @@
     },
     {
       "name": "Dashboard Labels",
-      "paged": true,
-      "suffix": "/api/v2/dashboards/{Dashboard ID?}/labels",
+      "paged": false,
+      "suffix": "/api/v2/dashboards/{Dashboard ID}/labels",
       "post": false,
       "responseSchema": {
         "labels": [
@@ -818,8 +825,8 @@
     },
     {
       "name": "Dashboard Members",
-      "paged": true,
-      "suffix": "/api/v2/dashboards/{Dashboard ID?}/members",
+      "paged": false,
+      "suffix": "/api/v2/dashboards/{Dashboard ID}/members",
       "post": false,
       "responseSchema": {
         "links": {
@@ -841,8 +848,8 @@
     },
     {
       "name": "Dashboard Owners",
-      "paged": true,
-      "suffix": "/api/v2/dashboards/{Dashboard ID?}/owners",
+      "paged": false,
+      "suffix": "/api/v2/dashboards/{Dashboard ID}/owners",
       "post": false,
       "responseSchema": {
         "links": {
@@ -1026,7 +1033,7 @@
     {
       "name": "Legacy Authorization",
       "paged": false,
-      "suffix": "/legacy/authorizations/{Authorization ID?}",
+      "suffix": "/legacy/authorizations/{Authorization ID}",
       "post": false,
       "responseSchema": {
         "status": "string",
@@ -1068,6 +1075,8 @@
     {
       "name": "Notification Endpoints",
       "paged": true,
+      "pageType": 1,
+      "pageItems": "notificationEndpoints",
       "suffix": "/api/v2/notificationEndpoints?orgID={Organization ID}",
       "post": false,
       "responseSchema": {
@@ -1193,7 +1202,9 @@
     {
       "name": "Notification Rules",
       "paged": true,
-      "suffix": "/api/v2/notificationRules?checkID={Check ID?}&orgID={Organization ID}&tag={Tag}",
+      "pageType": 1,
+      "pageItems": "notificationRules",
+      "suffix": "/api/v2/notificationRules?checkID={Check ID?}&orgID={Organization ID}&tag={Tag?}",
       "post": false,
       "responseSchema": {
         "notificationRules": [
@@ -1270,7 +1281,7 @@
     },
     {
       "name": "Notification Rule",
-      "paged": true,
+      "paged": false,
       "suffix": "/api/v2/notificationRules/{Rule ID}",
       "post": false,
       "responseSchema": {
@@ -1339,7 +1350,7 @@
     },
     {
       "name": "Notification Rule Labels",
-      "paged": true,
+      "paged": false,
       "suffix": "/api/v2/notificationRules/{Rule ID}/labels",
       "post": false,
       "responseSchema": {
@@ -1364,6 +1375,8 @@
     {
       "name": "Organizations",
       "paged": true,
+      "pageType": 1,
+      "pageItems": "orgs",
       "suffix": "/api/v2/orgs?descending={Descending?:true|false}&org={Organization Name?}&orgID={Organization ID?}&userID={User ID?}",
       "post": false,
       "lookups": [
@@ -1908,8 +1921,9 @@
     },
     {
       "name": "Tasks",
-      "paged": false,
-      "suffix": "/api/v2/tasks?limit=500&after={After ID?}&name={Task Name?}&org={Organization Name?}&orgID={Organization ID?}&status={Status?:active|inactive}&type={Type?:basic|system}&user={User ID}",
+      "paged": true,
+      "pageType": 2,
+      "suffix": "/api/v2/tasks?limit=500&after={After ID?}&name={Task Name?}&org={Organization Name?}&orgID={Organization ID?}&status={Status?:active|inactive}&type={Type?:basic|system}&user={User ID?}",
       "post": false,
       "lookups": [
         {
@@ -2479,7 +2493,9 @@
     {
       "name": "Users",
       "paged": true,
-      "suffix": "/api/v2/users?after={After ID?}&id={User ID?}&name={User Name?}",
+      "pageType": 1,
+      "pageItems": "users",
+      "suffix": "/api/v2/users?id={User ID?}&name={User Name?}",
       "post": false,
       "responseSchema": {
         "links": {
