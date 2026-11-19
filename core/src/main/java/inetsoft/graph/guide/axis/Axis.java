@@ -181,6 +181,22 @@ public abstract class Axis extends VContainer {
    }
 
    /**
+    * Set whether a grid line under the plot draws the axis line instead.
+    * @hidden
+    */
+   public void setLineAsGrid(boolean lineAsGrid) {
+      this.lineAsGrid = lineAsGrid;
+   }
+
+   /**
+    * Check whether a grid line under the plot draws the axis line instead.
+    * @hidden
+    */
+   public boolean isLineAsGrid() {
+      return lineAsGrid;
+   }
+
+   /**
     * Set whether the tick should to drawn pointing down from the axis line.
     * @param tickdown true if tick should to drawn pointing down from the axis
     * line, otherwise false.
@@ -570,6 +586,7 @@ public abstract class Axis extends VContainer {
    private boolean labelVisible = true;
    private boolean tickVisible = true;
    private boolean lineVisible = true;
+   private boolean lineAsGrid = false; // line drawn by a grid line instead
    private boolean tickdown = true;
    private boolean minTickVisible = true;
    private boolean maxTickVisible = true;
