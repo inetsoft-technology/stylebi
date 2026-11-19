@@ -4,169 +4,851 @@
       "name": "Feedback Objects",
       "suffix": "/feedback-objects",
       "paged": "true",
-      "description": "The things being rated -- agents, teams or whatever the account configured. Nicereply's abstraction for the subject of a rating, and the dimension per-agent scores are grouped by."
+      "description": "The things being rated -- agents, teams or whatever the account configured. Nicereply's abstraction for the subject of a rating, and the dimension per-agent scores are grouped by.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "type": "string",
+            "username": "string",
+            "integration_usernames": [
+              {
+                "id": "string",
+                "integration_id": "string",
+                "username": "string",
+                "type": "string"
+              }
+            ],
+            "full_name": "string",
+            "email": "string",
+            "is_archived": "boolean",
+            "feedback_object_groups": [
+              {
+                "id": "string",
+                "name": "string",
+                "feedback_object_ids": [
+                  "string"
+                ],
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant"
+              }
+            ],
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Feedback Object",
       "suffix": "/feedback-objects/{Feedback Object ID}",
       "paged": "false",
-      "description": "One feedback object by id."
+      "description": "One feedback object by id.",
+      "responseSchema": {
+        "data": {
+          "id": "string",
+          "type": "string",
+          "username": "string",
+          "integration_usernames": [
+            {
+              "id": "string",
+              "integration_id": "string",
+              "username": "string",
+              "type": "string"
+            }
+          ],
+          "full_name": "string",
+          "email": "string",
+          "is_archived": "boolean",
+          "feedback_object_groups": [
+            {
+              "id": "string",
+              "name": "string",
+              "feedback_object_ids": [
+                "string"
+              ],
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            }
+          ],
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Feedback Object Responses",
       "suffix": "/feedback-objects/{Feedback Object ID}/responses?created_after={Created After?}&created_before={Created Before?}",
       "paged": "true",
-      "description": "The responses about one feedback object, filterable by date. Requires the object id. The per-agent or per-team score history."
+      "description": "The responses about one feedback object, filterable by date. Requires the object id. The per-agent or per-team score history.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "feedback_object_id": "string",
+            "survey_id": "string",
+            "customer_id": "string",
+            "from": "string",
+            "ticket_id": "string",
+            "location": "string",
+            "ip_address": "string",
+            "is_instant": "boolean",
+            "status": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "answers": [
+              {
+                "id": "string",
+                "question_id": "string",
+                "question_type": "string",
+                "scale": {
+                  "value": "double"
+                },
+                "open_ended": {
+                  "value": "string"
+                },
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant"
+              }
+            ],
+            "tags": [
+              {
+                "id": "string",
+                "name": "string",
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant"
+              }
+            ]
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Feedback Object Groups",
       "suffix": "/feedback-object-groups",
       "paged": "true",
-      "description": "Groupings of feedback objects -- teams of agents, typically. The level above individual subjects."
+      "description": "Groupings of feedback objects -- teams of agents, typically. The level above individual subjects.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "name": "string",
+            "feedback_object_ids": [
+              "string"
+            ],
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Feedback Object Group",
       "suffix": "/feedback-object-groups/{Feedback Object Group ID}",
       "paged": "false",
-      "description": "One group by id."
+      "description": "One group by id.",
+      "responseSchema": {
+        "data": {
+          "id": "string",
+          "name": "string",
+          "feedback_object_ids": [
+            "string"
+          ],
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Feedback Object Group Responses",
       "suffix": "/feedback-object-groups/{Feedback Object Group ID}/responses?created_after={Created After?}&created_before={Created Before?}",
       "paged": "true",
-      "description": "The responses about one group, filterable by date. Requires the group id. Team-level satisfaction without summing individuals."
+      "description": "The responses about one group, filterable by date. Requires the group id. Team-level satisfaction without summing individuals.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "feedback_object_id": "string",
+            "survey_id": "string",
+            "customer_id": "string",
+            "from": "string",
+            "ticket_id": "string",
+            "location": "string",
+            "ip_address": "string",
+            "is_instant": "boolean",
+            "status": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "answers": [
+              {
+                "id": "string",
+                "question_id": "string",
+                "question_type": "string",
+                "scale": {
+                  "value": "double"
+                },
+                "open_ended": {
+                  "value": "string"
+                },
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant"
+              }
+            ],
+            "tags": [
+              {
+                "id": "string",
+                "name": "string",
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant"
+              }
+            ]
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Customers",
       "suffix": "/customers",
       "paged": "true",
-      "description": "The end customers who gave feedback, with their identifying details. The respondent side of a response."
+      "description": "The end customers who gave feedback, with their identifying details. The respondent side of a response.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "full_name": "string",
+            "email": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Customer",
       "suffix": "/customers/{Customer ID}",
       "paged": "false",
-      "description": "One customer by id."
+      "description": "One customer by id.",
+      "responseSchema": {
+        "data": {
+          "id": "string",
+          "full_name": "string",
+          "email": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Integrations",
       "suffix": "/integrations",
       "paged": "true",
-      "description": "The help desk integrations feeding Nicereply -- Zendesk, Freshdesk and the like -- with their status. The source of the tickets responses are attached to, and the explanation for which conversations get surveyed at all."
+      "description": "The help desk integrations feeding Nicereply -- Zendesk, Freshdesk and the like -- with their status. The source of the tickets responses are attached to, and the explanation for which conversations get surveyed at all.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "name": "string",
+            "type": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Integration",
       "suffix": "/integrations/{Integration ID}",
       "paged": "false",
-      "description": "One integration by id."
+      "description": "One integration by id.",
+      "responseSchema": {
+        "data": {
+          "id": "string",
+          "name": "string",
+          "type": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Questions",
       "suffix": "/questions",
       "paged": "true",
-      "description": "The questions defined across surveys, with their text and type. The wording matters for interpretation, since satisfaction scores are sensitive to how the question is asked."
+      "description": "The questions defined across surveys, with their text and type. The wording matters for interpretation, since satisfaction scores are sensitive to how the question is asked.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "type": "string",
+            "scale": {
+              "scale": "string"
+            },
+            "question": "string",
+            "label": "string",
+            "label_type": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Question",
       "suffix": "/questions/{Question ID}",
       "paged": "false",
-      "description": "One question by id."
+      "description": "One question by id.",
+      "responseSchema": {
+        "data": {
+          "id": "string",
+          "type": "string",
+          "scale": {
+            "scale": "string"
+          },
+          "question": "string",
+          "label": "string",
+          "label_type": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Rating Values Settings",
       "suffix": "/rating-values",
       "paged": "false",
-      "description": "The rating scales configured -- what the possible values are and what each means. THE DECODER for the rating column: a 5 on a CSAT scale and a 5 on a ten-point NPS are entirely different results, and nothing in the response row distinguishes them."
+      "description": "The rating scales configured -- what the possible values are and what each means. THE DECODER for the rating column: a 5 on a CSAT scale and a 5 on a ten-point NPS are entirely different results, and nothing in the response row distinguishes them.",
+      "responseSchema": {
+        "data": {
+          "CSAT10": {
+            "neutral": "double",
+            "positive": "double"
+          },
+          "CSAT5": {
+            "neutral": "double",
+            "positive": "double"
+          },
+          "CSAT3": {
+            "neutral": "double",
+            "positive": "double"
+          },
+          "CSAT2": {
+            "positive": "double"
+          },
+          "CES": {
+            "neutral": "double",
+            "positive": "double"
+          },
+          "NPS": {
+            "neutral": "double",
+            "positive": "double"
+          }
+        }
+      }
     },
     {
       "name": "Surveys",
       "suffix": "/surveys",
       "paged": "true",
-      "description": "The surveys defined, each with its type (CSAT, CES or NPS), name and status. A survey's TYPE decides how its responses should be aggregated -- NPS is a promoter-minus-detractor calculation, not an average -- so mixing surveys in one average is wrong regardless of scale."
+      "description": "The surveys defined, each with its type (CSAT, CES or NPS), name and status. A survey's TYPE decides how its responses should be aggregated -- NPS is a promoter-minus-detractor calculation, not an average -- so mixing surveys in one average is wrong regardless of scale.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "name": "string",
+            "distribution": "string",
+            "integration_id": "string",
+            "is_archived": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "ticket_link": "string",
+            "questions": [
+              {
+                "question_id": "string",
+                "position": "double",
+                "is_required": "boolean",
+                "is_active": "boolean",
+                "archived_at": "timeInstant",
+                "is_main": "boolean",
+                "sentiment_order": "string"
+              }
+            ]
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Survey",
       "suffix": "/surveys/{Survey ID}",
       "paged": "false",
-      "description": "One survey by id, with its type and questions."
+      "description": "One survey by id, with its type and questions.",
+      "responseSchema": {
+        "data": {
+          "id": "string",
+          "name": "string",
+          "distribution": "string",
+          "integration_id": "string",
+          "is_archived": "boolean",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "ticket_link": "string",
+          "questions": [
+            {
+              "question_id": "string",
+              "position": "double",
+              "is_required": "boolean",
+              "is_active": "boolean",
+              "archived_at": "timeInstant",
+              "is_main": "boolean",
+              "sentiment_order": "string"
+            }
+          ]
+        }
+      }
     },
     {
       "name": "Survey Distribution Settings",
       "suffix": "/surveys/{Survey ID}/distribution",
       "paged": "false",
-      "description": "How one survey is sent -- the channel, timing and trigger. Requires a survey id. Explains response rates: a survey sent on every ticket and one sent on a sample produce very different volumes for the same underlying satisfaction."
+      "description": "How one survey is sent -- the channel, timing and trigger. Requires a survey id. Explains response rates: a survey sent on every ticket and one sent on a sample produce very different volumes for the same underlying satisfaction.",
+      "responseSchema": {
+        "data": {
+          "type": "string",
+          "trigger": {
+            "active": "boolean"
+          },
+          "modal": {
+            "active": "boolean"
+          }
+        }
+      }
     },
     {
       "name": "Survey Responses",
       "suffix": "/surveys/{Survey ID}/responses?created_after={Created After?}&created_before={Created Before?}",
       "paged": "true",
-      "description": "The responses to one survey, filterable by date. Requires a survey id. The per-survey slice, and the safe unit to aggregate within."
+      "description": "The responses to one survey, filterable by date. Requires a survey id. The per-survey slice, and the safe unit to aggregate within.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "feedback_object_id": "string",
+            "survey_id": "string",
+            "customer_id": "string",
+            "from": "string",
+            "ticket_id": "string",
+            "location": "string",
+            "ip_address": "string",
+            "is_instant": "boolean",
+            "status": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "answers": [
+              {
+                "id": "string",
+                "question_id": "string",
+                "question_type": "string",
+                "scale": {
+                  "value": "double"
+                },
+                "open_ended": {
+                  "value": "string"
+                },
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant"
+              }
+            ],
+            "tags": [
+              {
+                "id": "string",
+                "name": "string",
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant"
+              }
+            ]
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Responses",
       "suffix": "/responses",
       "paged": "true",
-      "description": "Every customer satisfaction response collected, one row each -- the central table. Carries the rating, any comment, the customer, the agent it was about, the survey it came from, and when it was submitted. Filterable by date. NOTE THE RATING SCALE IS NOT UNIVERSAL: Nicereply supports CSAT, CES and NPS, and their scales differ, so a rating value only means something once its survey's scale is known -- Rating Values Settings is what states it."
+      "description": "Every customer satisfaction response collected, one row each -- the central table. Carries the rating, any comment, the customer, the agent it was about, the survey it came from, and when it was submitted. Filterable by date. NOTE THE RATING SCALE IS NOT UNIVERSAL: Nicereply supports CSAT, CES and NPS, and their scales differ, so a rating value only means something once its survey's scale is known -- Rating Values Settings is what states it.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "feedback_object_id": "string",
+            "survey_id": "string",
+            "customer_id": "string",
+            "from": "string",
+            "ticket_id": "string",
+            "location": "string",
+            "ip_address": "string",
+            "is_instant": "boolean",
+            "status": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "answers": [
+              {
+                "id": "string",
+                "question_id": "string",
+                "question_type": "string",
+                "scale": {
+                  "value": "double"
+                },
+                "open_ended": {
+                  "value": "string"
+                },
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant"
+              }
+            ],
+            "tags": [
+              {
+                "id": "string",
+                "name": "string",
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant"
+              }
+            ]
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Response",
       "suffix": "/responses/{Response ID}",
       "paged": "false",
-      "description": "One response by id, with its rating and comment."
+      "description": "One response by id, with its rating and comment.",
+      "responseSchema": {
+        "data": {
+          "id": "string",
+          "feedback_object_id": "string",
+          "survey_id": "string",
+          "customer_id": "string",
+          "from": "string",
+          "ticket_id": "string",
+          "location": "string",
+          "ip_address": "string",
+          "is_instant": "boolean",
+          "status": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "answers": [
+            {
+              "id": "string",
+              "question_id": "string",
+              "question_type": "string",
+              "scale": {
+                "value": "double"
+              },
+              "open_ended": {
+                "value": "string"
+              },
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            }
+          ],
+          "tags": [
+            {
+              "id": "string",
+              "name": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant"
+            }
+          ]
+        }
+      }
     },
     {
       "name": "Response Ticket Link",
       "suffix": "/responses/{Response ID}/ticket-link",
       "paged": "false",
-      "description": "The help desk ticket one response relates to. Requires a response id. THE BRIDGE between satisfaction data and the support system -- without it a low score cannot be traced to the conversation that caused it."
+      "description": "The help desk ticket one response relates to. Requires a response id. THE BRIDGE between satisfaction data and the support system -- without it a low score cannot be traced to the conversation that caused it.",
+      "responseSchema": {
+        "data": {
+          "ticket_link": "string"
+        }
+      }
     },
     {
       "name": "Response Issue Status",
       "suffix": "/responses/{Response ID}/issue-status",
       "paged": "false",
-      "description": "Whether one response has been flagged for follow-up and its current state. Requires a response id. The record of whether a bad rating was actually acted on, which the response itself does not carry."
+      "description": "Whether one response has been flagged for follow-up and its current state. Requires a response id. The record of whether a bad rating was actually acted on, which the response itself does not carry.",
+      "responseSchema": {
+        "data": {
+          "issue_status": "string"
+        }
+      }
     },
     {
       "name": "Tags",
       "suffix": "/tags",
       "paged": "true",
-      "description": "The tags applied to responses. The free-form categorisation of feedback -- usually where the reason behind a score is recorded, since the numeric rating carries none."
+      "description": "The tags applied to responses. The free-form categorisation of feedback -- usually where the reason behind a score is recorded, since the numeric rating carries none.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "name": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Tag",
       "suffix": "/tags/{Tag ID}",
       "paged": "false",
-      "description": "One tag by id."
+      "description": "One tag by id.",
+      "responseSchema": {
+        "data": {
+          "id": "string",
+          "name": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Unsubscribes",
       "suffix": "/unsubscribes",
       "paged": "true",
-      "description": "The customers who opted out of receiving surveys. They are excluded from future sends, so a falling response count may reflect this list growing rather than any change in satisfaction."
+      "description": "The customers who opted out of receiving surveys. They are excluded from future sends, so a falling response count may reflect this list growing rather than any change in satisfaction.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "legacy_id": "double",
+            "email": "string",
+            "email_hash": "string",
+            "unsubscribed_at": "timeInstant"
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "Unsubscribe",
       "suffix": "/unsubscribes/{Unsubscribe ID}",
       "paged": "false",
-      "description": "One unsubscribe record by id."
+      "description": "One unsubscribe record by id.",
+      "responseSchema": {
+        "data": {
+          "id": "string",
+          "legacy_id": "double",
+          "email": "string",
+          "email_hash": "string",
+          "unsubscribed_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Users",
       "suffix": "/users",
       "paged": "true",
-      "description": "The agents and administrators in the account. Joined to responses through the feedback object, not directly."
+      "description": "The agents and administrators in the account. Joined to responses through the feedback object, not directly.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "full_name": "string",
+            "email": "string",
+            "role": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     },
     {
       "name": "User",
       "suffix": "/users/{User ID}",
       "paged": "false",
-      "description": "One user by id."
+      "description": "One user by id.",
+      "responseSchema": {
+        "data": {
+          "id": "string",
+          "full_name": "string",
+          "email": "string",
+          "role": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant"
+        }
+      }
     },
     {
       "name": "Tokens",
       "suffix": "/me/tokens",
       "paged": "true",
-      "description": "The API tokens issued for the calling account. Security inventory."
+      "description": "The API tokens issued for the calling account. Security inventory.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "name": "string",
+            "accessed_at": "timeInstant",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "pagination": {
+          "total": "double",
+          "count": "double",
+          "per_page": "double",
+          "current_page": "double",
+          "total_pages": "double",
+          "links": {
+            "next": "string",
+            "prev": "string"
+          }
+        }
+      }
     }
   ]
 }

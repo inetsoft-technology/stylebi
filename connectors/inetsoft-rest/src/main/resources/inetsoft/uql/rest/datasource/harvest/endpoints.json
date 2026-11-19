@@ -4,43 +4,225 @@
       "name": "Client Contacts",
       "paged": true,
       "suffix": "/v2/contacts?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The people at each client, with name, email, phone and the client they belong to. Who invoices are addressed to."
+      "description": "The people at each client, with name, email, phone and the client they belong to. Who invoices are addressed to.",
+      "responseSchema": {
+        "contacts": [
+          {
+            "id": "double",
+            "title": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "email": "string",
+            "phone_office": "string",
+            "phone_mobile": "string",
+            "fax": "string",
+            "invoice_recipient_status": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "client": {
+              "id": "double",
+              "name": "string"
+            }
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Client Contact",
       "paged": false,
       "suffix": "/v2/contacts/{Contact ID}",
-      "description": "One client contact by id."
+      "description": "One client contact by id.",
+      "responseSchema": {
+        "id": "double",
+        "title": "string",
+        "first_name": "string",
+        "last_name": "string",
+        "email": "string",
+        "phone_office": "string",
+        "phone_mobile": "string",
+        "fax": "string",
+        "invoice_recipient_status": "string",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "client": {
+          "id": "double",
+          "name": "string"
+        }
+      }
     },
     {
       "name": "Clients",
       "paged": true,
       "suffix": "/v2/clients?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The clients, with name, currency and active state. The billing entity projects belong to. NOTE THE CURRENCY IS PER CLIENT, so totals spanning clients mix currencies and Harvest converts nothing."
+      "description": "The clients, with name, currency and active state. The billing entity projects belong to. NOTE THE CURRENCY IS PER CLIENT, so totals spanning clients mix currencies and Harvest converts nothing.",
+      "responseSchema": {
+        "clients": [
+          {
+            "id": "double",
+            "name": "string",
+            "is_active": "boolean",
+            "address": "string",
+            "statement_key": "string",
+            "currency": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Client",
       "paged": false,
       "suffix": "/v2/clients/{Client ID}",
-      "description": "One client by id."
+      "description": "One client by id.",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "is_active": "boolean",
+        "address": "string",
+        "statement_key": "string",
+        "currency": "string",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "Company",
       "paged": false,
       "suffix": "/v2/company",
-      "description": "The Harvest account's own settings: name, base currency, week start day, whether time is tracked by duration or by start and end times, and the decimal format. THE TIME-TRACKING MODE MATTERS: a duration-tracking account has no start and end times on its entries at all, so questions about when in the day work happened are unanswerable there."
+      "description": "The Harvest account's own settings: name, base currency, week start day, whether time is tracked by duration or by start and end times, and the decimal format. THE TIME-TRACKING MODE MATTERS: a duration-tracking account has no start and end times on its entries at all, so questions about when in the day work happened are unanswerable there.",
+      "responseSchema": {
+        "base_uri": "string",
+        "full_domain": "string",
+        "name": "string",
+        "is_active": "boolean",
+        "week_start_day": "string",
+        "wants_timestamp_timers": "boolean",
+        "time_format": "string",
+        "date_format": "string",
+        "plan_type": "string",
+        "clock": "string",
+        "currency_code_display": "string",
+        "currency_symbol_display": "string",
+        "decimal_symbol": "string",
+        "thousands_separator": "string",
+        "color_scheme": "string",
+        "weekly_capacity": "double",
+        "expense_feature": "boolean",
+        "invoice_feature": "boolean",
+        "estimate_feature": "boolean",
+        "approval_feature": "boolean",
+        "team_feature": "boolean",
+        "e_invoicing_status": "string"
+      }
     },
     {
       "name": "Invoice Messages",
       "paged": true,
       "suffix": "/v2/invoices/{Invoice ID}/messages?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The emails sent about one invoice, with recipients and dates. Requires an invoice id. The record of whether an invoice was actually sent or chased."
+      "description": "The emails sent about one invoice, with recipients and dates. Requires an invoice id. The record of whether an invoice was actually sent or chased.",
+      "responseSchema": {
+        "invoice_messages": [
+          {
+            "id": "double",
+            "sent_by": "string",
+            "sent_by_email": "string",
+            "sent_from": "string",
+            "sent_from_email": "string",
+            "recipients": [
+              {
+                "name": "string",
+                "email": "string"
+              }
+            ],
+            "subject": "string",
+            "body": "string",
+            "include_link_to_client_invoice": "boolean",
+            "attach_pdf": "boolean",
+            "send_me_a_copy": "boolean",
+            "thank_you": "boolean",
+            "event_type": "string",
+            "reminder": "boolean",
+            "send_reminder_on": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Invoice Payments",
       "paged": true,
       "suffix": "/v2/invoices/{Invoice ID}/payments?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The payments received against one invoice, with amount and date. Requires an invoice id. The invoice carries the balance; this says when the money actually arrived, which is what a collection-time question needs."
+      "description": "The payments received against one invoice, with amount and date. Requires an invoice id. The invoice carries the balance; this says when the money actually arrived, which is what a collection-time question needs.",
+      "responseSchema": {
+        "invoice_payments": [
+          {
+            "id": "double",
+            "amount": "double",
+            "paid_at": "timeInstant",
+            "paid_date": "string",
+            "recorded_by": "string",
+            "recorded_by_email": "string",
+            "notes": "string",
+            "transaction_id": "string",
+            "payment_gateway": {
+              "id": "double",
+              "name": "string"
+            },
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Invoices",
@@ -57,31 +239,242 @@
           "parameterName": "Invoice ID"
         }
       ],
-      "description": "The invoices issued, with the client, number, subject, issue and due dates, the state (draft, open, paid or closed), currency, the amount and the amount due, and the period they cover. Filter by client, project or updated_since. Only issued invoices represent real obligations, so state has to be read before any revenue total."
+      "description": "The invoices issued, with the client, number, subject, issue and due dates, the state (draft, open, paid or closed), currency, the amount and the amount due, and the period they cover. Filter by client, project or updated_since. Only issued invoices represent real obligations, so state has to be read before any revenue total.",
+      "responseSchema": {
+        "invoices": [
+          {
+            "id": "double",
+            "client": {
+              "id": "double",
+              "name": "string"
+            },
+            "line_items": [
+              {
+                "id": "double",
+                "project": {
+                  "id": "double",
+                  "name": "string",
+                  "code": "string"
+                },
+                "kind": "string",
+                "description": "string",
+                "quantity": "double",
+                "unit_price": "double",
+                "amount": "double",
+                "taxed": "boolean",
+                "taxed2": "boolean"
+              }
+            ],
+            "estimate": {
+              "id": "double"
+            },
+            "retainer": {
+              "id": "double"
+            },
+            "creator": {
+              "id": "double",
+              "name": "string"
+            },
+            "client_key": "string",
+            "number": "string",
+            "purchase_order": "string",
+            "amount": "double",
+            "due_amount": "double",
+            "tax": "double",
+            "tax_amount": "double",
+            "tax2": "double",
+            "tax2_amount": "double",
+            "discount": "double",
+            "discount_amount": "double",
+            "subject": "string",
+            "notes": "string",
+            "currency": "string",
+            "state": "string",
+            "period_start": "string",
+            "period_end": "string",
+            "issue_date": "string",
+            "due_date": "string",
+            "payment_term": "string",
+            "payment_options": [
+              "string"
+            ],
+            "sent_at": "timeInstant",
+            "paid_at": "timeInstant",
+            "paid_date": "string",
+            "closed_at": "timeInstant",
+            "recurring_invoice_id": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Invoice",
       "paged": false,
       "suffix": "/v2/invoices/{Invoice ID}",
-      "description": "One invoice by id, with its line items."
+      "description": "One invoice by id, with its line items.",
+      "responseSchema": {
+        "id": "double",
+        "client": {
+          "id": "double",
+          "name": "string"
+        },
+        "line_items": [
+          {
+            "id": "double",
+            "project": {
+              "id": "double",
+              "name": "string",
+              "code": "string"
+            },
+            "kind": "string",
+            "description": "string",
+            "quantity": "double",
+            "unit_price": "double",
+            "amount": "double",
+            "taxed": "boolean",
+            "taxed2": "boolean"
+          }
+        ],
+        "estimate": {
+          "id": "double"
+        },
+        "retainer": {
+          "id": "double"
+        },
+        "creator": {
+          "id": "double",
+          "name": "string"
+        },
+        "client_key": "string",
+        "number": "string",
+        "purchase_order": "string",
+        "amount": "double",
+        "due_amount": "double",
+        "tax": "double",
+        "tax_amount": "double",
+        "tax2": "double",
+        "tax2_amount": "double",
+        "discount": "double",
+        "discount_amount": "double",
+        "subject": "string",
+        "notes": "string",
+        "currency": "string",
+        "state": "string",
+        "period_start": "string",
+        "period_end": "string",
+        "issue_date": "string",
+        "due_date": "string",
+        "payment_term": "string",
+        "payment_options": [
+          "string"
+        ],
+        "sent_at": "timeInstant",
+        "paid_at": "timeInstant",
+        "paid_date": "string",
+        "closed_at": "timeInstant",
+        "recurring_invoice_id": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "Invoice Item Categories",
       "paged": true,
       "suffix": "/v2/invoice_item_categories?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The categories invoice line items are classified under. The revenue-type dimension."
+      "description": "The categories invoice line items are classified under. The revenue-type dimension.",
+      "responseSchema": {
+        "invoice_item_categories": [
+          {
+            "id": "double",
+            "name": "string",
+            "use_as_service": "boolean",
+            "use_as_expense": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Invoice Item Category",
       "paged": false,
       "suffix": "/v2/invoice_item_categories/{Invoice Item Category ID}",
-      "description": "One invoice item category by id."
+      "description": "One invoice item category by id.",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "use_as_service": "boolean",
+        "use_as_expense": "boolean",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "Estimate Messages",
       "paged": true,
       "suffix": "/v2/estimates/{Estimate ID}/messages?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The emails sent about one estimate. Requires an estimate id."
+      "description": "The emails sent about one estimate. Requires an estimate id.",
+      "responseSchema": {
+        "estimate_messages": [
+          {
+            "id": "double",
+            "sent_by": "string",
+            "sent_by_email": "string",
+            "sent_from": "string",
+            "sent_from_email": "string",
+            "recipients": [
+              {
+                "name": "string",
+                "email": "string"
+              }
+            ],
+            "subject": "string",
+            "body": "string",
+            "send_me_a_copy": "boolean",
+            "event_type": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Estimates",
@@ -95,109 +488,762 @@
           "parameterName": "Estimate ID"
         }
       ],
-      "description": "The quotes issued to clients, with the client, number, subject, dates, state and amount. The pipeline before an invoice: an estimate's state (draft, sent, accepted, declined) is the closest thing Harvest has to a sales funnel."
+      "description": "The quotes issued to clients, with the client, number, subject, dates, state and amount. The pipeline before an invoice: an estimate's state (draft, sent, accepted, declined) is the closest thing Harvest has to a sales funnel.",
+      "responseSchema": {
+        "estimates": [
+          {
+            "id": "double",
+            "client": {
+              "id": "double",
+              "name": "string"
+            },
+            "creator": {
+              "id": "double",
+              "name": "string"
+            },
+            "line_items": [
+              {
+                "id": "double",
+                "kind": "string",
+                "description": "string",
+                "quantity": "double",
+                "unit_price": "double",
+                "amount": "double",
+                "taxed": "boolean",
+                "taxed2": "boolean"
+              }
+            ],
+            "client_key": "string",
+            "number": "string",
+            "purchase_order": "string",
+            "amount": "double",
+            "tax": "double",
+            "tax_amount": "double",
+            "tax2": "double",
+            "tax2_amount": "double",
+            "discount": "double",
+            "discount_amount": "double",
+            "subject": "string",
+            "notes": "string",
+            "currency": "string",
+            "state": "string",
+            "issue_date": "string",
+            "sent_at": "timeInstant",
+            "accepted_at": "timeInstant",
+            "declined_at": "timeInstant",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Estimate",
       "paged": false,
       "suffix": "/v2/estimates/{Estimate ID}",
-      "description": "One estimate by id, with its line items."
+      "description": "One estimate by id, with its line items.",
+      "responseSchema": {
+        "id": "double",
+        "client": {
+          "id": "double",
+          "name": "string"
+        },
+        "creator": {
+          "id": "double",
+          "name": "string"
+        },
+        "line_items": [
+          {
+            "id": "double",
+            "kind": "string",
+            "description": "string",
+            "quantity": "double",
+            "unit_price": "double",
+            "amount": "double",
+            "taxed": "boolean",
+            "taxed2": "boolean"
+          }
+        ],
+        "client_key": "string",
+        "number": "string",
+        "purchase_order": "string",
+        "amount": "double",
+        "tax": "double",
+        "tax_amount": "double",
+        "tax2": "double",
+        "tax2_amount": "double",
+        "discount": "double",
+        "discount_amount": "double",
+        "subject": "string",
+        "notes": "string",
+        "currency": "string",
+        "state": "string",
+        "issue_date": "string",
+        "sent_at": "timeInstant",
+        "accepted_at": "timeInstant",
+        "declined_at": "timeInstant",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "Estimate Item Categories",
       "paged": true,
       "suffix": "/v2/estimate_item_categories?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The categories estimate line items are classified under."
+      "description": "The categories estimate line items are classified under.",
+      "responseSchema": {
+        "estimate_item_categories": [
+          {
+            "id": "double",
+            "name": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Estimate Item Category",
       "paged": false,
       "suffix": "/v2/estimate_item_categories/{Estimate Item Category ID}",
-      "description": "One estimate item category by id."
+      "description": "One estimate item category by id.",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "Expenses",
       "paged": true,
       "suffix": "/v2/expenses?user_id={User ID?}&client_id={Client ID?}&project_id={Project ID?}&is_billed={Billed Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}&from={Spent On or After?:yyyy-MM-dd'T'HH:mm:ss}&to={Spent On or Before?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The expenses recorded, with the user, project, client, expense category, date, total cost, units where the category is unit-based, the billable flag, and the invoice it was billed on. Project profitability is time cost plus these, so an expense-blind margin overstates it."
+      "description": "The expenses recorded, with the user, project, client, expense category, date, total cost, units where the category is unit-based, the billable flag, and the invoice it was billed on. Project profitability is time cost plus these, so an expense-blind margin overstates it.",
+      "responseSchema": {
+        "expenses": [
+          {
+            "id": "double",
+            "notes": "string",
+            "total_cost": "double",
+            "units": "double",
+            "is_closed": "boolean",
+            "approval_status": "string",
+            "is_locked": "boolean",
+            "is_billed": "boolean",
+            "locked_reason": "string",
+            "spent_date": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "billable": "boolean",
+            "receipt": {
+              "url": "string",
+              "file_name": "string",
+              "file_size": "double",
+              "content_type": "string"
+            },
+            "user": {
+              "id": "double",
+              "name": "string"
+            },
+            "user_assignment": {
+              "id": "double",
+              "is_project_manager": "boolean",
+              "is_active": "boolean",
+              "budget": "double",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "hourly_rate": "double"
+            },
+            "project": {
+              "id": "double",
+              "name": "string",
+              "code": "string"
+            },
+            "expense_category": {
+              "id": "double",
+              "name": "string",
+              "unit_price": "double",
+              "unit_name": "string"
+            },
+            "client": {
+              "id": "double",
+              "name": "string",
+              "currency": "string"
+            },
+            "invoice": {
+              "id": "double",
+              "number": "string"
+            }
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Expense",
       "paged": false,
       "suffix": "/v2/expenses/{Expense ID}",
-      "description": "One expense by id."
+      "description": "One expense by id.",
+      "responseSchema": {
+        "id": "double",
+        "notes": "string",
+        "total_cost": "double",
+        "units": "double",
+        "is_closed": "boolean",
+        "approval_status": "string",
+        "is_locked": "boolean",
+        "is_billed": "boolean",
+        "locked_reason": "string",
+        "spent_date": "string",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "billable": "boolean",
+        "receipt": {
+          "url": "string",
+          "file_name": "string",
+          "file_size": "double",
+          "content_type": "string"
+        },
+        "user": {
+          "id": "double",
+          "name": "string"
+        },
+        "user_assignment": {
+          "id": "double",
+          "is_project_manager": "boolean",
+          "is_active": "boolean",
+          "budget": "double",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "hourly_rate": "double"
+        },
+        "project": {
+          "id": "double",
+          "name": "string",
+          "code": "string"
+        },
+        "expense_category": {
+          "id": "double",
+          "name": "string",
+          "unit_price": "double",
+          "unit_name": "string"
+        },
+        "client": {
+          "id": "double",
+          "name": "string",
+          "currency": "string"
+        },
+        "invoice": {
+          "id": "double",
+          "number": "string"
+        }
+      }
     },
     {
       "name": "Expense Categories",
       "paged": true,
       "suffix": "/v2/expense_categories?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The expense categories, each with a unit name and unit price where it is charged per unit rather than at cost -- mileage being the usual case. The unit price is what turns a distance into money."
+      "description": "The expense categories, each with a unit name and unit price where it is charged per unit rather than at cost -- mileage being the usual case. The unit price is what turns a distance into money.",
+      "responseSchema": {
+        "expense_categories": [
+          {
+            "id": "double",
+            "name": "string",
+            "unit_name": "string",
+            "unit_price": "double",
+            "is_active": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Expense Category",
       "paged": false,
       "suffix": "/v2/expense_categories/{Expense Category ID}",
-      "description": "One expense category by id."
+      "description": "One expense category by id.",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "unit_name": "string",
+        "unit_price": "double",
+        "is_active": "boolean",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "Tasks",
       "paged": true,
       "suffix": "/v2/tasks?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The task types time can be booked against -- design, development, meetings -- with a default hourly rate and whether each is billable by default. Account-wide definitions; which apply to a project is in Task Assignments."
+      "description": "The task types time can be booked against -- design, development, meetings -- with a default hourly rate and whether each is billable by default. Account-wide definitions; which apply to a project is in Task Assignments.",
+      "responseSchema": {
+        "tasks": [
+          {
+            "id": "double",
+            "name": "string",
+            "billable_by_default": "boolean",
+            "default_hourly_rate": "double",
+            "is_default": "boolean",
+            "is_active": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Task",
       "paged": false,
       "suffix": "/v2/tasks/{Task ID}",
-      "description": "One task by id."
+      "description": "One task by id.",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "billable_by_default": "boolean",
+        "default_hourly_rate": "double",
+        "is_default": "boolean",
+        "is_active": "boolean",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "Time Entries",
       "paged": true,
       "suffix": "/v2/time_entries?user_id={User ID?}&client_id={Client ID?}&project_id={Project ID?}&task_id={Task ID?}&is_billed={Billed Only?:true|false}&is_running={Running Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}&from={Spent On or After?:yyyy-MM-dd'T'HH:mm:ss}&to={Spent On or Before?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The time entries recorded, one row each -- the central table. Carries the user, client, project, task, the spent_date, HOURS AS A DECIMAL, notes, the billable and billed flags, the billable_rate and cost_rate applied, and the invoice it was billed on. THIS IS RARE AND WORTH KNOWING: unlike most time trackers, Harvest stamps the rates ONTO THE ENTRY at the moment it is recorded, so revenue and cost are readable directly without joining to a project or person, and a historical entry keeps the rate that applied then rather than today's. Filter by user, client, project or updated_since."
+      "description": "The time entries recorded, one row each -- the central table. Carries the user, client, project, task, the spent_date, HOURS AS A DECIMAL, notes, the billable and billed flags, the billable_rate and cost_rate applied, and the invoice it was billed on. THIS IS RARE AND WORTH KNOWING: unlike most time trackers, Harvest stamps the rates ONTO THE ENTRY at the moment it is recorded, so revenue and cost are readable directly without joining to a project or person, and a historical entry keeps the rate that applied then rather than today's. Filter by user, client, project or updated_since.",
+      "responseSchema": {
+        "time_entries": [
+          {
+            "id": "double",
+            "spent_date": "string",
+            "user": {
+              "id": "double",
+              "name": "string"
+            },
+            "user_assignment": {
+              "id": "double",
+              "is_project_manager": "boolean",
+              "is_active": "boolean",
+              "budget": "double",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "hourly_rate": "double"
+            },
+            "client": {
+              "id": "double",
+              "name": "string"
+            },
+            "project": {
+              "id": "double",
+              "name": "string"
+            },
+            "task": {
+              "id": "double",
+              "name": "string"
+            },
+            "task_assignment": {
+              "id": "double",
+              "billable": "boolean",
+              "is_active": "boolean",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "hourly_rate": "double",
+              "budget": "double"
+            },
+            "external_reference": {
+              "id": "string",
+              "group_id": "string",
+              "account_id": "string",
+              "permalink": "string",
+              "service": "string",
+              "service_icon_url": "string"
+            },
+            "invoice": {
+              "id": "double",
+              "number": "string"
+            },
+            "hours": "double",
+            "hours_without_timer": "double",
+            "rounded_hours": "double",
+            "notes": "string",
+            "is_locked": "boolean",
+            "locked_reason": "string",
+            "is_closed": "boolean",
+            "approval_status": "string",
+            "is_billed": "boolean",
+            "timer_started_at": "timeInstant",
+            "started_time": "string",
+            "ended_time": "string",
+            "is_running": "boolean",
+            "billable": "boolean",
+            "budgeted": "boolean",
+            "billable_rate": "double",
+            "cost_rate": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Time Entry",
       "paged": false,
       "suffix": "/v2/time_entries/{Time Entry ID}",
-      "description": "One time entry by id, with its rates and invoice link."
+      "description": "One time entry by id, with its rates and invoice link.",
+      "responseSchema": {
+        "id": "double",
+        "spent_date": "string",
+        "user": {
+          "id": "double",
+          "name": "string"
+        },
+        "user_assignment": {
+          "id": "double",
+          "is_project_manager": "boolean",
+          "is_active": "boolean",
+          "budget": "double",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "hourly_rate": "double"
+        },
+        "client": {
+          "id": "double",
+          "name": "string"
+        },
+        "project": {
+          "id": "double",
+          "name": "string"
+        },
+        "task": {
+          "id": "double",
+          "name": "string"
+        },
+        "task_assignment": {
+          "id": "double",
+          "billable": "boolean",
+          "is_active": "boolean",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "hourly_rate": "double",
+          "budget": "double"
+        },
+        "external_reference": {
+          "id": "string",
+          "group_id": "string",
+          "account_id": "string",
+          "permalink": "string",
+          "service": "string",
+          "service_icon_url": "string"
+        },
+        "invoice": {
+          "id": "double",
+          "number": "string"
+        },
+        "hours": "double",
+        "hours_without_timer": "double",
+        "rounded_hours": "double",
+        "notes": "string",
+        "is_locked": "boolean",
+        "locked_reason": "string",
+        "is_closed": "boolean",
+        "approval_status": "string",
+        "is_billed": "boolean",
+        "timer_started_at": "timeInstant",
+        "started_time": "string",
+        "ended_time": "string",
+        "is_running": "boolean",
+        "billable": "boolean",
+        "budgeted": "boolean",
+        "billable_rate": "double",
+        "cost_rate": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "User Assignments",
       "paged": true,
       "suffix": "/v2/user_assignments?user_id={User ID?}&is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "Which people are assigned to which projects, each with their billable flag, hourly rate and role on that project. THE PER-PROJECT PERSON RATE, which overrides both the project rate and the person's default -- so this is the table any accurate revenue figure passes through."
+      "description": "Which people are assigned to which projects, each with their billable flag, hourly rate and role on that project. THE PER-PROJECT PERSON RATE, which overrides both the project rate and the person's default -- so this is the table any accurate revenue figure passes through.",
+      "responseSchema": {
+        "user_assignments": [
+          {
+            "id": "double",
+            "is_project_manager": "boolean",
+            "is_active": "boolean",
+            "use_default_rates": "boolean",
+            "budget": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "hourly_rate": "double",
+            "project": {
+              "id": "double",
+              "name": "string",
+              "code": "string"
+            },
+            "user": {
+              "id": "double",
+              "name": "string"
+            }
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Project User Assignments",
       "paged": true,
       "suffix": "/v2/projects/{Project ID}/user_assignments?user_id={User ID?}&is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The people assigned to one project. Requires a project id."
+      "description": "The people assigned to one project. Requires a project id.",
+      "responseSchema": {
+        "user_assignments": [
+          {
+            "id": "double",
+            "is_project_manager": "boolean",
+            "is_active": "boolean",
+            "use_default_rates": "boolean",
+            "budget": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "hourly_rate": "double",
+            "project": {
+              "id": "double",
+              "name": "string",
+              "code": "string"
+            },
+            "user": {
+              "id": "double",
+              "name": "string"
+            }
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "User Assignment",
       "paged": false,
       "suffix": "/v2/projects/{Project ID}/user_assignments/{User Assignment ID}",
-      "description": "One user assignment by id. Requires the project id."
+      "description": "One user assignment by id. Requires the project id.",
+      "responseSchema": {
+        "id": "double",
+        "is_project_manager": "boolean",
+        "is_active": "boolean",
+        "use_default_rates": "boolean",
+        "budget": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "hourly_rate": "double",
+        "project": {
+          "id": "double",
+          "name": "string",
+          "code": "string"
+        },
+        "user": {
+          "id": "double",
+          "name": "string"
+        }
+      }
     },
     {
       "name": "Task Assignments",
       "paged": true,
       "suffix": "/v2/task_assignments?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "Which tasks are available on which projects, each with its own billable flag, hourly rate and budget. The per-project override of the account-wide task defaults, and therefore the rate that actually applies."
+      "description": "Which tasks are available on which projects, each with its own billable flag, hourly rate and budget. The per-project override of the account-wide task defaults, and therefore the rate that actually applies.",
+      "responseSchema": {
+        "task_assignments": [
+          {
+            "id": "double",
+            "project": {
+              "id": "double",
+              "name": "string",
+              "code": "string"
+            },
+            "task": {
+              "id": "double",
+              "name": "string"
+            },
+            "is_active": "boolean",
+            "billable": "boolean",
+            "hourly_rate": "double",
+            "budget": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Project Task Assignments",
       "paged": true,
       "suffix": "/v2/projects/{Project ID}/task_assignments?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The task assignments of one project. Requires a project id."
+      "description": "The task assignments of one project. Requires a project id.",
+      "responseSchema": {
+        "task_assignments": [
+          {
+            "id": "double",
+            "project": {
+              "id": "double",
+              "name": "string",
+              "code": "string"
+            },
+            "task": {
+              "id": "double",
+              "name": "string"
+            },
+            "is_active": "boolean",
+            "billable": "boolean",
+            "hourly_rate": "double",
+            "budget": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Task Assignment",
       "paged": false,
       "suffix": "/v2/projects/{Project ID}/task_assignments/{Task Assignment ID}",
-      "description": "One task assignment by id. Requires the project id."
+      "description": "One task assignment by id. Requires the project id.",
+      "responseSchema": {
+        "id": "double",
+        "project": {
+          "id": "double",
+          "name": "string",
+          "code": "string"
+        },
+        "task": {
+          "id": "double",
+          "name": "string"
+        },
+        "is_active": "boolean",
+        "billable": "boolean",
+        "hourly_rate": "double",
+        "budget": "double",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "Projects",
@@ -214,55 +1260,293 @@
           "parameterName": "Project ID"
         }
       ],
-      "description": "The projects, with name, code, the client, whether active, the billing method (by project, by task, by person or fixed fee), the budget and how it is measured, and the hourly rate. Requires nothing; filter by client or active state. THE BILLING METHOD DECIDES WHICH RATE APPLIES -- a project billed by person uses the person's rate rather than the project's, so a revenue calculation that assumes one method is wrong for the others. Inactive projects are excluded when filtered, which drops completed work from historical totals."
+      "description": "The projects, with name, code, the client, whether active, the billing method (by project, by task, by person or fixed fee), the budget and how it is measured, and the hourly rate. Requires nothing; filter by client or active state. THE BILLING METHOD DECIDES WHICH RATE APPLIES -- a project billed by person uses the person's rate rather than the project's, so a revenue calculation that assumes one method is wrong for the others. Inactive projects are excluded when filtered, which drops completed work from historical totals.",
+      "responseSchema": {
+        "projects": [
+          {
+            "id": "double",
+            "client": {
+              "id": "double",
+              "name": "string",
+              "currency": "string"
+            },
+            "name": "string",
+            "code": "string",
+            "currency": "string",
+            "is_active": "boolean",
+            "is_billable": "boolean",
+            "is_fixed_fee": "boolean",
+            "bill_by": "string",
+            "hourly_rate": "double",
+            "budget_by": "string",
+            "budget_is_monthly": "boolean",
+            "budget": "double",
+            "cost_budget": "double",
+            "cost_budget_include_expenses": "boolean",
+            "notify_when_over_budget": "boolean",
+            "over_budget_notification_percentage": "double",
+            "over_budget_notification_date": "string",
+            "show_budget_to_all": "boolean",
+            "fee": "double",
+            "notes": "string",
+            "starts_on": "string",
+            "ends_on": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "tags": [
+              {
+                "id": "double",
+                "name": "string"
+              }
+            ]
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Project",
       "paged": false,
       "suffix": "/v2/projects/{Project ID}",
-      "description": "One project by id, with its budget and billing configuration."
+      "description": "One project by id, with its budget and billing configuration.",
+      "responseSchema": {
+        "id": "double",
+        "client": {
+          "id": "double",
+          "name": "string",
+          "currency": "string"
+        },
+        "name": "string",
+        "code": "string",
+        "currency": "string",
+        "is_active": "boolean",
+        "is_billable": "boolean",
+        "is_fixed_fee": "boolean",
+        "bill_by": "string",
+        "hourly_rate": "double",
+        "budget_by": "string",
+        "budget_is_monthly": "boolean",
+        "budget": "double",
+        "cost_budget": "double",
+        "cost_budget_include_expenses": "boolean",
+        "notify_when_over_budget": "boolean",
+        "over_budget_notification_percentage": "double",
+        "over_budget_notification_date": "string",
+        "show_budget_to_all": "boolean",
+        "fee": "double",
+        "notes": "string",
+        "starts_on": "string",
+        "ends_on": "string",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "tags": [
+          {
+            "id": "double",
+            "name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Roles",
       "paged": true,
       "suffix": "/v2/roles",
-      "description": "The roles defined, each with the users assigned. Organisational grouping of people."
+      "description": "The roles defined, each with the users assigned. Organisational grouping of people.",
+      "responseSchema": {
+        "roles": [
+          {
+            "id": "double",
+            "name": "string",
+            "user_ids": [
+              "double"
+            ],
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Role",
       "paged": false,
       "suffix": "/v2/roles/{Role ID}",
-      "description": "One role by id."
+      "description": "One role by id.",
+      "responseSchema": {
+        "id": "double",
+        "name": "string",
+        "user_ids": [
+          "double"
+        ],
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "User Billable Rates",
       "paged": true,
       "suffix": "/v2/users/{User ID}/billable_rates",
-      "description": "The history of one person's billable rate, each entry with the date it took effect. Requires a user id. Rates change over time, and this is the record of when -- which matters for restating past periods correctly."
+      "description": "The history of one person's billable rate, each entry with the date it took effect. Requires a user id. Rates change over time, and this is the record of when -- which matters for restating past periods correctly.",
+      "responseSchema": {
+        "billable_rates": [
+          {
+            "id": "double",
+            "amount": "double",
+            "start_date": "string",
+            "end_date": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "User Billable Rate",
       "paged": false,
       "suffix": "/v2/users/{User ID}/billable_rates/{Billable Rate ID}",
-      "description": "One billable rate entry by id."
+      "description": "One billable rate entry by id.",
+      "responseSchema": {
+        "id": "double",
+        "amount": "double",
+        "start_date": "string",
+        "end_date": "string",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "User Cost Rates",
       "paged": true,
       "suffix": "/v2/users/{User ID}/cost_rates",
-      "description": "The history of one person's COST rate -- what they cost the business, as opposed to what they are billed at. Requires a user id. The margin on a project is the gap between these two tables, and cost rates exist nowhere else."
+      "description": "The history of one person's COST rate -- what they cost the business, as opposed to what they are billed at. Requires a user id. The margin on a project is the gap between these two tables, and cost rates exist nowhere else.",
+      "responseSchema": {
+        "cost_rates": [
+          {
+            "id": "double",
+            "amount": "double",
+            "start_date": "string",
+            "end_date": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "User Cost Rate",
       "paged": false,
       "suffix": "/v2/users/{User ID}/cost_rates/{Cost Rate ID}",
-      "description": "One cost rate entry by id."
+      "description": "One cost rate entry by id.",
+      "responseSchema": {
+        "id": "double",
+        "amount": "double",
+        "start_date": "string",
+        "end_date": "string",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     },
     {
       "name": "User Project Assignments",
       "paged": true,
       "suffix": "/v2/users/{User ID}/project_assignments?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
-      "description": "The projects one person is assigned to. Requires a user id. The reverse view, and the answer to what someone is able to book time against."
+      "description": "The projects one person is assigned to. Requires a user id. The reverse view, and the answer to what someone is able to book time against.",
+      "responseSchema": {
+        "project_assignments": [
+          {
+            "id": "double",
+            "is_active": "boolean",
+            "is_project_manager": "boolean",
+            "use_default_rates": "boolean",
+            "hourly_rate": "double",
+            "budget": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "project": {
+              "id": "double",
+              "name": "string",
+              "code": "string"
+            },
+            "client": {
+              "id": "double",
+              "name": "string"
+            },
+            "task_assignments": [
+              {
+                "id": "double",
+                "billable": "boolean",
+                "is_active": "boolean",
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant",
+                "hourly_rate": "double",
+                "budget": "double",
+                "task": {
+                  "id": "double",
+                  "name": "string"
+                }
+              }
+            ]
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "Users",
@@ -280,13 +1564,79 @@
           "parameterName": "User ID"
         }
       ],
-      "description": "The people in the account, with name, email, whether active, their role, weekly capacity, and default rates. Capacity is what makes a utilisation figure possible: hours recorded mean nothing without the hours available."
+      "description": "The people in the account, with name, email, whether active, their role, weekly capacity, and default rates. Capacity is what makes a utilisation figure possible: hours recorded mean nothing without the hours available.",
+      "responseSchema": {
+        "users": [
+          {
+            "id": "double",
+            "first_name": "string",
+            "last_name": "string",
+            "email": "string",
+            "telephone": "string",
+            "timezone": "string",
+            "has_access_to_all_future_projects": "boolean",
+            "is_contractor": "boolean",
+            "is_active": "boolean",
+            "saml_exempt": "boolean",
+            "weekly_capacity": "double",
+            "default_hourly_rate": "double",
+            "cost_rate": "double",
+            "roles": [
+              "string"
+            ],
+            "access_roles": [
+              "string"
+            ],
+            "permissions_profile": "string",
+            "avatar_url": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "per_page": "double",
+        "total_pages": "double",
+        "total_entries": "double",
+        "next_page": "double",
+        "previous_page": "double",
+        "page": "double",
+        "links": {
+          "first": "string",
+          "next": "string",
+          "previous": "string",
+          "last": "string"
+        }
+      }
     },
     {
       "name": "User",
       "paged": false,
       "suffix": "/v2/users/{User ID}",
-      "description": "One user by id, with their capacity and default rates."
+      "description": "One user by id, with their capacity and default rates.",
+      "responseSchema": {
+        "id": "double",
+        "first_name": "string",
+        "last_name": "string",
+        "email": "string",
+        "telephone": "string",
+        "timezone": "string",
+        "has_access_to_all_future_projects": "boolean",
+        "is_contractor": "boolean",
+        "is_active": "boolean",
+        "saml_exempt": "boolean",
+        "weekly_capacity": "double",
+        "default_hourly_rate": "double",
+        "cost_rate": "double",
+        "roles": [
+          "string"
+        ],
+        "access_roles": [
+          "string"
+        ],
+        "permissions_profile": "string",
+        "avatar_url": "string",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant"
+      }
     }
   ]
 }

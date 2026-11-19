@@ -96,61 +96,117 @@
           "parameterName": "Client ID"
         }
       ],
-      "description": "The client accounts under this Campaign Monitor login. AGENCIES ARE THE POINT OF THIS STRUCTURE: nearly every other endpoint takes a client id, and an account with several clients holds several entirely separate sets of lists, campaigns and subscribers. The first request in any question here."
+      "description": "The client accounts under this Campaign Monitor login. AGENCIES ARE THE POINT OF THIS STRUCTURE: nearly every other endpoint takes a client id, and an account with several clients holds several entirely separate sets of lists, campaigns and subscribers. The first request in any question here.",
+      "responseSchema": [
+        {
+          "ClientID": "string",
+          "Name": "string"
+        }
+      ]
     },
     {
       "name": "Billing details",
       "suffix": "/v3.2/billingdetails.json",
       "paged": "false",
-      "description": "The account's billing state -- credits held and the plan in force. One record."
+      "description": "The account's billing state -- credits held and the plan in force. One record.",
+      "responseSchema": {
+        "Credits": "double"
+      }
     },
     {
       "name": "Countries",
       "suffix": "/v3.2/countries.json",
       "paged": "false",
-      "description": "The country list Campaign Monitor accepts. Reference data."
+      "description": "The country list Campaign Monitor accepts. Reference data.",
+      "responseSchema": [
+        "string"
+      ]
     },
     {
       "name": "Timezones",
       "suffix": "/v3.2/timezones.json",
       "paged": "false",
-      "description": "The timezone list Campaign Monitor accepts. Reference data, and relevant because a client's timezone determines how their timestamps read."
+      "description": "The timezone list Campaign Monitor accepts. Reference data, and relevant because a client's timezone determines how their timestamps read.",
+      "responseSchema": [
+        "string"
+      ]
     },
     {
       "name": "Current date",
       "suffix": "/v3.2/systemdate.json",
       "paged": "false",
-      "description": "Campaign Monitor's own system date and time. Useful for anchoring a relative date range to the service's clock rather than the caller's."
+      "description": "Campaign Monitor's own system date and time. Useful for anchoring a relative date range to the service's clock rather than the caller's.",
+      "responseSchema": {
+        "SystemDate": "string"
+      }
     },
     {
       "name": "Administrators",
       "suffix": "/v3.2/admins.json",
       "paged": "false",
-      "description": "The administrators on the account, with name, email and status."
+      "description": "The administrators on the account, with name, email and status.",
+      "responseSchema": [
+        {
+          "EmailAddress": "string",
+          "Name": "string",
+          "Status": "string"
+        }
+      ]
     },
     {
       "name": "Administrator details",
       "suffix": "/v3.2/admins.json?email={Email?}",
       "paged": "false",
-      "description": "One administrator by email address."
+      "description": "One administrator by email address.",
+      "responseSchema": {
+        "EmailAddress": "string",
+        "Name": "string",
+        "Status": "string"
+      }
     },
     {
       "name": "Primary contact",
       "suffix": "/v3.2/primarycontact.json",
       "paged": "false",
-      "description": "The main contact for the whole account."
+      "description": "The main contact for the whole account.",
+      "responseSchema": {
+        "EmailAddress": "string"
+      }
     },
     {
       "name": "Campaign summary",
       "suffix": "/v3.2/campaigns/{Campaign ID}/summary.json",
       "paged": "false",
-      "description": "The headline statistics of one campaign -- recipients, total and unique opens, clicks, unsubscribes, bounces, spam complaints and the web version views. Requires a campaign id. THE RIGHT ENDPOINT FOR A RATE: the detail endpoints below return one row per event and paging them to count is far more expensive than reading these totals."
+      "description": "The headline statistics of one campaign -- recipients, total and unique opens, clicks, unsubscribes, bounces, spam complaints and the web version views. Requires a campaign id. THE RIGHT ENDPOINT FOR A RATE: the detail endpoints below return one row per event and paging them to count is far more expensive than reading these totals.",
+      "responseSchema": {
+        "Recipients": "double",
+        "TotalOpened": "double",
+        "Clicks": "double",
+        "Unsubscribed": "double",
+        "Bounced": "double",
+        "UniqueOpened": "double",
+        "SpamComplaints": "double",
+        "WebVersionURL": "string",
+        "WebVersionTextURL": "string",
+        "WorldviewURL": "string",
+        "Forwards": "double",
+        "Likes": "double",
+        "Mentions": "double"
+      }
     },
     {
       "name": "Campaign email client usage",
       "suffix": "/v3.2/campaigns/{Campaign ID}/emailclientusage.json",
       "paged": "false",
-      "description": "The email clients recipients opened one campaign in, with counts and percentages. Requires a campaign id. What a template has to render in -- and inferred from opens, so it describes the opening audience rather than the whole."
+      "description": "The email clients recipients opened one campaign in, with counts and percentages. Requires a campaign id. What a template has to render in -- and inferred from opens, so it describes the opening audience rather than the whole.",
+      "responseSchema": [
+        {
+          "Client": "string",
+          "Version": "string",
+          "Percentage": "double",
+          "Subscribers": "double"
+        }
+      ]
     },
     {
       "name": "Campaign lists and segments",
@@ -230,49 +286,199 @@
           "parameterName": "Segment ID"
         }
       ],
-      "description": "Which lists and segments one campaign was sent to. Requires a campaign id. The targeting record, which the campaign itself does not state."
+      "description": "Which lists and segments one campaign was sent to. Requires a campaign id. The targeting record, which the campaign itself does not state.",
+      "responseSchema": {
+        "Lists": [
+          {
+            "ListID": "string",
+            "Name": "string"
+          }
+        ],
+        "Segments": [
+          {
+            "ListID": "string",
+            "SegmentID": "string",
+            "Title": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Campaign recipients",
       "suffix": "/v3.2/campaigns/{Campaign ID}/recipients.json",
       "paged": "true",
-      "description": "Everyone one campaign was sent to, with their email and list. Requires a campaign id. The denominator, and the way to see which lists a campaign actually reached."
+      "description": "Everyone one campaign was sent to, with their email and list. Requires a campaign id. The denominator, and the way to see which lists a campaign actually reached.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "ListID": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Campaign bounces",
       "suffix": "/v3.2/campaigns/{Campaign ID}/bounces.json?date={Date?:YYYY-MM-DD HH:MM}",
       "paged": "true",
-      "description": "Bounce events, with the subscriber and the bounce type. Requires a campaign id. Hard and soft bounces mean different things and are distinguished here; treating them alike overstates list decay."
+      "description": "Bounce events, with the subscriber and the bounce type. Requires a campaign id. Hard and soft bounces mean different things and are distinguished here; treating them alike overstates list decay.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "ListID": "string",
+            "BounceType": "string",
+            "Date": "string",
+            "Reason": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Campaign opens",
       "suffix": "/v3.2/campaigns/{Campaign ID}/opens.json?date={Date?:YYYY-MM-DD HH:MM}",
       "paged": "true",
-      "description": "Every open event for one campaign, with the subscriber, timestamp, IP and geolocation. Requires a campaign id. TOTAL opens including repeats -- the summary carries the unique figure. Carries the usual caveat that opens depend on images loading."
+      "description": "Every open event for one campaign, with the subscriber, timestamp, IP and geolocation. Requires a campaign id. TOTAL opens including repeats -- the summary carries the unique figure. Carries the usual caveat that opens depend on images loading.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "ListID": "string",
+            "Date": "string",
+            "IPAddress": "string",
+            "Latitude": "double",
+            "Longitude": "double",
+            "City": "string",
+            "Region": "string",
+            "CountryCode": "string",
+            "CountryName": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Campaign clicks",
       "suffix": "/v3.2/campaigns/{Campaign ID}/clicks.json?date={Date?:YYYY-MM-DD HH:MM}",
       "paged": "true",
-      "description": "Every click event, with the subscriber, the URL clicked, timestamp and geolocation. Requires a campaign id. The sounder engagement signal, and the URL column is what says which content drew the response."
+      "description": "Every click event, with the subscriber, the URL clicked, timestamp and geolocation. Requires a campaign id. The sounder engagement signal, and the URL column is what says which content drew the response.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "URL": "string",
+            "ListID": "string",
+            "Date": "string",
+            "IPAddress": "string",
+            "Latitude": "double",
+            "Longitude": "double",
+            "City": "string",
+            "Region": "string",
+            "CountryCode": "string",
+            "CountryName": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Campaign unsubscribes",
       "suffix": "/v3.2/campaigns/{Campaign ID}/unsubscribes.json?date={Date?:YYYY-MM-DD HH:MM}",
       "paged": "true",
-      "description": "Unsubscribe events attributable to one campaign, with timestamps. Requires a campaign id. The per-send cost of a campaign."
+      "description": "Unsubscribe events attributable to one campaign, with timestamps. Requires a campaign id. The per-send cost of a campaign.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "ListID": "string",
+            "Date": "string",
+            "IPAddress": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Campaign spam complaints",
       "suffix": "/v3.2/campaigns/{Campaign ID}/spam.json?date={Date?:YYYY-MM-DD HH:MM}",
       "paged": "true",
-      "description": "Spam complaints from one campaign. Requires a campaign id. Small numbers matter -- a handful is enough to affect deliverability for everything sent afterwards."
+      "description": "Spam complaints from one campaign. Requires a campaign id. Small numbers matter -- a handful is enough to affect deliverability for everything sent afterwards.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "ListID": "string",
+            "Date": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Client's details",
       "suffix": "/v3.2/clients/{Client ID}.json",
       "paged": "false",
-      "description": "One client's settings -- company, timezone, country, and their billing and permission configuration. Requires a client id. THE TIMEZONE MATTERS: campaign and subscriber timestamps are returned in the client's own timezone, so figures from two clients are not on the same clock."
+      "description": "One client's settings -- company, timezone, country, and their billing and permission configuration. Requires a client id. THE TIMEZONE MATTERS: campaign and subscriber timestamps are returned in the client's own timezone, so figures from two clients are not on the same clock.",
+      "responseSchema": {
+        "ApiKey": "string",
+        "BasicDetails": {
+          "ClientID": "string",
+          "CompanyName": "string",
+          "Country": "string",
+          "TimeZone": "string",
+          "PrimaryContactName": "string",
+          "PrimaryContactEmail": "string"
+        },
+        "BillingDetails": {
+          "CanPurchaseCredits": "boolean",
+          "Credits": "double",
+          "ClientPays": "boolean",
+          "BaseRatePerRecipient": "double",
+          "MarkupPerRecipient": "double",
+          "MarkupOnDelivery": "double",
+          "BaseDeliveryRate": "double",
+          "Currency": "string",
+          "BaseDesignSpamTestRate": "double"
+        }
+      }
     },
     {
       "name": "Sent campaigns",
@@ -334,7 +540,21 @@
           "parameterName": "Campaign ID"
         }
       ],
-      "description": "The campaigns one client has actually sent, with name, subject, sent date, the number of recipients, and the web version url. Requires a client id. The starting point for reporting: only sent campaigns have statistics, and the campaign id here is what every report endpoint below takes."
+      "description": "The campaigns one client has actually sent, with name, subject, sent date, the number of recipients, and the web version url. Requires a client id. The starting point for reporting: only sent campaigns have statistics, and the campaign id here is what every report endpoint below takes.",
+      "responseSchema": [
+        {
+          "FromName": "string",
+          "FromEmail": "string",
+          "ReplyTo": "string",
+          "WebVersionURL": "string",
+          "WebVersionTextURL": "string",
+          "CampaignID": "string",
+          "Subject": "string",
+          "Name": "string",
+          "SentDate": "string",
+          "TotalRecipients": "double"
+        }
+      ]
     },
     {
       "name": "Scheduled campaigns",
@@ -396,7 +616,22 @@
           "parameterName": "Campaign ID"
         }
       ],
-      "description": "Campaigns queued to send, with their scheduled date. Requires a client id. Forward-looking; no statistics exist yet."
+      "description": "Campaigns queued to send, with their scheduled date. Requires a client id. Forward-looking; no statistics exist yet.",
+      "responseSchema": [
+        {
+          "DateScheduled": "string",
+          "ScheduledTimeZone": "string",
+          "CampaignID": "string",
+          "Name": "string",
+          "Subject": "string",
+          "FromName": "string",
+          "FromEmail": "string",
+          "ReplyTo": "string",
+          "DateCreated": "string",
+          "PreviewURL": "string",
+          "PreviewTextURL": "string"
+        }
+      ]
     },
     {
       "name": "Draft campaigns",
@@ -458,7 +693,20 @@
           "parameterName": "Campaign ID"
         }
       ],
-      "description": "Campaigns not yet scheduled. Requires a client id. Counting all three campaign endpoints together counts work that was never sent."
+      "description": "Campaigns not yet scheduled. Requires a client id. Counting all three campaign endpoints together counts work that was never sent.",
+      "responseSchema": [
+        {
+          "CampaignID": "string",
+          "Name": "string",
+          "Subject": "string",
+          "FromName": "string",
+          "FromEmail": "string",
+          "ReplyTo": "string",
+          "DateCreated": "string",
+          "PreviewURL": "string",
+          "PreviewTextURL": "string"
+        }
+      ]
     },
     {
       "name": "Subscriber lists",
@@ -526,7 +774,13 @@
           "parameterName": "List ID"
         }
       ],
-      "description": "The subscriber lists belonging to one client. Requires a client id. The audience container; subscribers belong to a list rather than to the client, so the same person on two lists is two subscriber records."
+      "description": "The subscriber lists belonging to one client. Requires a client id. The audience container; subscribers belong to a list rather than to the client, so the same person on two lists is two subscriber records.",
+      "responseSchema": [
+        {
+          "ListID": "string",
+          "Name": "string"
+        }
+      ]
     },
     {
       "name": "Lists for an email address",
@@ -594,7 +848,15 @@
           "parameterName": "List ID"
         }
       ],
-      "description": "Which of a client's lists one email address appears on, and in what state. Requires the client id and email. The answer to why someone did or did not receive a send."
+      "description": "Which of a client's lists one email address appears on, and in what state. Requires the client id and email. The answer to why someone did or did not receive a send.",
+      "responseSchema": [
+        {
+          "ListID": "string",
+          "ListName": "string",
+          "SubscriberState": "string",
+          "DateSubscriberAdded": "string"
+        }
+      ]
     },
     {
       "name": "Segments",
@@ -614,37 +876,86 @@
           "parameterName": "Segment ID"
         }
       ],
-      "description": "All segments across one client's lists. Requires a client id."
+      "description": "All segments across one client's lists. Requires a client id.",
+      "responseSchema": [
+        {
+          "ListID": "string",
+          "SegmentID": "string",
+          "Title": "string"
+        }
+      ]
     },
     {
       "name": "Suppression list",
       "suffix": "/v3.2/clients/{Client ID}/suppressionlist.json",
       "paged": "true",
-      "description": "Addresses suppressed across one client -- never mailed regardless of list. Requires a client id. The explanation for a send reaching fewer people than the list size."
+      "description": "Addresses suppressed across one client -- never mailed regardless of list. Requires a client id. The explanation for a send reaching fewer people than the list size.",
+      "responseSchema": {
+        "Results": [
+          {
+            "SuppressionReason": "string",
+            "EmailAddress": "string",
+            "Date": "string",
+            "State": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Templates",
       "suffix": "/v3.2/clients/{Client ID}/templates.json",
       "paged": "false",
-      "description": "The email templates belonging to one client. Requires a client id."
+      "description": "The email templates belonging to one client. Requires a client id.",
+      "responseSchema": [
+        {
+          "TemplateID": "string",
+          "Name": "string",
+          "PreviewURL": "string",
+          "ScreenshotURL": "string"
+        }
+      ]
     },
     {
       "name": "People",
       "suffix": "/v3.2/clients/{Client ID}/people.json",
       "paged": "false",
-      "description": "The users belonging to one client, with their access level. Requires a client id. Client-level access, as opposed to account-level administrators."
+      "description": "The users belonging to one client, with their access level. Requires a client id. Client-level access, as opposed to account-level administrators.",
+      "responseSchema": [
+        {
+          "EmailAddress": "string",
+          "Name": "string",
+          "AccessLevel": "double",
+          "Status": "string"
+        }
+      ]
     },
     {
       "name": "Person details",
       "suffix": "/v3.2/clients/{Client ID}/people.json?email={Email?}",
       "paged": "false",
-      "description": "One client user by email address. Requires the client id."
+      "description": "One client user by email address. Requires the client id.",
+      "responseSchema": {
+        "EmailAddress": "string",
+        "Name": "string",
+        "AccessLevel": "double",
+        "Status": "string"
+      }
     },
     {
       "name": "Client's primary contact",
       "suffix": "/v3.2/clients/{Client ID}/primarycontact.json",
       "paged": "false",
-      "description": "The main contact for one client."
+      "description": "The main contact for one client.",
+      "responseSchema": {
+        "EmailAddress": "string"
+      }
     },
     {
       "name": "Journeys",
@@ -658,7 +969,15 @@
           "parameterName": "Journey ID"
         }
       ],
-      "description": "The automated journeys defined for one client. Requires a client id. Journeys send over time in response to behaviour, so their sends are separate from campaigns entirely -- an email volume figure taken from campaigns alone omits everything automation sent."
+      "description": "The automated journeys defined for one client. Requires a client id. Journeys send over time in response to behaviour, so their sends are separate from campaigns entirely -- an email volume figure taken from campaigns alone omits everything automation sent.",
+      "responseSchema": [
+        {
+          "ListID": "string",
+          "JourneyID": "string",
+          "Name": "string",
+          "Status": "string"
+        }
+      ]
     },
     {
       "name": "Journey summary",
@@ -696,97 +1015,396 @@
           "parameterName": "Email ID"
         }
       ],
-      "description": "One journey's structure and its aggregate performance. Requires a journey id. The email ids here are what the journey report endpoints take."
+      "description": "One journey's structure and its aggregate performance. Requires a journey id. The email ids here are what the journey report endpoints take.",
+      "responseSchema": {
+        "JourneyID": "string",
+        "Name": "string",
+        "TriggerType": "string",
+        "Status": "string",
+        "Emails": [
+          {
+            "EmailID": "string",
+            "Name": "string",
+            "Bounced": "double",
+            "Clicked": "double",
+            "Opened": "double",
+            "Sent": "double",
+            "UniqueOpened": "double",
+            "Unsubscribed": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Journey email recipients",
       "suffix": "/v3.2/journeys/email/{Email ID}/recipients.json?date={Date?:YYYY-MM-DD HH:MM}",
       "paged": "true",
-      "description": "Who one journey email was sent to. Requires the email id."
+      "description": "Who one journey email was sent to. Requires the email id.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "SentDate": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Journey email opens",
       "suffix": "/v3.2/journeys/email/{Email ID}/opens.json?date={Date?:YYYY-MM-DD HH:MM}",
       "paged": "true",
-      "description": "Open events for one journey email. Requires the email id."
+      "description": "Open events for one journey email. Requires the email id.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "Date": "string",
+            "IPAddress": "string",
+            "Latitude": "double",
+            "Longitude": "double",
+            "City": "string",
+            "Region": "string",
+            "CountryCode": "string",
+            "CountryName": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Journey email clicks",
       "suffix": "/v3.2/journeys/email/{Email ID}/clicks.json?date={Date?:YYYY-MM-DD HH:MM}",
       "paged": "true",
-      "description": "Click events for one journey email. Requires the email id."
+      "description": "Click events for one journey email. Requires the email id.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "Date": "string",
+            "URL": "string",
+            "IPAddress": "string",
+            "Latitude": "double",
+            "Longitude": "double",
+            "City": "string",
+            "Region": "string",
+            "CountryCode": "string",
+            "CountryName": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Journey email bounces",
       "suffix": "/v3.2/journeys/email/{Email ID}/bounces.json?date={Date?:YYYY-MM-DD HH:MM}",
       "paged": "true",
-      "description": "Bounce events for one journey email. Requires the email id."
+      "description": "Bounce events for one journey email. Requires the email id.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "BounceType": "string",
+            "Date": "string",
+            "Reason": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Journey email unsubscribes",
       "suffix": "/v3.2/journeys/email/{Email ID}/unsubscribes.json?date={Date?:YYYY-MM-DD HH:MM}",
       "paged": "true",
-      "description": "Unsubscribe events attributable to one journey email. Requires the email id."
+      "description": "Unsubscribe events attributable to one journey email. Requires the email id.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "Date": "string",
+            "IPAddress": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "List details",
       "suffix": "/v3.2/lists/{List ID}.json",
       "paged": "false",
-      "description": "One list's settings -- name, confirmation requirements and the unsubscribe behaviour. Requires a list id. THE UNSUBSCRIBE SETTING MATTERS: a list set to unsubscribe from all client lists behaves very differently from one that unsubscribes only from itself, which explains audience losses that no single campaign accounts for."
+      "description": "One list's settings -- name, confirmation requirements and the unsubscribe behaviour. Requires a list id. THE UNSUBSCRIBE SETTING MATTERS: a list set to unsubscribe from all client lists behaves very differently from one that unsubscribes only from itself, which explains audience losses that no single campaign accounts for.",
+      "responseSchema": {
+        "ConfirmedOptIn": "boolean",
+        "Title": "string",
+        "UnsubscribePage": "string",
+        "UnsubscribeSetting": "string",
+        "ListID": "string",
+        "ConfirmationSuccessPage": "string"
+      }
     },
     {
       "name": "List stats",
       "suffix": "/v3.2/lists/{List ID}/stats.json",
       "paged": "false",
-      "description": "The counts of one list -- active, unconfirmed, bounced, unsubscribed and deleted subscribers, with the new-subscriber and unsubscribe totals for the period. Requires a list id. A ready-made summary; the five state endpoints below are the row-level detail."
+      "description": "The counts of one list -- active, unconfirmed, bounced, unsubscribed and deleted subscribers, with the new-subscriber and unsubscribe totals for the period. Requires a list id. A ready-made summary; the five state endpoints below are the row-level detail.",
+      "responseSchema": {
+        "TotalActiveSubscribers": "double",
+        "NewActiveSubscribersToday": "double",
+        "NewActiveSubscribersYesterday": "double",
+        "NewActiveSubscribersThisWeek": "double",
+        "NewActiveSubscribersThisMonth": "double",
+        "NewActiveSubscribersThisYear": "double",
+        "TotalUnsubscribes": "double",
+        "UnsubscribesToday": "double",
+        "UnsubscribesYesterday": "double",
+        "UnsubscribesThisWeek": "double",
+        "UnsubscribesThisMonth": "double",
+        "UnsubscribesThisYear": "double",
+        "TotalDeleted": "double",
+        "DeletedToday": "double",
+        "DeletedYesterday": "double",
+        "DeletedThisWeek": "double",
+        "DeletedThisMonth": "double",
+        "DeletedThisYear": "double",
+        "TotalBounces": "double",
+        "BouncesToday": "double",
+        "BouncesYesterday": "double",
+        "BouncesThisWeek": "double",
+        "BouncesThisMonth": "double",
+        "BouncesThisYear": "double"
+      }
     },
     {
       "name": "List custom fields",
       "suffix": "/v3.2/lists/{List ID}/customfields.json",
       "paged": "false",
-      "description": "The custom fields defined on one list, with their names and types. Requires a list id. The decoder for custom values on subscribers, and note fields are PER LIST -- the same attribute on two lists is two definitions."
+      "description": "The custom fields defined on one list, with their names and types. Requires a list id. The decoder for custom values on subscribers, and note fields are PER LIST -- the same attribute on two lists is two definitions.",
+      "responseSchema": [
+        {
+          "FieldName": "string",
+          "Key": "string",
+          "DataType": "string",
+          "FieldOptions": [
+            "string"
+          ],
+          "VisibleInPreferenceCenter": "boolean"
+        }
+      ]
     },
     {
       "name": "List segments",
       "suffix": "/v3.2/lists/{List ID}/segments.json",
       "paged": "false",
-      "description": "The segments defined on one list, with their rules. Requires a list id."
+      "description": "The segments defined on one list, with their rules. Requires a list id.",
+      "responseSchema": [
+        {
+          "ListID": "string",
+          "SegmentID": "string",
+          "Title": "string"
+        }
+      ]
     },
     {
       "name": "Active subscribers",
       "suffix": "/v3.2/lists/{List ID}/active.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
       "paged": "true",
-      "description": "The subscribers on one list who can be mailed, optionally added since a date. Requires a list id. THE ONLY MAILABLE STATE -- the four endpoints below hold the rest, and a subscriber count taken from the list without regard to state overstates reach."
+      "description": "The subscribers on one list who can be mailed, optionally added since a date. Requires a list id. THE ONLY MAILABLE STATE -- the four endpoints below hold the rest, and a subscriber count taken from the list without regard to state overstates reach.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "Name": "string",
+            "Date": "string",
+            "State": "string",
+            "CustomFields": [
+              {
+                "Key": "string",
+                "Value": "string"
+              }
+            ],
+            "ReadsEmailWith": "string",
+            "ConsentToTrack": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Unconfirmed subscribers",
       "suffix": "/v3.2/lists/{List ID}/unconfirmed.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
       "paged": "true",
-      "description": "Subscribers who signed up but never confirmed, on a confirmed-opt-in list. They are not mailable and are not opt-outs either -- they are a signup funnel leak, and counting them as lost subscribers misattributes the cause."
+      "description": "Subscribers who signed up but never confirmed, on a confirmed-opt-in list. They are not mailable and are not opt-outs either -- they are a signup funnel leak, and counting them as lost subscribers misattributes the cause.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "Name": "string",
+            "Date": "string",
+            "State": "string",
+            "CustomFields": [
+              {
+                "Key": "string",
+                "Value": "string"
+              }
+            ],
+            "ReadsEmailWith": "string",
+            "ConsentToTrack": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Unsubscribed subscribers",
       "suffix": "/v3.2/lists/{List ID}/unsubscribed.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
       "paged": "true",
-      "description": "Subscribers who opted out, with the date. The deliberate departures."
+      "description": "Subscribers who opted out, with the date. The deliberate departures.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "Name": "string",
+            "Date": "string",
+            "State": "string",
+            "CustomFields": [
+              {
+                "Key": "string",
+                "Value": "string"
+              }
+            ],
+            "ReadsEmailWith": "string",
+            "ConsentToTrack": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Bounced subscribers",
       "suffix": "/v3.2/lists/{List ID}/bounced.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
       "paged": "true",
-      "description": "Subscribers removed for bouncing. Address decay rather than a decision, which is why it should be separated from unsubscribes when explaining audience shrinkage."
+      "description": "Subscribers removed for bouncing. Address decay rather than a decision, which is why it should be separated from unsubscribes when explaining audience shrinkage.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "Name": "string",
+            "Date": "string",
+            "State": "string",
+            "CustomFields": [
+              {
+                "Key": "string",
+                "Value": "string"
+              }
+            ],
+            "ReadsEmailWith": "string",
+            "ConsentToTrack": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Deleted subscribers",
       "suffix": "/v3.2/lists/{List ID}/deleted.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
       "paged": "true",
-      "description": "Subscribers removed from the list by an administrator."
+      "description": "Subscribers removed from the list by an administrator.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "Name": "string",
+            "Date": "string",
+            "State": "string",
+            "CustomFields": [
+              {
+                "Key": "string",
+                "Value": "string"
+              }
+            ],
+            "ReadsEmailWith": "string",
+            "ConsentToTrack": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "List webhooks",
       "suffix": "/v3.2/lists/{List ID}/webhooks.json",
       "paged": "false",
-      "description": "The webhooks configured on one list. Requires a list id. Integration configuration."
+      "description": "The webhooks configured on one list. Requires a list id. Integration configuration.",
+      "responseSchema": [
+        {
+          "WebhookID": "string",
+          "Events": [
+            "string"
+          ],
+          "Url": "string",
+          "Status": "string",
+          "PayloadFormat": "string"
+        }
+      ]
     },
     {
       "name": "Testing a webhook",
@@ -798,31 +1416,109 @@
       "name": "Segment's details",
       "suffix": "/v3.2/segments/{Segment ID}.json",
       "paged": "false",
-      "description": "One segment's rules and its current subscriber count. Requires a segment id. The rules state the client's own definition of the audience, which the name rarely conveys."
+      "description": "One segment's rules and its current subscriber count. Requires a segment id. The rules state the client's own definition of the audience, which the name rarely conveys.",
+      "responseSchema": {
+        "ActiveSubscribers": "double",
+        "RuleGroups": [
+          {
+            "Rules": [
+              {
+                "RuleType": "string",
+                "Clause": "string"
+              }
+            ]
+          }
+        ],
+        "ListID": "string",
+        "SegmentID": "string",
+        "Title": "string"
+      }
     },
     {
       "name": "Segment's active subsribers",
       "suffix": "/v3.2/segments/{Segment ID}/active.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
       "paged": "true",
-      "description": "The mailable subscribers currently matching one segment. Requires a segment id. Evaluated at request time, so it can differ from the count the segment reports."
+      "description": "The mailable subscribers currently matching one segment. Requires a segment id. Evaluated at request time, so it can differ from the count the segment reports.",
+      "responseSchema": {
+        "Results": [
+          {
+            "EmailAddress": "string",
+            "Name": "string",
+            "Date": "string",
+            "State": "string",
+            "CustomFields": [
+              {
+                "Key": "string",
+                "Value": "string"
+              }
+            ],
+            "ConsentToTrack": "string"
+          }
+        ],
+        "ResultsOrderedBy": "string",
+        "OrderDirection": "string",
+        "PageNumber": "double",
+        "PageSize": "double",
+        "RecordsOnThisPage": "double",
+        "TotalNumberOfRecords": "double",
+        "NumberOfPages": "double"
+      }
     },
     {
       "name": "Subscriber's details",
       "suffix": "/v3.2/subscribers/{List ID}.json?email={Email}&includetrackingpreference={Include Tracking Preference?:true|false}",
       "paged": "false",
-      "description": "One subscriber on one list, by email, optionally with their tracking history. Requires the list id and email."
+      "description": "One subscriber on one list, by email, optionally with their tracking history. Requires the list id and email.",
+      "responseSchema": {
+        "EmailAddress": "string",
+        "Name": "string",
+        "MobileNumber": "string",
+        "ListJoinedDate": "string",
+        "Date": "string",
+        "State": "string",
+        "CustomFields": [
+          {
+            "Key": "string",
+            "Value": "string"
+          }
+        ],
+        "ReadsEmailWith": "string",
+        "ConsentToTrack": "string",
+        "ConsentToSendSms": "string"
+      }
     },
     {
       "name": "Subscriber's history",
       "suffix": "/v3.2/subscribers/{List ID}/history.json?email={Email}",
       "paged": "false",
-      "description": "Every action one subscriber took across campaigns -- opens, clicks, unsubscribes -- with timestamps. Requires the list id and email. THE PER-PERSON ENGAGEMENT RECORD, which no campaign report gives, and the basis for identifying a lapsing subscriber."
+      "description": "Every action one subscriber took across campaigns -- opens, clicks, unsubscribes -- with timestamps. Requires the list id and email. THE PER-PERSON ENGAGEMENT RECORD, which no campaign report gives, and the basis for identifying a lapsing subscriber.",
+      "responseSchema": [
+        {
+          "ID": "string",
+          "Type": "string",
+          "Name": "string",
+          "Actions": [
+            {
+              "Event": "string",
+              "Date": "string",
+              "IPAddress": "string",
+              "Detail": "string"
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Template",
       "suffix": "/v3.2/templates/{Template ID}.json",
       "paged": "false",
-      "description": "One template by id, with its content and screenshot."
+      "description": "One template by id, with its content and screenshot.",
+      "responseSchema": {
+        "TemplateID": "string",
+        "Name": "string",
+        "PreviewURL": "string",
+        "ScreenshotURL": "string"
+      }
     },
     {
       "name": "Smart email listing",
@@ -836,25 +1532,75 @@
           "parameterName": "Smart Email ID"
         }
       ],
-      "description": "The transactional smart emails defined, by status. Transactional sends are a separate product from campaigns and journeys, with their own statistics -- a complete picture of email volume needs all three."
+      "description": "The transactional smart emails defined, by status. Transactional sends are a separate product from campaigns and journeys, with their own statistics -- a complete picture of email volume needs all three.",
+      "responseSchema": [
+        {
+          "ID": "string",
+          "Name": "string",
+          "CreatedAt": "timeInstant",
+          "Status": "string"
+        }
+      ]
     },
     {
       "name": "Smart email details",
       "suffix": "/v3.2/transactional/smartEmail/{Smart Email ID}",
       "paged": "false",
-      "description": "One smart email by id, with its content and settings."
+      "description": "One smart email by id, with its content and settings.",
+      "responseSchema": {
+        "SmartEmailID": "string",
+        "CreatedAt": "timeInstant",
+        "Status": "string",
+        "Name": "string",
+        "Properties": {
+          "From": "string",
+          "ReplyTo": "string",
+          "Subject": "string",
+          "Content": {
+            "Html": "string",
+            "Text": "string",
+            "EmailVariables": [
+              "string"
+            ],
+            "InlineCss": "boolean"
+          },
+          "TextPreviewUrl": "string",
+          "HtmlPreviewUrl": "string"
+        },
+        "AddRecipientsToList": "string"
+      }
     },
     {
       "name": "Classic email group listing",
       "suffix": "/v3.2/transactional/classicEmail/groups?clientID={Client ID?}",
       "paged": "false",
-      "description": "The classic transactional email groups for one client."
+      "description": "The classic transactional email groups for one client.",
+      "responseSchema": [
+        {
+          "Group": "string",
+          "CreatedAt": "string"
+        }
+      ]
     },
     {
       "name": "Statistics",
       "suffix": "/v3.2/transactional/statistics?clientID={Client ID?}&smartEmailID={Smart Email ID?}&group={Group?}&from={From?:YYYY-MM-DD}&to={To?:YYYY-MM-DD}&timezone={Timezone?:utc|client}",
       "paged": "false",
-      "description": "Transactional email statistics -- sent, delivered, bounced, opened and clicked -- over a period, optionally for one smart email. The aggregate view of transactional sending."
+      "description": "Transactional email statistics -- sent, delivered, bounced, opened and clicked -- over a period, optionally for one smart email. The aggregate view of transactional sending.",
+      "responseSchema": {
+        "Query": {
+          "Group": "string",
+          "SmartEmailID": "string",
+          "From": "string",
+          "To": "string",
+          "TimeZone": "string"
+        },
+        "Sent": "double",
+        "Bounces": "double",
+        "Delivered": "double",
+        "Opened": "double",
+        "Clicked": "double"
+      }
     },
     {
       "name": "Message timeline",
@@ -868,13 +1614,105 @@
           "parameterName": "Message ID"
         }
       ],
-      "description": "Individual transactional messages with their status, filterable by status and count. The per-message record, as opposed to the aggregate."
+      "description": "Individual transactional messages with their status, filterable by status and count. The per-message record, as opposed to the aggregate.",
+      "responseSchema": [
+        {
+          "MessageID": "string",
+          "Status": "string",
+          "SentAt": "string",
+          "Recipient": "string",
+          "From": "string",
+          "Subject": "string",
+          "TotalOpens": "double",
+          "TotalClicks": "double",
+          "CanBeResent": "boolean",
+          "Group": "string",
+          "SmartEmailID": "string",
+          "BounceType": "string",
+          "BounceCategory": "string"
+        }
+      ]
     },
     {
       "name": "Message details",
       "suffix": "/v3.2/transactional/messages/{Message ID}?statistics={Statistics?:false|true}",
       "paged": "false",
-      "description": "One transactional message by id, optionally with its statistics. Where a specific message's delivery is traced."
+      "description": "One transactional message by id, optionally with its statistics. Where a specific message's delivery is traced.",
+      "responseSchema": {
+        "MessageID": "string",
+        "Status": "string",
+        "SentAt": "string",
+        "SmartEmailID": "string",
+        "Group": "string",
+        "CanBeResent": "boolean",
+        "Recipient": "string",
+        "BounceType": "string",
+        "BounceCategory": "string",
+        "Message": {
+          "From": "string",
+          "Subject": "string",
+          "To": [
+            "string"
+          ],
+          "CC": [
+            "string"
+          ],
+          "BCC": [
+            "string"
+          ],
+          "ReplyTo": "string",
+          "Attachments": [
+            {
+              "Name": "string",
+              "Type": "string"
+            }
+          ],
+          "Body": {
+            "Html": "string",
+            "Text": "string"
+          },
+          "Data": {
+            "*": "string"
+          }
+        },
+        "TotalOpens": "double",
+        "TotalClicks": "double",
+        "Opens": [
+          {
+            "EmailAddress": "string",
+            "Date": "string",
+            "IPAddress": "string",
+            "Geolocation": {
+              "Latitude": "double",
+              "Longitude": "double",
+              "City": "string",
+              "Region": "string",
+              "CountryCode": "string",
+              "CountryName": "string"
+            },
+            "MailClient": {
+              "Name": "string",
+              "Version": "string"
+            }
+          }
+        ],
+        "Clicks": [
+          {
+            "EmailAddress": "string",
+            "Date": "string",
+            "IPAddress": "string",
+            "URL": "string",
+            "Geolocation": {
+              "Latitude": "double",
+              "Longitude": "double",
+              "City": "string",
+              "Region": "string",
+              "CountryCode": "string",
+              "CountryName": "string"
+            }
+          }
+        ]
+      }
     }
   ]
 }
