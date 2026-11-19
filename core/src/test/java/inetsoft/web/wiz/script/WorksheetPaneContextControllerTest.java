@@ -128,9 +128,9 @@ class WorksheetPaneContextControllerTest {
          PaneContext sql = controller.paneContext("T-" + kind, agent);
 
          assertEquals("sql", sql.syntax().language(), kind);
-         assertEquals(List.of("SUM", "COUNT", "AVG", "MIN", "MAX"), sql.functions(), kind);
-         assertEquals(List.of("+", "-", "*", "/", "<", ">", "<=", ">=", "=", "<>"),
-                      sql.operators(), kind);
+         assertTrue(sql.functions().isEmpty(), kind);
+         assertTrue(sql.operators().isEmpty(), kind);
+         assertTrue(sql.syntax().note().contains("cannot be used"), kind);
          assertTrue(sql.notes().stream().noneMatch(n -> n.contains("SQL mode")), kind);
          // The columns are the same in either mode.
          assertEquals(List.of("price", "cost"),

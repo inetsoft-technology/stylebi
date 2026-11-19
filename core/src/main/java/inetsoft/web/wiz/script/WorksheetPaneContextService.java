@@ -87,9 +87,10 @@ public class WorksheetPaneContextService {
       List<String> operators = List.of();
 
       if(sql) {
-         // The same fixed SQL lists the viewsheet calculated field context serves.
-         functions = PaneContextService.SQL_FUNCTIONS;
-         operators = PaneContextService.SQL_OPERATORS;
+         // The dialog's Functions and Operators panels are disabled in SQL mode, and the
+         // viewsheet calc field's aggregate list would break a per-row worksheet formula
+         // (Bug #81557 feedback), so nothing is listed.
+         functions = List.of();
       }
       else {
          functions = apiService.functionNames();

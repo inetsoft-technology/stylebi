@@ -327,8 +327,9 @@ public class PaneContextService {
       "A worksheet formula in SQL mode is a SQL value expression the data source evaluates per " +
       "row, not JavaScript: write a column by its name as the data source knows it and a " +
       "worksheet variable as $(<name>); the data source's own SQL functions and operators are " +
-      "what the dialog offers (this context does not list them). parameter.<name> and script " +
-      "functions are not available. A new Expression condition value starts on SQL.";
+      "what the dialog offers (this context does not list them). Aggregate functions such as " +
+      "SUM, COUNT, AVG, MIN and MAX cannot be used: the formula is evaluated per row, and an " +
+      "aggregate makes the table fail. parameter.<name> and script functions are not available. A new Expression condition value starts on SQL.";
 
    static final String WORKSHEET_EXPRESSION_SCRIPT_NOTE =
       "A worksheet expression column in Script mode is JavaScript evaluated per row: read a " +
