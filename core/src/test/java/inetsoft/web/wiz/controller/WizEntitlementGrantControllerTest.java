@@ -887,6 +887,54 @@ class WizEntitlementGrantControllerTest {
                    post(request("config.read", "user", "nobody", false), writer).roles());
    }
 
+   @Test
+   void revokeLastKeepsTheFlagWhileOnlyAnOrganizationLessRoleGrantRemains() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      Permission global = new Permission();
+      global.setRoleGrantsForOrg(ResourceAction.ACCESS, Set.of("globalr"), null);
+      provider.setPermission(ResourceType.WIZ_PERMISSION, "plugin.use", global, ORG_A);
+
+      assertTrue(post(request("plugin.use", "user", "carol", true), writer).restricted());
+      GrantEntry afterRevoke = post(request("plugin.use", "user", "carol", false), writer);
+
+      assertTrue(afterRevoke.users().isEmpty());
+      assertEquals(List.of("globalr"), afterRevoke.roles());
+      assertTrue(afterRevoke.restricted(), "the global role grant still counts as a grant");
+      assertTrue(provider.getPermission(ResourceType.WIZ_PERMISSION, "plugin.use", ORG_A)
+                    .hasOrgEditedGrantAll(ORG_A));
+
+      // once the global grant is gone by other means, a revoke-last clears the flag
+      Permission stored = (Permission) provider
+         .getPermission(ResourceType.WIZ_PERMISSION, "plugin.use", ORG_A).clone();
+      stored.setOrgEditedGrantAll(new HashMap<>(stored.getOrgEditedGrantAll()));
+      stored.setRoleGrantsForOrg(ResourceAction.ACCESS, Set.of(), null);
+      provider.setPermission(ResourceType.WIZ_PERMISSION, "plugin.use", stored, ORG_A);
+
+      post(request("plugin.use", "user", "carol", true), writer);
+      GrantEntry last = post(request("plugin.use", "user", "carol", false), writer);
+      assertFalse(last.restricted());
+      assertTrue(holds("plain", "plugin.use", false));
+   }
+
+   @Test
+   void idempotentRevokesDoNotWrite() throws Exception {
+      SecurityProvider provider = delegating()[0];
+      SRPrincipal writer = wiz("writer", ORG_A);
+
+      for(String permission : List.of("plugin.use", "config.read")) {
+         post(request(permission, "user", "carol", true), writer);
+         post(request(permission, "user", "carol", false), writer);
+         clearInvocations(provider);
+
+         post(request(permission, "user", "carol", false), writer);
+         post(request(permission, "user", "reader", false), writer);
+
+         verify(provider, never()).setPermission(any(ResourceType.class), anyString(),
+                                                 any(Permission.class), anyString());
+      }
+   }
+
    private GrantEntry post(GrantRequest request, Principal caller) {
       try {
          return controller.setGrant(request, caller);
