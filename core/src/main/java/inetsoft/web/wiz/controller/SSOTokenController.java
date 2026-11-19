@@ -125,7 +125,12 @@ public class SSOTokenController {
          }
       }
 
-      String html = buildAutoSubmitForm(callback, token, redirectUrl, csrfToken);
+      // The Wiz portal's own sign-in is first-party: the token is POSTed to the Wiz service the
+      // administrator configured and becomes a cookie for the same user, so asking "an AI agent is
+      // requesting access" would only confuse a user who is already signed in to StyleBI. Every
+      // other caller (plugins, OAuth bindings carrying a nonce) keeps the explicit consent page.
+      String html = buildAutoSubmitForm(
+         callback, token, redirectUrl, csrfToken, isFirstPartyWizCallback(callback));
 
       response.setStatus(HttpServletResponse.SC_OK);
       response.setContentType(MediaType.TEXT_HTML_VALUE);
@@ -215,6 +220,16 @@ public class SSOTokenController {
       return list;
    }
 
+   /**
+    * True only for the exact, query-less callback of the configured Wiz service. A callback that
+    * carries a query string (the remote-MCP OAuth flow binds a nonce there) never qualifies,
+    * because that flow hands the token to a third party's client and needs the user's consent.
+    */
+   private boolean isFirstPartyWizCallback(String callback) {
+      String wizCallback = getAllowedCallback(SreeEnv.getProperty(WIZ_SERVICE_URL));
+      return wizCallback != null && callback != null && callback.equalsIgnoreCase(wizCallback);
+   }
+
    private String getAllowedCallback(String baseUrl) {
       if(baseUrl == null || baseUrl.trim().isEmpty()) {
          return null;
@@ -236,6 +251,16 @@ public class SSOTokenController {
    private String buildAutoSubmitForm(String callback, String token, String redirectUrl,
                                       String csrfToken)
    {
+      return buildAutoSubmitForm(callback, token, redirectUrl, csrfToken, false);
+   }
+
+   /**
+    * @param silent true to submit the form immediately without asking the user; the Authorize
+    *               button stays as a fallback for browsers with scripting disabled.
+    */
+   private String buildAutoSubmitForm(String callback, String token, String redirectUrl,
+                                      String csrfToken, boolean silent)
+   {
       String escapedCallback = HtmlUtils.htmlEscape(callback);
       String escapedToken = HtmlUtils.htmlEscape(token);
       String redirectUrlInput = "";
@@ -249,6 +274,27 @@ public class SSOTokenController {
 
       if(csrfToken != null && !csrfToken.isEmpty()) {
          csrfInput = "<input type=\"hidden\" name=\"_csrf\" value=\"" + HtmlUtils.htmlEscape(csrfToken) + "\" />";
+      }
+
+      if(silent) {
+         return """
+            <!DOCTYPE html>
+            <html>
+            <head>
+               <meta charset="UTF-8">
+               <title>Signing in</title>
+            </head>
+            <body>
+               <form id="sso-form" method="POST" action="%s">
+                  <input type="hidden" name="token" value="%s" />
+                  %s
+                  %s
+                  <noscript><button type="submit">Continue</button></noscript>
+               </form>
+               <script>document.getElementById("sso-form").submit();</script>
+            </body>
+            </html>
+            """.formatted(escapedCallback, escapedToken, redirectUrlInput, csrfInput);
       }
 
       return """
