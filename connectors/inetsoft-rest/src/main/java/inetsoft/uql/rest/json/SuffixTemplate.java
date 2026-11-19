@@ -35,7 +35,7 @@ public class SuffixTemplate {
 
       leadingSlash = template.charAt(0) == '/';
       path = new ArrayList<>();
-      query = new LinkedHashMap<>();
+      query = new ArrayList<>();
       variables = new HashMap<>();
       TemplateParser parser = new TemplateParser(path, query);
       parser.parse(leadingSlash ? template.substring(1) : template);
@@ -45,8 +45,18 @@ public class SuffixTemplate {
       return path;
    }
 
+   /**
+    * Gets the query components keyed by name. A name repeated in the template maps to its
+    * last component; {@link #build()} still emits every occurrence.
+    */
    public Map<String, TemplateComponent> getQuery() {
-      return query;
+      Map<String, TemplateComponent> map = new LinkedHashMap<>();
+
+      for(Map.Entry<String, TemplateComponent> e : query) {
+         map.put(e.getKey(), e.getValue());
+      }
+
+      return map;
    }
 
    public String getVariable(String name, String value) {
@@ -109,7 +119,7 @@ public class SuffixTemplate {
 
       first = true;
 
-      for(Map.Entry<String, TemplateComponent> e : query.entrySet()) {
+      for(Map.Entry<String, TemplateComponent> e : query) {
          String name = e.getKey();
          TemplateComponent part = e.getValue();
 
@@ -196,7 +206,7 @@ public class SuffixTemplate {
 
    private final boolean leadingSlash;
    private final List<TemplateComponent> path;
-   private final Map<String, TemplateComponent> query;
+   private final List<Map.Entry<String, TemplateComponent>> query;
    private final Map<String, String> variables;
    private HttpParameter[] additionalParameters = {};
 

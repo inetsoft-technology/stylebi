@@ -26,13 +26,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class TemplateParserTest {
    private List<TemplateComponent> pathComponents;
-   private Map<String, TemplateComponent> queryComponents;
+   private List<Map.Entry<String, TemplateComponent>> queryComponents;
    private TemplateParser parser;
 
    @BeforeEach
    void createParser() {
       pathComponents = new ArrayList<>();
-      queryComponents = new HashMap<>();
+      queryComponents = new ArrayList<>();
       parser = new TemplateParser(pathComponents, queryComponents);
    }
 
@@ -85,10 +85,10 @@ class TemplateParserTest {
    void givenQueryOnlyShouldParse() {
       String template = "?static=1&var1={First}&var2={Second & Third?,:val1,val2,...}";
       parser.parse(template);
-      Map<String, TemplateComponent> expected = new HashMap<>();
-      expected.put("static", new TemplateComponent(false, false, false, "1", null, null));
-      expected.put("var1", new TemplateComponent(true, true, false, "First", null, null));
-      expected.put("var2", new TemplateComponent(true, false, true, "Second & Third", null, null));
+      List<Map.Entry<String, TemplateComponent>> expected = new ArrayList<>();
+      expected.add(new AbstractMap.SimpleEntry<>("static", new TemplateComponent(false, false, false, "1", null, null)));
+      expected.add(new AbstractMap.SimpleEntry<>("var1", new TemplateComponent(true, true, false, "First", null, null)));
+      expected.add(new AbstractMap.SimpleEntry<>("var2", new TemplateComponent(true, false, true, "Second & Third", null, null)));
       assertAll(
          () -> assertTrue(pathComponents.isEmpty()),
          () -> assertEquals(expected, queryComponents)
@@ -104,13 +104,24 @@ class TemplateParserTest {
          new TemplateComponent(true, true, false, "Parent", null, null),
          new TemplateComponent(true, false, false, "Child", null, null)
       );
-      Map<String, TemplateComponent> expectedQuery = new HashMap<>();
-      expectedQuery.put("static", new TemplateComponent(false, false, false, "1", null, null));
-      expectedQuery.put("var1", new TemplateComponent(true, true, false, "First", null, null));
-      expectedQuery.put("var2", new TemplateComponent(true, false, true, "Second & Third", null, null));
+      List<Map.Entry<String, TemplateComponent>> expectedQuery = new ArrayList<>();
+      expectedQuery.add(new AbstractMap.SimpleEntry<>("static", new TemplateComponent(false, false, false, "1", null, null)));
+      expectedQuery.add(new AbstractMap.SimpleEntry<>("var1", new TemplateComponent(true, true, false, "First", null, null)));
+      expectedQuery.add(new AbstractMap.SimpleEntry<>("var2", new TemplateComponent(true, false, true, "Second & Third", null, null)));
       assertAll(
          () -> assertEquals(expectedPath, pathComponents),
          () -> assertEquals(expectedQuery, queryComponents)
       );
+   }
+
+   @Test
+   void givenRepeatedQueryNameShouldKeepEveryEntryInOrder() {
+      parser.parse("?iids[]=1&iids[]=2");
+      List<Map.Entry<String, TemplateComponent>> expected = new ArrayList<>();
+      expected.add(new AbstractMap.SimpleEntry<>(
+         "iids[]", new TemplateComponent(false, false, false, "1", null, null)));
+      expected.add(new AbstractMap.SimpleEntry<>(
+         "iids[]", new TemplateComponent(false, false, false, "2", null, null)));
+      assertEquals(expected, queryComponents);
    }
 }
