@@ -4,96 +4,524 @@
       "name": "Account Email Addresses",
       "paged": false,
       "suffix": "/v3/account/emails?confirm_status={Confirm Status?:CONFIRMED|UNCONFIRMED}&role_code={Role Code?:CONTACT|BILLING|JOURNALING|REPLY_TO|OTHER}&email_address={Email Address?}",
+      "responseSchema": [
+        {
+          "email_address": "string",
+          "email_id": "double",
+          "confirm_status": "string",
+          "confirm_time": "timeInstant",
+          "confirm_source_type": "string",
+          "roles": [
+            "string"
+          ],
+          "pending_roles": [
+            "string"
+          ]
+        }
+      ],
       "description": "The from addresses registered for the account, with their confirmation status. AN UNCONFIRMED ADDRESS CANNOT SEND, so this is the usual explanation for a campaign that will not go out."
     },
     {
       "name": "Account Details",
       "paged": false,
       "suffix": "/v3/account/summary?extra_fields={Extra Fields?:value1,value2,...}",
+      "responseSchema": {
+        "contact_email": "string",
+        "contact_phone": "string",
+        "country_code": "string",
+        "encoded_account_id": "string",
+        "encoded_partner_id": "string",
+        "first_name": "string",
+        "last_name": "string",
+        "organization_name": "string",
+        "organization_phone": "string",
+        "state_code": "string",
+        "time_zone_id": "string",
+        "website": "string",
+        "physical_address": {
+          "address_line1": "string",
+          "address_line2": "string",
+          "address_line3": "string",
+          "city": "string",
+          "state_code": "string",
+          "state_name": "string",
+          "postal_code": "string",
+          "country_code": "string"
+        },
+        "company_logo": {
+          "url": "string",
+          "external_url": "string",
+          "internal_id": "string"
+        }
+      },
       "description": "The account's name, contact details and settings. One record."
     },
     {
       "name": "Account Physical Address",
       "paged": false,
       "suffix": "/v3/account/summary/physical_address",
+      "responseSchema": {
+        "address_line1": "string",
+        "address_line2": "string",
+        "address_line3": "string",
+        "city": "string",
+        "state_code": "string",
+        "state_name": "string",
+        "postal_code": "string",
+        "country_code": "string"
+      },
       "description": "The postal address included in every campaign footer, as required by anti-spam law. Configuration."
     },
     {
       "name": "User Privileges",
       "paged": false,
       "suffix": "/v3/account/user/privileges",
+      "responseSchema": [
+        {
+          "privilege_id": "double",
+          "privilege_name": "string"
+        }
+      ],
       "description": "The permissions the calling account holds. The direct explanation for a permission error elsewhere."
     },
     {
       "name": "Activity Statuses",
       "paged": true,
       "suffix": "/v3/activities?state={State?:processing|completed|cancelled|failed|timed_out}",
+      "responseSchema": {
+        "activities": [
+          {
+            "activity_id": "string",
+            "state": "string",
+            "started_at": "timeInstant",
+            "completed_at": "timeInstant",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "source_file_name": "string",
+            "percent_done": "double",
+            "activity_errors": [
+              "string"
+            ],
+            "status": {
+              "items_total_count": "double",
+              "items_completed_count": "double",
+              "person_count": "double",
+              "error_count": "double",
+              "correctable_count": "double",
+              "cannot_add_to_list_count": "double",
+              "list_count": "double"
+            },
+            "_links": {
+              "self": {
+                "href": "string"
+              },
+              "results": {
+                "href": "string"
+              }
+            }
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "The asynchronous bulk jobs on the account -- imports, exports, deletions -- with their state. Bulk operations report only that they were queued, so this is where their outcome is found."
     },
     {
       "name": "Activity Status",
       "paged": false,
       "suffix": "/v3/activities/{Activity ID}",
+      "responseSchema": {
+        "activity_id": "string",
+        "state": "string",
+        "started_at": "timeInstant",
+        "completed_at": "timeInstant",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "source_file_name": "string",
+        "percent_done": "double",
+        "activity_errors": [
+          "string"
+        ],
+        "status": {
+          "items_total_count": "double",
+          "items_completed_count": "double",
+          "person_count": "double",
+          "error_count": "double",
+          "correctable_count": "double",
+          "cannot_add_to_list_count": "double",
+          "list_count": "double"
+        },
+        "_links": {
+          "self": {
+            "href": "string"
+          },
+          "results": {
+            "href": "string"
+          }
+        }
+      },
       "description": "One bulk job by id, with its progress and any errors. The error detail is where silently dropped import rows show up."
     },
     {
       "name": "Contacts",
       "paged": true,
       "suffix": "/v3/contacts?status={Status?:value1,value2,...}&email={Search Email Address?}&lists={Contacts List?}&updated_after={Updated After?:yyyy-MM-dd}&include={Include?:custom_fields|list_memberships|phone_numbers|street_addresses}&include_count={Include Count?:true|false}",
+      "responseSchema": {
+        "contacts": [
+          {
+            "contact_id": "string",
+            "email_address": {
+              "address": "string",
+              "permission_to_send": "string",
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "opt_in_source": "string",
+              "opt_in_date": "timeInstant",
+              "opt_out_source": "string",
+              "opt_out_date": "timeInstant",
+              "opt_out_reason": "string",
+              "confirm_status": "string"
+            },
+            "first_name": "string",
+            "last_name": "string",
+            "job_title": "string",
+            "company_name": "string",
+            "birthday_month": "double",
+            "birthday_day": "double",
+            "anniversary": "date",
+            "update_source": "string",
+            "create_source": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "deleted_at": "date",
+            "custom_fields": [
+              {
+                "custom_field_id": "string",
+                "value": "string",
+                "choice_ids": [
+                  "string"
+                ]
+              }
+            ],
+            "phone_numbers": [
+              {
+                "phone_number_id": "string",
+                "phone_number": "string",
+                "kind": "string",
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant",
+                "update_source": "string",
+                "create_source": "string"
+              }
+            ],
+            "street_addresses": [
+              {
+                "street_address_id": "string",
+                "kind": "string",
+                "street": "string",
+                "city": "string",
+                "state": "string",
+                "postal_code": "string",
+                "country": "string",
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant"
+              }
+            ],
+            "list_memberships": [
+              "string"
+            ]
+          }
+        ],
+        "contacts_count": "double",
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "The contacts in the account, with email, name, the lists they belong to, custom fields, the source they were created from, and their timestamps. Filterable by status and email. STATUS IS THE FILTER THAT MATTERS: unsubscribed and removed contacts remain in the table, so a subscriber count taken without it overstates the reachable audience."
     },
     {
       "name": "Contact",
       "paged": false,
       "suffix": "/v3/contacts/{Contact ID}?include={Include?:value1,value2,...}",
+      "responseSchema": {
+        "contact_id": "string",
+        "email_address": {
+          "address": "string",
+          "permission_to_send": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "opt_in_source": "string",
+          "opt_in_date": "timeInstant",
+          "opt_out_source": "string",
+          "opt_out_date": "timeInstant",
+          "opt_out_reason": "string",
+          "confirm_status": "string"
+        },
+        "first_name": "string",
+        "last_name": "string",
+        "job_title": "string",
+        "company_name": "string",
+        "birthday_month": "double",
+        "birthday_day": "double",
+        "anniversary": "date",
+        "update_source": "string",
+        "create_source": "string",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "deleted_at": "date",
+        "custom_fields": [
+          {
+            "custom_field_id": "string",
+            "value": "string",
+            "choice_ids": [
+              "string"
+            ]
+          }
+        ],
+        "phone_numbers": [
+          {
+            "phone_number_id": "string",
+            "phone_number": "string",
+            "kind": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "update_source": "string",
+            "create_source": "string"
+          }
+        ],
+        "street_addresses": [
+          {
+            "street_address_id": "string",
+            "kind": "string",
+            "street": "string",
+            "city": "string",
+            "state": "string",
+            "postal_code": "string",
+            "country": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "list_memberships": [
+          "string"
+        ],
+        "taggings": [
+          "string"
+        ],
+        "notes": [
+          {
+            "note_id": "string",
+            "created_at": "timeInstant",
+            "content": "string"
+          }
+        ]
+      },
       "description": "One contact by id. The include parameter inlines list memberships, custom fields, notes and street addresses, which are otherwise absent."
     },
     {
       "name": "Contact Lists",
       "paged": true,
       "suffix": "/v3/contact_lists?include_count={Include Count?:true|false}",
+      "responseSchema": {
+        "lists": [
+          {
+            "list_id": "string",
+            "name": "string",
+            "description": "string",
+            "favorite": "boolean",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "deleted_at": "timeInstant"
+          }
+        ],
+        "lists_count": "double",
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "The mailing lists, each with name, description and, when include_count is passed, its membership count. The count is not returned by default, which is easy to miss when the list appears to have no size."
     },
     {
       "name": "Contact List",
       "paged": false,
       "suffix": "/v3/contact_lists/{List ID}",
+      "responseSchema": {
+        "list_id": "string",
+        "name": "string",
+        "description": "string",
+        "favorite": "boolean",
+        "created_at": "timeInstant",
+        "updated_at": "timeInstant",
+        "deleted_at": "timeInstant"
+      },
       "description": "One list by id."
     },
     {
       "name": "Contact Activity Details",
       "paged": true,
       "suffix": "/v3/reports/contact_reports/{Contact ID}/activity_details?tracking_activities_list={Tracking Activities List:em_sends|em_opens|em_clicks|em_bounces|em_optouts|em_forwards}",
+      "responseSchema": {
+        "tracking_activities": [
+          {
+            "contact_id": "string",
+            "campaign_activity_id": "string",
+            "created_time": "timeInstant",
+            "tracking_activity_type": "string",
+            "campaign_activity_name": "string"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "One contact's individual email events over a period, filterable by activity type. Requires a contact id. The row-level history behind the summary."
     },
     {
       "name": "Contact Action Summary",
       "paged": true,
       "suffix": "/v3/reports/contact_reports/{Contact ID}/activity_summary?start={Start:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}&end={End:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}",
+      "responseSchema": {
+        "contact_id": "string",
+        "campaign_activities": [
+          {
+            "campaign_activity_id": "string",
+            "start_on": "timeInstant",
+            "em_bounces": "double",
+            "em_clicks": "double",
+            "em_forwards": "double",
+            "em_opens": "double",
+            "em_sends": "double",
+            "em_unsubscribes": "double"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "One contact's aggregate email behaviour over a period -- how many sends, opens, clicks, bounces and opt-outs. Requires a contact id and dates. The per-person engagement summary, already computed."
     },
     {
       "name": "Average Open and Click Rates",
       "paged": true,
       "suffix": "/v3/reports/contact_reports/{Contact ID}/open_and_click_rates?start={Start:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}&end={End:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}",
+      "responseSchema": {
+        "contact_id": "string",
+        "included_activities_count": "double",
+        "average_open_rate": "double",
+        "average_click_rate": "double"
+      },
       "description": "One contact's average open and click rates over a period. Requires a contact id and dates. A ready-made engagement score per person -- the usual basis for identifying a lapsing subscriber."
     },
     {
       "name": "Custom Fields",
       "paged": true,
       "suffix": "/v3/contact_custom_fields",
+      "responseSchema": {
+        "custom_fields": [
+          {
+            "custom_field_id": "string",
+            "label": "string",
+            "name": "string",
+            "type": "string",
+            "metadata": {
+              "display_type": "string",
+              "allow_negative": "boolean",
+              "decimal_places": "double",
+              "currency_code": "string",
+              "integer": "boolean",
+              "display_format": "string"
+            },
+            "version": "double",
+            "choices": [
+              {
+                "custom_field_id": "string",
+                "choice_id": "double",
+                "choice_label": "string",
+                "display_order": "double",
+                "created_at": "timeInstant",
+                "updated_at": "timeInstant",
+                "deleted_at": "date"
+              }
+            ],
+            "updated_at": "timeInstant",
+            "created_at": "timeInstant"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "The custom contact fields defined, with name and type. The decoder for custom values on a contact."
     },
     {
       "name": "Custom Field",
       "paged": false,
       "suffix": "/v3/contact_custom_fields/{Custom Field ID}",
+      "responseSchema": {
+        "custom_field_id": "string",
+        "label": "string",
+        "name": "string",
+        "type": "string",
+        "metadata": {
+          "display_type": "string",
+          "allow_negative": "boolean",
+          "decimal_places": "double",
+          "currency_code": "string",
+          "integer": "boolean",
+          "display_format": "string"
+        },
+        "version": "double",
+        "choices": [
+          {
+            "custom_field_id": "string",
+            "choice_id": "double",
+            "choice_label": "string",
+            "display_order": "double",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "deleted_at": "date"
+          }
+        ],
+        "updated_at": "timeInstant",
+        "created_at": "timeInstant"
+      },
       "description": "One custom field by id."
     },
     {
       "name": "Email Campaigns",
       "paged": true,
       "suffix": "/v3/emails",
+      "responseSchema": {
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        },
+        "campaigns": [
+          {
+            "campaign_id": "string",
+            "created_at": "timeInstant",
+            "current_status": "string",
+            "name": "string",
+            "type": "string",
+            "type_code": "double",
+            "updated_at": "timeInstant"
+          }
+        ]
+      },
       "lookups": [
         {
           "endpoint": "Email Campaign",
@@ -108,12 +536,82 @@
       "name": "Email Campaign Activity",
       "paged": false,
       "suffix": "/v3/emails/activities/{Campaign Activity ID}?include={Include?:physical_address_in_footer|permalink_url|html_content|document_properties}",
+      "responseSchema": {
+        "campaign_activity_id": "string",
+        "campaign_id": "string",
+        "role": "string",
+        "contact_list_ids": [
+          "string"
+        ],
+        "segment_ids": [
+          "double"
+        ],
+        "current_status": "string",
+        "format_type": "double",
+        "from_email": "string",
+        "from_name": "string",
+        "reply_to_email": "string",
+        "subject": "string",
+        "html_content": "string",
+        "permalink_url": "string",
+        "preheader": "string",
+        "physical_address_in_footer": {
+          "address_line1": "string",
+          "address_line2": "string",
+          "address_line3": "string",
+          "address_optional": "string",
+          "city": "string",
+          "country_code": "string",
+          "country_name": "string",
+          "organization_name": "string",
+          "postal_code": "string",
+          "state_code": "string",
+          "state_name": "string",
+          "state_non_us_name": "string"
+        },
+        "document_id": "string",
+        "external_source_type": "string",
+        "external_source_url": "string",
+        "document_properties": {
+          "style_content": "string",
+          "letter_format": "string",
+          "greeting_salutation": "string",
+          "greeting_name_type": "string",
+          "greeting_secondary": "string",
+          "subscribe_link_enabled": "string",
+          "subscribe_link_name": "string",
+          "text_content": "string",
+          "permission_reminder_enabled": "string",
+          "permission_reminder": "string",
+          "view_as_webpage_enabled": "string",
+          "view_as_webpage_text": "string",
+          "view_as_webpage_link_name": "string",
+          "forward_email_link_enabled": "string",
+          "forward_email_link_name": "string"
+        }
+      },
       "description": "One send of one campaign, with its subject, from address, preheader, the lists targeted and the physical address block. Requires an activity id. This is the level everything measurable hangs off."
     },
     {
       "name": "Email Campaign",
       "paged": false,
       "suffix": "/v3/emails/{Campaign ID}",
+      "responseSchema": {
+        "campaign_activities": [
+          {
+            "campaign_activity_id": "string",
+            "role": "string",
+            "document_id": "string"
+          }
+        ],
+        "campaign_id": "string",
+        "created_at": "timeInstant",
+        "current_status": "string",
+        "name": "string",
+        "type": "string",
+        "type_code": "double",
+        "updated_at": "timeInstant"
+      },
       "lookups": [
         {
           "endpoints": [
@@ -141,66 +639,259 @@
       "name": "Email Links",
       "paged": false,
       "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/links",
+      "responseSchema": {
+        "campaign_activity_id": "string",
+        "link_click_counts": [
+          {
+            "link_url": "string",
+            "url_id": "string",
+            "unique_clicks": "double",
+            "list_action": "string",
+            "list_id": "string",
+            "link_tag": "string"
+          }
+        ]
+      },
       "description": "The links in one activity with their click counts. Requires an activity id. Which content drew the response, as opposed to whether anything did."
     },
     {
       "name": "Email Bounces",
       "paged": true,
       "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/bounces?bounce_code={Bounce Code?}",
+      "responseSchema": {
+        "tracking_activities": [
+          {
+            "contact_id": "string",
+            "campaign_activity_id": "string",
+            "tracking_activity_type": "string",
+            "email_address": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "bounce_code": "string",
+            "current_email_address": "string",
+            "created_time": "timeInstant",
+            "deleted_at": "date"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "Bounce events for one activity, with the bounce code. Requires an activity id. The code separates a permanent failure from a temporary one, and treating them alike overstates list decay."
     },
     {
       "name": "Email Clicks",
       "paged": true,
       "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/clicks?url_id={URL ID?}",
+      "responseSchema": {
+        "tracking_activities": [
+          {
+            "contact_id": "string",
+            "campaign_activity_id": "string",
+            "tracking_activity_type": "string",
+            "email_address": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "device_type": "string",
+            "url_id": "string",
+            "link_url": "string",
+            "created_time": "timeInstant",
+            "deleted_at": "date"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "Click events for one activity, optionally filtered to one link. Requires an activity id. Clicks are the sounder engagement signal, since open tracking depends on images loading."
     },
     {
       "name": "Email Did Not Opens",
       "paged": true,
       "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/didnotopens",
+      "responseSchema": {
+        "tracking_activities": [
+          {
+            "contact_id": "string",
+            "campaign_activity_id": "string",
+            "tracking_activity_type": "string",
+            "email_address": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "created_time": "timeInstant",
+            "deleted_at": "date"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "The contacts who were sent one activity and did not open it. Requires an activity id. Available directly rather than as a subtraction, which is what makes re-engagement targeting straightforward."
     },
     {
       "name": "Email Forwards",
       "paged": true,
       "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/forwards",
+      "responseSchema": {
+        "tracking_activities": [
+          {
+            "contact_id": "string",
+            "campaign_activity_id": "string",
+            "tracking_activity_type": "string",
+            "email_address": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "created_time": "timeInstant",
+            "deleted_at": "date"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "Forward events for one activity. Requires an activity id. Only forwards made through the email's own forward link are counted, so this understates real sharing."
     },
     {
       "name": "Email Opens",
       "paged": true,
       "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/opens",
+      "responseSchema": {
+        "tracking_activities": [
+          {
+            "contact_id": "string",
+            "campaign_activity_id": "string",
+            "tracking_activity_type": "string",
+            "email_address": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "device_type": "string",
+            "created_time": "timeInstant",
+            "deleted_at": "date"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "Every open event for one activity, with the contact and timestamp. Requires an activity id. Note this is TOTAL opens including repeats -- Email Unique Opens is the per-person count, and the two answer different questions."
     },
     {
       "name": "Email Opt-outs",
       "paged": true,
       "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/optouts",
+      "responseSchema": {
+        "tracking_activities": [
+          {
+            "contact_id": "string",
+            "campaign_activity_id": "string",
+            "tracking_activity_type": "string",
+            "email_address": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "opt_out_reason": "string",
+            "created_time": "timeInstant",
+            "deleted_at": "date"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "Unsubscribe events attributable to one activity, with timestamps. Requires an activity id. The per-send cost of a campaign, as opposed to the account-wide unsubscribe list."
     },
     {
       "name": "Email Sends",
       "paged": true,
       "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/sends",
+      "responseSchema": {
+        "tracking_activities": [
+          {
+            "contact_id": "string",
+            "campaign_activity_id": "string",
+            "tracking_activity_type": "string",
+            "email_address": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "created_time": "timeInstant",
+            "deleted_at": "date"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "The contacts one activity was sent to, with timestamps. Requires an activity id. The denominator for every rate below it."
     },
     {
       "name": "Email Unique Opens",
       "paged": true,
       "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/unique_opens",
+      "responseSchema": {
+        "tracking_activities": [
+          {
+            "contact_id": "string",
+            "campaign_activity_id": "string",
+            "tracking_activity_type": "string",
+            "email_address": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "device_type": "string",
+            "created_time": "timeInstant",
+            "deleted_at": "date"
+          }
+        ],
+        "_links": {
+          "next": {
+            "href": "string"
+          }
+        }
+      },
       "description": "The distinct contacts who opened one activity. Requires an activity id. The right numerator for an open rate."
     },
     {
       "name": "Email Campaign Activity Schedule",
       "paged": false,
       "suffix": "/v3/emails/activities/{Campaign Activity ID}/schedules",
+      "responseSchema": [
+        {
+          "scheduled_date": "timeInstant"
+        }
+      ],
       "description": "When one activity is or was scheduled to send. Requires an activity id."
     },
     {
       "name": "Email Campaign Activity Send History",
       "paged": false,
       "suffix": "/v3/emails/activities/{Campaign Activity ID}/send_history",
+      "responseSchema": [
+        {
+          "send_id": "double",
+          "contact_list_ids": [
+            "string"
+          ],
+          "segment_ids": [
+            "double"
+          ],
+          "count": "double",
+          "run_date": "timeInstant",
+          "send_status": "string",
+          "reason_code": "double"
+        }
+      ],
       "description": "The send attempts for one activity, with their outcomes. Requires an activity id. Where a resend or a failed send is recorded, which the activity itself does not show."
     }
   ]
