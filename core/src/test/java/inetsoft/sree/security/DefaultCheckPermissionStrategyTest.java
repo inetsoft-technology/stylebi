@@ -420,12 +420,22 @@ class DefaultCheckPermissionStrategyTest {
          }
       }
 
-      // Observed behaviour, pinned so a change is noticed (plan scenario S2). Single tenant: an
-      // organization administrator gets only the default-allow end-user permissions. Multi tenant:
-      // checkOrgAdminPermission() lets an organization administrator through for every
-      // WIZ_PERMISSION resource, admin permissions included.
-      assertEquals(multiTenant ? inetsoft.web.wiz.WizPermissions.ALL
-                               : inetsoft.web.wiz.WizPermissions.END_USER, held);
+      // Plan scenario S2. Single tenant: only the default-allow end-user permissions. Multi tenant:
+      // the three global config.* permissions are excluded for organization administrators
+      // (orgAdminActionExclusions); every other WIZ_PERMISSION resource is allowed.
+      List<String> expected = new ArrayList<>();
+
+      for(String name : inetsoft.web.wiz.WizPermissions.ALL) {
+         boolean globalConfig = name.startsWith("config.");
+
+         if(inetsoft.web.wiz.WizPermissions.isEndUser(name) ||
+            multiTenant && !globalConfig)
+         {
+            expected.add(name);
+         }
+      }
+
+      assertEquals(expected, held);
    }
 
    @Test

@@ -39,7 +39,8 @@ class WizPermissionsTest {
       "annotation.approve", "annotation.edit", "annotation.exclude", "annotation.delete",
       "observability.read",
       "content.read", "content.delete",
-      "audit.read");
+      "audit.read",
+      "orgconfig.read", "orgconfig.write");
 
    private static final List<String> EXPECTED_END_USER = List.of(
       "plugin.use",
@@ -55,7 +56,7 @@ class WizPermissionsTest {
    @Test
    void adminPermissionsArePinned() {
       assertEquals(EXPECTED_ADMIN, WizPermissions.ADMIN);
-      assertEquals(13, WizPermissions.ADMIN.size());
+      assertEquals(15, WizPermissions.ADMIN.size());
    }
 
    @Test
@@ -66,10 +67,10 @@ class WizPermissionsTest {
 
    @Test
    void allIsAdminThenEndUserWithoutDuplicates() {
-      assertEquals(33, WizPermissions.ALL.size());
+      assertEquals(35, WizPermissions.ALL.size());
       assertEquals(WizPermissions.ALL.size(), new HashSet<>(WizPermissions.ALL).size());
-      assertEquals(WizPermissions.ADMIN, WizPermissions.ALL.subList(0, 13));
-      assertEquals(WizPermissions.END_USER, WizPermissions.ALL.subList(13, 33));
+      assertEquals(WizPermissions.ADMIN, WizPermissions.ALL.subList(0, 15));
+      assertEquals(WizPermissions.END_USER, WizPermissions.ALL.subList(15, 35));
    }
 
    @Test

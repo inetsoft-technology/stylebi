@@ -293,9 +293,9 @@ class PermissionMatrixActionsS8Test {
 
    /**
     * Leaves left after exclusions with the 4 bundled portal tabs (39 cases: DASHBOARD has 2), plus
-    * the 33 WIZ_PERMISSION leaves (13 admin + 20 end-user, WizPermissions.ALL).
+    * the 35 WIZ_PERMISSION leaves (15 admin + 20 end-user, WizPermissions.ALL).
     */
-   private static final int EXPECTED_SWEEP_LEAVES = 71;
+   private static final int EXPECTED_SWEEP_LEAVES = 73;
 
    private static List<SweepLeaf> sweepLeaves;
 

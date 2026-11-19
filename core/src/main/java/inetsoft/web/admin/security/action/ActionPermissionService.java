@@ -828,6 +828,10 @@ public class ActionPermissionService {
       new Resource(ResourceType.EM_COMPONENT, "settings/general"),
       new Resource(ResourceType.EM_COMPONENT, "settings/presentation/org-settings"),
       new Resource(ResourceType.EM_COMPONENT, "settings/properties"),
+      // Wiz settings are global (not per organization), like the EM settings above
+      new Resource(ResourceType.WIZ_PERMISSION, "config.read"),
+      new Resource(ResourceType.WIZ_PERMISSION, "config.write"),
+      new Resource(ResourceType.WIZ_PERMISSION, "config.write.critical"),
       new Resource(ResourceType.EM_COMPONENT, "settings/security/provider"),
       new Resource(ResourceType.EM_COMPONENT, "settings/security/sso"),
       new Resource(ResourceType.EM_COMPONENT, "settings/security/googleSignIn"),

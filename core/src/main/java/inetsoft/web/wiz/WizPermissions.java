@@ -36,7 +36,9 @@ public final class WizPermissions {
       "annotation.approve", "annotation.edit", "annotation.exclude", "annotation.delete",
       "observability.read",
       "content.read", "content.delete",
-      "audit.read");
+      "audit.read",
+      // organization-level settings (an organization's own LLM key etc.), unlike the global config.*
+      "orgconfig.read", "orgconfig.write");
 
    /** Ordinary-use permissions: allowed by default when no permission is defined. */
    public static final List<String> END_USER = List.of(
