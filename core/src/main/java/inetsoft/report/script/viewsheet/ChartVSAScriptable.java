@@ -524,8 +524,8 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          }
 
          if(legend != null) {
-            // a seeded hidden legend also has max mode off
-            if(visible && !legend.isMaxModeVisible()) {
+            // a seeded hidden legend also has max mode off; an author's hide stays
+            if(visible && !legend.isUserVisible() && !legend.isMaxModeVisible()) {
                legend.setMaxModeVisible(true);
             }
 

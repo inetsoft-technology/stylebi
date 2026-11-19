@@ -196,6 +196,51 @@ class SizeLegendSeedTest {
       assertTrue(rsize.isMaxModeVisible());
    }
 
+   private ChartVSAScriptable classicScriptable() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vsSize");
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      vs.addAssembly(chart);
+      chart.getVSAssemblyInfo().initDefaultFormat();
+
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      when(sandbox.getID()).thenReturn("vsSize");
+      when(sandbox.getViewsheet()).thenReturn(vs);
+      when(sandbox.getMode()).thenReturn(Viewsheet.SHEET_RUNTIME_MODE);
+      ChartVSAScriptable scriptable = new ChartVSAScriptable(sandbox);
+      scriptable.setAssembly("Chart1");
+      return scriptable;
+   }
+
+   @Test
+   void theScriptActionKeepsAnAuthorsMaxModeHide() {
+      ChartVSAScriptable scriptable = classicScriptable();
+      LegendDescriptor color =
+         scriptable.getRTChartDescriptor().getLegendsDescriptor().getColorLegendDescriptor();
+      color.setAuthorMaxModeVisible(false);
+
+      scriptable.setActionVisible("Color Legend", true);
+
+      assertTrue(color.isVisible());
+      assertFalse(color.isMaxModeVisible());
+      assertTrue(color.isUserVisible());
+   }
+
+   @Test
+   void theScriptActionKeepsALegacyMaxModeHide() {
+      ChartVSAScriptable scriptable = classicScriptable();
+      LegendDescriptor color =
+         scriptable.getRTChartDescriptor().getLegendsDescriptor().getColorLegendDescriptor();
+      color.setVisible(true);
+      color.setMaxModeVisible(false);
+      color.setUserVisible(true);
+
+      scriptable.setActionVisible("Color Legend", true);
+
+      assertFalse(color.isMaxModeVisible());
+   }
+
    @Test
    void aStoredFalseIsTheAuthors() throws Exception {
       ChartVSAssemblyInfo info = newChart();
