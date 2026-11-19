@@ -121,6 +121,35 @@ class HomePageControllerShellDarkTest {
       assertEquals(0, cookie.getMaxAge());
    }
 
+   // An embed page lives inside a customer's own page: it renders light, but the user's mode is
+   // still remembered for the login page and the workspace chooser.
+   @Test
+   void embedRendersLightButKeepsRememberedMode() {
+      SreeEnv.setProperty(ShellDarkMode.PROPERTY, "true");
+      MockHttpServletRequest request = new MockHttpServletRequest();
+      request.setRequestURI("/app/embed/chart/global/Dash/Chart1");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      ModelAndView model = controller.showHomePage(request, response, "http://localhost:8080/");
+
+      assertEquals(Boolean.FALSE, model.getModel().get("shellDark"));
+      assertEquals("../codemirror-eclipse.css", model.getModel().get("scriptThemeCssPath"));
+      Cookie cookie = response.getCookie(ShellDarkMode.COOKIE);
+      assertNotNull(cookie);
+      assertEquals("1", cookie.getValue());
+   }
+
+   @Test
+   void embedUnderAContextPathRendersLight() {
+      SreeEnv.setProperty(ShellDarkMode.PROPERTY, "true");
+      MockHttpServletRequest request = new MockHttpServletRequest();
+      request.setContextPath("/sree");
+      request.setRequestURI("/sree/app/embed/chart/global/Dash/Chart1");
+      ModelAndView model = controller.showHomePage(request, new MockHttpServletResponse(),
+                                                   "http://localhost:8080/sree/");
+
+      assertEquals(Boolean.FALSE, model.getModel().get("shellDark"));
+   }
+
    private ModelAndView showHomePage(MockHttpServletRequest request,
                                      MockHttpServletResponse response)
    {

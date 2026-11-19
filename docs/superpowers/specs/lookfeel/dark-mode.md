@@ -130,7 +130,9 @@ How it works (Feature #80673):
   false. The Look and Feel control, the admin lock and a Preferences Appearance choice are deferred
   to release.
 - **Before first paint:** one server-rendered index serves the portal, viewer, composer, wizard and
-  embed routes, and the class is in that HTML, so a dark user never sees a light frame. The login
+  embed routes, and the class is in that HTML, so a dark user never sees a light frame. Embed routes
+  (`/app/embed/**`) are the exception and always render light: they are shown inside a customer's
+  own page, which shell dark must not restyle (the cookie still records the user's mode). The login
   page and the workspace chooser (`/`) use the `inetsoft.shellDark` cookie, which remembers the last
   mode the portal resolved (HttpOnly, one year, expired when the mode goes light), otherwise the
   organization default. The cookie is per browser, not per organization: in a multi-tenant server
