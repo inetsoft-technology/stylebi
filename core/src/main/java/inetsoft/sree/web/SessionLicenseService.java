@@ -92,7 +92,8 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
                }
 
                LicenseManager.getInstance().addKeyViolation(
-                  "Concurrent users exceeded - " + srPrincipal.getName(), null);
+                  "Concurrent users exceeded - " + srPrincipal.getName(),
+                  "concurrent-users:" + srPrincipal.getName());
                final Catalog catalog = Catalog.getCatalog(srPrincipal);
                final String msg = String.format("%s %s", catalog.getString("common.sessionsExceed"),
                                                 catalog.getString("common.contactAdmin"));
@@ -242,7 +243,7 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
             }
 
             LicenseManager.getInstance().addKeyViolation(
-               "Named user exception - " + loginUser, null);
+               "Named user exception - " + loginUser, "named-user:" + loginUser);
             throw new UnlicensedUserNameException(Catalog.getCatalog(srPrincipal).
                getString("Named User Not Allowed", loginUser.getName()));
          }
@@ -280,7 +281,7 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
             }
 
             LicenseManager.getInstance().addKeyViolation(
-               "Named user exception - " + loginUser, null);
+               "Named user exception - " + loginUser, "named-user:" + loginUser);
             throw new UnlicensedUserNameException(Catalog.getCatalog(srPrincipal).
                getString("Named User Not Allowed", loginUser.getName()));
          }
@@ -412,7 +413,8 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
                   }
 
                   LicenseManager.getInstance().addKeyViolation(
-                     "User hosted hours exhausted - " + srPrincipal.getName(), null);
+                     "User hosted hours exhausted - " + srPrincipal.getName(),
+                     "hosted-hours:" + srPrincipal.getName());
                   Catalog catalog = Catalog.getCatalog(srPrincipal);
                   String msg = catalog.getString("common.sessionHoursExhausted");
                   throw new LicenseException(msg);
