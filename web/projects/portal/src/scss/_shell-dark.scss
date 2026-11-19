@@ -229,6 +229,16 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-dark-shadow-low-filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .4)) drop-shadow(0 1px 3px rgba(0, 0, 0, .3));
   // text on a primary-color fill, which stays orange in the dark shell
   --inet-dark-on-primary-text-color: #{$dark-surface-canvas};
+  // Primary buttons (and the login page's, which reads the same token) take the dark shell's
+  // on-primary text, as the calendar's selected day and the Getting Started step do: 5.5:1 on the
+  // orange. Dashboard content restores the light shell's label.
+  --inet-button-primary-text-color: var(--inet-dark-on-primary-text-color);
+  --inet-button-primary-hover-text-color: var(--inet-dark-on-primary-text-color);
+  // Hover and focus lighten the fill, as in a light shell, but to the dark shell's link orange,
+  // which reads as raised like the other hovered surfaces in a dark shell. The dark text reads
+  // 8.5:1 on it, and about 7:1 on a pressed button (brightness(.9) darkens the text too).
+  --inet-button-primary-hover-bg-color: #{$dark-link};
+  --inet-button-primary-hover-border-color: #{$dark-link};
   // error text: the danger color is kept for borders and fills, which pass 3:1, but as text it
   // reads 3.4:1 on the dark surface
   --inet-dark-danger-text-color: #{$dark-danger-text};
@@ -248,6 +258,8 @@ $dark-ws-row-hover-bg: #302D27;
   // a neutral chip beside soft-tinted ones (the text layout designer's spacer): the hover surface
   // barely separates from that selected tint, so it is one step lighter
   --inet-dark-neutral-chip-color: #{$dark-border-default};
+  // its dashed outline: 2.1:1 on that chip, the same weight as the warning-tinted chip's outline
+  --inet-dark-neutral-chip-border-color: #7A7681;
   // Bootstrap's invalid-feedback text outside an input group
   --bs-form-invalid-color: #{$dark-danger-text};
 
@@ -323,6 +335,8 @@ $dark-ws-row-hover-bg: #302D27;
   // CKEditor draws its outer focus shadow 3px wide, also around the focused item of a list it
   // opens, so it keeps the dark shell's earlier focus-ring strength
   --ck-color-focus-outer-shadow: rgba(217, 122, 26, 0.45);
+  // a focused disabled toolbar button: the same accent, fainter, instead of CKEditor's blue
+  --ck-color-focus-disabled-shadow: rgba(217, 122, 26, 0.3);
   --ck-color-text: var(--inet-text-color);
   --ck-color-shadow-drop: rgba(0, 0, 0, 0.4);
   --ck-color-shadow-drop-active: rgba(0, 0, 0, 0.5);
@@ -427,6 +441,11 @@ $dark-ws-row-hover-bg: #302D27;
     background-color: var(--inet-toolbar-bg-color);
   }
 
+  // Same for the worksheet graph's thumbnail titles, which take the assembly surface in light.
+  .ws-graph-thumbnail__title {
+    background-color: var(--inet-graph-assembly-bg-color);
+  }
+
   .bg-white3 {
     background-color: var(--inet-shell-surface-subtle);
   }
@@ -523,16 +542,14 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
   border-strong-color, input-bg-color, input-border-color, text-color, icon-color, stroke-color,
   drag-indicator-bg, drag-indicator-text-color, shadow-color, shadow-low-filter,
   on-primary-text-color, danger-text-color, warning-soft-color, info-soft-color, check-halo-color,
-  hover-ring-color, selected-tint-color, neutral-chip-color;
+  hover-ring-color, selected-tint-color, neutral-chip-color, neutral-chip-border-color;
 
-// The hidden-annotation tooltip and the visible annotation's overflow tooltip, unless the
-// annotation sits in a dark-marked assembly, whose tooltip keeps the viz dark look. Other tooltips
-// are body-attached shell chrome and go dark, but these show the annotation's own rich text, whose
-// colors were picked against the annotation's white fill (a new annotation's text is written
-// inline black, unreadable on a dark surface). So they stay the light shell's white tooltip: with
-// the light tokens below they compute exactly as in a light shell. The author's text colors are
-// left alone; an annotation fill set by the author is not carried over (Bug #81352).
-$annotation-tooltip: ".hidden__annotation-tooltip:not(.widget__tooltip--dark), .vs-annotation__tooltip:not(.widget__tooltip--dark)";
+// The hidden-annotation tooltip and the visible annotation's overflow tooltip. Other tooltips are
+// body-attached shell chrome and go dark, but these show the annotation's own rich text on the
+// annotation's own fill (white by default; Bug #81352), whose text colors were picked against it
+// (a new annotation's text is written inline black). So they compute exactly as in a light shell,
+// with the light tokens below, in either shell and for any assembly mark.
+$annotation-tooltip: ".hidden__annotation-tooltip, .vs-annotation__tooltip";
 
 :root.shell-dark :is(#{$dashboard-content}, #{$annotation-tooltip}, #{$content-popup-light}) {
   color-scheme: light;

@@ -26,7 +26,8 @@
  *   Group 3 [Risk 2]  — showDetails setter: reloadTable called when toggled
  *   Group 4 [Risk 2]  — getSortLabel: all 4 branches (no sort info, ASC, DESC, NONE)
  *   Group 5 [baseline] — tableData setter: _tableData and tableHeight updated correctly
- *   Group 6 [baseline] — URI getters: groupByUri / chartUri / tableUri built correctly
+ *   Group 6 [baseline] — URI getters: groupByUri / chartUri / tableUri built correctly;
+ *                        chartUri adds shellDark=true only when <html> has shell-dark
  *   Group 7 [baseline] — cancel() → onCancel emitted
  *   Group 8 [baseline] — exportTable() → DownloadService.download called with correct URL
  *   Group 9 [baseline] — wheelScrollHandler(): scrollTop incremented by deltaY; preventDefault called
@@ -344,6 +345,24 @@ describe("ProfilingDialog — URI getters", () => {
 
       expect(comp.tableUri).toContain("isViewsheet=true");
       expect(comp.tableUri).toContain("timeZone=");
+   });
+
+   // the chart is a server image: a dark shell asks for one drawn on the dark dialog surface
+   describe("shell mode", () => {
+      afterEach(() => document.documentElement.classList.remove("shell-dark"));
+
+      it("chartUri should not ask for a dark chart in a light shell", async () => {
+         const { comp } = await renderComponent();
+
+         expect(comp.chartUri).not.toContain("shellDark");
+      });
+
+      it("chartUri should ask for a dark chart when <html> has shell-dark", async () => {
+         document.documentElement.classList.add("shell-dark");
+         const { comp } = await renderComponent();
+
+         expect(comp.chartUri).toContain("&shellDark=true");
+      });
    });
 });
 

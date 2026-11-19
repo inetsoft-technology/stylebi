@@ -97,11 +97,13 @@ public class LoginController {
       // this page, but the subsequent requests will be unauthenticated, so if the current user has
       // a theme assigned, it will end up trying to load theme-variables.css from the "default"
       // theme, which doesn't exist. To avoid this, just check if the global theme is custom.
-      boolean customTheme = isCustomTheme(request);
+      boolean customTheme = isCustomTheme(request, customThemesManager);
       model.addObject("customTheme", customTheme);
       // the user is not known yet: follow the mode the portal last resolved for this browser,
-      // otherwise the default of the organization the login page is served for
-      String shellDarkOrgID = SUtil.isMultiTenant() ? SUtil.getLoginOrganization(request) : null;
+      // otherwise the default of the organization the login page is served for (the default
+      // organization when not multi-tenant, which is the organization the portal reads)
+      String shellDarkOrgID = SUtil.isMultiTenant() ? SUtil.getLoginOrganization(request) :
+         Organization.getDefaultOrganizationID();
       model.addObject("shellDark",
                       ShellDarkMode.isLoginDark(request, shellDarkOrgID, customTheme));
 
@@ -204,7 +206,9 @@ public class LoginController {
     * Organization.theme when it names an existing theme. That predates this method and is why
     * GlobalStyleController falls back to the "default" theme for an unknown id.
     */
-   private boolean isCustomTheme(HttpServletRequest request) {
+   static boolean isCustomTheme(HttpServletRequest request,
+                                CustomThemesManager customThemesManager)
+   {
       String orgID = SUtil.isMultiTenant() ? SUtil.getLoginOrganization(request) : null;
       boolean pinned = orgID != null && ThreadContext.getContextPrincipal() == null &&
          OrganizationContextHolder.getCurrentOrgId() == null;

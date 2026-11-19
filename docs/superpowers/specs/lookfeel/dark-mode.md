@@ -18,12 +18,12 @@ This is the single place dark-mode decisions are recorded. See "Relationship to 
 
 ## Two surfaces
 
-| | Shell (portal, later composer) | Designed dashboards |
+| | Shell (portal converted; composer is phase 2, in progress) | Designed dashboards |
 |---|---|---|
 | What it is | Navigation, panels, dialogs, lists, forms | Charts, tables, KPIs, selection, calendar, titles |
-| Selected by | A `shell-dark` body class (decided, not yet built) | The assembly's `VizMark` |
-| Controlled at | User, org and site (decided, not yet built) | Author, per dashboard (switch-mark, Modernize, Revert) |
-| Org/site setting | `portal.shellDark` (decided, not yet built) | `viewsheet.darkMode` decides only what **new** assemblies are stamped with |
+| Selected by | A `shell-dark` class on `<html>`, written by the server | The assembly's `VizMark` |
+| Controlled at | Org and site; a user preference is honored but has no UI yet | Author, per dashboard (switch-mark, Modernize, Revert) |
+| Org/site setting | `portal.shellDark` (hidden, default off) | `viewsheet.darkMode` decides only what **new** assemblies are stamped with |
 
 ## How it works today (dashboards)
 
@@ -99,48 +99,59 @@ Hazards to resolve before building:
    background stays dark. This is correct, but the option cannot promise an all-white page.
 5. `export(..., cloneVs)` takes a flag. Not every caller was traced to confirm it clones.
 
-Open question: the viewer's Print button. The portal styles contain no `@media print` rules, so
-browser printing has no dark handling. Whether the Print button uses server export or browser
-printing has not been checked.
+The viewer's Print button is a server PDF export
+(`/export/viewsheet/<id>?match=true&current=true&previewPrintLayout=true`), so it follows the stamp
+like any export. The portal styles contain no `@media print` rules: browser printing of a dark shell
+drops the backgrounds and darkens light text by default (Chrome), which stays readable.
 
-## Shell dark (decided, not yet built)
+## Shell dark (portal converted, composer in progress; hidden behind `portal.shellDark`)
 
 **Implementation phases, not release phases:** phase 1 is the portal, phase 2 is the composer. Shell
 dark is not released until **both** are complete. Until then only engineers and testers see it, behind
 the hidden setting described under Rollout, and they should expect a half-finished product.
 
-Today `viz-shell-dark` on `<body>` switches viz tokens only. There are no dark values for the
-neutral shell tokens, so org Dark Mode produces dark dashboards inside a light portal.
+`viz-shell-dark` on `<body>` switches viz tokens only (org Dark Mode for dashboards). Shell dark is
+separate: it darkens the shell chrome, the portal's now and the composer's when phase 2 is done, and
+leaves dashboards to their own mark.
 
-Design:
+How it works (Feature #80673):
 
-- **New body class `shell-dark`,** independent of Modern Visualization and of `viz-shell-dark`.
-- **Own org and site setting** (for example `portal.shellDark`) on the Look and Feel page, separate
-  from `viewsheet.darkMode`. An admin lock, "Allow users to choose", defaults to allowed.
-- **User control:** an Appearance setting in the portal Preferences dialog (organization default,
-  light, dark), stored with `UserEnv` like `historyBarEnable`, and resolved server-side into the
-  portal model in `PortalController`. The effective order is user, then org, then site.
-- **Dark neutrals:** one block overriding the shell neutrals (surfaces, borders, text, hover,
-  toolbar, panels). Base values already exist in `visualization-palette-swatches.html`: canvas
-  `#1C1B1F`, surface `#252428`, subtle `#2D2B30`, border `#49454F`.
-- **Apply before first paint.** Today body classes are set after the portal-model request returns,
-  which would flash light for dark users. The resolved value must arrive with the initial page or
-  be cached client side. How the portal HTML is served has not been checked yet.
+- **A `shell-dark` class on `<html>`,** independent of Modern Visualization and of `viz-shell-dark`.
+  The app's rules live in `web/projects/portal/src/scss/_shell-dark.scss`, scoped under
+  `:root.shell-dark` or `:where(.shell-dark)`, and component styles read dark-only roles (below). The
+  login page (which loads `global.css` but no component styles) and the workspace chooser (which
+  loads neither) are server pages, so `login.css` and `layout.css` carry their own dark rules, scoped
+  the same way. With the class absent nothing changes.
+- **Resolved on the server** by `ShellDarkMode.isDark()`, called from `HomePageController`: a custom
+  theme is never dark; then the user's `UserEnv` `shellAppearance` (`light` / `dark`; honored, but no
+  UI writes it yet); then `portal.shellDark`, org scoped with the site value as fallback, default
+  false. The Look and Feel control, the admin lock and a Preferences Appearance choice are deferred
+  to release.
+- **Before first paint:** one server-rendered index serves the portal, viewer, composer, wizard and
+  embed routes, and the class is in that HTML, so a dark user never sees a light frame. The login
+  page and the workspace chooser (`/`) use the `inetsoft.shellDark` cookie, which remembers the last
+  mode the portal resolved (HttpOnly, one year, expired when the mode goes light), otherwise the
+  organization default.
+- **Dark neutrals:** one block overriding the shell tokens and the Bootstrap values the bridge does
+  not cover, from `visualization-palette-swatches.html`: canvas `#1C1B1F`, surface `#252428`, subtle
+  `#2D2B30`, border `#49454F`. Component literals take dark-only roles,
+  `var(--inet-dark-<role>, <light literal>)`, which only the dark block defines.
+- **Dashboard content keeps the light look:** inside the canvas (`$dashboard-content`) the light
+  tokens are restored and the dark-only roles reset, so content computes exactly as in a light
+  shell. The same applies to a dashboard control's own popups attached to body (the combo box value
+  list over 500 labels, the combo box / text input / table cell date calendar). App command menus
+  (context menus, the mini-toolbar More menu) and tooltips are shell chrome; annotation tooltips are
+  the exception and keep the annotation's own fill (white by default), as in a light shell.
+- **Authored and third-party surfaces stay as designed for white:** CKEditor editing areas (email
+  messages and annotations) and data source brand logos, which sit on a white circle in both shells.
+  CodeMirror uses the Darcula theme in a dark shell.
 
-Known work:
-
-- `_variables.scss` defines 249 `--inet-*` custom properties fed by 38 `$shell-*` Sass colors. A dark
-  block can override the properties.
-- Sass-compiled values (for example `$navbar-bg`, `$link-color`, `$component-active-color`) become
-  static CSS and will not flip. Bootstrap here is 5.2.3, which has no built-in color modes. These
-  need converting to CSS properties or override rules.
-- 241 hard-coded color literals across 65 portal component SCSS files need auditing. Each is either
-  a deliberate color or a defect in dark. Not yet audited.
-- Third-party widgets (date pickers, code editors, the jsPlumb canvas), icons and logos have not been
-  reviewed.
-
-Known shell symptoms to fix by token, not by per-component patches: table header sort/drill/menu
-hover fill, calendar day-of-week surface, composer/viewer canvas background, image placeholder.
+Status: the portal (phase 1) is converted: token block, chrome and dialogs, `widget/`, third-party
+widgets and the named symptoms (table header hover/sort, calendar day-of-week row, canvas, image
+placeholder). Verified with an axe contrast and light-bleed sweep over the portal, content parity,
+and a pixel diff of the light shell against a build without the feature. The composer (phase 2) is
+in progress: it already gets the class, and the dialogs and widgets it shares with the portal are
+converted, but its own surfaces are not all done.
 
 ### Rollout
 
@@ -153,8 +164,8 @@ Build order:
 
 1. **Phase 1, portal:** token block and early apply, then portal chrome, then dialogs and remaining
    screens with the color audit.
-2. **Phase 2, composer:** the composer app applies the same class (it sets its own body classes in
-   `composer/app.component.ts`), then composer-only surfaces: editor canvas and its background,
+2. **Phase 2, composer:** the composer is served by the same server template, so it already gets the
+   class with no app change; then composer-only surfaces: editor canvas and its background,
    binding, format panels, the VS wizard, and the worksheet editor. Many dialogs and widgets are
    shared with the portal, so phase 1 converts part of the composer too.
 
@@ -191,7 +202,8 @@ Checks to run in the Phase 10 pass:
 - a dark dashboard is readable in a light shell and in a dark shell; tooltips and the mini-toolbar
   follow the assembly, not the org (a tooltip from a dark-marked assembly is dark in either shell;
   one from a light or unmarked assembly is attached to the page body and, like other popups, takes
-  the shell's palette, so it is dark in a dark shell)
+  the shell's palette, so it is dark in a dark shell; annotation tooltips are the exception in
+  either shell and for any mark: they keep the annotation's own fill, white by default)
 - shell dark, checked at the end of each phase and again before release: every converted screen is
   readable, with no light text on hard-coded light surfaces, and no flash of light before first
   paint; at release, no portal or composer screen is left unconverted
@@ -202,11 +214,15 @@ with no recorded results found.
 
 ## Other gaps found
 
-- `PortalProfileController` colors the profiling chart from the EM dark flag (`isEMDarkTheme()`), so
-  that chart can be dark on a light portal page.
-- No user-level control exists. `inetsoft.portal.themeId` is read by the enterprise theme resolver,
-  but nothing in the repository sets it, and it selects custom CSS themes rather than dark.
-- Login, signup and the Preferences dialog have no dark handling.
+- `PortalProfileController` colors the profiling chart from the EM dark flag (`isEMDarkTheme()`); the
+  portal's Profile dialog asks for a dark chart (`shellDark=true`) in a dark shell.
+- No user-level UI exists. The server honors `UserEnv` `shellAppearance`, but nothing writes it yet.
+  `inetsoft.portal.themeId` is read by the enterprise theme resolver, but nothing in the repository
+  sets it, and it selects custom CSS themes rather than dark.
+- The login page and the workspace chooser follow the shell mode. The signup, signup detail,
+  restricted and error pages do not yet: they render light after a dark login.
+- After `portal.shellDark` is turned off, a browser that still has the `inetsoft.shellDark` cookie sees
+  a dark login page and a dark workspace chooser (`/`) until its next portal load clears the cookie.
 
 ## Relationship to older docs
 
@@ -236,6 +252,9 @@ behaves, how the portal HTML is served (relevant to applying dark before first p
 viewer's Print button uses server export, third-party widgets, and any other places the
 implementation differs from the 9B plan. Treat the statements here as accurate for the areas listed
 and as unchecked elsewhere.
+
+Update, 2026-11-16 (shell dark verification): how the portal HTML is served, the Print button and the
+third-party widgets were checked and are described above.
 
 ## Related
 
