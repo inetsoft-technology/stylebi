@@ -84,6 +84,8 @@ class WizEntitlementGrantControllerTest {
          .addUser("carol", ORG_A, "password")
          .addGlobalRole("globalr")
          .addUserToRole("carol", "globalr", null)
+         .addUser("member", ORG_A, "password")
+         .addUserToRole("member", "r1", ORG_A)
          .addGroup("g1", ORG_A)
          .addRole("r1", ORG_A)
          .addRole("orgAdminRole", ORG_A)
@@ -533,12 +535,37 @@ class WizEntitlementGrantControllerTest {
    // ---- facts about global roles (pinned) ---------------------------------------------------------
 
    @Test
-   void aGlobalRoleGrantIsStoredUnderTheCallersOrganizationAndMatchesItsMember() throws Exception {
+   void aGlobalRoleCannotBeGrantedOrRevoked() throws Exception {
       SRPrincipal writer = wiz("writer", ORG_A);
-      GrantEntry entry = post(request("config.read", "role", "globalr", true), writer);
-      System.out.println("WIZ-FACT roles=" + entry.roles() +
-                         " carolHolds=" + holds("carol", "config.read", false));
-      assertEquals(List.of("globalr"), entry.roles());
+
+      for(boolean granted : new boolean[] { true, false }) {
+         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+            () -> post(request("config.read", "role", "globalr", granted), writer));
+         assertEquals(400, ex.getStatusCode().value());
+         assertEquals("principal: global roles cannot be granted Wiz permissions; " +
+                      "use an organization role", ex.getReason());
+      }
+
+      assertTrue(entry(controller.getGrants(writer), "config.read").roles().isEmpty());
+      assertFalse(holds("carol", "config.read", false));
+   }
+
+   @Test
+   void anOrganizationRoleGrantIsEffectiveForItsMembers() throws Exception {
+      for(boolean multiTenant : new boolean[] { false, true }) {
+         try(MockedStatic<SUtil> mocked =
+                Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS))
+         {
+            mocked.when(SUtil::isMultiTenant).thenReturn(multiTenant);
+            assertEquals(List.of("r1"),
+                         post(request("orgconfig.read", "role", "r1", true), wiz("writer", ORG_A))
+                            .roles());
+         }
+
+         assertTrue(holds("member", "orgconfig.read", multiTenant));
+         assertFalse(holds("plain", "orgconfig.read", multiTenant));
+         post(request("orgconfig.read", "role", "r1", false), wiz("writer", ORG_A));
+      }
    }
 
    private GrantEntry post(GrantRequest request, Principal caller) {

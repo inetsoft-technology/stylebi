@@ -216,6 +216,16 @@ public class WizEntitlementGrantController {
          throw badRequest(notFound);
       }
 
+      // directory.exists() also accepts a global (organization-less) role under the caller's org
+      // (it falls back to (name, null)); a grant stored for it never matches its members, whose
+      // role identity has no organization. Same test as SecurityService.isGlobalRole.
+      if(kind == AdminIdentityRefs.Kind.ROLE &&
+         securityEngine.getSecurityProvider().getRole(id) == null)
+      {
+         throw badRequest("principal: global roles cannot be granted Wiz permissions; " +
+                          "use an organization role");
+      }
+
       return id;
    }
 
