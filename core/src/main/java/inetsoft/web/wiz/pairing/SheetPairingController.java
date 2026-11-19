@@ -358,9 +358,12 @@ public class SheetPairingController {
     * @param sql           whether the pane's SQL/Script switch is on SQL
     * @param aggregate     whether the pane's Detail/Aggregate choice is Aggregate; absent from an
     *                      older browser, which reads as Detail
+    * @param returnType    the dialog's current, possibly unconfirmed, return type (worksheet Edit
+    *                      Expression dialog); null from an older browser or a dialog without the
+    *                      choice
     */
    public record PaneStateRequest(String runtimeId, EditorContext editorContext, boolean sql,
-                                  boolean aggregate) {}
+                                  boolean aggregate, String returnType) {}
 
    /**
     * STOMP pane-state -- sent by a pane whose value type the user can switch after pairing (the
@@ -377,7 +380,7 @@ public class SheetPairingController {
       }
 
       sessions.setPaneState(accessor.getSessionId(), req.runtimeId(), req.editorContext(),
-                            new PaneState(req.sql(), req.aggregate()));
+                            new PaneState(req.sql(), req.aggregate(), req.returnType()));
    }
 
    /**

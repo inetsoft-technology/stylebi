@@ -110,6 +110,17 @@ describe("FollowFocusService", () => {
                             aggregate: false }));
       });
 
+      it("sends the dialog's unconfirmed return type when given one (bug #81789)", () => {
+         const wsContext: any = { kind: "worksheetExpression", assembly: "Orders", name: "REVENUE" };
+
+         service.reportPaneState("rt-1", mockSocketConnection, wsContext, false, false, "integer");
+
+         expect(mockStompConnection.send).toHaveBeenCalledWith(
+            "/events/wiz/pairing/pane-state", {},
+            JSON.stringify({ runtimeId: "rt-1", editorContext: wsContext, sql: false,
+                            aggregate: false, returnType: "integer" }));
+      });
+
       it("is a no-op with no runtimeId, socket connection or editorContext", () => {
          service.reportPaneState("", mockSocketConnection, context, true);
          service.reportPaneState("rt-1", undefined as any, context, true);

@@ -61,6 +61,10 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     *  minted, and it decides whether `get_pane_context` describes a per-row or an aggregate
     *  formula. Undefined (read as Detail) for a host with no such choice. */
    @Input() aggregateMode?: boolean;
+   /** The return type the pane currently shows (the worksheet Edit Expression dialog), which the
+    *  user can change without confirming. Reported with `sqlMode` so `get_pane_context` lists
+    *  the location's own column under it. Undefined for a host with no such choice. */
+   @Input() returnType?: string;
 
    code: string | null = null;
    loading = false;
@@ -268,7 +272,8 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
 
    ngOnChanges(changes: SimpleChanges): void {
       if((changes["sqlMode"] && !changes["sqlMode"].firstChange) ||
-         (changes["aggregateMode"] && !changes["aggregateMode"].firstChange))
+         (changes["aggregateMode"] && !changes["aggregateMode"].firstChange) ||
+         (changes["returnType"] && !changes["returnType"].firstChange))
       {
          this.reportPaneState();
       }
@@ -594,7 +599,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
 
       this.followFocusService.reportPaneState(
          this.runtimeId, this.socketConnection, context, this.sqlMode,
-         this.aggregateMode === true);
+         this.aggregateMode === true, this.returnType);
    }
 
    ngOnDestroy(): void {

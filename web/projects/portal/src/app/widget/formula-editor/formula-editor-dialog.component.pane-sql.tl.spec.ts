@@ -159,7 +159,7 @@ describe("FormulaEditorDialog - paneSqlMode through Follow Focus (bug #81541)", 
 
       expect(report).toHaveBeenCalledTimes(1);
       expect(report).toHaveBeenCalledWith("rt-1", comp.socketConnection, comp.editorContext, false,
-         false);
+         false, undefined);
    });
 
    it("reports every flip, under the context that was pushed even after a rename", () => {
@@ -196,5 +196,43 @@ describe("FormulaEditorDialog - paneSqlMode through Follow Focus (bug #81541)", 
 
       expect(followFocusService.pushFocus).toHaveBeenCalled();
       expect(followFocusService.reportPaneState).not.toHaveBeenCalled();
+   });
+});
+
+describe("FormulaEditorDialog - paneReturnType (bug #81789)", () => {
+   function worksheetDialog(configure: (comp: any) => void) {
+      const { comp } = createDialog();
+      comp.runtimeId = "rt-1";
+      comp.socketConnection = {} as any;
+      comp.isVSContext = false;
+      comp.contextTable = "Orders";
+      comp.assemblyName = "Orders";
+      comp.formulaName = "Margin";
+      comp.returnTypeVisible = true;
+      comp.dataType = "double";
+      configure(comp);
+      comp.initForm();
+      return comp;
+   }
+
+   it("reports the unconfirmed Return Type of a worksheet expression and follows the choice", () => {
+      const comp = worksheetDialog(c => c.formulaType = FormulaType.SCRIPT);
+
+      expect(comp.editorContext.kind).toBe("worksheetExpression");
+      expect(comp.paneReturnType).toBe("double");
+
+      comp.form.get("dataType").setValue("integer");
+      expect(comp.paneReturnType).toBe("integer");
+   });
+
+   it("reports nothing for a worksheet condition value, which has no Return Type", () => {
+      const comp = worksheetDialog(c => {
+         c.isCondition = true;
+         c.conditionOperation = ConditionOperation.GREATER_THAN;
+         c.formulaType = FormulaType.SQL;
+      });
+
+      expect(comp.editorContext.kind).toBe("worksheetConditionValue");
+      expect(comp.paneReturnType).toBeUndefined();
    });
 });
