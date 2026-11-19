@@ -21,12 +21,12 @@ These defaults apply whether the author picks the style first or drops the field
 **Tech Stack:** Java 21, JUnit 5, Mockito, Spring test context (`@SreeHome`), Maven module `core`. Angular 21 / Vitest for the drop check (Task 8).
 
 **Spec:** `docs/superpowers/specs/lookfeel/2026-11-06-chart-defaults-design.md`, amended for S7 in `524f098374`. The relevant parts are:
-- §3 M1, M6 (with D116), M8 and M9
+- §3 M1, M6 (with D119), M8 and M9
 - §4 R12
 - §5 S7: the shaping facts, the entry-point table and rows S7-1 to S7-7
 - §8's candle and stock line
 - §9's S7 items and §11 "Creation-time defaults (S7)"
-- §10 D4, D5, D19 and D116 to D127
+- §10 D4, D5, D19 and D119 to D130
 
 **Verified against:** `bug-80455-s7` at `524f098374`, which is `epic-74519` at `fe589c28a9` plus the spec commit. Paths are under `core/src/main/java/inetsoft/` unless they start with `core/` or `web/`.
 
@@ -43,10 +43,10 @@ These defaults apply whether the author picks the style first or drops the field
 **Design calls (§9 left these to the builder, or the spec is silent):**
 - **Entering a family.** The type-change rules run only when the chart enters the family, as the processor's own `copyTo*` calls do: `!isPie(old) && isPie(new)`, and likewise for the waterfall, the treemap family, the marimekko and the candle. So pie → donut and treemap → sunburst leave the binding alone.
 - **Stacked style permission.** If the user has no permission for the stacked style, the plain area they asked for stays.
-- **The waterfall read (D127).**
+- **The waterfall read (D130).**
   - **Table:** the chart's worksheet table (`SourceInfo.getSource()`), read in `AssetQuerySandbox.RUNTIME_MODE` from a copy of it in a `WorksheetWrapper`. The worksheet's own conditions and row security still apply, so no value from a hidden row is saved. The copy's pre and post runtime condition lists are cleared, so dashboard selections do not apply and the order does not depend on what a viewer had selected. The copy's `AssetQuery` runs directly, so neither the worksheet nor the sandbox's cached results change.
   - **Limits:** the query is limited to `ChartSourceOrder.MAX_ROWS = 10_000` rows: the copy gets `setMaxRows(MAX_ROWS)`, or keeps the worksheet's own limit when that is smaller. More than `ChartCreationDefaults.MAX_ORDERED_VALUES = 100` distinct values means no order.
-  - **No order** for a cube field, a named group or a column that is not in the table. A date is excluded by the rule (D123). A detail calc field is in the table, because the query adds it to the runtime worksheet table, so it is read and ordered like any column (D127, owner ruling after the live checks).
+  - **No order** for a cube field, a named group or a column that is not in the table. A date is excluded by the rule (D126). A detail calc field is in the table, because the query adds it to the runtime worksheet table, so it is read and ordered like any column (D130, owner ruling after the live checks).
   - **Stored values:** `Tool.getDataString(value)`, with nulls skipped.
 - **The wizard's date fallback** is month on a marked chart, whatever the shelf. The wizard has not placed the field when it creates it, and it puts dates on X.
 - **The pie measure** is the `getFullName()` of the first aggregate on Y, else on X. With multiple styles, it is each pie aggregate's own name, sorting that aggregate's own slice dimension.
@@ -56,7 +56,7 @@ These defaults apply whether the author picks the style first or drops the field
 **Known limitations:**
 - The waterfall read runs the worksheet table's query once when the rule fires, limited in the query to 10,000 rows. It ignores dashboard selections and keeps the worksheet's conditions and row security.
 - A value that first appears after the first 10,000 rows goes after the saved list, ascending.
-- An author's explicit Ascending is replaced: on a pie when its measure is rebound (D124), and on a pie or waterfall at a type change or on the reset copy (D122).
+- An author's explicit Ascending is replaced: on a pie when its measure is rebound (D127), and on a pie or waterfall at a type change or on the reset copy (D125).
 - **Older builds** read these as ordinary bindings (M9). Charts marked before S7 change only at a later drop or type change (M8).
 
 ## Global Constraints
@@ -71,7 +71,7 @@ These defaults apply whether the author picks the style first or drops the field
   - One commit per task, subject `Chart defaults S7, <what changed>`, with last line `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
   - Subagents never run `git add`, `git commit` or `git stash` (a hook blocks them); the controller stages and commits after review. Never push.
 - **Scope is the mark (M1).** Every rule returns at once unless `ctx.modern`. An unmarked chart's binding and XML are unchanged at every entry point.
-- **Scripts are untouched (D126).** Nothing is added to `ChangeChartTypeProcessor.process()` or `ChartVSAssemblyInfo.setChartStyle`.
+- **Scripts are untouched (D129).** Nothing is added to `ChangeChartTypeProcessor.process()` or `ChartVSAssemblyInfo.setChartStyle`.
 - **Values:**
   - Month = `DateRangeRef.MONTH_INTERVAL`, year = `YEAR_INTERVAL`, hour = `HOUR_INTERVAL` (time-only fields, `XSchema.TIME`).
   - Axis shelves = `ChartConstants.DROP_REGION_X` (2), `Y` (3), `X2` (4), `Y2` (5). Color = `DROP_REGION_COLOR` (6), Shape and Size are their constants, the group shelf (T and Break By) = `DROP_REGION_GROUP` (14).
@@ -86,7 +86,7 @@ These defaults apply whether the author picks the style first or drops the field
 ## Review Focus
 
 1. **Classic charts are untouched at every entry point**: drop, type change, wizard and reset copy leave an unmarked chart's binding as today. Pinned by the `classic…` cases in Tasks 2 to 7.
-2. **A script that sets `chartStyle` on a marked chart applies none of the defaults** (D126). Pinned by `aScriptChartStyleAppliesNoDefault` (Task 4).
+2. **A script that sets `chartStyle` on a marked chart applies none of the defaults** (D129). Pinned by `aScriptChartStyleAppliesNoDefault` (Task 4).
 3. **A waterfall whose source cannot be read keeps today's order without an exception**: no sandbox, a cube field, a named group, a calc field, more than 100 values, a failing query. Pinned by Task 3's `…ReadsNothing` cases and `anUnreadableSourceKeepsTheOrder` (Task 1).
 4. **An author's choice survives later drops**: Stack turned off on an area, a sort the author set, and a cleared Color on a treemap. Pinned by `anAuthorSortSurvivesALaterDrop`, `aClearedColourStaysClearedOnASecondLevel` (Task 2) and `turningStackOffOnAMarkedAreaSticks` (Task 4).
 5. **The candle refusal covers every route a dimension can take to Color**: from the tree, from another shelf, and dropped on the plot body. Pinned by the three refusal cases in Task 5.
@@ -96,7 +96,7 @@ These defaults apply whether the author picks the style first or drops the field
 - **Task 1:** create `report/internal/graph/ChartCreationDefaults.java` (the seven rules and `SourceOrder`).
 - **Task 2:** `ChartCreationDefaults.java` (the four entry methods).
 - **Task 3:** create `web/binding/handler/ChartSourceOrder.java`.
-- **Task 4:** `web/binding/controller/ChangeChartTypeService.java`, and a generator check of D121's premise.
+- **Task 4:** `web/binding/controller/ChangeChartTypeService.java`, and a generator check of D124's premise.
 - **Task 5:** `web/binding/handler/VSChartBindingHandler.java`.
 - **Task 6:** `web/vswizard/recommender/WizardRecommenderUtil.java`, `web/vswizard/recommender/ChartRecommenderUtil.java`, `web/vswizard/handler/VSWizardBindingHandler.java`.
 - **Task 7:** `uql/viewsheet/internal/VizModernizeUtil.java`, `web/composer/vs/controller/ModernCopyService.java`.
@@ -132,11 +132,11 @@ From `$WT`:
   - `int stackedAreaType(int oldType, int newType, VizContext ctx)`. It returns the stacked counterpart when `ctx.modern`, `newType` is `CHART_AREA` or `CHART_STEP_AREA`, and `!GraphTypes.isArea(oldType)`; otherwise `newType`.
   - `int stackedCounterpart(int type)`: area → area stack, step area → step area stack, any other type unchanged.
   - `boolean refusesColorDimension(ChartInfo info, int dropRegion, DataRef ref, VizContext ctx)`. It is true when `ctx.modern`, `GraphTypes.isCandle(info.getChartType())`, `dropRegion == DROP_REGION_COLOR` and `GraphUtil.isDimension(ref)`.
-  - `void applyPieOrder(ChartInfo info, VizContext ctx)` (S7-3, D122 to D124)
-  - `void applyWaterfallOrder(ChartInfo info, VizContext ctx, SourceOrder order)` (S7-4, D122, D123, D127)
-  - `void applyTopLevelColor(ChartInfo info, VizContext ctx)` (S7-5, D125)
-  - `void applyBreakByColor(ChartInfo info, VizContext ctx)` (S7-6, D125)
-  - `void moveColorDimensionToPanels(ChartInfo info, VizContext ctx)` (S7-7, D117)
+  - `void applyPieOrder(ChartInfo info, VizContext ctx)` (S7-3, D125 to D127)
+  - `void applyWaterfallOrder(ChartInfo info, VizContext ctx, SourceOrder order)` (S7-4, D125, D126, D130)
+  - `void applyTopLevelColor(ChartInfo info, VizContext ctx)` (S7-5, D128)
+  - `void applyBreakByColor(ChartInfo info, VizContext ctx)` (S7-6, D128)
+  - `void moveColorDimensionToPanels(ChartInfo info, VizContext ctx)` (S7-7, D120)
 
 - [ ] **Step 1: Write the failing tests.** Charts are `DefaultVSChartInfo` (`CandleVSChartInfo` for the candle) with `setChartType`, `VSChartDimensionRef` and `VSChartAggregateRef` fields, and `modern()` / `VizContext.LEGACY`.
   - `newDateLevelIsMonthOnAMarkedAxis`: `XSchema.DATE` and `TIME_INSTANT` on the axis, modern → `MONTH_INTERVAL`. The same off the axis → `YEAR_INTERVAL`. The same with LEGACY → `YEAR_INTERVAL`. `XSchema.TIME`, modern, on the axis → `HOUR_INTERVAL`.
@@ -176,7 +176,7 @@ From `$WT`:
 - Produces (`public static void`; each returns at once unless `ctx.modern`):
   - `afterTypeChange(ChartInfo info, int oldType, int newType, VizContext ctx, SourceOrder order)`: the rule of each family the chart enters (design call "Entering a family"). The area type is not set here (Task 4 maps it before the processor).
   - `afterDrop(ChartInfo info, int dropRegion, List<? extends DataRef> landed, VizContext ctx, SourceOrder order)`:
-    - **Pie (any pie type, or a multi-style aggregate typed pie):** the pie order runs when a dimension lands on Color, Shape or Size, or a measure lands on any shelf (D124).
+    - **Pie (any pie type, or a multi-style aggregate typed pie):** the pie order runs when a dimension lands on Color, Shape or Size, or a measure lands on any shelf (D127).
     - **Waterfall:** the order runs when a dimension lands on the category shelf: X or X2, or Y or Y2 when the chart is inverted.
     - **Treemap family:** the top-level colour runs when a dimension lands on the group shelf and is now group field 0 (matched by `getName()`).
     - **Marimekko:** the Break By colour runs when a dimension lands on the group shelf.
@@ -251,12 +251,12 @@ From `$WT`:
   - **Before the processor:** `int stacked = ChartCreationDefaults.stackedAreaType(oldType, newType, VizContext.of(ninfo))`. When `stacked != newType` and `GraphTypeUtil.checkChartStylePermission(stacked)` is true, `newType = stacked`; a `MessageException` from the check keeps `newType`. Every later use of `newType` then sees the stacked type, including the processor, `applySmoothLinesTransition` and the binding sent back.
   - **Right after `process()` returns:** `ChartCreationDefaults.afterTypeChange(cinfo, oldType, newType, VizContext.of(ninfo), new ChartSourceOrder(box.orElse(null), ninfo.getSourceInfo()))`. This runs before `ninfo.setVSChartInfo(cinfo)`, so the map branch and `updateAssembly` see it.
 
-- [ ] **Step 0: Check D121's premise first.** Write `StackedAreaSingleSeriesTest`, which compares `CHART_AREA` with `CHART_AREA_STACK` on a marked chart.
+- [ ] **Step 0: Check D124's premise first.** Write `StackedAreaSingleSeriesTest`, which compares `CHART_AREA` with `CHART_AREA_STACK` on a marked chart.
   - `oneMeasureDrawsTheSame`: X `Month` (6 values), Y `Sum(Sales)`. The area visual objects' shapes (`getShape()` bounds and path points) are equal, and so are the Y scale's min and max.
   - `twoMeasuresWithoutStackMeasuresDrawTheSame`: Y `Sum(Sales)` and `Sum(Cost)`, `PlotDescriptor.setStackMeasures(false)`. The same comparison per measure.
   - `valuesShownDrawTheSame`: `setValuesVisible(true)`. The value labels' texts and positions are equal.
 
-  Run it. If any case fails, stop and report to the controller before Step 1: a stacked type would then change a chart with no series dimension, which D121 assumes it does not.
+  Run it. If any case fails, stop and report to the controller before Step 1: a stacked type would then change a chart with no series dimension, which D124 assumes it does not.
 - [ ] **Step 1: Write the failing tests.** The chart is marked with `chart.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT)`, except in the classic cases.
   - `pickingAreaOnAMarkedBarGivesStackedArea`: BAR, event `CHART_AREA` → `getChartType() == CHART_AREA_STACK`.
   - `turningStackOffOnAMarkedAreaSticks`: AREA_STACK, event `CHART_AREA` → `CHART_AREA`.
@@ -267,7 +267,7 @@ From `$WT`:
   - `switchingAMarkedBarWithTickersToCandleMakesPanels`: Color `Ticker` → Y holds `Ticker`, Color null.
   - `switchingToWaterfallSavesTheSourceOrder`: `chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Funnel"))`. The mocked sandbox's `getAssetQuerySandbox()` returns a real sandbox over a worksheet whose embedded table `Funnel` holds Task 3's rows → `Item` is `SORT_SPECIFIC` in file order.
   - `classicSwitchesApplyNoDefault`: the pie, treemap and candle cases unmarked → today's binding (slice `SORT_ASC`, Color null, Color still `Ticker`).
-  - `aScriptChartStyleAppliesNoDefault`: a marked `ChartVSAssemblyInfo` whose X holds `Division` and `Department` and Y holds `Sum(Sales)`; `setChartStyle(CHART_TREEMAP)` → Color null (D126).
+  - `aScriptChartStyleAppliesNoDefault`: a marked `ChartVSAssemblyInfo` whose X holds `Division` and `Department` and Y holds `Sum(Sales)`; `setChartStyle(CHART_TREEMAP)` → Color null (D129).
 - [ ] **Step 2: Run them and see them fail.**
 - [ ] **Step 3: Implement the two changes.**
 - [ ] **Step 4: Run the tests and see them pass**, plus `StackedAreaSingleSeriesTest`, `ChangeChartTypeServiceTest` and `ChangeChartTypeServiceSmoothLinesTransitionTest`.
@@ -338,7 +338,7 @@ From `$WT`:
 
 - [ ] **Step 1: Write the failing tests** (`WizardDateLevelTest`):
   - `aMarkedWizardFallsBackToMonth`: an entry with no `interval` property, modern → `MONTH_INTERVAL`.
-  - `aMarkedWizardKeepsAFoundInterval`: `interval` = `YEAR_INTERVAL`, modern → year (D120).
+  - `aMarkedWizardKeepsAFoundInterval`: `interval` = `YEAR_INTERVAL`, modern → year (D123).
   - `theTwoArgumentFormKeepsYear`: no interval → `YEAR_INTERVAL`.
   - `aTimeFieldFallsBackToHour`: an `XSchema.TIME` field, modern → `HOUR_INTERVAL`.
 
@@ -419,7 +419,7 @@ From `$WT`:
 
 - [ ] **Step 2:** The full `core` suite runs when the controller says so. Expected: 0 failures. The known timing flakes (`XSwapperGCThrottleTest`, `XSwapperStaleSwapFileMapTest`) pass when run alone.
 - [ ] **Step 3:** Write the live-check handoff `E:/Temp/chart-defaults-s7-checks-handoff.md` in the format of `E:/Temp/chart-defaults-s6a-checks-handoff.md`. The base build is `fe589c28a9`. It covers:
-  - **Both build orders (D116):** on a modern dashboard, build each of the bundle's repro charts by picking the style first (`repro/scripts/build_f1.js`) and again with the fields first: area (3 series), pie, donut, waterfall (`waterfall_8.csv`), treemap (2 and 3 levels), sunburst, marimekko (4×4). Each shows the default.
+  - **Both build orders (D119):** on a modern dashboard, build each of the bundle's repro charts by picking the style first (`repro/scripts/build_f1.js`) and again with the fields first: area (3 series), pie, donut, waterfall (`waterfall_8.csv`), treemap (2 and 3 levels), sunburst, marimekko (4×4). Each shows the default.
   - **Dates:** a raw date on X and on Y groups by month. On Color it groups by year. The wizard's two-year data gives month, and ten years gives year.
   - **Waterfall:** the sort dialog shows the manual order. A refresh keeps it. A database-backed table gives the same order on two opens.
   - **Candle:** the editor refuses a Ticker drop on Color from the tree, from X and onto the plot. Switching a bar with Ticker on Color to candle shows two panels with each ticker's own prices.
