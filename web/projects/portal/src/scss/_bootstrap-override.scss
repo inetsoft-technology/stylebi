@@ -904,6 +904,25 @@ a:not([href]) {
   }
 }
 
+// Modern shell: the primary button is a tint of the primary with a primary edge and the primary
+// text colour (about 10:1 light, 7:1 dark), not a solid orange block. It stays the strongest button
+// beside a neutral secondary one, and the tint follows the theme primary and the shell surface, so
+// dark mode needs no separate rule. Classic organizations keep the solid fill above.
+.viz-shell .btn.btn-primary {
+  color: var(--inet-primary-text-color);
+  background-color: color-mix(in srgb, var(--inet-primary-color) 35%, var(--inet-shell-surface-default));
+  border: 1px solid var(--inet-primary-color);
+
+  &:hover:not(:disabled), &:active:not(:disabled),
+  &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
+  &.focus, &:focus
+  {
+    color: var(--inet-primary-text-color);
+    background-color: color-mix(in srgb, var(--inet-primary-color) 50%, var(--inet-shell-surface-default));
+    border: 1px solid var(--inet-primary-color);
+  }
+}
+
 .btn.btn-secondary {
   color: var(--inet-button-secondary-text-color);
   background-color: var(--inet-button-secondary-bg-color);
