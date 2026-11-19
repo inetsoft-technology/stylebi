@@ -189,6 +189,41 @@ class WizTabularControllerTest {
       assertEquals(WizTabularSaveResult.UNKNOWN, result.reason());
    }
 
+   // G6: the server's own wording rides along in message, so a refused secret id or an invalid name
+   // is nameable by the caller. The code stays UNKNOWN so wiz-portal's switch on it does not change.
+   @Test
+   void createCarriesTheServersRefusalTextInMessage() throws Exception {
+      when(datasourcesService.checkDuplicate(anyString())).thenReturn(false);
+      doThrow(new MessageException("the credential id is not allowed"))
+         .when(datasourcesService).createNewDataSource(any(), anyBoolean(), any());
+
+      WizTabularSaveResult result = controller.createTabularDataSource(
+         new WizTabularCreateRequest("", definition("mongo")), principal);
+
+      assertEquals(WizTabularSaveResult.UNKNOWN, result.reason());
+      assertEquals("the credential id is not allowed", result.message());
+   }
+
+   @Test
+   void updateCarriesTheServersRefusalTextInMessage() throws Exception {
+      when(datasourcesService.checkDuplicate("mongo")).thenReturn(true);
+      doThrow(new MessageException("the credential id is not allowed"))
+         .when(datasourcesService).updateDataSource(any(), any(), any());
+
+      WizTabularSaveResult result = controller.updateTabularDataSource(
+         "mongo", definition("mongo"), principal);
+
+      assertEquals(WizTabularSaveResult.UNKNOWN, result.reason());
+      assertEquals("the credential id is not allowed", result.message());
+   }
+
+   @Test
+   void theThreeArgumentSaveResultFactoriesStillExist() {
+      assertNull(new WizTabularSaveResult(true, null, "p").message());
+      assertNull(WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN).message());
+      assertNull(WizTabularSaveResult.ok("p").message());
+   }
+
    /*
     * createNewDataSource writes nothing and throws nothing when the type is unknown or its
     * connector is unavailable. Reported as a success, that sends the editor to a data source that

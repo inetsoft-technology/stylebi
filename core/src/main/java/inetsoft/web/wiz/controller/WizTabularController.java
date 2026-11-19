@@ -488,7 +488,10 @@ public class WizTabularController {
          LOG.warn("Tabular data source \"{}\" was not created; type \"{}\" is unknown or its " +
                      "connector is unavailable", fullPath, definition.getType());
 
-         return WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN);
+         return WizTabularSaveResult.failed(
+            WizTabularSaveResult.UNKNOWN,
+            "The data source type \"" + definition.getType() + "\" is unknown or its connector " +
+               "plugin is not installed, so nothing was created");
       }
 
       return WizTabularSaveResult.ok(fullPath);
@@ -1049,7 +1052,7 @@ public class WizTabularController {
 
       LOG.info("Tabular data source {} rejected for \"{}\": {}", operation, path, e.getMessage());
 
-      return WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN);
+      return WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN, e.getMessage());
    }
 
    /**

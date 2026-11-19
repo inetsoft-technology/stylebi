@@ -39,6 +39,18 @@ package inetsoft.web.wiz.model;
  *                 ignored by the server.
  * @param userName the user name, may be null.
  * @param password see above. Always null on read.
+ * @param useCredentialId whether the connection authenticates through a cloud-secret credential
+ *                 (only meaningful in cloud-secrets mode). Optional on write, defaults to false.
+ * @param credentialId the cloud-secret id. A reference, never the secret itself. Optional on write:
+ *                 when the caller sets neither this nor {@code useCredentialId} nor a password, an
+ *                 update keeps the stored reference. The server refuses an id the caller is not
+ *                 allowed to use and says so in the save result's {@code message}.
  */
-public record WizAuthentication(boolean required, String userName, String password) {
+public record WizAuthentication(boolean required, String userName, String password,
+                                boolean useCredentialId, String credentialId)
+{
+   /** The pre-credential wire shape; kept so existing callers and clients are unaffected. */
+   public WizAuthentication(boolean required, String userName, String password) {
+      this(required, userName, password, false, null);
+   }
 }
