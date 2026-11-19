@@ -199,6 +199,29 @@ public class SheetPairingController {
       sessions.detach(accessor.getSessionId(), req.editorContext());
    }
 
+   /** Payload for the STOMP viewer-detach: the runtime the page is no longer showing. */
+   public record ViewerDetachRequest(String runtimeId) {}
+
+   /**
+    * STOMP viewer-detach -- sent by a portal Viewer page that opened its dashboard in a NEW
+    * runtime on the same socket ("Reload Now"), so the agent session paired to the old runtime
+    * ends instead of silently reading a view the user no longer has. Fire-and-forget, no reply.
+    * The socket session id comes from the accessor, never from the payload, so a page can only
+    * end viewer sessions minted from its own connection; design sessions are never touched.
+    *
+    * <p>Send to: {@code /app/wiz/pairing/viewer-detach}
+    */
+   @MessageMapping("/wiz/pairing/viewer-detach")
+   public void viewerDetachViaSocket(@Payload ViewerDetachRequest req,
+                                     SimpMessageHeaderAccessor accessor)
+   {
+      if(req == null || req.runtimeId() == null) {
+         return;
+      }
+
+      sessions.endViewerSessions(accessor.getSessionId(), req.runtimeId());
+   }
+
    /**
     * Payload for the STOMP Follow Focus toggle.
     *
@@ -417,7 +440,8 @@ public class SheetPairingController {
       HttpStatus status = switch(e.getKind()) {
          case SESSION_EXPIRED  -> HttpStatus.NOT_FOUND;
          case USER_MISMATCH,
-              FEATURE_DISABLED -> HttpStatus.FORBIDDEN;
+              FEATURE_DISABLED,
+              VIEWER_MODE      -> HttpStatus.FORBIDDEN;
          case RATE_LIMITED     -> HttpStatus.TOO_MANY_REQUESTS;
          case INTERNAL         -> HttpStatus.INTERNAL_SERVER_ERROR;
          default               -> HttpStatus.BAD_REQUEST;

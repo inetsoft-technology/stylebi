@@ -548,7 +548,8 @@ public class ViewsheetAgentController {
       HttpStatus status = switch(e.getKind()) {
          case SESSION_EXPIRED  -> HttpStatus.NOT_FOUND;
          case USER_MISMATCH,
-              FEATURE_DISABLED -> HttpStatus.FORBIDDEN;
+              FEATURE_DISABLED,
+              VIEWER_MODE      -> HttpStatus.FORBIDDEN;
          case RATE_LIMITED     -> HttpStatus.TOO_MANY_REQUESTS;
          case INTERNAL        -> HttpStatus.INTERNAL_SERVER_ERROR;
          default              -> HttpStatus.BAD_REQUEST;

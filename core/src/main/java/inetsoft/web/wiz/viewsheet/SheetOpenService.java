@@ -43,6 +43,7 @@ import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetRuntimeAccess;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
+import inetsoft.web.wiz.pairing.ViewerModePolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -118,6 +119,10 @@ public class SheetOpenService {
    {
       JoinSession vsSession =
          viewsheetSessions.requireSessionAllowingPaneScope(sessionToken, user);
+
+      // A viewer session (a portal Viewer dashboard) reads and exports; it never opens another
+      // sheet. Same place and reason as the pane-scope guard below: before the runtime is touched.
+      ViewerModePolicy.requireNotViewer(vsSession, runtimeAccess);
 
       // Whole-branch review finding 1 (CRITICAL). This guard must come FIRST -- before the
       // runtime is touched, before the worksheet is opened, before any grant is minted.
@@ -308,6 +313,10 @@ public class SheetOpenService {
             " from another connected sheet's session, or ask the user for a fresh pairing code " +
             "and run connect_sheet again.");
       }
+
+      // A viewer session never opens another sheet -- without this, open_viewsheet from a
+      // viewer-paired session minted an editable design runtime (spike item 6), a mode escape.
+      ViewerModePolicy.requireNotViewer(actingSession, runtimeAccess);
 
       // Same laundering hazard createViewsheet/createWorksheet guard against: a pane-scoped
       // session is a write handle for ONE script location and must not mint a whole-sheet one.
@@ -646,6 +655,9 @@ public class SheetOpenService {
             "pairing code and run connect_sheet again.");
       }
 
+      // A viewer session never creates a sheet (see openSavedSheet).
+      ViewerModePolicy.requireNotViewer(actingSession, runtimeAccess);
+
       // Same class of bug openBaseWorksheet guards against (see its own guard and comment
       // above): a pane-scoped session is a write handle for ONE script location, and minting a
       // new whole-sheet (editorContext = null) session from it -- as the code below does --
@@ -781,6 +793,9 @@ public class SheetOpenService {
             "Invalid or expired session: " + fromSessionToken + ". Ask the user for a fresh " +
             "pairing code and run connect_sheet again.");
       }
+
+      // A viewer session never creates a sheet (see openSavedSheet).
+      ViewerModePolicy.requireNotViewer(actingSession, runtimeAccess);
 
       // Same class of bug openBaseWorksheet/createViewsheet guard against: a pane-scoped session
       // is a write handle for ONE script location, and minting a new whole-sheet

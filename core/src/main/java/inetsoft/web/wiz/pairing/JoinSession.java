@@ -57,6 +57,12 @@ public record JoinSession(String sessionToken, String runtimeId, String ownerIde
 
    public boolean isExpired(long now) { return now - lastAccess > ttlMillis; }
 
-   /** Forward-compat slot: PAIRED = browser owns + agent joins; AGENT_OWNED reserved for future viz. */
-   public enum ConnectionMode { PAIRED }
+   /**
+    * How the session's runtime is held. PAIRED = browser owns + agent joins (a Composer-opened
+    * sheet, design rights); VIEWER = the runtime is a portal Viewer runtime, so the session is
+    * read + export only ({@link ViewerModePolicy}). The mode is derived by the server from the
+    * runtime at join and re-derived on every call, never read from a client; AGENT_OWNED stays
+    * reserved for future viz.
+    */
+   public enum ConnectionMode { PAIRED, VIEWER }
 }

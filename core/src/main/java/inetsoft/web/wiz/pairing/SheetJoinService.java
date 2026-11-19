@@ -194,10 +194,20 @@ public class SheetJoinService {
          }
       }
 
+      // 3d. Derive the session's mode from the runtime itself, AFTER the user and ownership checks
+      // above so a rejected join never reveals it. Nothing the client sent is read: the grant
+      // carries no mode and the mint validates nothing for a whole-sheet code. A portal Viewer
+      // runtime yields a read + export VIEWER session (ViewerModePolicy); a Composer runtime, or
+      // one this node cannot resolve, stays PAIRED -- and ViewerModeInterceptor re-derives the
+      // mode from the live runtime on every call, so an unresolved runtime is still gated once it
+      // resolves as a viewer.
+      JoinSession.ConnectionMode mode = ViewerModePolicy.isViewerRuntime(runtimeSheet)
+         ? JoinSession.ConnectionMode.VIEWER : JoinSession.ConnectionMode.PAIRED;
+
       // 4. Open a reusable session, carrying the browser's socket session ID for broadcast.
       JoinSession session = sessions.open(grant.runtimeId(), grant.ownerIdentity(),
                                           grant.sheetType(), grant.socketSessionId(),
-                                          grant.socketUserName(), grant.editorContext());
+                                          grant.socketUserName(), grant.editorContext(), mode);
       failedAttempts.remove(throttleKey);
 
       // Close the loop back to the browser that minted this code — it has no other way to learn
@@ -232,8 +242,8 @@ public class SheetJoinService {
       // would break legitimate concurrent/collaborative use.
       int concurrentSessionCount = sessions.findAllOnRuntime(session.runtimeId()).size();
 
-      LOG.info("Sheet agent pairing join granted (runtimeId={}, sheetType={}, agent={})",
-               grant.runtimeId(), grant.sheetType(), PairingUtil.label(agentUser));
+      LOG.info("Sheet agent pairing join granted (runtimeId={}, sheetType={}, mode={}, agent={})",
+               grant.runtimeId(), grant.sheetType(), mode, PairingUtil.label(agentUser));
       return new JoinOutcome(session, sheetLabel, concurrentSessionCount);
    }
 
