@@ -164,7 +164,8 @@ public class WizEntitlementGrantController {
     * Removes every grantee of the permission's ACCESS action in the caller's organization and
     * clears the organization's edited flag, restoring the default behaviour. It only removes, so
     * unlike a grant it is also allowed for the global config.* names in multi-tenant mode (it is
-    * the clean-up path).
+    * the clean-up path). Only the caller's organization bucket is removed: grants with no
+    * organization (global role grants) are kept, and the returned {@code roles} still lists them.
     */
    @PostMapping("/api/wiz/v1/entitlements/grants/reset")
    public GrantEntry resetGrants(@RequestBody(required = false) ResetRequest request,
@@ -342,7 +343,8 @@ public class WizEntitlementGrantController {
                             names(perm.getOrgScopedUserGrants(ResourceAction.ACCESS, orgId)),
                             names(perm.getOrgScopedGroupGrants(ResourceAction.ACCESS, orgId)),
                             names(perm.getOrgScopedRoleGrants(ResourceAction.ACCESS, orgId)),
-                            perm.hasOrgEditedGrantAll(orgId), WizPermissions.isEndUser(permission));
+                            perm.hasOrgEditedGrantAll(orgId) && WizPermissions.isEndUser(permission),
+                            WizPermissions.isEndUser(permission));
    }
 
    private static List<String> names(Set<IdentityID> ids) {
@@ -395,9 +397,10 @@ public class WizEntitlementGrantController {
    }
 
    /**
-    * @param restricted   true when the organization's record is edited, whatever number of
-    *                     grantees remain: the permission is limited to them (to nobody but
-    *                     administrators when there are none).
+    * @param restricted   true only for end-user permissions whose default allow is switched off for
+    *                     the organization; the grantee lists then name who still holds it,
+    *                     possibly nobody. Always false for an admin permission, which is denied
+    *                     unless granted whatever the organization's edited flag says.
     * @param defaultAllow true for an end-user permission, which everybody holds while it is not
     *                     restricted; false for an admin permission, denied unless granted.
     */

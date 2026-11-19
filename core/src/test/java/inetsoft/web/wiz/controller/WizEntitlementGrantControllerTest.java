@@ -806,6 +806,40 @@ class WizEntitlementGrantControllerTest {
       }
    }
 
+   @Test
+   void restrictedIsOnlyTrueForAnEndUserPermissionWhoseDefaultAllowIsSwitchedOff() throws Exception {
+      SRPrincipal writer = wiz("writer", ORG_A);
+
+      GrantEntry admin = post(request("config.read", "user", "carol", true), writer);
+      assertFalse(admin.restricted());
+      assertFalse(admin.defaultAllow());
+      assertEquals(List.of("carol"), admin.users());
+      assertFalse(entry(controller.getGrants(writer), "config.read").restricted());
+
+      // an edited admin permission with no grants is not "restricted" either
+      post(request("config.read", "user", "carol", false), writer);
+      storeEditedWithoutGrants("config.write");
+      assertFalse(entry(controller.getGrants(writer), "config.write").restricted());
+
+      assertFalse(entry(controller.getGrants(writer), "plugin.use").restricted());
+      assertTrue(post(request("plugin.use", "user", "carol", true), writer).restricted());
+      assertTrue(post(request("plugin.use", "user", "carol", false), writer).users().isEmpty());
+      assertFalse(entry(controller.getGrants(writer), "plugin.use").restricted());
+
+      storeEditedWithoutGrants("plugin.use");
+      GrantEntry nobody = entry(controller.getGrants(writer), "plugin.use");
+      assertTrue(nobody.restricted());
+      assertTrue(nobody.users().isEmpty());
+      assertFalse(reset("plugin.use", writer).restricted());
+   }
+
+   private void storeEditedWithoutGrants(String permission) {
+      Permission edited = new Permission();
+      edited.updateGrantAllByOrg(ORG_A, true);
+      SecurityEngine.getSecurity().getSecurityProvider()
+         .setPermission(ResourceType.WIZ_PERMISSION, permission, edited, ORG_A);
+   }
+
    private GrantEntry post(GrantRequest request, Principal caller) {
       try {
          return controller.setGrant(request, caller);
