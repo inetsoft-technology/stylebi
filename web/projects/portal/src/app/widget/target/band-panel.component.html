@@ -39,7 +39,7 @@
         <date-input-field *ngIf="isDateField()" [value]="model.value" #dateField1
                           [variables]="variables" [formulaSupported]="isFormulaSupported()"
                           [vsId]="vsId" [hideDcombox]="hideDcombox"
-                          [timeField]="isTimeField()"
+                          [timeField]="isTimeField()" [todaySupported]="isGantt()"
                           (valueChange)="onFromValueChange($event)">
         </date-input-field>
         <label>_#(From Value)</label>
@@ -88,7 +88,8 @@
         <date-input-field *ngIf="isDateField()" [value]="model.toValue" #dateField2
                           [variables]="variables" [formulaSupported]="isFormulaSupported()"
                           [hideDcombox]="hideDcombox" (valueChange)="onToValueChange($event)"
-                          [vsId]="vsId" [timeField]="isTimeField()">
+                          [vsId]="vsId" [timeField]="isTimeField()"
+                          [todaySupported]="isGantt()">
         </date-input-field>
         <label>_#(To Value)</label>
       </div>

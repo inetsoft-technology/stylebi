@@ -57,6 +57,13 @@ import java.util.*;
  */
 public class GraphTarget implements Cloneable, Serializable, XMLSerializable {
    /**
+    * The field of a target on a Gantt chart. A Gantt has no measure shelf; its start, end and
+    * milestone dates all share one time axis, so a target on it refers to the axis rather than
+    * to any one of them (which would be lost when that field is unbound).
+    */
+   public static final String GANTT_TIME_AXIS = "__gantt_time_axis__";
+
+   /**
     * Create a new instance of GraphTarget.
     */
    public GraphTarget() {

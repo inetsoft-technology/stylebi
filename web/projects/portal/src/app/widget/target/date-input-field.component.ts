@@ -34,6 +34,8 @@ export class DateInputField implements OnInit {
    @Input() vsId: string = null;
    @Input() hideDcombox: boolean = false;
    @Input() timeField: boolean = false;
+   // offer the current date as a value; the server translates "TODAY" when the chart is generated
+   @Input() todaySupported: boolean = false;
    @Output() valueChange: EventEmitter<any> = new EventEmitter<any>();
 
    datetimeReg: RegExp = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\w*$/;
@@ -49,7 +51,8 @@ export class DateInputField implements OnInit {
    valid: boolean = true;
    formulas: any[] =  [
       {label: "_#(js:Minimum)", data: "Min"},
-      {label: "_#(js:Maximum)", data: "Max"}
+      {label: "_#(js:Maximum)", data: "Max"},
+      {label: "_#(js:Today)", data: "TODAY"}
    ];
    promptString: string;
    timeReg: RegExp = /^(2[0-3]|[01]?[0-9])(:[0-5]?[0-9])?(:[0-5]?[0-9])?$/;
@@ -82,11 +85,10 @@ export class DateInputField implements OnInit {
    get values(): string[] {
       let vals: string[] = this.userValue ? [this.userValue] : [this.emptyValue];
 
-      if(this.formulaSupported) {
-         return vals.concat(this.formulas.map((formula) => formula.label));
-      }
-
-      return vals;
+      return vals.concat(this.formulas
+         .filter((formula) => formula.data == "TODAY" ? this.todaySupported
+            : this.formulaSupported)
+         .map((formula) => formula.label));
    }
 
    get displayValue(): string {

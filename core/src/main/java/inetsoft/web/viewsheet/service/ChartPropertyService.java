@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.DynamicValue;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.adhoc.model.property.*;
 import inetsoft.web.binding.model.graph.aesthetic.CategoricalColorModel;
@@ -176,6 +177,15 @@ public class ChartPropertyService {
     */
    public MeasureInfo[] getMeasures(ChartInfo info, boolean rt) throws Exception {
       List<MeasureInfo> measures= new ArrayList<>();
+
+      // a Gantt's start, end and milestone dates are not on the x/y shelves; they share one time
+      // axis, which is the only thing a target can refer to
+      if(info instanceof GanttChartInfo) {
+         measures.add(new MeasureInfo(GraphTarget.GANTT_TIME_AXIS,
+                                      Catalog.getCatalog().getString("Time Axis"), true));
+         return measures.toArray(new MeasureInfo[0]);
+      }
+
       measures.add(new MeasureInfo("", "", false));
 
       List<String> names = GraphUtil.getMeasuresName(info, rt);
@@ -418,6 +428,12 @@ public class ChartPropertyService {
       }
 
       String field = target.getField() == null ? "" : target.getField();
+
+      // the time axis is the only choice on a Gantt, so a new target starts on it
+      if(field.isEmpty() && info instanceof GanttChartInfo) {
+         field = GraphTarget.GANTT_TIME_AXIS;
+      }
+
       targetInfo.setMeasure(getMeasure(field, getMeasures(info, rt)));
       targetInfo.setChartScope(target.isChartScope());
       targetInfo.setLineStyle(target.getLineStyle());
@@ -1078,7 +1094,7 @@ public class ChartPropertyService {
       GraphTypes.CHART_RADAR, GraphTypes.CHART_FILL_RADAR, GraphTypes.CHART_TREEMAP,
       GraphTypes.CHART_ICICLE, GraphTypes.CHART_SUNBURST, GraphTypes.CHART_CIRCLE_PACKING,
       GraphTypes.CHART_MEKKO, GraphTypes.CHART_TREE, GraphTypes.CHART_NETWORK,
-      GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_FUNNEL, GraphTypes.CHART_GANTT,
+      GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_FUNNEL,
       GraphTypes.CHART_SCATTER_CONTOUR, GraphTypes.CHART_MAP_CONTOUR
    };
    // matches the four band colours GraphTarget's initialiser seeds

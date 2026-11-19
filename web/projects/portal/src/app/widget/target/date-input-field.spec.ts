@@ -220,4 +220,40 @@ describe("Date Input Field Unit Case: ", () =>  {
       let alert = fixture.debugElement.query(By.css(".alert-danger"));
       expect(alert).toBeNull();
    });
+
+   // a Gantt's date target can be placed at the current date, which the server translates
+   it("should offer TODAY only when the current date is supported", () => {
+      dateInputField = <DateInputField>fixture.componentInstance;
+      fixture.detectChanges();
+      let today = dateInputField.formulas.find((f) => f.data == "TODAY");
+
+      expect(dateInputField.values).not.toContain(today.label);
+
+      dateInputField.todaySupported = true;
+      expect(dateInputField.values).toContain(today.label);
+      // the statistics options stay off unless supported
+      expect(dateInputField.values.length).toBe(2);
+
+      dateInputField.formulaSupported = true;
+      expect(dateInputField.values.length).toBe(4);
+   });
+
+   it("should emit the TODAY placeholder and show it by its label", () => {
+      dateInputField = <DateInputField>fixture.componentInstance;
+      dateInputField.todaySupported = true;
+      fixture.detectChanges();
+      let today = dateInputField.formulas.find((f) => f.data == "TODAY");
+      let emitted: string[] = [];
+      dateInputField.valueChange.subscribe((v) => emitted.push(v));
+
+      dateInputField.onValueChange(today.label);
+
+      expect(emitted).toEqual(["TODAY"]);
+      expect(dateInputField.valid).toBe(true);
+
+      // the parent feeds the emitted value back in
+      dateInputField.value = emitted[0];
+      expect(dateInputField.displayValue).toBe(today.label);
+      expect(dateInputField.isValueEditable()).toBe(false);
+   });
 });
