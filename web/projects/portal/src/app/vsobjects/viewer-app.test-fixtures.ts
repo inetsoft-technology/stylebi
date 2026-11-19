@@ -91,6 +91,7 @@ import { CurrentUserService } from "../../../../shared/util/current-user.service
 import { HeartbeatWorkerService } from "../common/services/heartbeat-worker.service";
 import { KeepAwakeService } from "../common/services/keep-awake.service";
 import { OpenComposerService } from "../common/services/open-composer.service";
+import { WizService } from "../composer/gui/wiz/services/wiz.service";
 
 // ---------------------------------------------------------------------------
 // Child component / directive stubs
@@ -284,6 +285,11 @@ export const ASSET_LOADING_SERVICE_MOCK = {
    setLoading: vi.fn(),
 };
 
+/** Feature #80547: the Composer's "agent pairing" feature flag source. Off unless a spec turns it on. */
+export const WIZ_SERVICE_MOCK: any = {
+   sheetAgentPairingEnabled: false,
+};
+
 // ---------------------------------------------------------------------------
 // Shared reset — call in each spec file's top-level beforeEach
 // ---------------------------------------------------------------------------
@@ -357,6 +363,8 @@ export function resetMocks(): void {
    KEEP_AWAKE_SERVICE_MOCK.keepAwake.mockClear();
    KEEP_AWAKE_SERVICE_MOCK.release.mockClear();
 
+   WIZ_SERVICE_MOCK.sheetAgentPairingEnabled = false;
+
    MessageDialog.lastMessage = null;
    MessageDialog.lastMessageTS = 0;
 }
@@ -380,6 +388,12 @@ export interface RenderOptions {
    toolbarPermissions?: string[];
    tabsHeight?: number;
    preview?: boolean;
+   /** Extra component inputs (e.g. inPortal, runtimeId), merged over the defaults. */
+   inputs?: Record<string, any>;
+   /** Extra providers, e.g. a different ContextProvider for an embed viewer. */
+   contextProvider?: any;
+   /** Extra import overrides (stubs for child components), added to the defaults. */
+   importOverrides?: any[];
 }
 
 export interface RenderResult {
@@ -393,6 +407,9 @@ export async function renderComponent(opts: RenderOptions = {}): Promise<RenderR
       toolbarPermissions = [],
       tabsHeight = 0,
       preview = false,
+      inputs = {},
+      contextProvider = { embed: false, viewer: true, preview: false },
+      importOverrides = [],
    } = opts;
 
    const { fixture } = await render(ViewerAppComponent, {
@@ -416,10 +433,12 @@ export async function renderComponent(opts: RenderOptions = {}): Promise<RenderR
          { provide: HeartbeatWorkerService, useValue: HEARTBEAT_WORKER_SERVICE_MOCK },
          { provide: KeepAwakeService, useValue: KEEP_AWAKE_SERVICE_MOCK },
          { provide: OpenComposerService, useValue: { composerOpen: NEVER, openComposerWindow: vi.fn() } },
+         { provide: WizService, useValue: WIZ_SERVICE_MOCK },
       ],
       importOverrides: [
          { replace: VSObjectContainer, with: VSObjectContainerStub },
          { replace: InteractContainerDirective, with: InteractContainerStub },
+         ...importOverrides,
       ],
       componentProviders: [
          { provide: ViewsheetClientService, useValue: VS_CLIENT_MOCK },
@@ -455,7 +474,7 @@ export async function renderComponent(opts: RenderOptions = {}): Promise<RenderR
          { provide: ViewerToolbarMessageService, useValue: { refreshButtonDefinitions: vi.fn() } },
          { provide: DndService, useValue: {} },
          { provide: ScaleService, useValue: SCALE_SERVICE_MOCK },
-         { provide: ContextProvider, useValue: { embed: false, viewer: true, preview: false } },
+         { provide: ContextProvider, useValue: contextProvider },
          { provide: DialogService, useValue: DIALOG_SERVICE_MOCK },
          { provide: ChartService, useValue: {} },
          { provide: ComposerRecentService, useValue: { addRecentlyViewed: vi.fn(), currentUser: null } },
@@ -471,6 +490,7 @@ export async function renderComponent(opts: RenderOptions = {}): Promise<RenderR
          toolbarPermissions,
          tabsHeight,
          preview,
+         ...inputs,
       },
    });
 
