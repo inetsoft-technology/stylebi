@@ -1057,15 +1057,22 @@ public class WizDatabaseController {
 
       for(MoveCommand cmd : commands) {
          try {
+            // moveDataSource reports a permission denial and every other refusal (occupied
+            // target, data source ancestor, additional connection, unloadable source) as the
+            // same MessageException, so the two permissions it checks are checked here first, with
+            // the same rules, to tell them apart. PERMISSION_DENIED is only ever this check.
+            if(!movePermitted(cmd, principal)) {
+               results.add(new WizMoveItemResult(
+                  cmd.getOldPath(), cmd.getPath(), false, WizMoveItemResult.PERMISSION_DENIED));
+               continue;
+            }
+
             dataSourceBrowserService.moveDataSource(new MoveCommand[] { cmd }, principal);
             results.add(new WizMoveItemResult(cmd.getOldPath(), cmd.getPath(), true, null));
          }
          catch(MessageException ex) {
-            // Thrown for both the WRITE-on-target and DELETE-on-source permission checks -- both
-            // surface as the same reason code here; the message text itself is not forwarded, it
-            // is an English Catalog string keyed to the server locale.
             results.add(new WizMoveItemResult(
-               cmd.getOldPath(), cmd.getPath(), false, WizMoveItemResult.PERMISSION_DENIED));
+               cmd.getOldPath(), cmd.getPath(), false, WizMoveItemResult.REJECTED, ex.getMessage()));
          }
          catch(Exception ex) {
             LOG.warn("Failed to move {} -> {}: {}", cmd.getOldPath(), cmd.getPath(), ex.getMessage());
@@ -1122,6 +1129,19 @@ public class WizDatabaseController {
       }
 
       return new WizDependencyCheckResult(messagesByPath);
+   }
+
+   /**
+    * The two permissions {@code moveDataSource} demands per item, mirrored: WRITE on the
+    * destination path as a folder, and DELETE on the item's current path.
+    */
+   private boolean movePermitted(MoveCommand cmd, Principal principal) throws Exception {
+      ResourceType sourceType = PortalDataType.DATA_SOURCE_FOLDER.name().equals(cmd.getType())
+         ? ResourceType.DATA_SOURCE_FOLDER : ResourceType.DATA_SOURCE;
+
+      return securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE_FOLDER, cmd.getPath(), ResourceAction.WRITE) &&
+         securityEngine.checkPermission(principal, sourceType, cmd.getOldPath(), ResourceAction.DELETE);
    }
 
    /** Builds a definition carrying only a name, matching what {@code getDataSourceAuditPath} needs. */
