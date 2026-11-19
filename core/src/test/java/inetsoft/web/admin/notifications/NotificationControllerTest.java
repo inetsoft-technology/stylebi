@@ -48,11 +48,12 @@ class NotificationControllerTest {
       controller = new NotificationController(service);
    }
 
-   @Test
-   void sendMessageBroadcastsTheMessageTextOnce() throws Exception {
-      controller.sendMessage(NotificationMessage.builder().message("hello").build());
+   @ParameterizedTest(name = "text variant {index}")
+   @ValueSource(strings = { "hello", " padded ", "héllo 世界 😀" })
+   void sendMessageBroadcastsTheMessageTextOnceAndVerbatim(String text) throws Exception {
+      controller.sendMessage(NotificationMessage.builder().message(text).build());
 
-      verify(service, times(1)).sendNotification("hello");
+      verify(service, times(1)).sendNotification(text);
       verifyNoMoreInteractions(service);
    }
 
@@ -66,14 +67,6 @@ class NotificationControllerTest {
          () -> controller.sendMessage(NotificationMessage.builder().message("m").build()));
 
       assertSame(failure, thrown);
-   }
-
-   @ParameterizedTest(name = "text variant {index}")
-   @ValueSource(strings = { " padded ", "héllo 世界 😀" })
-   void sendMessageForwardsTheTextVerbatim(String text) throws Exception {
-      controller.sendMessage(NotificationMessage.builder().message(text).build());
-
-      verify(service, times(1)).sendNotification(text);
    }
 
    @Test

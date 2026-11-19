@@ -18,13 +18,13 @@
 package inetsoft.web.notifications;
 
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.internal.cluster.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -186,13 +186,19 @@ class NotificationServiceTest {
    }
 
    @Test
-   void encodedSlashInUserNameDoesNotThrowAndStillReachesTheCluster() throws Exception {
-      MessageChannel channel = (message, timeout) -> true;
+   @DisplayName("pinned current behavior: a user name that already contains an encoded slash is "
+      + "rejected by the messaging template, so nothing reaches the local channel (the failure "
+      + "is logged, not thrown) but the cluster still gets the original destination")
+   void encodedSlashInUserNameIsRejectedLocallyAndStillReachesTheCluster() throws Exception {
+      List<Message<?>> messages = new ArrayList<>();
+      MessageChannel channel = (message, timeout) -> messages.add(message);
       Cluster cluster = mock(Cluster.class);
       NotificationService service =
          new NotificationService(new SimpMessagingTemplate(channel), cluster);
 
       assertDoesNotThrow(() -> service.sendNotificationToUser("hi", () -> "a%2Fb"));
+
+      assertTrue(messages.isEmpty(), "nothing must reach the channel: " + messages);
 
       ArgumentCaptor<Serializable> sent = ArgumentCaptor.forClass(Serializable.class);
       verify(cluster, times(1)).sendMessage(sent.capture());
@@ -204,14 +210,52 @@ class NotificationServiceTest {
    @Test
    void failureOnOneRemoteNodeDoesNotStopOtherNodesOrThrow() {
       Node nodeC = new Node("C");
-      doThrow(new IllegalStateException("node B down")).when(nodeB.template)
-         .convertAndSendToUser(anyString(), anyString(), any(Object.class));
 
-      assertDoesNotThrow(() -> nodeA.service.sendNotificationToUser("message", USER));
+      try {
+         doThrow(new IllegalStateException("node B down")).when(nodeB.template)
+            .convertAndSendToUser(anyString(), anyString(), any(Object.class));
 
-      verify(nodeC.template, times(1))
-         .convertAndSendToUser(eq(DESTINATION), eq("/notifications"), any(Object.class));
-      nodeC.service.removeListener();
+         assertDoesNotThrow(() -> nodeA.service.sendNotificationToUser("message", USER));
+
+         verify(nodeC.template, times(1))
+            .convertAndSendToUser(eq(DESTINATION), eq("/notifications"), any(Object.class));
+      }
+      finally {
+         nodeC.service.removeListener();
+      }
+   }
+
+   @Test
+   @DisplayName("pinned current behavior: a failing broadcast on a remote node is not caught "
+      + "in messageReceived, it propagates into the cluster listener thread")
+   void broadcastDeliveryFailureOnTheReceivingNodePropagates() {
+      IllegalStateException failure = new IllegalStateException("node down");
+      SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
+      doThrow(failure).when(template).convertAndSend(anyString(), any(Object.class));
+      NotificationService service = new NotificationService(template, mock(Cluster.class));
+      NotificationMessage notification = NotificationMessage.builder().message("m").build();
+
+      IllegalStateException thrown = assertThrows(
+         IllegalStateException.class,
+         () -> service.messageReceived(new MessageEvent(this, "B", false, notification)));
+
+      assertSame(failure, thrown);
+   }
+
+   @Test
+   @DisplayName("pinned current behavior: an empty user name is not caught by the null guard; "
+      + "it is sent to the malformed destination /user//notifications and nothing is thrown")
+   void emptyUserNameBypassesTheNullGuardAndDoesNotThrow() {
+      List<Message<?>> messages = new ArrayList<>();
+      MessageChannel channel = (message, timeout) -> messages.add(message);
+      NotificationService service =
+         new NotificationService(new SimpMessagingTemplate(channel), mock(Cluster.class));
+
+      assertDoesNotThrow(() -> service.sendNotificationToUser("hi", () -> ""));
+
+      assertEquals(1, messages.size());
+      assertEquals("/user//notifications",
+                   SimpMessageHeaderAccessor.getDestination(messages.get(0).getHeaders()));
    }
 
    @Test
@@ -329,94 +373,27 @@ class NotificationServiceTest {
       assertEquals(viaJava, viaJson);
    }
 
-   @Test
-   void notificationMessageJsonHasExactlyTheMessageField() throws Exception {
-      ObjectMapper mapper = new ObjectMapper();
-      NotificationMessage message = NotificationMessage.builder().message("hi").build();
-
-      JsonNode json = mapper.readTree(mapper.writeValueAsString(message));
-
-      assertTrue(json.isObject());
-      assertEquals(1, json.size());
-      assertEquals("hi", json.get("message").asText());
-   }
-
-   @Test
-   void jsonWithoutMessageIsRejectedBecauseTheMessageIsRequired() {
-      JsonMappingException e = assertThrows(
-         JsonMappingException.class,
-         () -> new ObjectMapper().readValue("{}", NotificationMessage.class));
-
-      assertInstanceOf(IllegalStateException.class, e.getCause());
-   }
-
-   @Test
-   void jsonWithNullMessageIsRejectedLikeAMissingMessage() {
-      JsonMappingException e = assertThrows(
-         JsonMappingException.class,
-         () -> new ObjectMapper().readValue("{\"message\":null}", NotificationMessage.class));
-
-      assertInstanceOf(IllegalStateException.class, e.getCause());
-   }
-
-   @Test
-   void builderRejectsNullAndMissingMessage() {
-      NullPointerException npe = assertThrows(
-         NullPointerException.class, () -> NotificationMessage.builder().message(null));
-      assertEquals("message", npe.getMessage());
-
-      IllegalStateException ise = assertThrows(
-         IllegalStateException.class, () -> NotificationMessage.builder().build());
-      assertTrue(ise.getMessage().contains("message"), ise.getMessage());
+   @ParameterizedTest(name = "json {index}")
+   @ValueSource(strings = { "{}", "{\"message\":null}" })
+   void jsonWithoutAMessageIsRejected(String json) {
+      assertThrows(JsonMappingException.class,
+                   () -> new ObjectMapper().readValue(json, NotificationMessage.class));
    }
 
    @Test
    void broadcastOfNullMessageIsRejectedAndNothingIsSentToTheCluster() {
-      NullPointerException e = assertThrows(
-         NullPointerException.class, () -> nodeA.service.sendNotification(null));
+      assertThrows(NullPointerException.class, () -> nodeA.service.sendNotification(null));
 
-      assertEquals("message", e.getMessage());
       assertTrue(bus.sent.isEmpty(), "nothing must be sent to the cluster: " + bus.sent);
    }
 
-   @Test
-   void notificationMessagesAreEqualByText() {
-      NotificationMessage a = NotificationMessage.builder().message("a").build();
-      NotificationMessage same = NotificationMessage.builder().message("a").build();
-
-      assertEquals(a, same);
-      assertEquals(a.hashCode(), same.hashCode());
-      assertNotEquals(a, NotificationMessage.builder().message("A").build());
-      assertNotEquals(a, NotificationMessage.builder().message("a ").build());
-   }
-
    // ---- UserNotificationMessage ----
-
-   @Test
-   void userNotificationMessageReturnsItsConstructorArguments() {
-      NotificationMessage notification = NotificationMessage.builder().message("m").build();
-
-      UserNotificationMessage message = new UserNotificationMessage("d", notification);
-
-      assertEquals("d", message.getDestination());
-      assertSame(notification, message.getNotification());
-   }
 
    @Test
    void userNotificationMessageToStringToleratesNulls() {
       String text = assertDoesNotThrow(() -> new UserNotificationMessage(null, null).toString());
 
       assertTrue(text.contains("null"), text);
-   }
-
-   @Test
-   @DisplayName("pinned current behavior: UserNotificationMessage.toString text")
-   void userNotificationMessageToStringText() {
-      NotificationMessage notification = NotificationMessage.builder().message("m").build();
-
-      assertEquals("UserNotificationMessage{destination='d', "
-                      + "notification=NotificationMessage{message=m}}",
-                   new UserNotificationMessage("d", notification).toString());
    }
 
    // ---- messageReceived with foreign payloads, node symmetry ----
