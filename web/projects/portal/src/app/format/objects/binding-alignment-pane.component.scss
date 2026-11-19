@@ -19,6 +19,8 @@
   width: 31px;
   height: 31px;
   border: none;
+  // the icon-button chip's radius, for the hover and focus chip and the selected fill alike
+  border-radius: var(--inet-radius-lg);
 
   &:not(.bg-selected) {
     background-color: transparent;

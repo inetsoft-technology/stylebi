@@ -71,3 +71,19 @@ describe("binding field option icon", () => {
       expect(css).toMatch(/border-radius:\s*var\(--inet-radius-lg\)/);
    });
 });
+
+describe("alignment toggles", () => {
+   const toggle = () => block(read("app/format/objects/binding-alignment-pane.component.scss"), ".toggleButton");
+
+   it("take the icon-button radius, selected state included", () => {
+      expect(toggle()).toMatch(/^ {2}border-radius:\s*var\(--inet-radius-lg\)/m);
+   });
+
+   it("keep the selected fill on hover and focus, and the ring on keyboard focus", () => {
+      const css = toggle();
+
+      expect(css).toMatch(/&:not\(\.bg-selected\):hover\s*\{/);
+      expect(css).toMatch(/&:not\(\.bg-selected\):focus-visible\s*\{/);
+      expect(css).toMatch(/&:focus-visible\s*\{[^}]*box-shadow:\s*var\(--inet-focus-ring\)/);
+   });
+});
