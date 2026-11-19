@@ -681,6 +681,28 @@
       "name": "Recipients",
       "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/recipients?page={Page Index?}&page_size={Page Size?}",
+      "responseSchema": {
+        "recipients": [
+          {
+            "id": "string",
+            "created_at": "double",
+            "custom_fields": [
+              {
+                "name": "string",
+                "type": "string",
+                "id": "double"
+              }
+            ],
+            "email": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "last_clicked": "double",
+            "last_emailed": "double",
+            "last_opened": "double",
+            "updated_at": "double"
+          }
+        ]
+      },
       "description": "LEGACY. The contacts of the original Marketing Campaigns, held in what SendGrid called the contactdb. Superseded by Contacts in the current Marketing Campaigns, and the two stores are SEPARATE -- a contact in one is not in the other, so an empty result here says nothing about the account's real audience. Note also that deletions can make a page come back empty while later pages still hold rows, so an empty page is not the end of the data."
     },
     {
