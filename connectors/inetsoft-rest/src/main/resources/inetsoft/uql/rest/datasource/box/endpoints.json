@@ -2076,24 +2076,66 @@
       "name": "File Metadata Instances",
       "paged": true,
       "suffix": "/2.0/files/{File ID}/metadata",
+      "responseSchema": {
+        "entries": [
+          {
+            "$parent": "string",
+            "$template": "string",
+            "$scope": "string",
+            "$version": "double"
+          }
+        ],
+        "limit": "double"
+      },
       "description": "All metadata attached to one file, one entry per template applied. Requires a file id. Box metadata is how organisations record business attributes files do not natively have -- contract value, department, retention class. The VALUES ARE KEYED BY TEMPLATE FIELD KEY, so they cannot be read without the template: Metadata Template by Name or by ID is the decoder."
     },
     {
       "name": "File Metadata Instance",
       "paged": false,
       "suffix": "/2.0/files/{File ID}/metadata/{Scope:global|enterprise}/{Template Key}",
+      "responseSchema": {
+        "$parent": "string",
+        "$template": "string",
+        "$scope": "string",
+        "$version": "double",
+        "$canEdit": "boolean",
+        "$id": "string",
+        "$type": "string",
+        "$typeVersion": "double"
+      },
       "description": "One metadata instance on a file, identified by its scope and template key. Requires the file id, scope (enterprise or global) and template key."
     },
     {
       "name": "Folder Metadata Instances",
       "paged": true,
       "suffix": "/2.0/folders/{Folder ID}/metadata",
+      "responseSchema": {
+        "entries": [
+          {
+            "$parent": "string",
+            "$template": "string",
+            "$scope": "string",
+            "$version": "double"
+          }
+        ],
+        "limit": "double"
+      },
       "description": "All metadata attached to one folder. Requires a folder id. Same keying, same need for the template."
     },
     {
       "name": "Folder Metadata Instance",
       "paged": false,
       "suffix": "/2.0/folders/{Folder ID}/metadata/{Scope:global|enterprise}/{Template Key}",
+      "responseSchema": {
+        "$parent": "string",
+        "$template": "string",
+        "$scope": "string",
+        "$version": "double",
+        "$canEdit": "boolean",
+        "$id": "string",
+        "$type": "string",
+        "$typeVersion": "double"
+      },
       "description": "One metadata instance on a folder, by scope and template key."
     },
     {
