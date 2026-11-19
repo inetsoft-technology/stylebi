@@ -10589,6 +10589,457 @@
       "name": "Content Votes",
       "paged": true,
       "suffix": "/api/core/v3/ideaVotes/{Content ID}?fields={Fields?}",
+      "responseSchema": {
+        "list": [
+          {
+            "idea": {
+              "abuseCount": "double",
+              "author": {
+                "directReportCount": "double",
+                "displayName": "string",
+                "followerCount": "double",
+                "followingCount": "double",
+                "id": "string",
+                "initialLogin": "timeInstant",
+                "jive": {
+                  "enabled": "boolean",
+                  "external": "boolean",
+                  "externalContributor": "boolean",
+                  "federated": "boolean",
+                  "lastAuthenticated": "timeInstant",
+                  "lastProfileUpdate": "timeInstant",
+                  "locale": "string",
+                  "sendable": "boolean",
+                  "status": "string",
+                  "termsAndConditionsRequired": "boolean",
+                  "timeZone": "string",
+                  "username": "string",
+                  "viewContent": "boolean",
+                  "visible": "boolean"
+                },
+                "location": "string",
+                "mentionName": "string",
+                "name": {
+                  "familyName": "string",
+                  "givenName": "string",
+                  "formatted": "string"
+                },
+                "published": "timeInstant",
+                "status": "string",
+                "tags": [
+                  "string"
+                ],
+                "thumbnailId": "string",
+                "thumbnailUrl": "string",
+                "type": "string",
+                "updated": "timeInstant",
+                "followed": "boolean",
+                "addresses": [
+                  {
+                    "formatted": "string",
+                    "type": "string"
+                  }
+                ],
+                "emails": [
+                  {
+                    "value": "string",
+                    "type": "string"
+                  }
+                ],
+                "phoneNumbers": [
+                  {
+                    "value": "string",
+                    "type": "string"
+                  }
+                ],
+                "photos": [
+                  {
+                    "value": "string",
+                    "type": "string"
+                  }
+                ]
+              },
+              "content": {
+                "editable": "boolean",
+                "text": "string",
+                "type": "string"
+              },
+              "contentID": "string",
+              "contentImages": [
+                {
+                  "contentType": "string",
+                  "description": "string",
+                  "followerCount": "double",
+                  "height": "double",
+                  "id": "string",
+                  "likeCount": "double",
+                  "name": "string",
+                  "published": "timeInstant",
+                  "size": "double",
+                  "tags": [
+                    "string"
+                  ],
+                  "type": "string",
+                  "updated": "timeInstant",
+                  "width": "double",
+                  "followed": "boolean",
+                  "ref": "string"
+                }
+              ],
+              "contentVideos": [
+                {
+                  "height": "double",
+                  "stillImageURL": "string",
+                  "videoSource": "string",
+                  "width": "double"
+                }
+              ],
+              "favoriteCount": "double",
+              "followerCount": "double",
+              "iconCss": "string",
+              "id": "string",
+              "lastActivityDate": "timeInstant",
+              "likeCount": "double",
+              "outcomeTypes": [
+                {
+                  "alternativeGrouping": "string",
+                  "communityAudience": "string",
+                  "confirmContentEdit": "string",
+                  "confirmExclusion": "boolean",
+                  "confirmUnmark": "boolean",
+                  "fields": [
+                    {
+                      "array": "boolean",
+                      "availability": "string",
+                      "description": "string",
+                      "displayName": "string",
+                      "editable": "boolean",
+                      "filterable": "boolean",
+                      "name": "string",
+                      "newsEnabled": "boolean",
+                      "options": [
+                        "string"
+                      ],
+                      "required": "boolean",
+                      "since": "string",
+                      "type": "string",
+                      "unpublished": "boolean"
+                    }
+                  ],
+                  "generalNote": "boolean",
+                  "id": "string",
+                  "name": "string",
+                  "noteRequired": "boolean",
+                  "shareable": "boolean",
+                  "type": "string",
+                  "urlAllowed": "boolean"
+                }
+              ],
+              "parent": "string",
+              "parentContentVisible": "boolean",
+              "parentVisible": "boolean",
+              "published": "timeInstant",
+              "replyCount": "double",
+              "status": "string",
+              "subject": "string",
+              "tags": [
+                "string"
+              ],
+              "type": "string",
+              "updated": "timeInstant",
+              "viewCount": "double",
+              "visibility": "string",
+              "visibleToExternalContributors": "boolean",
+              "followed": "boolean",
+              "authorship": "string",
+              "authors": [
+                {
+                  "directReportCount": "double",
+                  "displayName": "string",
+                  "followerCount": "double",
+                  "followingCount": "double",
+                  "id": "string",
+                  "initialLogin": "timeInstant",
+                  "jive": {
+                    "enabled": "boolean",
+                    "external": "boolean",
+                    "externalContributor": "boolean",
+                    "federated": "boolean",
+                    "lastAuthenticated": "timeInstant",
+                    "lastProfileUpdate": "timeInstant",
+                    "locale": "string",
+                    "sendable": "boolean",
+                    "status": "string",
+                    "termsAndConditionsRequired": "boolean",
+                    "timeZone": "string",
+                    "username": "string",
+                    "viewContent": "boolean",
+                    "visible": "boolean"
+                  },
+                  "location": "string",
+                  "mentionName": "string",
+                  "name": {
+                    "familyName": "string",
+                    "givenName": "string",
+                    "formatted": "string"
+                  },
+                  "published": "timeInstant",
+                  "status": "string",
+                  "tags": [
+                    "string"
+                  ],
+                  "thumbnailId": "string",
+                  "thumbnailUrl": "string",
+                  "type": "string",
+                  "updated": "timeInstant",
+                  "followed": "boolean",
+                  "addresses": [
+                    {
+                      "formatted": "string",
+                      "type": "string"
+                    }
+                  ],
+                  "emails": [
+                    {
+                      "value": "string",
+                      "type": "string"
+                    }
+                  ],
+                  "phoneNumbers": [
+                    {
+                      "value": "string",
+                      "type": "string"
+                    }
+                  ],
+                  "photos": [
+                    {
+                      "value": "string",
+                      "type": "string"
+                    }
+                  ]
+                }
+              ],
+              "extendedAuthors": [
+                {
+                  "directReportCount": "double",
+                  "displayName": "string",
+                  "followerCount": "double",
+                  "followingCount": "double",
+                  "id": "string",
+                  "initialLogin": "timeInstant",
+                  "jive": {
+                    "enabled": "boolean",
+                    "external": "boolean",
+                    "externalContributor": "boolean",
+                    "federated": "boolean",
+                    "lastAuthenticated": "timeInstant",
+                    "lastProfileUpdate": "timeInstant",
+                    "locale": "string",
+                    "sendable": "boolean",
+                    "status": "string",
+                    "termsAndConditionsRequired": "boolean",
+                    "timeZone": "string",
+                    "username": "string",
+                    "viewContent": "boolean",
+                    "visible": "boolean"
+                  },
+                  "location": "string",
+                  "mentionName": "string",
+                  "name": {
+                    "familyName": "string",
+                    "givenName": "string",
+                    "formatted": "string"
+                  },
+                  "published": "timeInstant",
+                  "status": "string",
+                  "tags": [
+                    "string"
+                  ],
+                  "thumbnailId": "string",
+                  "thumbnailUrl": "string",
+                  "type": "string",
+                  "updated": "timeInstant",
+                  "followed": "boolean",
+                  "addresses": [
+                    {
+                      "formatted": "string",
+                      "type": "string"
+                    }
+                  ],
+                  "emails": [
+                    {
+                      "value": "string",
+                      "type": "string"
+                    }
+                  ],
+                  "phoneNumbers": [
+                    {
+                      "value": "string",
+                      "type": "string"
+                    }
+                  ],
+                  "photos": [
+                    {
+                      "value": "string",
+                      "type": "string"
+                    }
+                  ]
+                }
+              ],
+              "users": [
+                {
+                  "directReportCount": "double",
+                  "displayName": "string",
+                  "followerCount": "double",
+                  "followingCount": "double",
+                  "id": "string",
+                  "initialLogin": "timeInstant",
+                  "jive": {
+                    "enabled": "boolean",
+                    "external": "boolean",
+                    "externalContributor": "boolean",
+                    "federated": "boolean",
+                    "lastAuthenticated": "timeInstant",
+                    "lastProfileUpdate": "timeInstant",
+                    "locale": "string",
+                    "sendable": "boolean",
+                    "status": "string",
+                    "termsAndConditionsRequired": "boolean",
+                    "timeZone": "string",
+                    "username": "string",
+                    "viewContent": "boolean",
+                    "visible": "boolean"
+                  },
+                  "location": "string",
+                  "mentionName": "string",
+                  "name": {
+                    "familyName": "string",
+                    "givenName": "string",
+                    "formatted": "string"
+                  },
+                  "published": "timeInstant",
+                  "status": "string",
+                  "tags": [
+                    "string"
+                  ],
+                  "thumbnailId": "string",
+                  "thumbnailUrl": "string",
+                  "type": "string",
+                  "updated": "timeInstant",
+                  "followed": "boolean",
+                  "addresses": [
+                    {
+                      "formatted": "string",
+                      "type": "string"
+                    }
+                  ],
+                  "emails": [
+                    {
+                      "value": "string",
+                      "type": "string"
+                    }
+                  ],
+                  "phoneNumbers": [
+                    {
+                      "value": "string",
+                      "type": "string"
+                    }
+                  ],
+                  "photos": [
+                    {
+                      "value": "string",
+                      "type": "string"
+                    }
+                  ]
+                }
+              ],
+              "categories": [
+                "string"
+              ],
+              "voteCount": "double",
+              "commentCount": "double",
+              "score": "double",
+              "stage": "string",
+              "voted": "boolean",
+              "promote": "boolean",
+              "authorshipPolicy": "string"
+            },
+            "promote": "boolean",
+            "type": "string",
+            "voter": {
+              "directReportCount": "double",
+              "displayName": "string",
+              "followerCount": "double",
+              "followingCount": "double",
+              "id": "string",
+              "initialLogin": "timeInstant",
+              "jive": {
+                "enabled": "boolean",
+                "external": "boolean",
+                "externalContributor": "boolean",
+                "federated": "boolean",
+                "lastAuthenticated": "timeInstant",
+                "lastProfileUpdate": "timeInstant",
+                "locale": "string",
+                "sendable": "boolean",
+                "status": "string",
+                "termsAndConditionsRequired": "boolean",
+                "timeZone": "string",
+                "username": "string",
+                "viewContent": "boolean",
+                "visible": "boolean"
+              },
+              "location": "string",
+              "mentionName": "string",
+              "name": {
+                "familyName": "string",
+                "givenName": "string",
+                "formatted": "string"
+              },
+              "published": "timeInstant",
+              "status": "string",
+              "tags": [
+                "string"
+              ],
+              "thumbnailId": "string",
+              "thumbnailUrl": "string",
+              "type": "string",
+              "updated": "timeInstant",
+              "followed": "boolean",
+              "addresses": [
+                {
+                  "formatted": "string",
+                  "type": "string"
+                }
+              ],
+              "emails": [
+                {
+                  "value": "string",
+                  "type": "string"
+                }
+              ],
+              "phoneNumbers": [
+                {
+                  "value": "string",
+                  "type": "string"
+                }
+              ],
+              "photos": [
+                {
+                  "value": "string",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "prev": "string"
+        },
+        "startIndex": "double",
+        "itemsPerPage": "double"
+      },
       "description": "The votes cast on one poll or idea. Requires the content id. THE OUTCOME OF A POLL OR IDEA lives here rather than on the content itself, so a result is only readable through this."
     },
     {
@@ -18431,6 +18882,22 @@
       "name": "Profile Image",
       "paged": false,
       "suffix": "/api/core/v3/people/{Person ID}/images/{Image Index}",
+      "responseSchema": {
+        "type": "string",
+        "status": "string",
+        "index": "double",
+        "ref": "string",
+        "contentType": "string",
+        "published": "timeInstant",
+        "updated": "timeInstant",
+        "id": "string",
+        "followerCount": "double",
+        "likeCount": "double",
+        "tags": [
+          "string"
+        ],
+        "followed": "boolean"
+      },
       "description": "One person's profile image."
     },
     {
@@ -18472,6 +18939,199 @@
       "name": "Recognition",
       "paged": false,
       "suffix": "/api/core/v3/people/{Person ID}/@recognition?maxOutcomes={Outcomes Number?}&fields={Fields?}",
+      "responseSchema": {
+        "list": [
+          {
+            "actor": {
+              "content": "string",
+              "displayName": "string",
+              "id": "string",
+              "objectType": "string",
+              "published": "timeInstant",
+              "summary": "string",
+              "updated": "timeInstant",
+              "url": "string",
+              "image": {
+                "duration": "double",
+                "height": "double",
+                "url": "string",
+                "width": "double"
+              }
+            },
+            "content": "string",
+            "generator": {
+              "content": "string",
+              "displayName": "string",
+              "id": "string",
+              "objectType": "string",
+              "published": "timeInstant",
+              "summary": "string",
+              "updated": "timeInstant",
+              "url": "string",
+              "image": {
+                "duration": "double",
+                "height": "double",
+                "url": "string",
+                "width": "double"
+              }
+            },
+            "id": "string",
+            "jive": {
+              "answer": "string",
+              "canComment": "boolean",
+              "canLike": "boolean",
+              "canReply": "boolean",
+              "collection": "string",
+              "collectionLink": "string",
+              "collectionRead": "boolean",
+              "collectionUpdated": "timeInstant",
+              "discovery": [
+                "string"
+              ],
+              "display": "string",
+              "followingInStream": "boolean",
+              "iconCss": "string",
+              "likeCount": "double",
+              "liked": "boolean",
+              "mentioned": {
+                "content": "string",
+                "displayName": "string",
+                "id": "string",
+                "objectType": "string",
+                "published": "timeInstant",
+                "summary": "string",
+                "updated": "timeInstant",
+                "url": "string",
+                "image": {
+                  "duration": "double",
+                  "height": "double",
+                  "url": "string",
+                  "width": "double"
+                }
+              },
+              "objectID": "double",
+              "objectType": "double",
+              "objectViewed": "boolean",
+              "outcomeComment": "string",
+              "outcomeTypeName": "string",
+              "parent": {
+                "content": "string",
+                "displayName": "string",
+                "id": "string",
+                "objectType": "string",
+                "published": "timeInstant",
+                "summary": "string",
+                "updated": "timeInstant",
+                "url": "string",
+                "image": {
+                  "duration": "double",
+                  "height": "double",
+                  "url": "string",
+                  "width": "double"
+                }
+              },
+              "parentActor": {
+                "content": "string",
+                "displayName": "string",
+                "id": "string",
+                "objectType": "string",
+                "published": "timeInstant",
+                "summary": "string",
+                "updated": "timeInstant",
+                "url": "string",
+                "image": {
+                  "duration": "double",
+                  "height": "double",
+                  "url": "string",
+                  "width": "double"
+                }
+              },
+              "parentLikeCount": "double",
+              "parentLiked": "boolean",
+              "parentReplyCount": "double",
+              "productIcon": "string",
+              "productName": "string",
+              "question": "boolean",
+              "read": "boolean",
+              "replyCount": "double",
+              "resolved": "string",
+              "state": "string",
+              "update": "string",
+              "updateCollection": "string"
+            },
+            "object": {
+              "content": "string",
+              "displayName": "string",
+              "id": "string",
+              "objectType": "string",
+              "published": "timeInstant",
+              "summary": "string",
+              "updated": "timeInstant",
+              "url": "string",
+              "image": {
+                "duration": "double",
+                "height": "double",
+                "url": "string",
+                "width": "double"
+              }
+            },
+            "published": "timeInstant",
+            "target": {
+              "content": "string",
+              "displayName": "string",
+              "id": "string",
+              "objectType": "string",
+              "published": "timeInstant",
+              "summary": "string",
+              "updated": "timeInstant",
+              "url": "string",
+              "image": {
+                "duration": "double",
+                "height": "double",
+                "url": "string",
+                "width": "double"
+              }
+            },
+            "title": "string",
+            "type": "string",
+            "updated": "timeInstant",
+            "url": "string",
+            "verb": "string",
+            "provider": {
+              "content": "string",
+              "displayName": "string",
+              "id": "string",
+              "objectType": "string",
+              "published": "timeInstant",
+              "summary": "string",
+              "updated": "timeInstant",
+              "url": "string",
+              "image": {
+                "duration": "double",
+                "height": "double",
+                "url": "string",
+                "width": "double"
+              }
+            },
+            "icon": {
+              "duration": "double",
+              "height": "double",
+              "url": "string",
+              "width": "double"
+            },
+            "previewImage": {
+              "duration": "double",
+              "height": "double",
+              "url": "string",
+              "width": "double"
+            }
+          }
+        ],
+        "links": {
+          "next": "string",
+          "prev": "string"
+        }
+      },
       "description": "The recognition badges awarded to one person. Requires the person id. Jive's peer-recognition record."
     },
     {
@@ -18788,6 +19448,81 @@
       "name": "Social Users",
       "paged": true,
       "suffix": "/api/core/v3/people/{Person ID}/@social?fields={Fields?}",
+      "responseSchema": {
+        "list": [
+          {
+            "directReportCount": "double",
+            "displayName": "string",
+            "followerCount": "double",
+            "followingCount": "double",
+            "id": "string",
+            "initialLogin": "timeInstant",
+            "jive": {
+              "enabled": "boolean",
+              "external": "boolean",
+              "externalContributor": "boolean",
+              "federated": "boolean",
+              "lastAuthenticated": "timeInstant",
+              "lastProfileUpdate": "timeInstant",
+              "locale": "string",
+              "sendable": "boolean",
+              "status": "string",
+              "termsAndConditionsRequired": "boolean",
+              "timeZone": "string",
+              "username": "string",
+              "viewContent": "boolean",
+              "visible": "boolean"
+            },
+            "location": "string",
+            "mentionName": "string",
+            "name": {
+              "familyName": "string",
+              "givenName": "string",
+              "formatted": "string"
+            },
+            "published": "timeInstant",
+            "status": "string",
+            "tags": [
+              "string"
+            ],
+            "thumbnailId": "string",
+            "thumbnailUrl": "string",
+            "type": "string",
+            "updated": "timeInstant",
+            "followed": "boolean",
+            "addresses": [
+              {
+                "formatted": "string",
+                "type": "string"
+              }
+            ],
+            "emails": [
+              {
+                "value": "string",
+                "type": "string"
+              }
+            ],
+            "phoneNumbers": [
+              {
+                "value": "string",
+                "type": "string"
+              }
+            ],
+            "photos": [
+              {
+                "value": "string",
+                "type": "string"
+              }
+            ]
+          }
+        ],
+        "links": {
+          "next": "string",
+          "prev": "string"
+        },
+        "startIndex": "double",
+        "itemsPerPage": "double"
+      },
       "description": "The external social accounts linked to one person. Requires the person id."
     },
     {
@@ -19523,6 +20258,11 @@
       "name": "Terms And Conditions",
       "paged": false,
       "suffix": "/api/core/v3/people/{Person ID}/termsAndConditions",
+      "responseSchema": {
+        "acceptanceRequired": "boolean",
+        "text": "string",
+        "url": "string"
+      },
       "description": "The terms and conditions record for one person -- whether they accepted and when. Compliance evidence."
     },
     {
@@ -26505,6 +27245,23 @@
       "name": "Search Tags",
       "paged": true,
       "suffix": "/api/core/v3/search/tags?filter={Filter?:search}&origin={Origin?}",
+      "responseSchema": {
+        "list": [
+          {
+            "id": "string",
+            "index": "string",
+            "name": "string",
+            "type": "string",
+            "uuid": "string"
+          }
+        ],
+        "links": {
+          "next": "string",
+          "prev": "string"
+        },
+        "startIndex": "double",
+        "itemsPerPage": "double"
+      },
       "description": "Tags matching a search query. Useful for discovering the community's own vocabulary before filtering by tag."
     },
     {
