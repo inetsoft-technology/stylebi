@@ -87,3 +87,14 @@ describe("alignment toggles", () => {
       expect(css).toMatch(/&:focus-visible\s*\{[^}]*box-shadow:\s*var\(--inet-focus-ring\)/);
    });
 });
+
+describe("Advanced tab flyover rows", () => {
+   it("hover as an inset rounded row inside the padded list box", () => {
+      const css = read("app/vsobjects/dialog/graph/tip-pane.component.scss");
+      const hover = css.match(/^\.flyover-item:has\(\.form-check-input:not\(:disabled\)\):hover\s*\{[^}]*\}/m);
+
+      expect(hover).not.toBeNull();
+      expect(hover[0]).toMatch(/background-color:\s*var\(--inet-list-hover-bg-color\)/);
+      expect(hover[0]).toMatch(/border-radius:\s*var\(--inet-radius-sm\)/);
+   });
+});
