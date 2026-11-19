@@ -137,11 +137,14 @@ public class WizEntitlementGrantController {
          if(changed) {
             setGrantNames(updated, type, names, orgId);
 
-            // A revoke can only tighten: the edited flag is set by a grant and never cleared by a
-            // revoke, so revoking the last grantee leaves the permission restricted to nobody.
-            // Only reset restores the default.
+            // The organization's edited flag follows SecurityService.setPermission (Bug #78041):
+            // a grant sets it, and a write that leaves no grant for the organization removes it, so
+            // the permission derives from its default again. A revoke that leaves a grant keeps it.
             if(granted) {
                updated.updateGrantAllByOrg(orgId, true);
+            }
+            else if(!hasAnyGrant(updated, orgId)) {
+               updated.removeGrantAllByOrg(orgId);
             }
 
             try {
@@ -370,6 +373,21 @@ public class WizEntitlementGrantController {
          .collect(Collectors.toCollection(TreeSet::new));
    }
 
+   /** Any grant of any action for the organization, including organization-less role grants. */
+   private static boolean hasAnyGrant(Permission perm, String orgId) {
+      for(ResourceAction action : ResourceAction.values()) {
+         for(int type : new int[] { Identity.USER, Identity.GROUP, Identity.ROLE,
+                                    Identity.ORGANIZATION })
+         {
+            if(!perm.getGrants(action, type, orgId).isEmpty()) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
    private static boolean isGlobalGrant(Permission perm, int type, String name) {
       return perm.getGrants(ResourceAction.ACCESS, type, null).stream()
          .anyMatch(g -> g.getOrganizationID() == null && name.equals(g.getName()));
@@ -407,8 +425,9 @@ public class WizEntitlementGrantController {
    }
 
    /**
-    * A revoke can only tighten: it never clears the restriction, so revoking the last grantee of
-    * an end-user permission leaves it restricted to nobody until the explicit reset.
+    * As in StyleBI's own permission save, revoking the last grantee restores the default; the
+    * "restricted to nobody" state can only come from a deleted grantee or an EM edit, and the
+    * explicit reset clears it.
     *
     * @param restricted   true only for end-user permissions whose default allow is switched off for
     *                     the organization; the grantee lists then name who still holds it,
