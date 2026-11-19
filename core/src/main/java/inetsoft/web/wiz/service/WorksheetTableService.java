@@ -1735,9 +1735,11 @@ public class WorksheetTableService {
          message = "The query on '" + dsName + "' returned no columns" + loadErrorClause +
             ". Parameters sent: " + probeDesc +
             ". Check them against GET /api/wiz/tabular/query-schema — in particular that each " +
-            "one applies to the others, since one that does not is stored and never read — and " +
-            "that the data source's credentials are valid; the underlying cause is in the " +
-            "server log for this request." + detail;
+            "one applies to the others, since one that does not is stored and never read" +
+            // when the connector named the cause, do not send the caller to credentials
+            (detail.isEmpty() ?
+               " — and that the data source's credentials are valid; the underlying cause is " +
+               "in the server log for this request." : ".") + detail;
       }
       else {
          message = "The query on '" + dsName + "' " + zeroRows + " Parameters sent: " + probeDesc +

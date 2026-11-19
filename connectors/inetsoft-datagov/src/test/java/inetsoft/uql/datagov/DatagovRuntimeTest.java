@@ -21,6 +21,8 @@ import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.util.ConfigurationContext;
+import inetsoft.util.CoreTool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.credential.*;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -141,6 +143,48 @@ class DatagovRuntimeTest {
       }
 
       assertEquals(expectedData.size(), rowCount);
+   }
+
+   /**
+    * A failed request must leave the cause as a user message (Bug #81825), so the column probe can
+    * report it instead of telling an anonymous datasource's caller to check credentials.
+    */
+   @Test
+   void testMissingDatasetReportsNotFound() throws Exception {
+      String message = failureMessage("missing-dataset.json");
+      assertTrue(message.contains("not found"), message);
+      assertFalse(message.toLowerCase().contains("credential"), message);
+   }
+
+   @Test
+   void testArrayResponseReportsShape() throws Exception {
+      String message = failureMessage("array.json");
+      assertTrue(message.contains("rows.json shape"), message);
+      assertFalse(message.toLowerCase().contains("credential"), message);
+   }
+
+   private String failureMessage(String suffix) throws Exception {
+      java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("datagov");
+      java.nio.file.Files.writeString(dir.resolve("array.json"), "[{\"a\": 1}]");
+
+      try {
+         DatagovDataSource dataSource = new DatagovDataSource();
+         dataSource.setURL(dir.toUri().toString());
+         DatagovQuery query = new DatagovQuery();
+         query.setDataSource(dataSource);
+         query.setSuffix(suffix);
+
+         CoreTool.clearUserMessage();
+         assertNull(new DatagovRuntime().runQuery(query, new VariableTable()));
+         UserMessage msg = CoreTool.getUserMessage();
+         assertNotNull(msg, "the failure cause must be recorded");
+         return msg.getMessage();
+      }
+      finally {
+         CoreTool.clearUserMessage();
+         java.nio.file.Files.deleteIfExists(dir.resolve("array.json"));
+         java.nio.file.Files.deleteIfExists(dir);
+      }
    }
 
    @Configuration
