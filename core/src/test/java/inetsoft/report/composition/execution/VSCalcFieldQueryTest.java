@@ -603,6 +603,21 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
+   @DisplayName("Bug #81627: an unused failing calc field is not executed when another " +
+      "calc field reads a field by a name built at run time")
+   void unusedFailingCalcWithDynamicFieldName() throws Exception {
+      init(new String[] { XSchema.INTEGER, XSchema.INTEGER },
+           new Object[][] { { "a", "b" }, { 1, 2 }, { 5, 6 } });
+      addCalc("bad", true, "field['a'].foo()", XSchema.INTEGER);
+      addCalc("ok", true, "5", XSchema.INTEGER);
+      addCalc("dyn", true, "field['o' + 'k'] + 1", XSchema.INTEGER);
+      Tool.clearUserMessage();
+      TableLens lens = freehand(detailCell("dyn"));
+      assertEquals(Arrays.asList(6.0, 6.0), numbers(column(body(lens, 1), 0)));
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
    @DisplayName("A detail calc field declared Integer is an Integer in a freehand cell")
    void declaredTypeOfDetailCalc() throws Exception {
       initCityAb();
