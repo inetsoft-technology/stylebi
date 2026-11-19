@@ -1495,8 +1495,21 @@ public class WizDatabaseController {
    private DatabaseDefinition requireJdbcDefinition(String path, Principal principal)
       throws Exception
    {
-      DatabaseDefinition definition =
-         databaseDatasourcesService.getDatabaseDefinition(path, principal);
+      DatabaseDefinition definition;
+
+      try {
+         definition = databaseDatasourcesService.getDatabaseDefinition(path, principal);
+      }
+      catch(RuntimeException ex) {
+         // The service throws a bare RuntimeException for a path with no data source, which would
+         // leave as the generic 500 "StyleBI-side bug". Anything else is a real fault.
+         if(xrepository.getDataSource(path) == null) {
+            throw new ResponseStatusException(
+               HttpStatus.NOT_FOUND, "No data source at \"" + path + "\"");
+         }
+
+         throw ex;
+      }
 
       if(definition == null) {
          String sourceType = null;

@@ -225,9 +225,12 @@ public class WizXmlaController {
       try {
          return new WizXmlaCatalogs(xmlaDatasourceService.getCatalogs(model));
       }
-      catch(MessageException ex) {
-         // A connection problem with the endpoint: the caller's input, not a server fault.
-         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+      catch(Exception ex) {
+         // A connection problem with the endpoint: the caller's input, not a server fault. Not only
+         // MessageException: the catalog discovery itself runs after the service's own try block
+         // and throws the raw IOException (connection refused, bad response).
+         LOG.info("XMLA catalog listing failed: {}", ex.getMessage());
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, describe(ex));
       }
    }
 
@@ -368,6 +371,12 @@ public class WizXmlaController {
       }
 
       return name;
+   }
+
+   private static String describe(Exception ex) {
+      String message = ex.getMessage();
+
+      return message == null || message.isBlank() ? ex.getClass().getSimpleName() : message;
    }
 
    private static String nameOr(String name, String fallback) {

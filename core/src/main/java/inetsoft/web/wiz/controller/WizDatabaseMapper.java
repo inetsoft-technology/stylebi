@@ -252,6 +252,22 @@ class WizDatabaseMapper {
             if(customInfo.getCustomUrl() == null) {
                customInfo.setCustomUrl(wizInfo.jdbcUrl());
             }
+
+            if(customInfo.getCustomUrl() == null || customInfo.getCustomUrl().isBlank()) {
+               throw new ResponseStatusException(
+                  HttpStatus.BAD_REQUEST, "info.jdbcUrl is required for a CUSTOM database");
+            }
+         }
+         else if(info.isCustomEditMode() &&
+                 (info.getCustomUrl() == null || info.getCustomUrl().isBlank()))
+         {
+            // The blank template is a CUSTOM definition with customEditMode set, so a client that
+            // overlays a standard type on it carries that flag along. In custom-edit mode the stored
+            // URL is the custom URL, which is empty here, so the source would be saved with no URL
+            // at all and could then never be read, tested or updated. With no URL to honour, the
+            // intent is the form fields: build the URL from host, port and database name.
+            info.setCustomEditMode(false);
+            info.setCustomUrl(null);
          }
       }
 

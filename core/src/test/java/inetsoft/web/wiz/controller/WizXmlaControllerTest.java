@@ -448,6 +448,23 @@ class WizXmlaControllerTest {
       assertEquals("connection refused", ex.getReason());
    }
 
+   // D-6: catalog discovery runs after the service own try block and throws the raw connect
+   // failure, which used to leave as the generic 500.
+   @Test
+   void catalogs_aRawConnectFailureIsAlso400WithItsText() throws Exception {
+      Fixture f = new Fixture();
+      f.allowAll();
+      when(f.service.getCatalogs(any()))
+         .thenThrow(new java.net.ConnectException("Connection refused: connect"));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> f.controller.getCatalogs(
+            new WizXmlaDraftRequest(null, definition("sales", "pw")), f.principal));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertEquals("Connection refused: connect", ex.getReason());
+   }
+
    @Test
    void catalogs_withOnlyAPathUseTheStoredSettings() throws Exception {
       Fixture f = new Fixture();

@@ -556,6 +556,39 @@ class WizTabularControllerTest {
       }
    }
 
+   // D-6: a missing token URI used to reach URI.create(null) and leave as the generic 500; a provider
+   // refusal or an unreachable provider is the caller input, so it is a 400 carrying the text.
+   @Test
+   void oauthGrantPasswordRefusesAMissingTokenUriWith400() throws Exception {
+      TabularOAuthParams request = TabularOAuthParams.builder()
+         .license("key").user("bob").password("secret").build();
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.getPasswordGrantResponse(request, principal));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("tokenUri"));
+   }
+
+   @Test
+   void oauthGrantPasswordReportsAProviderFailureWithItsCauseAs400() throws Exception {
+      TabularOAuthParams request = TabularOAuthParams.builder()
+         .license("key").user("bob").password("bad").tokenUri("https://example.com/token").build();
+
+      try(MockedStatic<AuthorizationClient> client = mockStatic(AuthorizationClient.class)) {
+         client.when(() -> AuthorizationClient.doPasswordGrantAuth(
+                        any(), any(), any(), any(), any(), any()))
+            .thenThrow(new RuntimeException("Failed to do password grant authorization.",
+                                            new java.io.IOException("Connection refused")));
+
+         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+            () -> controller.getPasswordGrantResponse(request, principal));
+
+         assertEquals(400, ex.getStatusCode().value());
+         assertTrue(ex.getReason().contains("Connection refused"), ex.getReason());
+      }
+   }
+
    @Test
    void oauthGrantPasswordRefusesWithoutConnectorPermission() throws Exception {
       when(securityEngine.checkPermission(any(), any(ResourceType.class), anyString(),

@@ -31,7 +31,11 @@ import inetsoft.web.admin.content.database.AuthenticationDetails;
 import inetsoft.web.admin.content.database.DatabaseDefinition;
 import inetsoft.web.admin.content.database.DatabaseTypeService;
 import inetsoft.web.admin.content.database.NetworkLocation;
+import inetsoft.web.admin.content.database.types.CustomDatabaseType;
 import inetsoft.web.admin.content.database.types.MySQLDatabaseType;
+import inetsoft.web.admin.content.database.types.PostgreSQLDatabaseType;
+import inetsoft.uql.XDataSource;
+import org.springframework.web.server.ResponseStatusException;
 import inetsoft.web.admin.content.repository.DataSourceSettingsModel;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
 import inetsoft.web.portal.data.DataSourceBrowserService;
@@ -199,6 +203,93 @@ class WizDatabaseControllerSaveMessageTest {
       assertEquals("new-password", auth.getPassword());
    }
 
+   // ---- D-8: standard-type source created from the template ----------------------------------
+
+   private static WizDatabaseDefinition overlay(String type, boolean customEditMode, String customUrl,
+                                                String jdbcUrl)
+   {
+      // What a client gets by overlaying a standard type on the blank template: the template is a
+      // CUSTOM definition with customEditMode set, and that flag survives the overlay.
+      return new WizDatabaseDefinition(
+         "pg", null, type, new WizNetworkLocation("db.example", 5432),
+         new WizAuthentication(true, "u", "p"),
+         new WizDatabaseInfo("d", null, null, null, null, null, jdbcUrl, null, customEditMode,
+                             customUrl, null),
+         false, -1, 3, null, false, false);
+   }
+
+   @Test
+   void aStandardTypeWithTheTemplateCustomEditModeAndNoCustomUrlIsBuiltFromTheFields()
+      throws Exception
+   {
+      DatabaseTypeService real = mock(DatabaseTypeService.class);
+      PostgreSQLDatabaseType pgType = new PostgreSQLDatabaseType();
+      doReturn(pgType).when(real).getDatabaseType("POSTGRESQL");
+      doReturn(new MySQLDatabaseType()).when(real).getDatabaseType(MySQLDatabaseType.TYPE);
+      WizDatabaseMapper mapper = new WizDatabaseMapper(real);
+
+      DatabaseDefinition pg = mapper.toDatabaseDefinition(overlay("POSTGRESQL", true, null, null), null);
+      DatabaseDefinition my = mapper.toDatabaseDefinition(overlay("MYSQL", true, "", null), null);
+
+      // custom-edit mode with no custom URL is what stored a source with a null URL, which then
+      // failed every read with a NullPointerException in the type URL parser
+      assertFalse(pg.getInfo().isCustomEditMode());
+      assertFalse(my.getInfo().isCustomEditMode());
+      assertEquals("jdbc:postgresql://db.example:5432/d",
+                   pgType.formatUrl(pg.getNetwork(),
+                                    (PostgreSQLDatabaseType.PostgreSQLDatabaseInfo) pg.getInfo()));
+   }
+
+   @Test
+   void anExplicitCustomUrlOnAStandardTypeIsStillHonoured() throws Exception {
+      DatabaseTypeService real = mock(DatabaseTypeService.class);
+      doReturn(new MySQLDatabaseType()).when(real).getDatabaseType(MySQLDatabaseType.TYPE);
+
+      DatabaseDefinition my = new WizDatabaseMapper(real).toDatabaseDefinition(
+         overlay("MYSQL", true, "jdbc:mysql://x:3306/y?a=b", null), null);
+
+      assertTrue(my.getInfo().isCustomEditMode());
+      assertEquals("jdbc:mysql://x:3306/y?a=b", my.getInfo().getCustomUrl());
+   }
+
+   @Test
+   void aCustomTypeWithNoUrlAtAllIsRefusedWithAFieldNamedError() throws Exception {
+      DatabaseTypeService real = mock(DatabaseTypeService.class);
+      doReturn(new CustomDatabaseType()).when(real).getDatabaseType("CUSTOM");
+      WizDatabaseMapper mapper = new WizDatabaseMapper(real);
+
+      ResponseStatusException ex = assertThrows(
+         ResponseStatusException.class,
+         () -> mapper.toDatabaseDefinition(overlay("CUSTOM", true, null, null), null));
+
+      assertEquals(400, ex.getStatusCode().value());
+      assertTrue(ex.getReason().contains("jdbcUrl"));
+      // an explicit jdbcUrl still works, as before
+      assertEquals("jdbc:h2:mem:x", mapper.toDatabaseDefinition(
+         overlay("CUSTOM", true, null, "jdbc:h2:mem:x"), null).getInfo().getCustomUrl());
+   }
+
+   @Test
+   void aMissingSourceIs404NotTheGeneric500ButARealFaultStillPropagates() throws Exception {
+      Fixture f = new Fixture();
+      when(f.security.checkPermission(any(), any(ResourceType.class), anyString(),
+                                      any(ResourceAction.class))).thenReturn(true);
+      when(f.service.getDatabaseDefinition("db/none", f.principal))
+         .thenThrow(new RuntimeException("Datasource does not exist!"));
+
+      ResponseStatusException ex = assertThrows(
+         ResponseStatusException.class,
+         () -> f.controller.getDatabaseDefinition("db/none", f.principal));
+      assertEquals(404, ex.getStatusCode().value());
+
+      when(f.xrepository.getDataSource("db/broken")).thenReturn(mock(XDataSource.class));
+      when(f.service.getDatabaseDefinition("db/broken", f.principal))
+         .thenThrow(new NullPointerException("real bug"));
+
+      assertThrows(NullPointerException.class,
+                   () -> f.controller.getDatabaseDefinition("db/broken", f.principal));
+   }
+
    @Test
    void readReturnsTheCredentialIdButNeverAPassword() throws Exception {
       Fixture f = new Fixture();
@@ -255,7 +346,7 @@ class WizDatabaseControllerSaveMessageTest {
                                        any(ResourceAction.class))).thenReturn(true);
          controller = new WizDatabaseController(
             browser, mock(DataSourceStatusService.class), service, types, security,
-            mock(Config.class), mock(XRepository.class), mock(EndpointCatalogReader.class),
+            mock(Config.class), xrepository, mock(EndpointCatalogReader.class),
             mock(DatasourcesService.class));
       }
 
@@ -289,6 +380,7 @@ class WizDatabaseControllerSaveMessageTest {
       final DatabaseDatasourcesService service = mock(DatabaseDatasourcesService.class);
       final DatabaseTypeService types = mock(DatabaseTypeService.class);
       final SecurityEngine security = mock(SecurityEngine.class);
+      final XRepository xrepository = mock(XRepository.class);
       final Principal principal = mock(Principal.class);
       final WizDatabaseController controller;
    }
