@@ -1283,6 +1283,18 @@ public class ClusterJobStore implements JobStore, Serializable {
          fireInstanceId.equals(run.getFireInstanceId());
    }
 
+   /**
+    * Gets the record of the run of the job that is in progress (Bug #81673), so a cancel received
+    * by a node that does not execute the job can be forwarded to the node that does. The record
+    * may be stale (the run may have ended an instant ago, or its owner left), so the caller
+    * checks the owner is alive and the owner checks the fire instance id.
+    *
+    * @return the run record, or null if the job is not running.
+    */
+   public RunningJob getRun(JobKey jobKey) {
+      return runningJobs.get(jobKey);
+   }
+
    @Override
    public void setInstanceId(String instanceId) {
       this.instanceId = instanceId;

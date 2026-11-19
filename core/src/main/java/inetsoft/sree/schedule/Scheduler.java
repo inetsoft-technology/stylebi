@@ -24,9 +24,11 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MessageEvent;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.schedule.cloudrunner.ScheduleTaskCloudJob;
 import inetsoft.sree.schedule.jobstore.ClusterJobStore;
+import inetsoft.sree.schedule.jobstore.RunningJob;
 import inetsoft.sree.schedule.quartz.*;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.*;
@@ -193,6 +195,17 @@ public class Scheduler {
 
       startTime = null;
 
+      if(cancelListener != null) {
+         try {
+            Cluster.getInstance().removeMessageListener(cancelListener);
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to remove the cancel listener", ex);
+         }
+
+         cancelListener = null;
+      }
+
       // only shutdown the cluster when running in a separate process
       if("true".equals(System.getProperty("ScheduleServer"))) {
          try {
@@ -254,7 +267,9 @@ public class Scheduler {
    }
 
    /**
-    * Cancels a running task.
+    * Cancels a running task. The run is interrupted on this node if this node executes it;
+    * otherwise (Bug #81673) the request is forwarded to the cluster node that does, which
+    * interrupts it. Does nothing if the task is not running.
     *
     * @param taskName the name of the task.
     */
@@ -263,17 +278,127 @@ public class Scheduler {
       if(running.get()) {
          JobKey key = new JobKey(taskName, GROUP_NAME);
 
-         for(JobExecutionContext context : scheduler.getCurrentlyExecutingJobs()) {
-            if(context.getJobDetail().getKey().equals(key)) {
-               Job job = context.getJobInstance();
-
-               if(job instanceof InterruptableJob) {
-                  ((InterruptableJob) job).interrupt();
-               }
-
-               break;
-            }
+         if(!cancelLocalRun(key, null)) {
+            forwardCancel(key);
          }
+      }
+   }
+
+   /**
+    * Interrupts the run of the job that this node executes.
+    *
+    * @param key            the job key.
+    * @param fireInstanceId the fire instance id the run must have, or null for any run.
+    *
+    * @return true if this node executes a matching run.
+    */
+   private boolean cancelLocalRun(JobKey key, String fireInstanceId) throws SchedulerException {
+      for(JobExecutionContext context : scheduler.getCurrentlyExecutingJobs()) {
+         if(context.getJobDetail().getKey().equals(key) &&
+            (fireInstanceId == null || fireInstanceId.equals(context.getFireInstanceId())))
+         {
+            Job job = context.getJobInstance();
+
+            if(job instanceof InterruptableJob) {
+               ((InterruptableJob) job).interrupt();
+            }
+
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Forwards a cancel to the node that executes the run of the job, if another node does.
+    * Whatever is not found (no run, a run that just ended, an owner that left or does not
+    * answer) is the same as before: there is nothing to stop and no error.
+    */
+   private void forwardCancel(JobKey key) {
+      try {
+         ClusterJobStore store = ClusterJobStore.forScheduler(scheduler);
+
+         if(store == null) {
+            return;
+         }
+
+         RunningJob run = store.getRun(key);
+         Cluster cluster = Cluster.getInstance();
+         String owner = getCancelTarget(run, cluster.getLocalNodeId(), cluster.getClusterNodeIds());
+
+         if(owner == null) {
+            LOG.debug("No run of task {} on another node to cancel", key.getName());
+            return;
+         }
+
+         String name = key.getName();
+         String fireId = run.getFireInstanceId();
+         Boolean stopped = cluster.exchangeMessages(
+            owner, new CancelScheduleTask(name, fireId),
+            e -> e.getMessage() instanceof CancelScheduleTaskResult r &&
+               name.equals(r.getTaskName()) && Objects.equals(fireId, r.getFireInstanceId()) ?
+               Boolean.valueOf(r.isStopped()) : null,
+            CANCEL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+         LOG.debug("Cancel of task {} forwarded to {}, stopped={}", name, owner, stopped);
+      }
+      catch(Exception ex) {
+         // owner gone or not answering (also a node of a version that does not know the message)
+         LOG.debug("Failed to forward the cancel of task {}", key.getName(), ex);
+      }
+   }
+
+   /**
+    * Gets the member to forward a cancel to.
+    *
+    * @param run         the record of the run of the job, or null.
+    * @param localNodeId the id of this cluster node.
+    * @param liveNodeIds the ids of the nodes in the cluster, or null if not known.
+    *
+    * @return the member name of the node that executes the run, or null if no other live node
+    *         does.
+    */
+   static String getCancelTarget(RunningJob run, String localNodeId, Set<String> liveNodeIds) {
+      if(run == null || run.getOwnerMember() == null || run.getOwnerNode() == null ||
+         run.getOwnerNode().equals(localNodeId) ||
+         liveNodeIds == null || !liveNodeIds.contains(run.getOwnerNode()))
+      {
+         return null;
+      }
+
+      return run.getOwnerMember();
+   }
+
+   /**
+    * Handles a cancel forwarded by the node that received the Stop request.
+    */
+   private final class CancelTaskListener implements MessageListener {
+      @Override
+      public void messageReceived(MessageEvent event) {
+         if(event.getMessage() instanceof CancelScheduleTask msg) {
+            handleCancel(event.getSender(), msg);
+         }
+      }
+   }
+
+   void handleCancel(String sender, CancelScheduleTask msg) {
+      boolean stopped = false;
+
+      try {
+         stopped = running.get() && scheduler != null &&
+            cancelLocalRun(new JobKey(msg.getTaskName(), GROUP_NAME), msg.getFireInstanceId());
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to cancel task {}", msg.getTaskName(), ex);
+      }
+
+      try {
+         Cluster.getInstance().sendMessage(sender, new CancelScheduleTaskResult(
+            msg.getTaskName(), msg.getFireInstanceId(), stopped));
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to answer the cancel of task {}", msg.getTaskName(), ex);
       }
    }
 
@@ -554,6 +679,11 @@ public class Scheduler {
 
          loadTasks();
          first = false;
+
+         // Bug #81673, the cancel of a run forwarded by another node, in every mode (a cloud
+         // runner scheduler runs in the server process, so it is not a standalone scheduler)
+         cancelListener = new CancelTaskListener();
+         cluster.addMessageListener(cancelListener);
 
          // Only add listeners if running as standalone scheduler.
          // Otherwise, we get duplicate messages
@@ -1073,7 +1203,9 @@ public class Scheduler {
    private String startMsg;
    private boolean first = true;
    private List<MessageListener> listeners;
+   private MessageListener cancelListener;
 
+   private static final long CANCEL_TIMEOUT_SECONDS = 5;
    private static Scheduler INSTANCE;
    private static final Logger LOG = LoggerFactory.getLogger(Scheduler.class);
    private static final Logger SCHEDULE_TEST_LOG =
