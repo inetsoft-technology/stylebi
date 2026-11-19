@@ -332,6 +332,11 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
    }
 
    @Override
+   public boolean isIndexValid(long index) {
+      return index >= min && index < getArraySize();
+   }
+
+   @Override
    public long getArraySize() {
       XTable lens = getTable();
 

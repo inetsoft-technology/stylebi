@@ -49,7 +49,22 @@ public class ArrayProxy implements ProxyArray, ProxyObject {
 
    @Override
    public Object get(long index) {
-      return ScriptValueConverter.toGuest(scope.getArrayElement(index));
+      return elementToGuest(index);
+   }
+
+   /**
+    * Read an element for a script. A null for an index the scope reports as not valid
+    * is {@code undefined} (a Java null would read as JS {@code null}); a null at a
+    * valid index is a real null element and stays null. (#81786)
+    */
+   private Object elementToGuest(long index) {
+      Object element = scope.getArrayElement(index);
+
+      if(element == null && !scope.isIndexValid(index)) {
+         return ScriptValueConverter.undefinedValue();
+      }
+
+      return ScriptValueConverter.toGuest(element);
    }
 
    @Override
@@ -69,7 +84,7 @@ public class ArrayProxy implements ProxyArray, ProxyObject {
       long idx = negativeIndex(key);
 
       if(idx != NOT_INDEX) {
-         return ScriptValueConverter.toGuest(scope.getArrayElement(idx));
+         return elementToGuest(idx);
       }
 
       return ScriptValueConverter.toGuest(scope.getMember(key));

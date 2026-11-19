@@ -42,14 +42,14 @@ public final class ScriptValueConverter {
     * {@link ScriptScope} as a {@link ScopeProxy}, and all other values are
     * returned unchanged (GraalJS auto-wraps them per the HostAccess policy).
     *
-    * <p><b>Null contract:</b> a Java {@code null} is returned as-is, which
-    * GraalJS surfaces to script as {@code undefined}. This means a member
-    * holding a real {@code null} value is indistinguishable from an absent
-    * member at the script level — matching the long-standing Rhino behavior
-    * where a scope returning {@code null}/{@code NOT_FOUND}/{@code Undefined}
-    * all read as undefined. Scripts should use {@code == null} (loose), which
-    * treats {@code null} and {@code undefined} alike, rather than
-    * {@code === undefined}.
+    * <p><b>Null contract:</b> a Java {@code null} is returned as-is. When it is
+    * returned from a proxy member or element read it surfaces to script as JS
+    * {@code null}, not {@code undefined}; only an absent member that
+    * {@code hasMember} reports as missing reads as {@code undefined}. To hand a
+    * script {@code undefined} from a read, return {@link OwnedVarScope#UNDEFINED}
+    * (converted here to the context's undefined), or for an out-of-range array
+    * index override {@link ScriptArrayScope#isIndexValid(long)}. Scripts should use
+    * {@code == null} (loose), which treats {@code null} and {@code undefined} alike.
     */
    public static Object toGuest(Object value) {
       if(value == OwnedVarScope.UNDEFINED) {
@@ -256,7 +256,7 @@ public final class ScriptValueConverter {
     * proxy member reads as {@code undefined} and not as {@code null} (a Java
     * {@code null} member reads as {@code null}); {@code null} when no context is entered.
     */
-   private static Object undefinedValue() {
+   static Object undefinedValue() {
       try {
          return Context.getCurrent().getBindings("js").getMember("undefined");
       }
