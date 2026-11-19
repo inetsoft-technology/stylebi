@@ -772,10 +772,22 @@ a:not([href]) {
   }
 
   // keyboard focus on a selected item can't show as a fill change, so it gets the shell focus
-  // ring, drawn inside because the dropdown clips at its edge
+  // ring. The fill stays full-bleed; the ring is a rounded ring floating 2px inside the row (the
+  // dropdown clips at its edge), so it never touches the list edge or the divider above. Drawn on
+  // ::after (the item has no pseudo-elements of its own), positioned against the item only while
+  // focused, so nothing changes at rest.
   &.bg-selected:focus-visible,
   &.bg-bold-selected:focus-visible {
-    box-shadow: inset 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+    position: relative;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      border-radius: var(--inet-radius-md);
+      box-shadow: inset 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+      pointer-events: none;
+    }
   }
 }
 
