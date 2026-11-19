@@ -43,7 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * The portal model tells the Angular toolbar whether to show the button that opens the Wiz
+ * The portal model tells the Angular portal whether to show the floating button that opens the Wiz
  * portal, and where it points.
  */
 @ExtendWith(SpringExtension.class)

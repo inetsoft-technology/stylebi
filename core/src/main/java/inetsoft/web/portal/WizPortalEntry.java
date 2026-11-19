@@ -24,7 +24,7 @@ import java.net.URISyntaxException;
 import java.util.Locale;
 
 /**
- * Whether the portal toolbar shows the button that opens the standalone Wiz portal in a new
+ * Whether the portal shows the floating button that opens the standalone Wiz portal in a new
  * browser tab, and where that tab points.
  */
 public final class WizPortalEntry {
