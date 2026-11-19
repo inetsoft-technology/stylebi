@@ -64,6 +64,10 @@ public class WSMVAnalyzer implements MVAnalyzer {
       }
 
       for(BoundTableAssembly table : boundTables) {
+         // the definition of the table as the author defined it (the MV is stale once it
+         // changes), before the crosstab is changed to detail data below
+         String definitionKey = MVDefinitionKey.create(table);
+
          // if the table is a crosstab then save the detail data instead
          if(table.isCrosstab()) {
             table.setAggregateInfo(new AggregateInfo());
@@ -79,6 +83,10 @@ public class WSMVAnalyzer implements MVAnalyzer {
          MVDef def = new MVDef(null, wsId, table.getName(), table.getName(),
                                null, wsWrapper, user, null, false, false, bypass,
                                null);
+
+         if(definitionKey != null) {
+            def.setDefinitionKey(table.getName(), definitionKey);
+         }
 
          if(defaultCycle != null && !defaultCycle.equals("")) {
             def.setCycle(defaultCycle);

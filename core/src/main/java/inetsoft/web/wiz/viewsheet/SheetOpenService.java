@@ -29,6 +29,7 @@ import inetsoft.sree.security.SecurityProvider;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
@@ -375,7 +376,8 @@ public class SheetOpenService {
       List<String> warnings = List.of();
       // The Composer allows one tab per asset, so a second runtime of an asset the browser
       // already holds would be edited out of sight while the tab switches to the first one.
-      String existingRuntimeId = findOpenRuntime(entry, isViewsheet, browserUser);
+      RuntimeSheet existingRuntime = findOpenRuntime(entry, isViewsheet, browserUser);
+      String existingRuntimeId = existingRuntime == null ? null : existingRuntime.getID();
 
       try {
          if(existingRuntimeId != null) {
@@ -412,6 +414,12 @@ public class SheetOpenService {
             "no " + typeName + " named '" + assetPath + "' could be opened.");
       }
 
+      if(existingRuntime != null && !isViewsheet) {
+         // An attach loads nothing, so nothing would report an outer mirror that can no longer be
+         // refreshed; find that out the way a load would.
+         warnings = previewMirrorUpdate(existingRuntime, browserUser);
+      }
+
       JoinSession session = sheetSessions.open(runtimeId, actingSession.ownerIdentity(), type,
                                                actingSession.socketSessionId(),
                                                actingSession.socketUserName(), null);
@@ -439,9 +447,9 @@ public class SheetOpenService {
     * and wins over one an agent session already holds (for example the one orphaned by a page
     * reload); among equals the most recently accessed is taken.
     *
-    * @return the runtime id, or {@code null} when the asset is not open for this user.
+    * @return the runtime, or {@code null} when the asset is not open for this user.
     */
-   private String findOpenRuntime(AssetEntry entry, boolean isViewsheet, Principal browserUser) {
+   private RuntimeSheet findOpenRuntime(AssetEntry entry, boolean isViewsheet, Principal browserUser) {
       RuntimeSheet[] open = isViewsheet ? viewsheetService.getRuntimeViewsheets(browserUser) :
          worksheetService.getRuntimeSheets(browserUser);
 
@@ -449,7 +457,7 @@ public class SheetOpenService {
          return null;
       }
 
-      String best = null;
+      RuntimeSheet best = null;
       boolean bestFree = false;
       long bestAccess = Long.MIN_VALUE;
 
@@ -467,13 +475,56 @@ public class SheetOpenService {
          long access = rs.getLastAccessed();
 
          if(best == null || free && !bestFree || free == bestFree && access > bestAccess) {
-            best = rs.getID();
+            best = rs;
             bestFree = free;
             bestAccess = access;
          }
       }
 
       return best;
+   }
+
+   /**
+    * Reports what loading the worksheet of an already open runtime would report about its outer
+    * mirrors, by re-copying them on a scratch copy of the worksheet; the open runtime is not
+    * touched. Nothing is copied when no outer mirror is refreshed on load, and a failure of the
+    * check itself yields no warnings, so it can neither fail nor block the attach.
+    */
+   private List<String> previewMirrorUpdate(RuntimeSheet runtime, Principal browserUser) {
+      if(!(runtime instanceof RuntimeWorksheet worksheetRuntime)) {
+         return List.of();
+      }
+
+      boolean started = false;
+
+      try {
+         Worksheet live = worksheetRuntime.getWorksheet();
+
+         if(live == null || !live.hasUpdatableOuterMirror()) {
+            return List.of();
+         }
+
+         Worksheet scratch = (Worksheet) live.clone();
+
+         if(scratch == null) {
+            return List.of();
+         }
+
+         Tool.clearUserMessage();
+         started = true;
+         scratch.updateMirrors(worksheetService.getAssetRepository(), browserUser,
+                               worksheetRuntime.getEntry());
+         return drainOpenWarnings();
+      }
+      catch(Exception e) {
+         LOG.warn("Unable to check the outer mirrors of the open worksheet {}", runtime.getID(), e);
+
+         if(started) {
+            Tool.clearUserMessage();
+         }
+
+         return List.of();
+      }
    }
 
    private static boolean isSameAsset(AssetEntry wanted, AssetEntry candidate) {

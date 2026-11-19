@@ -32,7 +32,8 @@ import static org.mockito.Mockito.*;
 
 /**
  * Bug #81422, a viewsheet must not read an MV built from an expression column of the worksheet
- * that has been edited since, and the MV must not be removed on the query path.
+ * that has been edited since, and the MV must not be removed on the query path. Bug #81366, the
+ * same for any other edit of the table the MV was built from, and for a sub or association MV.
  */
 @Tag("core")
 class MVManagerExpressionChangedTest {
@@ -56,7 +57,7 @@ class MVManagerExpressionChangedTest {
 
    @Test
    void editedExpressionColumnSkipsTheMVWithoutRemovingIt() {
-      when(mv.isExpressionChanged(worksheet)).thenReturn(true);
+      when(mv.isStale(worksheet)).thenReturn(true);
 
       assertNull(findRuntimeMV());
       verify(manager, never()).remove(any(MVDef.class), anyString());
@@ -64,12 +65,48 @@ class MVManagerExpressionChangedTest {
 
    @Test
    void unchangedExpressionColumnKeepsTheMV() {
-      when(mv.isExpressionChanged(worksheet)).thenReturn(false);
+      when(mv.isStale(worksheet)).thenReturn(false);
 
       RuntimeMV rmv = findRuntimeMV();
 
       assertNotNull(rmv);
       assertEquals("mv1", rmv.getMV());
+   }
+
+   @Test
+   void tableEditedOtherThanAnExpressionSkipsTheMVWithoutRemovingIt() {
+      // a filter, a join, an aggregate: the expression is unchanged
+      when(mv.isExpressionChanged(worksheet)).thenReturn(false);
+      when(mv.isDefinitionChanged(worksheet)).thenReturn(true);
+      when(mv.isStale(worksheet)).thenCallRealMethod();
+
+      assertNull(findRuntimeMV());
+      verify(manager, never()).remove(any(MVDef.class), anyString());
+   }
+
+   @Test
+   void editedTableSkipsTheSubMV() {
+      MVDef smv = mock(MVDef.class);
+      when(smv.isSuccess()).thenReturn(true);
+      when(smv.getName()).thenReturn("smv1");
+      doReturn(smv).when(manager).getSubMV(any(), any(), any(), any());
+      when(mv.isStale(worksheet)).thenReturn(true);
+      when(smv.isStale(worksheet)).thenReturn(true);
+
+      assertNull(findRuntimeMV(), "a stale sub mv must not be read either");
+      verify(manager, never()).remove(any(MVDef.class), anyString());
+   }
+
+   @Test
+   void unchangedTableKeepsTheSubMV() {
+      MVDef smv = mock(MVDef.class);
+      when(smv.isSuccess()).thenReturn(true);
+      when(smv.getName()).thenReturn("smv1");
+      doReturn(smv).when(manager).getSubMV(any(), any(), any(), any());
+      when(mv.isStale(worksheet)).thenReturn(true);
+      when(smv.isStale(worksheet)).thenReturn(false);
+
+      assertNotNull(findRuntimeMV());
    }
 
    private RuntimeMV findRuntimeMV() {
