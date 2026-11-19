@@ -44,6 +44,12 @@
   }
 }
 
+// The line box reserves descender space below the baseline, so a centered label reads as sitting
+// high. Nudge it down ~1px; an explicit title padding-top (inline style) still wins.
+:host-context(.viz-modern) .selection-list-title-label {
+  padding-top: 2px;
+}
+
 .selection-list-title.inactive {
   opacity: 0.4 !important;
 }
