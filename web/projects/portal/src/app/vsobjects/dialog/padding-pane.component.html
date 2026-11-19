@@ -18,7 +18,20 @@
 @if (model) {
   <form [formGroup]="form" class="container-fluid">
     <fieldset>
-      <legend>{{label}}</legend>
+      <legend class="d-flex align-items-center column-gap-3">
+        <span>{{label}}</span>
+        @if (showFollowDefault) {
+          <div class="form-check mb-0 fw-normal">
+            <input type="checkbox" class="form-check-input" [id]="followsDefaultId"
+                   [ngModel]="model.followsDefault"
+                   (ngModelChange)="followDefaultChanged($event)"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" [attr.for]="followsDefaultId">
+              _#(composer.vs.followDefaultDensity)
+            </label>
+          </div>
+        }
+      </legend>
       <div class="row shell-form-row--field">
         <div class="col">
           <div class="d-flex flex-column">
@@ -57,21 +70,6 @@
           </div>
         </div>
       </div>
-      @if (showFollowDefault) {
-        <div class="row shell-form-row--field">
-          <div class="col">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" [id]="followsDefaultId"
-                     [ngModel]="model.followsDefault"
-                     (ngModelChange)="followDefaultChanged($event)"
-                     [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" [attr.for]="followsDefaultId">
-                _#(composer.vs.followDefaultDensity)
-              </label>
-            </div>
-          </div>
-        </div>
-      }
     </fieldset>
     @if (form.controls['top']?.errors || form.controls['left']?.errors || form.controls['bottom']?.errors || form.controls['right']?.errors) {
       <div class="shell-alert shell-alert--danger">
