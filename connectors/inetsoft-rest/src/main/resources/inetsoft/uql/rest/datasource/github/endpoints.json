@@ -13505,6 +13505,24 @@
       "paged": "true",
       "name": "Organization Credential Authorizations",
       "suffix": "/orgs/{Organization Name}/credential-authorizations",
+      "responseSchema": [
+        {
+          "login": "string",
+          "credential_id": "double",
+          "credential_type": "string",
+          "token_last_eight": "string",
+          "credential_authorized_at": "timeInstant",
+          "scopes": [
+            "string"
+          ],
+          "fingerprint": "string",
+          "credential_accessed_at": "timeInstant",
+          "authorized_credential_id": "double",
+          "authorized_credential_title": "string",
+          "authorized_credential_note": "string",
+          "authorized_credential_expires_at": "timeInstant"
+        }
+      ],
       "description": "SAML single sign-on credential authorizations for an organisation -- which tokens and SSH keys were authorised for SSO, and by whom. RETIRED: no longer present in GitHub's current API description. It was the audit trail for SSO-authorised credentials, and there is no replacement here."
     },
     {
@@ -22058,12 +22076,34 @@
       "paged": "true",
       "name": "Organization IdP Groups",
       "suffix": "/orgs/{Organization Name}/team-sync/groups",
+      "responseSchema": {
+        "groups": [
+          {
+            "group_id": "string",
+            "group_name": "string",
+            "group_description": "string",
+            "status": "string",
+            "synced_at": "string"
+          }
+        ]
+      },
       "description": "The identity provider groups available for team synchronisation. RETIRED: the team synchronisation API is no longer present in GitHub's current API description. Where SCIM or SAML provisioning is in use, that data is not reachable from this connector."
     },
     {
       "paged": "true",
       "name": "Team IdP Groups",
       "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/team-sync/group-mappings",
+      "responseSchema": {
+        "groups": [
+          {
+            "group_id": "string",
+            "group_name": "string",
+            "group_description": "string",
+            "status": "string",
+            "synced_at": "string"
+          }
+        ]
+      },
       "description": "The identity provider groups mapped to one team. Retired along with Organization IdP Groups."
     },
     {
