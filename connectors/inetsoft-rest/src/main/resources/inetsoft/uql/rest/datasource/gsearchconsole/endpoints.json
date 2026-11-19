@@ -5,6 +5,20 @@
       "name": "Query",
       "bodyTemplate": "{\n  \"startDate\":\"YYYY-MM-DD\",\n  \"endDate\":\"YYYY-MM-DD\"\n}",
       "suffix": "/v3/sites/{Site URL}/searchAnalytics/query",
+      "responseSchema": {
+        "responseAggregationType": "string",
+        "rows": [
+          {
+            "clicks": "double",
+            "ctr": "double",
+            "impressions": "double",
+            "keys": [
+              "string"
+            ],
+            "position": "double"
+          }
+        ]
+      },
       "description": "Search performance for one verified site: clicks, impressions, CTR and average position, broken down by whatever dimensions the request asks for -- query, page, country, device, searchAppearance, date. Sent as a POST with a body, so the date range and dimensions travel in the body rather than the URL. FOUR THINGS SHAPE THE ANSWER. Data is delayed by two to three days, so the most recent dates are missing rather than zero. ROWS ARE CAPPED at 25,000 per request and the API drops the long tail rather than paging it fully, so totals built from a query breakdown fall short of the site totals. Google WITHHOLDS rare queries for privacy, which is the main reason those two figures disagree. And average position is an average of averages, so it cannot be re-aggregated across rows."
     },
     {
@@ -99,6 +113,72 @@
       "name": "URL Inspection",
       "bodyTemplate": "{\n  \"inspectionUrl\":\"https://www.example.com/mypage\",\n  \"siteUrl\":\"https://www.example.com/\"\n}",
       "suffix": "/v1/urlInspection/index:inspect",
+      "responseSchema": {
+        "inspectionResult": {
+          "ampResult": {
+            "ampIndexStatusVerdict": "string",
+            "ampUrl": "string",
+            "indexingState": "string",
+            "issues": [
+              {
+                "issueMessage": "string",
+                "severity": "string"
+              }
+            ],
+            "lastCrawlTime": "timeInstant",
+            "pageFetchState": "string",
+            "robotsTxtState": "string",
+            "verdict": "string"
+          },
+          "indexStatusResult": {
+            "coverageState": "string",
+            "crawledAs": "string",
+            "googleCanonical": "string",
+            "indexingState": "string",
+            "lastCrawlTime": "timeInstant",
+            "pageFetchState": "string",
+            "referringUrls": [
+              "string"
+            ],
+            "robotsTxtState": "string",
+            "sitemap": [
+              "string"
+            ],
+            "userCanonical": "string",
+            "verdict": "string"
+          },
+          "inspectionResultLink": "string",
+          "mobileUsabilityResult": {
+            "issues": [
+              {
+                "issueType": "string",
+                "message": "string",
+                "severity": "string"
+              }
+            ],
+            "verdict": "string"
+          },
+          "richResultsResult": {
+            "detectedItems": [
+              {
+                "items": [
+                  {
+                    "issues": [
+                      {
+                        "issueMessage": "string",
+                        "severity": "string"
+                      }
+                    ],
+                    "name": "string"
+                  }
+                ],
+                "richResultType": "string"
+              }
+            ],
+            "verdict": "string"
+          }
+        }
+      },
       "description": "What Google knows about ONE URL: whether it is indexed, the canonical it chose, when it was last crawled, the crawling user agent, and the results of the mobile-usability and rich-results checks. Sent as a POST with the URL in the body. Diagnostic rather than analytical -- one URL per request, and heavily rate limited, so it answers why a page is missing rather than surveying a site."
     }
   ]
