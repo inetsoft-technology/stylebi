@@ -4,24 +4,146 @@
       "name": "Notifications",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/notifications?source={Notification Type:lightningDashboardSubscribe|lightningReportSubscribe|waveNotification }&ownerId={Owner ID?}&recordId={Record ID?:reportId|lensId}",
+      "responseSchema": [
+        {
+          "active": "boolean",
+          "createdDate": "timeInstant",
+          "deactivateOnTrigger": "boolean",
+          "id": "string",
+          "lastModifiedDate": "timeInstant",
+          "name": "string",
+          "recordId": "string",
+          "schedule": {
+            "details": {
+              "time": "double",
+              "daysOfWeek": [
+                "string"
+              ],
+              "weekInMonth": "string",
+              "dayInWeek": "string",
+              "daysOfMonth": [
+                "double"
+              ]
+            },
+            "frequency": "string",
+            "frequencyType": "string"
+          },
+          "source": "string",
+          "thresholds": [
+            {
+              "actions": [
+                {
+                  "configuration": {
+                    "attachment": "string",
+                    "recipients": [
+                      {
+                        "id": "string",
+                        "displayName": "string",
+                        "type": "string"
+                      }
+                    ],
+                    "summaryOnly": "boolean"
+                  },
+                  "type": "string"
+                }
+              ],
+              "conditions": [
+                {
+                  "colName": "string",
+                  "value": "string",
+                  "operation": "string"
+                }
+              ],
+              "type": "string"
+            }
+          ]
+        }
+      ],
       "description": "The report and dashboard subscription notifications for the running user, with their source and state. Scoped to the caller."
     },
     {
       "name": "Notification",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/notifications/{Notification ID}",
+      "responseSchema": {
+        "active": "boolean",
+        "createdDate": "timeInstant",
+        "deactivateOnTrigger": "boolean",
+        "id": "string",
+        "lastModifiedDate": "timeInstant",
+        "name": "string",
+        "recordId": "string",
+        "schedule": {
+          "details": {
+            "time": "double",
+            "daysOfWeek": [
+              "string"
+            ],
+            "weekInMonth": "string",
+            "dayInWeek": "string",
+            "daysOfMonth": [
+              "double"
+            ]
+          },
+          "frequency": "string",
+          "frequencyType": "string"
+        },
+        "source": "string",
+        "thresholds": [
+          {
+            "actions": [
+              {
+                "configuration": {
+                  "attachment": "string",
+                  "recipients": [
+                    {
+                      "id": "string",
+                      "displayName": "string",
+                      "type": "string"
+                    }
+                  ],
+                  "summaryOnly": "boolean"
+                },
+                "type": "string"
+              }
+            ],
+            "conditions": [
+              {
+                "colName": "string",
+                "value": "string",
+                "operation": "string"
+              }
+            ],
+            "type": "string"
+          }
+        ]
+      },
       "description": "One notification by id."
     },
     {
       "name": "Notification Limits",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/notifications/limits?source={Source:lightningDashboardSubscribe|lightningReportSubscribe|waveNotification}&recordId={Record ID?:reportId|lensId}",
+      "responseSchema": {
+        "userLimit": {
+          "max": "double",
+          "remaining": "double"
+        }
+      },
       "description": "How many report or dashboard notifications the user has configured against the allowed maximum. Explains why a new subscription cannot be created."
     },
     {
       "name": "Dashboards",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/dashboards",
+      "responseSchema": [
+        {
+          "id": "string",
+          "name": "string",
+          "statusUrl": "string",
+          "url": "string"
+        }
+      ],
       "lookups": [
         {
           "endpoints": [
@@ -46,24 +168,104 @@
       "name": "Dashboard Metadata",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}/describe?loadComponentProperties={Load Component Properties?:true|false}",
+      "responseSchema": {
+        "canChangeRunningUser": "boolean",
+        "canUseStickyFilter": "boolean",
+        "chartTheme": "string",
+        "colorPalette": "string",
+        "components": [
+          {
+            "componentData": "double",
+            "footer": "string",
+            "header": "string",
+            "id": "string",
+            "reportId": "string",
+            "title": "string",
+            "type": "string"
+          }
+        ],
+        "description": "string",
+        "dashboardType": "string",
+        "developerName": "string",
+        "filters": [
+          {
+            "errorMessage": "string",
+            "id": "string",
+            "name": "string",
+            "options": [
+              {
+                "alias": "string",
+                "id": "string",
+                "operation": "string",
+                "value": "string",
+                "startValue": "string",
+                "endValue": "string"
+              }
+            ],
+            "selectedOption": "double"
+          }
+        ],
+        "folderId": "string",
+        "id": "string",
+        "maxFilterOptions": "double",
+        "name": "string",
+        "runningUser": {
+          "displayName": "string",
+          "id": "string"
+        }
+      },
       "description": "The definition of one dashboard: its components, the report behind each, and their groupings and filters. Requires a dashboard id. The map from a dashboard component back to the report that feeds it."
     },
     {
       "name": "Dashboard Status",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}/status?runningUser={Running User ID?}&filter1={Filter 1 ID?}&filter2={Filter 2 ID?}&filter3={Filter 3 ID?}",
+      "responseSchema": {
+        "componentStatus": [
+          {
+            "componentId": "string",
+            "refreshDate": "timeInstant",
+            "refreshStatus": "string"
+          }
+        ]
+      },
       "description": "When one dashboard was last refreshed and by whom, and whether a refresh is running. Requires a dashboard id. The companion that makes the dashboard's numbers interpretable."
     },
     {
       "name": "Filter Operators",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/filteroperators?forDashboards={For Dashboards?:true|false}",
+      "responseSchema": {
+        "*": [
+          {
+            "label": "string",
+            "name": "string"
+          }
+        ]
+      },
       "description": "The filter operators available for report and dashboard filters, by field type. Reference data for reading or building a filter."
     },
     {
       "name": "Folders",
       "paged": true,
       "suffix": "/v43.0/folders/",
+      "responseSchema": {
+        "folders": [
+          {
+            "id": "string",
+            "label": "string",
+            "name": "string",
+            "namespace": "string",
+            "type": "string",
+            "parentId": "string",
+            "url": "string",
+            "childrenUrl": "string",
+            "depth": "double"
+          }
+        ],
+        "totalSize": "double",
+        "url": "string"
+      },
       "lookups": [
         {
           "endpoints": [
@@ -82,30 +284,105 @@
       "name": "Folder",
       "paged": false,
       "suffix": "/v43.0/folders/{Folder ID}",
+      "responseSchema": {
+        "id": "string",
+        "label": "string",
+        "name": "string",
+        "namespace": "string",
+        "type": "string",
+        "parentId": "string",
+        "url": "string",
+        "childrenUrl": "string",
+        "depth": "double",
+        "supportedShareTypes": [
+          "string"
+        ],
+        "sharesUrl": "string",
+        "shareRecipientsUrl": "string",
+        "ancestors": [
+          {
+            "id": "string",
+            "label": "string",
+            "name": "string",
+            "namespace": "string",
+            "type": "string",
+            "parentId": "string",
+            "url": "string",
+            "childrenUrl": "string",
+            "depth": "double"
+          }
+        ]
+      },
       "description": "One folder by id."
     },
     {
       "name": "Folder Shares",
       "paged": false,
       "suffix": "/v41.0/folders/{Folder ID}/shares",
+      "responseSchema": {
+        "shares": [
+          {
+            "accessType": "string",
+            "shareId": "string",
+            "shareType": "string",
+            "sharedWithId": "string",
+            "sharedWithLabel": "string",
+            "url": "string"
+          }
+        ]
+      },
       "description": "Who a folder is shared with and at what access level. Requires a folder id. The access list behind report visibility -- and the reason two users legitimately see different report catalogues."
     },
     {
       "name": "Folder Share",
       "paged": false,
       "suffix": "/v41.0/folders/{Folder ID}/shares/{Share ID}",
+      "responseSchema": {
+        "accessType": "string",
+        "shareId": "string",
+        "shareType": "string",
+        "sharedWithId": "string",
+        "sharedWithLabel": "string",
+        "url": "string"
+      },
       "description": "One folder share by id."
     },
     {
       "name": "Folder Share Recipients",
       "paged": false,
       "suffix": "/v41.0/folders/{Folder ID}/share-recipients?shareType={shareType:user|group|role}&searchTerm={Search Term?}",
+      "responseSchema": {
+        "shareRecipients": [
+          {
+            "shareType": "string",
+            "shareWithId": "string",
+            "shareWithLabel": "string"
+          }
+        ]
+      },
       "description": "The users, groups or roles a folder could be shared with, filtered by share type. A picker source rather than a record of existing access."
     },
     {
       "name": "Folder Children",
       "paged": true,
       "suffix": "/v43.0/folders/{Folder ID}/children",
+      "responseSchema": {
+        "folders": [
+          {
+            "id": "string",
+            "label": "string",
+            "name": "string",
+            "namespace": "string",
+            "type": "string",
+            "parentId": "string",
+            "url": "string",
+            "childrenUrl": "string",
+            "depth": "double"
+          }
+        ],
+        "totalSize": "double",
+        "url": "string"
+      },
       "lookups": [
         {
           "endpoints": [
@@ -124,6 +401,15 @@
       "name": "Reports",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/reports",
+      "responseSchema": [
+        {
+          "describeUrl": "string",
+          "id": "string",
+          "instancesUrl": "string",
+          "name": "string",
+          "url": "string"
+        }
+      ],
       "lookups": [
         {
           "endpoints": [
@@ -142,6 +428,112 @@
       "name": "Report Metadata",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/reports/{Report ID}/describe",
+      "responseSchema": {
+        "reportMetadata": {
+          "aggregates": [
+            "string"
+          ],
+          "currency": "string",
+          "detailColumns": [
+            "string"
+          ],
+          "developerName": "string",
+          "division": "string",
+          "folderId": "string",
+          "groupingsAcross": [
+            {
+              "name": "string",
+              "sortOrder": "string",
+              "dateGranularity": "string",
+              "sortAggregate": "string"
+            }
+          ],
+          "groupingsDown": [
+            {
+              "name": "string",
+              "sortOrder": "string",
+              "dateGranularity": "string",
+              "sortAggregate": "string"
+            }
+          ],
+          "hasDetailRows": "boolean",
+          "hasRecordCount": "boolean",
+          "id": "string",
+          "name": "string",
+          "reportBooleanFilter": "string",
+          "reportFilters": [
+            {
+              "column": "string",
+              "filterType": "string",
+              "isRunPageEditable": "boolean",
+              "operator": "string",
+              "value": "string"
+            }
+          ],
+          "reportFormat": "string",
+          "reportType": {
+            "type": "string",
+            "label": "string"
+          },
+          "scope": "string",
+          "showGrandTotal": "boolean",
+          "showSubtotals": "boolean",
+          "supportsRoleHierarchy": "boolean",
+          "userOrHierarchyFilterId": "string"
+        },
+        "reportExtendedMetadata": {
+          "aggregateColumnInfo": {
+            "*": {
+              "label": "string",
+              "dataType": "string",
+              "acrossGroupingContext": "string",
+              "downGroupingContext": "string"
+            }
+          },
+          "detailColumnInfo": {
+            "*": {
+              "label": "string",
+              "dataType": "string"
+            }
+          },
+          "groupingColumnInfo": {
+            "*": {
+              "label": "string",
+              "dataType": "string",
+              "groupingLevel": "double"
+            }
+          }
+        },
+        "reportTypeMetadata": {
+          "categories": [
+            {
+              "label": "string",
+              "columns": {
+                "*": {
+                  "label": "string",
+                  "dataType": "string",
+                  "filterable": "boolean",
+                  "filterValues": [
+                    {
+                      "label": "string",
+                      "name": "string"
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "dataTypeFilterOperatorMap": {
+            "*": [
+              {
+                "label": "string",
+                "name": "string"
+              }
+            ]
+          },
+          "supportsJoinedFormat": "boolean"
+        }
+      },
       "description": "The definition of one report: its columns, groupings, filters, report type and scope. Requires a report id. Needed to interpret a run, since the factMap keys are meaningless without knowing the groupings -- and the filters here are where the business's definition of the report's subject is written."
     },
     {
@@ -154,6 +546,18 @@
       "name": "Report Instances",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/reports/{Report ID}/instances",
+      "responseSchema": [
+        {
+          "id": "string",
+          "status": "string",
+          "url": "string",
+          "ownerId": "string",
+          "queryable": "boolean",
+          "hasDetailRows": "boolean",
+          "completionDate": "timeInstant",
+          "requestDate": "timeInstant"
+        }
+      ],
       "description": "The asynchronous runs of one report, with their status and completion time. Requires a report id. Asynchronous execution is how reports beyond the synchronous row limit are run, so this is the route to a complete large report."
     },
     {
@@ -166,6 +570,22 @@
       "name": "Report Types",
       "paged": false,
       "suffix": "/@apiVersion@/analytics/report-types",
+      "responseSchema": [
+        {
+          "label": "string",
+          "reportTypes": [
+            {
+              "describeUrl": "string",
+              "description": "string",
+              "isHidden": "boolean",
+              "isHistorical": "boolean",
+              "label": "string",
+              "supportsJoinedFormat": "boolean",
+              "type": "string"
+            }
+          ]
+        }
+      ],
       "description": "The report types available -- the object combinations a new report can be built on. Reference data describing what could be reported on, rather than anything reported."
     },
     {
