@@ -415,7 +415,7 @@ class SheetPairingControllerTest {
       accessor.setSessionId("stomp-9");
 
       c.paneStateViaSocket(
-         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, true, false), accessor);
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, true, false, null), accessor);
 
       assertEquals(new PaneState(true), sessions.paneStateOf(mine));
       assertEquals(PaneState.DEFAULT, sessions.paneStateOf(theirs),
@@ -436,14 +436,34 @@ class SheetPairingControllerTest {
       accessor.setSessionId("stomp-9");
 
       c.paneStateViaSocket(
-         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, false, true), accessor);
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, false, true, null), accessor);
 
       assertEquals(new PaneState(false, true), sessions.paneStateOf(mine));
 
       c.paneStateViaSocket(
-         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, false, false), accessor);
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", ctx, false, false, null), accessor);
 
       assertEquals(PaneState.DEFAULT, sessions.paneStateOf(mine), "flipping back to Detail");
+   }
+
+   @Test
+   void paneStateViaSocketRecordsTheReturnTypeTheDialogShows() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetPairingController c = new SheetPairingController(new SheetPairingService(), sessions,
+         mock(SheetAgentFeature.class), mock(SheetAgentBroadcastService.class),
+         mock(SheetJoinService.class), true);
+      EditorContext ctx = new EditorContext("worksheetExpression", "Orders", "REVENUE", null);
+      JoinSession mine = sessions.open("Worksheet/ws-1", "alice~;~host-org", SheetType.WORKSHEET,
+                                       "stomp-9", "alice", ctx);
+
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId("stomp-9");
+
+      c.paneStateViaSocket(
+         new SheetPairingController.PaneStateRequest("Worksheet/ws-1", ctx, false, false,
+                                                     "integer"), accessor);
+
+      assertEquals("integer", sessions.paneStateOf(mine).returnType());
    }
 
    @Test
@@ -459,9 +479,9 @@ class SheetPairingControllerTest {
       accessor.setSessionId("stomp-9");
 
       c.paneStateViaSocket(null, accessor);
-      c.paneStateViaSocket(new SheetPairingController.PaneStateRequest(null, ctx, true, false), accessor);
+      c.paneStateViaSocket(new SheetPairingController.PaneStateRequest(null, ctx, true, false, null), accessor);
       c.paneStateViaSocket(
-         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", null, true, false), accessor);
+         new SheetPairingController.PaneStateRequest("Viewsheet/vs-1", null, true, false, null), accessor);
 
       assertEquals(PaneState.DEFAULT, sessions.paneStateOf(pane));
    }

@@ -168,6 +168,41 @@ class WorksheetPaneContextControllerTest {
                    ctx.columns().get(0).fields().stream().map(PaneContext.Field::column).toList());
    }
 
+   /**
+    * Bug #81789: the Edit Expression dialog's unconfirmed return type reaches the pane context, so
+    * the location's own column is listed under it and a note says it is not confirmed yet.
+    */
+   @Test
+   void theReturnTypeTheDialogReportedIsListedForTheLocationsOwnColumn() throws Exception {
+      EditorContext grant = new EditorContext("worksheetExpression", "Orders", "price", null);
+      JoinSession s = session("T-RT", grant);
+      when(sessions.resolve(eq("T-RT"), eq("admin"))).thenReturn(s);
+      when(sessions.paneStateOf(s)).thenReturn(new PaneState(false, false, "integer"));
+
+      PaneContext ctx = controller.paneContext("T-RT", agent);
+      List<PaneContext.Field> fields = ctx.columns().get(0).fields();
+
+      assertEquals("integer", fields.get(0).dataType(), "the dialog's own type for price");
+      assertNotEquals("integer", fields.get(1).dataType(), "other columns keep their type");
+      assertTrue(ctx.notes().stream().anyMatch(
+         n -> n.contains("'integer'") && n.contains("not yet confirmed")), ctx.notes().toString());
+   }
+
+   @Test
+   void aReturnTypeReportedForAnotherLocationIsIgnored() throws Exception {
+      EditorContext grant = new EditorContext("worksheetConditionValue", "Orders", "price", null);
+      JoinSession s = session("T-RT2", grant);
+      when(sessions.resolve(eq("T-RT2"), eq("admin"))).thenReturn(s);
+      when(sessions.paneStateOf(s)).thenReturn(new PaneState(false, false, "integer"));
+
+      PaneContext ctx = controller.paneContext("T-RT2", agent);
+
+      assertTrue(ctx.notes().stream().noneMatch(n -> n.contains("return type")),
+                 ctx.notes().toString());
+      assertEquals(ctx.columns().get(0).fields().get(0).dataType(),
+                   ctx.columns().get(0).fields().get(1).dataType());
+   }
+
    @Test
    void aTableThatIsNotInTheWorksheetBecomesANoteAndEveryTableIsListed() throws Exception {
       PaneContext ctx =

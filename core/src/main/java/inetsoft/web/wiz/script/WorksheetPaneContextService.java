@@ -101,10 +101,75 @@ public class WorksheetPaneContextService {
                    "in the dialog. Its table's columns are listed as they are now.");
       }
 
+      String returnType = reportedReturnType(grant, state);
+      List<PaneContext.Table> columns = columns(tables, grant, notes);
+
+      if(returnType != null) {
+         columns = withReturnType(columns, grant, returnType, notes);
+      }
+
       return new PaneContext(
          grant == null ? PaneContextService.SHEET_KIND : grant.kind(), grant,
-         syntaxOf(grant, sql), components, parameters(model), columns(tables, grant, notes),
+         syntaxOf(grant, sql), components, parameters(model), columns,
          List.of(), functions, operators, notes);
+   }
+
+   /**
+    * The return type the Edit/Create Expression dialog currently shows, or null. Only a worksheet
+    * expression column has the choice, so a type reported for any other location is ignored.
+    */
+   private static String reportedReturnType(EditorContext grant, PaneState state) {
+      if(grant == null || state == null || state.returnType() == null ||
+         state.returnType().isBlank() ||
+         !ScriptTarget.Kind.WORKSHEET_EXPRESSION.wireName().equals(grant.kind()))
+      {
+         return null;
+      }
+
+      return state.returnType();
+   }
+
+   /**
+    * Lists the location's own column under the dialog's current return type, which the user may
+    * have changed without clicking OK, and says so in a note: the worksheet still holds the
+    * applied type until then.
+    */
+   private static List<PaneContext.Table> withReturnType(List<PaneContext.Table> tables,
+                                                         EditorContext grant, String returnType,
+                                                         List<String> notes)
+   {
+      String applied = null;
+      List<PaneContext.Table> result = new ArrayList<>();
+
+      for(PaneContext.Table table : tables) {
+         if(!Boolean.TRUE.equals(table.current()) || table.fields() == null) {
+            result.add(table);
+            continue;
+         }
+
+         List<PaneContext.Field> fields = new ArrayList<>();
+
+         for(PaneContext.Field f : table.fields()) {
+            if(Objects.equals(f.column(), grant.name())) {
+               applied = f.dataType();
+               fields.add(new PaneContext.Field(f.column(), returnType));
+            }
+            else {
+               fields.add(f);
+            }
+         }
+
+         result.add(new PaneContext.Table(table.name(), table.current(), fields));
+      }
+
+      notes.add("The open dialog's return type for '" + grant.name() + "' is '" + returnType +
+                "', not yet confirmed with OK" +
+                (applied != null && !applied.equals(returnType)
+                   ? " (the worksheet still holds '" + applied + "')" : "") +
+                (applied == null ? "; it is listed under its own table only once the column exists"
+                   : "") + ".");
+
+      return result;
    }
 
    private static PaneContext.Syntax syntaxOf(EditorContext grant, boolean sql) {
