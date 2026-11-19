@@ -18,7 +18,7 @@ This is the single place dark-mode decisions are recorded. See "Relationship to 
 
 ## Two surfaces
 
-| | Shell (portal converted; composer is phase 2, in progress) | Designed dashboards |
+| | Shell (portal converted; composer is phase 2, not started) | Designed dashboards |
 |---|---|---|
 | What it is | Navigation, panels, dialogs, lists, forms | Charts, tables, KPIs, selection, calendar, titles |
 | Selected by | A `shell-dark` class on `<html>`, written by the server | The assembly's `VizMark` |
@@ -104,7 +104,7 @@ The viewer's Print button is a server PDF export
 like any export. The portal styles contain no `@media print` rules: browser printing of a dark shell
 drops the backgrounds and darkens light text by default (Chrome), which stays readable.
 
-## Shell dark (portal converted, composer in progress; hidden behind `portal.shellDark`)
+## Shell dark (portal converted, composer phase 2 not started; hidden behind `portal.shellDark`)
 
 **Implementation phases, not release phases:** phase 1 is the portal, phase 2 is the composer. Shell
 dark is not released until **both** are complete. Until then only engineers and testers see it, behind
@@ -121,7 +121,9 @@ How it works (Feature #80673):
   `:root.shell-dark` or `:where(.shell-dark)`, and component styles read dark-only roles (below). The
   login page (which loads `global.css` but no component styles) and the workspace chooser (which
   loads neither) are server pages, so `login.css` and `layout.css` carry their own dark rules, scoped
-  the same way. With the class absent nothing changes.
+  the same way. The dark rules apply only under the class. Two both-shell changes shipped with this
+  work and are not gated by it: the New Data Source cards (#8277) and the hover consistency pass (one
+  hover language, see shell-design-spec.md); everything else in a light shell is unchanged.
 - **Resolved on the server** by `ShellDarkMode.isDark()`, called from `HomePageController`: a custom
   theme is never dark; then the user's `UserEnv` `shellAppearance` (`light` / `dark`; honored, but no
   UI writes it yet); then `portal.shellDark`, org scoped with the site value as fallback, default
@@ -131,13 +133,16 @@ How it works (Feature #80673):
   embed routes, and the class is in that HTML, so a dark user never sees a light frame. The login
   page and the workspace chooser (`/`) use the `inetsoft.shellDark` cookie, which remembers the last
   mode the portal resolved (HttpOnly, one year, expired when the mode goes light), otherwise the
-  organization default.
+  organization default. The cookie is per browser, not per organization: in a multi-tenant server
+  one organization's login page follows the mode another organization last resolved in that browser.
 - **Dark neutrals:** one block overriding the shell tokens and the Bootstrap values the bridge does
   not cover, from `visualization-palette-swatches.html`: canvas `#1C1B1F`, surface `#252428`, subtle
   `#2D2B30`, border `#49454F`. Component literals take dark-only roles,
-  `var(--inet-dark-<role>, <light literal>)`, which only the dark block defines.
-- **Dashboard content keeps the light look:** inside the canvas (`$dashboard-content`) the light
-  tokens are restored and the dark-only roles reset, so content computes exactly as in a light
+  `var(--inet-dark-<role>, <light literal>)`, which only the dark block defines. The values are
+  pending design sign-off (palette follow-up).
+- **Dashboard content keeps the light look:** inside the canvas (`$dashboard-content`; the boundary
+  variables `$dashboard-content`, `$content-popup` and `$outside-content` are in `_variables.scss`,
+  because light-and-dark shell rules use them too) the light tokens are restored and the dark-only roles reset, so content computes exactly as in a light
   shell. The same applies to a dashboard control's own popups attached to body (the combo box value
   list over 500 labels, the combo box / text input / table cell date calendar). App command menus
   (context menus, the mini-toolbar More menu) and tooltips are shell chrome; annotation tooltips are
@@ -148,16 +153,31 @@ How it works (Feature #80673):
   distinct states, and a light hover with the ring was pixel-identical to focus. Focus keeps the
   `2px` ring at the dark strength (`.75`); the New Data Source cards are not keyboard-focusable yet
   (Bug #81489).
+- **Dark states** (the shell's interaction states, in a dark shell; Material 3 states, m3.material.io):
+  - hover uses the shell's neutral fills (`#37353B`; selected `#45424B`); icon buttons show a neutral
+    chip; a selected item keeps its selected fill on hover; states get lighter as they get stronger;
+  - primary buttons keep the orange fill with the dark on-primary text (`#1C1B1F`, 5.5:1); hover and
+    focus lighten the fill to the dark link orange; a press lightens a step further
+    (`brightness(1.12)`, where a light shell darkens to `.9`);
+  - a disabled primary button uses on-surface at 12% for the container and 38% for the label, and a
+    disabled checked checkbox, radio or switch uses on-surface at 38% with its mark, dot or knob in
+    the surface color, both at full opacity (the light shell's faded orange turns brown on dark
+    surfaces); forced colors keep the fade;
+  - focus is the `2px` ring at `.75` (`--inet-focus-ring-color`) for all shell focus, cards included;
+  - tooltips and popovers are opaque raised surfaces; danger text uses its own dark role (the danger
+    color is kept for borders and fills).
 - **Authored and third-party surfaces stay as designed for white:** CKEditor editing areas (email
   messages and annotations) and data source brand logos, which sit on a white circle in both shells.
-  CodeMirror uses the Darcula theme in a dark shell.
+  CodeMirror uses the Darcula theme in a dark shell, and the portal's Profile dialog asks the server
+  for a dark profiling chart (`shellDark=true`).
 
 Status: the portal (phase 1) is converted: token block, chrome and dialogs, `widget/`, third-party
 widgets and the named symptoms (table header hover/sort, calendar day-of-week row, canvas, image
-placeholder). Verified with an axe contrast and light-bleed sweep over the portal, content parity,
-and a pixel diff of the light shell against a build without the feature. The composer (phase 2) is
-in progress: it already gets the class, and the dialogs and widgets it shares with the portal are
-converted, but its own surfaces are not all done.
+placeholder), plus one hover language across the shell. Verified with an axe contrast and
+light-bleed sweep over the portal, content parity, and a pixel diff of the light shell against a
+build without the feature; the results are summarized in the descriptions of #8420 and the hover
+consistency PR. The composer (phase 2) has not started: it already gets the class, and the dialogs
+and widgets it shares with the portal are converted, but its own surfaces are not done.
 
 ### Rollout
 
@@ -220,8 +240,6 @@ with no recorded results found.
 
 ## Other gaps found
 
-- `PortalProfileController` colors the profiling chart from the EM dark flag (`isEMDarkTheme()`); the
-  portal's Profile dialog asks for a dark chart (`shellDark=true`) in a dark shell.
 - No user-level UI exists. The server honors `UserEnv` `shellAppearance`, but nothing writes it yet.
   `inetsoft.portal.themeId` is read by the enterprise theme resolver, but nothing in the repository
   sets it, and it selects custom CSS themes rather than dark.
@@ -254,9 +272,7 @@ plan. Verified by reading code: the mark and `VizContext` flow, the org-scoped s
 fallback, the seeding mechanism, the export clone-and-swap path, the scheduler's use of the same
 exporters, the existing shell and viz tokens, and what the Preferences dialog stores. Not verified:
 the chart tile endpoint and cache behavior during export, how every caller of `export(..., cloneVs)`
-behaves, how the portal HTML is served (relevant to applying dark before first paint), whether the
-viewer's Print button uses server export, third-party widgets, and any other places the
-implementation differs from the 9B plan. Treat the statements here as accurate for the areas listed
+behaves, and any other places the implementation differs from the 9B plan. Treat the statements here as accurate for the areas listed
 and as unchecked elsewhere.
 
 Update, 2026-11-16 (shell dark verification): how the portal HTML is served, the Print button and the
