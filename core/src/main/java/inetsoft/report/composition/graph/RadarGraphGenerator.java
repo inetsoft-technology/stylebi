@@ -167,6 +167,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
          // webbed rings in the grid colour, shaped by the spoke count
          polarCoord.setWebGrid(true);
          polarCoord.setSidesFromSpokes(true);
+         polarCoord.setModernWeb(true);
          coord.setEvenRings(true);
       }
       Coordinate graphCoord = createCoord(polarCoord, ctype);
