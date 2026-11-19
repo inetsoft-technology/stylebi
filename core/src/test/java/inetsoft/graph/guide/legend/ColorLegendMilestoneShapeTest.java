@@ -99,7 +99,8 @@ class ColorLegendMilestoneShapeTest {
    }
 
    @Test
-   void colorFrameSharedWithBarKeepsSquare() {
+   void colorFrameSharedWithBarDrawsMilestoneShape() {
+      // the bars come first, so the legend's owner element is the bar, not the milestone
       CategoricalColorFrame color = colorFrame();
       IntervalElement bar = new IntervalElement();
       bar.setColorFrame(color);
@@ -110,8 +111,82 @@ class ColorLegendMilestoneShapeTest {
       LegendItem item = new ColorLegend(color, graph).createLegendItem("a", "a");
       BufferedImage img = paintSymbol(item);
 
-      assertNotEquals(0, alpha(img, X + 1, Y + 1),
-                      "one legend for bars and milestones keeps the neutral square");
+      assertEquals(0, alpha(img, X + 3, Y + 2), "diamond leaves the symbol corner empty");
+   }
+
+   @Test
+   void barColorLegendKeepsSquareWhenMilestoneHasOwnColor() {
+      // gantt_chart: the Task legend colors the bars; the milestone has its own color
+      CategoricalColorFrame color = colorFrame();
+      IntervalElement bar = new IntervalElement();
+      bar.setColorFrame(color);
+      EGraph graph = new EGraph();
+      graph.addElement(bar);
+      graph.addElement(milestone(new StaticColorFrame()));
+
+      LegendItem item = new ColorLegend(color, graph).createLegendItem("a", "a");
+      BufferedImage img = paintSymbol(item);
+
+      assertNotEquals(0, alpha(img, X + 1, Y + 1), "the bars' legend keeps the square");
+   }
+
+   @Test
+   void viewsheetMeasureKeyedShapeFrameDrawsMilestoneShape() {
+      // a viewsheet chart combines each measure's fixed shape into one categorical frame keyed
+      // by measure name (VSShapeFrameStrategy.createCombinedFrame), not a StaticShapeFrame
+      CategoricalColorFrame color = colorFrame();
+      CategoricalShapeFrame shape = new CategoricalShapeFrame();
+      shape.init(new Object[]{ "Start Date", "Milestone Date" },
+                 new GShape[]{ GShape.FILLED_SQUARE, GShape.FILLED_DIAMOND });
+      PointElement point = milestone(color);
+      point.setShapeFrame(shape);
+      point.addVar("Milestone Date");
+      EGraph graph = new EGraph();
+      graph.addElement(new IntervalElement());
+      graph.addElement(point);
+
+      LegendItem item = new ColorLegend(color, graph).createLegendItem("a", "a");
+      BufferedImage img = paintSymbol(item);
+
+      assertEquals(0, alpha(img, X + 3, Y + 2), "diamond leaves the symbol corner empty");
+   }
+
+   @Test
+   void sharedMeasureLegendDrawsEachEntryWithItsOwnShape() {
+      // gantt_chart2: no color field, bars and milestone share one measure-keyed legend
+      CategoricalColorFrame color = colorFrame();
+      IntervalElement bar = new IntervalElement();
+      bar.setColorFrame(color);
+      bar.addVar("Start Date");
+      PointElement point = milestone(color);
+      point.addVar("Milestone Date");
+      EGraph graph = new EGraph();
+      graph.addElement(bar);
+      graph.addElement(point);
+      ColorLegend legend = new ColorLegend(color, graph);
+
+      BufferedImage start = paintSymbol(legend.createLegendItem("Start Date", "Start Date"));
+      BufferedImage mile = paintSymbol(legend.createLegendItem("Milestone Date", "Milestone Date"));
+
+      assertNotEquals(0, alpha(start, X + 1, Y + 1), "bar entry keeps the rectangle");
+      assertEquals(0, alpha(mile, X + 3, Y + 2), "milestone entry is a diamond");
+   }
+
+   @Test
+   void milestoneShapeBoundToFieldKeepsSquare() {
+      CategoricalColorFrame color = colorFrame();
+      PointElement point = milestone(color);
+      StaticShapeFrame shape = new StaticShapeFrame(GShape.FILLED_DIAMOND);
+      shape.setField("Status");
+      point.setShapeFrame(shape);
+      EGraph graph = new EGraph();
+      graph.addElement(new IntervalElement());
+      graph.addElement(point);
+
+      LegendItem item = new ColorLegend(color, graph).createLegendItem("a", "a");
+      BufferedImage img = paintSymbol(item);
+
+      assertNotEquals(0, alpha(img, X + 1, Y + 1), "a field-bound shape keeps the square");
    }
 
    private static CategoricalColorFrame colorFrame() {

@@ -70,8 +70,8 @@ public class ColorLegendItem extends LegendItem {
       g2.setColor(color);
 
       if(marker != null) {
-         // same box as the shape legend item so the glyph matches the mark on the chart
-         marker.paint(g2, x + 2, y + 1, size - 2, size - 2);
+         // same box as the default square swatch so the two line up geometrically
+         marker.paint(g2, x, y, size, size);
          g2.dispose();
          return;
       }
