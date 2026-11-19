@@ -129,10 +129,12 @@ public class WorksheetScriptController {
     * WorksheetScriptService#write} -- the ONLY mutating call this endpoint makes; the actual
     * write always lands via {@link WorksheetAgentController#editOp}.
     *
-    * <p>{@code type}/{@code sql}/{@code newName}, when present, are forwarded as {@code extras}
-    * so {@link WorksheetScriptService#write} refuses them loudly (redirecting to worksheet-chat)
-    * rather than this controller silently dropping them on the floor -- exactly the tool-misuse
-    * failure mode an LLM caller sending a few fields too many must not trigger silently.
+    * <p>{@code sql} (SQL/Script switch) and {@code type} (return data type) draft the open
+    * formula dialog's own state through {@link WorksheetScriptService#write(JoinSession,
+    * Principal, ScriptTarget, String, Boolean, String, Map)}. {@code newName}, when present, is
+    * forwarded as {@code extras} so the service refuses it loudly (redirecting to worksheet-chat)
+    * rather than this controller silently dropping it -- exactly the tool-misuse failure mode an
+    * LLM caller sending a field too many must not trigger silently.
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/script")
    public ScriptWriteResult writeScript(@PathVariable String sessionToken,
@@ -143,19 +145,12 @@ public class WorksheetScriptController {
       JoinSession session = resolveSession(sessionToken, user);
       ScriptTarget t = ScriptTarget.resolve(null, req.id(), req.kind(), req.assembly(), req.name(),
                                             req.target());
-      return scriptService.write(session, user, t, req.text(), extras(req));
+      return scriptService.write(session, user, t, req.text(), req.sql(), req.type(),
+                                 extras(req));
    }
 
    private static Map<String, Object> extras(WriteScriptRequest req) {
       Map<String, Object> extras = new LinkedHashMap<>();
-
-      if(req.type() != null) {
-         extras.put("type", req.type());
-      }
-
-      if(req.sql() != null) {
-         extras.put("sql", req.sql());
-      }
 
       if(req.newName() != null) {
          extras.put("newName", req.newName());

@@ -275,6 +275,13 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     *  explicit, human-driven way to accept it anyway. See `shouldApplyAgentScriptPush`. */
    staleExpression: string | null = null;
 
+   /** The text-less counterparts of lastKnownExpression/staleExpression, for the SQL/Script
+    *  switch and the return data type an agent can also draft. */
+   private lastKnownFormulaType: any;
+   private lastKnownDataType: string;
+   staleFormulaType: any = null;
+   staleDataType: string | null = null;
+
    get title(): string {
       return this.isCube ? "_#(js:Create Measure)" : this.isCalc ? "_#(js:Edit Calculated Field)" :
          "_#(js:Formula Editor)";
@@ -493,6 +500,9 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       this.returnTypes = FormulaEditorService.returnTypes;
       this.init = true;
       this.lastKnownExpression = this.expression;
+      this.lastKnownFormulaType = this.currentFormulaType();
+      this.lastKnownDataType = this.form.contains("dataType") ?
+         this.form.get("dataType").value : this.dataType;
 
       if(this.hasPairingTransport && this.socketConnection.commands) {
          this.subscriptions.add(this.socketConnection.commands.subscribe(
@@ -731,27 +741,103 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
          return;
       }
 
-      this.agentScriptPushed.emit(command.text);
+      if(command.text != null) {
+         this.agentScriptPushed.emit(command.text);
 
-      if(!shouldApplyAgentScriptPush(this.expression, this.lastKnownExpression)) {
-         this.staleExpression = command.text;
-         return;
+         if(!shouldApplyAgentScriptPush(this.expression, this.lastKnownExpression)) {
+            this.staleExpression = command.text;
+         }
+         else {
+            this.expression = command.text;
+            this.lastKnownExpression = command.text;
+            this.staleExpression = null;
+         }
       }
 
-      this.expression = command.text;
-      this.lastKnownExpression = command.text;
-      this.staleExpression = null;
+      // The SQL/Script switch and the return type are drafts of the same kind as the text: they
+      // reach the worksheet only through this dialog's OK, and are parked behind the same Reload
+      // prompt when the human has already changed that setting.
+      if(command.sql != null) {
+         const wanted = this.formulaTypeFor(command.sql);
+
+         if(shouldApplyAgentScriptPush(this.currentFormulaType(), this.lastKnownFormulaType)) {
+            this.setFormulaType(wanted);
+            this.lastKnownFormulaType = wanted;
+            this.staleFormulaType = null;
+         }
+         else {
+            this.staleFormulaType = wanted;
+         }
+      }
+
+      if(command.returnType != null) {
+         if(!this.form.contains("dataType")) {
+            console.warn("Agent pushed a return type to a formula dialog without one: " +
+                         command.returnType);
+         }
+         else if(shouldApplyAgentScriptPush(this.form.get("dataType").value,
+                                            this.lastKnownDataType))
+         {
+            this.form.get("dataType").setValue(command.returnType);
+            this.lastKnownDataType = command.returnType;
+            this.staleDataType = null;
+         }
+         else {
+            this.staleDataType = command.returnType;
+         }
+      }
+   }
+
+   /** Whether an agent push is parked behind the Reload prompt. */
+   get hasStalePush(): boolean {
+      return this.staleExpression != null || this.staleFormulaType != null ||
+         this.staleDataType != null;
+   }
+
+   /** The SQL/Script switch's value: the radio's string, or a condition's ExpressionType. */
+   private currentFormulaType(): any {
+      return this.form.contains("formulaType") ? this.form.get("formulaType").value :
+         this.formulaType;
+   }
+
+   /** The value of the switch for `sql`, in the representation this dialog is holding. */
+   private formulaTypeFor(sql: boolean): any {
+      if(this.form.contains("formulaType")) {
+         return sql ? FormulaType.SQL : FormulaType.SCRIPT;
+      }
+
+      return sql ? ExpressionType.SQL : ExpressionType.JS;
+   }
+
+   private setFormulaType(value: any): void {
+      if(this.form.contains("formulaType")) {
+         this.form.get("formulaType").setValue(value);
+      }
+      else {
+         this.formulaType = value;
+         this.populateTrees();
+      }
    }
 
    /** The human's explicit choice to accept a deferred push, discarding their own local edit. */
    reloadStaleExpression(): void {
-      if(this.staleExpression == null) {
-         return;
+      if(this.staleExpression != null) {
+         this.expression = this.staleExpression;
+         this.lastKnownExpression = this.staleExpression;
+         this.staleExpression = null;
       }
 
-      this.expression = this.staleExpression;
-      this.lastKnownExpression = this.staleExpression;
-      this.staleExpression = null;
+      if(this.staleFormulaType != null) {
+         this.setFormulaType(this.staleFormulaType);
+         this.lastKnownFormulaType = this.staleFormulaType;
+         this.staleFormulaType = null;
+      }
+
+      if(this.staleDataType != null && this.form.contains("dataType")) {
+         this.form.get("dataType").setValue(this.staleDataType);
+         this.lastKnownDataType = this.staleDataType;
+         this.staleDataType = null;
+      }
    }
 
    populateTrees(): void {
