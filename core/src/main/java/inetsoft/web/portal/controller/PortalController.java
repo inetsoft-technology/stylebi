@@ -122,7 +122,8 @@ public class PortalController {
          .helpVisible(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON))
          .aiAssistantVisible(aiAssistantVisible)
          .aiAssistantVisible(aiAssistantVisible)
-         .wizVisible(WizPortalEntry.isVisible())
+         .wizVisible(WizPortalEntry.isVisible() && securityEngine.checkPermission(
+            principal, ResourceType.WIZ_PERMISSION, "portal.tab.chat", ResourceAction.ACCESS))
          .wizUrl(WizPortalEntry.getUrl())
          .preferencesVisible(manager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON))
          .logoutVisible(manager.isButtonVisible(PortalThemesManager.LOGOUT_BUTTON))
