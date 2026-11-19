@@ -50,21 +50,7 @@
         "price": {
           "currency": "string",
           "price": "string"
-        },
-        "source": {
-          "external_account_id": "double",
-          "added_timestamp": "timeInstant",
-          "active": "boolean",
-          "hidden": "boolean",
-          "type": "string"
-        },
-        "parent_id": "double",
-        "children": [
-          "double"
-        ],
-        "features": [
-          "string"
-        ]
+        }
       },
       "description": "One app by its Appfigures product id, with its store metadata."
     },
@@ -128,21 +114,7 @@
         "price": {
           "currency": "string",
           "price": "string"
-        },
-        "source": {
-          "external_account_id": "double",
-          "added_timestamp": "timeInstant",
-          "active": "boolean",
-          "hidden": "boolean",
-          "type": "string"
-        },
-        "parent_id": "double",
-        "children": [
-          "double"
-        ],
-        "features": [
-          "string"
-        ]
+        }
       },
       "description": "One app looked up by store and the store's own id. The bridge from an App Store or Play Store identifier to the Appfigures product id everything else needs."
     },
@@ -310,32 +282,6 @@
       "name": "All Usages",
       "paged": false,
       "suffix": "/v2/usage",
-      "responseSchema": {
-        "api_requests": {
-          "history": {
-            "total": "double",
-            "today": "double",
-            "history": {
-              "*": "double"
-            }
-          },
-          "total": "double",
-          "used": "double",
-          "remaining": "double"
-        },
-        "partner_api": {
-          "history": {
-            "total": "double",
-            "today": "double",
-            "history": {
-              "*": "double"
-            }
-          },
-          "total": "double",
-          "used": "double",
-          "remaining": "double"
-        }
-      },
       "description": "The account-wide usage summary."
     },
     {
@@ -405,8 +351,6 @@
             "developer": "string",
             "icon": "string",
             "vendor_identifier": "string",
-            "ref_no": "double",
-            "sku": "string",
             "package_name": "string",
             "store_id": "double",
             "store": "string",
@@ -547,20 +491,6 @@
       "name": "Review Filters Counts",
       "paged": false,
       "suffix": "/v2/reviews/count?stars={Stars?}",
-      "responseSchema": {
-        "stars": {
-          "*": "double"
-        },
-        "versions": {
-          "*": "double"
-        },
-        "countries": {
-          "*": "double"
-        },
-        "products": {
-          "*": "double"
-        }
-      },
       "description": "How many reviews match given filters, without returning them. The cheap way to size a review set before fetching it."
     },
     {
