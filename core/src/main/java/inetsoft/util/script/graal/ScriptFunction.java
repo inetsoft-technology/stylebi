@@ -83,8 +83,7 @@ public class ScriptFunction implements ProxyExecutable {
          Object[] args = new Object[ptypes.length];
 
          for(int i = 0; i < ptypes.length; i++) {
-            Object host = (i < arguments.length)
-               ? ScriptValueConverter.toHost(arguments[i]) : null;
+            Object host = (i < arguments.length) ? toArgument(arguments[i]) : null;
             args[i] = coerce(host, ptypes[i]);
          }
 
@@ -104,6 +103,20 @@ public class ScriptFunction implements ProxyExecutable {
 
          throw new RuntimeException(text, cause);
       }
+   }
+
+   /**
+    * Convert a script argument for a function call. Unlike {@link ScriptValueConverter#toHost},
+    * which maps NaN/Infinity to null for stored and returned values, a script number keeps
+    * NaN and the infinities here, as Rhino's FunctionObject did for its arguments, so
+    * {@code CALC.abs(NaN)} sees NaN and not the default 0 (Bug #81780).
+    */
+   private static Object toArgument(Value v) {
+      if(v != null && !v.isHostObject() && v.isNumber() && v.fitsInDouble()) {
+         return v.asDouble();
+      }
+
+      return ScriptValueConverter.toHost(v);
    }
 
    /**
