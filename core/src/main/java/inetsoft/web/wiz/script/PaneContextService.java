@@ -22,10 +22,14 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.script.VariableScriptable;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.web.binding.VSFormulaServiceProxy;
+import inetsoft.web.binding.drm.AggregateRefModel;
 import inetsoft.web.wiz.binding.BindableFieldsService;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.pairing.EditorContext;
@@ -44,6 +48,7 @@ import java.util.Collection;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -83,12 +88,14 @@ public class PaneContextService {
    @Autowired
    public PaneContextService(ScriptContextService contextService, ScriptApiService apiService,
                              ViewsheetService viewsheetService,
-                             BindableFieldsService fieldsService)
+                             BindableFieldsService fieldsService,
+                             VSFormulaServiceProxy formulaService)
    {
       this.contextService = contextService;
       this.apiService = apiService;
       this.viewsheetService = viewsheetService;
       this.fieldsService = fieldsService;
+      this.formulaService = formulaService;
    }
 
    /**
@@ -125,7 +132,9 @@ public class PaneContextService {
 
       return new PaneContext(
          grant == null ? SHEET_KIND : grant.kind(), grant, syntaxOf(grant, sql, aggregate), components,
-         parameters(rvs, notes), columns(session, grant, user, notes), functions, operators, notes);
+         parameters(rvs, notes), columns(session, grant, user, notes),
+         aggregate ? aggregates(session, grant, user, notes) : List.of(), functions, operators,
+         notes);
    }
 
    /** The kinds whose dialog has the SQL/Script switch: a calc field, a worksheet expression
@@ -301,6 +310,56 @@ public class PaneContextService {
       }
    }
 
+   /**
+    * The aggregate fields a calc field on Aggregate can read, from the source the dialog's own
+    * Fields tree reads ({@code VSFormulaService.getFields}): the aggregates created in the dialog
+    * plus those the components bound to the table already use. Each is written as the engine
+    * matches it inside a formula ({@link VSUtil#getAggregateString}), never the model's name,
+    * which is the bare column.
+    */
+   @SuppressWarnings("unchecked")
+   private List<String> aggregates(JoinSession session, EditorContext grant, Principal user,
+                                   List<String> notes)
+   {
+      String owner = ownerOf(grant);
+
+      if(owner == null) {
+         notes.add("The aggregate fields could not be listed: the calc field's table is unknown.");
+         return List.of();
+      }
+
+      try {
+         Map<String, Object> fields =
+            formulaService.getFields(session.runtimeId(), null, owner, user);
+         Object listed = fields == null ? null : fields.get("aggregateFields");
+         Set<String> tags = new LinkedHashSet<>();
+
+         if(listed instanceof List<?> models) {
+            for(Object model : models) {
+               if(model instanceof AggregateRefModel m &&
+                  m.createDataRef() instanceof AggregateRef ref && ref.getFormula() != null &&
+                  ref.getDataRef() != null)
+               {
+                  tags.add(VSUtil.getAggregateString(ref, false));
+               }
+            }
+         }
+
+         if(tags.isEmpty()) {
+            notes.add("No aggregate field exists on table '" + owner + "' yet: the dialog's New " +
+                      "Aggregate creates one, and a component bound to the table that uses an " +
+                      "aggregate makes it available.");
+         }
+
+         return List.copyOf(tags);
+      }
+      catch(Exception e) {
+         LOG.warn("Could not list the aggregate fields for a pane context", e);
+         notes.add("The aggregate field list could not be read: " + messageOf(e));
+         return List.of();
+      }
+   }
+
    private static PaneContext.Table project(BindableTable t) {
       List<PaneContext.Field> fields = t.fields().stream()
          .map(f -> new PaneContext.Field(f.column(), f.dataType())).toList();
@@ -460,4 +519,5 @@ public class PaneContextService {
    private final ScriptApiService apiService;
    private final ViewsheetService viewsheetService;
    private final BindableFieldsService fieldsService;
+   private final VSFormulaServiceProxy formulaService;
 }
