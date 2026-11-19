@@ -249,7 +249,10 @@
       "paged": "false",
       "name": "Document",
       "suffix": "/indexes/{Index Name}/docs/{Document Key}?api-version=2019-05-06",
-      "description": "One document by its key. Requires the index name and document key."
+      "description": "One document by its key. Requires the index name and document key.",
+      "responseSchema": {
+        "@odata.context": "string"
+      }
     },
     {
       "paged": "false",

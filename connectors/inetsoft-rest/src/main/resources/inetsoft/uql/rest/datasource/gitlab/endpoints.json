@@ -2330,13 +2330,155 @@
       "paged": "true",
       "name": "Project Commit Discussion Items",
       "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions",
-      "description": "The comments on one commit grouped into threads. Requires the project id and commit id. The threaded view of Commit Comments."
+      "description": "The comments on one commit grouped into threads. Requires the project id and commit id. The threaded view of Commit Comments.",
+      "responseSchema": [
+        {
+          "id": "string",
+          "individual_note": "boolean",
+          "notes": [
+            {
+              "id": "double",
+              "type": "string",
+              "body": "string",
+              "author": {
+                "id": "double",
+                "username": "string",
+                "public_email": "string",
+                "name": "string",
+                "state": "string",
+                "locked": "boolean",
+                "avatar_url": "string",
+                "avatar_path": "string",
+                "web_url": "string"
+              },
+              "created_at": "timeInstant",
+              "updated_at": "timeInstant",
+              "system": "boolean",
+              "noteable_id": "double",
+              "noteable_type": "string",
+              "project_id": "double",
+              "commit_id": "string",
+              "resolvable": "boolean",
+              "resolved": "boolean",
+              "resolved_by": {
+                "id": "double",
+                "username": "string",
+                "public_email": "string",
+                "name": "string",
+                "state": "string",
+                "locked": "boolean",
+                "avatar_url": "string",
+                "avatar_path": "string",
+                "web_url": "string"
+              },
+              "resolved_at": "timeInstant",
+              "suggestions": [
+                {
+                  "id": "double",
+                  "from_line": "double",
+                  "to_line": "double",
+                  "appliable": "boolean",
+                  "applied": "boolean",
+                  "from_content": "string",
+                  "to_content": "string"
+                }
+              ],
+              "confidential": "boolean",
+              "internal": "boolean",
+              "imported": "boolean",
+              "imported_from": "string",
+              "noteable_iid": "double",
+              "attachment": "string",
+              "position": {
+                "base_sha": "string",
+                "start_sha": "string",
+                "head_sha": "string",
+                "old_path": "string",
+                "new_path": "string",
+                "position_type": "string",
+                "old_line": "double",
+                "new_line": "double"
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "paged": "false",
       "name": "Project Commit Discussion Item",
       "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions/{Discussion ID}",
-      "description": "A single discussion thread on a commit. Requires the discussion id as well."
+      "description": "A single discussion thread on a commit. Requires the discussion id as well.",
+      "responseSchema": {
+        "id": "string",
+        "individual_note": "boolean",
+        "notes": [
+          {
+            "id": "double",
+            "type": "string",
+            "body": "string",
+            "author": {
+              "id": "double",
+              "username": "string",
+              "public_email": "string",
+              "name": "string",
+              "state": "string",
+              "locked": "boolean",
+              "avatar_url": "string",
+              "avatar_path": "string",
+              "web_url": "string"
+            },
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "system": "boolean",
+            "noteable_id": "double",
+            "noteable_type": "string",
+            "project_id": "double",
+            "commit_id": "string",
+            "resolvable": "boolean",
+            "resolved": "boolean",
+            "resolved_by": {
+              "id": "double",
+              "username": "string",
+              "public_email": "string",
+              "name": "string",
+              "state": "string",
+              "locked": "boolean",
+              "avatar_url": "string",
+              "avatar_path": "string",
+              "web_url": "string"
+            },
+            "resolved_at": "timeInstant",
+            "suggestions": [
+              {
+                "id": "double",
+                "from_line": "double",
+                "to_line": "double",
+                "appliable": "boolean",
+                "applied": "boolean",
+                "from_content": "string",
+                "to_content": "string"
+              }
+            ],
+            "confidential": "boolean",
+            "internal": "boolean",
+            "imported": "boolean",
+            "imported_from": "string",
+            "noteable_iid": "double",
+            "attachment": "string",
+            "position": {
+              "base_sha": "string",
+              "start_sha": "string",
+              "head_sha": "string",
+              "old_path": "string",
+              "new_path": "string",
+              "position_type": "string",
+              "old_line": "double",
+              "new_line": "double"
+            }
+          }
+        ]
+      }
     },
     {
       "paged": "true",
@@ -11736,7 +11878,14 @@
       "paged": "true",
       "name": "Project Milestone Burndown Events",
       "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}/burndown_events",
-      "description": "The events a burndown chart is drawn from for one milestone: each issue added, closed, reopened or reweighted, with its timestamp. Requires the project id and milestone id. This is the only way to reconstruct scope over time -- the milestone itself carries just its current state, so 'how much scope was added mid-sprint' cannot be answered without it. A Premium feature."
+      "description": "The events a burndown chart is drawn from for one milestone: each issue added, closed, reopened or reweighted, with its timestamp. Requires the project id and milestone id. This is the only way to reconstruct scope over time -- the milestone itself carries just its current state, so 'how much scope was added mid-sprint' cannot be answered without it. A Premium feature.",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "weight": "double",
+          "action": "string"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -12089,7 +12238,14 @@
       "paged": "true",
       "name": "Group Milestone Burndown Events",
       "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}/burndown_events",
-      "description": "The same scope-change event stream for a group milestone. Requires the group id and milestone id."
+      "description": "The same scope-change event stream for a group milestone. Requires the group id and milestone id.",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "weight": "double",
+          "action": "string"
+        }
+      ]
     },
     {
       "paged": "true",
@@ -15701,19 +15857,427 @@
       "paged": "true",
       "name": "Search",
       "suffix": "/v4/search?scope={Scope:projects|issues|...}&search={Search Query}",
-      "description": "Searches the whole instance for a term. Requires a scope and a query. IMPORTANT: the columns returned depend entirely on the scope -- projects, issues, merge_requests, milestones, users, snippet_titles, wiki_blobs, commits, blobs and notes each come back with a different shape, so this cannot be treated as one table with fixed columns. Prefer the resource's own endpoint whenever the kind of thing being looked for is already known; this is for when it is not."
+      "description": "Searches the whole instance for a term. Requires a scope and a query. IMPORTANT: the columns returned depend entirely on the scope -- projects, issues, merge_requests, milestones, users, snippet_titles, wiki_blobs, commits, blobs and notes each come back with a different shape, so this cannot be treated as one table with fixed columns. Prefer the resource's own endpoint whenever the kind of thing being looked for is already known; this is for when it is not.",
+      "responseSchema": [
+        {
+          "id": "string",
+          "iid": "double",
+          "project_id": "double",
+          "group_id": "double",
+          "title": "string",
+          "description": "string",
+          "state": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "closed_at": "timeInstant",
+          "name": "string",
+          "name_with_namespace": "string",
+          "path": "string",
+          "path_with_namespace": "string",
+          "default_branch": "string",
+          "tag_list": [
+            "string"
+          ],
+          "topics": [
+            "string"
+          ],
+          "ssh_url_to_repo": "string",
+          "http_url_to_repo": "string",
+          "web_url": "string",
+          "readme_url": "string",
+          "avatar_url": "string",
+          "star_count": "double",
+          "forks_count": "double",
+          "last_activity_at": "timeInstant",
+          "labels": [
+            "string"
+          ],
+          "milestone": {
+            "id": "double",
+            "iid": "double",
+            "project_id": "double",
+            "group_id": "double",
+            "title": "string",
+            "description": "string",
+            "state": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "due_date": "date",
+            "start_date": "date",
+            "expired": "boolean",
+            "web_url": "string"
+          },
+          "assignees": [
+            {
+              "id": "double",
+              "username": "string",
+              "public_email": "string",
+              "name": "string",
+              "state": "string",
+              "locked": "boolean",
+              "avatar_url": "string",
+              "avatar_path": "string",
+              "web_url": "string"
+            }
+          ],
+          "assignee": {
+            "id": "double",
+            "username": "string",
+            "public_email": "string",
+            "name": "string",
+            "state": "string",
+            "locked": "boolean",
+            "avatar_url": "string",
+            "avatar_path": "string",
+            "web_url": "string"
+          },
+          "author": {
+            "id": "double",
+            "username": "string",
+            "public_email": "string",
+            "name": "string",
+            "state": "string",
+            "locked": "boolean",
+            "avatar_url": "string",
+            "avatar_path": "string",
+            "web_url": "string"
+          },
+          "user_notes_count": "double",
+          "upvotes": "double",
+          "downvotes": "double",
+          "due_date": "date",
+          "start_date": "date",
+          "confidential": "boolean",
+          "discussion_locked": "boolean",
+          "time_stats": {
+            "time_estimate": "double",
+            "total_time_spent": "double",
+            "human_time_estimate": "string",
+            "human_total_time_spent": "string"
+          },
+          "target_branch": "string",
+          "source_branch": "string",
+          "source_project_id": "double",
+          "target_project_id": "double",
+          "draft": "boolean",
+          "work_in_progress": "boolean",
+          "merge_when_pipeline_succeeds": "boolean",
+          "merge_status": "string",
+          "sha": "string",
+          "merge_commit_sha": "string",
+          "squash_commit_sha": "string",
+          "should_remove_source_branch": "boolean",
+          "force_remove_source_branch": "boolean",
+          "file_name": "string",
+          "username": "string",
+          "basename": "string",
+          "data": "string",
+          "filename": "string",
+          "ref": "string",
+          "startline": "double",
+          "short_id": "string",
+          "message": "string",
+          "parent_ids": [
+            "string"
+          ],
+          "author_name": "string",
+          "author_email": "string",
+          "authored_date": "timeInstant",
+          "committer_name": "string",
+          "committer_email": "string",
+          "committed_date": "timeInstant",
+          "body": "string",
+          "attachment": "string",
+          "system": "boolean",
+          "noteable_id": "double",
+          "noteable_type": "string",
+          "noteable_iid": "double"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Group Search",
       "suffix": "/v4/groups/{Group ID}/search?scope={Scope:projects|issues|...}&search={Search Query}",
-      "description": "The same search restricted to one group and everything under it. Requires a group id, scope and query. Same scope-dependent shape."
+      "description": "The same search restricted to one group and everything under it. Requires a group id, scope and query. Same scope-dependent shape.",
+      "responseSchema": [
+        {
+          "id": "string",
+          "iid": "double",
+          "project_id": "double",
+          "group_id": "double",
+          "title": "string",
+          "description": "string",
+          "state": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "closed_at": "timeInstant",
+          "name": "string",
+          "name_with_namespace": "string",
+          "path": "string",
+          "path_with_namespace": "string",
+          "default_branch": "string",
+          "tag_list": [
+            "string"
+          ],
+          "topics": [
+            "string"
+          ],
+          "ssh_url_to_repo": "string",
+          "http_url_to_repo": "string",
+          "web_url": "string",
+          "readme_url": "string",
+          "avatar_url": "string",
+          "star_count": "double",
+          "forks_count": "double",
+          "last_activity_at": "timeInstant",
+          "labels": [
+            "string"
+          ],
+          "milestone": {
+            "id": "double",
+            "iid": "double",
+            "project_id": "double",
+            "group_id": "double",
+            "title": "string",
+            "description": "string",
+            "state": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "due_date": "date",
+            "start_date": "date",
+            "expired": "boolean",
+            "web_url": "string"
+          },
+          "assignees": [
+            {
+              "id": "double",
+              "username": "string",
+              "public_email": "string",
+              "name": "string",
+              "state": "string",
+              "locked": "boolean",
+              "avatar_url": "string",
+              "avatar_path": "string",
+              "web_url": "string"
+            }
+          ],
+          "assignee": {
+            "id": "double",
+            "username": "string",
+            "public_email": "string",
+            "name": "string",
+            "state": "string",
+            "locked": "boolean",
+            "avatar_url": "string",
+            "avatar_path": "string",
+            "web_url": "string"
+          },
+          "author": {
+            "id": "double",
+            "username": "string",
+            "public_email": "string",
+            "name": "string",
+            "state": "string",
+            "locked": "boolean",
+            "avatar_url": "string",
+            "avatar_path": "string",
+            "web_url": "string"
+          },
+          "user_notes_count": "double",
+          "upvotes": "double",
+          "downvotes": "double",
+          "due_date": "date",
+          "start_date": "date",
+          "confidential": "boolean",
+          "discussion_locked": "boolean",
+          "time_stats": {
+            "time_estimate": "double",
+            "total_time_spent": "double",
+            "human_time_estimate": "string",
+            "human_total_time_spent": "string"
+          },
+          "target_branch": "string",
+          "source_branch": "string",
+          "source_project_id": "double",
+          "target_project_id": "double",
+          "draft": "boolean",
+          "work_in_progress": "boolean",
+          "merge_when_pipeline_succeeds": "boolean",
+          "merge_status": "string",
+          "sha": "string",
+          "merge_commit_sha": "string",
+          "squash_commit_sha": "string",
+          "should_remove_source_branch": "boolean",
+          "force_remove_source_branch": "boolean",
+          "file_name": "string",
+          "username": "string",
+          "basename": "string",
+          "data": "string",
+          "filename": "string",
+          "ref": "string",
+          "startline": "double",
+          "short_id": "string",
+          "message": "string",
+          "parent_ids": [
+            "string"
+          ],
+          "author_name": "string",
+          "author_email": "string",
+          "authored_date": "timeInstant",
+          "committer_name": "string",
+          "committer_email": "string",
+          "committed_date": "timeInstant",
+          "body": "string",
+          "attachment": "string",
+          "system": "boolean",
+          "noteable_id": "double",
+          "noteable_type": "string",
+          "noteable_iid": "double"
+        }
+      ]
     },
     {
       "paged": "true",
       "name": "Project Search",
       "suffix": "/v4/projects/{Project ID}/search?scope={Scope:issues|milestones|...}&search={Search Query}&ref={Ref?:branch or tag name}",
-      "description": "The same search restricted to one project. Requires a project id, scope and query. Adds blob and wiki_blob scopes that can be pinned to a ref."
+      "description": "The same search restricted to one project. Requires a project id, scope and query. Adds blob and wiki_blob scopes that can be pinned to a ref.",
+      "responseSchema": [
+        {
+          "id": "string",
+          "iid": "double",
+          "project_id": "double",
+          "group_id": "double",
+          "title": "string",
+          "description": "string",
+          "state": "string",
+          "created_at": "timeInstant",
+          "updated_at": "timeInstant",
+          "closed_at": "timeInstant",
+          "name": "string",
+          "name_with_namespace": "string",
+          "path": "string",
+          "path_with_namespace": "string",
+          "default_branch": "string",
+          "tag_list": [
+            "string"
+          ],
+          "topics": [
+            "string"
+          ],
+          "ssh_url_to_repo": "string",
+          "http_url_to_repo": "string",
+          "web_url": "string",
+          "readme_url": "string",
+          "avatar_url": "string",
+          "star_count": "double",
+          "forks_count": "double",
+          "last_activity_at": "timeInstant",
+          "labels": [
+            "string"
+          ],
+          "milestone": {
+            "id": "double",
+            "iid": "double",
+            "project_id": "double",
+            "group_id": "double",
+            "title": "string",
+            "description": "string",
+            "state": "string",
+            "created_at": "timeInstant",
+            "updated_at": "timeInstant",
+            "due_date": "date",
+            "start_date": "date",
+            "expired": "boolean",
+            "web_url": "string"
+          },
+          "assignees": [
+            {
+              "id": "double",
+              "username": "string",
+              "public_email": "string",
+              "name": "string",
+              "state": "string",
+              "locked": "boolean",
+              "avatar_url": "string",
+              "avatar_path": "string",
+              "web_url": "string"
+            }
+          ],
+          "assignee": {
+            "id": "double",
+            "username": "string",
+            "public_email": "string",
+            "name": "string",
+            "state": "string",
+            "locked": "boolean",
+            "avatar_url": "string",
+            "avatar_path": "string",
+            "web_url": "string"
+          },
+          "author": {
+            "id": "double",
+            "username": "string",
+            "public_email": "string",
+            "name": "string",
+            "state": "string",
+            "locked": "boolean",
+            "avatar_url": "string",
+            "avatar_path": "string",
+            "web_url": "string"
+          },
+          "user_notes_count": "double",
+          "upvotes": "double",
+          "downvotes": "double",
+          "due_date": "date",
+          "start_date": "date",
+          "confidential": "boolean",
+          "discussion_locked": "boolean",
+          "time_stats": {
+            "time_estimate": "double",
+            "total_time_spent": "double",
+            "human_time_estimate": "string",
+            "human_total_time_spent": "string"
+          },
+          "target_branch": "string",
+          "source_branch": "string",
+          "source_project_id": "double",
+          "target_project_id": "double",
+          "draft": "boolean",
+          "work_in_progress": "boolean",
+          "merge_when_pipeline_succeeds": "boolean",
+          "merge_status": "string",
+          "sha": "string",
+          "merge_commit_sha": "string",
+          "squash_commit_sha": "string",
+          "should_remove_source_branch": "boolean",
+          "force_remove_source_branch": "boolean",
+          "file_name": "string",
+          "username": "string",
+          "basename": "string",
+          "data": "string",
+          "filename": "string",
+          "ref": "string",
+          "startline": "double",
+          "short_id": "string",
+          "message": "string",
+          "parent_ids": [
+            "string"
+          ],
+          "author_name": "string",
+          "author_email": "string",
+          "authored_date": "timeInstant",
+          "committer_name": "string",
+          "committer_email": "string",
+          "committed_date": "timeInstant",
+          "body": "string",
+          "attachment": "string",
+          "system": "boolean",
+          "noteable_id": "double",
+          "noteable_type": "string",
+          "noteable_iid": "double"
+        }
+      ]
     },
     {
       "paged": "true",

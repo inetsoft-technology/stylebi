@@ -2200,7 +2200,17 @@
       "name": "User Info",
       "paged": false,
       "suffix": "/v1/oauth/connect/userinfo",
-      "description": "The account the credentials belong to. One record, always the caller."
+      "description": "The account the credentials belong to. One record, always the caller.",
+      "responseSchema": {
+        "sub": "string",
+        "email": "string",
+        "given_name": "string",
+        "family_name": "string",
+        "middle_name": "string",
+        "preferred_name": "string",
+        "infusionsoft_id": "string",
+        "global_user_id": "double"
+      }
     },
     {
       "name": "Users",

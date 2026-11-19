@@ -937,13 +937,103 @@
       "name": "Records",
       "paged": true,
       "suffix": "/crm/v2/{Module API Name}?fields={Fields?:value1,value2,...}&converted={Converted?:true|false|both}&approved={Approved?:true|false|both}&cvid={Custom View ID?}&territory_id={Territory ID?}&include_child={Include Children?:true|false}",
-      "description": "The records of ONE MODULE. Requires the module's API name -- Leads, Contacts, Accounts, Deals, or any custom module the account defined. THIS IS THE DATA ENDPOINT FOR EVERYTHING: Zoho has no per-object endpoints, only this one parameterised by module, so the first request in any Zoho question is Modules, to learn what exists. Fields come back under their API names, which for custom fields are generated rather than chosen, so Fields is needed to read them."
+      "description": "The records of ONE MODULE. Requires the module's API name -- Leads, Contacts, Accounts, Deals, or any custom module the account defined. THIS IS THE DATA ENDPOINT FOR EVERYTHING: Zoho has no per-object endpoints, only this one parameterised by module, so the first request in any Zoho question is Modules, to learn what exists. Fields come back under their API names, which for custom fields are generated rather than chosen, so Fields is needed to read them.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "Owner": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Modified_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_Time": "timeInstant",
+            "Modified_Time": "timeInstant",
+            "Last_Activity_Time": "timeInstant",
+            "Tag": [
+              {
+                "name": "string",
+                "id": "string"
+              }
+            ],
+            "$state": "string",
+            "$approved": "boolean",
+            "$editable": "boolean",
+            "$approval_state": "string",
+            "$approval": {
+              "delegate": "boolean",
+              "approve": "boolean",
+              "reject": "boolean",
+              "resubmit": "boolean"
+            }
+          }
+        ],
+        "info": {
+          "call": "boolean",
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "email": "boolean",
+          "more_records": "boolean"
+        }
+      }
     },
     {
       "name": "Record",
       "paged": false,
       "suffix": "/crm/v2/{Module API Name}/{Record ID}",
-      "description": "One record by id within a module. Requires the module API name."
+      "description": "One record by id within a module. Requires the module API name.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "Owner": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Modified_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_Time": "timeInstant",
+            "Modified_Time": "timeInstant",
+            "Last_Activity_Time": "timeInstant",
+            "Tag": [
+              {
+                "name": "string",
+                "id": "string"
+              }
+            ],
+            "$state": "string",
+            "$approved": "boolean",
+            "$editable": "boolean",
+            "$approval_state": "string",
+            "$approval": {
+              "delegate": "boolean",
+              "approve": "boolean",
+              "reject": "boolean",
+              "resubmit": "boolean"
+            }
+          }
+        ]
+      }
     },
     {
       "name": "Deleted Records",
@@ -979,13 +1069,111 @@
       "name": "Record Search",
       "paged": true,
       "suffix": "/crm/v2/{Module API Name}/search?criteria={Criteria}&email={Email?}&phone={Phone?}&word={Word?}&converted={Converted?:true|false|both}&approved={Approved?:true|false|both}",
-      "description": "Records within one module matching criteria, an email, a phone number or a word. Requires the module API name. The criteria syntax is Zoho's own and is evaluated server-side."
+      "description": "Records within one module matching criteria, an email, a phone number or a word. Requires the module API name. The criteria syntax is Zoho's own and is evaluated server-side.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "Owner": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Modified_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_Time": "timeInstant",
+            "Modified_Time": "timeInstant",
+            "Last_Activity_Time": "timeInstant",
+            "Tag": [
+              {
+                "name": "string",
+                "id": "string"
+              }
+            ],
+            "$state": "string",
+            "$approved": "boolean",
+            "$editable": "boolean",
+            "$approval_state": "string",
+            "$approval": {
+              "delegate": "boolean",
+              "approve": "boolean",
+              "reject": "boolean",
+              "resubmit": "boolean"
+            }
+          }
+        ],
+        "info": {
+          "call": "boolean",
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "email": "boolean",
+          "more_records": "boolean"
+        }
+      }
     },
     {
       "name": "Related Records",
       "paged": true,
       "suffix": "/crm/v2/{Module API Name}/{Record ID}/{Related List API Name}",
-      "description": "The records related to one record through a named relationship -- a deal's contacts, an account's deals. Requires the module, record id and the related list's API name, which comes from Related Lists. How the object graph is actually traversed."
+      "description": "The records related to one record through a named relationship -- a deal's contacts, an account's deals. Requires the module, record id and the related list's API name, which comes from Related Lists. How the object graph is actually traversed.",
+      "responseSchema": {
+        "data": [
+          {
+            "id": "string",
+            "Owner": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Modified_By": {
+              "name": "string",
+              "id": "string",
+              "email": "string"
+            },
+            "Created_Time": "timeInstant",
+            "Modified_Time": "timeInstant",
+            "Last_Activity_Time": "timeInstant",
+            "Tag": [
+              {
+                "name": "string",
+                "id": "string"
+              }
+            ],
+            "$state": "string",
+            "$approved": "boolean",
+            "$editable": "boolean",
+            "$approval_state": "string",
+            "$approval": {
+              "delegate": "boolean",
+              "approve": "boolean",
+              "reject": "boolean",
+              "resubmit": "boolean"
+            }
+          }
+        ],
+        "info": {
+          "call": "boolean",
+          "per_page": "double",
+          "count": "double",
+          "page": "double",
+          "email": "boolean",
+          "more_records": "boolean"
+        }
+      }
     },
     {
       "name": "Variables",
@@ -1366,7 +1554,40 @@
       "name": "Shared Record",
       "paged": false,
       "suffix": "/crm/v2/{Module API Name}/{Record ID}/actions/share?sharedTo={Shared To?}&view={View?:summary|manage}",
-      "description": "Who one record has been shared with and at what permission. Requires the module and record id. Sharing overrides the role hierarchy, so this explains access the hierarchy does not."
+      "description": "Who one record has been shared with and at what permission. Requires the module and record id. Sharing overrides the role hierarchy, so this explains access the hierarchy does not.",
+      "responseSchema": {
+        "share": [
+          {
+            "share_related_records": "boolean",
+            "shared_through": {
+              "module": {
+                "name": "string",
+                "id": "string"
+              },
+              "id": "string"
+            },
+            "shared_time": "timeInstant",
+            "permission": "string",
+            "shared_by": {
+              "full_name": "string",
+              "id": "string",
+              "zuid": "string"
+            },
+            "user": {
+              "full_name": "string",
+              "id": "string",
+              "zuid": "string"
+            }
+          }
+        ],
+        "shareable_user": [
+          {
+            "full_name": "string",
+            "id": "string",
+            "zuid": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Notifications",

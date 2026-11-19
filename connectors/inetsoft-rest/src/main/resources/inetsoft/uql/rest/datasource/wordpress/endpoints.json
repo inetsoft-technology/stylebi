@@ -13,7 +13,24 @@
       "name": "Site User",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/users/login:{User Login}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One site user by login. Requires the site."
+      "description": "One site user by login. Requires the site.",
+      "responseSchema": {
+        "ID": "double",
+        "login": "string",
+        "email": "string",
+        "name": "string",
+        "first_name": "string",
+        "last_name": "string",
+        "nice_name": "string",
+        "URL": "string",
+        "avatar_URL": "string",
+        "profile_URL": "string",
+        "site_ID": "double",
+        "roles": [
+          "string"
+        ],
+        "is_super_admin": "boolean"
+      }
     },
     {
       "name": "Current User Metadata",
@@ -133,25 +150,67 @@
       "name": "Current User Preferences",
       "paged": false,
       "suffix": "/v1.1/me/preferences?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The caller's interface preferences."
+      "description": "The caller's interface preferences.",
+      "responseSchema": {
+        "calypso_preferences": {
+          "*": "string"
+        }
+      }
     },
     {
       "name": "Current User Profile Links",
       "paged": false,
       "suffix": "/v1.1/me/settings/profile-links?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The links on the caller's public profile."
+      "description": "The links on the caller's public profile.",
+      "responseSchema": {
+        "profile_links": [
+          {
+            "link_slug": "string",
+            "title": "string",
+            "value": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Current User Connected Applications",
       "paged": false,
       "suffix": "/v1.1/me/connected-applications?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The third-party applications authorised against the caller's account. Security inventory."
+      "description": "The third-party applications authorised against the caller's account. Security inventory.",
+      "responseSchema": {
+        "connected_applications": [
+          {
+            "ID": "string",
+            "URL": "string",
+            "login": "string",
+            "scope": "string",
+            "authorized": "timeInstant",
+            "description": "string",
+            "icon": "string",
+            "permissions": [
+              "string"
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "Current User Connected Application",
       "paged": false,
       "suffix": "/v1.1/me/connected-applications/{Application ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One connected application by id."
+      "description": "One connected application by id.",
+      "responseSchema": {
+        "ID": "string",
+        "URL": "string",
+        "login": "string",
+        "scope": "string",
+        "authorized": "timeInstant",
+        "description": "string",
+        "icon": "string",
+        "permissions": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Current User Likes",
@@ -166,13 +225,23 @@
       "name": "Site Shortcodes",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/shortcodes?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The shortcodes available on one site. Content embedded through these is invisible in raw post content, which is worth knowing when post text seems incomplete."
+      "description": "The shortcodes available on one site. Content embedded through these is invisible in raw post content, which is worth knowing when post text seems incomplete.",
+      "responseSchema": {
+        "shortcodes": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Site Embeds",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/embeds?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The embed providers one site supports."
+      "description": "The embed providers one site supports.",
+      "responseSchema": {
+        "embeds": [
+          "string"
+        ]
+      }
     },
     {
       "name": "Site",
@@ -259,7 +328,17 @@
       "name": "Site Widgets",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/widgets?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The widgets configured on one site."
+      "description": "The widgets configured on one site.",
+      "responseSchema": {
+        "widgets": [
+          {
+            "id": "string",
+            "sidebar": "string",
+            "position": "double",
+            "id_base": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Site WordAds Settings",
@@ -388,13 +467,33 @@
       "name": "Site Widget",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/widgets/widget:{Widget ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One widget by id."
+      "description": "One widget by id.",
+      "responseSchema": {
+        "id": "string",
+        "sidebar": "string",
+        "position": "double",
+        "id_base": "string"
+      }
     },
     {
       "name": "Site Theme Headers",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/headers/{Theme Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The header images available for one theme. Requires the site and theme slug."
+      "description": "The header images available for one theme. Requires the site and theme slug.",
+      "responseSchema": {
+        "random_default": "boolean",
+        "random_uploaded": "boolean",
+        "text_color": "string",
+        "url": "string",
+        "width": "double",
+        "height": "double",
+        "defaults": {
+          "url": "string",
+          "text_color": "string",
+          "header_text": "boolean",
+          "random_default": "boolean"
+        }
+      }
     },
     {
       "name": "Site Headers",
@@ -869,13 +968,19 @@
       "name": "Post Subscribers",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/subscribers?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Who subscribed to one post's comments. Requires the site and post id."
+      "description": "Who subscribed to one post's comments. Requires the site and post id.",
+      "responseSchema": {
+        "found": "double"
+      }
     },
     {
       "name": "Current User Post Subscription Status",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/subscribers/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Whether the caller subscribes to one post."
+      "description": "Whether the caller subscribes to one post.",
+      "responseSchema": {
+        "i_subscribe": "boolean"
+      }
     },
     {
       "name": "Current User Post Reblog Status",
@@ -998,7 +1103,14 @@
       "name": "Comment Audit History",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/comment-history/{Comment ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The moderation history of one comment -- approvals, spam marks and edits. Requires the site and comment id. Why a comment is in its current state, which the comment itself does not say."
+      "description": "The moderation history of one comment -- approvals, spam marks and edits. Requires the site and comment id. Why a comment is in its current state, which the comment itself does not say.",
+      "responseSchema": {
+        "comment_history": [
+          {
+            "*": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Comment Likes",
@@ -1101,7 +1213,15 @@
       "name": "Taxonomy Term",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/taxonomies/{Taxonomy}/terms/slug:{Term Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One taxonomy term by slug. Requires the site and taxonomy."
+      "description": "One taxonomy term by slug. Requires the site and taxonomy.",
+      "responseSchema": {
+        "ID": "string",
+        "name": "string",
+        "slug": "string",
+        "description": "string",
+        "post_count": "double",
+        "parent": "double"
+      }
     },
     {
       "name": "Post Type Taxonomies",
@@ -1125,7 +1245,10 @@
       "name": "Site Followers",
       "paged": true,
       "suffix": "/v1.1/sites/{Site ID or Domain}/follows?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The followers of one site. Requires a site. The audience list behind the follower count."
+      "description": "The followers of one site. Requires a site. The audience list behind the follower count.",
+      "responseSchema": {
+        "found": "double"
+      }
     },
     {
       "name": "Current User Blog Following Status",
@@ -1385,19 +1508,52 @@
       "name": "Insights Data",
       "paged": false,
       "suffix": "/v1.1/insights/{Report Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&unit={Unit?:daily|monthly|cumulative}&after={Since?:Unix Timestamp}&before={Before?:Unix Timestamp}",
-      "description": "One insight report by slug."
+      "description": "One insight report by slug.",
+      "responseSchema": {
+        "*": "string"
+      }
     },
     {
       "name": "Default Reader Menu",
       "paged": false,
       "suffix": "/v1.1/read/menu?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The Reader's default menu structure. Interface configuration."
+      "description": "The Reader's default menu structure. Interface configuration.",
+      "responseSchema": {
+        "default": [
+          {
+            "*": "string"
+          }
+        ],
+        "subscribed": [
+          {
+            "*": "string"
+          }
+        ],
+        "recommended": [
+          {
+            "*": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Feed",
       "paged": false,
       "suffix": "/v1.1/read/feed/{Feed URL or ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "One feed by URL or id, with its recent posts."
+      "description": "One feed by URL or id, with its recent posts.",
+      "responseSchema": {
+        "blog_ID": "string",
+        "feed_ID": "string",
+        "name": "string",
+        "URL": "string",
+        "feed_URL": "string",
+        "subscribers_count": "double",
+        "is_following": "boolean",
+        "last_update": "string",
+        "last_checked": "string",
+        "marked_for_refresh": "boolean",
+        "next_refresh_time": "string"
+      }
     },
     {
       "name": "Followed Blog Posts",
@@ -1657,7 +1813,17 @@
           "parameterName": "Tag"
         }
       ],
-      "description": "The tags the caller follows in the Reader."
+      "description": "The tags the caller follows in the Reader.",
+      "responseSchema": {
+        "tags": [
+          {
+            "ID": "string",
+            "slug": "string",
+            "title": "string",
+            "display_name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Trending Tags",
@@ -1674,7 +1840,17 @@
           "parameterName": "Tag"
         }
       ],
-      "description": "The tags trending across WordPress.com. A snapshot with no history behind it."
+      "description": "The tags trending across WordPress.com. A snapshot with no history behind it.",
+      "responseSchema": {
+        "tags": [
+          {
+            "ID": "string",
+            "slug": "string",
+            "title": "string",
+            "display_name": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Tag",
@@ -1700,19 +1876,49 @@
       "name": "Followed Feeds",
       "paged": false,
       "suffix": "/v1.1/read/following/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The feeds the caller follows."
+      "description": "The feeds the caller follows.",
+      "responseSchema": {
+        "subscriptions": [
+          {
+            "ID": "double",
+            "blog_ID": "double",
+            "feed_ID": "double",
+            "URL": "string",
+            "date_subscribed": "timeInstant"
+          }
+        ]
+      }
     },
     {
       "name": "Feed Search",
       "paged": true,
       "suffix": "/v1.1/read/feed?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&url={Site Domain or URL?}&q={Query Text?}&exclude_followed={Exclude Already Followed Sites?:true|false}",
-      "description": "Feeds matching a query. Discovery within the Reader."
+      "description": "Feeds matching a query. Discovery within the Reader.",
+      "responseSchema": {
+        "feeds": [
+          {
+            "subscribe_URL": "string",
+            "feed_ID": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Recommended Blogs",
       "paged": false,
       "suffix": "/v1.1/read/recommendations/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&exclude={Exclude Blog IDs?,:id1,id2,...}&lang={Language Code?}&source={Source?:mobile|reader_sidebar|...}",
-      "description": "Blogs WordPress.com recommends to the caller. Algorithmic suggestion rather than data."
+      "description": "Blogs WordPress.com recommends to the caller. Algorithmic suggestion rather than data.",
+      "responseSchema": {
+        "blogs": [
+          {
+            "blog_ID": "double",
+            "feed_ID": "double",
+            "blog_name": "string",
+            "blog_URL": "string",
+            "blog_description": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Site Statistics",
@@ -1887,7 +2093,15 @@
       "name": "Site Publicize Follower Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/publicize?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "Follower counts on the connected social accounts. Reach beyond the site itself."
+      "description": "Follower counts on the connected social accounts. Reach beyond the site itself.",
+      "responseSchema": {
+        "services": [
+          {
+            "service": "string",
+            "followers": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Site Search Term Statistics",
@@ -1912,7 +2126,12 @@
       "name": "Calendar Heatmap Statistics",
       "paged": false,
       "suffix": "/v1.1/sites/{Site ID or Domain}/stats/streak?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&startDate={Start Date?:yyyy-MM-dd}&endDate={End Date?:yyyy-MM-dd}&max={Maximum Number of Posts to Return?}",
-      "description": "Posting activity by day, as the data behind a contribution-style heatmap. Publishing cadence rather than readership."
+      "description": "Posting activity by day, as the data behind a contribution-style heatmap. Publishing cadence rather than readership.",
+      "responseSchema": {
+        "data": {
+          "*": "double"
+        }
+      }
     },
     {
       "name": "Media Item",
@@ -2032,13 +2251,47 @@
       "name": "Video Metadata",
       "paged": false,
       "suffix": "/v1.1/videos/{Video ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&birth_month={Birth Month?}&birth_day={Birth Day?}&birth_year={Birth Year?}",
-      "description": "The metadata of one VideoPress video -- duration, dimensions and processing state. Requires a video id."
+      "description": "The metadata of one VideoPress video -- duration, dimensions and processing state. Requires a video id.",
+      "responseSchema": {
+        "title": "string",
+        "description": "string",
+        "width": "double",
+        "height": "double",
+        "duration": "double",
+        "display_embed": "boolean",
+        "allow_download": "boolean",
+        "rating": "string",
+        "privacy_setting": "double",
+        "poster": "string",
+        "original": "string",
+        "watermark": "string",
+        "bg_color": "string",
+        "files": {
+          "*": "string"
+        },
+        "file_url_base": {
+          "*": "string"
+        },
+        "blog_id": "double",
+        "post_id": "double",
+        "upload_date": "string",
+        "finished": "boolean",
+        "files_status": {
+          "*": "string"
+        },
+        "subtitles": {
+          "*": "string"
+        }
+      }
     },
     {
       "name": "Video Poster",
       "paged": false,
       "suffix": "/v1.1/videos/{Video ID}/poster?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
-      "description": "The poster image of one video."
+      "description": "The poster image of one video.",
+      "responseSchema": {
+        "poster": "string"
+      }
     }
   ]
 }

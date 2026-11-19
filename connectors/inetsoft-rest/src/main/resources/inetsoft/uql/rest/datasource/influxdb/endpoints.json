@@ -5,21 +5,59 @@
       "paged": false,
       "suffix": "/debug/requests/?seconds={Seconds?}",
       "post": false,
-      "description": "The requests the instance received over a recent window, by user and database. Operational, and useful for finding which client is generating load."
+      "description": "The requests the instance received over a recent window, by user and database. Operational, and useful for finding which client is generating load.",
+      "responseSchema": {
+        "*": {
+          "writes": "double",
+          "queries": "double"
+        }
+      }
     },
     {
       "name": "V1 Statistics",
       "paged": false,
       "suffix": "/debug/vars",
       "post": false,
-      "description": "The instance's internal statistics in the v1 debug format. Operational."
+      "description": "The instance's internal statistics in the v1 debug format. Operational.",
+      "responseSchema": {
+        "cmdline": [
+          "string"
+        ]
+      }
     },
     {
       "name": "V1 Query",
       "paged": false,
       "suffix": "/query?db={Database Name}&q={Query Statement}&chunked={Chunked?:true|false}&epoch={Epoch?:ns|U|ms|s|m|h}",
       "post": false,
-      "description": "Runs an INFLUXQL query against a v1-style database. Requires the database name and the statement. The compatibility endpoint for installations and tools written against InfluxDB 1.x; it returns JSON rather than the CSV the Flux endpoint returns, which is why both exist."
+      "description": "Runs an INFLUXQL query against a v1-style database. Requires the database name and the statement. The compatibility endpoint for installations and tools written against InfluxDB 1.x; it returns JSON rather than the CSV the Flux endpoint returns, which is why both exist.",
+      "responseSchema": {
+        "results": [
+          {
+            "statement_id": "double",
+            "series": [
+              {
+                "name": "string",
+                "tags": {
+                  "*": "string"
+                },
+                "columns": [
+                  "string"
+                ],
+                "values": [
+                  [
+                    "string"
+                  ]
+                ],
+                "partial": "boolean"
+              }
+            ],
+            "partial": "boolean",
+            "error": "string"
+          }
+        ],
+        "error": "string"
+      }
     },
     {
       "name": "Authorizations",
@@ -1474,14 +1512,62 @@
       "paged": false,
       "suffix": "/query/analyze",
       "post": true,
-      "description": "Checks a Flux query for errors without running it. Sent as a POST with the query in the request body, like the query endpoint itself. Validation rather than data -- useful for confirming a generated query before spending a long-running request on it."
+      "description": "Checks a Flux query for errors without running it. Sent as a POST with the query in the request body, like the query endpoint itself. Validation rather than data -- useful for confirming a generated query before spending a long-running request on it.",
+      "responseSchema": {
+        "errors": [
+          {
+            "character": "double",
+            "column": "double",
+            "line": "double",
+            "message": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Generate Abstract Syntax Tree from a Query",
       "paged": false,
       "suffix": "/api/v2/query/ast",
       "post": true,
-      "description": "Parses a Flux query into its syntax tree. For tooling that manipulates queries programmatically; of no analytical use."
+      "description": "Parses a Flux query into its syntax tree. For tooling that manipulates queries programmatically; of no analytical use.",
+      "responseSchema": {
+        "ast": {
+          "type": "string",
+          "package": "string",
+          "path": "string",
+          "files": [
+            {
+              "type": "string",
+              "name": "string",
+              "package": {
+                "type": "string",
+                "name": {
+                  "type": "string",
+                  "name": "string"
+                }
+              },
+              "imports": [
+                {
+                  "type": "string",
+                  "as": {
+                    "type": "string",
+                    "name": "string"
+                  },
+                  "path": {
+                    "type": "string",
+                    "value": "string"
+                  }
+                }
+              ],
+              "body": [
+                {
+                  "type": "string"
+                }
+              ]
+            }
+          ]
+        }
+      }
     },
     {
       "name": "Instance Readiness",
@@ -2370,7 +2456,10 @@
       "paged": false,
       "suffix": "/api/v2/flags",
       "post": false,
-      "description": "The feature flags in force for the caller. Explains why a documented capability is or is not present."
+      "description": "The feature flags in force for the caller. Explains why a documented capability is or is not present.",
+      "responseSchema": {
+        "*": "string"
+      }
     },
     {
       "name": "Current User",

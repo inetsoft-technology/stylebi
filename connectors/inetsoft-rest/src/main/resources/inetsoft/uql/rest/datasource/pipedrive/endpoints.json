@@ -1381,7 +1381,28 @@
       "name": "Filter Helpers",
       "paged": true,
       "suffix": "/v1/filters/helpers",
-      "description": "The fields, operators and value types filters can be built from. Reference data for constructing or interpreting a filter's conditions."
+      "description": "The fields, operators and value types filters can be built from. Reference data for constructing or interpreting a filter's conditions.",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "operators": {
+            "*": {
+              "*": "string"
+            }
+          },
+          "deprecated_operators": {
+            "*": "string"
+          },
+          "relative_dates": {
+            "*": {
+              "*": "string"
+            }
+          },
+          "address_field_components": {
+            "*": "string"
+          }
+        }
+      }
     },
     {
       "name": "Filter",
@@ -1430,7 +1451,15 @@
       "name": "Global Messages",
       "paged": true,
       "suffix": "/v1/globalMessages",
-      "description": "Announcement messages shown to the user in the Pipedrive interface. REMOVED: absent from Pipedrive's current API description, and product announcements rather than CRM data in any case."
+      "description": "Announcement messages shown to the user in the Pipedrive interface. REMOVED: absent from Pipedrive's current API description, and product announcements rather than CRM data in any case.",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double"
+          }
+        ]
+      }
     },
     {
       "name": "Goals",
@@ -2769,7 +2798,21 @@
       "name": "Permission Set",
       "paged": false,
       "suffix": "/v1/permissionSets/{Permission Set ID}",
-      "description": "One permission set by id, with the capabilities it contains."
+      "description": "One permission set by id, with the capabilities it contains.",
+      "responseSchema": {
+        "success": "boolean",
+        "data": {
+          "id": "string",
+          "name": "string",
+          "description": "string",
+          "app": "string",
+          "type": "string",
+          "assignment_count": "double",
+          "contents": [
+            "string"
+          ]
+        }
+      }
     },
     {
       "name": "Permission Set Assignments",
@@ -4222,7 +4265,28 @@
       "name": "Recent Changes",
       "paged": true,
       "suffix": "/v1/recents?since_timestamp={Since Timestamp:YYYY-MM-DDTHH:mm:ssZ}&items={Items?:activity|activityType|...}",
-      "description": "Everything created or modified across the account since a given timestamp -- deals, persons, organizations, activities, notes, files, users and more in ONE feed, each row tagged with its item type. Requires a since_timestamp. This is the incremental-sync endpoint: it exists so a downstream copy can be kept current without re-reading every collection, and it is the only place a single query spans all object types. Rows of different types have different shapes, so it cannot be treated as one uniform table."
+      "description": "Everything created or modified across the account since a given timestamp -- deals, persons, organizations, activities, notes, files, users and more in ONE feed, each row tagged with its item type. Requires a since_timestamp. This is the incremental-sync endpoint: it exists so a downstream copy can be kept current without re-reading every collection, and it is the only place a single query spans all object types. Rows of different types have different shapes, so it cannot be treated as one uniform table.",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "item": "string",
+            "id": "double",
+            "data": {
+              "*": "string"
+            }
+          }
+        ],
+        "additional_data": {
+          "since_timestamp": "string",
+          "last_timestamp_on_page": "string",
+          "pagination": {
+            "start": "double",
+            "limit": "double",
+            "more_items_in_collection": "boolean"
+          }
+        }
+      }
     },
     {
       "name": "Roles",
@@ -4323,7 +4387,28 @@
       "name": "Sub-roles",
       "paged": true,
       "suffix": "/v1/roles/{Role ID}/roles",
-      "description": "The roles nested under one role. REMOVED: absent from Pipedrive's current API description. The hierarchy is still readable from the parent_role_id column on Roles."
+      "description": "The roles nested under one role. REMOVED: absent from Pipedrive's current API description. The hierarchy is still readable from the parent_role_id column on Roles.",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "parent_role_id": "double",
+            "name": "string",
+            "id": "double",
+            "active_flag": "boolean",
+            "assignment_count": "string",
+            "sub_role_count": "string",
+            "level": "double"
+          }
+        ],
+        "additional_data": {
+          "pagination": {
+            "start": "double",
+            "limit": "double",
+            "more_items_in_collection": "boolean"
+          }
+        }
+      }
     },
     {
       "name": "Role Settings",
@@ -4802,7 +4887,17 @@
       "name": "Blacklisted Email Addresses",
       "paged": true,
       "suffix": "/v1/users/{User ID}/blacklistedEmails",
-      "description": "Email addresses excluded from one user's mail sync. Requires a user id. REMOVED: absent from Pipedrive's current API description."
+      "description": "Email addresses excluded from one user's mail sync. Requires a user id. REMOVED: absent from Pipedrive's current API description.",
+      "responseSchema": {
+        "success": "boolean",
+        "data": [
+          {
+            "id": "double",
+            "address": "string",
+            "add_time": "string"
+          }
+        ]
+      }
     },
     {
       "name": "User Followers",
