@@ -243,6 +243,71 @@ class JobCompletionListenerStatusTest {
       assertSame(triggerUser, auditPrincipals.get(0));
    }
 
+   @Test
+   void stoppedBackgroundMVStageOneRemovesItselfAndItsStageTwo() throws Exception {
+      ScheduleTask stage1 = mvTask("mv-stop-stage1");
+      ScheduleTask stage2 = mvTask("mv-stop-stage2");
+      stage2.addCondition(new CompletionCondition(stage1.getTaskId()));
+      harness.registerTask(stage1);
+      harness.registerTask(stage2);
+
+      JobDataMap data = jobData(stage1);
+      data.put("inetsoft.cancelled", Boolean.TRUE);
+      listener.jobWasExecuted(context(stage1, data, new JobDataMap(), new Date(), 10L), null);
+
+      assertFalse(harness.getQuartz().checkExists(key(stage2)),
+                  "stage 2 can never run once stage 1 was stopped");
+      assertFalse(harness.getQuartz().checkExists(key(stage1)));
+   }
+
+   @Test
+   void failedBackgroundMVStageOneRemovesStageTwoButKeepsItself() throws Exception {
+      ScheduleTask stage1 = mvTask("mv-fail-stage1");
+      ScheduleTask stage2 = mvTask("mv-fail-stage2");
+      stage2.addCondition(new CompletionCondition(stage1.getTaskId()));
+      harness.registerTask(stage1);
+      harness.registerTask(stage2);
+
+      listener.jobWasExecuted(context(stage1, jobData(stage1), new JobDataMap(), new Date(), 10L),
+                              new JobExecutionException("boom"));
+
+      assertFalse(harness.getQuartz().checkExists(key(stage2)));
+      assertTrue(harness.getQuartz().checkExists(key(stage1)), "stage 1 keeps its error");
+      assertEquals(Scheduler.Status.FAILED,
+                   harness.getDao().getStatus(stage1.getTaskId()).getStatus());
+   }
+
+   @Test
+   void stoppedOrdinaryTaskKeepsItsDependants() throws Exception {
+      ScheduleTask parent = task("ordinary-stop-parent");
+      parent.setDeleteIfNoMoreRun(true);
+      ScheduleTask child = task("ordinary-stop-child");
+      child.setDeleteIfNoMoreRun(true);
+      child.addCondition(new CompletionCondition(parent.getTaskId()));
+      harness.registerTask(parent);
+      harness.registerTask(child);
+
+      JobDataMap data = jobData(parent);
+      data.put("inetsoft.cancelled", Boolean.TRUE);
+      listener.jobWasExecuted(context(parent, data, new JobDataMap(), new Date(), 10L), null);
+
+      assertTrue(harness.getQuartz().checkExists(key(child)));
+      assertTrue(harness.getQuartz().checkExists(key(parent)));
+   }
+
+   private static org.quartz.JobKey key(ScheduleTask task) {
+      return new org.quartz.JobKey(task.getTaskId(), Scheduler.GROUP_NAME);
+   }
+
+   private ScheduleTask mvTask(String name) {
+      ScheduleTask task = new ScheduleTask(name, ScheduleTask.Type.MV_TASK);
+      task.setOwner(SchedulerTestHarness.TEST_OWNER);
+      task.setDeleteIfNoMoreRun(true);
+      task.setEditable(false);
+      task.addAction(mock(ScheduleAction.class));
+      return task;
+   }
+
    private ScheduleTask task(String name) {
       ScheduleTask task = new ScheduleTask(name);
       task.setOwner(SchedulerTestHarness.TEST_OWNER);

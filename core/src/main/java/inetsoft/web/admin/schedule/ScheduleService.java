@@ -1954,7 +1954,8 @@ public class ScheduleService {
             "Unauthorized access to resource \"%s\" by %s", taskName, principal));
       }
 
-      boolean dependence = scheduleManager.hasDependency(allTasks, taskName);
+      String dependant = scheduleManager.findDependant(allTasks, taskName);
+      boolean dependence = dependant != null;
 
       // log delete task action
       String actionName = ActionRecord.ACTION_NAME_DELETE;
@@ -1972,7 +1973,8 @@ public class ScheduleService {
          else {
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
             actionRecord.setActionError(catalog.getString(
-               "em.schedule.task.removeDependency", SUtil.getTaskNameWithoutOrg(taskName)));
+               "em.schedule.task.removeDependencyOn", SUtil.getTaskNameWithoutOrg(taskName),
+               SUtil.getTaskNameWithoutOrg(dependant)));
             throw new MessageException(actionRecord.getActionError());
          }
       }
