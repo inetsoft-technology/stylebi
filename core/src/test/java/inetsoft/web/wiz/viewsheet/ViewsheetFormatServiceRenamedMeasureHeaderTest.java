@@ -125,7 +125,12 @@ class ViewsheetFormatServiceRenamedMeasureHeaderTest {
       VSCrosstabInfo cinfo = new VSCrosstabInfo();
       cinfo.setDesignRowHeaders(new VSDimensionRef[]{ regionDim });
       cinfo.setDesignColHeaders(new VSDimensionRef[0]);
-      cinfo.setDesignAggregates(new VSAggregateRef[]{ amtAgg });
+      cinfo.setSummarySideBySide(true);
+      VSAggregateRef qtyAgg = new VSAggregateRef();
+      qtyAgg.setDataRef(new AttributeRef(ENTITY, "QTY"));
+      qtyAgg.setColumnValue("QTY");
+      qtyAgg.setFormulaValue(AggregateFormula.SUM.getFormulaName());
+      cinfo.setDesignAggregates(new VSAggregateRef[]{ amtAgg, qtyAgg });
       crosstab.setVSCrosstabInfo(cinfo);
 
       Worksheet ws = new Worksheet();
@@ -134,17 +139,18 @@ class ViewsheetFormatServiceRenamedMeasureHeaderTest {
       cs.addAttribute(new ColumnRef(new AttributeRef(ENTITY, "REGION")));
       cs.addAttribute(new ColumnRef(new AttributeRef(ENTITY, "YR")));
       cs.addAttribute(new ColumnRef(new AttributeRef(ENTITY, "AMT")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(ENTITY, "QTY")));
       table.setColumnSelection(cs, false);
 
       // Same body values as the VFM-044 regression fixture (docs/teams/.../vfm-044.test.js).
       Object[][] rows = new Object[][]{
-         { "REGION", "YR", "AMT" },
-         { "East", "Y2023", 10.0 }, { "East", "Y2024", -12.0 },
-         { "West", "Y2023", 20.0 }, { "West", "Y2024", 22.0 },
-         { "North", "Y2023", -5.0 }, { "North", "Y2024", 7.0 },
+         { "REGION", "YR", "AMT", "QTY" },
+         { "East", "Y2023", 10.0, 1.0 }, { "East", "Y2024", -12.0, 1.0 },
+         { "West", "Y2023", 20.0, 1.0 }, { "West", "Y2024", 22.0, 1.0 },
+         { "North", "Y2023", -5.0, 1.0 }, { "North", "Y2024", 7.0, 1.0 },
       };
       table.setEmbeddedData(
-         new XEmbeddedTable(new String[]{ "string", "string", "double" }, rows));
+         new XEmbeddedTable(new String[]{ "string", "string", "double", "double" }, rows));
       ws.addAssembly(table);
 
       Method setBaseWorksheet =
@@ -207,13 +213,33 @@ class ViewsheetFormatServiceRenamedMeasureHeaderTest {
       for(String target : List.of("data", "header")) {
          TableDataPath[] byLabel = resolve(target, "Revenue");
          TableDataPath[] byName = resolve(target, "AMT");
-         // A single-measure crosstab renders its measure header as GROUP_HEADER, which the
-         // header target does not collect, so only the data target has paths here; the header
-         // target must still accept the label instead of refusing it.
-         assertTrue("header".equals(target) || byLabel.length > 0,
+         assertTrue(byLabel.length > 0,
                     target + ": no paths resolved for the renamed label");
          assertEquals(List.of(byName), List.of(byLabel), target);
       }
+   }
+
+   /**
+    * Bug 81582 follow-up: side-by-side measures with no column dimension render each measure's
+    * header as GROUP_HEADER; header + field must still return exactly that measure's header
+    * cell, renamed or not, instead of an empty array.
+    */
+   @Test
+   void headerTargetScopesToOneMeasureOnSideBySideWithoutColumnDimension() throws Exception {
+      renameHeaders("Revenue");
+
+      TableDataPath[] amt = resolve("header", "AMT");
+      TableDataPath[] qty = resolve("header", "QTY");
+      assertEquals(1, amt.length, "AMT header cells");
+      assertEquals(1, qty.length, "QTY header cells");
+      assertEquals(List.of(amt), List.of(resolve("header", "Revenue")));
+      assertTrue(!List.of(amt).equals(List.of(qty)), "measures must not share a header path");
+   }
+
+   @Test
+   void headerTargetUnknownMeasureNamesTheMeasureNotRenderedRows() {
+      Exception e = assertThrows(Exception.class, () -> resolve("header", "Nope"));
+      assertTrue(e.getMessage().contains("is not an aggregate"), e.getMessage());
    }
 
    @Test

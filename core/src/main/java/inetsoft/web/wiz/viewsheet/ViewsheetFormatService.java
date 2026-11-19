@@ -3645,9 +3645,11 @@ public class ViewsheetFormatService {
                isHeaderFamilyType(path.getType());
 
             // Field-scoped on a Crosstab: within the header band, keep only this measure's own
-            // HEADER-typed measure-header cells.
-            if(isHeader && (measureKey == null || path.getType() == TableDataPath.HEADER &&
-               measureKey.equals(lastPathElement(path))))
+            // measure-header cells. Side-by-side measures with no column dimension render them
+            // as GROUP_HEADER (see CrossFilterDataDescriptor.fixSummaryHeaderPath), so that type
+            // is accepted too, but only in the header rows: a row-dimension value that happens
+            // to equal a measure name sits in the header columns and must not match.
+            if(isHeader && (measureKey == null || isMeasureHeaderCell(lens, row, path, measureKey)))
             {
                paths.add(path);
             }
@@ -3655,6 +3657,14 @@ public class ViewsheetFormatService {
       }
 
       return paths.toArray(new TableDataPath[0]);
+   }
+
+   private static boolean isMeasureHeaderCell(VSTableLens lens, int row, TableDataPath path,
+                                              String measureKey)
+   {
+      boolean type = path.getType() == TableDataPath.HEADER ||
+         path.getType() == TableDataPath.GROUP_HEADER && row < lens.getHeaderRowCount();
+      return type && measureKey.equals(lastPathElement(path));
    }
 
    private static boolean isHeaderFamilyType(int type) {
