@@ -227,6 +227,13 @@ $dark-ws-row-hover-bg: #302D27;
   // 8.5:1 on it, and about 7:1 on a pressed button (brightness(.9) darkens the text too).
   --inet-button-primary-hover-bg-color: #{$dark-link};
   --inet-button-primary-hover-border-color: #{$dark-link};
+  // A disabled primary button: the light shell fades the orange to .3 opacity, which on a dark
+  // surface turns a muddy brown with a ~1.5:1 label that reads as a dim active button. The dark
+  // shell uses Material 3's disabled values instead: on-surface at 12% for the container and 38%
+  // for the label (m3.material.io, states: disabled), translucent so they work on any dark surface.
+  // (230, 224, 233 = $dark-text-strong, the dark on-surface)
+  --inet-dark-disabled-primary-bg: rgba(230, 224, 233, 0.12);
+  --inet-dark-disabled-primary-text: rgba(230, 224, 233, 0.38);
   // error text: the danger color is kept for borders and fills, which pass 3:1, but as text it
   // reads 3.4:1 on the dark surface
   --inet-dark-danger-text-color: #{$dark-danger-text};
@@ -467,6 +474,16 @@ $dark-ws-row-hover-bg: #302D27;
     --bs-btn-disabled-border-color: var(--inet-button-light-border-color);
   }
 
+  // a disabled primary button takes the dark disabled values (see the tokens) at full opacity; also
+  // inside a disabled fieldset. Dashboard content keeps the light shell's faded orange.
+  .btn.btn-primary:is(:disabled, .disabled)#{$outside-content},
+  fieldset:disabled .btn.btn-primary#{$outside-content} {
+    opacity: 1;
+    color: var(--inet-dark-disabled-primary-text);
+    background-color: var(--inet-dark-disabled-primary-bg);
+    border-color: var(--inet-dark-disabled-primary-bg);
+  }
+
   .btn.btn-light-no-bg#{$outside-content} {
     --bs-btn-active-color: var(--inet-text-color);
     --bs-btn-active-bg: var(--inet-shell-selected-bg-color);
@@ -526,7 +543,8 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
   border-strong-color, input-bg-color, input-border-color, text-color, icon-color, stroke-color,
   drag-indicator-bg, drag-indicator-text-color, shadow-color, shadow-low-filter,
   on-primary-text-color, danger-text-color, warning-soft-color, info-soft-color, check-halo-color,
-  hover-ring-color, selected-tint-color, neutral-chip-color, neutral-chip-border-color;
+  hover-ring-color, selected-tint-color, neutral-chip-color, neutral-chip-border-color,
+  disabled-primary-bg, disabled-primary-text;
 
 // The hidden-annotation tooltip and the visible annotation's overflow tooltip. Other tooltips are
 // body-attached shell chrome and go dark, but these show the annotation's own rich text on the

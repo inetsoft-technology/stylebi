@@ -114,3 +114,26 @@ describe("worksheet detail rows", () => {
       expect(read("scss/_shell-dark.scss")).not.toMatch(/\.table-data__row/);
    });
 });
+
+describe("dark shell disabled primary button", () => {
+   const shellDark = () => read("scss/_shell-dark.scss");
+
+   it("declares Material 3's disabled values (on-surface at 12% and 38%) for the dark shell", () => {
+      const root = block(shellDark(), ":root.shell-dark");
+
+      expect(root).toMatch(/--inet-dark-disabled-primary-bg:\s*rgba\(230, 224, 233, 0\.12\);/);
+      expect(root).toMatch(/--inet-dark-disabled-primary-text:\s*rgba\(230, 224, 233, 0\.38\);/);
+   });
+
+   it("draws a disabled primary with them at full opacity, outside dashboard content", () => {
+      const css = shellDark();
+      // the selector list interpolates #{...}, so the declarations start at the " {" that ends a line
+      const rule = css.match(/\.btn\.btn-primary:is\(:disabled, \.disabled\)#\{\$outside-content\}[\s\S]*? \{\r?\n[^}]*\}/);
+
+      expect(rule).not.toBeNull();
+      expect(rule[0]).toMatch(/opacity:\s*1;/);
+      expect(rule[0]).toMatch(/color:\s*var\(--inet-dark-disabled-primary-text\);/);
+      expect(rule[0]).toMatch(/background-color:\s*var\(--inet-dark-disabled-primary-bg\);/);
+      expect(rule[0]).toMatch(/border-color:\s*var\(--inet-dark-disabled-primary-bg\);/);
+   });
+});
