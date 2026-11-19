@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.test.*;
 import inetsoft.util.Tool;
@@ -77,6 +78,7 @@ class DefaultCheckPermissionStrategyTest {
    static SRPrincipal sysAdmin;
    static SRPrincipal org_admin;
    static SRPrincipal normalUser;
+   static String oldMultiTenant;
 
    // Mock-based strategy — provider is fully stubbed, no storage I/O
    static final String TEST_ORG  = "testOrg";
@@ -88,6 +90,7 @@ class DefaultCheckPermissionStrategyTest {
 
    @BeforeAll
    static void before(@Autowired SecurityEngine securityEngine) throws Exception {
+      oldMultiTenant = SreeEnv.getProperty("security.users.multiTenant");
       securityEngine.enableSecurity();
       SUtil.setMultiTenant(true);
 
@@ -105,6 +108,11 @@ class DefaultCheckPermissionStrategyTest {
       IdentityID[] everyoneRoles = { new IdentityID("Everyone", "org0") };
       normalUser = new SRPrincipal(new IdentityID("normalUser", "org0"), everyoneRoles,
                                     new String[0], "org0", Tool.getSecureRandom().nextLong());
+   }
+
+   @AfterAll
+   static void restoreMultiTenant() {
+      SUtil.setMultiTenant(Boolean.parseBoolean(oldMultiTenant));
    }
 
    @BeforeEach
@@ -400,6 +408,37 @@ class DefaultCheckPermissionStrategyTest {
       }
    }
 
+   private static SecurityProvider strategyProvider() {
+      return SecurityEngine.getSecurity().getSecurityProvider();
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void wizPermissionNoRoleNoGroupUserHoldsOnlyEndUserPermissions(boolean multiTenant) {
+      SRPrincipal sso = new SRPrincipal(new IdentityID("ssoNoRoles", "org0"), new IdentityID[0],
+                                        new String[0], "org0", Tool.getSecureRandom().nextLong());
+
+      for(String name : inetsoft.web.wiz.WizPermissions.END_USER) {
+         assertTrue(wizCheck(strategy, sso, name, multiTenant),
+                    "end-user permission must default-allow without roles/groups: " + name);
+      }
+
+      for(String name : inetsoft.web.wiz.WizPermissions.ADMIN) {
+         assertFalse(wizCheck(strategy, sso, name, multiTenant),
+                     "admin permission must stay denied without roles/groups: " + name);
+      }
+   }
+
+   @Test
+   void wizPermissionAnonymousIsDeniedEverything() {
+      SRPrincipal anon = new SRPrincipal(new IdentityID("anonymous", "org0"), new IdentityID[0],
+                                         new String[0], "org0", Tool.getSecureRandom().nextLong());
+
+      for(String name : inetsoft.web.wiz.WizPermissions.ALL) {
+         assertFalse(wizCheck(strategy, anon, name, false), name);
+      }
+   }
+
    @ParameterizedTest
    @ValueSource(booleans = { false, true })
    void wizPermissionSystemAdminHoldsAll(boolean multiTenant) {
@@ -413,6 +452,15 @@ class DefaultCheckPermissionStrategyTest {
    @ValueSource(booleans = { false, true })
    void wizPermissionOrgAdministratorBehavior(boolean multiTenant) {
       List<String> held = new ArrayList<>();
+
+      // Why single tenant differs: XPrincipal.getAllRoles() drops the "Organization Administrator"
+      // role unless multi-tenant is on, so in single tenant the principal is not an org admin.
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(multiTenant);
+         boolean visible = Arrays.stream(org_admin.getAllRoles(strategyProvider()))
+            .anyMatch(r -> "Organization Administrator".equals(r.name));
+         assertEquals(multiTenant, visible);
+      }
 
       for(String name : inetsoft.web.wiz.WizPermissions.ALL) {
          if(wizCheck(strategy, org_admin, name, multiTenant)) {

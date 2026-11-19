@@ -125,6 +125,16 @@ class PortalControllerWizEntryTest {
    }
 
    @Test
+   void wizEntryIsVisibleForAUserWithoutRolesGroupsOrProviderRecord() throws Exception {
+      SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "true");
+      SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_URL, "https://wiz.example.com/");
+      SRPrincipal sso = builder.principalOf("ssoNoRolesWizEntry", ORG);
+      assertEquals(0, sso.getRoles().length);
+
+      assertTrue(controller.getUserPortal(sso, "/").wizVisible());
+   }
+
+   @Test
    void wizEntryIsHiddenWhenFlagIsOff() throws Exception {
       SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "false");
       SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_URL, "https://wiz.example.com/");

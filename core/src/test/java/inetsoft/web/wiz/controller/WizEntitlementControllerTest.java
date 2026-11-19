@@ -121,7 +121,10 @@ class WizEntitlementControllerTest {
 
    @Test
    void evaluatesOnPrincipalWithoutWizTagAndWithoutLoginCheck() throws Exception {
-      SRPrincipal wiz = wizPrincipal("alice");
+      SRPrincipal wiz = new SRPrincipal(new IdentityID("alice", "org0"),
+                                        new IdentityID[] { new IdentityID("Analyst", "org0") },
+                                        new String[] { "finance", "ops" }, "org0", 1L);
+      wiz.setProperty("wiz", "true");
       controller.getMyEntitlements(wiz);
 
       ArgumentCaptor<Principal> captor = ArgumentCaptor.forClass(Principal.class);
@@ -132,6 +135,9 @@ class WizEntitlementControllerTest {
          assertFalse(SRPrincipal.isWizPrincipal(checked));
          assertTrue(((SRPrincipal) checked).isIgnoreLogin());
          assertEquals(wiz.getName(), checked.getName());
+         assertArrayEquals(wiz.getRoles(), ((SRPrincipal) checked).getRoles());
+         assertArrayEquals(wiz.getGroups(), ((SRPrincipal) checked).getGroups());
+         assertEquals(wiz.getOrgId(), ((SRPrincipal) checked).getOrgId());
       }
 
       assertTrue(SRPrincipal.isWizPrincipal(wiz), "the caller's own principal is left untouched");
