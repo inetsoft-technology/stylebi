@@ -104,6 +104,21 @@ class ViewsheetFormatServiceRenamedMeasureHeaderTest {
 
    @BeforeEach
    void setUp() throws Exception {
+      build(1, false, false);
+   }
+
+   /**
+    * Renders a crosstab with one row dimension (REGION), the same {@code Sum(AMT)} bound
+    * {@code copies} times, an optional YR column dimension, and the given side-by-side setting.
+    */
+   private void build(int copies, boolean sideBySide, boolean colDim) throws Exception {
+      build(copies, sideBySide, colDim, false);
+   }
+
+   /** As above; {@code withQty} replaces all but the first aggregate with Sum(QTY). */
+   private void build(int copies, boolean sideBySide, boolean colDim, boolean withQty)
+      throws Exception
+   {
       viewsheet = new Viewsheet();
       crosstab = new CrosstabVSAssembly(viewsheet, "Crosstab1");
       crosstab.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
@@ -117,20 +132,29 @@ class ViewsheetFormatServiceRenamedMeasureHeaderTest {
       yrDim.setDataRef(new AttributeRef(ENTITY, "YR"));
       yrDim.setGroupColumnValue("YR");
 
-      VSAggregateRef amtAgg = new VSAggregateRef();
-      amtAgg.setDataRef(new AttributeRef(ENTITY, "AMT"));
-      amtAgg.setColumnValue("AMT");
-      amtAgg.setFormulaValue(AggregateFormula.SUM.getFormulaName());
+      VSAggregateRef[] aggs = new VSAggregateRef[copies];
+
+      for(int i = 0; i < copies; i++) {
+         aggs[i] = new VSAggregateRef();
+         aggs[i].setDataRef(new AttributeRef(ENTITY, "AMT"));
+         aggs[i].setColumnValue("AMT");
+         aggs[i].setFormulaValue(AggregateFormula.SUM.getFormulaName());
+      }
 
       VSCrosstabInfo cinfo = new VSCrosstabInfo();
       cinfo.setDesignRowHeaders(new VSDimensionRef[]{ regionDim });
-      cinfo.setDesignColHeaders(new VSDimensionRef[0]);
-      cinfo.setSummarySideBySide(true);
-      VSAggregateRef qtyAgg = new VSAggregateRef();
-      qtyAgg.setDataRef(new AttributeRef(ENTITY, "QTY"));
-      qtyAgg.setColumnValue("QTY");
-      qtyAgg.setFormulaValue(AggregateFormula.SUM.getFormulaName());
-      cinfo.setDesignAggregates(new VSAggregateRef[]{ amtAgg, qtyAgg });
+      cinfo.setDesignColHeaders(colDim ? new VSDimensionRef[]{ yrDim } : new VSDimensionRef[0]);
+      cinfo.setSummarySideBySide(sideBySide);
+
+      if(withQty) {
+         VSAggregateRef qtyAgg = new VSAggregateRef();
+         qtyAgg.setDataRef(new AttributeRef(ENTITY, "QTY"));
+         qtyAgg.setColumnValue("QTY");
+         qtyAgg.setFormulaValue(AggregateFormula.SUM.getFormulaName());
+         aggs = new VSAggregateRef[]{ aggs[0], qtyAgg };
+      }
+
+      cinfo.setDesignAggregates(aggs);
       crosstab.setVSCrosstabInfo(cinfo);
 
       Worksheet ws = new Worksheet();
@@ -213,8 +237,9 @@ class ViewsheetFormatServiceRenamedMeasureHeaderTest {
       for(String target : List.of("data", "header")) {
          TableDataPath[] byLabel = resolve(target, "Revenue");
          TableDataPath[] byName = resolve(target, "AMT");
-         assertTrue(byLabel.length > 0,
-                    target + ": no paths resolved for the renamed label");
+         // A single-measure crosstab renders its measure header as GROUP_HEADER; the header
+         // target collects it like a HEADER-typed one.
+         assertTrue(byLabel.length > 0, target + ": no paths resolved for the renamed label");
          assertEquals(List.of(byName), List.of(byLabel), target);
       }
    }
@@ -226,6 +251,7 @@ class ViewsheetFormatServiceRenamedMeasureHeaderTest {
     */
    @Test
    void headerTargetScopesToOneMeasureOnSideBySideWithoutColumnDimension() throws Exception {
+      build(2, true, false, true);
       renameHeaders("Revenue");
 
       TableDataPath[] amt = resolve("header", "AMT");
@@ -253,6 +279,56 @@ class ViewsheetFormatServiceRenamedMeasureHeaderTest {
    void unknownLabelStillRefusedWithoutRename() {
       Exception e = assertThrows(Exception.class, () -> resolve("data", "Revenue"));
       assertTrue(e.getMessage().contains("is not an aggregate"), e.getMessage());
+   }
+
+   /** Bug #81584: with no separate summary-header row the measure header is a GROUP_HEADER. */
+   @Test
+   void fieldScopedHeaderFindsTheMeasureHeaderWithNoSummaryHeaderRow() throws Exception {
+      for(boolean sideBySide : new boolean[]{ false, true }) {
+         build(1, sideBySide, false);
+         assertMeasureHeaderPaths("1 copy, sideBySide=" + sideBySide);
+      }
+
+      build(2, true, false);
+      assertMeasureHeaderPaths("2 copies, side by side, no column dimension");
+   }
+
+   /** Controls: layouts with a separate summary-header row still resolve. */
+   @Test
+   void fieldScopedHeaderStillWorksWithAColumnDimensionAndOneCopyStacked() throws Exception {
+      build(2, true, true);
+      assertMeasureHeaderPaths("2 copies, side by side, column dimension");
+      build(1, false, false);
+      assertMeasureHeaderPaths("1 copy, stacked");
+   }
+
+   @Test
+   void fieldScopedHeaderDoesNotSweepInDimensionHeaders() throws Exception {
+      build(2, true, false);
+
+      for(TableDataPath path : resolve("header", "AMT")) {
+         String[] segs = path.getPath();
+         assertEquals("AMT", segs[segs.length - 1]);
+      }
+   }
+
+   @Test
+   void anUnmatchedHeaderFieldIsRefusedWithAFieldNamedMessage() throws Exception {
+      build(2, true, false);
+      Exception e = assertThrows(Exception.class, () -> resolve("header", "Nope"));
+      assertTrue(e.getMessage().contains("Nope"), e.getMessage());
+   }
+
+   private void assertMeasureHeaderPaths(String layout) throws Exception {
+      TableDataPath[] paths = resolve("header", "AMT");
+      assertTrue(paths.length > 0, layout + ": no header paths");
+
+      for(TableDataPath path : paths) {
+         String[] segs = path.getPath();
+         assertEquals("AMT", segs[segs.length - 1], layout);
+         assertTrue(path.getType() == TableDataPath.HEADER ||
+                       path.getType() == TableDataPath.GROUP_HEADER, layout);
+      }
    }
 
    private TableDataPath[] resolve(String target, String field) throws Exception {
