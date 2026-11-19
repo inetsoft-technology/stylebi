@@ -90,7 +90,6 @@
             "fieldOptions": [
               "string"
             ],
-            "fieldDefault": "string",
             "isFormVisible": "double",
             "isRequired": "double",
             "displayOrder": "double",
@@ -112,7 +111,6 @@
           "id": "string",
           "fieldLabel": "string",
           "fieldType": "string",
-          "fieldDefault": "string",
           "isFormVisible": "double",
           "isRequired": "double",
           "displayOrder": "double",
@@ -134,8 +132,7 @@
             "accountId": "double",
             "customFieldId": "double",
             "createdTimestamp": "timeInstant",
-            "updatedTimestamp": "timeInstant",
-            "fieldValue": "string"
+            "updatedTimestamp": "timeInstant"
           }
         ],
         "meta": {
@@ -154,8 +151,7 @@
           "accountId": "double",
           "customFieldId": "double",
           "createdTimestamp": "timeInstant",
-          "updatedTimestamp": "timeInstant",
-          "fieldValue": "string"
+          "updatedTimestamp": "timeInstant"
         }
       },
       "paged": "false",
@@ -929,7 +925,7 @@
           }
         ],
         "meta": {
-          "total": "double"
+          "total": "string"
         },
         "subscriberSeriesEnds": [
           {
@@ -1361,7 +1357,6 @@
             "fieldOptions": [
               "string"
             ],
-            "fieldDefault": "string",
             "isFormVisible": "double",
             "isRequired": "double",
             "displayOrder": "double",
@@ -1383,7 +1378,6 @@
           "id": "string",
           "fieldLabel": "string",
           "fieldType": "string",
-          "fieldDefault": "string",
           "isFormVisible": "double",
           "isRequired": "double",
           "displayOrder": "double",
@@ -1405,8 +1399,7 @@
             "dealId": "double",
             "customFieldId": "double",
             "createdTimestamp": "timeInstant",
-            "updatedTimestamp": "timeInstant",
-            "fieldValue": "string"
+            "updatedTimestamp": "timeInstant"
           }
         ],
         "meta": {
@@ -1426,8 +1419,7 @@
           "dealId": "double",
           "customFieldId": "double",
           "createdTimestamp": "timeInstant",
-          "updatedTimestamp": "timeInstant",
-          "fieldValue": "string"
+          "updatedTimestamp": "timeInstant"
         }
       },
       "paged": "false",
@@ -2168,7 +2160,7 @@
           }
         ],
         "meta": {
-          "total": "double"
+          "total": "string"
         }
       },
       "paged": "true",
@@ -2417,7 +2409,7 @@
           }
         ],
         "meta": {
-          "total": "double"
+          "total": "string"
         }
       },
       "paged": "true",
@@ -2710,7 +2702,7 @@
           }
         ],
         "meta": {
-          "total": "double"
+          "total": "string"
         }
       },
       "paged": "true",
