@@ -865,9 +865,16 @@ schema-column, edit-join-table-column {
   background-color: var(--inet-ws-table-even-row-bg-color)
 }
 
+// The worksheet details rows are composer chrome, not a dashboard table: they hover with the shell's
+// neutral fill, as every other shell row does, and keep their own text color (the viz hover token
+// they used was cool blue in light, and stayed light under light text in a dark shell). A
+// highlighted row keeps its highlight while hovered.
 .table-data__row:hover {
-  background-color: var(--inet-viz-hover-bg);
-  color: var(--inet-viz-hover-text);
+  color: inherit;
+}
+
+.table-data__row:not(.highlighted):hover {
+  background-color: var(--inet-ui-neutral-hover-bg-color);
 }
 
 .table-data__row.highlighted {

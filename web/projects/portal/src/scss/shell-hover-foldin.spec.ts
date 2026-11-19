@@ -98,3 +98,19 @@ describe("Advanced tab flyover rows", () => {
       expect(hover[0]).toMatch(/border-radius:\s*var\(--inet-radius-sm\)/);
    });
 });
+
+describe("worksheet detail rows", () => {
+   it("hover with the shell's neutral fill in both shells, keeping their text and a highlighted row's fill", () => {
+      const themeable = read("scss/_themeable.scss");
+
+      expect(themeable).toMatch(/^\.table-data__row:hover\s*\{\s*color:\s*inherit;\s*\}/m);
+      expect(themeable).toMatch(
+         /^\.table-data__row:not\(\.highlighted\):hover\s*\{\s*background-color:\s*var\(--inet-ui-neutral-hover-bg-color\);\s*\}/m);
+      // the viz hover token is for charts and tables in dashboards, not the composer's own rows
+      expect(themeable).not.toMatch(/^\.table-data__row:hover\s*\{[^}]*--inet-viz-hover/m);
+   });
+
+   it("need no dark-only override once the shared rule is neutral", () => {
+      expect(read("scss/_shell-dark.scss")).not.toMatch(/\.table-data__row/);
+   });
+});
