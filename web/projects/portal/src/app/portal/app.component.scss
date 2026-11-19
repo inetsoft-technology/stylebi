@@ -80,3 +80,45 @@
 .no-hover {
   pointer-events: none;
 }
+
+// Floating action button that opens the standalone Wiz portal. Stacking: above page content and
+// the viewsheet mini-toolbar (9920-9930) but below modals/overlays (10500) and the portal
+// dropdowns/bookmarks. It sits at the bottom-right, where the AI Assistant side/bottom panel
+// (z-index 9940) docks, so the template hides it while that panel is open.
+.wiz-floating-button {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9935;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--inet-primary-color, #1976d2);
+  color: #fff;
+  font-size: 24px;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: box-shadow 0.15s, transform 0.15s;
+
+  i {
+    color: inherit;
+    font-size: inherit;
+    line-height: 1;
+  }
+
+  &:hover {
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    color: #fff;
+    outline: 3px solid var(--inet-primary-color, #1976d2);
+    outline-offset: 3px;
+  }
+}

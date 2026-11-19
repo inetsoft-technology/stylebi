@@ -56,7 +56,7 @@
  * rendering, composer launch, logout/profiling, showGettingStarted HTTP flow.
  */
 
-import { DOCUMENT } from "@angular/common";
+import { AsyncPipe, DOCUMENT } from "@angular/common";
 import { provideHttpClient } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { Title } from "@angular/platform-browser";
@@ -64,9 +64,10 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
-import { of } from "rxjs";
+import { BehaviorSubject, of } from "rxjs";
 import { server } from "@test-mocks/server";
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
+import { GuiTool } from "../common/util/gui-tool";
 import { LogoutService } from "../../../../shared/util/logout.service";
 import { AiAssistantDialogService } from "../common/services/ai-assistant-dialog.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
@@ -151,7 +152,7 @@ async function renderComponent() {
    setupPortalMsw();
    const result = await render(PortalAppComponent, {
       schemas: [NO_ERRORS_SCHEMA],
-      componentImports: [],
+      componentImports: [AsyncPipe],
       providers: makeProviders(),
    });
    return {
@@ -261,11 +262,11 @@ describe("PortalAppComponent — Baseline: message listener registration", () =>
 });
 
 // ---------------------------------------------------------------------------
-// Wiz portal entry: toolbar link that opens the standalone Wiz portal in a new tab
+// Wiz portal entry: floating button that opens the standalone Wiz portal in a new tab
 // ---------------------------------------------------------------------------
 
 describe("PortalAppComponent — Wiz portal entry", () => {
-   async function renderWith(extra: Record<string, unknown>) {
+   async function renderWith(extra: Record<string, unknown>, panelOpen = false) {
       setupPortalMsw();
       server.use(
          http.get("*/api/portal/get-portal-model", () =>
@@ -273,29 +274,68 @@ describe("PortalAppComponent — Wiz portal entry", () => {
       );
       return render(PortalAppComponent, {
          schemas: [NO_ERRORS_SCHEMA],
-         componentImports: [],
-         providers: makeProviders(),
+         componentImports: [AsyncPipe],
+         providers: [
+            ...makeProviders(),
+            { provide: AiAssistantService, useValue: {
+                  loadCurrentUser:    vi.fn(),
+                  aiAssistantVisible: false,
+                  panelOpen$:         new BehaviorSubject<boolean>(panelOpen),
+               }
+            },
+         ],
       });
    }
 
-   it("renders a link that opens the Wiz portal in a new tab when wizVisible is true", async () => {
+   const wizLink = (result: { container: HTMLElement }) =>
+      result.container.querySelector<HTMLAnchorElement>("[data-testid='wiz-portal-link']");
+
+   it("renders a floating link that opens the Wiz portal in a new tab when wizVisible is true", async () => {
       const result = await renderWith({ wizVisible: true, wizUrl: "https://wiz.example.com/" });
 
       await waitFor(() => {
-         const link = result.container.querySelector<HTMLAnchorElement>(
-            "[data-testid='wiz-portal-link']");
+         const link = wizLink(result);
          expect(link).not.toBeNull();
          expect(link!.getAttribute("href")).toBe("https://wiz.example.com/");
          expect(link!.getAttribute("target")).toBe("_blank");
          expect(link!.getAttribute("rel")).toContain("noopener");
+         expect(link!.classList.contains("wiz-floating-button")).toBe(true);
          expect(link!.querySelector("i.report-wizard-icon")).not.toBeNull();
+         expect(link!.getAttribute("aria-label")).not.toBeNull();
       });
+   });
+
+   it("renders the Wiz link outside the toolbar", async () => {
+      const result = await renderWith({ wizVisible: true, wizUrl: "https://wiz.example.com/" });
+
+      await waitFor(() => expect(wizLink(result)).not.toBeNull());
+      expect(result.container.querySelector("header.portal-navbar")).not.toBeNull();
+      expect(wizLink(result)!.closest("header")).toBeNull();
+      expect(wizLink(result)!.closest("ul")).toBeNull();
    });
 
    it("renders no Wiz link when wizVisible is false", async () => {
       const result = await renderWith({ wizVisible: false, wizUrl: "https://wiz.example.com/" });
 
       await waitFor(() => expect(result.container.querySelector("a.nav-link")).not.toBeNull());
-      expect(result.container.querySelector("[data-testid='wiz-portal-link']")).toBeNull();
+      expect(wizLink(result)).toBeNull();
+   });
+
+   it("renders no Wiz link on a mobile device", async () => {
+      vi.spyOn(GuiTool, "isMobileDevice").mockReturnValue(true);
+      const result = await renderWith({ wizVisible: true, wizUrl: "https://wiz.example.com/" });
+
+      await waitFor(() =>
+         expect(result.container.querySelector("header.portal-navbar")).not.toBeNull());
+      expect(wizLink(result)).toBeNull();
+   });
+
+   it("hides the Wiz link while the AI Assistant panel is open", async () => {
+      const result = await renderWith({ wizVisible: true, wizUrl: "https://wiz.example.com/" },
+                                      true);
+
+      await waitFor(() =>
+         expect(result.container.querySelector("header.portal-navbar")).not.toBeNull());
+      expect(wizLink(result)).toBeNull();
    });
 });

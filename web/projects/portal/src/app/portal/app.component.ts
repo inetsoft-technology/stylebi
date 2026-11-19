@@ -17,6 +17,7 @@
  */
 
 import { HttpClient } from "@angular/common/http";
+import { AsyncPipe } from "@angular/common";
 import { Component, Inject, OnDestroy, OnInit, DOCUMENT } from "@angular/core";
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
@@ -57,6 +58,7 @@ declare const window: any;
 
 @Component({
     imports: [
+    AsyncPipe,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,

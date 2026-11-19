@@ -216,16 +216,6 @@
             </li>
           }
         }
-        @if (!mobile && model.wizVisible) {
-          <li class="nav-item portal-nav-item bb-highlight-filler">
-            <a class="nav-link nav-icon nav-icon-size" data-testid="wiz-portal-link"
-              [attr.href]="model.wizUrl" target="_blank" rel="noopener noreferrer"
-              title="_#(AI Analysis)" aria-label="_#(AI Analysis)">
-              <i class="report-wizard-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
-              <span class="visually-hidden">_#(AI Analysis)</span>
-            </a>
-          </li>
-        }
         @if (!mobile && model.aiAssistantVisible) {
           <li class="nav-item portal-nav-item bb-highlight-filler">
             <a class="nav-link nav-icon nav-icon-size"
@@ -317,4 +307,11 @@
     <router-outlet></router-outlet>
   </div>
 </div>
+@if (model && !mobile && model.wizVisible && !(aiAssistantService.panelOpen$ | async)) {
+  <a class="wiz-floating-button" data-testid="wiz-portal-link"
+    [attr.href]="model.wizUrl" target="_blank" rel="noopener noreferrer"
+    title="_#(AI Analysis)" aria-label="_#(AI Analysis)">
+    <i class="report-wizard-icon" aria-hidden="true"></i>
+  </a>
+}
 <ai-assistant-panel></ai-assistant-panel>
