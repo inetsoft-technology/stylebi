@@ -358,6 +358,26 @@ public class ScriptFunction implements ProxyExecutable {
          }
       }
 
+      // A script array arrives as an Object[] whose toString() is the Java identity
+      // text ("[Ljava.lang.Object;@3ec52163"). JS ToString joins the elements with
+      // commas, a null/undefined element being empty and a nested array flattening
+      // the same way (Rhino parity). (Bug #81781)
+      if(value instanceof Object[] arr) {
+         StringBuilder sb = new StringBuilder();
+
+         for(int i = 0; i < arr.length; i++) {
+            if(i > 0) {
+               sb.append(',');
+            }
+
+            if(arr[i] != null) {
+               sb.append(toStringValue(arr[i]));
+            }
+         }
+
+         return sb.toString();
+      }
+
       return String.valueOf(value);
    }
 
