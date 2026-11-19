@@ -278,7 +278,13 @@ public abstract class AbstractVSExporter implements VSExporter {
             }
          }
 
-         box.executeScript(assembly);
+         try {
+            box.executeScript(assembly);
+         }
+         catch(ScriptException ex) {
+            // already logged where it was created. the viewer skips a failing script, so the
+            // export does too instead of answering 500 with no file (Bug #81796)
+         }
 
          if(assembly instanceof CalcTableVSAssembly) {
             continue;

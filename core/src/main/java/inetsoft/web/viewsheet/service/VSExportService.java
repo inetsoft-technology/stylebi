@@ -43,6 +43,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
+import inetsoft.util.script.ScriptException;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -870,7 +871,12 @@ public class VSExportService {
 
                      for(int i = 0; exportBox != null && i < assemblies.length; i++) {
                         VSAssembly assembly = (VSAssembly) assemblies[i];
-                        exportBox.executeScript(assembly);
+                        try {
+                           exportBox.executeScript(assembly);
+                        }
+                        catch(ScriptException ex) {
+                           // already logged; skip the failing script like the viewer (Bug #81796)
+                        }
                      }
 
                      final AssetQuerySandbox assetQuerySandbox = exportBox.getAssetQuerySandbox();
