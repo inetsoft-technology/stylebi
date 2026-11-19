@@ -211,7 +211,7 @@ public class ActionPermissionService {
                           .actions(EnumSet.of(ResourceAction.ACCESS))
                           .build());
 
-      root.addFilteredChildren(getWizPermissionsNode(catalog));
+      root.addFilteredChildren(getWizPermissionsNode(catalog, isOrgAdmin));
 
       root.addFilteredChildren(ActionTreeNode.builder()
                           .label(catalog.getString("Cross Join"))
@@ -427,8 +427,9 @@ public class ActionPermissionService {
       return builder.build();
    }
 
-   private ActionTreeNode getWizPermissionsNode(Catalog catalog) {
+   private ActionTreeNode getWizPermissionsNode(Catalog catalog, boolean isOrgAdmin) {
       ActionTreeNode.Builder builder = ActionTreeNode.builder()
+         .orgAdmin(isOrgAdmin)
          .label(catalog.getString("Wiz Permissions"))
          .folder(true)
          .actions(EnumSet.noneOf(ResourceAction.class));

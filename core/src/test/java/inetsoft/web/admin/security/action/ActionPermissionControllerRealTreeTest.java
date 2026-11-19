@@ -167,6 +167,45 @@ class ActionPermissionControllerRealTreeTest {
       }
    }
 
+   private List<String> wizLeaves(ActionTreeNode root) {
+      return allNodes(root).stream()
+         .filter(n -> n.type() == ResourceType.WIZ_PERMISSION)
+         .map(ActionTreeNode::resource)
+         .toList();
+   }
+
+   @Test
+   void wizPermissionLeaves_multiTenantOrgAdminDoesNotSeeTheGlobalConfigOnes() {
+      ThreadContext.setContextPrincipal(orgAdmin);
+      List<String> leaves = wizLeaves(controller.getActionTree(orgAdmin));
+
+      assertEquals(32, leaves.size(), leaves.toString());
+      assertFalse(leaves.contains("config.read"));
+      assertFalse(leaves.contains("config.write"));
+      assertFalse(leaves.contains("config.write.critical"));
+      assertTrue(leaves.contains("orgconfig.write"));
+      assertTrue(leaves.contains("entitlement.write"));
+   }
+
+   @Test
+   void wizPermissionLeaves_systemAdministratorSeesAllOfThem() {
+      SRPrincipal sysAdmin = new SRPrincipal(new IdentityID("wizTreeSysAdmin", ORG_ID),
+         new IdentityID[]{ new IdentityID("Administrator", null) }, new String[0], ORG_ID, 1L);
+      ThreadContext.setContextPrincipal(sysAdmin);
+
+      assertEquals(inetsoft.web.wiz.WizPermissions.ALL.size(),
+                   wizLeaves(controller.getActionTree(sysAdmin)).size());
+   }
+
+   @Test
+   void wizPermissionLeaves_singleTenantShowsAllOfThem() {
+      sutil.when(SUtil::isMultiTenant).thenReturn(false);
+      ThreadContext.setContextPrincipal(orgAdmin);
+
+      assertEquals(inetsoft.web.wiz.WizPermissions.ALL.size(),
+                   wizLeaves(controller.getActionTree(orgAdmin)).size());
+   }
+
    // Bug #77251: the reporter's exact request body, org admin -> EM_COMPONENT settings/general ADMIN
    @Test
    void orgAdmin_adminOnSettingsGeneral_refusedAndNotWritten() throws Exception {
