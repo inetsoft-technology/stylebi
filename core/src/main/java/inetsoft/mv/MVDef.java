@@ -953,17 +953,92 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     * outer table suffix), the expression columns are in the table under the mirror.
     */
    private TableAssembly getBoundTable(Worksheet ws) {
-      Assembly table = ws == null || otname == null ? null : ws.getAssembly(otname);
+      return getBoundTable(ws, otname);
+   }
+
+   private static TableAssembly getBoundTable(Worksheet ws, String name) {
+      Assembly table = ws == null || name == null ? null : ws.getAssembly(name);
 
       if(table instanceof MirrorTableAssembly) {
          String inner = ((MirrorTableAssembly) table).getAssemblyName();
 
-         if(inner != null && inner.equals(otname + Viewsheet.OUTER_TABLE_SUFFIX)) {
+         if(inner != null && inner.equals(name + Viewsheet.OUTER_TABLE_SUFFIX)) {
             table = ws.getAssembly(inner);
          }
       }
 
       return table instanceof TableAssembly ? (TableAssembly) table : null;
+   }
+
+   /**
+    * Record the fingerprint of the definition of the worksheet table this MV is built from.
+    *
+    * @param table the name of the table in the viewsheet's worksheet, which is the bound table
+    *              except for the tables the analysis derives from it (association MV).
+    * @param key   the fingerprint, from {@link MVDefinitionKey#create}, of the pristine table.
+    */
+   public void setDefinitionKey(String table, String key) {
+      data.setDefinitionKey(table, key);
+   }
+
+   /**
+    * Check if this MV is stale, which is when the table it was built from has been edited since
+    * then: an expression column, or anything else that defines the data of the table.
+    *
+    * @param ws the current worksheet holding the bound table.
+    */
+   public boolean isStale(Worksheet ws) {
+      // the definition needs no worksheet snapshot, check it first
+      return isDefinitionChanged(ws) || isExpressionChanged(ws);
+   }
+
+   /**
+    * Check if this MV is stale.
+    *
+    * @param table the current table this MV was built from.
+    */
+   public boolean isStale(TableAssembly table) {
+      return table != null && (isDefinitionChanged(table) ||
+         isExpressionChanged(table.getColumnSelection(true)));
+   }
+
+   /**
+    * Check if the definition of the table this MV was built from (the source, conditions,
+    * joins, aggregates, ...) is different in the specified worksheet from when the MV was
+    * analyzed. Returns false if it can't be told, e.g. an MV analyzed before the definition was
+    * recorded.
+    *
+    * @param ws the current worksheet holding the bound table.
+    */
+   public boolean isDefinitionChanged(Worksheet ws) {
+      String name = data == null || data.getDefinitionTable() == null ? otname :
+         data.getDefinitionTable();
+      return isDefinitionChanged(getBoundTable(ws, name));
+   }
+
+   /**
+    * Check if the definition of the table this MV was built from is different from the
+    * specified table.
+    */
+   public boolean isDefinitionChanged(TableAssembly table) {
+      String key = data == null ? null : data.getDefinitionKey();
+
+      if(key == null || table == null) {
+         return false;
+      }
+
+      String current = MVDefinitionKey.create(table);
+      return current != null && !key.equals(current);
+   }
+
+   /**
+    * Check if the definition of the table this MV and another MV were built from is the same.
+    * It is the same if it can't be told.
+    */
+   private boolean isDefinitionShareable(MVDef def) {
+      String key = data == null ? null : data.getDefinitionKey();
+      String key2 = def.data == null ? null : def.data.getDefinitionKey();
+      return key == null || key2 == null || key.equals(key2);
    }
 
    /**
@@ -2577,7 +2652,11 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          // (52564, 60857)
          (getColumnsSize(getColumns()) == getColumnsSize(def.getColumns()) ||
             def.isColumnsShareable(def.getBoundTable())) &&
-         Tool.equals(getParentVsIds(), def.getParentVsIds());
+         Tool.equals(getParentVsIds(), def.getParentVsIds()) &&
+         // the table definition (filter, join, expression, ...) is the same (Bug #81366). the
+         // columns and the plan don't tell, e.g. the plan is not compared for a bypass VPM MV
+         // and doesn't hold a javascript expression
+         isDefinitionShareable(def);
    }
 
    private boolean columnRefsMatch(MVDef def) {

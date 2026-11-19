@@ -42,6 +42,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -190,7 +191,7 @@ class AssetQueryWorksheetMVTest {
    void editedExpressionColumnIsNotGivenTheMV() throws Exception {
       // Bug #81422, the mv holds the data computed by the expression when it was built
       MVDef changed = mock(MVDef.class);
-      when(changed.isExpressionChanged(any(ColumnSelection.class))).thenReturn(true);
+      when(changed.isStale(any(TableAssembly.class))).thenReturn(true);
       when(mgr.findMV(any(), eq("CUSTOMERS"), any(), isNull())).thenReturn(changed);
 
       assertFalse(subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
@@ -200,9 +201,47 @@ class AssetQueryWorksheetMVTest {
    }
 
    @Test
+   void editedDefinitionOfTheTableIsNotGivenTheMV() throws Exception {
+      // Bug #81366, a filter, join or aggregate added to the table after the mv was built
+      MVDef built = builtMV("not the fingerprint of the current table");
+      when(mgr.findMV(any(), eq("CUSTOMERS"), any(), isNull())).thenReturn(built);
+
+      assertFalse(subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
+                                       false)) instanceof MVAssetQuery,
+                  "a worksheet mv built from another definition of the table must not be read");
+      assertFalse(WSMVTransformer.containsWSRuntimeMV(root));
+   }
+
+   @Test
+   void unchangedDefinitionOfTheTableKeepsTheMV() throws Exception {
+      MVDef built = builtMV(MVDefinitionKey.create(customers));
+      when(mgr.findMV(any(), eq("CUSTOMERS"), any(), isNull())).thenReturn(built);
+
+      assertInstanceOf(MVAssetQuery.class,
+                       subQuery(createQuery(viewsheetBox(), root,
+                                            AssetQuerySandbox.RUNTIME_MODE, false)));
+   }
+
+   /**
+    * A real definition, as far as the staleness check goes, over the stubbed lookup.
+    */
+   private MVDef builtMV(String definitionKey) {
+      MVMetaData meta = new MVMetaData("ws1", "CUSTOMERS", "CUSTOMERS");
+      meta.setBypassVPM(true);
+      meta.setDefinitionKey("CUSTOMERS", definitionKey);
+      MVDef def = spy(new MVDef());
+      ReflectionTestUtils.setField(def, "data", meta);
+      ReflectionTestUtils.setField(def, "otname", "CUSTOMERS");
+      doReturn(false).when(def).isExpressionChanged(any(ColumnSelection.class));
+      doReturn(true).when(def).isValidMV(any(TableAssembly.class));
+      doReturn(true).when(def).canHitMV(any(TableAssembly.class));
+      return def;
+   }
+
+   @Test
    void unchangedExpressionColumnKeepsTheMV() throws Exception {
       MVDef unchanged = mock(MVDef.class);
-      when(unchanged.isExpressionChanged(any(ColumnSelection.class))).thenReturn(false);
+      when(unchanged.isStale(any(TableAssembly.class))).thenReturn(false);
       when(mgr.findMV(any(), eq("CUSTOMERS"), any(), isNull())).thenReturn(unchanged);
 
       assertInstanceOf(MVAssetQuery.class,
