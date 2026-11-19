@@ -3,126 +3,690 @@
     {
       "name": "Accounts",
       "suffix": "/3/accounts?search={Search?}",
+      "responseSchema": {
+        "accounts": [
+          {
+            "id": "string",
+            "name": "string",
+            "accountUrl": "string",
+            "owner": "string",
+            "contactCount": "string",
+            "dealCount": "string",
+            "createdTimestamp": "timeInstant",
+            "updatedTimestamp": "timeInstant"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The customer organisations contacts belong to, with name, account URL and their created dates. The company-level dimension in ActiveCampaign's CRM."
     },
     {
       "name": "Account",
       "suffix": "/3/accounts/{ID}",
+      "responseSchema": {
+        "account": {
+          "name": "string",
+          "accountUrl": "string",
+          "owner": "string",
+          "createdTimestamp": "timeInstant",
+          "updatedTimestamp": "timeInstant",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One account by id."
     },
     {
       "name": "Account Associations",
       "suffix": "/3/accountContacts?filters[contact]={Contract?}&filters[account]={Account?}",
+      "responseSchema": {
+        "accountContacts": [
+          {
+            "account": "string",
+            "contact": "string",
+            "jobTitle": "string",
+            "createdTimestamp": "timeInstant",
+            "updatedTimestamp": "timeInstant",
+            "id": "string",
+            "lastContactDate": "timeInstant",
+            "lastContactType": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The links between contacts and accounts, each with the contact's job title. How people are attached to companies, which neither record states alone."
     },
     {
       "name": "Account Association",
       "suffix": "/3/accountContacts/{ID}",
+      "responseSchema": {
+        "accountContact": {
+          "account": "string",
+          "contact": "string",
+          "jobTitle": "string",
+          "createdTimestamp": "timeInstant",
+          "updatedTimestamp": "timeInstant",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One account association by id."
     },
     {
       "name": "Custom account fields",
       "suffix": "/3/accountCustomFieldMeta",
+      "responseSchema": {
+        "accountCustomFieldMeta": [
+          {
+            "id": "string",
+            "fieldLabel": "string",
+            "fieldType": "string",
+            "fieldOptions": [
+              "string"
+            ],
+            "fieldDefault": "string",
+            "isFormVisible": "double",
+            "isRequired": "double",
+            "displayOrder": "double",
+            "personalization": "string",
+            "hideFieldFlag": "double",
+            "createdTimestamp": "timeInstant",
+            "updatedTimestamp": "timeInstant"
+          }
+        ]
+      },
       "paged": "true",
       "description": "The custom field definitions for accounts."
     },
     {
       "name": "Custom account field",
       "suffix": "/3/accountCustomFieldMeta/{ID}",
+      "responseSchema": {
+        "accountCustomFieldMetum": {
+          "id": "string",
+          "fieldLabel": "string",
+          "fieldType": "string",
+          "fieldDefault": "string",
+          "isFormVisible": "double",
+          "isRequired": "double",
+          "displayOrder": "double",
+          "createdTimestamp": "timeInstant",
+          "updatedTimestamp": "timeInstant"
+        }
+      },
       "paged": "false",
       "description": "One account field definition by id."
     },
     {
       "name": "Custom account field values",
       "suffix": "/3/accountCustomFieldData?filters[customerAccountId]={Customer Account ID?}",
+      "responseSchema": {
+        "accountCustomFieldData": [
+          {
+            "id": "string",
+            "accountCustomFieldMetumId": "double",
+            "accountId": "double",
+            "customFieldId": "double",
+            "createdTimestamp": "timeInstant",
+            "updatedTimestamp": "timeInstant",
+            "fieldValue": "string"
+          }
+        ],
+        "meta": {
+          "total": "double"
+        }
+      },
       "paged": "true",
       "description": "The custom field values on accounts, keyed by field id."
     },
     {
       "name": "Custom account field value",
       "suffix": "/3/accountCustomFieldData/{Field ID}",
+      "responseSchema": {
+        "accountCustomFieldDatum": {
+          "id": "string",
+          "accountId": "double",
+          "customFieldId": "double",
+          "createdTimestamp": "timeInstant",
+          "updatedTimestamp": "timeInstant",
+          "fieldValue": "string"
+        }
+      },
       "paged": "false",
       "description": "One account field value by id."
     },
     {
       "name": "Addresses",
       "suffix": "/3/addresses",
+      "responseSchema": {
+        "addresses": [
+          {
+            "companyName": "string",
+            "address1": "string",
+            "address2": "string",
+            "city": "string",
+            "state": "string",
+            "district": "string",
+            "zip": "string",
+            "country": "string",
+            "allgroup": "string",
+            "isDefault": "string",
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The physical sender addresses used in campaign footers, as anti-spam law requires. Configuration."
     },
     {
       "name": "Address",
       "suffix": "/3/addresses/{ID}",
+      "responseSchema": {
+        "address": {
+          "companyName": "string",
+          "address1": "string",
+          "address2": "string",
+          "city": "string",
+          "state": "string",
+          "district": "string",
+          "zip": "string",
+          "country": "string",
+          "allgroup": "string",
+          "isDefault": "string",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One address by id."
     },
     {
       "name": "Automations",
       "suffix": "/3/automations",
+      "responseSchema": {
+        "automations": [
+          {
+            "name": "string",
+            "cdate": "timeInstant",
+            "mdate": "timeInstant",
+            "userid": "string",
+            "status": "string",
+            "entered": "string",
+            "exited": "string",
+            "hidden": "string",
+            "defaultscreenshot": "string",
+            "screenshot": "string",
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "string",
+          "starts": [
+            {
+              "id": "string",
+              "series": "string",
+              "type": "string"
+            }
+          ],
+          "filtered": "boolean"
+        }
+      },
       "paged": "true",
       "description": "The automation workflows defined, with name, status and entry conditions. WHERE MOST EMAIL ACTUALLY GETS SENT in an ActiveCampaign account -- campaign volume alone understates sending, because automations run continuously in response to behaviour."
     },
     {
       "name": "Brandings",
       "suffix": "/3/brandings",
+      "responseSchema": {
+        "brandings": [
+          {
+            "groupid": "string",
+            "siteName": "string",
+            "siteLogo": "string",
+            "siteLogoSmall": "string",
+            "headerTextValue": "string",
+            "headerHtmlValue": "string",
+            "footerTextValue": "string",
+            "footerHtmlValue": "string",
+            "copyright": "string",
+            "version": "string",
+            "license": "string",
+            "help": "string",
+            "adminTemplateHtm": "string",
+            "adminTemplateCss": "string",
+            "publicTemplateHtm": "string",
+            "publicTemplateCss": "string",
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The branding configurations available for emails and pages. Presentation."
     },
     {
       "name": "Branding",
       "suffix": "/3/brandings/{ID}",
+      "responseSchema": {
+        "branding": {
+          "groupid": "string",
+          "siteName": "string",
+          "siteLogo": "string",
+          "siteLogoSmall": "string",
+          "headerTextValue": "string",
+          "headerHtmlValue": "string",
+          "footerTextValue": "string",
+          "footerHtmlValue": "string",
+          "copyright": "string",
+          "version": "string",
+          "license": "string",
+          "help": "string",
+          "adminTemplateHtm": "string",
+          "adminTemplateCss": "string",
+          "publicTemplateHtm": "string",
+          "publicTemplateCss": "string",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One branding by id."
     },
     {
       "name": "Calendar feeds",
       "suffix": "/3/calendars",
+      "responseSchema": {
+        "calendars": [
+          {
+            "userid": "string",
+            "title": "string",
+            "type": "string",
+            "token": "string",
+            "notification": "string",
+            "cdate": "timeInstant",
+            "mdate": "timeInstant",
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The calendar feeds published from the account."
     },
     {
       "name": "Calendar",
       "suffix": "/3/calendars/{ID}",
+      "responseSchema": {
+        "calendar": {
+          "userid": "string",
+          "title": "string",
+          "type": "string",
+          "token": "string",
+          "notification": "string",
+          "cdate": "timeInstant",
+          "mdate": "timeInstant",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One calendar feed by id."
     },
     {
       "name": "Campaigns",
       "suffix": "/3/campaigns",
+      "responseSchema": {
+        "campaigns": [
+          {
+            "type": "string",
+            "userid": "string",
+            "segmentid": "string",
+            "bounceid": "string",
+            "realcid": "string",
+            "sendid": "string",
+            "threadid": "string",
+            "seriesid": "string",
+            "formid": "string",
+            "basetemplateid": "string",
+            "basemessageid": "string",
+            "addressid": "string",
+            "source": "string",
+            "name": "string",
+            "cdate": "timeInstant",
+            "mdate": "timeInstant",
+            "send_amt": "string",
+            "total_amt": "string",
+            "opens": "string",
+            "uniqueopens": "string",
+            "linkclicks": "string",
+            "uniquelinkclicks": "string",
+            "subscriberclicks": "string",
+            "forwards": "string",
+            "uniqueforwards": "string",
+            "hardbounces": "string",
+            "softbounces": "string",
+            "unsubscribes": "string",
+            "unsubreasons": "string",
+            "updates": "string",
+            "socialshares": "string",
+            "replies": "string",
+            "uniquereplies": "string",
+            "status": "string",
+            "public": "string",
+            "mail_transfer": "string",
+            "mail_send": "string",
+            "mail_cleanup": "string",
+            "mailer_log_file": "string",
+            "tracklinks": "string",
+            "tracklinksanalytics": "string",
+            "trackreads": "string",
+            "trackreadsanalytics": "string",
+            "analytics_campaign_name": "string",
+            "tweet": "string",
+            "facebook": "string",
+            "survey": "string",
+            "embed_images": "string",
+            "htmlunsub": "string",
+            "textunsub": "string",
+            "recurring": "string",
+            "willrecur": "string",
+            "split_type": "string",
+            "split_content": "string",
+            "split_offset": "string",
+            "split_offset_type": "string",
+            "split_winner_messageid": "string",
+            "split_winner_awaiting": "string",
+            "responder_offset": "string",
+            "responder_type": "string",
+            "responder_existing": "string",
+            "reminder_field": "string",
+            "reminder_type": "string",
+            "reminder_offset": "string",
+            "reminder_offset_type": "string",
+            "reminder_offset_sign": "string",
+            "activerss_interval": "string",
+            "activerss_items": "string",
+            "ip4": "string",
+            "laststep": "string",
+            "managetext": "string",
+            "schedule": "string",
+            "waitpreview": "string",
+            "replysys": "string",
+            "id": "string",
+            "user": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The email campaigns, with name, type, status, send date, and the counts of sends, opens, clicks, bounces and unsubscribes. The performance table. Status separates drafts and scheduled sends from those actually delivered, so counting all rows counts campaigns that never went out."
     },
     {
       "name": "Campaign links",
       "suffix": "/3/campaigns/{ID}/links",
+      "responseSchema": {
+        "links": [
+          {
+            "campaignid": "string",
+            "messageid": "string",
+            "link": "string",
+            "name": "string",
+            "ref": "string",
+            "tracked": "string",
+            "id": "string",
+            "campaign": "string",
+            "message": "string"
+          }
+        ]
+      },
       "paged": "true",
       "description": "The links in one campaign with their click counts. Requires a campaign id. Which content drew the response, as opposed to whether anything did."
     },
     {
       "name": "Campaign",
       "suffix": "/3/campaigns/{ID}",
+      "responseSchema": {
+        "campaign": {
+          "type": "string",
+          "userid": "string",
+          "segmentid": "string",
+          "bounceid": "string",
+          "realcid": "string",
+          "sendid": "string",
+          "threadid": "string",
+          "seriesid": "string",
+          "formid": "string",
+          "basetemplateid": "string",
+          "basemessageid": "string",
+          "addressid": "string",
+          "source": "string",
+          "name": "string",
+          "cdate": "timeInstant",
+          "mdate": "timeInstant",
+          "send_amt": "string",
+          "total_amt": "string",
+          "opens": "string",
+          "uniqueopens": "string",
+          "linkclicks": "string",
+          "uniquelinkclicks": "string",
+          "subscriberclicks": "string",
+          "forwards": "string",
+          "uniqueforwards": "string",
+          "hardbounces": "string",
+          "softbounces": "string",
+          "unsubscribes": "string",
+          "unsubreasons": "string",
+          "updates": "string",
+          "socialshares": "string",
+          "replies": "string",
+          "uniquereplies": "string",
+          "status": "string",
+          "public": "string",
+          "mail_transfer": "string",
+          "mail_send": "string",
+          "mail_cleanup": "string",
+          "mailer_log_file": "string",
+          "tracklinks": "string",
+          "tracklinksanalytics": "string",
+          "trackreads": "string",
+          "trackreadsanalytics": "string",
+          "analytics_campaign_name": "string",
+          "tweet": "string",
+          "facebook": "string",
+          "survey": "string",
+          "embed_images": "string",
+          "htmlunsub": "string",
+          "textunsub": "string",
+          "recurring": "string",
+          "willrecur": "string",
+          "split_type": "string",
+          "split_content": "string",
+          "split_offset": "string",
+          "split_offset_type": "string",
+          "split_winner_messageid": "string",
+          "split_winner_awaiting": "string",
+          "responder_offset": "string",
+          "responder_type": "string",
+          "responder_existing": "string",
+          "reminder_field": "string",
+          "reminder_type": "string",
+          "reminder_offset": "string",
+          "reminder_offset_type": "string",
+          "reminder_offset_sign": "string",
+          "activerss_interval": "string",
+          "activerss_items": "string",
+          "ip4": "string",
+          "laststep": "string",
+          "managetext": "string",
+          "schedule": "string",
+          "waitpreview": "string",
+          "replysys": "string",
+          "id": "string",
+          "user": "string"
+        }
+      },
       "paged": "false",
       "description": "One campaign by id, with its full statistics."
     },
     {
       "name": "Messages",
       "suffix": "/3/messages",
+      "responseSchema": {
+        "messages": [
+          {
+            "userid": "string",
+            "ed_instanceid": "string",
+            "ed_version": "string",
+            "cdate": "timeInstant",
+            "mdate": "timeInstant",
+            "name": "string",
+            "fromname": "string",
+            "fromemail": "string",
+            "reply2": "string",
+            "priority": "string",
+            "charset": "string",
+            "encoding": "string",
+            "format": "string",
+            "subject": "string",
+            "preheader_text": "string",
+            "text": "string",
+            "html": "string",
+            "htmlfetch": "string",
+            "textfetch": "string",
+            "hidden": "string",
+            "preview_mime": "string",
+            "preview_data": "string",
+            "id": "string",
+            "user": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The message templates campaigns send -- the subject, sender and content. A campaign references a message, so this is what turns a campaign into readable content."
     },
     {
       "name": "Message",
       "suffix": "/3/messages/{ID}",
+      "responseSchema": {
+        "message": {
+          "userid": "string",
+          "ed_instanceid": "string",
+          "ed_version": "string",
+          "cdate": "timeInstant",
+          "mdate": "timeInstant",
+          "name": "string",
+          "fromname": "string",
+          "fromemail": "string",
+          "reply2": "string",
+          "priority": "string",
+          "charset": "string",
+          "encoding": "string",
+          "format": "string",
+          "subject": "string",
+          "preheader_text": "string",
+          "text": "string",
+          "html": "string",
+          "htmlfetch": "string",
+          "textfetch": "string",
+          "hidden": "string",
+          "preview_mime": "string",
+          "preview_data": "string",
+          "id": "string",
+          "user": "string"
+        }
+      },
       "paged": "false",
       "description": "One message by id."
     },
     {
       "name": "Contacts",
       "suffix": "3/contacts?ids={IDs?}&datetime={Date Time?}&email={Email?}&email_like={Email Like?}&exclude={Exclude?}&formid={Form ID?}&id_greater={Greater Than ID?}&id_less={Less Than ID?}&listid={List ID?}&organization={Organization?}&search={Search?}&segmentid={Segment ID?}&seriesid={Series ID?}&status={Status?:-1|0|1|2|3}&tagid={Tag ID?}&filters[created_before]={Created Before?}&filters[created_after]={Created After?}&filters[updated_before]={Updated Before?}&filters[updated_after]={Updated After?}&waitid={Wait ID?}&in_group_lists={In Group Lists?:true|false}",
+      "responseSchema": {
+        "scoreValues": [
+          {
+            "score": "string",
+            "contact": "string",
+            "deal": "string",
+            "cdate": "timeInstant",
+            "mdate": "timeInstant",
+            "scoreValue": "string",
+            "id": "string"
+          }
+        ],
+        "contacts": [
+          {
+            "cdate": "timeInstant",
+            "email": "string",
+            "phone": "string",
+            "firstName": "string",
+            "lastName": "string",
+            "orgid": "string",
+            "orgname": "string",
+            "segmentio_id": "string",
+            "bounced_hard": "string",
+            "bounced_soft": "string",
+            "bounced_date": "date",
+            "ip": "string",
+            "ua": "string",
+            "hash": "string",
+            "socialdata_lastcheck": "timeInstant",
+            "email_local": "string",
+            "email_domain": "string",
+            "sentcnt": "string",
+            "rating_tstamp": "date",
+            "gravatar": "string",
+            "deleted": "string",
+            "anonymized": "string",
+            "adate": "timeInstant",
+            "udate": "timeInstant",
+            "edate": "timeInstant",
+            "deleted_at": "timeInstant",
+            "created_utc_timestamp": "timeInstant",
+            "updated_utc_timestamp": "timeInstant",
+            "created_timestamp": "timeInstant",
+            "updated_timestamp": "timeInstant",
+            "created_by": "string",
+            "updated_by": "string",
+            "mpp_tracking": "string",
+            "last_click_date": "timeInstant",
+            "last_open_date": "timeInstant",
+            "last_mpp_open_date": "timeInstant",
+            "best_send_hour": "string",
+            "sms_consent": "string",
+            "sms_consent_updated_at": "timeInstant",
+            "open_tracking_optout": "string",
+            "open_tracking_optout_updated_at": "timeInstant",
+            "whatsapp_id": "string",
+            "whatsapp_username": "string",
+            "id": "string",
+            "scoreValues": [
+              "string"
+            ],
+            "accountContacts": [
+              "string"
+            ]
+          }
+        ],
+        "meta": {
+          "total": "string",
+          "sortable": "boolean"
+        }
+      },
       "paged": "true",
       "lookups": [
         {
@@ -143,216 +707,1438 @@
     {
       "name": "Contact",
       "suffix": "/3/contacts/{ID}",
+      "responseSchema": {
+        "contactLists": [
+          {
+            "contact": "string",
+            "list": "string",
+            "form": "string",
+            "seriesid": "string",
+            "sdate": "timeInstant",
+            "udate": "timeInstant",
+            "status": "string",
+            "responder": "string",
+            "sync": "string",
+            "unsubreason": "string",
+            "campaign": "string",
+            "message": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "ip4Sub": "string",
+            "sourceid": "string",
+            "autosyncLog": "string",
+            "ip4_last": "string",
+            "ip4Unsub": "string",
+            "unsubscribeAutomation": "string",
+            "id": "string",
+            "automation": "string"
+          }
+        ],
+        "deals": [
+          {
+            "owner": "string",
+            "contact": "string",
+            "organization": "string",
+            "group": "string",
+            "title": "string",
+            "nexttaskid": "string",
+            "currency": "string",
+            "status": "string",
+            "id": "string",
+            "nextTask": "string"
+          }
+        ],
+        "fieldValues": [
+          {
+            "contact": "string",
+            "field": "string",
+            "value": "string",
+            "cdate": "timeInstant",
+            "udate": "timeInstant",
+            "created_by": "string",
+            "updated_by": "string",
+            "id": "string",
+            "owner": "string"
+          }
+        ],
+        "geoAddresses": [
+          {
+            "ip4": "string",
+            "country2": "string",
+            "country": "string",
+            "state": "string",
+            "city": "string",
+            "zip": "string",
+            "area": "string",
+            "lat": "string",
+            "lon": "string",
+            "tz": "string",
+            "tstamp": "timeInstant",
+            "id": "string"
+          }
+        ],
+        "geoIps": [
+          {
+            "contact": "string",
+            "campaignid": "string",
+            "messageid": "string",
+            "geoaddrid": "string",
+            "ip4": "string",
+            "tstamp": "timeInstant",
+            "geoAddress": "string",
+            "id": "string"
+          }
+        ],
+        "contact": {
+          "cdate": "timeInstant",
+          "email": "string",
+          "phone": "string",
+          "firstName": "string",
+          "lastName": "string",
+          "orgid": "string",
+          "orgname": "string",
+          "segmentio_id": "string",
+          "bounced_hard": "string",
+          "bounced_soft": "string",
+          "bounced_date": "date",
+          "ip": "string",
+          "ua": "string",
+          "hash": "string",
+          "socialdata_lastcheck": "timeInstant",
+          "email_local": "string",
+          "email_domain": "string",
+          "sentcnt": "string",
+          "rating_tstamp": "date",
+          "gravatar": "string",
+          "deleted": "string",
+          "anonymized": "string",
+          "adate": "timeInstant",
+          "udate": "timeInstant",
+          "edate": "timeInstant",
+          "deleted_at": "timeInstant",
+          "created_utc_timestamp": "timeInstant",
+          "updated_utc_timestamp": "timeInstant",
+          "created_timestamp": "timeInstant",
+          "updated_timestamp": "timeInstant",
+          "created_by": "string",
+          "updated_by": "string",
+          "mpp_tracking": "string",
+          "last_click_date": "timeInstant",
+          "last_open_date": "timeInstant",
+          "last_mpp_open_date": "timeInstant",
+          "best_send_hour": "string",
+          "sms_consent": "string",
+          "sms_consent_updated_at": "timeInstant",
+          "open_tracking_optout": "string",
+          "open_tracking_optout_updated_at": "timeInstant",
+          "whatsapp_id": "string",
+          "whatsapp_username": "string",
+          "id": "string",
+          "contactLists": [
+            "string"
+          ],
+          "contactData": "string",
+          "geoIps": [
+            "string"
+          ],
+          "deals": [
+            "string"
+          ],
+          "accountContacts": [
+            "string"
+          ],
+          "fieldValues": [
+            "string"
+          ]
+        }
+      },
       "paged": "false",
       "description": "One contact by id."
     },
     {
       "name": "Contact's automations",
       "suffix": "/3/contacts/{ID}/contactAutomations",
+      "responseSchema": {
+        "contactAutomations": [
+          {
+            "contact": "string",
+            "seriesid": "string",
+            "startid": "string",
+            "status": "string",
+            "batchid": "string",
+            "adddate": "timeInstant",
+            "remdate": "timeInstant",
+            "timespan": "string",
+            "lastblock": "string",
+            "lastlogid": "string",
+            "lastdate": "timeInstant",
+            "completedElements": "double",
+            "totalElements": "double",
+            "completed": "double",
+            "completeValue": "double",
+            "id": "string",
+            "automation": "string"
+          }
+        ]
+      },
       "paged": "true",
       "description": "The automations one contact is currently in, with their status and the step reached. Requires a contact id. WHERE A CONTACT SITS IN THE MARKETING PROCESS -- the contact record itself says nothing about it."
     },
     {
       "name": "Contact's score values",
       "suffix": "/3/contacts/{ID}/scoreValues",
+      "responseSchema": {
+        "scoreValues": [
+          {
+            "score": "string",
+            "contact": "string",
+            "deal": "string",
+            "cdate": "timeInstant",
+            "mdate": "timeInstant",
+            "scoreValue": "string",
+            "id": "string"
+          }
+        ]
+      },
       "paged": "true",
       "description": "The lead scores of one contact. Requires a contact id. Scores are computed from behaviour, so this is the engagement measure the contact record lacks."
     },
     {
       "name": "Contact automations",
       "suffix": "/3/contactAutomations",
+      "responseSchema": {
+        "contactAutomations": [
+          {
+            "contact": "string",
+            "seriesid": "string",
+            "startid": "string",
+            "status": "string",
+            "batchid": "string",
+            "adddate": "timeInstant",
+            "remdate": "timeInstant",
+            "timespan": "string",
+            "lastblock": "string",
+            "lastlogid": "string",
+            "lastdate": "timeInstant",
+            "completedElements": "double",
+            "totalElements": "double",
+            "completed": "double",
+            "completeValue": "double",
+            "id": "string",
+            "automation": "string"
+          }
+        ],
+        "meta": {
+          "total": "double"
+        },
+        "subscriberSeriesEnds": [
+          {
+            "subscriber_series_id": "string",
+            "cause": "string",
+            "context": "string",
+            "created_timestamp": "timeInstant",
+            "id": "string",
+            "subscriberSeries": "string"
+          }
+        ]
+      },
       "paged": "true",
       "description": "Every contact-to-automation membership on the account. The account-wide view of who is in what, and the basis for automation funnel analysis."
     },
     {
       "name": "Contact automation",
       "suffix": "/3/contactAutomations/{ID}",
+      "responseSchema": {
+        "contactAutomation": {
+          "contact": "string",
+          "seriesid": "string",
+          "startid": "string",
+          "status": "string",
+          "batchid": "string",
+          "adddate": "timeInstant",
+          "remdate": "timeInstant",
+          "timespan": "string",
+          "lastblock": "string",
+          "lastlogid": "string",
+          "lastdate": "timeInstant",
+          "completedElements": "double",
+          "totalElements": "double",
+          "completed": "double",
+          "completeValue": "double",
+          "id": "string",
+          "automation": "string"
+        },
+        "subscriberSeriesEnds": [
+          {
+            "subscriber_series_id": "string",
+            "cause": "string",
+            "context": "string",
+            "created_timestamp": "timeInstant",
+            "id": "string",
+            "subscriberSeries": "string"
+          }
+        ]
+      },
       "paged": "false",
       "description": "One contact automation record by id."
     },
     {
       "name": "Custom contact fields",
       "suffix": "/3/fields",
+      "responseSchema": {
+        "fieldOptions": [
+          {
+            "orderid": "string",
+            "value": "string",
+            "label": "string",
+            "isdefault": "string",
+            "field": "string",
+            "cdate": "timeInstant",
+            "udate": "timeInstant",
+            "id": "string"
+          }
+        ],
+        "fieldRels": [
+          {
+            "field": "string",
+            "relid": "string",
+            "dorder": "string",
+            "cdate": "timeInstant",
+            "id": "string"
+          }
+        ],
+        "fields": [
+          {
+            "title": "string",
+            "descript": "string",
+            "type": "string",
+            "isrequired": "string",
+            "perstag": "string",
+            "defval": "string",
+            "show_in_list": "string",
+            "rows": "string",
+            "cols": "string",
+            "visible": "string",
+            "service": "string",
+            "ordernum": "string",
+            "cdate": "timeInstant",
+            "udate": "timeInstant",
+            "options": [
+              "string"
+            ],
+            "relations": [
+              "string"
+            ],
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The custom field DEFINITIONS for contacts, with their titles, types and options. The decoder half of the split."
     },
     {
       "name": "Custom contact field",
       "suffix": "/3/fields/{ID}",
+      "responseSchema": {
+        "fieldRels": [
+          {
+            "field": "string",
+            "relid": "string",
+            "dorder": "string",
+            "cdate": "timeInstant",
+            "id": "string"
+          }
+        ],
+        "field": {
+          "title": "string",
+          "descript": "string",
+          "type": "string",
+          "isrequired": "string",
+          "perstag": "string",
+          "defval": "string",
+          "show_in_list": "string",
+          "rows": "string",
+          "cols": "string",
+          "visible": "string",
+          "service": "string",
+          "ordernum": "string",
+          "cdate": "timeInstant",
+          "udate": "timeInstant",
+          "relations": [
+            "string"
+          ],
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One contact field definition by id."
     },
     {
       "name": "Custom contact field values",
       "suffix": "/3/fieldValues?filters[fieldid]={Field ID?}&filters[val]={Value?}",
+      "responseSchema": {
+        "fieldValues": [
+          {
+            "contact": "string",
+            "field": "string",
+            "value": "string",
+            "cdate": "timeInstant",
+            "udate": "timeInstant",
+            "created_by": "string",
+            "updated_by": "string",
+            "id": "string",
+            "owner": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The custom field VALUES, each pairing a contact, a field id and a value. The data half. Join to the definitions to make it readable."
     },
     {
       "name": "Custom contact field value",
       "suffix": "/3/fieldValues/{Field ID}",
+      "responseSchema": {
+        "fieldValue": {
+          "contact": "string",
+          "field": "string",
+          "value": "string",
+          "cdate": "timeInstant",
+          "udate": "timeInstant",
+          "created_by": "string",
+          "updated_by": "string",
+          "id": "string",
+          "owner": "string"
+        }
+      },
       "paged": "false",
       "description": "One contact field value by id."
     },
     {
       "name": "Deals",
       "suffix": "/3/deals?filters[search]={Search?}&filters[search_field]={Search Field?}&filters[title]={Title?}&filters[stage]={Stage?}&filters[group]={Group?}&filters[status]={Status?}&filters[owner]={Owner?}&filters[nextdate_range]={Nextdate Range?}&filters[tag]={Tag?}&filters[tasktype]={Tasktype?}&filters[created_before]={Created Before?}&filters[created_after]={Created After?}&filters[updated_before]={Updated Before?}&filters[updated_after]={Updated After?}&filters[organization]={Organization?}&filters[minimum_value]={Minimum Value?}&filters[maximum_value]={Maximum Value?}&filters[score_greater_than]={Score Greater Than?}&filters[score_less_than]={Score Less Than?}&filters[score]={Score?}",
+      "responseSchema": {
+        "deals": [
+          {
+            "owner": "string",
+            "contact": "string",
+            "organization": "string",
+            "group": "string",
+            "stage": "string",
+            "title": "string",
+            "description": "string",
+            "percent": "string",
+            "cdate": "timeInstant",
+            "mdate": "timeInstant",
+            "nextdate": "timeInstant",
+            "nexttaskid": "string",
+            "value": "string",
+            "currency": "string",
+            "winProbability": "double",
+            "winProbabilityMdate": "timeInstant",
+            "status": "string",
+            "activitycount": "string",
+            "nextdealid": "string",
+            "edate": "timeInstant",
+            "id": "string",
+            "isDisabled": "boolean",
+            "account": "string",
+            "customerAccount": "string",
+            "hash": "string",
+            "nextTask": "string"
+          }
+        ],
+        "meta": {
+          "currencies": {
+            "*": {
+              "currency": "string",
+              "total": "string",
+              "value": "string"
+            }
+          },
+          "total": "double"
+        }
+      },
       "paged": "true",
       "description": "The sales opportunities, with title, value, currency, the contact and account, the pipeline and stage, owner, status and expected close date. The CRM side of ActiveCampaign. Custom values follow the same split as contacts -- Custom deal field values holds them, Custom deal fields names them."
     },
     {
       "name": "Deal",
       "suffix": "/3/deals/{ID}",
+      "responseSchema": {
+        "deal": {
+          "hash": "string",
+          "owner": "string",
+          "contact": "string",
+          "organization": "string",
+          "group": "string",
+          "stage": "string",
+          "title": "string",
+          "description": "string",
+          "percent": "string",
+          "cdate": "timeInstant",
+          "mdate": "timeInstant",
+          "nextdate": "timeInstant",
+          "nexttaskid": "string",
+          "value": "string",
+          "currency": "string",
+          "winProbability": "double",
+          "winProbabilityMdate": "timeInstant",
+          "status": "string",
+          "activitycount": "string",
+          "nextdealid": "string",
+          "edate": "timeInstant",
+          "id": "string",
+          "isDisabled": "boolean",
+          "nextTask": "string",
+          "account": "string",
+          "customerAccount": "string"
+        }
+      },
       "paged": "false",
       "description": "One deal by id."
     },
     {
       "name": "Pipelines",
       "suffix": "/3/dealGroups?filters[title]={Title?}&filters[have_stages]={Have Stages?:0|1}",
+      "responseSchema": {
+        "dealGroups": [
+          {
+            "allgroups": "string",
+            "allusers": "string",
+            "autoassign": "string",
+            "cdate": "timeInstant",
+            "currency": "string",
+            "id": "string",
+            "stages": [
+              "string"
+            ],
+            "title": "string",
+            "udate": "timeInstant"
+          }
+        ],
+        "dealStages": [
+          {
+            "cardRegion1": "string",
+            "cardRegion2": "string",
+            "cardRegion3": "string",
+            "cardRegion4": "string",
+            "cardRegion5": "string",
+            "cardFields": [
+              "string"
+            ],
+            "cdate": "timeInstant",
+            "color": "string",
+            "dealOrder": "string",
+            "group": "string",
+            "id": "string",
+            "order": "string",
+            "title": "string",
+            "udate": "timeInstant",
+            "width": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The deal pipelines defined. Most accounts run more than one and stages are not comparable between them, so a funnel question has to name the pipeline."
     },
     {
       "name": "Pipeline",
       "suffix": "/3/dealGroups/{ID}",
+      "responseSchema": {
+        "dealGroup": {
+          "allgroups": "string",
+          "allusers": "string",
+          "autoassign": "string",
+          "cdate": "timeInstant",
+          "currency": "string",
+          "id": "string",
+          "stages": [
+            "string"
+          ],
+          "title": "string",
+          "udate": "timeInstant"
+        },
+        "dealStages": [
+          {
+            "cardRegion1": "string",
+            "cardRegion2": "string",
+            "cardRegion3": "string",
+            "cardRegion4": "string",
+            "cardRegion5": "string",
+            "cardFields": [
+              "string"
+            ],
+            "color": "string",
+            "dealOrder": "string",
+            "group": "string",
+            "id": "string",
+            "order": "string",
+            "title": "string",
+            "width": "string"
+          }
+        ]
+      },
       "paged": "false",
       "description": "One pipeline by id."
     },
     {
       "name": "Stages",
       "suffix": "/3/dealStages?filters[title]={Title?}&filters[d_groupid]={Deal Group ID?}",
+      "responseSchema": {
+        "dealStages": [
+          {
+            "cardRegion1": "string",
+            "cardRegion2": "string",
+            "cardRegion3": "string",
+            "cardRegion4": "string",
+            "cardRegion5": "string",
+            "cardFields": [
+              "string"
+            ],
+            "cdate": "timeInstant",
+            "color": "string",
+            "dealOrder": "string",
+            "group": "string",
+            "id": "string",
+            "order": "string",
+            "title": "string",
+            "udate": "timeInstant",
+            "width": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The stages within pipelines, with their order and the pipeline each belongs to. The dimension a funnel breakdown joins to."
     },
     {
       "name": "Stage",
       "suffix": "/3/dealStages/{ID}",
+      "responseSchema": {
+        "dealStage": {
+          "cardRegion1": "string",
+          "cardRegion2": "string",
+          "cardRegion3": "string",
+          "cardRegion4": "string",
+          "cardRegion5": "string",
+          "cardFields": [
+            "string"
+          ],
+          "cdate": "timeInstant",
+          "color": "string",
+          "dealOrder": "string",
+          "group": "string",
+          "id": "string",
+          "order": "string",
+          "title": "string",
+          "udate": "timeInstant",
+          "width": "string"
+        }
+      },
       "paged": "false",
       "description": "One stage by id."
     },
     {
       "name": "Custom deal fields",
       "suffix": "/3/dealCustomFieldMeta",
+      "responseSchema": {
+        "dealCustomFieldMeta": [
+          {
+            "id": "string",
+            "fieldLabel": "string",
+            "fieldType": "string",
+            "fieldOptions": [
+              "string"
+            ],
+            "fieldDefault": "string",
+            "isFormVisible": "double",
+            "isRequired": "double",
+            "displayOrder": "double",
+            "personalization": "string",
+            "hideFieldFlag": "double",
+            "createdTimestamp": "timeInstant",
+            "updatedTimestamp": "timeInstant"
+          }
+        ]
+      },
       "paged": "true",
       "description": "The custom field definitions for deals."
     },
     {
       "name": "Custom deal field",
       "suffix": "/3/dealCustomFieldMeta/{ID}",
+      "responseSchema": {
+        "dealCustomFieldMetum": {
+          "id": "string",
+          "fieldLabel": "string",
+          "fieldType": "string",
+          "fieldDefault": "string",
+          "isFormVisible": "double",
+          "isRequired": "double",
+          "displayOrder": "double",
+          "createdTimestamp": "timeInstant",
+          "updatedTimestamp": "timeInstant"
+        }
+      },
       "paged": "false",
       "description": "One deal field definition by id."
     },
     {
       "name": "Custom deal field values",
       "suffix": "/3/dealCustomFieldData?filters[dealId]={Deal ID?}",
+      "responseSchema": {
+        "dealCustomFieldData": [
+          {
+            "id": "string",
+            "dealCustomFieldMetumId": "double",
+            "dealId": "double",
+            "customFieldId": "double",
+            "createdTimestamp": "timeInstant",
+            "updatedTimestamp": "timeInstant",
+            "fieldValue": "string"
+          }
+        ],
+        "meta": {
+          "total": "double"
+        }
+      },
       "paged": "true",
       "description": "The custom field values on deals, keyed by field id."
     },
     {
       "name": "Custom deal field value",
       "suffix": "/3/dealCustomFieldData/{Field ID}",
+      "responseSchema": {
+        "dealCustomFieldDatum": {
+          "id": "string",
+          "dealCustomFieldMetumId": "double",
+          "dealId": "double",
+          "customFieldId": "double",
+          "createdTimestamp": "timeInstant",
+          "updatedTimestamp": "timeInstant",
+          "fieldValue": "string"
+        }
+      },
       "paged": "false",
       "description": "One deal field value by id."
     },
     {
       "name": "Secondary contacts",
       "suffix": "/3/contactDeals",
+      "responseSchema": {
+        "contactDeals": [
+          {
+            "deal": "string",
+            "contact": "string",
+            "role": "string",
+            "cdate": "timeInstant",
+            "created_timestamp": "timeInstant",
+            "updated_timestamp": "timeInstant",
+            "created_by": "string",
+            "updated_by": "string",
+            "id": "string",
+            "lastContactDate": "timeInstant",
+            "lastContactType": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The additional contacts linked to deals beyond the primary one. A deal names one contact; this is everyone involved."
     },
     {
       "name": "Secondary contact",
       "suffix": "/3/contactDeals/{ID}",
+      "responseSchema": {
+        "contactDeal": {
+          "deal": "string",
+          "contact": "string",
+          "role": "string",
+          "cdate": "timeInstant",
+          "created_timestamp": "timeInstant",
+          "updated_timestamp": "timeInstant",
+          "created_by": "string",
+          "updated_by": "string",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One deal-to-contact link by id."
     },
     {
       "name": "Connections",
       "suffix": "/3/connections?filters[service]={Service?}&filters[externalid]={External ID?}",
+      "responseSchema": {
+        "connections": [
+          {
+            "service": "string",
+            "externalid": "string",
+            "name": "string",
+            "isInternal": "string",
+            "status": "string",
+            "syncStatus": "string",
+            "lastSync": "timeInstant",
+            "logoUrl": "string",
+            "linkUrl": "string",
+            "listId": "string",
+            "cdate": "timeInstant",
+            "udate": "timeInstant",
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The e-commerce store connections configured, with their service and status. WHETHER THE STORE IS CONNECTED DECIDES whether the e-commerce tables have anything in them, so an empty result there is usually an integration fact rather than an absence of sales."
     },
     {
       "name": "Connection",
       "suffix": "/3/connections/{ID}",
+      "responseSchema": {
+        "connection": {
+          "isInternal": "double",
+          "service": "string",
+          "externalid": "string",
+          "name": "string",
+          "logoUrl": "string",
+          "linkUrl": "string",
+          "listId": "string",
+          "cdate": "timeInstant",
+          "udate": "timeInstant",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One connection by id."
     },
     {
       "name": "E-Commerce customers",
       "suffix": "/3/ecomCustomers?filters[email]={Email?}&filters[externalid]={External ID?}&filters[connectionid]={Connection ID?}",
+      "responseSchema": {
+        "ecomCustomers": [
+          {
+            "connectionid": "string",
+            "externalid": "string",
+            "email": "string",
+            "totalRevenue": "string",
+            "totalOrders": "string",
+            "totalProducts": "string",
+            "avgRevenuePerOrder": "string",
+            "avgProductCategory": "string",
+            "tstamp": "timeInstant",
+            "id": "string",
+            "connection": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The customers synced from a connected store, each linked to an ActiveCampaign contact and carrying their store-side identifiers. The bridge between marketing contacts and purchase behaviour."
     },
     {
       "name": "E-Commerce customer",
       "suffix": "/3/ecomCustomers/{ID}",
+      "responseSchema": {
+        "ecomCustomer": {
+          "connectionid": "string",
+          "externalid": "string",
+          "email": "string",
+          "totalRevenue": "string",
+          "totalOrders": "string",
+          "totalProducts": "string",
+          "avgRevenuePerOrder": "string",
+          "avgProductCategory": "string",
+          "tstamp": "timeInstant",
+          "acceptsMarketing": "string",
+          "id": "string",
+          "connection": "string"
+        }
+      },
       "paged": "false",
       "description": "One e-commerce customer by id."
     },
     {
       "name": "E-Commerce orders",
       "suffix": "/3/ecomOrders?filters[connectionid]={Connection ID?}&filters[externalid]={External ID?}&filters[externalcheckoutid]={External Checkout ID?}&filters[email]={Email?}&filters[state]={State?:0|1|2|3|4}&filters[customerid]={Customer ID?}&filters[external_created_date]={External Created Date?}",
+      "responseSchema": {
+        "ecomOrders": [
+          {
+            "id": "string",
+            "externalid": "string",
+            "externalcheckoutid": "string",
+            "source": "string",
+            "email": "string",
+            "currency": "string",
+            "connectionid": "string",
+            "customerid": "string",
+            "orderUrl": "string",
+            "shippingMethod": "string",
+            "totalPrice": "double",
+            "shippingAmount": "double",
+            "taxAmount": "double",
+            "discountAmount": "double",
+            "externalCreatedDate": "timeInstant",
+            "totalProducts": "double",
+            "createdDate": "timeInstant",
+            "updatedDate": "timeInstant",
+            "state": "double",
+            "connection": "string",
+            "customer": "string",
+            "orderProducts": [
+              "string"
+            ],
+            "orderDate": "timeInstant",
+            "tstamp": "timeInstant"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The orders synced from connected stores, with the customer, total, currency, date and source. REVENUE ATTRIBUTION LIVES HERE: campaigns and automations can be tied to orders, which is the only way to connect email to money in ActiveCampaign."
     },
     {
       "name": "E-Commerce order",
       "suffix": "/3/ecomOrders/{E-Commerce Order ID}",
+      "responseSchema": {
+        "ecomOrder": {
+          "customerid": "string",
+          "connectionid": "string",
+          "state": "string",
+          "source": "string",
+          "externalid": "string",
+          "orderNumber": "string",
+          "email": "string",
+          "totalPrice": "string",
+          "discountAmount": "string",
+          "shippingAmount": "string",
+          "taxAmount": "string",
+          "totalProducts": "string",
+          "currency": "string",
+          "shippingMethod": "string",
+          "orderUrl": "string",
+          "externalCreatedDate": "timeInstant",
+          "externalUpdatedDate": "timeInstant",
+          "createdDate": "timeInstant",
+          "updatedDate": "timeInstant",
+          "orderDate": "timeInstant",
+          "tstamp": "timeInstant",
+          "id": "string",
+          "connection": "string",
+          "customer": "string"
+        }
+      },
       "paged": "false",
       "description": "One order by id."
     },
     {
       "name": "E-Commerce order products",
       "suffix": "/3/ecomOrderProducts",
+      "responseSchema": {
+        "ecomOrderProducts": [
+          {
+            "orderid": "string",
+            "connectionid": "string",
+            "externalid": "string",
+            "sku": "string",
+            "name": "string",
+            "description": "string",
+            "price": "string",
+            "quantity": "string",
+            "category": "string",
+            "imageUrl": "string",
+            "productUrl": "string",
+            "createdDate": "timeInstant",
+            "updatedDate": "timeInstant",
+            "tstamp": "timeInstant",
+            "id": "string",
+            "ecomOrder": "string"
+          }
+        ]
+      },
       "paged": "true",
       "description": "The line items across orders. What was actually bought, as opposed to the order total."
     },
     {
       "name": "E-Commerce order products for a specific E-Commerce Order",
       "suffix": "/3/ecomOrders/{E-Commerce Order ID}/orderProducts",
+      "responseSchema": {
+        "ecomOrderProducts": [
+          {
+            "orderid": "string",
+            "connectionid": "string",
+            "externalid": "string",
+            "sku": "string",
+            "name": "string",
+            "description": "string",
+            "price": "string",
+            "quantity": "string",
+            "category": "string",
+            "imageUrl": "string",
+            "productUrl": "string",
+            "createdDate": "timeInstant",
+            "updatedDate": "timeInstant",
+            "tstamp": "timeInstant",
+            "id": "string",
+            "ecomOrder": "string"
+          }
+        ]
+      },
       "paged": "true",
       "description": "The line items of one order. Requires an order id."
     },
     {
       "name": "E-Commerce order product",
       "suffix": "/3/ecomOrderProducts/{E-Commerce Order Product ID}",
+      "responseSchema": {
+        "ecomOrderProduct": {
+          "orderid": "string",
+          "connectionid": "string",
+          "externalid": "string",
+          "sku": "string",
+          "name": "string",
+          "description": "string",
+          "price": "string",
+          "quantity": "string",
+          "category": "string",
+          "imageUrl": "string",
+          "productUrl": "string",
+          "createdDate": "timeInstant",
+          "updatedDate": "timeInstant",
+          "tstamp": "timeInstant",
+          "id": "string",
+          "ecomOrder": "string"
+        }
+      },
       "paged": "false",
       "description": "One order line item by id."
     },
     {
       "name": "Forms",
       "suffix": "/3/forms",
+      "responseSchema": {
+        "forms": [
+          {
+            "id": "string",
+            "name": "string",
+            "layout": "string",
+            "public_url": "string",
+            "embed_code": "string",
+            "actiondata": {
+              "actions": [
+                {
+                  "type": "string",
+                  "id": "string",
+                  "title": "string",
+                  "list": "string",
+                  "listName": "string",
+                  "sms_consent": "boolean",
+                  "tag": "string",
+                  "pipeline": "string",
+                  "stage": "string",
+                  "dealtitle": "string",
+                  "dealvalue": "string",
+                  "dealcurrency": "string",
+                  "dealowner": "string",
+                  "email": "string",
+                  "fromname": "string",
+                  "fromemail": "string",
+                  "subject": "string",
+                  "fields": "string"
+                }
+              ]
+            },
+            "submit": "string",
+            "submitdata": {
+              "url": "string"
+            },
+            "thanks": "string",
+            "url": "string",
+            "button": "string",
+            "title": "string",
+            "body": "string",
+            "options": {
+              "blanks_overwrite": "boolean",
+              "sendoptin": "boolean",
+              "optin_id": "double",
+              "optin_created": "boolean",
+              "confaction": "string",
+              "confform": "string",
+              "confurl": "string",
+              "preferenceCenterType": "string",
+              "paused": "boolean",
+              "paused_message": "string",
+              "paused_link_text": "string",
+              "paused_link_url": "string",
+              "blocked_email_domains": [
+                "string"
+              ],
+              "block_personal_email_providers": "boolean",
+              "sms_doi_enabled": "boolean",
+              "sms_confirmation_message": "string",
+              "sms_doi_success_message": "string",
+              "sms_doi_address_id": "double",
+              "fields": {
+                "name": "boolean",
+                "name_default": "string",
+                "name_required": "boolean",
+                "email": "boolean",
+                "email_default": "string",
+                "email_required": "boolean",
+                "phone": "boolean",
+                "phone_default": "string",
+                "phone_required": "boolean",
+                "phone_validation": "boolean",
+                "phone_prefix": "string",
+                "sms_consent": "boolean",
+                "consent_message": "string"
+              },
+              "position": "string",
+              "initial_effect": "string",
+              "show_delay": "string",
+              "delay_position": "string",
+              "hide": "string",
+              "hide_days": "string",
+              "preferencesConfirmed": {
+                "header": "string",
+                "detail": "string"
+              },
+              "useBgColor": "boolean",
+              "useBgImage": "boolean"
+            },
+            "parentformid": "string",
+            "userid": "string",
+            "addressid": "string",
+            "cdate": "timeInstant",
+            "udate": "timeInstant",
+            "source": "string",
+            "entries": "string",
+            "aid": "string",
+            "action": "string",
+            "address": "string",
+            "defaultscreenshot": "string",
+            "screenshot": "string",
+            "recent": [
+              "string"
+            ],
+            "contacts": "double",
+            "deals": "double",
+            "labelsData": [
+              {
+                "id": "string",
+                "form": "string",
+                "label": "string",
+                "title": "string",
+                "color": "string"
+              }
+            ]
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The signup forms, with their fields and the lists they feed. The acquisition side, and the explanation for where contacts came from."
     },
     {
       "name": "Form",
       "suffix": "/3/forms/{ID}",
+      "responseSchema": {
+        "form": {
+          "id": "string",
+          "name": "string",
+          "layout": "string",
+          "public_url": "string",
+          "embed_code": "string",
+          "actiondata": {
+            "actions": [
+              {
+                "type": "string",
+                "id": "string",
+                "title": "string",
+                "list": "string",
+                "listName": "string",
+                "sms_consent": "boolean",
+                "tag": "string",
+                "pipeline": "string",
+                "stage": "string",
+                "dealtitle": "string",
+                "dealvalue": "string",
+                "dealcurrency": "string",
+                "dealowner": "string",
+                "email": "string",
+                "fromname": "string",
+                "fromemail": "string",
+                "subject": "string",
+                "fields": "string"
+              }
+            ]
+          },
+          "submit": "string",
+          "submitdata": {
+            "url": "string"
+          },
+          "thanks": "string",
+          "url": "string",
+          "button": "string",
+          "title": "string",
+          "body": "string",
+          "options": {
+            "blanks_overwrite": "boolean",
+            "sendoptin": "boolean",
+            "optin_id": "double",
+            "optin_created": "boolean",
+            "confaction": "string",
+            "confform": "string",
+            "confurl": "string",
+            "preferenceCenterType": "string",
+            "paused": "boolean",
+            "paused_message": "string",
+            "paused_link_text": "string",
+            "paused_link_url": "string",
+            "blocked_email_domains": [
+              "string"
+            ],
+            "block_personal_email_providers": "boolean",
+            "sms_doi_enabled": "boolean",
+            "sms_confirmation_message": "string",
+            "sms_doi_success_message": "string",
+            "sms_doi_address_id": "double",
+            "fields": {
+              "name": "boolean",
+              "name_default": "string",
+              "name_required": "boolean",
+              "email": "boolean",
+              "email_default": "string",
+              "email_required": "boolean",
+              "phone": "boolean",
+              "phone_default": "string",
+              "phone_required": "boolean",
+              "phone_validation": "boolean",
+              "phone_prefix": "string",
+              "sms_consent": "boolean",
+              "consent_message": "string"
+            },
+            "position": "string",
+            "initial_effect": "string",
+            "show_delay": "string",
+            "delay_position": "string",
+            "hide": "string",
+            "hide_days": "string",
+            "preferencesConfirmed": {
+              "header": "string",
+              "detail": "string"
+            },
+            "useBgColor": "boolean",
+            "useBgImage": "boolean"
+          },
+          "parentformid": "string",
+          "userid": "string",
+          "addressid": "string",
+          "cdate": "timeInstant",
+          "udate": "timeInstant",
+          "source": "string",
+          "entries": "string",
+          "aid": "string",
+          "action": "string",
+          "address": "string",
+          "defaultscreenshot": "string",
+          "screenshot": "string",
+          "recent": [
+            "string"
+          ],
+          "contacts": "double",
+          "deals": "double",
+          "labelsData": [
+            {
+              "id": "string",
+              "form": "string",
+              "label": "string",
+              "title": "string",
+              "color": "string"
+            }
+          ]
+        }
+      },
       "paged": "false",
       "description": "One form by id."
     },
     {
       "name": "Lists",
       "suffix": "/3/lists?filters[name]={Name?}",
+      "responseSchema": {
+        "lists": [
+          {
+            "stringid": "string",
+            "userid": "string",
+            "name": "string",
+            "cdate": "timeInstant",
+            "p_use_tracking": "string",
+            "p_use_analytics_read": "string",
+            "p_use_analytics_link": "string",
+            "p_use_twitter": "string",
+            "p_use_facebook": "string",
+            "p_embed_image": "string",
+            "p_use_captcha": "string",
+            "send_last_broadcast": "string",
+            "private": "string",
+            "analytics_source": "string",
+            "analytics_ua": "string",
+            "twitter_token": "string",
+            "twitter_token_secret": "string",
+            "require_name": "string",
+            "get_unsubscribe_reason": "string",
+            "to_name": "string",
+            "optinoptout": "string",
+            "sender_name": "string",
+            "sender_addr1": "string",
+            "sender_addr2": "string",
+            "sender_city": "string",
+            "sender_state": "string",
+            "sender_zip": "string",
+            "sender_country": "string",
+            "sender_phone": "string",
+            "sender_url": "string",
+            "sender_reminder": "string",
+            "fulladdress": "string",
+            "optinmessageid": "string",
+            "optoutconf": "string",
+            "udate": "timeInstant",
+            "channel": "string",
+            "description": "string",
+            "created_timestamp": "timeInstant",
+            "updated_timestamp": "timeInstant",
+            "created_by": "string",
+            "updated_by": "string",
+            "non_deleted_subscribers": "string",
+            "active_subscribers": "string",
+            "id": "string",
+            "user": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The mailing lists, with name, subscriber counts and the sender details. The audience container."
     },
     {
       "name": "List",
       "suffix": "/3/lists/{ID}",
+      "responseSchema": {
+        "list": {
+          "stringid": "string",
+          "userid": "string",
+          "name": "string",
+          "cdate": "timeInstant",
+          "p_use_tracking": "string",
+          "p_use_analytics_read": "string",
+          "p_use_analytics_link": "string",
+          "p_use_twitter": "string",
+          "p_use_facebook": "string",
+          "p_embed_image": "string",
+          "p_use_captcha": "string",
+          "send_last_broadcast": "string",
+          "private": "string",
+          "analytics_source": "string",
+          "analytics_ua": "string",
+          "twitter_token": "string",
+          "twitter_token_secret": "string",
+          "require_name": "string",
+          "get_unsubscribe_reason": "string",
+          "to_name": "string",
+          "optinoptout": "string",
+          "sender_name": "string",
+          "sender_addr1": "string",
+          "sender_addr2": "string",
+          "sender_city": "string",
+          "sender_state": "string",
+          "sender_zip": "string",
+          "sender_country": "string",
+          "sender_phone": "string",
+          "sender_url": "string",
+          "sender_reminder": "string",
+          "fulladdress": "string",
+          "optinmessageid": "string",
+          "optoutconf": "string",
+          "channel": "string",
+          "description": "string",
+          "created_timestamp": "timeInstant",
+          "updated_timestamp": "timeInstant",
+          "created_by": "string",
+          "updated_by": "string",
+          "id": "string",
+          "user": "string"
+        }
+      },
       "paged": "false",
       "description": "One list by id."
     },
     {
       "name": "Contact Notes",
       "suffix": "/3/contacts/{Contact ID}/notes",
+      "responseSchema": {
+        "notes": [
+          {
+            "relid": "string",
+            "reltype": "string",
+            "userid": "string",
+            "is_draft": "string",
+            "cdate": "timeInstant",
+            "mdate": "timeInstant",
+            "note": "string",
+            "id": "string",
+            "user": "string",
+            "owner": {
+              "type": "string",
+              "id": "string"
+            }
+          }
+        ]
+      },
       "paged": "false",
       "description": "The notes on one contact. Requires a contact id."
     },
     {
       "name": "Note",
       "suffix": "/3/notes/{Note ID}",
+      "responseSchema": {
+        "note": {
+          "relid": "string",
+          "reltype": "string",
+          "userid": "string",
+          "cdate": "timeInstant",
+          "mdate": "timeInstant",
+          "note": "string",
+          "id": "string",
+          "user": "string",
+          "owner": {
+            "type": "string",
+            "id": "string"
+          },
+          "is_draft": "string"
+        }
+      },
       "paged": "false",
       "description": "One note by id."
     },
@@ -371,24 +2157,74 @@
     {
       "name": "Saved responses",
       "suffix": "/3/savedResponses",
+      "responseSchema": {
+        "savedResponses": [
+          {
+            "title": "string",
+            "subject": "string",
+            "body": "string",
+            "cdate": "timeInstant",
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "double"
+        }
+      },
       "paged": "true",
       "description": "The canned replies available. Which exist says a good deal about the standard cases handled."
     },
     {
       "name": "Saved response",
       "suffix": "/3/savedResponses/{ID}",
+      "responseSchema": {
+        "savedResponse": {
+          "title": "string",
+          "subject": "string",
+          "body": "string",
+          "cdate": "timeInstant",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One saved response by id."
     },
     {
       "name": "Scores",
       "suffix": "/3/scores",
+      "responseSchema": {
+        "scores": [
+          {
+            "reltype": "string",
+            "name": "string",
+            "descript": "string",
+            "status": "string",
+            "cdate": "timeInstant",
+            "mdate": "timeInstant",
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The scoring rules defined, each with the conditions that add or subtract points. The definitions behind a score value, and where the business's own idea of a qualified lead is written down."
     },
     {
       "name": "Score",
       "suffix": "/3/scores/{ID}",
+      "responseSchema": {
+        "score": {
+          "reltype": "string",
+          "name": "string",
+          "descript": "string",
+          "status": "string",
+          "cdate": "timeInstant",
+          "mdate": "timeInstant",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One score rule by id."
     },
@@ -407,126 +2243,511 @@
     {
       "name": "Event tracking status",
       "suffix": "/3/eventTracking",
+      "responseSchema": {
+        "eventTracking": {
+          "enabled": "boolean"
+        }
+      },
       "paged": "false",
       "description": "Whether custom event tracking is enabled. Event data is only collected when it is, so this explains an empty event vocabulary."
     },
     {
       "name": "Names of tracked events",
       "suffix": "/3/eventTrackingEvents",
+      "responseSchema": {
+        "eventTrackingEvents": [
+          {
+            "name": "string"
+          }
+        ],
+        "meta": {
+          "total": "double"
+        }
+      },
       "paged": "true",
       "description": "The custom event names being recorded. Events are whatever the site's own code sends, so this is the only way to learn what exists before segmenting on it."
     },
     {
       "name": "Site tracking status",
       "suffix": "/3/siteTracking",
+      "responseSchema": {
+        "siteTracking": {
+          "enabled": "boolean"
+        }
+      },
       "paged": "false",
       "description": "Whether site visit tracking is enabled."
     },
     {
       "name": "Whitelisted site tracking domains",
       "suffix": "/3/siteTrackingDomains",
+      "responseSchema": {
+        "siteTrackingDomains": [
+          {
+            "name": "string"
+          }
+        ],
+        "meta": {
+          "total": "double"
+        }
+      },
       "paged": "true",
       "description": "The domains site tracking accepts. Visits from anywhere else are not recorded, which is a common cause of gaps."
     },
     {
       "name": "Tags",
       "suffix": "/3/tags?search={Search?}",
+      "responseSchema": {
+        "tags": [
+          {
+            "tagType": "string",
+            "tag": "string",
+            "description": "string",
+            "cdate": "timeInstant",
+            "subscriber_count": "string",
+            "deleted": "string",
+            "created_timestamp": "timeInstant",
+            "updated_timestamp": "timeInstant",
+            "created_by": "string",
+            "updated_by": "string",
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The tags defined. In ActiveCampaign tags drive automation entry and segmentation, so this list is effectively the catalogue of states the business tracks."
     },
     {
       "name": "Tag",
       "suffix": "/3/tags/{ID}",
+      "responseSchema": {
+        "tag": {
+          "tagType": "string",
+          "tag": "string",
+          "description": "string",
+          "cdate": "timeInstant",
+          "subscriber_count": "string",
+          "deleted": "string",
+          "created_timestamp": "timeInstant",
+          "updated_timestamp": "timeInstant",
+          "created_by": "string",
+          "updated_by": "string",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One tag by id."
     },
     {
       "name": "Tasks",
       "suffix": "/3/dealTasks?filters[title]={Title?}&filters[reltype]={Relating Object?}&filters[relid]={Relational Object ID?}&filters[status]={Status?}&filters[note]={Note?}&filters[duedate]={Due Date?}&filters[d_tasktypeid]={Task Type?}&filters[userid]={User ID?}&filters[due_after]={Due After?}&filters[due_before]={Due Before?}&filters[duedate_range]={Due Date Range?}",
+      "responseSchema": {
+        "dealTasks": [
+          {
+            "id": "string",
+            "duedate": "timeInstant",
+            "edate": "timeInstant",
+            "status": "double",
+            "note": "string",
+            "relid": "string",
+            "reltype": "string",
+            "dealTasktype": "string",
+            "cdate": "timeInstant",
+            "udate": "timeInstant",
+            "user": "string",
+            "assignee": "string",
+            "owner": {
+              "type": "string",
+              "id": "string"
+            },
+            "outcomeId": "double",
+            "outcomeInfo": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The tasks attached to deals, with due date, type, owner and completion. The forward-looking sales work."
     },
     {
       "name": "Task",
       "suffix": "/3/dealTasks/{ID}",
+      "responseSchema": {
+        "dealTask": {
+          "relid": "string",
+          "reltype": "string",
+          "dealTasktype": "string",
+          "user": "string",
+          "assignee": "string",
+          "cdate": "timeInstant",
+          "duedate": "timeInstant",
+          "edate": "timeInstant",
+          "duration": "string",
+          "status": "string",
+          "title": "string",
+          "note": "string",
+          "udate": "timeInstant",
+          "owner": {
+            "type": "string",
+            "id": "string"
+          },
+          "id": "string",
+          "outcomeId": "double",
+          "outcomeInfo": "string"
+        }
+      },
       "paged": "false",
       "description": "One deal task by id."
     },
     {
       "name": "Task types",
       "suffix": "/3/dealTasktypes",
+      "responseSchema": {
+        "dealTasktypes": [
+          {
+            "defduration": "string",
+            "id": "string",
+            "status": "string",
+            "title": "string"
+          }
+        ],
+        "meta": {
+          "total": "double"
+        }
+      },
       "paged": "true",
       "description": "The task types configured -- call, email, meeting. The decoder for a task's type and the dimension that turns task volume into activity mix."
     },
     {
       "name": "Task type",
       "suffix": "/3/dealTasktypes/{ID}",
+      "responseSchema": {
+        "dealTasktype": {
+          "cdate": "timeInstant",
+          "defduration": "string",
+          "id": "string",
+          "status": "string",
+          "title": "string",
+          "udate": "timeInstant"
+        }
+      },
       "paged": "false",
       "description": "One task type by id."
     },
     {
       "name": "Template",
       "suffix": "/3/templates/{ID}",
+      "responseSchema": {
+        "template": {
+          "userid": "string",
+          "ed_instanceid": "string",
+          "ed_version": "string",
+          "name": "string",
+          "content": "string",
+          "categoryid": "string",
+          "used": "string",
+          "waitpreview": "string",
+          "importnum": "string",
+          "mdate": "timeInstant",
+          "modified": "string",
+          "hidden": "string",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One email template by id. The design layer beneath messages."
     },
     {
       "name": "Users",
       "suffix": "/3/users",
+      "responseSchema": {
+        "users": [
+          {
+            "username": "string",
+            "firstName": "string",
+            "lastName": "string",
+            "email": "string",
+            "phone": "string",
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The staff users of the account, with name, email and group. Every deal carries an owner, so this is the dimension per-person performance joins to."
     },
     {
       "name": "User by id",
       "suffix": "/3/users/{ID}",
+      "responseSchema": {
+        "user": {
+          "username": "string",
+          "firstName": "string",
+          "lastName": "string",
+          "email": "string",
+          "phone": "string",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One user by id."
     },
     {
       "name": "User by email",
       "suffix": "/3/users/email/{Email}",
+      "responseSchema": {
+        "user": {
+          "username": "string",
+          "firstName": "string",
+          "lastName": "string",
+          "email": "string",
+          "phone": "string",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One user by email address. The lookup when the id is unknown."
     },
     {
       "name": "User by username",
       "suffix": "/3/users/username/{Username}",
+      "responseSchema": {
+        "user": {
+          "username": "string",
+          "firstName": "string",
+          "lastName": "string",
+          "email": "string",
+          "phone": "string",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One user by username."
     },
     {
       "name": "Logged-in user",
       "suffix": "/3/users/me",
+      "responseSchema": {
+        "user": {
+          "username": "string",
+          "firstName": "string",
+          "lastName": "string",
+          "email": "string",
+          "phone": "string",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "The account the credentials belong to. One record, always the caller."
     },
     {
       "name": "Groups",
       "suffix": "/3/groups",
+      "responseSchema": {
+        "groups": [
+          {
+            "title": "string",
+            "descript": "string",
+            "unsubscribelink": "string",
+            "optinconfirm": "string",
+            "p_admin": "string",
+            "pgListAdd": "string",
+            "pgListEdit": "string",
+            "pgListDelete": "string",
+            "pgListHeaders": "string",
+            "pgListEmailaccount": "string",
+            "pgListBounce": "string",
+            "pgMessageAdd": "string",
+            "pgMessageEdit": "string",
+            "pgMessageDelete": "string",
+            "pgMessageSend": "string",
+            "pgContactAdd": "string",
+            "pgContactEdit": "string",
+            "pgContactDelete": "string",
+            "pgContactMerge": "string",
+            "pgContactImport": "string",
+            "pgContactApprove": "string",
+            "pgContactExport": "string",
+            "pgContactSync": "string",
+            "pgContactFilters": "string",
+            "pgContactActions": "string",
+            "pgContactFields": "string",
+            "pg_user_add": "string",
+            "pg_user_edit": "string",
+            "pg_user_delete": "string",
+            "pgGroupAdd": "string",
+            "pgGroupEdit": "string",
+            "pgGroupDelete": "string",
+            "pgTemplateAdd": "string",
+            "pgTemplateEdit": "string",
+            "pgTemplateDelete": "string",
+            "pgPersonalizationAdd": "string",
+            "pgPersonalizationEdit": "string",
+            "pgPersonalizationDelete": "string",
+            "pgAutomationManage": "string",
+            "pgFormEdit": "string",
+            "pgReportsCampaign": "string",
+            "pgReportsList": "string",
+            "pgReportsUser": "string",
+            "pgReportsTrend": "string",
+            "pgStartupReports": "string",
+            "pgStartupGettingstarted": "string",
+            "pgDeal": "string",
+            "pgDealDelete": "string",
+            "pgDealReassign": "string",
+            "pgDealGroupAdd": "string",
+            "pgDealGroupEdit": "string",
+            "pgDealGroupDelete": "string",
+            "pgSavedResponsesManage": "string",
+            "sdate": "timeInstant",
+            "reqApproval": "string",
+            "reqApproval1st": "string",
+            "reqApprovalNotify": "string",
+            "socialdata": "string",
+            "id": "string"
+          }
+        ],
+        "meta": {
+          "total": "string"
+        }
+      },
       "paged": "true",
       "description": "The permission groups users belong to, each with what its members may see. The reason two users get different row counts."
     },
     {
       "name": "Group",
       "suffix": "/3/groups/{ID}",
+      "responseSchema": {
+        "group": {
+          "title": "string",
+          "descript": "string",
+          "unsubscribelink": "string",
+          "optinconfirm": "string",
+          "p_admin": "string",
+          "pgListAdd": "string",
+          "pgListEdit": "string",
+          "pgListDelete": "string",
+          "pgListHeaders": "string",
+          "pgListEmailaccount": "string",
+          "pgListBounce": "string",
+          "pgMessageAdd": "string",
+          "pgMessageEdit": "string",
+          "pgMessageDelete": "string",
+          "pgMessageSend": "string",
+          "pgContactAdd": "string",
+          "pgContactEdit": "string",
+          "pgContactDelete": "string",
+          "pgContactMerge": "string",
+          "pgContactImport": "string",
+          "pgContactApprove": "string",
+          "pgContactExport": "string",
+          "pgContactSync": "string",
+          "pgContactFilters": "string",
+          "pgContactActions": "string",
+          "pgContactFields": "string",
+          "pg_user_add": "string",
+          "pg_user_edit": "string",
+          "pg_user_delete": "string",
+          "pgGroupAdd": "string",
+          "pgGroupEdit": "string",
+          "pgGroupDelete": "string",
+          "pgTemplateAdd": "string",
+          "pgTemplateEdit": "string",
+          "pgTemplateDelete": "string",
+          "pgPersonalizationAdd": "string",
+          "pgPersonalizationEdit": "string",
+          "pgPersonalizationDelete": "string",
+          "pgAutomationManage": "string",
+          "pgFormEdit": "string",
+          "pgReportsCampaign": "string",
+          "pgReportsList": "string",
+          "pgReportsUser": "string",
+          "pgReportsTrend": "string",
+          "pgStartupReports": "string",
+          "pgStartupGettingstarted": "string",
+          "pgDeal": "string",
+          "pgDealDelete": "string",
+          "pgDealReassign": "string",
+          "pgDealGroupAdd": "string",
+          "pgDealGroupEdit": "string",
+          "pgDealGroupDelete": "string",
+          "pgSavedResponsesManage": "string",
+          "sdate": "timeInstant",
+          "reqApproval": "string",
+          "reqApproval1st": "string",
+          "reqApprovalNotify": "string",
+          "socialdata": "string",
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One group by id."
     },
     {
       "name": "Webhooks",
       "suffix": "/3/webhooks?filters[name]={Name?}&filters[url]={URL Filter?}&filters[listid]={List ID?}",
+      "responseSchema": {
+        "webhooks": [
+          {
+            "id": "string",
+            "name": "string",
+            "url": "string",
+            "listid": "string",
+            "cdate": "timeInstant",
+            "events": [
+              "string"
+            ],
+            "sources": [
+              "string"
+            ]
+          }
+        ],
+        "meta": {
+          "total": "double"
+        }
+      },
       "paged": "true",
       "description": "The webhooks configured, with the events each subscribes to. Integration configuration."
     },
     {
       "name": "Webhook events",
       "suffix": "/3/webhook/events",
+      "responseSchema": {
+        "webhookEvents": [
+          "string"
+        ],
+        "meta": {
+          "total": "double"
+        }
+      },
       "paged": "true",
       "description": "The event types a webhook can subscribe to. Reference data."
     },
     {
       "name": "Webhook",
       "suffix": "/3/webhooks/{ID}",
+      "responseSchema": {
+        "webhook": {
+          "cdate": "timeInstant",
+          "listid": "string",
+          "name": "string",
+          "url": "string",
+          "events": [
+            "string"
+          ],
+          "sources": [
+            "string"
+          ],
+          "id": "string"
+        }
+      },
       "paged": "false",
       "description": "One webhook by id."
     }
