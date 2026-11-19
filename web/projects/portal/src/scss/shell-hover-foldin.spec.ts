@@ -188,3 +188,23 @@ describe("dark shell disabled checked checkbox, radio and switch", () => {
       expect(rule[0]).toMatch(/border-color:\s*var\(--inet-dark-disabled-selected-color\);/);
    });
 });
+
+describe("dark shell disabled checked mark, dot and knob", () => {
+   const dark = () => block(read("scss/_shell-dark.scss"), ":where(.shell-dark)");
+
+   it("draw in the dark surface color, as Material 3's selected-disabled icon and handle do", () => {
+      const root = block(read("scss/_shell-dark.scss"), ":root.shell-dark");
+      const rule = dark().match(/\.form-check-input:checked:disabled#\{\$outside-content\}\s*\{[^}]*\}/);
+
+      expect(root).toMatch(/--inet-dark-disabled-selected-mark-color:\s*#252428;/);
+      expect(rule).not.toBeNull();
+      expect(rule[0]).toMatch(/--inet-check-mark-color:\s*var\(--inet-dark-disabled-selected-mark-color\);/);
+   });
+
+   it("give a disabled checked switch a knob in that color instead of the baked white one", () => {
+      const knob = dark().match(/\.form-switch \.form-check-input:checked:disabled#\{\$outside-content\}\s*\{[^}]*\}/);
+
+      expect(knob).not.toBeNull();
+      expect(knob[0]).toMatch(/background-image:\s*url\("data:image\/svg\+xml,[^"]*fill='%23252428'/);
+   });
+});
