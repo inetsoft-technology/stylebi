@@ -185,7 +185,6 @@ describe("dark shell disabled checked checkbox, radio and switch", () => {
       expect(rule).not.toBeNull();
       expect(rule[0]).toMatch(/opacity:\s*1;/);
       expect(rule[0]).toMatch(/background-color:\s*var\(--inet-dark-disabled-selected-color\);/);
-      expect(rule[0]).toMatch(/border-color:\s*var\(--inet-dark-disabled-selected-color\);/);
    });
 });
 
@@ -206,5 +205,34 @@ describe("dark shell disabled checked mark, dot and knob", () => {
 
       expect(knob).not.toBeNull();
       expect(knob[0]).toMatch(/background-image:\s*url\("data:image\/svg\+xml,[^"]*fill='%23252428'/);
+   });
+});
+
+describe("dark shell disabled checked control: edge cases", () => {
+   const dark = () => block(read("scss/_shell-dark.scss"), ":where(.shell-dark)");
+
+   it("has one uniform fill, with no lighter outline from a second translucent layer on the border", () => {
+      const rule = dark().match(/\.form-check-input:checked:disabled#\{\$outside-content\}\s*\{[^}]*\}/);
+
+      expect(rule[0]).toMatch(/border-color:\s*transparent;/);
+   });
+
+   it("keeps the disabled fade in forced colors, where the fill and mark lose their colors", () => {
+      const css = read("scss/_shell-dark.scss");
+      const forced = css.match(/@media \(forced-colors: active\)\s*\{[\s\S]*?^\}/m);
+
+      expect(forced).not.toBeNull();
+      expect(forced[0]).toMatch(
+         /:where\(\.shell-dark\) \.form-check-input\.form-check-input:checked:disabled#\{\$outside-content\}\s*\{\s*opacity:\s*0?\.5;/);
+   });
+
+   it("outranks component rules that repaint a checked box (the physical table tree, 0,3,0 once emulated)", () => {
+      const tree = read("app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/" +
+         "attribute-dialog/physical-table-tree/physical-table-tree-node/physical-table-tree-node.component.scss");
+
+      // the component keeps its checked fill, so the light shell is unchanged ...
+      expect(tree).toMatch(/^\.physical-table-tree-node__checkbox:checked\s*\{/m);
+      // ... and the dark rule doubles its class (0,4,0) to win over it
+      expect(dark()).toMatch(/\.form-check-input\.form-check-input:checked:disabled#\{\$outside-content\}\s*\{/);
    });
 });

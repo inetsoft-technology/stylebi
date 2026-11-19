@@ -503,12 +503,15 @@ $dark-ws-row-hover-bg: #302D27;
 
   // a disabled checked checkbox, radio or switch takes the dark selected-disabled value (see the
   // token) at full opacity instead of a faded orange; an unchecked one and the label keep their
-  // neutral fade. Same specificity as the checked rules, later, so it wins. Dashboard content keeps
-  // the light shell's faded orange.
-  .form-check-input:checked:disabled#{$outside-content} {
+  // neutral fade. The class is doubled to outrank component rules that repaint a checked box
+  // (e.g. .physical-table-tree-node__checkbox:checked, emulated to 0,3,0 and loaded after this
+  // sheet). Dashboard content keeps the light shell's faded orange.
+  .form-check-input.form-check-input:checked:disabled#{$outside-content} {
     opacity: 1;
     background-color: var(--inet-dark-disabled-selected-color);
-    border-color: var(--inet-dark-disabled-selected-color);
+    // the fill already covers the border box; a translucent border on top of it would add a
+    // lighter 1px outline
+    border-color: transparent;
     --inet-check-mark-color: var(--inet-dark-disabled-selected-mark-color);
   }
 
@@ -771,5 +774,13 @@ $viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-the
   ngb-datepicker .btn-light.bg-primary.text-white {
     background-color: var(--inet-viz-selected-bg-dark) !important;
     color: var(--inet-viz-selected-text-dark) !important;
+  }
+}
+
+// Forced colors (Windows High Contrast) replace the fill and the mark with system colors, so the
+// grey fill above would no longer say "disabled": keep the light shell's fade there.
+@media (forced-colors: active) {
+  :where(.shell-dark) .form-check-input.form-check-input:checked:disabled#{$outside-content} {
+    opacity: .5;
   }
 }
