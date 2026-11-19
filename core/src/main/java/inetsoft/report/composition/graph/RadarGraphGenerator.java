@@ -214,7 +214,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
       }
 
       spec.setLineColor(VSChartChromeDefaults.resolveSpokeColor(xdesc.getLineColor(), ctx));
-      spec.setLineVisible(!maxMode && xdesc.isLineVisible() || maxMode && xdesc.isMaxModeLineVisible());
+      spec.setLineVisible(!maxMode && xdesc.isLineVisible() || maxMode && xdesc.isMaxModeLineVisible(ctx));
       spec.setTickVisible(xdesc.isTicksVisible());
       spec.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));
       spec.setLabelVisible(!maxMode && xdesc.isLabelVisible() || maxMode && xdesc.isMaxModeLabelVisible());

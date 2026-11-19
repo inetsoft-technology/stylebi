@@ -45,6 +45,7 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VizMark;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
@@ -248,6 +249,70 @@ class ModernRadarWebTest {
       }
    }
 
+   @Test
+   void aHiddenMeasureAxisLineHasNoSpokes() {
+      Consumer<RadarChartInfo> hide = r -> {
+         for(VSDataRef ref : r.getAggregateRefs()) {
+            ((VSChartAggregateRef) ref).getAxisDescriptor().setLineVisible(false);
+         }
+      };
+      VGraph vgraph = plot(VizMark.MODERN_LIGHT, LIGHT, d -> { }, hide, false);
+
+      assertNoSpokesKeepingLabels(vgraph, false);
+   }
+
+   @Test
+   void aMaxModeHiddenMeasureAxisLineHasNoSpokes() {
+      Consumer<RadarChartInfo> hide = r -> {
+         for(VSDataRef ref : r.getAggregateRefs()) {
+            AxisDescriptor axisDesc = ((VSChartAggregateRef) ref).getAxisDescriptor();
+            assertTrue(axisDesc.isLineVisible(), "premise: the line is on");
+            axisDesc.setMaxModeLineVisible(false);
+         }
+      };
+      VGraph vgraph = plot(VizMark.MODERN_LIGHT, LIGHT, d -> { }, hide, true);
+
+      assertNoSpokesKeepingLabels(vgraph, true);
+   }
+
+   @Test
+   void aHiddenLabelAxisLineStaysHiddenInMaxMode() {
+      Consumer<RadarChartInfo> hide = r -> r.getLabelAxisDescriptor().setLineVisible(false);
+      VGraph vgraph = plot(VizMark.MODERN_LIGHT, LIGHT, d -> { }, hide, true);
+
+      assertTrue(webLines(vgraph).stream().noneMatch(l -> l.getAxis() instanceof PolarAxis),
+                 "no outer web line");
+      assertEquals(3, spokeLines(vgraph).size());
+   }
+
+   private static void assertNoSpokesKeepingLabels(VGraph vgraph, boolean maxMode) {
+      assertTrue(spokeLines(vgraph).isEmpty(), "no spoke web lines");
+      assertEquals(1, webLines(vgraph).stream().filter(l -> l.getAxis() instanceof PolarAxis)
+                   .count(), "the outer web line stays");
+
+      int drawn = drawnSpokeLabels(vgraph);
+
+      assertTrue(drawn > 0, "premise: spoke value labels");
+      assertEquals(drawnSpokeLabels(plot(VizMark.MODERN_LIGHT, LIGHT, d -> { }, r -> { },
+                                         maxMode)),
+                   drawn, "the spoke value labels still draw");
+   }
+
+   // the value labels the spoke axes keep after overlap removal
+   private static int drawnSpokeLabels(VGraph vgraph) {
+      int drawn = 0;
+
+      for(Axis axis : vgraph.getCoordinate().getAxes(false)) {
+         if(axis instanceof DefaultAxis) {
+            for(VLabel label : axis.getLabels()) {
+               drawn += label.getZIndex() >= 0 ? 1 : 0;
+            }
+         }
+      }
+
+      return drawn;
+   }
+
    private static List<GridLine> webLines(VGraph vgraph) {
       return ((PolarCoord) vgraph.getCoordinate()).getWebLines();
    }
@@ -268,7 +333,13 @@ class ModernRadarWebTest {
    private static VGraph plot(VizMark mark, Color seed, Consumer<ChartDescriptor> descSetup,
                               Consumer<RadarChartInfo> infoSetup)
    {
-      GraphGenerator gen = generator(mark, seed, descSetup, infoSetup);
+      return plot(mark, seed, descSetup, infoSetup, false);
+   }
+
+   private static VGraph plot(VizMark mark, Color seed, Consumer<ChartDescriptor> descSetup,
+                              Consumer<RadarChartInfo> infoSetup, boolean maxMode)
+   {
+      GraphGenerator gen = generator(mark, seed, descSetup, infoSetup, maxMode);
       VGraph vgraph =
          Plotter.getPlotter(gen.createEGraph()).plotAndLayout(gen.getData(), 0, 0, 400, 240);
 
@@ -311,6 +382,13 @@ class ModernRadarWebTest {
                                            Consumer<ChartDescriptor> descSetup,
                                            Consumer<RadarChartInfo> infoSetup)
    {
+      return generator(mark, seed, descSetup, infoSetup, false);
+   }
+
+   private static GraphGenerator generator(VizMark mark, Color seed,
+                                           Consumer<ChartDescriptor> descSetup,
+                                           Consumer<RadarChartInfo> infoSetup, boolean maxMode)
+   {
       RadarVSChartInfo radar = new RadarVSChartInfo();
       VSChartAggregateRef price = agg("Price", "Sum");
       VSChartAggregateRef qty = agg("Quantity", "Average");
@@ -338,6 +416,13 @@ class ModernRadarWebTest {
       assemblyInfo.setVSChartInfo(radar);
       assemblyInfo.setChartDescriptor(desc);
       assemblyInfo.setVizMark(mark);
+
+      if(maxMode) {
+         Viewsheet vs = new Viewsheet();
+         vs.setMaxMode(true);
+         assemblyInfo.setViewsheet(vs);
+      }
+
       return GraphGenerator.getGenerator(assemblyInfo, null, new DefaultDataSet(rows),
                                          new VariableTable(), null, XSourceInfo.NONE,
                                          new Dimension(400, 400));

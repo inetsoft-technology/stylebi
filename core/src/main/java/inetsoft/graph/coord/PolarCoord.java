@@ -602,14 +602,12 @@ public class PolarCoord extends Coordinate {
          return new Ellipse2D.Double(-maxr, -maxr * yratio, 2 * maxr, 2 * maxr * yratio);
       }
 
-      AffineTransform ctrans = coord.getCoordTransform();
       int n = ((AbstractParallelCoord) coord).getParallelScales().length;
       Path2D path = new Path2D.Double();
 
       for(int i = 0; i < n; i++) {
          // the x of spoke i, as the parallel coord places it
-         Point2D pt = ctrans.transform(new Point2D.Double((i + 0.5) * GWIDTH / n, GHEIGHT), null);
-         pt = transformPoint0(pt.getX(), pt.getY());
+         Point2D pt = transformPoint(new Point2D.Double((i + 0.5) * GWIDTH / n, GHEIGHT));
 
          if(i == 0) {
             path.moveTo(pt.getX(), pt.getY());
@@ -943,9 +941,11 @@ public class PolarCoord extends Coordinate {
       AffineTransform scale = AffineTransform.getScaleInstance(plotd / GWIDTH, plotd / GHEIGHT);
 
       // the grid line transform already scales a modern web's rings
-      for(int k = 0; !modernWeb && k < yaxis.getGridLineCount(); k++) {
-         GridLine gridLine = yaxis.getGridLine(k);
-         gridLine.setShape(scale.createTransformedShape(gridLine.getShape()));
+      if(!modernWeb) {
+         for(int k = 0; k < yaxis.getGridLineCount(); k++) {
+            GridLine gridLine = yaxis.getGridLine(k);
+            gridLine.setShape(scale.createTransformedShape(gridLine.getShape()));
+         }
       }
 
       // top grid line is at outer edge of polar coord, should be ignored.
