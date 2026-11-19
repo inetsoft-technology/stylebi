@@ -175,7 +175,10 @@ final class DatagovCatalog {
          }
 
          String dataTypeName = getString(col, "dataTypeName");
-         String xtype = TYPES.get(dataTypeName);
+         String xtype = "meta_data".equals(dataTypeName)
+            ? (NUMERIC_META_COLUMNS.contains(metaColumnKey(col, name))
+               ? XSchema.DECIMAL : XSchema.STRING)
+            : TYPES.get(dataTypeName);
 
          if(xtype == null) {
             xtype = XSchema.STRING;
@@ -339,8 +342,12 @@ final class DatagovCatalog {
     * {@code DatagovTable}'s own per-value parse path (its {@code NUMBER} case) produces a
     * {@code BigDecimal} for these -- {@code getClassName}'s {@code Double.class} for the same names
     * is only the fallback type used when zero rows are returned, never what a populated column
-    * actually yields. {@code calendar_date}/{@code fixed_timestamp}/{@code floating_timestamp} map
-    * to {@code TIME_INSTANT} (a full timestamp), not a bare {@code DATE}.
+    * actually yields. {@code calendar_date} maps
+    * to {@code TIME_INSTANT} (a full timestamp), not a bare {@code DATE}. {@code fixed_timestamp}
+    * and {@code floating_timestamp} map to {@code STRING} because the connector builds a String
+    * for them (its {@code getClassName} only knows calendar_date as a date); {@code date} (epoch
+    * seconds) maps to {@code DECIMAL} because the connector builds a BigDecimal from the JSON
+    * number. {@code meta_data} is resolved per column, see {@link #NUMERIC_META_COLUMNS}.
     */
    private static final Map<String, String> TYPES = Map.ofEntries(
       Map.entry("text", XSchema.STRING),
@@ -349,8 +356,9 @@ final class DatagovCatalog {
       Map.entry("percent", XSchema.DECIMAL),
       Map.entry("checkbox", XSchema.BOOLEAN),
       Map.entry("calendar_date", XSchema.TIME_INSTANT),
-      Map.entry("fixed_timestamp", XSchema.TIME_INSTANT),
-      Map.entry("floating_timestamp", XSchema.TIME_INSTANT),
+      Map.entry("fixed_timestamp", XSchema.STRING),
+      Map.entry("floating_timestamp", XSchema.STRING),
+      Map.entry("date", XSchema.DECIMAL),
       Map.entry("point", XSchema.STRING),
       Map.entry("location", XSchema.STRING),
       Map.entry("phone", XSchema.STRING),
@@ -367,6 +375,20 @@ final class DatagovCatalog {
       Map.entry("stars", XSchema.STRING),
       Map.entry("drop_down_list", XSchema.STRING),
       Map.entry("meta_data", XSchema.STRING));
+
+   /**
+    * The Socrata system columns whose values are JSON numbers (epoch seconds for the two
+    * timestamps), keyed without the leading colon of their {@code fieldName}. The other system
+    * columns (id, created_meta, updated_meta, meta) are strings or null.
+    */
+   private static final Set<String> NUMERIC_META_COLUMNS =
+      Set.of("sid", "position", "created_at", "updated_at");
+
+   private static String metaColumnKey(JsonObject col, String name) {
+      String fieldName = getString(col, "fieldName");
+      String key = fieldName == null || fieldName.isBlank() ? name : fieldName;
+      return key.startsWith(":") ? key.substring(1) : key;
+   }
 
    /**
     * Exactly 4 letters/digits, a hyphen, 4 more -- Socrata's own 4x4 id shape. Case-insensitive
