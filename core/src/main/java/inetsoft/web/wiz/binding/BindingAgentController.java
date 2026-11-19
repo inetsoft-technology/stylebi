@@ -214,7 +214,10 @@ public class BindingAgentController {
                                   resolved == null ? null : resolved.source(), linkUri));
    }
 
-   /** @param layer Country, State, Province, City or Zip. */
+   /**
+    * @param layer Country, State, Province, City or Zip; omitted (null) keeps the column's own
+    *              layer, which a column not yet geographic does not have (Bug #81664).
+    */
    public record GeoShelfField(String column, String layer) {}
    public record GeoShelfRequest(String assembly, List<GeoShelfField> fields,
                                  String mapType) {}

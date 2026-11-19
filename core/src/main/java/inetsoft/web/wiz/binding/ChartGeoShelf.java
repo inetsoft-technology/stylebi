@@ -59,7 +59,11 @@ public final class ChartGeoShelf {
    private ChartGeoShelf() {
    }
 
-   /** One requested geo field: the column and its layer name (Country, State, Province, City, Zip). */
+   /**
+    * One requested geo field: the column and its layer name (Country, State, Province, City,
+    * Zip). A {@code null} layer means "keep the layer the column already has" (Bug #81664): the
+    * column's own Geographic setting, as the Composer leaves it when another field is added.
+    */
    public record Field(String column, String layer) {}
 
    /** Most unmatched values listed per field, so a high-cardinality column cannot flood a reply. */
@@ -82,7 +86,9 @@ public final class ChartGeoShelf {
 
    /**
     * Refuses what does not depend on the data: an unknown layer name, a repeated column, and
-    * more than one polygon layer. Runs before anything is written.
+    * more than one polygon layer. Runs before anything is written. A field without a layer is
+    * skipped by the layer checks here; {@link #apply} runs them again once it has filled in the
+    * layers those fields keep.
     */
    public static void validate(List<Field> fields) {
       validate(fields, null);
@@ -108,6 +114,10 @@ public final class ChartGeoShelf {
          if(!seen.add(field.column())) {
             throw new IllegalArgumentException(
                "Column '" + field.column() + "' is listed more than once in the geo fields");
+         }
+
+         if(field.layer() == null) {
+            continue;
          }
 
          int layer = layerId(field);
@@ -269,18 +279,27 @@ public final class ChartGeoShelf {
          info.setMeasureMapType(mapType);
       }
 
+      // A field without a layer keeps its column's own layer, so it is resolved before anything
+      // is changed: a column that has none to keep is refused with the chart untouched. The
+      // checks that need every layer then run on the resolved list.
+      List<Resolved> resolved = resolveLayers(info, chart.getName(), fields);
+      validate(resolved.stream().map(Resolved::asField).toList(), mapType);
+
       // The shelf fields, with the layer asked for on both the field and its geo column.
       info.removeGeoFields();
 
-      for(Field field : fields) {
-         String layer = layerId(field) + "";
+      for(Resolved r : resolved) {
+         Field field = r.field();
 
          if(info.getGeoColumns().getAttribute(field.column()) == null) {
             handler.changeGeographic(info, field.column(), VSChartHandler.SET_GEOGRAPHIC, true);
          }
 
          VSChartGeoRef col = (VSChartGeoRef) info.getGeoColumns().getAttribute(field.column());
-         col.getGeographicOption().setLayerValue(layer);
+
+         if(!r.keep()) {
+            col.getGeographicOption().setLayerValue(r.layerValue());
+         }
 
          if(mapType != null) {
             GeographicOption opt = col.getGeographicOption();
@@ -295,7 +314,7 @@ public final class ChartGeoShelf {
          VSChartGeoRef geo = new VSChartGeoRef();
          geo.setGroupColumnValue(field.column());
          geo.setDataRef(createDataRef(field.column()));
-         geo.getGeographicOption().setLayerValue(layer);
+         geo.getGeographicOption().setLayerValue(r.layerValue());
          info.addGeoField(geo);
       }
 
@@ -421,6 +440,55 @@ public final class ChartGeoShelf {
       }
 
       return detected;
+   }
+
+   /**
+    * A requested field with the layer value to put on its shelf entry. {@code keep} is true when
+    * the field named no layer and the column's own layer stays as it is.
+    */
+   private record Resolved(Field field, String layerValue, boolean keep) {
+      /** The field with its layer named, for the layer checks; null layer when it has no name. */
+      Field asField() {
+         if(!keep) {
+            return field;
+         }
+
+         try {
+            String name = layerValue == null ? null : MapData.getLayerName(
+               Integer.parseInt(layerValue.trim()));
+            return new Field(field.column(), name);
+         }
+         catch(NumberFormatException e) {
+            // a variable or expression: nothing to check until it is evaluated
+            return new Field(field.column(), null);
+         }
+      }
+   }
+
+   private static List<Resolved> resolveLayers(VSMapInfo info, String assembly, List<Field> fields) {
+      List<Resolved> resolved = new ArrayList<>();
+
+      for(Field field : fields) {
+         if(field.layer() != null) {
+            resolved.add(new Resolved(field, layerId(field) + "", false));
+            continue;
+         }
+
+         VSChartGeoRef col = (VSChartGeoRef) info.getGeoColumns().getAttribute(field.column());
+         String value = col == null ? null : col.getGeographicOption().getLayerValue();
+
+         if(value == null || value.isBlank()) {
+            throw new IllegalArgumentException(
+               "Column '" + field.column() + "' has no 'layer' and no layer of its own to keep: " +
+               (col == null ? "it is not a geographic column of '" + assembly + "' yet. "
+                  : "its geographic layer is not set. ") +
+               "Pass a layer, one of " + String.join(", ", MapData.getLayerNames()) + ".");
+         }
+
+         resolved.add(new Resolved(field, value, true));
+      }
+
+      return resolved;
    }
 
    private static int layerId(Field field) {

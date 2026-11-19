@@ -378,6 +378,70 @@ class ChartGeoShelfTest {
       assertEquals(0, info.getGeoColumns().getAttributeCount());
    }
 
+   @Test
+   void aFieldResentWithoutALayerKeepsItsColumnsLayerWhenAnotherFieldIsAdded() throws Exception {
+      // Bug #81664: adding City used to need State resent with a layer, and a wrong guess moved
+      // State's own layer. A layer-less State keeps what the column has.
+      ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", "State")), "U.S.");
+
+      List<Detected> detected = ChartGeoShelf.apply(
+         rvs, chart, handler, List.of(new Field("State", null), new Field("City", "City")));
+
+      VSChartGeoRef stateCol = (VSChartGeoRef) info.getGeoColumns().getAttribute("State");
+      assertEquals(2, stateCol.getGeographicOption().getLayer());
+      assertEquals("U.S.", detected.get(0).mapType());
+      assertEquals("State", detected.get(0).layer());
+      assertEquals("City", detected.get(1).layer());
+      assertEquals(2, info.getGeoFields().length);
+      assertEquals(2, ((VSChartGeoRef) info.getGeoFields()[0]).getGeographicOption().getLayer());
+   }
+
+   @Test
+   void aKeptLayerIsNotOverwrittenWhileAnExplicitLayerStillIs() throws Exception {
+      ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", "State")), "U.S.");
+      ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", null)));
+      assertEquals(2, ((VSChartGeoRef) info.getGeoColumns().getAttribute("State"))
+         .getGeographicOption().getLayer());
+
+      ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", "City")));
+      assertEquals(1001, ((VSChartGeoRef) info.getGeoColumns().getAttribute("State"))
+         .getGeographicOption().getLayer());
+   }
+
+   @Test
+   void aNewColumnWithoutALayerIsRefusedByNameAndNothingIsWritten() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", null))));
+
+      assertTrue(e.getMessage().contains("'State'"), e.getMessage());
+      assertTrue(e.getMessage().contains("layer"), e.getMessage());
+      assertEquals(0, info.getGeoFields().length);
+      assertEquals(0, info.getGeoColumns().getAttributeCount());
+   }
+
+   @Test
+   void aKeptPolygonLayerPlusAnExplicitSecondPolygonIsRefusedAfterResolution() throws Exception {
+      // validate() cannot see a kept layer; the checks run again once it is resolved.
+      ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", "State")), "U.S.");
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         ChartGeoShelf.apply(rvs, chart, handler,
+                             List.of(new Field("State", null), new Field("City", "Country"))));
+
+      assertTrue(e.getMessage().contains("Multiple state or country layers"), e.getMessage());
+      assertEquals(1, info.getGeoFields().length);
+   }
+
+   @Test
+   void layerlessFieldsPassTheEarlyValidationButStillRefuseRepeatsAndBlankColumns() {
+      assertDoesNotThrow(() -> ChartGeoShelf.validate(
+         List.of(new Field("State", null), new Field("City", "City"))));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         ChartGeoShelf.validate(List.of(new Field("City", null), new Field("City", "City"))));
+      assertTrue(e.getMessage().contains("more than once"), e.getMessage());
+   }
+
    private String mappingType(String column) {
       VSChartGeoRef col = (VSChartGeoRef) info.getGeoColumns().getAttribute(column);
       assertNotNull(col, "no geo column entry for " + column);

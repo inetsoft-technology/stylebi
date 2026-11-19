@@ -51,16 +51,29 @@ import java.util.Map;
  * fields only, so it never appears on the design-time shelves above even though it renders.
  * Read-only and deliberately not a shelf: it cannot be bound or written back, only removed by
  * clearing the comparison. Omitted entirely when no comparison is applied.
+ *
+ * <p>{@code geoLayers} (Bug #81664) maps each geo-shelf column of a map chart to its layer and
+ * map type, which live on the chart's geo column rather than on the shelf entry. Omitted for
+ * anything but a map chart with geo fields.
  */
 public record AssemblyBinding(String assembly, String objectType, String source,
                               Map<String, List<FieldRef>> shelves,
                               Map<String, Object> sorts,
                               @JsonInclude(JsonInclude.Include.NON_NULL)
-                              List<FieldRef> dateComparisonSeries)
+                              List<FieldRef> dateComparisonSeries,
+                              @JsonInclude(JsonInclude.Include.NON_NULL)
+                              Map<String, GeoFieldLayer> geoLayers)
 {
+   public AssemblyBinding(String assembly, String objectType, String source,
+                          Map<String, List<FieldRef>> shelves, Map<String, Object> sorts,
+                          List<FieldRef> dateComparisonSeries)
+   {
+      this(assembly, objectType, source, shelves, sorts, dateComparisonSeries, null);
+   }
+
    public AssemblyBinding(String assembly, String objectType, String source,
                           Map<String, List<FieldRef>> shelves, Map<String, Object> sorts)
    {
-      this(assembly, objectType, source, shelves, sorts, null);
+      this(assembly, objectType, source, shelves, sorts, null, null);
    }
 }
