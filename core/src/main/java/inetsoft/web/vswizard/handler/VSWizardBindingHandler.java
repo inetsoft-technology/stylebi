@@ -1312,7 +1312,11 @@ public class VSWizardBindingHandler {
          ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getInfo();
          ChartDescriptor desc = info.getChartDescriptor();
          VSChartInfo cinfo = info.getVSChartInfo();
-         boolean visible = !GraphBuilder.isLegendHidden(desc, cinfo, info.getMaxSize() != null);
+         // a marked treemap hides its size legend by default, which is not a hidden legend
+         boolean seeded = info.getVizMark() != null &&
+            GraphTypes.isTreemap(ResolvedChartType.of(cinfo).type());
+         boolean visible = !GraphBuilder.isLegendHidden(
+            desc, cinfo, info.getMaxSize() != null, seeded);
          temporaryInfo.setShowLegend(visible);
          GraphFormatUtil.fixDefaultNumberFormat(((ChartVSAssembly)assembly).getChartDescriptor(),
                  cinfo);

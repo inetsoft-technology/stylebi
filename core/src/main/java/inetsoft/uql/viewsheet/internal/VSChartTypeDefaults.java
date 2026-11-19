@@ -84,6 +84,13 @@ final class VSChartTypeDefaults {
    }
 
    /**
+    * Whether a modern chart shows its size legend; the treemap family sizes its nodes by area.
+    */
+   static boolean sizeLegendVisible(ResolvedChartType t) {
+      return !GraphTypes.isTreemap(t.type());
+   }
+
+   /**
     * The modern plot alpha; a filled radar fills at 30%, everything else is auto (-1).
     */
    static double plotAlpha(ResolvedChartType t) {

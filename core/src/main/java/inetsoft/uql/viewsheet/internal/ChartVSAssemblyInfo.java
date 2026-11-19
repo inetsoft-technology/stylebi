@@ -3364,6 +3364,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // modern only; the classic value stays in legacySmoothLines()
       seedSmoothLines(ctx, type);
       seedValuesVisible(ctx, type);
+      seedSizeLegend(ctx, type);
       seedDirectionColors(ctx, type);
       seedSummaryColors(ctx);
    }
@@ -3556,6 +3557,21 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       plot.setValuesVisible(show);
    }
 
+   // the treemap family hides its size legend while the author has not chosen; others show it
+   private void seedSizeLegend(VizContext ctx, ResolvedChartType type) {
+      boolean show = !ctx.modern || VSChartTypeDefaults.sizeLegendVisible(type);
+
+      for(ChartDescriptor chartDesc : new ChartDescriptor[] { desc, rdesc }) {
+         LegendsDescriptor legends = chartDesc == null ? null : chartDesc.getLegendsDescriptor();
+         LegendDescriptor size = legends == null ? null : legends.getSizeLegendDescriptor();
+
+         if(size != null && !size.isUserVisible()) {
+            size.setVisible(show);
+            size.setMaxModeVisible(show);
+         }
+      }
+   }
+
    // the fill transparency; -1 is auto, so a legacy chart keeps the element's own
    private void seedPlotAlpha(VizContext ctx, ResolvedChartType type) {
       double alpha = ctx.modern ? VSChartTypeDefaults.plotAlpha(type) : -1;
@@ -3685,6 +3701,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          seedLegendPlacement(VizContext.of(this), now);
          seedLegendTitles(VizContext.of(this));
          seedValuesVisible(VizContext.of(this), now);
+         seedSizeLegend(VizContext.of(this), now);
          requestLegendCount();
       }
 

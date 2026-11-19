@@ -1841,6 +1841,16 @@ public class GraphBuilder {
     * Check if it has hidden legend or not.
     */
    public static boolean isLegendHidden(ChartDescriptor chartDesc, ChartInfo cinfo, boolean maxMode) {
+      return isLegendHidden(chartDesc, cinfo, maxMode, false);
+   }
+
+   /**
+    * Check if it has hidden legend or not.
+    * @param ignoreSeededSize true to skip a hidden size legend the author did not choose.
+    */
+   public static boolean isLegendHidden(ChartDescriptor chartDesc, ChartInfo cinfo, boolean maxMode,
+                                        boolean ignoreSeededSize)
+   {
       if(chartDesc.getLegendsDescriptor().getLayout() == LegendsDescriptor.NO_LEGEND) {
          return true;
       }
@@ -1857,7 +1867,16 @@ public class GraphBuilder {
          return hidden;
       }
       else {
+         LegendDescriptor size = chartDesc.getLegendsDescriptor().getSizeLegendDescriptor();
+
          for(LegendDescriptor legend : getLegendDescriptors(cinfo, chartDesc)) {
+            // no size field, no size legend to show
+            if(legend == size && (cinfo.getSizeField() == null ||
+               ignoreSeededSize && !legend.isUserVisible()))
+            {
+               continue;
+            }
+
             if(legend != null && (!maxMode && !legend.isVisible() ||
                maxMode && !legend.isMaxModeVisible()))
             {
