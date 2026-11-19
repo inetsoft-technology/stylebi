@@ -157,12 +157,20 @@ final class FunnelColorOrder {
       }
    }
 
-   // aesthetic refs plus a relation chart's node colour
+   // aesthetic refs, a relation chart's node colour and a multi-style chart's measure colours
    private static List<AestheticRef> colorRefs(VSChartInfo info) {
       List<AestheticRef> refs = new ArrayList<>(AbstractChartInfo.getAestheticRefs(info));
 
       if(info instanceof RelationChartInfo) {
          refs.add(((RelationChartInfo) info).getNodeColorField());
+      }
+
+      if(info.isMultiAesthetic()) {
+         for(ChartRef ref : info.getBindingRefs(false)) {
+            if(ref instanceof ChartAggregateRef) {
+               refs.add(((ChartAggregateRef) ref).getColorField());
+            }
+         }
       }
 
       return refs;

@@ -234,6 +234,25 @@ class FunnelColorOrderTest {
       assertFalse(FunnelColorOrder.standalone(info, vs, "Funnel", XSourceInfo.NONE));
    }
 
+   @Test
+   void aMultiStylePartnerColouredByTheStageCounts() {
+      Viewsheet vs = new Viewsheet();
+      VSChartInfo info = place(vs, "Funnel", funnel("Stage", XConstants.SORT_ASC));
+      VSChartInfo multi = new DefaultVSChartInfo();
+      multi.setChartType(GraphTypes.CHART_BAR);
+      multi.setRTChartType(GraphTypes.CHART_BAR);
+      multi.setMultiStyles(true);
+      multi.addXField(dim("Region"));
+      VSChartAggregateRef users = agg("Users");
+      users.setColorField(color("Stage", XConstants.SORT_ASC));
+      multi.addYField(users);
+      place(vs, "Multi", multi);
+
+      assertTrue(multi.isMultiAesthetic(), "premise: a multi-style chart");
+      assertNull(multi.getColorField(), "premise: no chart-level colour");
+      assertFalse(FunnelColorOrder.standalone(info, vs, "Funnel", XSourceInfo.NONE));
+   }
+
    // the stage on Y, sorted as applyFunnelSort sorts it, and a colour field with its own order
    static VSChartInfo funnel(String colorField, int colorOrder) {
       VSChartInfo info = new DefaultVSChartInfo();

@@ -67,8 +67,9 @@ class DivergingRampRenderTest {
 
    @Test
    void aMarkedChartCrossingZeroDrawsVariance() {
-      LinearColorFrame frame = ramp(pointGraph(VizMark.MODERN_LIGHT, new TealColorFrameWrapper(),
-                                               rows(-0.2, 0.8, 0.3), null));
+      VSChartInfo cinfo = pointChart(new TealColorFrameWrapper());
+      LinearColorFrame frame = ramp(generator(cinfo, VizMark.MODERN_LIGHT, rows(-0.2, 0.8, 0.3),
+                                              null).createEGraph());
       assertInstanceOf(AutoDivergingColorFrame.class, frame);
       assertTrue(((AutoDivergingColorFrame) frame).isDiverging());
 
@@ -76,6 +77,12 @@ class DivergingRampRenderTest {
       assertTrue(scale.getMin() <= -0.2 && scale.getMax() >= 0.8,
                  "premise: the scale covers the data");
       assertEquals(-scale.getMax(), scale.getMin());
+
+      // the stored ramp stays the seeded, unflagged Teal
+      AestheticRef stored = cinfo.getColorField();
+      assertSame(TealColorFrame.class, stored.getVisualFrame().getClass());
+      assertInstanceOf(LinearColorFrameWrapper.class, stored.getVisualFrameWrapper());
+      assertFalse(((LinearColorFrameWrapper) stored.getVisualFrameWrapper()).isAuthorRamp());
    }
 
    @Test
@@ -190,6 +197,10 @@ class DivergingRampRenderTest {
    private static EGraph pointGraph(VizMark mark, LinearColorFrameWrapper ramp, Object[][] all,
                                     Object[][] brushed)
    {
+      return generator(pointChart(ramp), mark, all, brushed).createEGraph();
+   }
+
+   private static VSChartInfo pointChart(LinearColorFrameWrapper ramp) {
       VSChartInfo cinfo = new DefaultVSChartInfo();
       cinfo.setChartType(GraphTypes.CHART_POINT);
       cinfo.setRTChartType(GraphTypes.CHART_POINT);
@@ -197,8 +208,7 @@ class DivergingRampRenderTest {
       cinfo.addYField(agg("Total"));
       cinfo.setColorField(colorRef(ramp));
       cinfo.updateChartType(false);
-
-      return generator(cinfo, mark, all, brushed).createEGraph();
+      return cinfo;
    }
 
    // Sum(Var) drawn with a ramp

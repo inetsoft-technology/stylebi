@@ -29,6 +29,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -112,11 +113,37 @@ class RampAuthorPickTest {
                     .isChanged());
    }
 
+   @Test
+   void anApplyOfAGradientWithUserColoursDoesNotStamp() {
+      GradientColorFrameWrapper gradient = new GradientColorFrameWrapper();
+      gradient.setUserFromColor(Color.RED);
+      VisualFrameModelFactoryService service = newService();
+      GradientColorModel model = service.createVisualFrameModel(gradient);
+      assertTrue(model.isChanged(), "premise: user colours send changed");
+
+      GradientColorFrameWrapper updated = service.updateVisualFrameWrapper(gradient, model);
+
+      assertSame(gradient, updated, "premise: the gradient is kept");
+      assertFalse(updated.isAuthorRamp());
+   }
+
+   @Test
+   void aFlagOnAGradientDoesNotSendChanged() {
+      GradientColorFrameWrapper gradient = new GradientColorFrameWrapper();
+      gradient.setAuthorRamp(true);
+      assertFalse(gradient.isChanged(), "premise: no user colours");
+
+      GradientColorModel model = newService().createVisualFrameModel(gradient);
+
+      assertFalse(model.isChanged());
+   }
+
    private VisualFrameModelFactoryService newService() {
       List<VisualFrameModelFactory<?, ?>> factories = new ArrayList<>();
       factories.add(new ColorFrameModelFactory.TealColorFactory());
       factories.add(new ColorFrameModelFactory.VarianceColorFactory());
       factories.add(new ColorFrameModelFactory.BluesColorFactory());
+      factories.add(new ColorFrameModelFactory.GradientColorFactory());
       return new VisualFrameModelFactoryService(factories);
    }
 }

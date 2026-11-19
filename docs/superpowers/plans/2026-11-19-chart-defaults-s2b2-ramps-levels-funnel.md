@@ -526,11 +526,14 @@ S2-12, D150, D158, D159, D160. Review Focus 3.
   - `static boolean standalone(VSChartInfo info, Viewsheet vs, String chartName, int sourceType)`:
     - true when the colour frame's `isShareColors()` is false, or `vs` is null
     - true when no other `ChartVSAssembly` in `vs` (absolute name ≠ `chartName`) has a categorical colour ref with `isShareColors()` whose `VSFrameVisitor.resolveColumnName` matches this one's
-    - Its refs are `AbstractChartInfo.getAestheticRefs(info)`, plus a `RelationChartInfo`'s node colour field.
+    - Its refs are `AbstractChartInfo.getAestheticRefs(info)`, plus a `RelationChartInfo`'s node colour field, plus each `ChartAggregateRef.getColorField()` among `getBindingRefs(false)` when the chart `isMultiAesthetic()`.
   - `static Comparator<Object> topFirst(XDimensionRef stage, DataSet data)`:
-    - `stage.createComparator(data)`, else `data.getComparator(stage.getFullName())`
+    - the data set's comparator for the stage, `data.getComparator(stage.getFullName())` (the drawn order), else `stage.createComparator(data)`
     - wrapped with `DataSetComparator.getComparator(comp, data)` and reversed
     - null when neither exists
+  - `static void relist(EGraph graph, VisualFrame frame, XDimensionRef stage, DataSet data)`:
+    - `VGraphPair.sortFrameValues` re-syncs a frame whose comparator a script changed, which sorts the stage colours ascending again
+    - `relist` then re-applies `topFirst` to the stage frame of a graph in mark order
 - Produces on `VSColorFrameStrategy`: `void setFunnelOrder(XDimensionRef stage, boolean standalone)`, `XDimensionRef getFunnelStage()` and `boolean isFunnelStandalone()`.
 - **`GraphGenerator`.** When `FunnelColorOrder.stage(vizContext, info)` is non-null, call `cstrategy.setFunnelOrder(stage, FunnelColorOrder.standalone(info, chart.getViewsheet(), chart.getAbsoluteName(), sourceType))`.
 - **`VSFrameVisitor.createVisualFrame`.** It applies only when the strategy's funnel stage is set, its full name equals `col`, and the frame is a `CategoricalColorFrame`. Then, with `order = FunnelColorOrder.topFirst(stage, this.data)`:

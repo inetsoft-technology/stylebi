@@ -18,6 +18,7 @@
 package inetsoft.web.binding.service.graph.aesthetic;
 
 import inetsoft.graph.aesthetic.VisualFrame;
+import inetsoft.graph.rgb.SplineColorFrame;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
 import inetsoft.web.binding.model.graph.aesthetic.VarianceColorModel;
 import inetsoft.web.binding.model.graph.aesthetic.VisualFrameModel;
@@ -85,8 +86,10 @@ public class VisualFrameModelFactoryService {
 
       V updated = factory.updateVisualFrameWrapper((V) nwrapper, model);
 
-      // an author's pick is flagged; the flag is never cleared here
-      if(updated instanceof LinearColorFrameWrapper && model.isChanged()) {
+      // an author's spline ramp pick is flagged; the flag is never cleared here
+      if(updated instanceof LinearColorFrameWrapper &&
+         updated.getVisualFrame() instanceof SplineColorFrame && model.isChanged())
+      {
          ((LinearColorFrameWrapper) updated).setAuthorRamp(true);
       }
 

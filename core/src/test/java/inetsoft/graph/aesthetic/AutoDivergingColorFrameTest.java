@@ -110,6 +110,15 @@ class AutoDivergingColorFrameTest {
       frame.init(data);
       assertTrue(frame.isDiverging());
       assertEquals(-frame.getScale().getMax(), frame.getScale().getMin());
+
+      // reversed: the largest value takes the ramp's low end
+      double m = Math.abs(frame.getScale().getMax());
+      VarianceColorFrame variance = new VarianceColorFrame();
+      assertEquals(variance.getColor(0.0), frame.getColor((Object) m));
+      assertEquals(variance.getColor(0.5), frame.getColor((Object) 0.0));
+      assertEquals(variance.getColor(1.0), frame.getColor((Object) (-m)));
+      assertTrue(frame.getScale().getMin() > frame.getScale().getMax(),
+                 "a reversed scale runs from +M down to -M");
    }
 
    @Test

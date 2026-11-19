@@ -17,6 +17,7 @@
  */
 package inetsoft.web.binding.model.graph.aesthetic;
 
+import inetsoft.graph.rgb.SplineColorFrame;
 import inetsoft.uql.viewsheet.graph.aesthetic.ColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.LinearColorFrameWrapper;
 
@@ -26,7 +27,9 @@ public abstract class ColorFrameModel extends VisualFrameModel {
 
    public ColorFrameModel(ColorFrameWrapper wrapper) {
       super(wrapper);
+      // only a spline ramp carries the author's pick
       setChanged(wrapper.isChanged() ||
-                 wrapper instanceof LinearColorFrameWrapper ramp && ramp.isAuthorRamp());
+                 wrapper instanceof LinearColorFrameWrapper ramp && ramp.isAuthorRamp() &&
+                 ramp.getVisualFrame() instanceof SplineColorFrame);
    }
 }
