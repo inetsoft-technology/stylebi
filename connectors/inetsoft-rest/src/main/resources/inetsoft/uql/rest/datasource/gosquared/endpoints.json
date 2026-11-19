@@ -58,6 +58,11 @@
     {
       "name": "Trigger Types",
       "suffix": "/account/v1/triggerTypes",
+      "responseSchema": [
+        {
+          "type": "string"
+        }
+      ],
       "description": "The trigger types webhooks can subscribe to. Reference data."
     },
     {
@@ -96,21 +101,65 @@
     {
       "name": "Online Concurrent Visitors",
       "suffix": "/now/v3/concurrents",
+      "responseSchema": {
+        "active": "double",
+        "pages": "double",
+        "returning": "double",
+        "tagged": "double",
+        "visitors": "double"
+      },
       "description": "How many people are on the site right now."
     },
     {
       "name": "Online Countries",
       "suffix": "/now/v3/countries",
+      "responseSchema": {
+        "list": [
+          {
+            "key": "string",
+            "value": "double"
+          }
+        ],
+        "cardinality": "double"
+      },
       "description": "Where current visitors are, by country."
     },
     {
       "name": "Realtime Engagement",
       "suffix": "/now/v3/engagement",
+      "responseSchema": {
+        "timeOnSite": {
+          "average": "double",
+          "breakdown": {
+            "*": "double"
+          }
+        },
+        "visitDepth": {
+          "average": "double",
+          "breakdown": {
+            "*": "double"
+          },
+          "detailedBreakdown": {
+            "*": "double"
+          }
+        }
+      },
       "description": "The live engagement measure -- how actively current visitors are interacting rather than merely present."
     },
     {
       "name": "Online Geographic User Info",
       "suffix": "/now/v3/geo?visitorsMode={Visitors Mode?:all|tagged|returning}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "cardinality": "double",
+        "list": [
+          {
+            "lat": "double",
+            "lon": "double",
+            "land": "timeInstant",
+            "id": "string"
+          }
+        ]
+      },
       "description": "Current visitors by geography in more detail, filterable by visitor mode."
     },
     {
@@ -121,6 +170,25 @@
     {
       "name": "Online Notifications",
       "suffix": "/now/v3/notifications?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": [
+        {
+          "title": "string",
+          "url": "string",
+          "feed": {
+            "title": "string",
+            "url": "string",
+            "link": "string",
+            "image": "string"
+          },
+          "name": "string",
+          "id": "string",
+          "date": "timeInstant",
+          "tags": [
+            "string"
+          ],
+          "alert_type": "string"
+        }
+      ],
       "description": "The notifications raised for the site over a period -- traffic spikes, goals met, alerts fired. The events GoSquared thought worth flagging."
     },
     {
@@ -131,6 +199,22 @@
     {
       "name": "Realtime Overview",
       "suffix": "/now/v3/overview?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "active": "double",
+        "pages": "double",
+        "returning": "double",
+        "tagged": "double",
+        "visitors": "double",
+        "summary": {
+          "range": {
+            "from": "timeInstant",
+            "to": "timeInstant"
+          },
+          "min": "double",
+          "max": "double",
+          "avg": "double"
+        }
+      },
       "description": "The live headline figures for a site -- concurrent visitors, pages viewed, and the current engagement summary. THE NOW API IS A SNAPSHOT: everything under it describes this instant and keeps no history, so a trend can only be built by sampling repeatedly. The trends endpoints below are the historical ones."
     },
     {
@@ -146,101 +230,529 @@
     {
       "name": "Online Sources",
       "suffix": "/now/v3/sources?sections={Sources?:direct,site,social,organic,internal}&minimal={Compact?:true|false}",
+      "responseSchema": {
+        "direct": "double",
+        "site": {
+          "cardinality": "double",
+          "list": [
+            {
+              "list": [
+                {
+                  "href": "string",
+                  "visitors": "double"
+                }
+              ],
+              "cardinality": "double",
+              "domain": "string",
+              "visitors": "double"
+            }
+          ],
+          "visitors": "double"
+        },
+        "social": {
+          "cardinality": "double",
+          "visitors": "double"
+        },
+        "organic": {
+          "list": [
+            {
+              "engine": "string",
+              "query": "string",
+              "visitors": "double"
+            }
+          ],
+          "cardinality": "double",
+          "visitors": "double"
+        },
+        "internal": {
+          "list": [
+            {
+              "href": "string",
+              "visitors": "double"
+            }
+          ],
+          "cardinality": "double",
+          "visitors": "double"
+        }
+      },
       "description": "Where current visitors came from, by section -- direct, search, social, referral."
     },
     {
       "name": "Current Time",
       "suffix": "/now/v3/time",
+      "responseSchema": {
+        "time": "double",
+        "local": "timeInstant"
+      },
       "description": "GoSquared's own clock. Useful for anchoring a relative range to the service's time rather than the caller's."
     },
     {
       "name": "Time Series",
       "suffix": "/now/v3/timeSeries?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&interval={Interval?:5min}",
+      "responseSchema": {
+        "visitors.total": [
+          {
+            "time": "timeInstant",
+            "value": "double"
+          }
+        ]
+      },
       "description": "A live time series over a short recent window. The bridge between the instantaneous now API and the historical trends API."
     },
     {
       "name": "Visitors",
       "suffix": "/now/v3/visitors?visitorsMode={Visitors Mode?:all|tagged|returning}&from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "params": {
+              "id": "string",
+              "score": "double",
+              "landTime": "timeInstant",
+              "trail_pageviews": "double",
+              "browserName": "string",
+              "country": "string",
+              "platformName": "string",
+              "platformVersion": "string",
+              "numericPlatformVersion": "double",
+              "latitude": "double",
+              "longitude": "double",
+              "returning": "double"
+            },
+            "pages": [
+              {
+                "hash": "string",
+                "landTime": "timeInstant",
+                "details": {
+                  "protocol": "string",
+                  "slashes": "boolean",
+                  "host": "string",
+                  "hostname": "string",
+                  "pathname": "string",
+                  "path": "string",
+                  "href": "string",
+                  "search": "string",
+                  "query": "string",
+                  "title": "string"
+                },
+                "exit": "string",
+                "exitTime": "timeInstant"
+              }
+            ]
+          }
+        ],
+        "cardinality": "double"
+      },
       "description": "The individual visitors currently on the site, filterable to all, tagged or returning. The person-level live view, as opposed to the counts."
     },
     {
       "name": "Historical Aggregate Data",
       "suffix": "/trends/v2/aggregate?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&interval={Interval?:hour|day|month}",
+      "responseSchema": {
+        "list": [
+          {
+            "from": "timeInstant",
+            "to": "timeInstant",
+            "metrics": {
+              "bounces": "double",
+              "day_uniques": "double",
+              "engaged_time": "double",
+              "exits": "double",
+              "hour_uniques": "double",
+              "month_uniques": "double",
+              "pageviews": "double",
+              "visits": "double",
+              "week_uniques": "double",
+              "year_uniques": "double",
+              "events": "double",
+              "transactions": "double",
+              "quantity": "double",
+              "revenue": "double",
+              "hour_unique_transactors": "double",
+              "day_unique_transactors": "double",
+              "week_unique_transactors": "double",
+              "month_unique_transactors": "double",
+              "year_unique_transactors": "double",
+              "ppv": "double",
+              "engaged_time_per_visit": "double",
+              "bounce_rate": "double",
+              "new_visits": "double",
+              "returning_visits": "double",
+              "percent_new": "double"
+            }
+          }
+        ],
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Site totals over a date range -- visits, page views, unique visitors and engagement. THE TRENDS API IS THE HISTORICAL ONE, in contrast to the now API above, and this is its headline table."
     },
     {
       "name": "Historical Browser Data",
       "suffix": "/trends/v2/browser?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "browser": "string",
+            "name": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by browser over a date range."
     },
     {
       "name": "Historical Campaign Content",
       "suffix": "/trends/v2/campaign_content?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "campaign_content": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by campaign content -- utm_content, which distinguishes creative variants."
     },
     {
       "name": "Historical Campaign Medium",
       "suffix": "/trends/v2/campaign_medium?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "campaign_medium": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by campaign medium -- utm_medium."
     },
     {
       "name": "Historical Campaign Name",
       "suffix": "/trends/v2/campaign_name?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "campaign_name": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by campaign name over a range -- the utm_campaign dimension."
     },
     {
       "name": "Historical Campaign Source",
       "suffix": "/trends/v2/campaign_source?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "campaign_source": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by campaign source -- utm_source."
     },
     {
       "name": "Historical Campaign Term",
       "suffix": "/trends/v2/campaign_term?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "campaign_term": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by campaign term -- utm_term, the paid keyword."
     },
     {
       "name": "Historical Country Data",
       "suffix": "/trends/v2/country?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "country": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by country over a date range."
     },
     {
       "name": "Historical Event Data",
       "suffix": "/trends/v2/event?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "name": "string",
+            "id": "string",
+            "metrics": {
+              "events": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Custom events recorded over a date range. Events are whatever the site's own code sends, so their names and meanings are entirely account-specific."
     },
     {
       "name": "Historical Language Data",
       "suffix": "/trends/v2/language?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "language": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by browser language over a date range."
     },
     {
       "name": "Historical Organization Data",
       "suffix": "/trends/v2/organisation?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by resolved organisation over a date range. The historical B2B view, and the basis for account-based marketing questions."
     },
     {
       "name": "Historical OS Data",
       "suffix": "/trends/v2/os?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "os": "string",
+            "version": "string",
+            "name": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by operating system over a date range."
     },
     {
       "name": "Historical Page Data",
       "suffix": "/trends/v2/page?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "protocol": "string",
+            "slashes": "boolean",
+            "host": "string",
+            "hostname": "string",
+            "pathname": "string",
+            "path": "string",
+            "href": "string",
+            "title": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Page views over a date range, by page. Which content earned the traffic."
     },
     {
       "name": "Historical Base Path Data",
       "suffix": "/trends/v2/path1?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "path": "string",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic grouped by the FIRST path segment over a range. The section-level view -- blog, product, docs -- which the per-page table cannot give without manual grouping."
     },
     {
       "name": "Historical Screen Dimensions Data",
       "suffix": "/trends/v2/screenDimensions?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}",
+      "responseSchema": {
+        "list": [
+          {
+            "width": "double",
+            "height": "double",
+            "id": "string",
+            "metrics": {
+              "visits": "double"
+            }
+          }
+        ],
+        "cardinality": "double",
+        "dimension": "string",
+        "range": {
+          "from": "timeInstant",
+          "to": "timeInstant"
+        },
+        "interval": "string"
+      },
       "description": "Traffic by screen size over a date range. What a responsive design actually has to serve."
     },
     {
       "name": "Historical Sources Data",
       "suffix": "/trends/v2/sources?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&group={Group by Common Source?:true|false}",
+      "responseSchema": {
+        "direct": {
+          "metrics": {
+            "visits": "double"
+          }
+        },
+        "site": {
+          "metrics": {
+            "visits": "double"
+          }
+        },
+        "social": {
+          "metrics": {
+            "visits": "double"
+          }
+        },
+        "organic": {
+          "metrics": {
+            "visits": "double"
+          }
+        },
+        "internal": {
+          "metrics": {
+            "visits": "double"
+          }
+        }
+      },
       "description": "Traffic by referral source over a date range. The acquisition table."
     },
     {
@@ -271,6 +783,15 @@
     {
       "name": "People CRM Property Types",
       "suffix": "/people/v1/propertyTypes",
+      "responseSchema": {
+        "list": [
+          {
+            "name": "string",
+            "type": "string"
+          }
+        ],
+        "cardinality": "double"
+      },
       "description": "The properties people can carry, standard and custom. The decoder for the property keys on a person."
     },
     {
@@ -281,16 +802,67 @@
     {
       "name": "People CRM Property Type",
       "suffix": "/people/v1/propertyTypes/{Property ID}",
+      "responseSchema": {
+        "name": "string",
+        "type": "string"
+      },
       "description": "One property type by id."
     },
     {
       "name": "People CRM Smart Groups",
       "suffix": "/people/v1/smartgroups",
+      "responseSchema": {
+        "list": [
+          {
+            "id": "string",
+            "name": "string",
+            "prefs": {
+              "sortField": "string",
+              "sortDir": "string",
+              "fields": [
+                "string"
+              ],
+              "columnWidths": {
+                "*": "double"
+              }
+            },
+            "_links": [
+              {
+                "rel": "string",
+                "href": "string",
+                "method": "string"
+              }
+            ]
+          }
+        ],
+        "cardinality": "double"
+      },
       "description": "The smart groups defined -- audiences described by rules over properties and behaviour rather than by explicit membership. Their rules state the business's own segment definitions."
     },
     {
       "name": "People CRM Smart Group",
       "suffix": "/people/v1/smartgroups/{Group ID}",
+      "responseSchema": {
+        "id": "string",
+        "name": "string",
+        "prefs": {
+          "sortField": "string",
+          "sortDir": "string",
+          "fields": [
+            "string"
+          ],
+          "columnWidths": {
+            "*": "double"
+          }
+        },
+        "_links": [
+          {
+            "rel": "string",
+            "href": "string",
+            "method": "string"
+          }
+        ]
+      },
       "description": "One smart group by id, with its rules and current membership count."
     },
     {
