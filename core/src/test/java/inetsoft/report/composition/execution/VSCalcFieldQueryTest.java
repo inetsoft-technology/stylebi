@@ -538,8 +538,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a zero or 0 / 0 ratio is empty")
-   void pin_divideByZeroIsEmpty() throws Exception {
+   @DisplayName("A zero or 0 / 0 ratio is empty (#80953 Q3c)")
+   void divideByZeroIsEmpty() throws Exception {
       init(new String[] { XSchema.STRING, XSchema.INTEGER, XSchema.INTEGER },
            new Object[][] { { "city", "a", "b" }, { "A", 3, 0 }, { "A", 6, 0 }, { "B", 1, 1 },
                             { "C", 0, 0 } });
