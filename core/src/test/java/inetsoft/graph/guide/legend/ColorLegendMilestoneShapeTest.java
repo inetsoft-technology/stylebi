@@ -79,7 +79,7 @@ class ColorLegendMilestoneShapeTest {
       LegendItem item = new ColorLegend(color, graph).createLegendItem("a", "a");
       BufferedImage img = paintSymbol(item);
 
-      assertEquals(0, alpha(img, X + 3, Y + 2), "diamond leaves the symbol corner empty");
+      assertEquals(0, alpha(img, X + 1, Y + 1), "diamond leaves the symbol corner empty");
       assertNotEquals(0, alpha(img, X + 1 + item.getSymbolSize() / 2, Y + item.getSymbolSize() / 2),
                       "diamond fills the symbol center");
    }
@@ -111,7 +111,7 @@ class ColorLegendMilestoneShapeTest {
       LegendItem item = new ColorLegend(color, graph).createLegendItem("a", "a");
       BufferedImage img = paintSymbol(item);
 
-      assertEquals(0, alpha(img, X + 3, Y + 2), "diamond leaves the symbol corner empty");
+      assertEquals(0, alpha(img, X + 1, Y + 1), "diamond leaves the symbol corner empty");
    }
 
    @Test
@@ -148,7 +148,7 @@ class ColorLegendMilestoneShapeTest {
       LegendItem item = new ColorLegend(color, graph).createLegendItem("a", "a");
       BufferedImage img = paintSymbol(item);
 
-      assertEquals(0, alpha(img, X + 3, Y + 2), "diamond leaves the symbol corner empty");
+      assertEquals(0, alpha(img, X + 1, Y + 1), "diamond leaves the symbol corner empty");
    }
 
    @Test
@@ -169,7 +169,7 @@ class ColorLegendMilestoneShapeTest {
       BufferedImage mile = paintSymbol(legend.createLegendItem("Milestone Date", "Milestone Date"));
 
       assertNotEquals(0, alpha(start, X + 1, Y + 1), "bar entry keeps the rectangle");
-      assertEquals(0, alpha(mile, X + 3, Y + 2), "milestone entry is a diamond");
+      assertEquals(0, alpha(mile, X + 1, Y + 1), "milestone entry is a diamond");
    }
 
    @Test
