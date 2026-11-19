@@ -21,6 +21,8 @@ export interface PortalModel {
    currentUser: CurrentUser;
    helpVisible: boolean;
    aiAssistantVisible: boolean;
+   wizVisible: boolean;
+   wizUrl: string;
    preferencesVisible: boolean;
    logoutVisible: boolean;
    homeLink: string;

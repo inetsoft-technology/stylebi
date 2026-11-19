@@ -62,7 +62,7 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { render } from "@testing-library/angular";
+import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { of } from "rxjs";
 import { server } from "@test-mocks/server";
@@ -257,5 +257,45 @@ describe("PortalAppComponent — Baseline: message listener registration", () =>
 
       const messageCalls = addSpy.mock.calls.filter(([type]) => type === "message");
       expect(messageCalls.length).toBe(1);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Wiz portal entry: toolbar link that opens the standalone Wiz portal in a new tab
+// ---------------------------------------------------------------------------
+
+describe("PortalAppComponent — Wiz portal entry", () => {
+   async function renderWith(extra: Record<string, unknown>) {
+      setupPortalMsw();
+      server.use(
+         http.get("*/api/portal/get-portal-model", () =>
+            HttpResponse.json({ ...PORTAL_MODEL_STUB, ...extra })),
+      );
+      return render(PortalAppComponent, {
+         schemas: [NO_ERRORS_SCHEMA],
+         componentImports: [],
+         providers: makeProviders(),
+      });
+   }
+
+   it("renders a link that opens the Wiz portal in a new tab when wizVisible is true", async () => {
+      const result = await renderWith({ wizVisible: true, wizUrl: "https://wiz.example.com/" });
+
+      await waitFor(() => {
+         const link = result.container.querySelector<HTMLAnchorElement>(
+            "[data-testid='wiz-portal-link']");
+         expect(link).not.toBeNull();
+         expect(link!.getAttribute("href")).toBe("https://wiz.example.com/");
+         expect(link!.getAttribute("target")).toBe("_blank");
+         expect(link!.getAttribute("rel")).toContain("noopener");
+         expect(link!.querySelector("i.report-wizard-icon")).not.toBeNull();
+      });
+   });
+
+   it("renders no Wiz link when wizVisible is false", async () => {
+      const result = await renderWith({ wizVisible: false, wizUrl: "https://wiz.example.com/" });
+
+      await waitFor(() => expect(result.container.querySelector("a.nav-link")).not.toBeNull());
+      expect(result.container.querySelector("[data-testid='wiz-portal-link']")).toBeNull();
    });
 });
