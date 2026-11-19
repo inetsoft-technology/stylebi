@@ -121,10 +121,10 @@ class HomePageControllerShellDarkTest {
       assertEquals(0, cookie.getMaxAge());
    }
 
-   // An embed page lives inside a customer's own page: it renders light, but the user's mode is
-   // still remembered for the login page and the workspace chooser.
+   // An embed page lives inside a customer's own page: it renders light, and it never shows the
+   // shell mode, so it leaves the remembered mode (login page, workspace chooser) alone.
    @Test
-   void embedRendersLightButKeepsRememberedMode() {
+   void embedRendersLightAndLeavesTheCookieAlone() {
       SreeEnv.setProperty(ShellDarkMode.PROPERTY, "true");
       MockHttpServletRequest request = new MockHttpServletRequest();
       request.setRequestURI("/app/embed/chart/global/Dash/Chart1");
@@ -133,9 +133,19 @@ class HomePageControllerShellDarkTest {
 
       assertEquals(Boolean.FALSE, model.getModel().get("shellDark"));
       assertEquals("../codemirror-eclipse.css", model.getModel().get("scriptThemeCssPath"));
-      Cookie cookie = response.getCookie(ShellDarkMode.COOKIE);
-      assertNotNull(cookie);
-      assertEquals("1", cookie.getValue());
+      assertNull(response.getCookie(ShellDarkMode.COOKIE));
+   }
+
+   // an embed that resolves light (e.g. another principal) must not expire a dark user's cookie
+   @Test
+   void embedDoesNotExpireRememberedDark() {
+      MockHttpServletRequest request = new MockHttpServletRequest();
+      request.setRequestURI("/app/embed/chart/global/Dash/Chart1");
+      request.setCookies(new Cookie(ShellDarkMode.COOKIE, "1"));
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      controller.showHomePage(request, response, "http://localhost:8080/");
+
+      assertNull(response.getCookie(ShellDarkMode.COOKIE));
    }
 
    @Test

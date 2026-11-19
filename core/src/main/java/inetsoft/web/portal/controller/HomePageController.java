@@ -109,18 +109,17 @@ public class HomePageController {
       boolean customTheme = customThemesManager.isCustomThemeApplied() || hasOrgTheme;
       Principal principal = request.getUserPrincipal() != null ?
          request.getUserPrincipal() : ThreadContext.getContextPrincipal();
-      boolean userShellDark = ShellDarkMode.isDark(principal, customTheme);
-      // the cookie remembers the user's mode for the login page and the workspace chooser
-      Cookie shellDarkCookie = ShellDarkMode.getCookieUpdate(request, userShellDark);
+      // An embed page is shown inside a customer's own page, which the shell's dark mode must not
+      // restyle (its loading splash, overflow and color-scheme would show dark there), so it
+      // always renders light. It never shows the shell mode either, so it leaves the cookie that
+      // remembers the mode for the login page and the workspace chooser alone.
+      boolean embed = ShellDarkMode.isEmbedUrl(request.getRequestURI(), request.getContextPath());
+      boolean shellDark = !embed && ShellDarkMode.isDark(principal, customTheme);
+      Cookie shellDarkCookie = embed ? null : ShellDarkMode.getCookieUpdate(request, shellDark);
 
       if(shellDarkCookie != null) {
          response.addCookie(shellDarkCookie);
       }
-
-      // An embed page is shown inside a customer's own page, which the shell's dark mode must not
-      // restyle (its loading splash, overflow and color-scheme would show dark there), so it
-      // always renders light.
-      boolean shellDark = userShellDark && !isEmbedRequest(request);
 
       ModelAndView model = new ModelAndView("app/index");
       model.addObject("linkUri", linkUri);
@@ -263,22 +262,6 @@ public class HomePageController {
       model.addObject("openGraphImage", image.url);
       model.addObject("openGraphImageWidth", image.width);
       model.addObject("openGraphImageHeight", image.height);
-   }
-
-   // /app/embed/** (after the servlet context path)
-   private static boolean isEmbedRequest(HttpServletRequest request) {
-      String uri = request.getRequestURI();
-      String contextPath = request.getContextPath();
-
-      if(uri == null) {
-         return false;
-      }
-
-      if(contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
-         uri = uri.substring(contextPath.length());
-      }
-
-      return uri.startsWith("/app/embed/");
    }
 
    private void addAdditionalStyles(ModelAndView model, String linkUri) {
