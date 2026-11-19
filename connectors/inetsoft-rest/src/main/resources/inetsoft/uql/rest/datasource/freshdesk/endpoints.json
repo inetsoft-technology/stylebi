@@ -4,342 +4,1486 @@
       "paged": "false",
       "name": "Ticket",
       "suffix": "/v2/tickets/{Ticket ID}",
+      "responseSchema": {
+        "association_type": "double",
+        "attachments": [
+          {
+            "attachment_url": "string",
+            "content_type": "string",
+            "created_at": "timeInstant",
+            "id": "double",
+            "name": "string",
+            "updated_at": "timeInstant"
+          }
+        ],
+        "cc_emails": [
+          "string"
+        ],
+        "company_id": "double",
+        "created_at": "timeInstant",
+        "description": "string",
+        "description_text": "string",
+        "due_by": "timeInstant",
+        "email_config_id": "double",
+        "fr_due_by": "timeInstant",
+        "fr_escalated": "boolean",
+        "fwd_emails": [
+          "string"
+        ],
+        "group_id": "double",
+        "id": "double",
+        "is_escalated": "boolean",
+        "priority": "double",
+        "product_id": "double",
+        "reply_cc_emails": [
+          "string"
+        ],
+        "requester_id": "double",
+        "responder_id": "double",
+        "source": "double",
+        "source_info": "double",
+        "spam": "boolean",
+        "status": "double",
+        "subject": "string",
+        "tags": [
+          "string"
+        ],
+        "to_emails": [
+          "string"
+        ],
+        "type": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "One ticket by id, with its full field set. Related records -- conversations, requester, company -- are inlined only when explicitly included."
     },
     {
       "paged": "true",
       "name": "Tickets",
       "suffix": "/v2/tickets?query={Query?:(status:1 OR tag:'tag')}",
+      "responseSchema": [
+        {
+          "cc_emails": [
+            "string"
+          ],
+          "company_id": "double",
+          "created_at": "timeInstant",
+          "due_by": "timeInstant",
+          "email_config_id": "double",
+          "fr_due_by": "timeInstant",
+          "fr_escalated": "boolean",
+          "fwd_emails": [
+            "string"
+          ],
+          "group_id": "double",
+          "id": "double",
+          "is_escalated": "boolean",
+          "priority": "double",
+          "product_id": "double",
+          "reply_cc_emails": [
+            "string"
+          ],
+          "requester_id": "double",
+          "responder_id": "double",
+          "source": "double",
+          "source_info": "double",
+          "spam": "boolean",
+          "status": "double",
+          "subject": "string",
+          "to_emails": [
+            "string"
+          ],
+          "type": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The support tickets, with subject, description, the requester, the agent and group assigned, the product, source, tags, custom fields, and created, updated and due timestamps. The query parameter takes Freshdesk's own filter syntax. NOTE THE CODED COLUMNS, which Freshdesk fixes rather than exposing a decoder for: STATUS is 2 Open, 3 Pending, 4 Resolved, 5 Closed; PRIORITY is 1 Low, 2 Medium, 3 High, 4 Urgent; SOURCE is 1 Email, 2 Portal, 3 Phone, 7 Chat, 9 Feedback Widget, 10 Outbound Email. A breakdown left as raw integers is unreadable. NOTE ALSO THAT THE DEFAULT LISTING RETURNS ONLY THE LAST 30 DAYS unless a date filter says otherwise, which silently truncates any historical question."
     },
     {
       "paged": "true",
       "name": "Ticket Fields",
       "suffix": "/v2/ticket_fields?type={Type?}",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "customers_can_edit": "boolean",
+          "default": "boolean",
+          "description": "string",
+          "displayed_to_customers": "boolean",
+          "id": "double",
+          "label": "string",
+          "label_for_customers": "string",
+          "name": "string",
+          "nested_ticket_fields": [
+            {
+              "created_at": "timeInstant",
+              "description": "string",
+              "id": "double",
+              "label": "string",
+              "label_in_portal": "string",
+              "level": "double",
+              "name": "string",
+              "ticket_field_id": "double",
+              "updated_at": "timeInstant"
+            }
+          ],
+          "portal_cc": "boolean",
+          "portal_cc_to": "string",
+          "position": "double",
+          "required_for_agents": "boolean",
+          "required_for_closure": "boolean",
+          "required_for_customers": "boolean",
+          "type": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "Every field a ticket can carry, standard and custom, with type, whether required at which stage, and for dropdowns the allowed choices. The decoder for custom fields, and the statement of what the account actually records."
     },
     {
       "paged": "true",
       "name": "Ticket Conversations",
       "suffix": "/v2/tickets/{Ticket ID}/conversations",
+      "responseSchema": [
+        {
+          "attachments": [
+            {
+              "attachment_url": "string",
+              "content_type": "string",
+              "created_at": "timeInstant",
+              "id": "double",
+              "name": "string",
+              "size": "double",
+              "updated_at": "timeInstant"
+            }
+          ],
+          "bcc_emails": [
+            "string"
+          ],
+          "body": "string",
+          "body_text": "string",
+          "cc_emails": [
+            "string"
+          ],
+          "created_at": "timeInstant",
+          "from_email": "string",
+          "id": "double",
+          "incoming": "boolean",
+          "last_edited_at": "timeInstant",
+          "last_edited_user_id": "double",
+          "private": "boolean",
+          "source": "double",
+          "support_email": "string",
+          "ticket_id": "double",
+          "to_emails": [
+            "string"
+          ],
+          "updated_at": "timeInstant",
+          "user_id": "double"
+        }
+      ],
       "description": "The replies and private notes on one ticket, with author, body, whether each is private, and timestamps. Requires a ticket id. THE PRIVATE FLAG MATTERS: internal notes and customer-facing replies share this table, and counting both as responses overstates how much the customer heard."
     },
     {
       "paged": "true",
       "name": "Ticket Time Entries",
       "suffix": "/v2/tickets/{Ticket ID}/time_entries",
+      "responseSchema": [
+        {
+          "agent_id": "double",
+          "billable": "boolean",
+          "created_at": "timeInstant",
+          "executed_at": "timeInstant",
+          "id": "double",
+          "note": "string",
+          "start_time": "timeInstant",
+          "ticket_id": "double",
+          "time_spent": "string",
+          "timer_running": "boolean",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The time logged against one ticket, with the agent, duration, whether it is billable, and any note. Requires a ticket id. Cost of support is only answerable through this; the ticket itself carries no effort figure."
     },
     {
       "paged": "true",
       "name": "Ticket Satisfaction Ratings",
       "suffix": "/v2/tickets/{Ticket ID}/satisfaction_ratings",
+      "responseSchema": [
+        {
+          "agent_id": "double",
+          "created_at": "timeInstant",
+          "feedback": "string",
+          "group_id": "double",
+          "id": "double",
+          "ratings": {
+            "*": "double"
+          },
+          "survey_id": "double",
+          "ticket_id": "double",
+          "updated_at": "timeInstant",
+          "user_id": "double"
+        }
+      ],
       "description": "The satisfaction responses for one ticket. Requires a ticket id."
     },
     {
       "paged": "false",
       "name": "Contact",
       "suffix": "/v2/contacts/{Contact ID}",
+      "responseSchema": {
+        "active": "boolean",
+        "address": "string",
+        "avatar": {
+          "avatar_url": "string",
+          "content_type": "string",
+          "created_at": "timeInstant",
+          "id": "double",
+          "name": "string",
+          "size": "double",
+          "updated_at": "timeInstant"
+        },
+        "company_id": "double",
+        "created_at": "timeInstant",
+        "description": "string",
+        "email": "string",
+        "id": "double",
+        "job_title": "string",
+        "language": "string",
+        "mobile": "string",
+        "name": "string",
+        "other_companies": [
+          {
+            "company_id": "double",
+            "view_all_tickets": "boolean"
+          }
+        ],
+        "other_emails": [
+          "string"
+        ],
+        "phone": "string",
+        "tags": [
+          "string"
+        ],
+        "time_zone": "string",
+        "twitter_id": "string",
+        "unique_external_id": "string",
+        "updated_at": "timeInstant",
+        "view_all_tickets": "boolean"
+      },
       "description": "One contact by id."
     },
     {
       "paged": "true",
       "name": "Contacts",
       "suffix": "/v2/contacts?query={Query?:(active:true AND tag:'tag')}",
+      "responseSchema": [
+        {
+          "active": "boolean",
+          "address": "string",
+          "company_id": "double",
+          "created_at": "timeInstant",
+          "description": "string",
+          "email": "string",
+          "id": "double",
+          "job_title": "string",
+          "language": "string",
+          "mobile": "string",
+          "name": "string",
+          "phone": "string",
+          "time_zone": "string",
+          "twitter_id": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The end users who raise tickets, with name, email, phone, the company, tags, custom fields, and their active state. The query parameter takes the filter syntax. Note contacts and AGENTS are separate tables in Freshdesk, so a count of people in the system is the sum of both."
     },
     {
       "paged": "true",
       "name": "Contact Fields",
       "suffix": "/v2/contact_fields",
+      "responseSchema": [
+        {
+          "agents_can_edit": "boolean",
+          "created_at": "timeInstant",
+          "customers_can_edit": "boolean",
+          "default": "boolean",
+          "displayed_for_agents": "boolean",
+          "displayed_for_customers": "boolean",
+          "editable_in_signup": "boolean",
+          "id": "double",
+          "label": "string",
+          "label_for_customers": "string",
+          "name": "string",
+          "position": "double",
+          "quick_add_for_agent": "boolean",
+          "required_for_agents": "boolean",
+          "required_for_customers": "boolean",
+          "type": "string",
+          "unique": "boolean",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "Every field a contact can carry, standard and custom."
     },
     {
       "paged": "false",
       "name": "Contact Imports",
       "suffix": "/v2/contacts/imports?status={Status?:in_progress|completed|cancelled|failed}",
+      "responseSchema": [
+        {
+          "completed_records": "double",
+          "created_at": "timeInstant",
+          "failures": {
+            "count": "double",
+            "report": "string"
+          },
+          "id": "double",
+          "status": "string",
+          "total_records": "double"
+        }
+      ],
       "description": "Bulk contact import jobs and their status. Where a data load's outcome, including failed rows, is recorded -- the import itself reports only that it was queued."
     },
     {
       "paged": "false",
       "name": "Contact Import",
       "suffix": "/v2/contacts/imports/{Import ID}",
+      "responseSchema": {
+        "completed_records": "double",
+        "created_at": "timeInstant",
+        "estimated_time_remaining": "string",
+        "failures": {
+          "count": "double",
+          "report": "string"
+        },
+        "id": "double",
+        "status": "string",
+        "total_records": "double"
+      },
       "description": "One contact import by id, with its per-row errors."
     },
     {
       "paged": "false",
       "name": "Agent",
       "suffix": "/v2/agents/{Agent ID}",
+      "responseSchema": {
+        "available": "boolean",
+        "available_since": "timeInstant",
+        "contact": {
+          "active": "boolean",
+          "created_at": "timeInstant",
+          "email": "string",
+          "job_title": "string",
+          "language": "string",
+          "last_login_at": "timeInstant",
+          "mobile": "string",
+          "name": "string",
+          "time_zone": "string",
+          "updated_at": "timeInstant"
+        },
+        "created_at": "timeInstant",
+        "focus_mode": "boolean",
+        "group_ids": [
+          "double"
+        ],
+        "id": "double",
+        "occasional": "boolean",
+        "role_ids": [
+          "double"
+        ],
+        "signature": "string",
+        "skill_ids": [
+          "double"
+        ],
+        "ticket_scope": "double",
+        "type": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "One agent by id."
     },
     {
       "paged": "true",
       "name": "Agents",
       "suffix": "/v2/agents?email={Email Address?}&mobile={Mobile Phone?}&phone={Phone?}&state={State?:fulltime|occasional}",
+      "responseSchema": [
+        {
+          "available": "boolean",
+          "available_since": "timeInstant",
+          "contact": {
+            "active": "boolean",
+            "created_at": "timeInstant",
+            "email": "string",
+            "job_title": "string",
+            "language": "string",
+            "last_login_at": "timeInstant",
+            "mobile": "string",
+            "name": "string",
+            "time_zone": "string",
+            "updated_at": "timeInstant"
+          },
+          "created_at": "timeInstant",
+          "focus_mode": "boolean",
+          "id": "double",
+          "occasional": "boolean",
+          "signature": "string",
+          "ticket_scope": "double",
+          "type": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The support staff, with name, email, ticket scope, groups, roles, whether available, and their signature. Filterable by email, phone or state. TICKET SCOPE decides which tickets an agent can see, and is therefore why two agents running the same query get different counts."
     },
     {
       "paged": "false",
       "name": "Current Agent",
       "suffix": "/v2/agents/me",
+      "responseSchema": {
+        "available": "boolean",
+        "available_since": "timeInstant",
+        "contact": {
+          "active": "boolean",
+          "created_at": "timeInstant",
+          "email": "string",
+          "job_title": "string",
+          "language": "string",
+          "last_login_at": "timeInstant",
+          "mobile": "string",
+          "name": "string",
+          "time_zone": "string",
+          "updated_at": "timeInstant"
+        },
+        "created_at": "timeInstant",
+        "focus_mode": "boolean",
+        "group_ids": [
+          "double"
+        ],
+        "id": "double",
+        "occasional": "boolean",
+        "role_ids": [
+          "double"
+        ],
+        "signature": "string",
+        "skill_ids": [
+          "double"
+        ],
+        "ticket_scope": "double",
+        "type": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "The agent the credentials belong to, with their scope and roles. Worth reading first, since that scope filters nearly everything else here."
     },
     {
       "paged": "false",
       "name": "Skill",
       "suffix": "/v2/skills/{Skill ID}",
+      "responseSchema": {
+        "agents": [
+          {
+            "id": "double"
+          }
+        ],
+        "conditions": [
+          {
+            "field_name": "string",
+            "operator": "string",
+            "resource_type": "string"
+          }
+        ],
+        "created_at": "timeInstant",
+        "id": "double",
+        "match_type": "string",
+        "name": "string",
+        "rank": "double",
+        "updated_at": "timeInstant"
+      },
       "description": "One skill by id."
     },
     {
       "paged": "true",
       "name": "Skills",
       "suffix": "/v2/skills",
+      "responseSchema": [
+        {
+          "agents": [
+            {
+              "id": "double"
+            }
+          ],
+          "conditions": [
+            {
+              "field_name": "string",
+              "operator": "string",
+              "resource_type": "string"
+            }
+          ],
+          "created_at": "timeInstant",
+          "id": "double",
+          "match_type": "string",
+          "name": "string",
+          "rank": "double",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The skills defined for skills-based routing, with the agents holding each. Where routing depends on capability rather than group, this is what determines who could take a ticket."
     },
     {
       "paged": "false",
       "name": "Role",
       "suffix": "/v2/roles/{Role ID}",
+      "responseSchema": {
+        "created_at": "timeInstant",
+        "default": "boolean",
+        "description": "string",
+        "id": "double",
+        "name": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "One role by id."
     },
     {
       "paged": "true",
       "name": "Roles",
       "suffix": "/v2/roles",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "default": "boolean",
+          "description": "string",
+          "id": "double",
+          "name": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The permission roles agents hold, with the abilities each grants."
     },
     {
       "paged": "false",
       "name": "Group",
       "suffix": "/v2/groups/{Group ID}",
+      "responseSchema": {
+        "agent_ids": [
+          "double"
+        ],
+        "auto_ticket_assign": "double",
+        "business_hour_id": "double",
+        "created_at": "timeInstant",
+        "description": "string",
+        "escalate_to": "double",
+        "id": "double",
+        "name": "string",
+        "unassigned_for": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "One group by id."
     },
     {
       "paged": "true",
       "name": "Groups",
       "suffix": "/v2/groups",
+      "responseSchema": [
+        {
+          "auto_ticket_assign": "double",
+          "business_hour_id": "double",
+          "created_at": "timeInstant",
+          "description": "string",
+          "escalate_to": "double",
+          "id": "double",
+          "name": "string",
+          "unassigned_for": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The agent groups tickets are assigned to, with their business hours, escalation settings and members. The team dimension, and the business-hours link is what makes SLA timings interpretable."
     },
     {
       "paged": "false",
       "name": "Company",
       "suffix": "/v2/companies/{Company ID}",
+      "responseSchema": {
+        "account_tier": "string",
+        "created_at": "timeInstant",
+        "description": "string",
+        "domains": [
+          "string"
+        ],
+        "health_score": "string",
+        "id": "double",
+        "industry": "string",
+        "name": "string",
+        "note": "string",
+        "renewal_date": "timeInstant",
+        "updated_at": "timeInstant"
+      },
       "description": "One company by id."
     },
     {
       "paged": "true",
       "name": "Companies",
       "suffix": "/v2/companies?query={Query?:(domain:inetsoft.com AND created_at:2020-01-15)}",
+      "responseSchema": [
+        {
+          "account_tier": "string",
+          "created_at": "timeInstant",
+          "description": "string",
+          "domains": [
+            "string"
+          ],
+          "health_score": "string",
+          "id": "double",
+          "industry": "string",
+          "name": "string",
+          "note": "string",
+          "renewal_date": "timeInstant",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The customer organisations contacts belong to, with name, domains, description, custom fields and account tier. The account-level dimension ticket volume is grouped by."
     },
     {
       "paged": "true",
       "name": "Company Search",
       "suffix": "/v2/companies/autocomplete?name={Name}",
+      "responseSchema": {
+        "companies": [
+          {
+            "id": "double",
+            "name": "string"
+          }
+        ]
+      },
       "description": "Companies whose name matches a term. The autocomplete lookup, for when the id is not known."
     },
     {
       "paged": "true",
       "name": "Company Fields",
       "suffix": "/v2/company_fields",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "default": "boolean",
+          "id": "double",
+          "label": "string",
+          "name": "string",
+          "position": "double",
+          "required_for_agents": "boolean",
+          "type": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "Every field a company can carry, standard and custom."
     },
     {
       "paged": "false",
       "name": "Company Imports",
       "suffix": "/v2/companies/imports?status={Status?:in_progress|completed|cancelled|failed}",
+      "responseSchema": [
+        {
+          "completed_records": "double",
+          "created_at": "timeInstant",
+          "failures": {
+            "count": "double",
+            "report": "string"
+          },
+          "id": "double",
+          "status": "string",
+          "total_records": "double"
+        }
+      ],
       "description": "Bulk company import jobs and their status."
     },
     {
       "paged": "false",
       "name": "Company Import",
       "suffix": "/v2/companies/imports/{Import ID}",
+      "responseSchema": {
+        "completed_records": "double",
+        "created_at": "timeInstant",
+        "estimated_time_remaining": "string",
+        "failures": {
+          "count": "double",
+          "report": "string"
+        },
+        "id": "double",
+        "status": "string",
+        "total_records": "double"
+      },
       "description": "One company import by id."
     },
     {
       "paged": "true",
       "name": "Canned Response Folders",
       "suffix": "/v2/canned_response_folders",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "id": "double",
+          "name": "string",
+          "personal": "boolean",
+          "responses_count": "double",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The folders canned responses are filed under."
     },
     {
       "paged": "true",
       "name": "Canned Responses",
       "suffix": "/v2/canned_response_folders/{Folder ID}",
+      "responseSchema": {
+        "canned_responses": [
+          {
+            "id": "double",
+            "title": "string"
+          }
+        ],
+        "created_at": "timeInstant",
+        "id": "double",
+        "name": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "The canned responses in one folder, by title. Requires a folder id."
     },
     {
       "paged": "true",
       "name": "Detailed Canned Responses",
       "suffix": "/v2/canned_response_folders/{Folder ID}/responses",
+      "responseSchema": [
+        {
+          "attachments": [
+            {
+              "attachment_url": "string",
+              "content_type": "string",
+              "created_at": "timeInstant",
+              "id": "double",
+              "name": "string",
+              "size": "double",
+              "thumb_url": "string",
+              "updated_at": "timeInstant"
+            }
+          ],
+          "content": "string",
+          "content_html": "string",
+          "created_at": "timeInstant",
+          "folder_id": "double",
+          "id": "double",
+          "title": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The canned responses in one folder WITH their full content. Requires a folder id. Which responses exist says a good deal about the standard cases a team handles."
     },
     {
       "paged": "false",
       "name": "Forum Category",
       "suffix": "/v2/discussions/categories/{Category ID}",
+      "responseSchema": {
+        "created_at": "timeInstant",
+        "description": "string",
+        "id": "double",
+        "name": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "One forum category by id."
     },
     {
       "paged": "true",
       "name": "Forum Categories",
       "suffix": "/v2/discussions/categories",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "description": "string",
+          "id": "double",
+          "name": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The top level of the community forums."
     },
     {
       "paged": "true",
       "name": "Forums in Category",
       "suffix": "/v2/discussions/categories/{Category ID}/forums",
+      "responseSchema": [
+        {
+          "description": "string",
+          "forum_category_id": "double",
+          "forum_type": "double",
+          "forum_visibility": "double",
+          "id": "double",
+          "name": "string",
+          "position": "double",
+          "posts_count": "double",
+          "topics_count": "double"
+        }
+      ],
       "description": "The forums within one category. Requires a category id."
     },
     {
       "paged": "false",
       "name": "Forum",
       "suffix": "/v2/discussions/forums/{Forum ID}",
+      "responseSchema": {
+        "description": "string",
+        "forum_category_id": "double",
+        "forum_type": "double",
+        "forum_visibility": "double",
+        "id": "double",
+        "name": "string",
+        "position": "double",
+        "posts_count": "double",
+        "topics_count": "double"
+      },
       "description": "One forum by id, with its type -- questions, ideas, problems or announcements. The type decides what the topics within mean."
     },
     {
       "paged": "true",
       "name": "Forum Topics",
       "suffix": "/v2/discussions/forums/{Forum ID}/topics",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "forum_id": "double",
+          "hits": "double",
+          "id": "double",
+          "locked": "boolean",
+          "merged_topic_id": "double",
+          "posts_count": "double",
+          "published": "boolean",
+          "replied_at": "timeInstant",
+          "replied_by": "double",
+          "stamp_type": "double",
+          "sticky": "boolean",
+          "title": "string",
+          "updated_at": "timeInstant",
+          "user_id": "double",
+          "user_votes": "double"
+        }
+      ],
       "description": "The topics in one forum, with author, replies and votes. Requires a forum id. Community demand: an idea topic's vote count is the closest thing to a feature request tally."
     },
     {
       "paged": "false",
       "name": "Forum Topic",
       "suffix": "/v2/discussions/topics/{Topic ID}",
+      "responseSchema": {
+        "created_at": "timeInstant",
+        "forum_id": "double",
+        "hits": "double",
+        "id": "double",
+        "locked": "boolean",
+        "merged_topic_id": "double",
+        "posts_count": "double",
+        "published": "boolean",
+        "replied_at": "timeInstant",
+        "replied_by": "double",
+        "stamp_type": "double",
+        "sticky": "boolean",
+        "title": "string",
+        "updated_at": "timeInstant",
+        "user_id": "double",
+        "user_votes": "double"
+      },
       "description": "One topic by id."
     },
     {
       "paged": "true",
       "name": "Forum Topic Comments",
       "suffix": "/v2/discussions/topics/{Topic ID}/comments",
+      "responseSchema": [
+        {
+          "answer": "boolean",
+          "body": "string",
+          "body_text": "string",
+          "created_at": "timeInstant",
+          "forum_id": "double",
+          "id": "double",
+          "published": "boolean",
+          "spam": "boolean",
+          "topic_id": "double",
+          "trash": "boolean",
+          "updated_at": "timeInstant",
+          "user_id": "double"
+        }
+      ],
       "description": "The replies on one topic. Requires a topic id."
     },
     {
       "paged": "true",
       "name": "Monitored Topics",
       "suffix": "/v2/discussions/topics/followed_by?user_id={User ID}",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "forum_id": "double",
+          "hits": "double",
+          "id": "double",
+          "locked": "boolean",
+          "merged_topic_id": "double",
+          "posts_count": "double",
+          "published": "boolean",
+          "replied_at": "timeInstant",
+          "replied_by": "double",
+          "stamp_type": "double",
+          "sticky": "boolean",
+          "title": "string",
+          "updated_at": "timeInstant",
+          "user_id": "double",
+          "user_votes": "double"
+        }
+      ],
       "description": "The topics one user follows. Requires a user id."
     },
     {
       "paged": "true",
       "name": "Participated Topics",
       "suffix": "/v2/discussions/topics/participated_by?user_id={User ID}",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "forum_id": "double",
+          "hits": "double",
+          "id": "double",
+          "locked": "boolean",
+          "merged_topic_id": "double",
+          "posts_count": "double",
+          "published": "boolean",
+          "replied_at": "timeInstant",
+          "replied_by": "double",
+          "stamp_type": "double",
+          "sticky": "boolean",
+          "title": "string",
+          "updated_at": "timeInstant",
+          "user_id": "double",
+          "user_votes": "double"
+        }
+      ],
       "description": "The topics one user has replied to. Requires a user id."
     },
     {
       "paged": "false",
       "name": "Solution Category",
       "suffix": "/v2/solutions/categories/{Category ID}/{Language Code?}",
+      "responseSchema": {
+        "created_at": "timeInstant",
+        "description": "string",
+        "id": "double",
+        "name": "string",
+        "updated_at": "timeInstant",
+        "visible_in_portals": [
+          "double"
+        ]
+      },
       "description": "One knowledge base category by id and language."
     },
     {
       "paged": "true",
       "name": "Solutions Categories",
       "suffix": "/v2/solutions/categories/{Language Code?}",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "description": "string",
+          "id": "double",
+          "name": "string",
+          "updated_at": "timeInstant",
+          "visible_in_portals": [
+            "double"
+          ]
+        }
+      ],
       "description": "The top level of the knowledge base, optionally in a given language."
     },
     {
       "paged": "false",
       "name": "Solution Folder",
       "suffix": "/v2/solutions/folders/{Folder ID}/{Language Code?}",
+      "responseSchema": {
+        "company_ids": [
+          "double"
+        ],
+        "created_at": "timeInstant",
+        "description": "string",
+        "id": "double",
+        "name": "string",
+        "updated_at": "timeInstant",
+        "visibility": "double"
+      },
       "description": "One folder by id and language."
     },
     {
       "paged": "true",
       "name": "Solution Folders in Category",
       "suffix": "/v2/solutions/categories/{Category ID}/folders/{Language Code?}",
+      "responseSchema": [
+        {
+          "company_ids": [
+            "double"
+          ],
+          "created_at": "timeInstant",
+          "description": "string",
+          "id": "double",
+          "name": "string",
+          "updated_at": "timeInstant",
+          "visibility": "double"
+        }
+      ],
       "description": "The folders within one category. Requires a category id."
     },
     {
       "paged": "false",
       "name": "Solution Article",
       "suffix": "/v2/solutions/articles/{Article ID}/{Language Code?}",
+      "responseSchema": {
+        "agent_id": "double",
+        "category_id": "double",
+        "created_at": "timeInstant",
+        "description": "string",
+        "description_text": "string",
+        "folder_id": "double",
+        "hits": "double",
+        "id": "double",
+        "status": "double",
+        "tags": [
+          "string"
+        ],
+        "thumbs_down": "double",
+        "thumbs_up": "double",
+        "title": "string",
+        "type": "double",
+        "updated_at": "timeInstant"
+      },
       "description": "One article by id and language, with its body and vote counts."
     },
     {
       "paged": "true",
       "name": "Solution Articles in Folder",
       "suffix": "/v2/solutions/folders/{Folder ID}/articles/{Language Code?}",
+      "responseSchema": [
+        {
+          "agent_id": "double",
+          "category_id": "double",
+          "created_at": "timeInstant",
+          "description": "string",
+          "description_text": "string",
+          "folder_id": "double",
+          "hits": "double",
+          "id": "double",
+          "status": "double",
+          "thumbs_down": "double",
+          "thumbs_up": "double",
+          "title": "string",
+          "type": "double",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The articles in one folder, with title, status, and the thumbs-up and thumbs-down counts. Requires a folder id. THE VOTE COUNTS ARE THE USEFUL PART: they identify documentation that is present but not helping, which no ticket table reveals."
     },
     {
       "paged": "true",
       "name": "Solution Article Search",
       "suffix": "/v2/search/solutions?term={Keyword}",
+      "responseSchema": [
+        {
+          "agent_id": "double",
+          "category_id": "double",
+          "category_name": "string",
+          "created_at": "timeInstant",
+          "description": "string",
+          "description_text": "string",
+          "folder_id": "double",
+          "folder_name": "string",
+          "folder_visibility": "double",
+          "id": "double",
+          "language_id": "double",
+          "modified_at": "timeInstant",
+          "modified_by": "double",
+          "path": "string",
+          "status": "double",
+          "title": "string",
+          "type": "double",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "Articles matching a keyword. The search customers themselves use."
     },
     {
       "paged": "true",
       "name": "Surveys",
       "suffix": "/v2/surveys",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "id": "double",
+          "questions": [
+            {
+              "id": "string",
+              "label": "string"
+            }
+          ],
+          "title": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The satisfaction surveys configured, with their questions and rating scales. The decoder for what a rating value means, since the scale is configurable."
     },
     {
       "paged": "true",
       "name": "Satisfaction Ratings",
       "suffix": "/v2/surveys/satisfaction_ratings?created_since={Created Since?:yyyy-MM-ddTHH:mm:ssZ}&userId={User ID?}",
+      "responseSchema": [
+        {
+          "agent_id": "double",
+          "created_at": "timeInstant",
+          "feedback": "string",
+          "group_id": "double",
+          "id": "double",
+          "ratings": {
+            "*": "double"
+          },
+          "survey_id": "double",
+          "ticket_id": "double",
+          "updated_at": "timeInstant",
+          "user_id": "double"
+        }
+      ],
       "description": "Satisfaction survey responses across the account, filterable by date. The CSAT table. Ratings attach to a ticket and an agent, so this is where support quality is measured -- and the response rate matters, since only a fraction of tickets are rated and the rated ones skew towards strong feelings."
     },
     {
       "paged": "false",
       "name": "Email Mailbox",
       "suffix": "/v2/email/mailboxes/{Mailbox ID}",
+      "responseSchema": {
+        "active": "boolean",
+        "created_at": "timeInstant",
+        "custom_mailbox": {
+          "access_type": "string",
+          "incoming": {
+            "authentication": "string",
+            "delete_from_server": "boolean",
+            "failure_code": "string",
+            "mail_server": "string",
+            "port": "double",
+            "use_ssl": "boolean",
+            "user_name": "string"
+          },
+          "outgoing": {
+            "authentication": "string",
+            "mail_server": "string",
+            "port": "double",
+            "use_ssl": "boolean",
+            "user_name": "string"
+          }
+        },
+        "default_reply_email": "boolean",
+        "freshdesk_mailbox": {
+          "forward_email": "string"
+        },
+        "group_id": "double",
+        "id": "double",
+        "mailbox_type": "string",
+        "name": "string",
+        "product_id": "double",
+        "support_email": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "One mailbox by id."
     },
     {
       "paged": "true",
       "name": "Email Mailboxes",
       "suffix": "/v2/email/mailboxes?support_email={Support Email?}&forward_email={Forward Email?}&product_id={Product ID?}&group_id={Group ID?}&active={Active?:true|false}",
+      "responseSchema": [
+        {
+          "active": "boolean",
+          "created_at": "timeInstant",
+          "custom_mailbox": {
+            "access_type": "string",
+            "incoming": {
+              "authentication": "string",
+              "delete_from_server": "boolean",
+              "failure_code": "string",
+              "mail_server": "string",
+              "port": "double",
+              "use_ssl": "boolean",
+              "user_name": "string"
+            },
+            "outgoing": {
+              "authentication": "string",
+              "mail_server": "string",
+              "port": "double",
+              "use_ssl": "boolean",
+              "user_name": "string"
+            }
+          },
+          "default_reply_email": "boolean",
+          "freshdesk_mailbox": {
+            "forward_email": "string"
+          },
+          "group_id": "double",
+          "id": "double",
+          "mailbox_type": "string",
+          "name": "string",
+          "product_id": "double",
+          "support_email": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The support mailboxes configured, with their addresses and forwarding state. Inbound mail arrives through these, so this maps an incoming ticket to a product or group -- and the verification state is why mail to an address may not be arriving."
     },
     {
       "paged": "false",
       "name": "Mailbox Settings",
       "suffix": "/v2/email/settings",
+      "responseSchema": {
+        "allow_agent_to_initiate_conversation": "boolean",
+        "create_requester_using_reply_to": "boolean",
+        "original_sender_as_requester_for_forward": "boolean",
+        "personalized_email_replies": "boolean"
+      },
       "description": "The account's email settings. Configuration."
     },
     {
       "paged": "false",
       "name": "Automatic Bcc Emails",
       "suffix": "/v2/notifications/email/bcc",
+      "responseSchema": {
+        "emails": [
+          "string"
+        ]
+      },
       "description": "The addresses blind-copied on outgoing notifications. Configuration."
     },
     {
       "paged": "false",
       "name": "Product",
       "suffix": "/v2/products/{Product ID}",
+      "responseSchema": {
+        "created_at": "timeInstant",
+        "description": "string",
+        "id": "double",
+        "name": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "One product by id."
     },
     {
       "paged": "true",
       "name": "Products",
       "suffix": "/v2/products",
+      "responseSchema": [
+        {
+          "created_at": "timeInstant",
+          "description": "string",
+          "id": "double",
+          "name": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The products tickets can be raised against, each with its own portal and support email. Multi-product accounts route by product, so this is a routing dimension as well as a reporting one."
     },
     {
       "paged": "false",
       "name": "Business Hour",
       "suffix": "/v2/business_hours/{Business Hour ID}",
+      "responseSchema": {
+        "business_hours": {
+          "friday": {
+            "end_time": "string",
+            "start_time": "string"
+          },
+          "monday": {
+            "end_time": "string",
+            "start_time": "string"
+          },
+          "saturday": {
+            "end_time": "string",
+            "start_time": "string"
+          },
+          "sunday": {
+            "end_time": "string",
+            "start_time": "string"
+          },
+          "thursday": {
+            "end_time": "string",
+            "start_time": "string"
+          },
+          "tuesday": {
+            "end_time": "string",
+            "start_time": "string"
+          },
+          "wednesday": {
+            "end_time": "string",
+            "start_time": "string"
+          }
+        },
+        "created_at": "timeInstant",
+        "description": "string",
+        "id": "double",
+        "is_default": "boolean",
+        "name": "string",
+        "time_zone": "string",
+        "updated_at": "timeInstant"
+      },
       "description": "One business hours calendar by id, with its holidays."
     },
     {
       "paged": "true",
       "name": "Business Hours",
       "suffix": "/v2/business_hours",
+      "responseSchema": [
+        {
+          "business_hours": {
+            "friday": {
+              "end_time": "string",
+              "start_time": "string"
+            },
+            "monday": {
+              "end_time": "string",
+              "start_time": "string"
+            },
+            "saturday": {
+              "end_time": "string",
+              "start_time": "string"
+            },
+            "sunday": {
+              "end_time": "string",
+              "start_time": "string"
+            },
+            "thursday": {
+              "end_time": "string",
+              "start_time": "string"
+            },
+            "tuesday": {
+              "end_time": "string",
+              "start_time": "string"
+            },
+            "wednesday": {
+              "end_time": "string",
+              "start_time": "string"
+            }
+          },
+          "created_at": "timeInstant",
+          "description": "string",
+          "id": "double",
+          "is_default": "boolean",
+          "name": "string",
+          "time_zone": "string",
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The working-hour calendars, with the daily hours and holidays of each. SLA CLOCKS COUNT BUSINESS HOURS rather than wall-clock time where a calendar applies, so a duration read as elapsed time is simply wrong for those tickets."
     },
     {
       "paged": "true",
       "name": "SLA Policies",
       "suffix": "/v2/sla_policies",
+      "responseSchema": [
+        {
+          "active": "boolean",
+          "applicable_to": {
+            "company_ids": [
+              "double"
+            ],
+            "group_ids": [
+              "double"
+            ],
+            "product_ids": [
+              "double"
+            ],
+            "source_infos": [
+              "double"
+            ],
+            "sources": [
+              "double"
+            ],
+            "ticket_types": [
+              "string"
+            ]
+          },
+          "created_at": "timeInstant",
+          "description": "string",
+          "escalation": {
+            "resolution": {
+              "level_1": {
+                "agent_ids": [
+                  "double"
+                ],
+                "escalation_time": "double"
+              },
+              "level_2": {
+                "agent_ids": [
+                  "double"
+                ],
+                "escalation_time": "double"
+              },
+              "level_3": {
+                "agent_ids": [
+                  "double"
+                ],
+                "escalation_time": "double"
+              },
+              "level_4": {
+                "agent_ids": [
+                  "double"
+                ],
+                "escalation_time": "double"
+              }
+            },
+            "response": {
+              "agent_ids": [
+                "double"
+              ],
+              "escalation_time": "double"
+            }
+          },
+          "id": "double",
+          "is_default": "boolean",
+          "name": "string",
+          "position": "double",
+          "sla_target": {
+            "priority_1": {
+              "business_hours": "boolean",
+              "escalation_enabled": "boolean",
+              "resolve_within": "double",
+              "respond_within": "double"
+            },
+            "priority_2": {
+              "business_hours": "boolean",
+              "escalation_enabled": "boolean",
+              "resolve_within": "double",
+              "respond_within": "double"
+            },
+            "priority_3": {
+              "business_hours": "boolean",
+              "escalation_enabled": "boolean",
+              "resolve_within": "double",
+              "respond_within": "double"
+            },
+            "priority_4": {
+              "business_hours": "boolean",
+              "escalation_enabled": "boolean",
+              "resolve_within": "double",
+              "respond_within": "double"
+            }
+          },
+          "updated_at": "timeInstant"
+        }
+      ],
       "description": "The service level policies, with the response and resolution targets per priority and the conditions each applies under. THE TARGETS THAT MAKE A DURATION FAST OR SLOW -- a resolution time is meaningless without them, and the policies are applied conditionally, so different tickets are held to different targets."
     },
     {
       "paged": "false",
       "name": "Helpdesk Settings",
       "suffix": "/v2/settings/helpdesk",
+      "responseSchema": {
+        "portal_languages": [
+          "string"
+        ],
+        "primary_language": "string",
+        "supported_languages": [
+          "string"
+        ]
+      },
       "description": "The account's helpdesk settings, including the primary language and the languages supported. WORTH READING BEFORE THE KNOWLEDGE BASE ENDPOINTS, which all take a language code: an article requested in an unsupported language returns nothing rather than falling back."
     }
   ]
