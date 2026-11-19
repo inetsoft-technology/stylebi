@@ -1014,4 +1014,17 @@ public class CalcTableScopeTest {
 
       private final LostSwapFile lost;
    }
+
+   // Bug #81695: a single value (not an array) keeps its type in max / min / mode, as in 13.8
+   @Test
+   void aSingleValueKeepsItsTypeInMaxMinAndMode() {
+      Date date = new Date(2025 - 1900, 1, 3);
+
+      assertEquals(7.0, calcTableScope.max(7.0, null, null));
+      assertEquals(7.0, calcTableScope.min(7.0, null, null));
+      assertEquals(7.0, calcTableScope.mode(7.0, null, null));
+      assertEquals(date, calcTableScope.max(date, null, null));
+      assertEquals(date, calcTableScope.min(date, null, null));
+      assertEquals(date, calcTableScope.mode(date, null, null));
+   }
 }

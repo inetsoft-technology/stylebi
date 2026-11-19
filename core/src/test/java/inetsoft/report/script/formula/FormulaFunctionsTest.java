@@ -1013,4 +1013,12 @@ public class FormulaFunctionsTest {
          throw new AssertionError(error[0]);
       }
    }
+
+   // Bug #81695: a single number or boolean given as the list is one element, not its text
+   @org.junit.jupiter.api.Test
+   void inArrayWithASingleValueAsTheList() {
+      assertTrue(FormulaFunctions.inArray(1.0, 1.0));
+      assertTrue(FormulaFunctions.inArray(2.5, 2.5));
+      assertTrue(FormulaFunctions.inArray(true, true));
+   }
 }
