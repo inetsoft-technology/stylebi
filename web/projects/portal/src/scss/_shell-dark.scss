@@ -474,6 +474,17 @@ $dark-ws-row-hover-bg: #302D27;
     --bs-btn-disabled-border-color: var(--inet-button-light-border-color);
   }
 
+  // A pressed button: the light shell darkens it (brightness .9), the way its hover darkens. In the
+  // dark shell hover lightens, so a darkened press would fall back toward rest and read weaker than
+  // hover. Press lightens a step further instead (Material 3: pressed is a stronger state layer than
+  // hover, in the same direction). Same selector as the light rule, so it wins by source order.
+  .btn.btn-primary, .btn.btn-secondary, .btn.btn-default, .btn-light, .btn.btn-light,
+  .btn.btn-danger {
+    &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active:focus#{$outside-content} {
+      filter: brightness(1.12);
+    }
+  }
+
   // a disabled primary button takes the dark disabled values (see the tokens) at full opacity; also
   // inside a disabled fieldset. Dashboard content keeps the light shell's faded orange.
   .btn.btn-primary:is(:disabled, .disabled)#{$outside-content},

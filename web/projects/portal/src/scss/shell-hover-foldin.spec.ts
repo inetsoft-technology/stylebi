@@ -137,3 +137,14 @@ describe("dark shell disabled primary button", () => {
       expect(rule[0]).toMatch(/border-color:\s*var\(--inet-dark-disabled-primary-bg\);/);
    });
 });
+
+describe("dark shell button press", () => {
+   it("lightens past the hover, as hover lightens past rest in the dark shell", () => {
+      const css = read("scss/_shell-dark.scss");
+      const press = css.match(
+         /\.btn\.btn-primary, \.btn\.btn-secondary, \.btn\.btn-default, \.btn-light, \.btn\.btn-light,\s*\.btn\.btn-danger\s*\{\s*&:not\(:disabled\):not\(\.disabled\):not\(\.condition-field-combo-toggle\.disabled\):active:focus#\{\$outside-content\}\s*\{[^}]*\}/);
+
+      expect(press).not.toBeNull();
+      expect(press[0]).toMatch(/filter:\s*brightness\(1\.12\);/);
+   });
+});
