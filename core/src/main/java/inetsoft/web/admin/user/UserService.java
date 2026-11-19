@@ -167,7 +167,7 @@ public class UserService
          .collect(Collectors.toList());
    }
 
-   void logoutSession(String address, String[] sessionIds, Principal principal) {
+   public void logoutSession(String address, String[] sessionIds, Principal principal) {
       if(sessionIds == null || sessionIds.length == 0) {
          return;
       }
@@ -209,7 +209,7 @@ public class UserService
       }
    }
 
-   List<UserSessionMonitoringTableModel> getServerSessionModel(String address, Principal principal)
+   public List<UserSessionMonitoringTableModel> getServerSessionModel(String address, Principal principal)
    {
       boolean lastAccessEnabled = isLevelQualified("lastAccess");
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
