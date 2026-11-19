@@ -114,6 +114,17 @@ public final class VSMVAnalyzer implements MVAnalyzer {
          int mode = TransformationDescriptor.ANALYTIC_MODE;
          Worksheet ws = vs.getBaseWorksheet();
          Map<String, TableInfo> process = new HashMap<>(tmap);
+         // the definition of the tables as the author defined them, before the analysis
+         // transforms them (the MVs are stale once the definition changes)
+         definitionKeys.clear();
+
+         for(String name : tmap.keySet()) {
+            Assembly table = ws == null ? null : ws.getAssembly(name);
+
+            if(table instanceof TableAssembly) {
+               definitionKeys.put(name, MVDefinitionKey.create((TableAssembly) table));
+            }
+         }
 
          while(process.size() > 0) {
             for(Map.Entry<String, TableInfo> entry : process.entrySet()) {
@@ -251,8 +262,11 @@ public final class VSMVAnalyzer implements MVAnalyzer {
                   if(!metadataTbl.getColumnSelection(false).isEmpty()) {
                      TableInfo info2 = new TableInfo(metadataTbl.getName());
 
-                     defs.add(new MVDefInfo(vsId, metadataTbl, metadataTbl.getName(),
-                                            desc, root, rootMirror, info2, bypass));
+                     MVDefInfo mdef = new MVDefInfo(vsId, metadataTbl, metadataTbl.getName(),
+                                                    desc, root, rootMirror, info2, bypass);
+                     // the association MV holds the data of the bound table
+                     mdef.definitionTable = tname;
+                     defs.add(mdef);
                      tmap.put(metadataTbl.getName(), info2);
                   }
                }
@@ -1551,6 +1565,7 @@ public final class VSMVAnalyzer implements MVAnalyzer {
          this.info = info;
          this.odesc = desc;
          this.bypass = bypass;
+         this.definitionTable = otname;
       }
 
       MVDef createDef() {
@@ -1584,6 +1599,12 @@ public final class VSMVAnalyzer implements MVAnalyzer {
 
          if(defaultCycle != null && !defaultCycle.equals("")) {
             def.setCycle(defaultCycle);
+         }
+
+         String key = definitionKeys.get(definitionTable);
+
+         if(key != null) {
+            def.setDefinitionKey(definitionTable, key);
          }
 
          odesc.clearPseudoFilter();
@@ -1636,6 +1657,8 @@ public final class VSMVAnalyzer implements MVAnalyzer {
       private final String vsId;
       private final TableAssembly table;
       private final String otname;
+      // the table in the worksheet of the viewsheet the MV holds the data of
+      private String definitionTable;
       private final Worksheet ws;
       private final boolean root;
       private final boolean rootMirror;
@@ -1651,6 +1674,7 @@ public final class VSMVAnalyzer implements MVAnalyzer {
 
    private final Map<String, TableInfo> tmap = new HashMap<>();
    private final Map<String, TableInfo> tmap2 = new HashMap<>();
+   private final Map<String, String> definitionKeys = new HashMap<>();
    private final Vector<String> subqueries = new Vector<>();
    private final Catalog catalog = Catalog.getCatalog();
    private final Viewsheet vs;

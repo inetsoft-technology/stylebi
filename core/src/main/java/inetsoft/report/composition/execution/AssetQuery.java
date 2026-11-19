@@ -476,14 +476,14 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
-    * Check if an expression column of the bound table has been edited since its worksheet mv
-    * was built.
+    * Check if the bound table has been edited since its worksheet mv was built: an expression
+    * column, or the source, conditions, joins, aggregates, ... (Bug #81366).
     */
    private static boolean isWSMVExpressionChanged(AssetEntry wsEntry, String wsTable,
                                                   XPrincipal user, TableAssembly table)
    {
       MVDef def = MVManager.getManager().findMV(wsEntry, wsTable, user, null);
-      return def != null && def.isExpressionChanged(table.getColumnSelection(true));
+      return def != null && def.isStale(table);
    }
 
    /**

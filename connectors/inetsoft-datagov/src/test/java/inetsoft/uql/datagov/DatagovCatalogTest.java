@@ -207,20 +207,20 @@ class DatagovCatalogTest {
 
    @Test
    void listDatasets_fetchesAllPages() throws Exception {
-      // resultSetSize (10001) exceeds one page (10000), so a second request at offset=10000 is
+      // resultSetSize (501) exceeds one page (500), so a second request at offset=500 is
       // required to finish enumerating -- this replaces a retired "only one page is fetched"
       // expectation, which under-read TabularCatalogProvider's own "no limit and no paging"
       // contract.
       stubDiscovery(url -> url.contains("offset=0")
-         ? discoveryPage(10001, datasetEntry("erm2-nwe9"), datasetEntry("8wbx-tsch"))
-         : discoveryPage(10001, datasetEntry("w7w3-xahh")));
+         ? discoveryPage(501, datasetEntry("erm2-nwe9"), datasetEntry("8wbx-tsch"))
+         : discoveryPage(501, datasetEntry("w7w3-xahh")));
 
       TabularCatalog catalog = DatagovCatalog.listDatasets(ds());
 
       assertEquals(Set.of("erm2-nwe9", "8wbx-tsch", "w7w3-xahh"),
          Set.copyOf(catalog.datasets().stream().map(TabularDatasetRef::id).toList()));
       runtimeStatic.verify(() -> DatagovRuntime.getDiscoveryMetadata(contains("offset=0")));
-      runtimeStatic.verify(() -> DatagovRuntime.getDiscoveryMetadata(contains("offset=10000")));
+      runtimeStatic.verify(() -> DatagovRuntime.getDiscoveryMetadata(contains("offset=500")));
    }
 
    @Test
@@ -235,8 +235,8 @@ class DatagovCatalogTest {
 
       Exception thrown = assertThrows(Exception.class, () -> DatagovCatalog.listDatasets(ds()));
 
-      assertTrue(thrown.getMessage().contains("50 requests"), thrown.getMessage());
-      assertEquals(50, calls[0], "must stop AT the safety ceiling, not silently keep going");
+      assertTrue(thrown.getMessage().contains("1000 requests"), thrown.getMessage());
+      assertEquals(1000, calls[0], "must stop AT the safety ceiling, not silently keep going");
    }
 
    @Test
@@ -431,6 +431,84 @@ class DatagovCatalogTest {
       }
    }
 
+   @Test
+   void describeDataset_dateType_isDecimalWithoutUnrecognizedWarning() throws Exception {
+      stubSiteMetadata(rowsJson(null, null, column(1, "when", "date")));
+
+      TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
+
+      assertEquals(XSchema.DECIMAL, schema.columns().get(0).type());
+      assertFalse(schema.description() != null && schema.description().contains("when"),
+         schema.description());
+   }
+
+   @Test
+   void describeDataset_metaDataColumns_numericOnlyForTheNumericSystemColumns() throws Exception {
+      String fixture;
+
+      try(InputStream in = getClass().getResourceAsStream("rows.json")) {
+         fixture = new String(IOUtils.toByteArray(in), StandardCharsets.UTF_8);
+      }
+
+      stubSiteMetadata(fixture);
+      TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
+      Map<String, String> types = new HashMap<>();
+      schema.columns().forEach(c -> types.put(c.name(), c.type()));
+
+      for(String numeric : List.of("sid", "position", "created_at", "updated_at")) {
+         assertEquals(XSchema.DECIMAL, types.get(numeric), numeric);
+      }
+
+      for(String text : List.of("id", "created_meta", "updated_meta", "meta")) {
+         assertEquals(XSchema.STRING, types.get(text), text);
+      }
+   }
+
+   @Test
+   void describeDataset_metaDataKeyedByFieldName_displayNameCannotFlipAColumn() throws Exception {
+      stubSiteMetadata(rowsJson(null, null,
+         "{\"id\":1,\"name\":\"Ordinal\",\"fieldName\":\":position\",\"dataTypeName\":\"meta_data\"}",
+         "{\"id\":2,\"name\":\"position\",\"fieldName\":\":meta\",\"dataTypeName\":\"meta_data\"}"));
+
+      TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
+
+      assertEquals(XSchema.DECIMAL, schema.columns().get(0).type());
+      assertEquals(XSchema.STRING, schema.columns().get(1).type());
+   }
+
+   @Test
+   void describeDataset_typesAgreeWithWhatDatagovTableBuildsFromTheFirstRow() throws Exception {
+      String fixture;
+
+      try(InputStream in = getClass().getResourceAsStream("rows.json")) {
+         fixture = new String(IOUtils.toByteArray(in), StandardCharsets.UTF_8);
+      }
+
+      stubSiteMetadata(fixture);
+      TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
+
+      DatagovDataSource fileDs = new DatagovDataSource();
+      fileDs.setURL(getClass().getResource("rows.json").toExternalForm());
+      DatagovQuery query = new DatagovQuery();
+      query.setDataSource(fileDs);
+      XTableNode table = new DatagovRuntime().runQuery(query, new VariableTable());
+      assertTrue(table.next());
+
+      Map<String, Class<?>> expected = Map.of(
+         XSchema.STRING, String.class, XSchema.DECIMAL, java.math.BigDecimal.class);
+
+      for(int i = 0; i < schema.columns().size(); i++) {
+         TabularColumn column = schema.columns().get(i);
+
+         if(table.getObject(i) == null) {
+            continue;
+         }
+
+         assertEquals(expected.get(column.type()), table.getType(i),
+            "catalog type of \"" + column.name() + "\" must equal the built column type");
+      }
+   }
+
    // ----- describeDataset: malformed id (A7) -----
 
    @ParameterizedTest
@@ -601,8 +679,9 @@ class DatagovCatalogTest {
          Arguments.of("percent", XSchema.DECIMAL),
          Arguments.of("checkbox", XSchema.BOOLEAN),
          Arguments.of("calendar_date", XSchema.TIME_INSTANT),
-         Arguments.of("fixed_timestamp", XSchema.TIME_INSTANT),
-         Arguments.of("floating_timestamp", XSchema.TIME_INSTANT),
+         Arguments.of("fixed_timestamp", XSchema.STRING),
+         Arguments.of("floating_timestamp", XSchema.STRING),
+         Arguments.of("date", XSchema.DECIMAL),
          Arguments.of("point", XSchema.STRING),
          Arguments.of("location", XSchema.STRING),
          Arguments.of("phone", XSchema.STRING),

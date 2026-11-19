@@ -39,7 +39,7 @@ class InfluxDBEndpointsCatalogTest {
    void legacyAuthorizationsUsePrivatePrefix() throws Exception {
       String prefix = "/private/legacy/authorizations";
       assertTrue(suffixOf("Legacy Authorizations").startsWith(prefix + "?"));
-      assertEquals(prefix + "/{Authorization ID?}", suffixOf("Legacy Authorization"));
+      assertEquals(prefix + "/{Authorization ID}", suffixOf("Legacy Authorization"));
    }
 
    private String suffixOf(String name) throws Exception {

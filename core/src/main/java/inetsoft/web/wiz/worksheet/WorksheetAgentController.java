@@ -1153,6 +1153,7 @@ public class WorksheetAgentController {
          sinfo.setProperty(SourceInfo.SCHEMA, req.schema());
          sinfo.setProperty(SourceInfo.CATALOG, req.catalog());
          sinfo.setProperty(SourceInfo.TABLE_TYPE, tableType);
+         sinfo.setProperty(WorksheetEditService.SOURCE_TABLE_PATH, tablePath);
          assembly.setSourceInfo(sinfo);
          assembly.setColumnSelection(columns);
 

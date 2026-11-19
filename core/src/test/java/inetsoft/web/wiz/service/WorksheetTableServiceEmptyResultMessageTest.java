@@ -461,6 +461,18 @@ class WorksheetTableServiceEmptyResultMessageTest {
       assertFalse(message.contains("\r"), message);
    }
 
+   /** Bug #81825: once the connector names the cause, the message must not blame credentials. */
+   @Test
+   void knownConnectorCauseDoesNotPointAtCredentials() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportException("dataset not found (HTTP 404)");
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertTrue(message.contains("dataset not found (HTTP 404)"), message);
+      assertFalse(message.contains("credentials"), message);
+   }
+
    @Test
    void exceptionDetailReachesTheShapePresentMessageToo() throws Exception {
       FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();

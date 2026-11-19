@@ -214,9 +214,13 @@ export class FollowFocusService {
     * a toolbar session to. The server keeps it per (socket, runtime, context), so the order
     * against the mint or retarget does not matter. Lives here because both paths that bind a
     * session to a pane send it through the same connection.
+    *
+    * `returnType` is the dialog's current, possibly unconfirmed, return type (the worksheet Edit
+    * Expression dialog); omitted from the message when the pane has no such choice.
     */
    reportPaneState(runtimeId: string, socketConnection: ViewsheetClientService,
-                   editorContext: EditorContext, sql: boolean, aggregate: boolean = false): void
+                   editorContext: EditorContext, sql: boolean, aggregate: boolean = false,
+                   returnType?: string): void
    {
       if(!runtimeId || !socketConnection || !editorContext) {
          return;
@@ -224,7 +228,7 @@ export class FollowFocusService {
 
       socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
          conn.send("/events/wiz/pairing/pane-state", {},
-                   JSON.stringify({ runtimeId, editorContext, sql, aggregate }));
+                   JSON.stringify({ runtimeId, editorContext, sql, aggregate, returnType }));
       });
    }
 

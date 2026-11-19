@@ -544,7 +544,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       if(this.pushedEditorContext && sql !== undefined) {
          this.followFocusService.reportPaneState(
             this.runtimeId, this.socketConnection, this.pushedEditorContext, sql,
-            this.paneAggregateMode === true);
+            this.paneAggregateMode === true, this.paneReturnType);
       }
    }
 
@@ -593,6 +593,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       if(this.returnTypeVisible) {
          this.form.addControl("formulaType", new UntypedFormControl(this.formulaType));
          this.form.addControl("dataType", new UntypedFormControl(this.dataType));
+         this.form.get("dataType").valueChanges.forEach(() => this.reportPushedPaneState());
          this.form.get("formulaType").valueChanges.forEach((value) => {
             this.populateTrees();
             this.checkValid();
@@ -1638,6 +1639,17 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     */
    get paneAggregateMode(): boolean | undefined {
       return this.editorContext?.kind === "calcField" ? this.calcType == "aggregate" : undefined;
+   }
+
+   /**
+    * The Return Type the worksheet Edit/Create Expression dialog currently shows, as the paired
+    * agent must see it (bug #81789): the user can change it without clicking OK, and the server
+    * only holds the applied type. Only a worksheet expression column has the choice, so every
+    * other location reports nothing.
+    */
+   get paneReturnType(): string | undefined {
+      return this.editorContext?.kind === "worksheetExpression" && this.form?.contains("dataType")
+         ? this.form.get("dataType").value : undefined;
    }
 
    isSqlType(): boolean {

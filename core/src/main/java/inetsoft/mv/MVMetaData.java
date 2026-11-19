@@ -274,6 +274,26 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
       this.wsMVPlan = wsMVPlan;
    }
 
+   /**
+    * Get the fingerprint of the definition of the worksheet table this MV was built from, taken
+    * when the MV was analyzed. It's null for an MV analyzed before it was recorded.
+    */
+   public String getDefinitionKey() {
+      return definitionKey;
+   }
+
+   /**
+    * Get the name of the table in the viewsheet's worksheet the definition key is of.
+    */
+   public String getDefinitionTable() {
+      return definitionTable;
+   }
+
+   public void setDefinitionKey(String table, String key) {
+      this.definitionTable = table;
+      this.definitionKey = key;
+   }
+
    public boolean isSharedBy(MVMetaData data) {
       SHARE_HINT.remove();
 
@@ -357,6 +377,8 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
       breakColumn = Tool.getChildValueByTagName(tag, "breakColumn");
       plan = Tool.getChildValueByTagName(tag, "plan");
       wsMVPlan = Tool.getChildValueByTagName(tag, "wsMVPlan");
+      definitionTable = Tool.getChildValueByTagName(tag, "definitionTable");
+      definitionKey = Tool.getChildValueByTagName(tag, "definitionKey");
       List<String> arr = parseArray(tag, "sheetIds", "sheetId");
 
       for(String str : arr) {
@@ -436,6 +458,8 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
       writeCDATA(writer, "breakColumn", breakColumn);
       writeCDATA(writer, "plan", plan);
       writeCDATA(writer, "wsMVPlan", wsMVPlan);
+      writeCDATA(writer, "definitionTable", definitionTable);
+      writeCDATA(writer, "definitionKey", definitionKey);
       writeArray(writer, "sheetIds", "sheetId", sheetIds.toArray(new String[0]));
       writeArray(writer, "invalidSheets", "sheetId", invalidSheets.toArray(new String[0]));
 
@@ -693,5 +717,7 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
    private boolean full;
    private String plan;
    private String wsMVPlan;
+   private String definitionTable;
+   private String definitionKey;
    private boolean wsMV;
 }

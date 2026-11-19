@@ -20,6 +20,7 @@ package inetsoft.uql.datagov;
 import inetsoft.uql.*;
 
 import inetsoft.uql.tabular.*;
+import inetsoft.util.Tool;
 
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -67,6 +68,9 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       catch(Exception ex) {
          LOG.warn("Error executing data.gov query: " +
             createURL(query), ex);
+         // the column probe reads this message to say why the request failed; without it the
+         // caller can only be told to check credentials, which an anonymous datasource has none of
+         Tool.addUserMessage(describeFailure(createURL(query), ex));
          handleError(params, ex, () -> null);
       }
       finally {
@@ -74,6 +78,36 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       }
 
       return table;
+   }
+
+   /**
+    * Describes why a request failed, in terms of the cause rather than the exception class.
+    *
+    * @param url the URL that was requested.
+    * @param ex  the failure.
+    *
+    * @return a single-line description.
+    */
+   static String describeFailure(String url, Throwable ex) {
+      String message = ex.getMessage();
+
+      if(ex instanceof FileNotFoundException) {
+         return "The data.gov request to " + url + " failed: not found (HTTP 404), the dataset " +
+            "or path does not exist";
+      }
+
+      if(ex instanceof JsonException) {
+         return "The data.gov response from " + url + " is not in the rows.json shape this " +
+            "connector reads (a JSON object with 'meta' and 'data'); for example, a JSON array " +
+            "from a /resource/ endpoint is not supported. Use the dataset's /api/views/<id>/" +
+            "rows.json path instead";
+      }
+
+      if(message != null && message.contains("HTTP response code")) {
+         return "The data.gov request to " + url + " failed: " + message;
+      }
+
+      return "Error executing data.gov query: " + url + " (" + message + ")";
    }
 
    @Override
@@ -180,12 +214,31 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
     * never pointed them at, for a call that does not need them.
     */
    static String getDiscoveryMetadata(String url) throws Exception {
-      HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-      conn.setConnectTimeout(CATALOG_HTTP_TIMEOUT);
-      conn.setReadTimeout(CATALOG_HTTP_TIMEOUT);
-      conn.setRequestMethod("GET");
-      conn.setRequestProperty("Accept", "application/json");
-      return readMetadataResponse(conn, url);
+      IOException last = null;
+
+      // Bug #81826: a Discovery page that is cut off mid-stream (Premature EOF, a connection
+      // reset, a read timeout) is retried on its own rather than failing the whole listing. An
+      // HTTP error status is not an IOException and is never retried (a 4xx will not change).
+      for(int attempt = 1; attempt <= DISCOVERY_ATTEMPTS; attempt++) {
+         try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(CATALOG_HTTP_TIMEOUT);
+            conn.setReadTimeout(CATALOG_HTTP_TIMEOUT);
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            // The catalog JSON compresses ~7x; the bytes on the wire are what a slow link costs.
+            conn.setRequestProperty("Accept-Encoding", "gzip");
+            return readMetadataResponse(conn, url);
+         }
+         catch(IOException e) {
+            last = e;
+            LOG.warn("Socrata Discovery API read failed (attempt {} of {}): {}", attempt,
+                     DISCOVERY_ATTEMPTS, e.toString());
+         }
+      }
+
+      throw new Exception("Socrata Discovery API request was interrupted (" + last + ") after " +
+                          DISCOVERY_ATTEMPTS + " attempts: " + url, last);
    }
 
    /**
@@ -246,8 +299,21 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
                              (body.isEmpty() ? "" : ": " + body));
       }
 
-      try(InputStream input = conn.getInputStream()) {
-         return IOUtils.toString(input, StandardCharsets.UTF_8);
+      try(InputStream raw = conn.getInputStream()) {
+         boolean gzip = "gzip".equalsIgnoreCase(conn.getContentEncoding());
+         InputStream input = gzip ? new java.util.zip.GZIPInputStream(raw) : raw;
+         byte[] bytes = IOUtils.toByteArray(input);
+         long declared = conn.getContentLengthLong();
+
+         // The JDK ends a fixed-length body that the server cut short with a plain end-of-stream,
+         // not an error (only chunked bodies raise Premature EOF); without this a truncated page
+         // would surface later as "invalid JSON" instead of a retryable IOException.
+         if(!gzip && declared >= 0 && bytes.length < declared) {
+            throw new IOException("Premature end of response: got " + bytes.length + " of " +
+                                  declared + " bytes");
+         }
+
+         return new String(bytes, StandardCharsets.UTF_8);
       }
    }
 
@@ -262,6 +328,9 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
     * timeout set anywhere in this class).
     */
    private static final int CATALOG_HTTP_TIMEOUT = 30_000;
+
+   /** Tries per Discovery page before the listing gives up (see {@link #getDiscoveryMetadata}). */
+   private static final int DISCOVERY_ATTEMPTS = 3;
 
    private static final Logger LOG = LoggerFactory.getLogger(DatagovRuntime.class.getName());
 }

@@ -23,7 +23,7 @@ import java.util.*;
 
 class TemplateParser {
    public TemplateParser(List<TemplateComponent> pathComponents,
-                         Map<String, TemplateComponent> queryComponents)
+                         List<Map.Entry<String, TemplateComponent>> queryComponents)
    {
       this.pathComponents = pathComponents;
       this.queryComponents = queryComponents;
@@ -43,12 +43,13 @@ class TemplateParser {
             int index = part.indexOf('=');
 
             if(index < 0) {
-               queryComponents.put(part, new TemplateComponent(""));
+               queryComponents.add(new AbstractMap.SimpleEntry<>(part, new TemplateComponent("")));
             }
             else {
                String name = part.substring(0, index);
                String value = part.substring(index + 1);
-               queryComponents.put(name, createTemplateComponent(value));
+               queryComponents.add(
+                  new AbstractMap.SimpleEntry<>(name, createTemplateComponent(value)));
             }
          }
       }
@@ -153,5 +154,5 @@ class TemplateParser {
    }
 
    private final List<TemplateComponent> pathComponents;
-   private final Map<String, TemplateComponent> queryComponents;
+   private final List<Map.Entry<String, TemplateComponent>> queryComponents;
 }

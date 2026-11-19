@@ -27,13 +27,21 @@ package inetsoft.web.wiz.pairing;
  *                  dialog)
  * @param aggregate whether the pane's "Calculate Field From" choice is Aggregate rather than
  *                  Detail (the calculated field formula dialog)
+ * @param returnType the dialog's current, possibly unconfirmed, return type (the worksheet Edit
+ *                  Expression dialog's Return Type choice, e.g. {@code "integer"}); {@code null}
+ *                  when the pane has no such choice or an older browser did not report it
  */
-public record PaneState(boolean sql, boolean aggregate) {
+public record PaneState(boolean sql, boolean aggregate, String returnType) {
+   /** A state with no reported return type. */
+   public PaneState(boolean sql, boolean aggregate) {
+      this(sql, aggregate, null);
+   }
+
    /** A state that only carries the SQL/Script switch (Detail calculation). */
    public PaneState(boolean sql) {
-      this(sql, false);
+      this(sql, false, null);
    }
 
    /** The state of a pane that never reported one: its default value type. */
-   public static final PaneState DEFAULT = new PaneState(false, false);
+   public static final PaneState DEFAULT = new PaneState(false, false, null);
 }
