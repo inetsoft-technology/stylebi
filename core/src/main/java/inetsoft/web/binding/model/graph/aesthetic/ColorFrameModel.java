@@ -18,6 +18,7 @@
 package inetsoft.web.binding.model.graph.aesthetic;
 
 import inetsoft.uql.viewsheet.graph.aesthetic.ColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.LinearColorFrameWrapper;
 
 public abstract class ColorFrameModel extends VisualFrameModel {
    public ColorFrameModel() {
@@ -25,6 +26,7 @@ public abstract class ColorFrameModel extends VisualFrameModel {
 
    public ColorFrameModel(ColorFrameWrapper wrapper) {
       super(wrapper);
-      setChanged(wrapper.isChanged());
+      setChanged(wrapper.isChanged() ||
+                 wrapper instanceof LinearColorFrameWrapper ramp && ramp.isAuthorRamp());
    }
 }

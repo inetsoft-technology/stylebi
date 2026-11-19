@@ -268,9 +268,11 @@ export class LinearColorPane implements OnInit {
       }
       else if(this[val]) {
          this.frame = <any> Tool.clone(this[val]);
+         this.frame.changed = true;
       }
       else if(this[val.substring(val.lastIndexOf(".") + 1)]) {
          this.frame = <any> Tool.clone(this[val.substring(val.lastIndexOf(".") + 1)]);
+         this.frame.changed = true;
       }
 
       this.setBrewerColor();

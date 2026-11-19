@@ -176,6 +176,30 @@ describe("LinearColorPane — switchColorModel [Group 3, Risk 2]", () => {
       expect(radioByLabel(HEAT)).toBeChecked();
       expect(changed).toHaveBeenCalled();
    });
+
+   it("should mark a ramp model changed when the author picks it", async () => {
+      const emitted: V.ColorFrameModel[] = [];
+      const { fixture } = await renderPane(new V.GradientColorModel());
+      fixture.componentInstance.onChangeColorFrame.subscribe((f: V.ColorFrameModel) => emitted.push(f));
+
+      fixture.componentInstance.switchColorModel(fixture.componentInstance.TealColorModel.clazz);
+
+      const frame = emitted[emitted.length - 1];
+      expect(frame.clazz).toBe(fixture.componentInstance.TealColorModel.clazz);
+      expect(frame.changed).toBe(true);
+   });
+
+   it("should not mark the gradient model changed", async () => {
+      const emitted: V.ColorFrameModel[] = [];
+      const { fixture } = await renderPane(new V.TealColorModel());
+      fixture.componentInstance.onChangeColorFrame.subscribe((f: V.ColorFrameModel) => emitted.push(f));
+
+      fixture.componentInstance.switchColorModel(fixture.componentInstance.gradientModel.clazz);
+
+      const frame = emitted[emitted.length - 1];
+      expect(frame.clazz).toBe(fixture.componentInstance.gradientModel.clazz);
+      expect(frame.changed).toBe(false);
+   });
 });
 
 describe("LinearColorPane — syncColors [Group 4, Risk 2]", () => {
