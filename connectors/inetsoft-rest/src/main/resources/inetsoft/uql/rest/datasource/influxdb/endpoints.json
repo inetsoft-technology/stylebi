@@ -982,7 +982,7 @@
     {
       "name": "Legacy Authorizations",
       "paged": false,
-      "suffix": "/legacy/authorizations?authID={Authorization ID?}&org={Organization Name?}&orgID={Organization ID?}&token={Token (Authorization Name)?}&user={User Name?}&userID={User ID?}",
+      "suffix": "/private/legacy/authorizations?authID={Authorization ID?}&org={Organization Name?}&orgID={Organization ID?}&token={Token (Authorization Name)?}&user={User Name?}&userID={User ID?}",
       "post": false,
       "responseSchema": {
         "links": {
@@ -1026,7 +1026,7 @@
     {
       "name": "Legacy Authorization",
       "paged": false,
-      "suffix": "/legacy/authorizations/{Authorization ID?}",
+      "suffix": "/private/legacy/authorizations/{Authorization ID?}",
       "post": false,
       "responseSchema": {
         "status": "string",
