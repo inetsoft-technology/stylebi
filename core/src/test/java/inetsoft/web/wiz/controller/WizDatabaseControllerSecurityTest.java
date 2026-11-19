@@ -191,30 +191,50 @@ class WizDatabaseControllerSecurityTest {
                    "oldName must come from the request path, not from the client");
    }
 
+   /**
+    * R1-5: a draft test (no path) opens a connection to a host and credentials the caller supplies,
+    * so it needs the same right as creating a data source. Without it any logged-in user could use
+    * the server to probe arbitrary hosts and ports.
+    */
    @Test
-   void testDatabaseConnection_skipsThePermissionCheckWhenNoPathIsGiven() throws Exception {
+   void testDatabaseConnection_draftIsRefusedWithoutTheCreateRuleAndNeverConnects() throws Exception {
       Fixture fixture = new Fixture();
-      when(fixture.databaseDatasourcesService.testDataSourceConnection(
-         any(), any(), any(), anyBoolean()))
-         .thenReturn(new ConnectionStatus(null, true));
+      // no WRITE on the root folder and no CREATE_DATA_SOURCE: the mock answers false for both
 
-      WizDatabaseTestRequest request = new WizDatabaseTestRequest(null, mysqlDefinition());
-      WizConnectionTestResult result =
-         fixture.controller.testDatabaseConnection(request, fixture.principal);
+      assertThrows(SecurityException.class, () -> fixture.controller.testDatabaseConnection(
+         new WizDatabaseTestRequest(null, mysqlDefinition()), fixture.principal));
+      assertThrows(SecurityException.class, () -> fixture.controller.testDatabaseConnection(
+         new WizDatabaseTestRequest("", mysqlDefinition()), fixture.principal));
 
-      assertTrue(result.connected(),
-                 "testing a connection that does not exist yet must not require a permission");
+      verify(fixture.databaseDatasourcesService, never())
+         .testDataSourceConnection(any(), any(), any(), anyBoolean());
+   }
 
-      // Nothing is stored under a path that was never given, so there is no credential to recover
-      // and nothing to check a permission against.
-      verifyNoInteractions(fixture.securityEngine);
+   @Test
+   void testDatabaseConnection_draftConnectsWithTheRootCreateRight() throws Exception {
+      for(boolean viaFolderWrite : new boolean[]{ true, false }) {
+         Fixture fixture = new Fixture();
+         when(fixture.securityEngine.checkPermission(
+            eq(fixture.principal),
+            eq(viaFolderWrite ? ResourceType.DATA_SOURCE_FOLDER : ResourceType.CREATE_DATA_SOURCE),
+            anyString(), any(ResourceAction.class))).thenReturn(true);
+         when(fixture.databaseDatasourcesService.testDataSourceConnection(
+            any(), any(), any(), anyBoolean()))
+            .thenReturn(new ConnectionStatus(null, true));
 
-      ArgumentCaptor<DatabaseDefinition> definition =
-         ArgumentCaptor.forClass(DatabaseDefinition.class);
-      verify(fixture.databaseDatasourcesService).testDataSourceConnection(
-         eq(""), definition.capture(), eq(fixture.principal), eq(false));
-      assertNull(definition.getValue().getOldName(),
-                 "a database that does not exist yet has no stored password to recover");
+         WizConnectionTestResult result = fixture.controller.testDatabaseConnection(
+            new WizDatabaseTestRequest(null, mysqlDefinition()), fixture.principal);
+
+         assertTrue(result.connected());
+
+         ArgumentCaptor<DatabaseDefinition> definition =
+            ArgumentCaptor.forClass(DatabaseDefinition.class);
+         verify(fixture.databaseDatasourcesService).testDataSourceConnection(
+            eq(""), definition.capture(), eq(fixture.principal), eq(false));
+         // Nothing is stored under a path that was never given, so there is no credential to recover.
+         assertNull(definition.getValue().getOldName(),
+                    "a database that does not exist yet has no stored password to recover");
+      }
    }
 
    /**

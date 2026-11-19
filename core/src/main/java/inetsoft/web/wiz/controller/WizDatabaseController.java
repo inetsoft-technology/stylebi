@@ -637,6 +637,13 @@ public class WizDatabaseController {
       if(path != null) {
          requireDataSourcePermission(path, ResourceAction.WRITE, principal);
       }
+      else {
+         // A draft opens a connection to a host and credentials the caller supplies, so it is
+         // limited to a caller who could create a data source; otherwise any logged-in user could
+         // use the server to probe arbitrary hosts. Same rule as the XMLA and additional-connection
+         // draft tests and the tabular connector endpoints.
+         requireCreatePermission(null, principal);
+      }
 
       // Same reason as on update: without oldName the stored password cannot be recovered, so a
       // test of an otherwise-unchanged connection would connect with an empty password and fail.
