@@ -197,6 +197,15 @@ public class VSAScriptablePutMemberReportTest {
       assertEquals(new Point(5, 6), scriptable.getPosition());
    }
 
+   // Bug #81922 control: the string form "100,50" still sets the size without a warning
+   @Test
+   void stringSizeStillAppliesWithoutWarning() {
+      scriptable.putMember("size", "100,50");
+
+      assertNull(Tool.getUserMessage());
+      assertEquals(new Dimension(100, 50), scriptable.getSize());
+   }
+
    // Bug #81923: Text1.position = null (replaces #81633's rawNullPointerStaysInLogOnly, which
    // pinned the silent NPE of this input as its example of a raw JDK failure)
    @Test
