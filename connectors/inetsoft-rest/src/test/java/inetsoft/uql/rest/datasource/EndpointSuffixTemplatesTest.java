@@ -50,7 +50,15 @@ class EndpointSuffixTemplatesTest {
       { "square", "Cash Drawer Shift Events" },
       { "insightly", "Contact File Attachments" },
       { "jive", "Direct Message Comments" },
-      { "twilio", "Alerts" }
+      { "twilio", "Alerts" },
+      { "adobeanalytics", "Report Suites" },
+      { "box", "Search for Content" },
+      { "box", "Trashed Items" },
+      { "hubspot", "Line items Change Log" },
+      { "pipedrive", "Deal Timeline" },
+      { "quickbooks", "Transaction List By Vendor" },
+      { "servicenow", "Aggregate Statistics" },
+      { "servicenow", "Service Catalog Items" }
    };
 
    @Test
@@ -72,6 +80,29 @@ class EndpointSuffixTemplatesTest {
             bare.contains(" ") || bare.chars().filter(c -> c == '?').count() > 1)
          {
             problems.add(where + ": malformed template " + raw);
+         }
+
+         if(bare.contains("{") || bare.contains("}")) {
+            problems.add(where + ": unbalanced brace in " + raw);
+         }
+
+         java.util.regex.Matcher variables =
+            java.util.regex.Pattern.compile("[{]([^}]*)[}]").matcher(raw);
+
+         while(variables.find()) {
+            String variable = variables.group(1);
+
+            if(variable.contains("|") && !variable.contains(":")) {
+               problems.add(where + ": option list without ':' in {" + variable + "}");
+            }
+         }
+
+         if(bare.contains("?")) {
+            for(String pair : bare.substring(bare.indexOf('?') + 1).split("&")) {
+               if(pair.chars().filter(c -> c == '=').count() != 1) {
+                  problems.add(where + ": query pair without exactly one '=': " + pair);
+               }
+            }
          }
 
          SuffixTemplate template = new SuffixTemplate(raw);

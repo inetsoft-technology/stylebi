@@ -850,7 +850,7 @@
     {
       "name": "Line items Change Log",
       "pageType": 0,
-      "suffix": "/crm-objects/v1/change-log/line_items}?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}"
+      "suffix": "/crm-objects/v1/change-log/line_items?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}"
     },
     {
       "name": "Marketing Emails",
