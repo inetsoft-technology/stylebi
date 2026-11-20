@@ -83,6 +83,14 @@ public class WizDataModelFolderController {
                database + "; nothing changed", null, KIND_FOLDER);
          }
 
+         // the service checks the same grant but words its denial without the separator
+         if(!securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
+                                            database + "/" + name, ResourceAction.WRITE))
+         {
+            throw new SecurityException("Unauthorized access to resource \"" + database + "/" +
+                                           name + "\" by user " + principal);
+         }
+
          folderManagerService.setDataModelFolder(database, name, principal);
 
          if(!hasFolder(repository.getDataModel(database), name)) {

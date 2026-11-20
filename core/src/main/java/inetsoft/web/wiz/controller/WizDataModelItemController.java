@@ -166,8 +166,9 @@ public class WizDataModelItemController {
 
          if(!ops.mayRename(ctx, ref)) {
             throw new SecurityException(
-               "Unauthorized access to resource \"" + database + "/" + name + "\" by user " +
-                  principal);
+               "Unauthorized access to resource \"" + database + "/" +
+                  (info.folder() == null || info.folder().isEmpty() ? "" : info.folder() + "/") +
+                  name + "\" by user " + principal);
          }
 
          // the services overwrite the description with their argument: pass the stored one
