@@ -226,6 +226,41 @@ class JsonLookupRunnerTest {
       assertEquals("{id=c1;Other=own value;Customer Orders.id=o1;}", dump(rows(runEndpoint(factory))));
    }
 
+   // Bug #81927: the rename is logged once per query, not once per entity
+   @Test
+   void collisionIsWarnedOncePerQuery() {
+      final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+         org.slf4j.LoggerFactory.getLogger(RestJsonQueryRunner.class);
+      final ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+         new ch.qos.logback.core.read.ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         final String customers =
+            "[{\"id\":\"c1\",\"Customer Orders\":\"x\"},{\"id\":\"c2\",\"Customer Orders\":\"y\"}]";
+         final List<Map<String, Object>> rows = rows(runEndpoint(new FakeFactory().script("/customers", customers)));
+
+         assertEquals(2, rows.size(), rows.toString());
+         assertEquals(1, collisionWarnings(appender), appender.list.toString());
+
+         rows(runEndpoint(new FakeFactory().script("/customers", customers)));
+         assertEquals(2, collisionWarnings(appender), appender.list.toString());
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+   }
+
+   private static long collisionWarnings(
+      ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender)
+   {
+      return appender.list.stream()
+         .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+         .filter(e -> e.getFormattedMessage().contains("has the name of a lookup"))
+         .count();
+   }
+
    private static XTableNode runCustom(RestJsonQuery query, FakeFactory factory) {
       return new RestJsonQueryRunner(query, factory, new LookupService(), new JsonTransformer()).run();
    }

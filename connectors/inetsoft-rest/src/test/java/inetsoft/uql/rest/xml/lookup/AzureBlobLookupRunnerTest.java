@@ -233,6 +233,39 @@ class AzureBlobLookupRunnerTest {
                    dump(rows(run(query, handler))));
    }
 
+   // Bug #81927: the rename is logged once per query, not once per container
+   @Test
+   void collisionIsWarnedOncePerQuery() {
+      final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+         org.slf4j.LoggerFactory.getLogger(RestXMLQueryRunner.class);
+      final ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+         new ch.qos.logback.core.read.ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         final RecordingHandler handler = new RecordingHandler(
+            containers("<Container><Name>c1</Name><Blobs>own1</Blobs></Container>",
+                       "<Container><Name>c2</Name><Blobs>own2</Blobs></Container>"))
+            .blobs("c1", blobs("b1"))
+            .blobs("c2", blobs("b2"));
+         final AzureBlobQuery query = query();
+         query.setExpandTop(false);
+
+         final List<Map<String, Object>> rows = rows(run(query, handler));
+
+         assertEquals(2, rows.size(), dump(rows));
+         assertEquals("own2", rows.get(1).get(CONTAINER + ".Blobs (Field)"));
+         assertEquals(1, appender.list.stream()
+            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+            .filter(e -> e.getFormattedMessage().contains("has the name of a lookup"))
+            .count(), appender.list.toString());
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+   }
+
    private static AzureBlobQuery query() {
       final AzureBlobDataSource dataSource = new AzureBlobDataSource();
       dataSource.setAccountName("acct");
