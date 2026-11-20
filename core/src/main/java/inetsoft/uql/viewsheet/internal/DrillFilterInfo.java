@@ -256,6 +256,32 @@ public class DrillFilterInfo implements Cloneable {
       }
    }
 
+   @Override
+   public boolean equals(Object obj) {
+      if(this == obj) {
+         return true;
+      }
+
+      if(!(obj instanceof DrillFilterInfo)) {
+         return false;
+      }
+
+      DrillFilterInfo info = (DrillFilterInfo) obj;
+
+      synchronized(drillConds) {
+         synchronized(info.drillConds) {
+            return drillConds.equals(info.drillConds);
+         }
+      }
+   }
+
+   @Override
+   public int hashCode() {
+      synchronized(drillConds) {
+         return drillConds.hashCode();
+      }
+   }
+
    public DrillFilterInfo clone() {
       try {
          DrillFilterInfo obj = (DrillFilterInfo) super.clone();
@@ -275,6 +301,27 @@ public class DrillFilterInfo implements Cloneable {
       public DrillCondition(String field, ConditionList conditions) {
          this.field = field;
          this.conditions = conditions;
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         if(this == obj) {
+            return true;
+         }
+
+         if(!(obj instanceof DrillCondition)) {
+            return false;
+         }
+
+         DrillCondition drill = (DrillCondition) obj;
+         return Objects.equals(field, drill.field) && Objects.equals(conditions, drill.conditions);
+      }
+
+      @Override
+      public int hashCode() {
+         // ConditionList does not override hashCode, so use only its size to stay consistent
+         // with its equals
+         return Objects.hash(field, conditions == null ? 0 : conditions.getSize());
       }
    }
 
