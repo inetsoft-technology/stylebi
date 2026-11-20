@@ -272,4 +272,36 @@ public class VSAScriptablePutMemberReportTest {
       assertReadable(text);
       assertTrue(text.contains("Numeric value expected: 'abc'"), text);
    }
+
+   // Bug #81923: a failed Group1.imageAlpha keeps the old value, and the next statement still
+   // applies (the script continues), e.g. a valid position [10, 20] with no warning
+   @Test
+   void groupImageAlphaKeptAndNextStatementApplies() {
+      GroupContainerVSAScriptable group = add(new GroupContainerVSAssembly(), "Group1",
+                                              GroupContainerVSAScriptable::new);
+      group.putMember("imageAlpha", "50");
+      assertNull(Tool.getUserMessage());
+
+      group.putMember("imageAlpha", "abc");
+      String text = warning();
+      assertTrue(text.startsWith("Failed to set property 'imageAlpha': "), text);
+      assertEquals("50", group.getMember("imageAlpha"));
+
+      scriptable.putMember("position", null);
+      text = warning();
+      assertTrue(text.startsWith("Failed to set property 'position': "), text);
+
+      scriptable.putMember("position", new Object[] { 10.0, 20.0 });
+      assertNull(Tool.getUserMessage());
+      assertEquals(new Point(10, 20), scriptable.getPosition());
+   }
+
+   // Bug #81923 control: Gauge1.value = 'abc' still warns with its own text
+   @Test
+   void nonNumericGaugeValueStillWarns() {
+      GaugeVSAScriptable gauge = add(new GaugeVSAssembly(), "Gauge1", GaugeVSAScriptable::new);
+      gauge.putMember("value", "abc");
+
+      assertEquals("Failed to set property 'value': Numeric value expected: abc", warning());
+   }
 }
