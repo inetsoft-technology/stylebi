@@ -130,6 +130,16 @@
   }
 }
 
+// The Shape tile's disabled glyph: the from-data triangle, circle and square, faded.
+.shape-glyph {
+  display: block;
+  color: var(--inet-icon-color, var(--inet-text-color));
+
+  &--off {
+    opacity: 0.3;
+  }
+}
+
 // The Size tile's glyph: rings not selected by the current size are faded, not hidden, so the
 // glyph is always the same three circles.
 .size-glyph {
