@@ -20,7 +20,9 @@ package inetsoft.report.io.viewsheet;
 import inetsoft.report.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
+import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import java.lang.reflect.Field;
@@ -114,6 +116,59 @@ class AbstractVSExporterScriptFailureDataTest {
       assertTrue(warning.contains("component script failed"), warning);
    }
 
+   /**
+    * The scheduler, the Portal and the email export read every table (CSVUtil.hasLargeDataTable,
+    * errors ignored) before the export starts, outside any export scope. That failed read must
+    * not leave a cached NULL that the export then trips over.
+    */
+   @ParameterizedTest(name = "pre-read {0}, match layout {1}")
+   @CsvSource({
+      "table,false", "table,true", "crosstab,false", "crosstab,true", "calc,false", "calc,true"
+   })
+   void failingScriptReadBeforeTheExportDoesNotBreakIt(String kind, boolean match)
+      throws Exception
+   {
+      ViewsheetSandbox box = open(kind, BAD);
+      // the real pre-read; it swallows the failure itself
+      CSVUtil.hasLargeDataTable(viewsheetResource.getRuntimeViewsheet());
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      CSVVSExporter exporter = new CSVVSExporter(out, null);
+      exporter.setMatchLayout(match);
+      lastExporter = exporter;
+      lastBox = box;
+
+      try {
+         exporter.export(box, "Current View", 0, null);
+         exporter.write();
+      }
+      catch(Throwable ex) {
+         System.out.println("P7-CAUGHT preread " + kind + "/" + match + " " +
+                            ex.getClass().getName() + " <- " +
+                            String.join(" <- ", topFrames(ex, 8)));
+         throw ex;
+      }
+
+      assertTrue(out.size() > 0, "the export should be written");
+      assertFalse(skipWarnings().isEmpty(), "the skip should be logged");
+      String warning = warningText(exporter);
+      assertNotNull(warning, "the document should carry a warning");
+      assertTrue(warning.contains("component script failed"), warning);
+   }
+
+   /** A read that fails inside the scope is skipped and must not cache NULL for the next read. */
+   @ParameterizedTest(name = "second read {0}")
+   @CsvSource({ "table", "crosstab", "calc" })
+   void failedReadInsideTheScopeIsNotCached(String kind) throws Exception {
+      ViewsheetSandbox box = open(kind, BAD);
+      String name = kind.equals("table") ? "Table81796" :
+         kind.equals("crosstab") ? "Crosstab81796" : "Calc81796";
+
+      try(ViewsheetSandbox.ExportScriptSkip skip = ViewsheetSandbox.skipScriptErrorsForExport()) {
+         assertNotNull(box.getVSTableLens(name, false), "first read");
+         assertNotNull(box.getVSTableLens(name, false), "second read");
+      }
+   }
+
    /** Outside an export scope the same failure still throws (the viewer is unchanged). */
    @ParameterizedTest(name = "outside export scope {0}")
    @CsvSource({ "text", "table", "crosstab", "calc", "timeslider" })
@@ -152,8 +207,11 @@ class AbstractVSExporterScriptFailureDataTest {
       refreshTimeout();
 
       try {
-         assertThrows(Throwable.class, () -> exportCsv(kind, "while(true){}", false),
-                      "a timed out script must fail the export, not be skipped");
+         Throwable ex = assertThrows(Throwable.class,
+            () -> exportCsv(kind, "while(true){}", false),
+            "a timed out script must fail the export, not be skipped");
+         assertInstanceOf(ScriptException.class, ex);
+         assertTrue(ScriptTimeoutGuard.isStop(ex), "the failure is a stop: " + ex);
       }
       finally {
          if(previous == null) {
