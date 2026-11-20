@@ -1805,7 +1805,8 @@ public abstract class VSAQuery {
       ColumnSelection privcols = table.getColumnSelection(false);
       AggregateInfo ainfo = table.getAggregateInfo();
       // all columns used in table, including columns referenced from expression
-      boolean calcTable = getAssembly() instanceof CalcTableVSAssembly;
+      // the temporary crosstab of a freehand table is bound to every column like the table
+      boolean calcTable = getAssembly() instanceof CalcTableVSAssembly || isCalcTableCrosstab();
       Set<String> detailCalcNames = !calcTable ? Collections.emptySet() :
          childPriv.stream()
             .filter(ref -> ref instanceof CalculateRef && ((CalculateRef) ref).isBaseOnDetail())
@@ -1826,7 +1827,7 @@ public abstract class VSAQuery {
          allCols += ";" + name;
       }
 
-      if(calcTable) {
+      if(getAssembly() instanceof CalcTableVSAssembly) {
          allCols += ";" + getCalcTableUsedText((CalcTableVSAssembly) getAssembly(), table);
       }
 
@@ -1956,7 +1957,53 @@ public abstract class VSAQuery {
     */
    private boolean usedInCrosstabDimension(CalculateRef calc) {
       VSAssembly assembly = getAssembly();
-      return assembly instanceof CrosstabDataVSAssembly;
+
+      if(!(assembly instanceof CrosstabDataVSAssembly)) {
+         return false;
+      }
+
+      // the temporary crosstab of a freehand table is built from the cells, so only the fields
+      // its headers and aggregates name are used (bug #81627)
+      if(isCalcTableCrosstab()) {
+         return usedInCrosstabInfo(((CrosstabVSAssembly) assembly).getVSCrosstabInfo(), calc);
+      }
+
+      return true;
+   }
+
+   private boolean isCalcTableCrosstab() {
+      VSAssembly assembly = getAssembly();
+      return assembly instanceof CrosstabVSAssembly &&
+         assembly.getName().startsWith(CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX);
+   }
+
+   private static boolean usedInCrosstabInfo(VSCrosstabInfo cinfo, CalculateRef calc) {
+      if(cinfo == null) {
+         return true;
+      }
+
+      List<DataRef> refs = new ArrayList<>();
+      Stream.of(cinfo.getRowHeaders(), cinfo.getColHeaders(), cinfo.getAggregates())
+         .filter(Objects::nonNull).forEach(arr -> refs.addAll(Arrays.asList(arr)));
+      String name = calc.getName();
+
+      for(DataRef ref : refs) {
+         if(ref == null || Tool.equals(ref.getName(), name) ||
+            Tool.equals(ref.getAttribute(), name))
+         {
+            return true;
+         }
+
+         if(ref instanceof VSAggregateRef) {
+            DataRef second = ((VSAggregateRef) ref).getSecondaryColumn();
+
+            if(second != null && Tool.equals(second.getAttribute(), name)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
