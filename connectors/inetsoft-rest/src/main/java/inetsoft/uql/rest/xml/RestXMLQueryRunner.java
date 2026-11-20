@@ -22,6 +22,8 @@ import inetsoft.uql.rest.*;
 import inetsoft.uql.rest.json.lookup.*;
 import inetsoft.uql.rest.xml.parse.*;
 import inetsoft.uql.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -58,7 +60,7 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
                 }
 
                if(query instanceof EndpointQuery) {
-                  doLookups((EndpointQuery) query, strategy);
+                  doLookups((EndpointQuery) query, strategy, table);
                }
 
                table.loadStreamed(data);
@@ -77,8 +79,13 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
         return !isCancelled() && (table.getMaxRows() <= 0 || table.size() < table.getMaxRows()) && strategy.hasNext();
     }
 
+   /**
+    * @param mainTable the table of the top-level query, used to stop the lookups at the row
+    *                  limit, or null for a nested lookup.
+    */
    private void doLookups(EndpointQuery query,
-                          AbstractRestDataIteratorStrategy<RestXMLQuery, ? extends AbstractXMLStreamTransformer> strategy)
+                          AbstractRestDataIteratorStrategy<RestXMLQuery, ? extends AbstractXMLStreamTransformer> strategy,
+                          BaseJsonTable mainTable)
       throws Exception
    {
       final AbstractXMLStreamTransformer transformer = strategy.getTransformer();
@@ -89,10 +96,51 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
          // todo transformations can be memoized if endpoints repeat paths
          final List<MapNode> lookupEntities = transformer.getLookupEntities(endpoint.jsonPath());
 
-         for(MapNode lookupEntity : lookupEntities) {
-            doLookupOnEntity(query, lookupQuery, lookupEntity);
+         int n = lookupEntities.size();
+
+         // each entity is its own row (or more), so an entity past the row limit only feeds
+         // rows that are dropped and its lookup is not needed
+         if(mainTable != null && mainTable.getMaxRows() > 0 && isOneRowPerEntity(mainTable, endpoint.jsonPath())) {
+            n = Math.max(0, Math.min(n, mainTable.getMaxRows() - mainTable.size()));
+         }
+
+         for(int i = 0; i < n; i++) {
+            doLookupOnEntity(query, lookupQuery, lookupEntities.get(i));
+         }
+
+         // entities past the row limit get no lookup, but their element with the lookup's
+         // name is moved the same way so that the column stays consistent
+         for(int i = n; i < lookupEntities.size(); i++) {
+            moveCollidingField(lookupEntities.get(i), endpoint.endpoint());
          }
       }
+   }
+
+   /**
+    * Check if every lookup entity at the path is expanded into its own row(s) of the main table.
+    * The entity list is expanded when the expanded path is empty, the entity path or under it.
+    */
+   private boolean isOneRowPerEntity(BaseJsonTable mainTable, String entityPath) {
+      if(!(mainTable instanceof ExpandedJsonTable) || !query.isExpanded() || query.isExpandTop()) {
+         return false;
+      }
+
+      final String expandedPath = query.getExpandedPath();
+
+      if(expandedPath == null || expandedPath.isEmpty()) {
+         return true;
+      }
+
+      final StringJoiner column = new StringJoiner(".");
+
+      for(String tag : entityPath.split("/")) {
+         if(!tag.isEmpty()) {
+            column.add(tag);
+         }
+      }
+
+      final String col = column.toString();
+      return expandedPath.equals(col) || expandedPath.startsWith(col + ".");
    }
 
    /**
@@ -105,6 +153,8 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
    {
       final EndpointQuery queryFromLookupQuery =
          lookupService.createXmlLookupQuery((EndpointQuery) query, parentQuery, lookupQuery, map);
+      // move after the key is read, before a skipped lookup returns
+      moveCollidingField(map, lookupQuery.getLookupEndpoint().endpoint());
 
       if(queryFromLookupQuery == null) {
          return;
@@ -120,6 +170,19 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
       }
 
       map.put(queryFromLookupQuery.getEndpoint(), lookupObj);
+   }
+
+   /**
+    * Move a parent element that has the lookup's name so the lookup result doesn't overwrite it.
+    */
+   private void moveCollidingField(MapNode map, String lookupName) {
+      final String newName = lookupService.moveCollidingField(map, lookupName);
+
+      if(newName != null && !collisionWarned) {
+         collisionWarned = true;
+         LOG.warn("The element \"{}\" has the name of a lookup and is renamed to \"{}\"",
+                  lookupName, newName);
+      }
    }
 
    /**
@@ -142,7 +205,7 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
                break;
             }
 
-            doLookups(lookupQuery, strategy);
+            doLookups(lookupQuery, strategy, null);
             data.add(xml);
          }
       }
@@ -152,4 +215,6 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
 
    private final XMLRestDataIteratorStrategyFactory factory;
    private final LookupService lookupService = new LookupService();
+   private boolean collisionWarned;
+   private static final Logger LOG = LoggerFactory.getLogger(RestXMLQueryRunner.class);
 }
