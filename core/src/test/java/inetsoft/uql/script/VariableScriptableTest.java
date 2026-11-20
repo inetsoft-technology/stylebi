@@ -194,6 +194,14 @@ class VariableScriptableTest {
          assertTrue(ctx.eval("js", "JSON.stringify(parameter).indexOf('nosuch') < 0").asBoolean());
          assertTrue(ctx.eval("js", "parameter.hasOwnProperty('setx')").asBoolean());
 
+         // known trade-off: GraalJS answers in/hasOwnProperty/Reflect.has from the same
+         // hasMember() that gates the read, so every name reports as present; whether a
+         // parameter was supplied is told by Object.keys (above) or by "!= null"
+         assertTrue(ctx.eval("js", "'nosuch' in parameter").asBoolean());
+         assertTrue(ctx.eval("js", "parameter.hasOwnProperty('nosuch')").asBoolean());
+         assertTrue(ctx.eval("js", "Reflect.has(parameter, 'nosuch')").asBoolean());
+         assertFalse(ctx.eval("js", "parameter.nosuch != null").asBoolean());
+
          ctx.eval("js", "parameter.newp = 7");
          assertEquals(7, ctx.eval("js", "parameter.newp").asInt());
       }

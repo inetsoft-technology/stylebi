@@ -46,7 +46,8 @@ public interface ScriptScope {
     * only when {@link ScopeProxy#hasMember} is true, so {@link ScopeProxy} then reports
     * every name as present (except "valueOf") and lets {@link #getMember} return null.
     * The Java {@link #hasMember} contract is unchanged. Side effect: in a script,
-    * {@code 'x' in obj} is true for any name.
+    * {@code 'x' in obj}, {@code obj.hasOwnProperty('x')} and {@code Reflect.has(obj, 'x')}
+    * are true for any name, since GraalJS answers them from the same hasMember.
     */
    default boolean isMissingMemberNull() {
       return false;
