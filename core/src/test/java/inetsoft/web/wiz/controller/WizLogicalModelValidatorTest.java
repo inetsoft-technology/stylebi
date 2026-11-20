@@ -114,7 +114,12 @@ class WizLogicalModelValidatorTest extends WizLogicalModelTestBase {
                                        "case when a.b = 1 then 2 else 3 end",
                                        "cast(a.b as integer)", "(1 + 2) * 3",
                                        "coalesce(a.b, 0)", "a.b || 'x'", "-a.b", "count(*)",
-                                       "sum(a.b) / count(a.c)", "'x'", "1" })
+                                       "sum(a.b) / count(a.c)", "'x'", "1",
+                                       // R1-7: boolean / flag expressions the Portal accepts
+                                       "T1.ID = 1", "T1.ID > 1 AND T1.ID < 5",
+                                       "T1.NAME LIKE 'a%'", "T1.ID IN (1,2,3)",
+                                       "T1.ID BETWEEN 1 AND 3", "T1.AMOUNT IS NULL",
+                                       "T1.AMOUNT > 100", "N'text'", "T1.NAME || N'é'" })
       {
          WizLogicalModelValidator.Result result = validate(one(exp("X", good, "double")));
 

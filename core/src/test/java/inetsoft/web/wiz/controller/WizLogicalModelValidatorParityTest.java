@@ -59,7 +59,28 @@ class WizLogicalModelValidatorParityTest extends WizLogicalModelTestBase {
       { "((1 +", true, true },
       { "1 +", false, true }, { "foo(", false, true }, { "T1.AMOUNT +", false, true },
       { "T1.AMOUNT garbage", false, true }, { "T1.AMOUNT )", false, true },
-      { "T1.AMOUNT *", false, true }, { "1 2", false, true } };
+      { "T1.AMOUNT *", false, true }, { "1 2", false, true },
+      // R1-7: boolean / flag expressions are valid and the bridge accepts them all. The Portal
+      // check accepts the simple ones but throws mid-parse on a compound predicate (AND, OR, NOT,
+      // IN, BETWEEN) because it only tries value_exp; the bridge also tries search_condition
+      // (the lead's decision: these are valid flag attributes, so the bridge is MORE lenient
+      // than the Portal on the rows marked true here)
+      { "T1.ID = 1", false, false }, { "T1.ID > 1 AND T1.ID < 5", true, false },
+      { "T1.NAME LIKE 'a%'", false, false }, { "T1.ID IN (1,2,3)", true, false },
+      { "T1.ID BETWEEN 1 AND 3", true, false }, { "T1.AMOUNT IS NULL", false, false },
+      { "T1.AMOUNT > 100", false, false }, { "N'text'", false, false },
+      { "T1.NAME || N'é'", false, false },
+      { "NOT (T1.ID = 1)", true, false }, { "T1.ID = 1 OR T1.NAME = 'x'", true, false },
+      // more valid forms
+      { "cast(T1.ID as integer)", false, false }, { "coalesce(T1.NAME, 'n')", false, false },
+      { "T1.NAME || 'x'", false, false }, { "\"T1\".\"ID\"", false, false },
+      { "[T1].[ID]", false, false }, { "DATE '2020-01-01'", false, false },
+      { "T1.名称", false, false }, { "sum(T1.AMOUNT) / count(T1.ID)", false, false },
+      { "count(*)", false, false }, { "-T1.AMOUNT", false, false },
+      // still refused by both or by the bridge only
+      { "T1.ID = ", false, true }, { "T1.ID = 1 AND", false, true },
+      { "T1.ID IN (1,2", true, true }, { "T1.ID = 1 garbage", false, true },
+      { "T1.ID BETWEEN 1", false, true }, { "foo(1,", true, true } };
 
    @Test
    void columnVerdictAgreesWithTheServicesOwnErrorMessage() throws Exception {
