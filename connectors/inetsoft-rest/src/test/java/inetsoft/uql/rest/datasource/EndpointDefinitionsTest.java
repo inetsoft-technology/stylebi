@@ -552,7 +552,7 @@ class EndpointDefinitionsTest {
    /**
     * Endpoints whose suffix template is known to be wrong. They are skipped here so that this test
     * can guard every other endpoint; fix the template and remove the entry. The defects are
-    * tracked in Redmine (TODO bug number).
+    * tracked in Redmine #81907.
     * <ul>
     *   <li>a variable is left unreplaced: a missing '&amp;', a '?' where '&amp;' belongs, a stray
     *   '}', a missing '=' or a missing ':' before an option list;</li>
