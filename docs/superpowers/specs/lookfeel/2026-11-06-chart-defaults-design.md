@@ -257,7 +257,7 @@ Ruled by the owner on 2026-11-06. Each overrides the decision named. The older d
 | R7 | The reset copy applies creation-time defaults, except the date level (M6). | MD §2 anti-goal "data bindings change" |
 | R8 | The reset copy clears author axis-title visibility and value-axis-line visibility. | MD §5.1 (visibility kept) |
 | R11 | The S4 mark sizes (Gantt bar, bubble, edge, milestone, radar line) are drawing rules chosen under the mark, not seeded values. Ruled 2026-11-12 (D44). | D2 and D3 for these items. Every draw rewrites the default sizes, so a seed could not survive (M2) |
-| R12 | The S2-10 map ramp floor is a drawing rule, not a stored value. Ruled 2026-11-11 (S2b ruling Q7). | D2 for this item. The floor depends only on the mark, the map type and a seeded ramp. Storing it would add a field for Revert and the transitions to manage, and gain nothing. An older build draws the full ramp (M9) |
+| R13 | The S2-10 map ramp floor is a drawing rule, not a stored value. Ruled 2026-11-11 (S2b ruling Q7). | D2 for this item. The floor depends only on the mark, the map type and a seeded ramp. Storing it would add a field for Revert and the transitions to manage, and gain nothing. An older build draws the full ramp (M9) |
 
 **Where the bundle is overruled instead:**
 
@@ -361,7 +361,7 @@ C1 (card), C13 (text sizes and colours) and C15 (density) are already shipped. S
 | S2-7 | Waterfall Total in the neutral token | C12, funnel 4 | `VSChartAggregateRef:59-60` summary colour `#7030A0`, applied at `GraphGenerator:4509-4515` (tiered, saved) | V | Skipped when the author set a colour. |
 | S2-8 | Size-legend symbols in the chrome label grey, bordered in the grid colour | C20, point 9, relation 6, geo 5 | `Legend.createItems:702-707` falls back to `LegendItem.SYMBOL_COLOR` `#759595` and `SYMBOL_BORDER` (`:306-307`) when `getElementColor` (`:725`) returns null | D | Add a symbol-colour property to `LegendSpec`, set in `GraphGenerator.processSizeLegend` (about `:1830`) from the modern chrome. |
 | S2-9 | A measure on colour that crosses zero uses the diverging ramp, centred on zero | C23, point 4 | The ramp is the colour ref's stored frame, cloned for each render in `VSFrameVisitor.createVisualFrame` (`:404`), and for a relation chart's node colour in `GraphGenerator.initRelationElement` (`:1495`). `LinearColorFrame.getColor(Object)` (`:52-75`) runs the scale's minimum to maximum with no centre. `ChangeChartProcessor.fixColorField` has no callers | D + flag | See "S2-9 diverging ramp" under this table (D152 to D154). |
-| S2-10 | Map ramp starts at about 25% of its range, on map polygons | C23, geo 2 | `MapGenerator.initColorFrame` (`:494-548`) puts the ramp on the polygons. Brushing builds its own polygon frames in `MapGenerator.applyBrushing` (`:184-213`) | D | A drawing rule, not a stored value (R12). See "S2-10 map ramp floor" under this table (D155). |
+| S2-10 | Map ramp starts at about 25% of its range, on map polygons | C23, geo 2 | `MapGenerator.initColorFrame` (`:494-548`) puts the ramp on the polygons. Brushing builds its own polygon frames in `MapGenerator.applyBrushing` (`:184-213`) | D | A drawing rule, not a stored value (R13). See "S2-10 map ramp floor" under this table (D155). |
 | S2-11 | Each deeper level of a sunburst or icicle steps its group colour toward the card, up to three levels | hierarchy 3 | `TreemapVO.paint` fills every node with `gobj.getColor(0)` (`:212`), and the automatic label ink reads the same unstepped colour (`:110-112`) | D | See "S2-11 level steps" under this table (D150, D151, D156). |
 | S2-12 | Funnel colours in funnel order, top stage = slot 1, and the legend in the same order | funnel 3 | Colour slots follow the colour field's design order (`VSFrameVisitor.createVisualFrame:415-422`, `sortValues:960-997`). `ChartVSAQuery.applyFunnelSort` (`:2213-2253`) sorts the stage ascending by value, so the top stage is the last value. A side legend reverses a stacked element's items (`Legend.isReversed:665-680`) | D | See "S2-12 funnel order" under this table (D149, D157). Moved here from S3-4 by the owner's S2b ruling Q9 (2026-11-11). |
 | S2-13 | Contrast of the direction tokens on the real translucent card | C16, financial open item | The card shipped in #7750, so this is no longer blocked | check | Sample the composited card in light and dark at 15%. Record the figures in the plan for S2-6. |
@@ -428,7 +428,7 @@ C1 (card), C13 (text sizes and colours) and C15 (density) are already shipped. S
   - An unchanged Variance sent back with any other edit keeps the stored Teal.
   - The composer's draw records which colour fields drew diverging. The pane can therefore lag one draw behind a binding change.
 
-**S2-10 map ramp floor.** Ruling Q7; R12, D155.
+**S2-10 map ramp floor.** Ruling Q7; R13, D155.
 - **Where it applies.** A marked polygon map whose ramp is the seeded Teal, meaning polygons with no points, and not a contour map.
 - **What it draws.** Data colours start at 25% of the ramp: ratio r draws the ramp at 0.25 + 0.75r.
   - The gradient legend samples the same frame (`ColorLegendBand.paint:57-64`), so the legend shows the floor too.
@@ -1084,7 +1084,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 
 "Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, on 2026-11-16 from D69 on, on 2026-11-17 from D94 on, on 2026-11-18 from D116 on, or on 2026-11-19 for D149 and D150. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, while amending S5 for D83 to D85 and D87 to D90, while amending S6 for D100 to D107, while amending S7 for D122 to D129, and D131 from its build, or while amending S2 for D151 to D159.
 
-S2b-2 numbered its rows D150 to D160 while it was built. They are D149 to D159 here, after the open S8 branch's D132 to D148. The S2b-2 plan and live-check notes use the old numbers.
+S2b-2 numbered its rows D150 to D160 while it was built. They are D149 to D159 here, after the open S8 branch's D132 to D148, and its ruling R12 is R13 here, because S7 merged first with its own R12. The S2b-2 plan and live-check notes use the old numbers.
 
 | # | Decision | Who |
 |---|---|---|
