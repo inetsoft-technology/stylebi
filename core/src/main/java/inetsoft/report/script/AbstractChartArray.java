@@ -200,6 +200,16 @@ public abstract class AbstractChartArray
    }
 
    /**
+    * No index is valid: {@link #getArrayElement(long)} never returns an element, so a
+    * script reading {@code colors[0]} gets {@code undefined} (as in 13.8) instead of
+    * {@code null}. (#81786)
+    */
+   @Override
+   public boolean isIndexValid(long index) {
+      return false;
+   }
+
+   /**
     * Sets a named property in this object.
     */
    @Override

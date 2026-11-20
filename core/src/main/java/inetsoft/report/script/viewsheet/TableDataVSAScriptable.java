@@ -1432,6 +1432,15 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       }
 
       /**
+       * Report rowState and rowIndex, which getMember serves but XTableRow.hasMember does
+       * not know, so that GraalJS (which asks hasMember first) can read them. (#81904)
+       */
+      @Override
+      public boolean hasMember(String name) {
+         return "rowState".equals(name) || "rowIndex".equals(name) || super.hasMember(name);
+      }
+
+      /**
        * Get a property from the object selected by an integral index.
        */
       @Override
