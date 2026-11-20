@@ -987,7 +987,7 @@ public class GraphUtil {
          if(isCategorical(dref)) {
             if(GraphTypes.supportsPoint(chartType, info)) {
                if(!(frame instanceof CategoricalShapeFrame)) {
-                  frame = new CategoricalShapeFrame();
+                  frame = ModernShapes.newFrame(ctx);
                }
             }
             else if(GraphTypes.supportsTexture(chartType)) {

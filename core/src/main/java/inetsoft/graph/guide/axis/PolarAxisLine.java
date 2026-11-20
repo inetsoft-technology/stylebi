@@ -85,7 +85,7 @@ class PolarAxisLine extends AxisLine {
       g2.setRenderingHints(hints);
       g2.setColor(getAxis().getLineColor());
 
-      if(getAxis().isLineVisible()) {
+      if(getAxis().isLineVisible() && !getAxis().isLineAsGrid()) {
          Shape outline;
 
          if(usePolygon) {

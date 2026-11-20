@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.graph.GraphConstants;
 import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.CategoricalShapeFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
 import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.graph.aesthetic.TealColorFrame;
@@ -249,6 +250,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here
       seedColorPalette(ctx);
+      seedShapeLists(ctx);
       // only a marked chart saves its seeded tiers
       getChartDescriptor().setSaveDefaults(ctx.modern);
 
@@ -322,6 +324,35 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // measure-backed node color the loop already reached simply takes the same write twice.
       if(info instanceof RelationChartInfo) {
          seedColorFrame(((RelationChartInfo) info).getNodeColorField(), ctx);
+      }
+   }
+
+   // swaps each categorical shape list that is a default; an author's list stays
+   private void seedShapeLists(VizContext ctx) {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      for(boolean runtime : new boolean[]{ false, true }) {
+         for(AestheticRef ref : info.getAestheticRefs(runtime)) {
+            seedShapeList(ref, ctx);
+         }
+
+         for(ChartRef ref : info.getBindingRefs(runtime)) {
+            if(ref instanceof ChartAggregateRef) {
+               seedShapeList(((ChartAggregateRef) ref).getShapeField(), ctx);
+            }
+         }
+      }
+
+      seedShapeList(info.getShapeField(), ctx);
+   }
+
+   private void seedShapeList(AestheticRef ref, VizContext ctx) {
+      if(ref != null && ref.getVisualFrame() instanceof CategoricalShapeFrame) {
+         ModernShapes.swap((CategoricalShapeFrame) ref.getVisualFrame(), ctx.modern);
       }
    }
 
@@ -3292,10 +3323,13 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    protected void seedTypeDefaults(VizContext ctx, ResolvedChartType type) {
       seedLegendPlacement(ctx, type);
       seedLegendTitles(ctx);
+      // a type change can rebuild the shape frame as a classic list
+      seedShapeLists(ctx);
       // values that depend on the resolved type; written on both branches
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
       seedXGrid(ctx, type);
+      seedYGrid(ctx, type);
       seedPlotAlpha(ctx, type);
       // the legacy branch replaces only a modern value
       seedChartColor(ctx, type);
@@ -3303,6 +3337,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedNodeColor(getVSChartInfo(), ctx);
       // modern only; the classic value stays in legacySmoothLines()
       seedSmoothLines(ctx, type);
+      seedValuesVisible(ctx, type);
+      seedSizeLegend(ctx, type);
       seedDirectionColors(ctx, type);
       seedSummaryColors(ctx);
    }
@@ -3459,6 +3495,57 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
    }
 
+   private void seedYGrid(VizContext ctx, ResolvedChartType type) {
+      int style = ctx.modern ? VSChartTypeDefaults.yGridStyle(type) : StyleConstants.THIN_LINE;
+      seedYGrid(getChartDescriptor(), style);
+      // a script-made runtime copy, which the render prefers; its user tier stays
+      seedYGrid(getRTChartDescriptor(), style);
+   }
+
+   private static void seedYGrid(ChartDescriptor desc, int style) {
+      PlotDescriptor plot = plotOf(desc);
+
+      if(plot != null) {
+         plot.setYGridStyle(style, CompositeValue.Type.DEFAULT);
+      }
+   }
+
+   // an author's choice stands; the legacy branch turns a seeded value back off
+   private void seedValuesVisible(VizContext ctx, ResolvedChartType type) {
+      PlotDescriptor plot = plotOf(getChartDescriptor());
+
+      if(plot == null || plot.isUserValuesVisible()) {
+         return;
+      }
+
+      VSChartInfo info = getVSChartInfo();
+      boolean textBound = info != null && info.getTextField() != null;
+      boolean show = ctx.modern && VSChartTypeDefaults.valuesVisible(type, textBound);
+      PlotDescriptor rplot = plotOf(getRTChartDescriptor());
+
+      // a script-made runtime copy follows unless the script changed its value
+      if(rplot != null && rplot.isValuesVisible() == plot.isValuesVisible()) {
+         rplot.setValuesVisible(show);
+      }
+
+      plot.setValuesVisible(show);
+   }
+
+   // the treemap family hides its size legend while the author has not chosen; others show it
+   private void seedSizeLegend(VizContext ctx, ResolvedChartType type) {
+      boolean show = !ctx.modern || VSChartTypeDefaults.sizeLegendVisible(type);
+
+      for(ChartDescriptor chartDesc : new ChartDescriptor[] { desc, rdesc }) {
+         LegendsDescriptor legends = chartDesc == null ? null : chartDesc.getLegendsDescriptor();
+         LegendDescriptor size = legends == null ? null : legends.getSizeLegendDescriptor();
+
+         if(size != null && !size.isUserVisible()) {
+            size.setVisible(show);
+            size.setMaxModeVisible(show);
+         }
+      }
+   }
+
    // the fill transparency; -1 is auto, so a legacy chart keeps the element's own
    private void seedPlotAlpha(VizContext ctx, ResolvedChartType type) {
       double alpha = ctx.modern ? VSChartTypeDefaults.plotAlpha(type) : -1;
@@ -3587,6 +3674,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       else if(getVizMark() != null && seededLegendKey != null && !seededLegendKey.equals(key)) {
          seedLegendPlacement(VizContext.of(this), now);
          seedLegendTitles(VizContext.of(this));
+         seedValuesVisible(VizContext.of(this), now);
+         seedSizeLegend(VizContext.of(this), now);
          requestLegendCount();
       }
 

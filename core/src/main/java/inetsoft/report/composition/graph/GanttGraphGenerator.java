@@ -20,6 +20,8 @@ package inetsoft.report.composition.graph;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.data.DataSet;
+import inetsoft.graph.guide.axis.CompactDates;
+import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.Scale;
 import inetsoft.graph.scale.TimeScale;
 import inetsoft.uql.VariableTable;
@@ -145,10 +147,10 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
       Scale yScale = coord.getYScale();
 
       if(yScale != null) {
-         // centre month labels between their boundary ticks on the time axis.
-         yScale.getAxisSpec().setLabelBetween(true);
+         boolean fit = false;
 
          if(vizContext.modern && yScale instanceof TimeScale) {
+            TimeScale time = (TimeScale) yScale;
             // the chart's own padding, as the title gap uses
             Insets padding = chartPadding != null ? chartPadding
                : VSDensityDefaults.chartPadding(vizContext);
@@ -158,8 +160,23 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
                ModernLabelRule.columnLimitPx(
                   coord.getXScale().getAxisSpec().getTextSpec().getFont(), width);
             double plot = width - padding.left - padding.right - tasks;
-            ((TimeScale) yScale).setEndPadRatio(endPadRatio(padding.right, plot));
+            time.setEndPadRatio(endPadRatio(padding.right, plot));
+
+            CompositeTextFormat format = getAxisLabelFormat(
+               getAxisDescriptor(time, "y"), time.getFields(), false);
+
+            // an author increment or date format keeps the classic ticks
+            if(time.getIncrement() == null && !CompactDateRule.hasAuthorFormat(format)) {
+               Font font = time.getAxisSpec().getTextSpec().getFont();
+               // widest label plus the flat gap
+               double label = widestMonthLabel(font, CompactDateRule.locale()) + 4;
+               time.setLabelFit(plot, label);
+               fit = plot > 0 && label > 0;
+            }
          }
+
+         // labels between ticks unless the fit puts them on ticks
+         yScale.getAxisSpec().setLabelBetween(!fit);
       }
 
       Scale xScale = coord.getXScale();
@@ -174,6 +191,23 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
     */
    static double endPadRatio(double padPx, double plotPx) {
       return plotPx > 2 * padPx ? padPx / (plotPx - padPx) : 0;
+   }
+
+   /**
+    * The width of the widest compact month label with its year, as the axis formats it in the
+    * locale.
+    */
+   static double widestMonthLabel(Font font, Locale locale) {
+      Format full = new CompactDates(TimeScale.MONTH, locale).full(null);
+      double widest = 0;
+
+      for(int month = Calendar.JANUARY; month <= Calendar.DECEMBER; month++) {
+         // any year; the month name sets the width
+         String label = full.format(new GregorianCalendar(2026, month, 1).getTime());
+         widest = Math.max(widest, GTool.stringWidth(new String[] { label }, font));
+      }
+
+      return widest;
    }
 
    @Override

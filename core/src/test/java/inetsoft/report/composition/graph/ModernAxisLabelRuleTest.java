@@ -402,7 +402,7 @@ class ModernAxisLabelRuleTest {
    }
 
    @Test
-   void aGanttTimeAxisTakesCompactDates() {
+   void aFittedGanttTimeAxisTakesCompactDates() {
       GraphGenerator gen = generator(ganttChart(6, true), VizMark.MODERN_LIGHT,
                                      new Dimension(400, 480));
       EGraph graph = gen.createEGraph();
@@ -413,6 +413,23 @@ class ModernAxisLabelRuleTest {
                    time.getAxisSpec().getCompactDates());
 
       VGraph vgraph = Plotter.getPlotter(graph).plotAndLayout(gen.getData(), 0, 0, 400, 480);
+      DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getYAxis1();
+      axis.prepareLabels();
+      List<String> texts = shownTexts(axis);
+
+      // the fitted unit depends on the measured font, so check the compact form only
+      assertTrue(texts.size() >= 2, texts.toString());
+      assertTrue(texts.get(0).endsWith(" 2026"), texts.toString());
+      assertTrue(texts.subList(1, texts.size()).stream().noneMatch(t -> t.contains("2026")),
+                 texts.toString());
+   }
+
+   @Test
+   void aGanttTimeAxisWithAnIncrementLabelsBetweenTicks() {
+      GraphGenerator gen = generator(ganttChart(6, true, 1), VizMark.MODERN_LIGHT,
+                                     new Dimension(400, 480));
+      VGraph vgraph = Plotter.getPlotter(gen.createEGraph())
+         .plotAndLayout(gen.getData(), 0, 0, 400, 480);
       DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getYAxis1();
       axis.prepareLabels();
       List<String> texts = shownTexts(axis);
@@ -631,7 +648,7 @@ class ModernAxisLabelRuleTest {
    }
 
    @Test
-   void aGanttTimeAxisThinsInsteadOfCutting() {
+   void aFittedGanttTimeAxisIsNeverCut() {
       GraphGenerator gen = generator(ganttChart(30, false), VizMark.MODERN_LIGHT,
                                      new Dimension(400, 480));
       EGraph graph = gen.createEGraph();
@@ -664,11 +681,32 @@ class ModernAxisLabelRuleTest {
    }
 
    @Test
-   void aGanttTimeAxisSlidesItsFirstTickInside() {
+   void aFittedGanttTimeAxisShowsEveryTick() {
+      // the first tick's full date runs past the axis start: it slides inside the axis; the
+      // fit leaves room for every label, so none is hidden and each tick is shown
+      GraphGenerator gen = generator(ganttChart(30, false), VizMark.MODERN_LIGHT,
+                                     new Dimension(400, 480));
+      VGraph vgraph = Plotter.getPlotter(gen.createEGraph())
+         .plotAndLayout(gen.getData(), 0, 0, 400, 480);
+      DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getYAxis1();
+      axis.prepareLabels();
+      List<Integer> idx = shownIndices(axis);
+      List<String> texts = shownTexts(axis);
+      Rectangle2D first = shownBounds(axis).get(0);
+
+      assertEquals(1, idx.get(1) - idx.get(0), texts.toString());
+      assertTrue(texts.get(0).contains("2026"), texts.toString());
+      assertTrue(first.getX() >= vgraph.getPlotBounds().getX() - 0.01,
+                 "first label at " + first.getX() + ", plot at " + vgraph.getPlotBounds().getX());
+      assertOneStep(idx, texts);
+   }
+
+   @Test
+   void aGanttTimeAxisWithAnIncrementSlidesItsFirstTickInside() {
       // the first tick's full date runs past the axis start: it slides inside the axis, and
       // while a slid first label crowds the next one in step it is hidden and the next one
       // takes the year; the step is the one on the ticks
-      GraphGenerator gen = generator(ganttChart(30, false), VizMark.MODERN_LIGHT,
+      GraphGenerator gen = generator(ganttChart(30, false, 1), VizMark.MODERN_LIGHT,
                                      new Dimension(400, 480));
       VGraph vgraph = Plotter.getPlotter(gen.createEGraph())
          .plotAndLayout(gen.getData(), 0, 0, 400, 480);
@@ -684,6 +722,34 @@ class ModernAxisLabelRuleTest {
       assertTrue(first.getX() >= vgraph.getPlotBounds().getX() - 0.01,
                  "first label at " + first.getX() + ", plot at " + vgraph.getPlotBounds().getX());
       assertOneStep(idx, texts);
+   }
+
+   @Test
+   void aGanttTimeAxisWithAnIncrementThinsInsteadOfCutting() {
+      GraphGenerator gen = generator(ganttChart(30, false, 1), VizMark.MODERN_LIGHT,
+                                     new Dimension(400, 480));
+      EGraph graph = gen.createEGraph();
+      Scale time = ((RectCoord) graph.getCoordinate()).getYScale();
+      assertEquals(66, time.getAxisSpec().getLabelLimit(), 0.01);
+      assertEquals(0, rotation(time));
+
+      VGraph vgraph = Plotter.getPlotter(graph).plotAndLayout(gen.getData(), 0, 0, 400, 480);
+      DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getYAxis1();
+      axis.prepareLabels();
+      List<String> texts = shownTexts(axis);
+      List<Integer> idx = shownIndices(axis);
+
+      assertTrue(texts.size() > 2, texts.toString());
+      assertTrue(texts.stream().noneMatch(t -> t.endsWith("..")), texts.toString());
+      assertTrue(texts.stream().noneMatch(t -> t.endsWith("…")), texts.toString());
+      assertTrue(texts.get(0).contains("2026"), texts.toString());
+      assertTrue(idx.get(1) - idx.get(0) > 1, "a real step " + idx);
+
+      for(int i = 1; i < idx.size(); i++) {
+         assertEquals(idx.get(1) - idx.get(0), idx.get(i) - idx.get(i - 1), "one step " + idx);
+      }
+
+      assertGap(axis, texts);
    }
 
    @Test
@@ -1007,6 +1073,11 @@ class ModernAxisLabelRuleTest {
 
    // tasks with long names, starting on the 1st of each month or every 3 days
    private static Chart ganttChart(int count, boolean monthly) {
+      return ganttChart(count, monthly, null);
+   }
+
+   // an author increment on the time axis keeps the classic ticks
+   private static Chart ganttChart(int count, boolean monthly, Number increment) {
       VSChartDimensionRef task = dim("Task");
       VSChartAggregateRef start = agg("Start");
       start.setFormulaValue("Min");
@@ -1032,6 +1103,7 @@ class ModernAxisLabelRuleTest {
          rows[i] = new Object[] { "Workstream task number " + i, from, to };
       }
 
+      start.getAxisDescriptor().setIncrement(increment);
       return new Chart(gantt, rows);
    }
 

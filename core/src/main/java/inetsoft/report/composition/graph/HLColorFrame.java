@@ -75,6 +75,11 @@ public class HLColorFrame extends ColorFrame {
       return col;
    }
 
+   @Override
+   public boolean isHighlightFrame() {
+      return true;
+   }
+
    /**
     * Get the default color.
     */

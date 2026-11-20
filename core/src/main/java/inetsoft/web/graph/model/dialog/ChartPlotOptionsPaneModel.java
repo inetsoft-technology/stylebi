@@ -199,7 +199,12 @@ public class ChartPlotOptionsPaneModel implements Serializable {
       plotDesc.setExploded(explodedPie, false);
       plotDesc.setInPlot(keepElementInPlot);
       plotDesc.setReferenceLineVisible(showReferenceLine);
-      plotDesc.setValuesVisible(showValues);
+
+      // Apply runs every time, so only a change is the author's
+      if(showValues != plotDesc.isValuesVisible()) {
+         plotDesc.setAuthorValuesVisible(showValues);
+      }
+
       plotDesc.setStackValue(stackValues);
       plotDesc.setPointLine(showPoints);
       plotDesc.setPolygonColor(polygonColor);

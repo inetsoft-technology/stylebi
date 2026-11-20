@@ -120,7 +120,7 @@ public class AxisLine extends Visualizable {
       Color ocolor = g.getColor();
       g.setColor(axis.getLineColor());
 
-      if(axis.isLineVisible()) {
+      if(axis.isLineVisible() && !axis.isLineAsGrid()) {
          GTool.drawLine(g, new Line2D.Double(pos1, pos2));
       }
 

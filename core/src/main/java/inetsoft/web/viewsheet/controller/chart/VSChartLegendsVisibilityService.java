@@ -139,7 +139,7 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
       }
    }
 
-   private void hideDescriptorLegends(ChartVSAssemblyInfo info,
+   void hideDescriptorLegends(ChartVSAssemblyInfo info,
                                       ChartDescriptor chartDescriptor,
                                       VSChartLegendsVisibilityEvent event,
                                       boolean changeNonMaxMode)
@@ -185,11 +185,7 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
 
    private void hideDescriptorLegends(LegendDescriptor legendDescriptor, boolean maxMode) {
       if(legendDescriptor != null) {
-         legendDescriptor.setMaxModeVisible(false);
-
-         if(!maxMode) {
-            legendDescriptor.setVisible(false);
-         }
+         stampVisibility(legendDescriptor, false, maxMode);
       }
    }
 
@@ -266,27 +262,15 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
          ChartAggregateRef aggr = (ChartAggregateRef) chartInfo.getYField(0);
 
          if(aggr.getColorField() != null) {
-            aggr.getColorField().getLegendDescriptor().setMaxModeVisible(true);
-
-            if(!maxMode) {
-               aggr.getColorField().getLegendDescriptor().setVisible(true);
-            }
+            stampVisibility(aggr.getColorField().getLegendDescriptor(), true, maxMode);
          }
 
          if(aggr.getShapeField() != null) {
-            aggr.getShapeField().getLegendDescriptor().setMaxModeVisible(true);
-
-            if(!maxMode) {
-               aggr.getShapeField().getLegendDescriptor().setVisible(true);
-            }
+            stampVisibility(aggr.getShapeField().getLegendDescriptor(), true, maxMode);
          }
 
          if(aggr.getSizeField() != null) {
-            aggr.getSizeField().getLegendDescriptor().setMaxModeVisible(true);
-
-            if(!maxMode) {
-               aggr.getSizeField().getLegendDescriptor().setVisible(true);
-            }
+            stampVisibility(aggr.getSizeField().getLegendDescriptor(), true, maxMode);
          }
       }
       else {
@@ -294,13 +278,24 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
             GraphBuilder.getLegendDescriptors(chartInfo, chartDescriptor))
          {
             if(legend != null) {
-               legend.setMaxModeVisible(showLegend);
-
-               if(!maxMode) {
-                  legend.setVisible(showLegend);
-               }
+               stampVisibility(legend, showLegend, maxMode);
             }
          }
+      }
+   }
+
+   // the write always fans out; only the author stamp waits for a real change
+   static void stampVisibility(LegendDescriptor legend, boolean visible, boolean maxMode) {
+      boolean changed = legend.isMaxModeVisible() != visible ||
+         !maxMode && legend.isVisible() != visible;
+      legend.setMaxModeVisible(visible);
+
+      if(!maxMode) {
+         legend.setVisible(visible);
+      }
+
+      if(changed) {
+         legend.setUserVisible(true);
       }
    }
 

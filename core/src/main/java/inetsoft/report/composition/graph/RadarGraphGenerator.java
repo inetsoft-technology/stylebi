@@ -162,6 +162,14 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
 
       PolarCoord polarCoord = new PolarCoord(coord);
       polarCoord.setSpokeLabelRule(vizContext.modern);
+
+      if(vizContext.modern) {
+         // webbed rings in the grid colour, shaped by the spoke count
+         polarCoord.setWebGrid(true);
+         polarCoord.setSidesFromSpokes(true);
+         polarCoord.setModernWeb(true);
+         coord.setEvenRings(true);
+      }
       Coordinate graphCoord = createCoord(polarCoord, ctype);
 
       graph.setCoordinate(graphCoord);
@@ -206,7 +214,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
       }
 
       spec.setLineColor(VSChartChromeDefaults.resolveSpokeColor(xdesc.getLineColor(), ctx));
-      spec.setLineVisible(!maxMode && xdesc.isLineVisible() || maxMode && xdesc.isMaxModeLineVisible());
+      spec.setLineVisible(!maxMode && xdesc.isLineVisible() || maxMode && xdesc.isMaxModeLineVisible(ctx));
       spec.setTickVisible(xdesc.isTicksVisible());
       spec.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));
       spec.setLabelVisible(!maxMode && xdesc.isLabelVisible() || maxMode && xdesc.isMaxModeLabelVisible());

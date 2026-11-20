@@ -17,9 +17,12 @@
  */
 package inetsoft.web.composer.model.vs;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -32,7 +35,11 @@ public class ChartLinePaneModel implements Serializable {
    }
 
    public ChartLinePaneModel(ChartInfo info, PlotDescriptor plotDesc) {
-      initPlotComVisible(info);
+      this(info, plotDesc, VizContext.of((VizMark) null));
+   }
+
+   public ChartLinePaneModel(ChartInfo info, PlotDescriptor plotDesc, VizContext ctx) {
+      initPlotComVisible(info, ctx);
       getPlotXYGird(info, plotDesc);
       getPlotQuadrantGrid(plotDesc);
       getPlotDiagonalGrid(plotDesc);
@@ -270,7 +277,7 @@ public class ChartLinePaneModel implements Serializable {
     * @cinfo, chart info.
     * @return void.
     */
-   private void initPlotComVisible(ChartInfo cinfo) {
+   private void initPlotComVisible(ChartInfo cinfo, VizContext ctx) {
       gridLineVisible = innerLineVisible = true;
       trendLineVisible = true;
       facetGridVisible = cinfo.isFacet();
@@ -281,6 +288,15 @@ public class ChartLinePaneModel implements Serializable {
       {
          gridLineVisible = false;
          innerLineVisible = false;
+      }
+
+      // a marked radar rings its spokes in the Y grid, which has no X counterpart
+      if(ctx.modern && GraphTypes.isRadar(cinfo.getRTChartType())) {
+         gridLineVisible = true;
+         xGridLineVisible = false;
+      }
+      else {
+         xGridLineVisible = gridLineVisible;
       }
    }
 
@@ -321,6 +337,16 @@ public class ChartLinePaneModel implements Serializable {
 
    public void setGridLineVisible(boolean gridLineVisible) {
       this.gridLineVisible = gridLineVisible;
+   }
+
+   @JsonProperty("xGridLineVisible")
+   public boolean isXGridLineVisible() {
+      return xGridLineVisible;
+   }
+
+   @JsonProperty("xGridLineVisible")
+   public void setXGridLineVisible(boolean xGridLineVisible) {
+      this.xGridLineVisible = xGridLineVisible;
    }
 
    public boolean isInnerLineVisible() {
@@ -496,6 +522,7 @@ public class ChartLinePaneModel implements Serializable {
    private int yGridLineStyle;
    private String yGridLineColor;
    private boolean gridLineVisible;
+   private boolean xGridLineVisible;
    private int quadrantGridLineStyle;
    private String quadrantGridLineColor;
    private int diagonalLineStyle;

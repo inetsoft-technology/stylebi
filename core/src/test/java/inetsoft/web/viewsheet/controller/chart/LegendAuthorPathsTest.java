@@ -21,6 +21,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
+import inetsoft.report.internal.AllLegendDescriptor;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
@@ -29,6 +30,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
+import inetsoft.web.viewsheet.event.chart.VSChartLegendsVisibilityEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,8 +38,11 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.geom.Dimension2D;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Moving, resizing and restoring a legend: each edit of the author's stamps its flag, and an
@@ -139,6 +144,94 @@ class LegendAuthorPathsTest {
 
       assertEquals(LegendsDescriptor.LEFT, legends.getLayout());
       assertTrue(legends.isUserLayout());
+   }
+
+   private static LegendDescriptor sizeOf(ChartVSAssemblyInfo info) {
+      return info.getChartDescriptor().getLegendsDescriptor().getSizeLegendDescriptor();
+   }
+
+   private static void hideSize(ChartVSAssemblyInfo info) {
+      VSChartLegendsVisibilityEvent event = mock(VSChartLegendsVisibilityEvent.class);
+      when(event.getAestheticType()).thenReturn("Size");
+      new VSChartLegendsVisibilityService(null, null, null, null, null)
+         .hideDescriptorLegends(info, info.getChartDescriptor(), event, false);
+   }
+
+   @Test
+   void hidingAShownSizeLegendStampsIt() {
+      ChartVSAssemblyInfo info = marked(GraphTypes.CHART_POINT);
+      info.reseedTypeDefaults(false);
+      assertTrue(sizeOf(info).isVisible(), "premise");
+      assertFalse(sizeOf(info).isUserVisible(), "premise");
+
+      hideSize(info);
+
+      assertFalse(sizeOf(info).isVisible());
+      assertTrue(sizeOf(info).isUserVisible());
+   }
+
+   @Test
+   void hidingAnAlreadyHiddenSizeLegendStampsNothing() {
+      ChartVSAssemblyInfo info = marked(GraphTypes.CHART_TREEMAP);
+      info.reseedTypeDefaults(false);
+      assertFalse(sizeOf(info).isVisible(), "premise: seeded hidden");
+
+      hideSize(info);
+
+      assertFalse(sizeOf(info).isUserVisible());
+   }
+
+   @Test
+   void showAllOnTheSeededHiddenSizeLegendShowsAndStampsIt() {
+      ChartVSAssemblyInfo info = marked(GraphTypes.CHART_TREEMAP);
+      info.reseedTypeDefaults(false);
+      assertFalse(sizeOf(info).isVisible(), "premise: seeded hidden");
+
+      VSChartLegendsVisibilityService.showAllDescriptorLegends(
+         info.getChartDescriptor(), info.getVSChartInfo(), true, false);
+
+      assertTrue(sizeOf(info).isVisible());
+      assertTrue(sizeOf(info).isMaxModeVisible());
+      assertTrue(sizeOf(info).isUserVisible());
+   }
+
+   @Test
+   void showAllOnAVisibleSizeLegendStampsNothing() {
+      ChartVSAssemblyInfo info = marked(GraphTypes.CHART_POINT);
+      info.reseedTypeDefaults(false);
+      assertTrue(sizeOf(info).isVisible(), "premise");
+
+      VSChartLegendsVisibilityService.showAllDescriptorLegends(
+         info.getChartDescriptor(), info.getVSChartInfo(), true, false);
+
+      assertFalse(sizeOf(info).isUserVisible());
+      assertFalse(info.getChartDescriptor().getLegendsDescriptor().getColorLegendDescriptor()
+                     .isUserVisible());
+   }
+
+   @Test
+   void aMixedMergedLegendIsWrittenInEveryChild() {
+      LegendDescriptor a = new LegendDescriptor();
+      LegendDescriptor b = new LegendDescriptor();
+      a.setMaxModeVisible(false);
+      AllLegendDescriptor all = new AllLegendDescriptor(List.of(a, b));
+
+      VSChartLegendsVisibilityService.stampVisibility(all, false, false);
+
+      assertFalse(b.isMaxModeVisible(), "the child the first one differs from");
+      assertFalse(b.isVisible());
+      assertTrue(b.isUserVisible());
+
+      LegendDescriptor c = new LegendDescriptor();
+      LegendDescriptor d = new LegendDescriptor();
+      c.setVisible(false);
+      AllLegendDescriptor second = new AllLegendDescriptor(List.of(c, d));
+
+      VSChartLegendsVisibilityService.stampVisibility(second, false, true);
+      VSChartLegendsVisibilityService.stampVisibility(second, false, false);
+
+      assertFalse(d.isVisible());
+      assertFalse(d.isMaxModeVisible());
    }
 
    private static ChartVSAssemblyInfo marked(int type) {

@@ -68,6 +68,29 @@ final class VSChartTypeDefaults {
    }
 
    /**
+    * The modern value-axis grid style; a funnel has no value axis worth ruling.
+    */
+   static int yGridStyle(ResolvedChartType t) {
+      return GraphTypes.isFunnel(t.type()) ? StyleConstants.NONE : StyleConstants.THIN_LINE;
+   }
+
+   /**
+    * Whether a modern chart shows its values; a funnel or waterfall does unless a Text field
+    * already labels the marks.
+    */
+   static boolean valuesVisible(ResolvedChartType t, boolean textBound) {
+      int type = t.type();
+      return !textBound && (GraphTypes.isFunnel(type) || GraphTypes.isWaterfall(type));
+   }
+
+   /**
+    * Whether a modern chart shows its size legend; the treemap family sizes its nodes by area.
+    */
+   static boolean sizeLegendVisible(ResolvedChartType t) {
+      return !GraphTypes.isTreemap(t.type());
+   }
+
+   /**
     * The modern plot alpha; a filled radar fills at 30%, everything else is auto (-1).
     */
    static double plotAlpha(ResolvedChartType t) {

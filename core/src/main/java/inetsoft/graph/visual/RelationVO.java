@@ -18,6 +18,7 @@
 package inetsoft.graph.visual;
 
 import inetsoft.graph.GraphConstants;
+import inetsoft.graph.TextSpec;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.Coordinate;
@@ -64,7 +65,14 @@ public class RelationVO extends ElementVO {
             String measure = getMeasureName();
             vtext = new VOText(label, this, measure, coord.getDataSet(), obj.getSubRowIndex(), obj);
 
-            if(elem.isAutoTextColor() && elem.isLabelInside()) {
+            if(isTinted(elem, obj)) {
+               if(elem.isLabelInside() && elem.getBoxInk() != null) {
+                  TextSpec spec = vtext.getTextSpec().clone();
+                  spec.setColor(elem.getBoxInk());
+                  vtext.setTextSpec(spec);
+               }
+            }
+            else if(elem.isAutoTextColor() && elem.isLabelInside()) {
                vtext.setAutoBackground(obj.getColor());
                vtext.setContrastInk(elem.isContrastInk());
             }
@@ -89,6 +97,43 @@ public class RelationVO extends ElementVO {
          elem.getNodeColorFrame().getVisualField() != null ||
          // brushed, using auto text color
          elem.getHint("overlaid") != null;
+   }
+
+   // whether a node box is a tint of its colour rather than a solid fill
+   private boolean isTinted(RelationElement elem, RelationGeometry gobj) {
+      return elem.getBoxTintAlpha() > 0 && elem.getBoxTintBackdrop() != null &&
+         elem.getFillColor() == null &&
+         !isHighlighted(elem.getNodeColorFrame(), gobj);
+   }
+
+   // whether the node colour comes from a highlight
+   private boolean isHighlighted(ColorFrame frame, RelationGeometry gobj) {
+      if(frame == null) {
+         return false;
+      }
+
+      if(frame instanceof CompositeColorFrame) {
+         CompositeColorFrame cframe = (CompositeColorFrame) frame;
+
+         for(int i = 0; i < cframe.getFrameCount(); i++) {
+            if(isHighlighted((ColorFrame) cframe.getFrame(i), gobj)) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      return frame.isHighlightFrame() &&
+         frame.getColor(gobj.getVisualModel().getDataSet(), gobj.getVar(),
+                        gobj.getSubRowIndex()) != null;
+   }
+
+   private static Color blend(Color color, double alpha, Color backdrop) {
+      return new Color(
+         (int) Math.round(color.getRed() * alpha + backdrop.getRed() * (1 - alpha)),
+         (int) Math.round(color.getGreen() * alpha + backdrop.getGreen() * (1 - alpha)),
+         (int) Math.round(color.getBlue() * alpha + backdrop.getBlue() * (1 - alpha)));
    }
 
    /**
@@ -148,12 +193,22 @@ public class RelationVO extends ElementVO {
          Color fillColor = elem.getFillColor();
          GLine line = gobj.getLine(0);
 
+         boolean tinted = isTinted(elem, gobj);
+         Color full = color;
          color = applyAlpha(color);
 
          g2.setColor(color);
 
+         if(tinted) {
+            GTool.setRenderingHint(g2, true);
+            g2.setColor(applyAlpha(
+               blend(full, elem.getBoxTintAlpha(), elem.getBoxTintBackdrop())));
+            g2.fill(shape);
+            borderColor = applyAlpha(borderColor != null ? borderColor : full);
+            line = null;
+         }
          // use node fill color to fill if color is not bound.
-         if(fillColor != null && !isColorBound(elem)) {
+         else if(fillColor != null && !isColorBound(elem)) {
             g2.setColor(fillColor);
             g2.fill(shape);
             // use the static color for border.
