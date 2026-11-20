@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -82,7 +83,7 @@ class ModernGanttTicksTest {
 
       assertTrue(time.getLabelFitPlotPx() > 0);
       assertEquals(plot, time.getLabelFitPlotPx(), 1e-9);
-      assertEquals(GTool.stringWidth(new String[] { "Sep 2026" }, font) + 4,
+      assertEquals(GanttGraphGenerator.widestMonthLabel(font, CompactDateRule.locale()) + 4,
                    time.getLabelFitLabelPx(), 1e-9);
       assertFalse(time.getAxisSpec().isLabelBetween());
    }
@@ -181,6 +182,17 @@ class ModernGanttTicksTest {
 
       assertEquals(0, time.getLabelFitPlotPx(), 0);
       assertTrue(time.getAxisSpec().isLabelBetween());
+   }
+
+   @Test
+   void theFitMeasuresTheLocalesMonthLabels() {
+      Font font = new Font("Dialog", Font.PLAIN, 10);
+      double english = GanttGraphGenerator.widestMonthLabel(font, Locale.ENGLISH);
+      double french = GanttGraphGenerator.widestMonthLabel(font, Locale.FRENCH);
+
+      assertTrue(english >= GTool.stringWidth(new String[] { "Sep 2026" }, font), "" + english);
+      assertTrue(french >= GTool.stringWidth(new String[] { "sept. 2026" }, font), "" + french);
+      assertTrue(french > english, english + " vs " + french);
    }
 
    @Test
