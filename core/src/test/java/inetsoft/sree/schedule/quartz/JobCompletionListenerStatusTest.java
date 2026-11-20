@@ -189,7 +189,6 @@ class JobCompletionListenerStatusTest {
    }
 
    @Test
-   @Disabled("Bug #81692: A stopped schedule task is audited as failure with no reason")
    void auditRecordOfAStoppedTaskCarriesAReason() throws Exception {
       ScheduleTask task = task("audited-stopped-run");
       JobDataMap data = jobData(task);
