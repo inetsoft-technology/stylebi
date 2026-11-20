@@ -26,7 +26,6 @@ import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
@@ -81,7 +80,12 @@ public class AdobeAnalyticsDataSource extends OAuthEndpointJsonDataSource<AdobeA
    @Override
    public void updateTokens(Tokens tokens) {
       super.updateTokens(tokens);
-      setTokenExpiration(tokens.issued() + TimeUnit.MILLISECONDS.convert(24L, TimeUnit.HOURS));
+
+      // without an issue time the expiration of the service (set by super) is kept, and if there
+      // is none either the token is counted from now
+      if(tokens.issued() > 0 || tokens.expiration() <= 0) {
+         setTokenExpiration(expirationFromIssued(tokens));
+      }
    }
 
    @Override
