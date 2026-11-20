@@ -101,6 +101,14 @@ public class VariableScriptable implements ScriptScope {
    }
 
    /**
+    * Bug #81929: an unset parameter reads as null in scripts, as in Rhino.
+    */
+   @Override
+   public boolean isMissingMemberNull() {
+      return true;
+   }
+
+   /**
     * Set a named property in this object.
     */
    @Override

@@ -19,7 +19,10 @@ package inetsoft.uql.script;
 
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
+import inetsoft.util.script.graal.ScopeProxy;
+import inetsoft.util.script.graal.ScriptHostAccess;
 import inetsoft.util.script.graal.ScriptScope;
+import org.graalvm.polyglot.Context;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -159,5 +162,53 @@ class VariableScriptableTest {
       when(mockVariableTable.get("key2")).thenReturn("value2");
 
       assertEquals("key2=value2", variableScriptable.toString());
+   }
+
+   /**
+    * Bug #81929: an unset parameter reads as JS null (13.8/Rhino), not undefined,
+    * through the real GraalJS engine, without breaking string coercion or key
+    * enumeration.
+    */
+   @Test
+   void testUnsetParameterReadsNullInGraalJs() throws Exception {
+      VariableTable vars = new VariableTable();
+      vars.put("setx", 1);
+
+      // the production host access, which allows the host arrays of getMemberKeys()
+      try(Context ctx = Context.newBuilder("js").allowHostAccess(ScriptHostAccess.hostAccess()).build()) {
+         ctx.getBindings("js").putMember("parameter", new ScopeProxy(new VariableScriptable(vars)));
+
+         assertTrue(ctx.eval("js", "parameter.nosuch === null").asBoolean());
+         assertEquals("object", ctx.eval("js", "typeof parameter.nosuch").asString());
+         assertEquals("object", ctx.eval("js", "typeof parameter['nosuch']").asString());
+         assertTrue(ctx.eval("js", "parameter.nosuch == null").asBoolean());
+         assertTrue(ctx.eval("js", "parameter.setx === 1").asBoolean());
+         assertEquals(1, ctx.eval("js", "parameter.length").asInt());
+         assertTrue(ctx.eval("js", "parameter.parameterNames != null").asBoolean());
+         assertEquals("setx=1", ctx.eval("js", "'' + parameter").asString());
+         assertEquals("setx=1", ctx.eval("js", "String(parameter)").asString());
+         assertEquals("function", ctx.eval("js", "typeof parameter.valueOf").asString());
+         assertTrue(ctx.eval("js", "Object.keys(parameter).indexOf('setx') >= 0").asBoolean());
+         assertTrue(ctx.eval("js", "Object.keys(parameter).indexOf('nosuch') < 0").asBoolean());
+         assertTrue(ctx.eval("js", "JSON.stringify(parameter).indexOf('\"setx\":1') >= 0").asBoolean());
+         assertTrue(ctx.eval("js", "JSON.stringify(parameter).indexOf('nosuch') < 0").asBoolean());
+         assertTrue(ctx.eval("js", "parameter.hasOwnProperty('setx')").asBoolean());
+
+         // known trade-off: GraalJS answers in/hasOwnProperty/Reflect.has from the same
+         // hasMember() that gates the read, so every name reports as present; whether a
+         // parameter was supplied is told by Object.keys (above) or by "!= null"
+         assertTrue(ctx.eval("js", "'nosuch' in parameter").asBoolean());
+         assertTrue(ctx.eval("js", "parameter.hasOwnProperty('nosuch')").asBoolean());
+         assertTrue(ctx.eval("js", "Reflect.has(parameter, 'nosuch')").asBoolean());
+         assertFalse(ctx.eval("js", "parameter.nosuch != null").asBoolean());
+
+         ctx.eval("js", "parameter.newp = 7");
+         assertEquals(7, ctx.eval("js", "parameter.newp").asInt());
+      }
+
+      // the Java-side contract is unchanged
+      VariableScriptable scriptable = new VariableScriptable(vars);
+      assertFalse(scriptable.hasMember("nosuch"));
+      assertNull(scriptable.getMember("nosuch"));
    }
 }
