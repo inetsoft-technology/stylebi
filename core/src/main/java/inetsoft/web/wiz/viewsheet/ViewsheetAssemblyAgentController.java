@@ -3640,6 +3640,34 @@ public class ViewsheetAssemblyAgentController {
       }
    }
 
+   private static boolean isSameSavedAsset(AssetEntry a, AssetEntry b) {
+      return a.getType() == b.getType() && a.getScope() == b.getScope() &&
+         java.util.Objects.equals(a.getPath(), b.getPath()) &&
+         java.util.Objects.equals(a.getUser(), b.getUser()) &&
+         java.util.Objects.equals(a.getOrgID(), b.getOrgID());
+   }
+
+   private int countOtherCopiesWithUnsavedEdits(RuntimeViewsheet rvs, AssetEntry entry,
+                                                Principal user)
+   {
+      RuntimeViewsheet[] open = viewsheetService.getRuntimeViewsheets(user);
+      int count = 0;
+
+      if(open != null) {
+         for(RuntimeViewsheet rs : open) {
+            if(rs != null && rs.getEntry() != null && rs.getID() != null &&
+               !rs.getID().equals(rvs.getID()) &&
+               !rs.getID().contains(ViewsheetService.PREVIEW_VIEWSHEET) &&
+               isSameSavedAsset(entry, rs.getEntry()) && rs.getCurrent() != rs.getSavePoint())
+            {
+               count++;
+            }
+         }
+      }
+
+      return count;
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
    public Map<String, Object> save(@PathVariable String sessionToken,
                                    @RequestBody(required = false) SaveRequest body,
@@ -3722,6 +3750,21 @@ public class ViewsheetAssemblyAgentController {
          }
          catch(Exception e) {
             throw new PairingException("Failed to check for a duplicate name: " + e.getMessage(), e);
+         }
+      }
+
+      // Bug #81758: an in-place save overwrites any other open copy of the same asset that holds
+      // unsaved edits (edited in the Composer or another session), so require confirmation.
+      if(!wasTemporary && (entry == oldEntry || isSameSavedAsset(entry, oldEntry)) &&
+         !(body != null && Boolean.TRUE.equals(body.confirmOverwrite())))
+      {
+         int others = countOtherCopiesWithUnsavedEdits(rvs, oldEntry, user);
+
+         if(others > 0) {
+            throw new PairingException(
+               others + " other open copy(ies) of '" + oldEntry.getPath() + "' with unsaved " +
+               "edits (edited in the Composer or another session); saving overwrites them. " +
+               "Re-open the asset to attach, or pass confirmOverwrite:true.");
          }
       }
 
