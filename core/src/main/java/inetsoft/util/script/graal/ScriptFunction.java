@@ -279,7 +279,7 @@ public class ScriptFunction implements ProxyExecutable {
     * {@code NaN}). These cases do not occur in practice for CALC formula arguments.
     */
    // package-private: ScriptHostAccess reuses this for String -> number on host calls. (#81889)
-   static Number toNumber(Object value) {
+   private static Number toNumber(Object value) {
       if(value instanceof Boolean) {
          return ((Boolean) value) ? 1 : 0;
       }

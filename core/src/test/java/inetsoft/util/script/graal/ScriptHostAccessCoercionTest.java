@@ -118,7 +118,11 @@ class ScriptHostAccessCoercionTest {
 
    @Test
    void doubleStringSemantics() {
-      assertEquals("NaN", str("Java.type('java.lang.Math').max('abc',1)"));
+      // #75807 grammar: non-numeric and Java-only forms stay refused, not NaN
+      refused("Java.type('java.lang.Math').max('abc',1)");
+      refused("Java.type('java.lang.Math').abs('12f')");
+      refused("Java.type('java.lang.Math').abs('NaN')");
+      refused("Java.type('java.lang.Math').abs('')");
       assertEquals("2.5", str("Java.type('java.lang.Math').max('2.5',1)"));
       assertEquals("3.7", str("Java.type('java.lang.Math').abs('-3.7')"));
       assertEquals("D:5.5", str("t.dd('5.5')"));
@@ -127,7 +131,7 @@ class ScriptHostAccessCoercionTest {
    @Test
    void intAndLongOnlyForFiniteIntegralStrings() {
       assertEquals("I:7", str("t.onlyI('7')"));
-      assertEquals("I:0", str("t.onlyI('')"));
+      refused("t.onlyI('')");
       assertEquals("L:3000000000", str("t.onlyL('3000000000')"));
       refused("t.onlyI('abc')");
       refused("t.onlyI('7.5')");

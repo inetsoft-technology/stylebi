@@ -835,12 +835,15 @@ public final class ScriptHostAccess {
                   // parameter converted to a list. GraalJS refuses all of these on
                   // the raw host path (host object, Java.type static, constructor),
                   // which ScriptFunction.coerce does not cover. Shares
-                  // ScriptFunction.toNumber/toStringValue. (Bug #81889)
+                  // JavaClassProxy.toNumber and ScriptFunction.toStringValue. (Bug #81889)
                   //
                   // All at LOWEST except Collection, so an exact or wider overload
                   // (o(String) / o(int) / o(Object)) still wins. A string converts
-                  // to double for any string (non-numeric -> NaN, as Rhino), but to
-                  // int/long only when it is a finite integral value in range, so a
+                  // only when it matches the numeric-literal grammar of
+                  // JavaClassProxy.toNumber (#75807: hex or decimal; blank, 'abc',
+                  // NaN/Infinity and Java-only forms like '12f' stay refused, one
+                  // rule for constructors and methods), and to int/long only when
+                  // also a finite integral value in range, so a
                   // fractional or non-numeric string still prefers a double overload
                   // and otherwise stays refused rather than truncating or clamping.
                   // Float and Short are omitted: Float would be ambiguous with
@@ -852,19 +855,20 @@ public final class ScriptHostAccess {
                   // reports "Multiple applicable overloads" instead of binding the
                   // boolean one, because both land on this final tier.
                   .targetTypeMapping(String.class, Double.class,
-                                     str -> str != null,
-                                     str -> ScriptFunction.toNumber(str).doubleValue(),
+                                     str -> str != null
+                                        && JavaClassProxy.toNumber(str) != null,
+                                     str -> JavaClassProxy.toNumber(str).doubleValue(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
                   .targetTypeMapping(String.class, Integer.class,
                                      str -> str != null
                                         && integralString(str, Integer.MIN_VALUE,
                                                           Integer.MAX_VALUE),
-                                     str -> ScriptFunction.toNumber(str).intValue(),
+                                     str -> JavaClassProxy.toNumber(str).intValue(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
                   .targetTypeMapping(String.class, Long.class,
                                      str -> str != null
                                         && integralString(str, -0x1p53, 0x1p53),
-                                     str -> ScriptFunction.toNumber(str).longValue(),
+                                     str -> JavaClassProxy.toNumber(str).longValue(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
                   .targetTypeMapping(Value.class, String.class,
                                      v -> v != null && v.hasArrayElements() && !v.isHostObject(),
@@ -1460,7 +1464,13 @@ public final class ScriptHostAccess {
     * ToNumber (blank is 0), so narrowing to int/long loses nothing. (#81889)
     */
    private static boolean integralString(String str, double min, double max) {
-      double d = ScriptFunction.toNumber(str).doubleValue();
+      Number n = JavaClassProxy.toNumber(str);
+
+      if(n == null) {
+         return false;
+      }
+
+      double d = n.doubleValue();
       return !Double.isNaN(d) && !Double.isInfinite(d) && d == Math.rint(d)
          && d >= min && d <= max;
    }
