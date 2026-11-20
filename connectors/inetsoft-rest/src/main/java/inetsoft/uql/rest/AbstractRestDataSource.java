@@ -42,6 +42,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static inetsoft.util.AbstractPasswordEncryption.MASTER_PREFIX;
@@ -801,8 +802,29 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 
    public void updateTokens(Tokens tokens) {
       setAccessToken(tokens.accessToken());
-      setRefreshToken(tokens.refreshToken());
+      applyRefreshToken(tokens.refreshToken());
       setTokenExpiration(tokens.expiration());
+   }
+
+   /**
+    * Sets the refresh token from a token result. A refresh result may leave the refresh token
+    * out (the provider keeps the old one), so a null or empty value keeps the existing token,
+    * whether it is stored in this data source or in its credential.
+    */
+   protected void applyRefreshToken(String refreshToken) {
+      if(refreshToken != null && !refreshToken.isEmpty()) {
+         setRefreshToken(refreshToken);
+      }
+   }
+
+   /**
+    * Gets the expiration of a token of a service that does not return one and expires its
+    * tokens 24 hours after they are issued. If the issue time is not known, the token is
+    * counted from now and not from 1970.
+    */
+   protected static long expirationFromIssued(Tokens tokens) {
+      long issued = tokens.issued() > 0 ? tokens.issued() : System.currentTimeMillis();
+      return issued + TimeUnit.HOURS.toMillis(24L);
    }
 
    @Override
