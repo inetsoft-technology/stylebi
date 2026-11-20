@@ -25,6 +25,7 @@
 
 import { Component } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { WIZ_BUTTON_POSITION_KEY, WizDraggableButtonDirective } from "./wiz-draggable-button.directive";
 
 @Component({
@@ -43,6 +44,7 @@ function pointer(type: string, x: number, y: number, id = 1): Event {
 
 describe("WizDraggableButtonDirective", () => {
    let button: HTMLAnchorElement;
+   let directive: WizDraggableButtonDirective;
    let clicks: number;
    let toolbar: HTMLElement;
 
@@ -63,6 +65,8 @@ describe("WizDraggableButtonDirective", () => {
       document.body.appendChild(fixture.nativeElement);
       fixture.detectChanges();
       button = fixture.nativeElement.querySelector("#btn");
+      directive = fixture.debugElement.query(By.directive(WizDraggableButtonDirective))
+         .injector.get(WizDraggableButtonDirective);
       button.setPointerCapture = vi.fn();
       button.releasePointerCapture = vi.fn();
       // Counts only clicks the directive let through (it cancels the one that ends a drag).
@@ -174,7 +178,9 @@ describe("WizDraggableButtonDirective", () => {
       expect(button.style.top).toBe("300px");
 
       Object.defineProperty(window, "innerWidth", { configurable: true, value: 600 });
-      window.dispatchEvent(new Event("resize"));
+      // Call the handler the directive binds to window:resize. A real window "resize" event would
+      // also wake listeners that other specs sharing this jsdom window leave behind.
+      directive.onResize();
 
       expect(button.style.left).toBe("544px");
    });
