@@ -274,7 +274,7 @@ class DataModelUnknownsTest {
    // -- (f) VPM update with a different body name ------------------------------------------
 
    @Test
-   void vpmUpdateWithDifferentBodyNameOverwritesOtherVpm() throws Exception {
+   void vpmUpdateWithDifferentBodyNameIsRefusedAfterTheGuard() throws Exception {
       XDataModel dataModel = new XDataModel(ds);
       VirtualPrivateModel a = new VirtualPrivateModel("A");
       a.setDescription("original A");
@@ -296,17 +296,18 @@ class DataModelUnknownsTest {
       event.setVpmName("A");
       event.setModel(body);
 
-      controller.updateModel(event, bob);
+      // J3 commit 3 (reconcile H-A): the premise below held at J1.0 and is now guarded. The
+      // update of A with a body named B is refused, and neither A nor B changes.
+      assertThrows(inetsoft.sree.security.SecurityException.class,
+                   () -> controller.updateModel(event, bob));
 
       XDataModel reloaded = fresh();
       List<String> names = Arrays.asList(reloaded.getVirtualPrivateModelNames());
-      VirtualPrivateModel storedB = reloaded.getVirtualPrivateModel("B");
-      System.out.println("PROBE(f) vpm names=" + names + ", B description=" +
-                         (storedB == null ? null : storedB.getDescription()));
-      assertFalse(names.contains("A"), "premise: A was removed by the update of A");
-      assertNotNull(storedB);
-      assertEquals("written through update of A", storedB.getDescription(),
-                   "premise: B was silently overwritten by the update of A");
+      System.out.println("PROBE(f) after the guard: vpm names=" + names + ", B description=" +
+                         reloaded.getVirtualPrivateModel("B").getDescription());
+      assertTrue(names.contains("A"), "A is untouched");
+      assertEquals("original B", reloaded.getVirtualPrivateModel("B").getDescription(),
+                   "B is no longer overwritten by the update of A");
    }
 
    // -- helpers ----------------------------------------------------------------------------

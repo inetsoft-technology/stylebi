@@ -52,6 +52,7 @@ import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.*;
 import inetsoft.web.viewsheet.*;
 import org.apache.commons.io.FileExistsException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -72,6 +73,9 @@ import java.util.stream.Collectors;
 @RestController
 @Lazy
 public class VPMController {
+   /**
+    * Creates a controller with its own, non-proxied {@link VpmService} (no audit aspect).
+    */
    public VPMController(DataRefModelFactoryService dataRefModelFactoryService,
                         DatabaseTreeService databaseTreeService,
                         DataSourceService dataSourceService, XRepository repository,
@@ -81,6 +85,25 @@ public class VPMController {
                         ColumnCache columnCache,
                         QueryManagerService queryManagerService)
    {
+      this(dataRefModelFactoryService, databaseTreeService, dataSourceService, repository,
+           securityEngine, dependencyHandler, renameTransformHandler, columnCache,
+           queryManagerService,
+           new VpmService(dataRefModelFactoryService, dataSourceService, repository,
+                          securityEngine, dependencyHandler, renameTransformHandler));
+   }
+
+   @Autowired
+   public VPMController(DataRefModelFactoryService dataRefModelFactoryService,
+                        DatabaseTreeService databaseTreeService,
+                        DataSourceService dataSourceService, XRepository repository,
+                        SecurityEngine securityEngine,
+                        DependencyHandler dependencyHandler,
+                        RenameTransformHandler renameTransformHandler,
+                        ColumnCache columnCache,
+                        QueryManagerService queryManagerService,
+                        VpmService vpmService)
+   {
+      this.vpmService = vpmService;
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.databaseTreeService = databaseTreeService;
       this.dataSourceService = dataSourceService;
@@ -213,21 +236,7 @@ public class VPMController {
                                  @RequestParam("vpm") String name, Principal principal)
       throws Exception
    {
-      XDataModel dataModel = repository.getDataModel(database);
-
-      if(dataModel == null) {
-         throw new FileNotFoundException(database);
-      }
-
-      // the Data tab lists and edits VPMs only with WRITE on the data source
-      checkVpmPermission(database, principal);
-      VirtualPrivateModel vpm = dataModel.getVirtualPrivateModel(name);
-
-      if(vpm == null) {
-         throw new FileNotFoundException(database + "/" + name);
-      }
-
-      return createVPModel(vpm, database, principal);
+      return vpmService.get(database, name, principal);
    }
 
    /**
@@ -392,45 +401,8 @@ public class VPMController {
    ))
    @PostMapping(value = "/api/data/vpm/models")
    @ResponseStatus(HttpStatus.CREATED)
-   @Audited(
-      actionName = ActionRecord.ACTION_NAME_CREATE,
-      objectType = ActionRecord.OBJECT_TYPE_VIRTUAL_PRIVATE_MODEL
-   )
-   public void addModel(@RequestBody
-                        @AuditObjectName("getDatabase() + '/' + getModel().getName()")
-                        SaveVpmEvent event,
-                        Principal principal) throws Exception
-   {
-      VPMDefinition model = event.getModel();
-      String database = event.getDatabase();
-      XDataModel dataModel = repository.getDataModel(database);
-      String path = database + "/" + model.getName();
-
-      if(dataModel == null) {
-         throw new FileNotFoundException(database);
-      }
-
-      if(!dataSourceService.checkPermission(database, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + database + "\" by user " +
-               principal);
-      }
-
-      if(dataModel.getVirtualPrivateModel(model.getName()) != null) {
-         throw new FileExistsException(path);
-      }
-
-      VirtualPrivateModel vpm = createVPM(model);
-      dataModel.addVirtualPrivateModel(vpm, true);
-      repository.updateDataModel(dataModel);
-      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM,
-                                        path, null);
-      entry = dataSourceService.getModelAssetEntry(entry);
-      String createdUsername = principal.getName() != null ?
-         IdentityID.getIdentityIDFromKey(principal.getName()).getName() : null;
-      entry.setCreatedUsername(createdUsername);
-      dataSourceService.updateDataSourceAssetEntry(entry);
-      dependencyHandler.updateVPMDependencies(vpm, null, database, entry);
+   public void addModel(@RequestBody SaveVpmEvent event, Principal principal) throws Exception {
+      vpmService.create(event.getDatabase(), event.getModel(), principal);
    }
 
    /**
@@ -442,65 +414,12 @@ public class VPMController {
       resource = "Data",
       actions = ResourceAction.ACCESS
    ))
-   @Audited(
-      actionName = ActionRecord.ACTION_NAME_RENAME,
-      objectType = ActionRecord.OBJECT_TYPE_VIRTUAL_PRIVATE_MODEL
-   )
    @PutMapping(value = "/api/data/vpm/rename")
-   public void renameModel(@RequestBody
-                           @AuditObjectName("getDatabase() + '/' + getOldName()")
-                           @AuditActionError("'Target Entry: ' + getDatabase() + '/' + getOldName()")
-                           RenameModelEvent event,
-                           Principal principal)
+   public void renameModel(@RequestBody RenameModelEvent event, Principal principal)
       throws Exception
    {
-      String database = event.getDatabase();
-      String oldName = event.getOldName();
-      String newName = event.getNewName();
-      XDataModel dataModel = repository.getDataModel(database);
-
-      if(dataModel == null) {
-         throw new FileNotFoundException(database);
-      }
-
-      if(!dataSourceService.checkPermission(database, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + database + "\" by user " +
-               principal);
-      }
-
-      VirtualPrivateModel vpm = dataModel.getVirtualPrivateModel(oldName);
-
-      if(vpm == null) {
-         throw new FileNotFoundException(oldName);
-      }
-
-      String path = database + "/" + vpm.getName();
-      AssetEntry entry = new AssetEntry(
-         AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM, path, null);
-
-      entry = dataSourceService.getModelAssetEntry(entry);
-      String user = entry.getCreatedUsername();
-      Date date = entry.getCreatedDate();
-
-      vpm.setName(newName);
-      vpm.setDescription(event.getDescription());
-      dataModel.renameVirtualPrivateModel(oldName, vpm);
-      repository.updateDataModel(dataModel);
-      String dataSource = dataModel.getDataSource();
-      String oldPath = dataSource + "/" + oldName;
-      String newPath = dataSource + "/" + newName;
-      RenameInfo rinfo = new RenameInfo(oldPath, newPath, RenameInfo.VPM);
-      path = database + "/" + newName;
-      AssetEntry nentry = new AssetEntry(
-         AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM, path, null);
-      dependencyHandler.updateDependencies(entry, nentry);
-      renameTransformHandler.addTransformTask(rinfo);
-      nentry = dataSourceService.getModelAssetEntry(nentry);
-
-      nentry.setCreatedUsername(user);
-      nentry.setCreatedDate(date);
-      dataSourceService.updateDataSourceAssetEntry(nentry);
+      vpmService.rename(event.getDatabase(), event.getOldName(), event.getNewName(),
+                        event.getDescription(), principal);
    }
 
    /**
@@ -516,53 +435,10 @@ public class VPMController {
       actions = ResourceAction.ACCESS
    ))
    @PutMapping(value = "/api/data/vpm/models")
-   @Audited(
-      actionName = ActionRecord.ACTION_NAME_EDIT,
-      objectType = ActionRecord.OBJECT_TYPE_VIRTUAL_PRIVATE_MODEL
-   )
-   public void updateModel(@RequestBody @AuditObjectName("getDatabase() + '/' + getVpmName()")
-                           SaveVpmEvent event,
-                           Principal principal)
+   public void updateModel(@RequestBody SaveVpmEvent event, Principal principal)
       throws Exception
    {
-      String database = event.getDatabase();
-      String name = event.getVpmName();
-      VPMDefinition vpm = event.getModel();
-      XDataModel dataModel = repository.getDataModel(database);
-
-      if(dataModel == null) {
-         throw new FileNotFoundException(database);
-      }
-
-      if(!dataSourceService.checkPermission(database, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + database + "\" by user " +
-               principal);
-      }
-
-      if(dataModel.getVirtualPrivateModel(name) == null) {
-         throw new FileNotFoundException(database + "/" + name);
-      }
-
-      String path = database + "/" + vpm.getName();
-      AssetEntry entry = new AssetEntry(
-         AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM, path, null);
-
-      entry = dataSourceService.getModelAssetEntry(entry);
-      String user = entry.getCreatedUsername();
-      Date date = entry.getCreatedDate();
-      VirtualPrivateModel ovpm = dataModel.getVirtualPrivateModel(name);
-      dataModel.removeVirtualPrivateModel(name);
-      VirtualPrivateModel nvpm = createVPM(vpm);
-      dataModel.addVirtualPrivateModel(nvpm, true);
-      repository.updateDataModel(dataModel);
-      dependencyHandler.updateVPMDependencies(nvpm, ovpm, database, entry);
-
-      entry = dataSourceService.getModelAssetEntry(entry);
-
-      entry.setCreatedUsername(user);
-      entry.setCreatedDate(date);
-      dataSourceService.updateDataSourceAssetEntry(entry);
+      vpmService.update(event.getDatabase(), event.getVpmName(), event.getModel(), principal);
    }
 
    /**
@@ -582,37 +458,19 @@ public class VPMController {
                            Principal principal)
       throws Exception
    {
-      String database = event.getDatabase();
-      XDataModel dataModel = repository.getDataModel(database);
+      List<String> names = null;
 
-      if(dataModel == null) {
-         throw new FileNotFoundException(database);
-      }
+      if(event.getItems() != null) {
+         names = new ArrayList<>();
 
-      if(!dataSourceService.checkPermission(database, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + database + "\" by user " +
-               principal);
-      }
-
-      if(event.getItems() == null) {
-         return;
-      }
-
-      for(AssetItem item : event.getItems()) {
-         if(!(item instanceof Vpm)) {
-            continue;
+         for(AssetItem item : event.getItems()) {
+            if(item instanceof Vpm) {
+               names.add(item.getName());
+            }
          }
-
-         String name = item.getName();
-         removeVPM(dataModel, database, name, principal);
-         String path = database + "/" + name;
-         AssetEntry entry = new AssetEntry(
-            AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM, path, null);
-         dependencyHandler.deleteDependencies(entry);
       }
 
-      repository.updateDataModel(dataModel);
+      vpmService.delete(event.getDatabase(), names, principal);
    }
 
    /**
@@ -620,23 +478,7 @@ public class VPMController {
     * WRITE on the data source.
     */
    private void checkVpmPermission(String database, Principal principal) throws Exception {
-      if(!dataSourceService.checkPermission(database, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + database + "\" by user " + principal);
-      }
-   }
-
-   private void removeVPM(XDataModel dataModel, String database, String name, Principal principal)
-      throws Exception
-   {
-      if(dataModel.getVirtualPrivateModel(name) == null) {
-         throw new FileNotFoundException(database + "/" + name);
-      }
-
-      dataModel.removeVirtualPrivateModel(name);
-      ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_DELETE,
-         database + "/" + name, ActionRecord.OBJECT_TYPE_VIRTUAL_PRIVATE_MODEL);
-      Audit.getInstance().auditAction(actionRecord, principal);
+      vpmService.checkVpmPermission(database, principal);
    }
 
    /**
@@ -713,71 +555,8 @@ public class VPMController {
    ))
    @PostMapping(value = "/api/data/vpm/test")
    public String test(@RequestBody VpmTestEvent event, Principal principal) throws Exception {
-      String database = event.getDatabase();
-      checkVpmPermission(database, principal);
-      String type = event.getType();
-      String name = event.getName();
-      VPMDefinition vpModel = event.getVpm();
-      SecurityProvider provider = securityEngine.getSecurityProvider();
-
-      IdentityID user;
-      IdentityID[] roles;
-      String[] groups;
-      String orgID = null;
-      String userGroup;
-      ArrayList<String> groupList = new ArrayList<>(0);
-
-      if("user".equals(type)) {
-         user = new IdentityID(name, OrganizationManager.getInstance().getCurrentOrgID());
-         groups = SUtil.getGroups(user);
-
-         if(groups.length != 0) {
-            userGroup = groups[0];
-            Group currentGroup = provider.getGroup(new IdentityID(userGroup, user.orgID));
-            String[] parent = currentGroup.getGroups();
-            groupList.add(userGroup);
-
-            while (parent.length != 0) {
-               groupList.add(parent[0]);
-               currentGroup = provider.getGroup(new IdentityID(parent[0], currentGroup.getOrganizationID()));
-               parent = currentGroup.getGroups();
-            }
-
-            groups = new String[groupList.size()];
-            groups = groupList.toArray(groups);
-         }
-
-         roles = securityEngine.getRoles(user);
-         User securityUser =  provider.getUser(new IdentityID(name, OrganizationManager.getInstance().getCurrentOrgID()));
-
-         if(securityUser != null) {
-            orgID = securityUser.getOrganizationID();
-         }
-      }
-      else {
-         user = null;
-         groups = new String[0];
-         roles = new IdentityID[]{new IdentityID(name, OrganizationManager.getInstance().getCurrentOrgID())};
-      }
-
-      user = user == null ? new IdentityID(Identity.UNKNOWN_USER, OrganizationManager.getInstance().getCurrentOrgID()) : user;
-      roles = roles == null ? new IdentityID[0] : roles;
-      XDataModel dataModel = repository.getDataModel(database);
-      Catalog catalog = Catalog.getCatalog();
-      VirtualPrivateModel vpm = createVPM(vpModel);
-      String result = null;
-
-      try {
-         result = VpmProcessor.getInstance()
-            .testVPM(user, groups, roles, orgID, dataModel, catalog, vpm);
-      }
-      catch(Exception ex) {
-         if(!(ex instanceof MessageException)) {
-            throw new MessageException(ex.getMessage(), ex);
-         }
-      }
-
-      return result;
+      return vpmService.test(event.getDatabase(), event.getType(), event.getName(),
+                             event.getVpm(), principal);
    }
 
    /**
@@ -1108,110 +887,6 @@ public class VPMController {
       return rep;
    }
 
-   /**
-    * Creates a model DTO structure from a virtual private model.
-    *
-    * @param vpm the virtual private model.
-    *
-    * @return the model.
-    */
-   private VPMDefinition createVPModel(VirtualPrivateModel vpm, String datasource, Principal principal) {
-      VPMDefinition result = new VPMDefinition();
-      result.setName(vpm.getName());
-      result.setDescription(vpm.getDescription());
-
-      List<Condition> conditions = new ArrayList<>();
-
-      for(Enumeration<?> e = vpm.getConditions(); e.hasMoreElements();) {
-         VpmCondition condition = (VpmCondition) e.nextElement();
-         XFilterNode xfn = condition.getCondition();
-
-         HierarchyList hl = new FilterList();
-
-         for(HierarchyItem item :
-            XUtil.constructConditionList(xfn))
-         {
-            hl.append(item);
-         }
-
-         hl.validate(false);
-
-         Condition c = new Condition();
-         c.setName(condition.getName());
-
-         List<DataConditionItem> clauses = new ArrayList<>();
-         XDataSource xDataSource = dataSourceService.getDataSource(datasource);
-
-         for(int i = 0; i < hl.getSize(); i++) {
-            HierarchyItem hi = hl.getItem(i);
-            int level = hi.getLevel();
-
-            if(hi instanceof XSetItem) {
-               Conjunction con = new Conjunction();
-
-               XSet xset = ((XSetItem) hi).getXSet();
-
-               con.setLevel(level);
-               con.setValue(xset.toString());
-               con.setIsNot(xset.isIsNot());
-               con.setConjunction(xset.getRelation());
-               con.setJunc(true);
-               clauses.add(con);
-            }
-            else {
-               XFilterNode xfilter = ((XFilterNodeItem) hi).getNode();
-
-               Clause clause = JDBCUtil.createCondition(xfilter, xDataSource);
-               clause.setLevel(level);
-               clauses.add(clause);
-            }
-         }
-
-         c.setScript(condition.getScript());
-         c.setType(condition.getType());
-         c.setTableName(condition.getTable());
-         c.setClauses(clauses);
-
-         conditions.add(c);
-      }
-
-      result.setConditions(conditions);
-
-      try {
-         HiddenColumns hc = vpm.getHiddenColumns();
-         HiddenColumnsModel hcModel = new HiddenColumnsModel();
-         hcModel.setScript(hc.getScript());
-         hcModel.setName(hc.getName());
-         Enumeration<?> roles = hc.getRoles();
-         List<String> roleModels = new ArrayList<>();
-
-         while(roles.hasMoreElements()) {
-            roleModels.add(String.valueOf(roles.nextElement()));
-         }
-
-         hcModel.setRoles(roleModels);
-         Enumeration<?> hiddenColumns = hc.getHiddenColumns();
-         List<DataRefModel> hiddenColumnModels = new ArrayList<>();
-
-         while(hiddenColumns.hasMoreElements()) {
-            DataRef hiddenColumn = (DataRef) hiddenColumns.nextElement();
-            hiddenColumnModels.add(dataRefModelFactoryService.createDataRefModel(hiddenColumn));
-         }
-
-         hcModel.setHiddens(hiddenColumnModels);
-         result.setHidden(hcModel);
-      }
-      catch(Exception ignore) {
-         // No script
-      }
-
-      String lookupScript = vpm.getScript();
-
-      result.setLookup(lookupScript);
-
-      return result;
-   }
-
    private AssetEntry getDataSourceEntry(XDataSource dataSource) {
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
          AssetEntry.Type.DATA_SOURCE, dataSource.getFullName(), null);
@@ -1348,77 +1023,6 @@ public class VPMController {
       else {
          return value;
       }
-   }
-
-   /**
-    * Creates a virtual private model from a model DTO structure.
-    *
-    * @param model the model to convert.
-    *
-    * @return the vpm object.
-    */
-   private VirtualPrivateModel createVPM(VPMDefinition model) throws Exception {
-      VirtualPrivateModel vpm = new VirtualPrivateModel(model.getName());
-      List<Condition> conditions = model.getConditions();
-      vpm.setDescription(model.getDescription());
-
-      for(Condition c : conditions) {
-         List<DataConditionItem> clauses = c.getClauses();
-         HierarchyList hl = new FilterList();
-         HierarchyListModel clm = new HierarchyListModel(hl);
-
-         for(DataConditionItem ci : clauses) {
-            if(ci instanceof Clause) {
-               XFilterNode xfn = JDBCUtil.createXFilterNode((Clause) ci);
-               XFilterNodeItem xfni = new XFilterNodeItem(xfn, ci.getLevel());
-               clm.append(xfni);
-            }
-            else if(ci instanceof Conjunction) {
-               XSet xs = new XSet(((Conjunction) ci).getConjunction());
-               xs.setIsNot(((Conjunction) ci).isIsNot());
-               XSetItem xsi = new XSetItem(xs, ci.getLevel());
-               clm.append(xsi);
-            }
-         }
-
-         clm.fixConditions();
-
-         ConditionListHandler handler = new ConditionListHandler();
-         XFilterNode header = handler.createXFilterNode(clm.getHierarchyList());
-
-         VpmCondition newCondition = new VpmCondition();
-         newCondition.setName(c.getName());
-         newCondition.setCondition(header);
-         newCondition.setScript(c.getScript());
-         newCondition.setType(c.getType());
-         newCondition.setTable(c.getTableName());
-
-         vpm.addCondition(newCondition);
-      }
-
-      HiddenColumnsModel hcModel = model.getHidden();
-
-      if(hcModel != null) {
-         HiddenColumns hc = new HiddenColumns();
-         List<DataRefModel> hiddens = hcModel.getHiddens();
-
-         if(hiddens != null && hiddens.size() > 0) {
-            hiddens.forEach(hidden -> hc.addHiddenColumn(hidden.createDataRef()));
-         }
-
-         List<String> roles = hcModel.getRoles();
-
-         if(roles != null && roles.size() > 0) {
-            roles.forEach(hc::addRole);
-         }
-
-         hc.setScript(hcModel.getScript());
-         vpm.setHiddenColumns(hc);
-      }
-
-      vpm.setScript(model.getLookup());
-
-      return vpm;
    }
 
    /**
@@ -1654,4 +1258,5 @@ public class VPMController {
    private final RenameTransformHandler renameTransformHandler;
    private final ColumnCache columnCache;
    private final QueryManagerService queryManagerService;
+   private final VpmService vpmService;
 }
