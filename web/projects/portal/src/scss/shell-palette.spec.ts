@@ -256,3 +256,52 @@ describe("custom-theme class", () => {
       });
    }
 });
+
+describe("danger button state label", () => {
+   const SHELL_RULE = ":where(:root:not(.custom-theme)) .btn.btn-danger#{$outside-content}";
+   const override = () => read("scss/_bootstrap-override.scss");
+   const shellRule = () => block(override(), SHELL_RULE);
+   const baseRule = () => block(override(), ".btn.btn-danger");
+   // the state selector list that opens a rule's body
+   const states = (css: string) => css.match(/^\s*(&:hover:not[\s\S]*?)\s*\{/m)[1];
+
+   it("a hovered or focused danger button has a white label on the darker danger fill", () => {
+      const css = shellRule();
+
+      expect(css).toMatch(/&:hover:not\(:disabled\)/);
+      expect(css).toMatch(/&\.focus, &:focus-visible/);
+      expect(css).toMatch(/color:\s*#FFFFFF;/);
+      expect(css).toMatch(/background-color:\s*var\(--inet-danger-hover-bg-color\);/);
+      expect(css).toMatch(/border:\s*1px solid var\(--inet-danger-hover-bg-color\);/);
+      expect(variables()).toMatch(/--inet-danger-hover-bg-color:\s*#B03A3A/i);
+   });
+
+   it("keeps the hover fill in the shell-only token set, not the runtime tokens", () => {
+      const state = declarations(block(variables(), "@mixin inet-shell-state-tokens"));
+
+      expect(state.get("--inet-danger-hover-bg-color")).toBe("#B03A3A");
+      expect(runtimeTokens().has("--inet-danger-hover-bg-color")).toBe(false);
+   });
+
+   it("is gated off custom-themed pages and leaves dashboard content to the base rule", () => {
+      expect(SHELL_RULE).toMatch(/^:where\(:root:not\(\.custom-theme\)\) /);
+      expect(shellRule()).toBeTruthy();
+      expect(variables()).toContain("$outside-content: \":where(:not(:is(#{$dashboard-content}");
+   });
+
+   it("comes after the base rule with the same state selectors, to win on equal specificity", () => {
+      const src = override();
+
+      expect(src.indexOf(shellRule())).toBeGreaterThan(src.indexOf(baseRule()));
+      expect(states(shellRule())).toBe(states(baseRule()));
+   });
+
+   it("keeps the base rule's content look and moves its focus branch to :focus-visible", () => {
+      const css = baseRule();
+
+      expect(css).toMatch(/&\.focus, &:focus-visible/);
+      expect(css).not.toMatch(/&:focus(?!-visible)/);
+      expect(css).toMatch(
+         /color:\s*var\(--inet-danger-color-dark\);\s*background-color:\s*var\(--inet-danger-color\);/);
+   });
+});

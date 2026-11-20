@@ -686,6 +686,8 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
 // tokens are declared on the same :root by inet-runtime-tokens, so they resolve with the shell
 // value. The runtime tokens keep the content values, which dashboard content re-declares below.
 @mixin inet-shell-state-tokens {
+  // white label on this fill is 5.98:1 (D1)
+  --inet-danger-hover-bg-color: #B03A3A;
 }
 
 :root {
