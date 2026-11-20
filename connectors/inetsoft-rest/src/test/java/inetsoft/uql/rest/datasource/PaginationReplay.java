@@ -117,11 +117,15 @@ public final class PaginationReplay {
       String offsetName = null;
       String[] offsetValues = null;
       boolean firstHasOffset = false;
+      String headerName = null;
+      String headerValue = null;
       int expectedRequests = 2;
 
       switch(spec.getType()) {
       case TOTAL_COUNT_AND_OFFSET: {
-         if(spec.getTotalCountParam().getType() != PaginationParamType.JSON_PATH ||
+         boolean totalInHeader = spec.getTotalCountParam().getType() == PaginationParamType.HEADER;
+
+         if(!totalInHeader && spec.getTotalCountParam().getType() != PaginationParamType.JSON_PATH ||
             spec.getOffsetParam().getType() != PaginationParamType.QUERY)
          {
             return null;
@@ -131,10 +135,14 @@ public final class PaginationReplay {
          int second = Math.max(1, max / 2);
          expectedRows = max + second;
          pages = new String[] {
-            page(spec, recordsKey, rootArray, max, 1, Map.of(spec.getTotalCountParam().getValue(),
-                                                             expectedRows)),
-            page(spec, recordsKey, rootArray, second, 1000, Map.of(
+            page(spec, recordsKey, rootArray, max, 1, totalInHeader ? Map.of() : Map.of(
+               spec.getTotalCountParam().getValue(), expectedRows)),
+            page(spec, recordsKey, rootArray, second, 1000, totalInHeader ? Map.of() : Map.of(
                spec.getTotalCountParam().getValue(), expectedRows)) };
+         if(totalInHeader) {
+            headerName = spec.getTotalCountParam().getValue();
+            headerValue = String.valueOf(expectedRows);
+         }
          offsetName = spec.getOffsetParam().getValue();
          offsetValues = new String[] { String.valueOf(max) };
          break;
@@ -196,7 +204,21 @@ public final class PaginationReplay {
          return null;
       }
 
-      ScriptedHttpHandler http = new ScriptedHttpHandler().on(url -> true, pages);
+      ScriptedHttpHandler http = new ScriptedHttpHandler();
+
+      if(headerName != null) {
+         ScriptedHttpHandler.Reply[] replies = new ScriptedHttpHandler.Reply[pages.length];
+
+         for(int i = 0; i < pages.length; i++) {
+            replies[i] = ScriptedHttpHandler.reply(pages[i], headerName, headerValue);
+         }
+
+         http.onReplies(url -> true, replies);
+      }
+      else {
+         http.on(url -> true, pages);
+      }
+
       int rows = ReplaySupport.run(query, http).size();
       List<String> requests = http.requests();
 

@@ -232,6 +232,26 @@ class SalesforceLoginTest {
       assertEquals(2, hits.get());
    }
 
+   // the fault text tells the user why the login failed (bad password, locked out, ...)
+   @Test
+   @Disabled("Bug #81959: the login error drops the Salesforce fault text; enable when it is fixed")
+   void failedLoginErrorCarriesTheSalesforceFaultText() {
+      status = 500;
+      body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><soapenv:Envelope " +
+         "xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body>" +
+         "<soapenv:Fault><faultcode>INVALID_LOGIN</faultcode><faultstring>INVALID_LOGIN: " +
+         "Invalid username, password, security token; or user locked out.</faultstring>" +
+         "</soapenv:Fault></soapenv:Body></soapenv:Envelope>";
+      RuntimeException e = assertThrows(RuntimeException.class, () -> source("user", "pw", "T").getURL());
+      StringBuilder chain = new StringBuilder();
+
+      for(Throwable c = e; c != null; c = c.getCause()) {
+         chain.append(c.getMessage()).append(" | ");
+      }
+
+      assertTrue(chain.toString().contains("INVALID_LOGIN"), chain.toString());
+   }
+
    @Test
    void nonXmlLoginResponseIsReported() {
       body = "not xml";

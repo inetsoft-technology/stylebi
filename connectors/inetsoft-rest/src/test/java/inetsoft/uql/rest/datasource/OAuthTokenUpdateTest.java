@@ -155,6 +155,20 @@ class OAuthTokenUpdateTest {
       }
    }
 
+   // without an issue time the expiration must not land in 1970, which makes every query refresh
+   @Test
+   @Disabled("Bug #81961: a missing issue time sets the expiration to 1970; enable when it is fixed")
+   void keapConstantContactAndAdobeWithoutIssueTimeDoNotExpireInThePast() {
+      AbstractRestDataSource<?>[] sources = {
+         new KeapDataSource(), new ConstantContactDataSource(), new AdobeAnalyticsDataSource() };
+
+      for(AbstractRestDataSource<?> ds : sources) {
+         ((OAuthDataSource) ds).updateTokens(tokens("a", "r", 0L, 0L));
+         assertTrue(ds.getTokenExpiration() > System.currentTimeMillis(),
+                    ds.getClass().getSimpleName() + " " + ds.getTokenExpiration());
+      }
+   }
+
    @Test
    void quickbooksCapturesTheRealmIdOfTheAuthorizedCompany() {
       QuickbooksReportsDataSource ds = new QuickbooksReportsDataSource();
