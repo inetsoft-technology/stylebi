@@ -43,7 +43,6 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
-import inetsoft.util.script.ScriptException;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -869,13 +868,14 @@ public class VSExportService {
                      exportBox.prepareMVCreation();
                      exportBox.getScope().prepareVariables(rbox.get().getVariableTable());
 
-                     for(int i = 0; exportBox != null && i < assemblies.length; i++) {
-                        VSAssembly assembly = (VSAssembly) assemblies[i];
-                        try {
+                     // a failing script is skipped, logged and marked on the document by the
+                     // exporter; the skip is forgotten when its export ends (Bug #81796)
+                     try(ViewsheetSandbox.ExportScriptSkip skip =
+                            ViewsheetSandbox.skipScriptErrorsForExport())
+                     {
+                        for(int i = 0; i < assemblies.length; i++) {
+                           VSAssembly assembly = (VSAssembly) assemblies[i];
                            exportBox.executeScript(assembly);
-                        }
-                        catch(ScriptException ex) {
-                           // already logged; skip the failing script like the viewer (Bug #81796)
                         }
                      }
 
