@@ -45,7 +45,7 @@ public class ColorLegend extends Legend {
     */
    @Override
    protected LegendItem createLegendItem(Object label, Object value) {
-      return new ColorLegendItem(label, value, getVisualFrame(), getMarkerShape());
+      return new ColorLegendItem(label, value, getVisualFrame(), getMarkerShape(value));
    }
 
    /**
@@ -53,36 +53,79 @@ public class ColorLegend extends Legend {
     * chart. Only a Gantt milestone point (a fixed-shape marker such as a diamond) is handled;
     * every other color legend keeps the square swatch. If the milestone shape is bound to a
     * field, one swatch can't stand for it, so the square is kept as well.
+    *
+    * The milestone is looked up in the whole graph. When the entry stands for a measure (a
+    * legend keyed by measure name, e.g. bars and milestone sharing one legend), it is the
+    * milestone's entry only if the value is the milestone's own measure, so the bars' entry
+    * keeps the square. Otherwise (the entry is a field value), the milestone counts as this
+    * legend's when it owns the legend's frame or colors itself with that frame instance.
+    * @param value the value the legend item stands for.
     * @return the marker shape, or null to draw the default square.
     */
-   private GShape getMarkerShape() {
-      GraphElement elem = getGraphElement();
-
-      if(!(elem instanceof PointElement) ||
-         !"true".equals(elem.getHint(PointElement.HINT_GANTT_MILESTONE)))
-      {
-         return null;
-      }
-
-      // if a bar shares this color frame, the one legend stands for the bars too, so a
-      // diamond would misdescribe them
+   private GShape getMarkerShape(Object value) {
       EGraph graph = getGraph();
+      boolean measureEntry = isMeasure(graph, value);
 
       for(int i = 0; graph != null && i < graph.getElementCount(); i++) {
-         GraphElement other = graph.getElement(i);
+         GraphElement elem = graph.getElement(i);
 
-         if(other == elem) {
+         if(!(elem instanceof PointElement) ||
+            !"true".equals(elem.getHint(PointElement.HINT_GANTT_MILESTONE)))
+         {
             continue;
          }
 
-         for(VisualFrame obj : other.getVisualFrames()) {
-            if(obj == getVisualFrame()) {
-               return null;
+         boolean mine = measureEntry ? hasVar(elem, value)
+            : elem == getGraphElement() || elem.getColorFrame() == getVisualFrame();
+
+         // only the entry that stands for the milestone is drawn with its shape; the bars'
+         // entries (and any other color legend in the chart) keep the square
+         if(!mine) {
+            continue;
+         }
+
+         ShapeFrame shapes = elem.getShapeFrame();
+
+         // a viewsheet chart wraps the fixed shapes of its measures in a categorical frame
+         // keyed by measure name (see VSShapeFrameStrategy.createCombinedFrame), while a
+         // plain chart uses a static frame. in both cases the shape of the milestone's own
+         // measure is the shape it is drawn with, as long as the frame is not field-bound.
+         if(shapes != null && shapes.getField() == null) {
+            GShape shape = shapes.getShape(elem.getVarCount() > 0 ? elem.getVar(0) : null);
+
+            if(shape != null) {
+               return shape;
             }
          }
       }
 
-      ShapeFrame shapes = elem.getShapeFrame();
-      return shapes instanceof StaticShapeFrame ? ((StaticShapeFrame) shapes).getShape() : null;
+      return null;
+   }
+
+   /**
+    * Check if the value is the measure (variable) of any element in the graph.
+    */
+   private static boolean isMeasure(EGraph graph, Object value) {
+      for(int i = 0; graph != null && i < graph.getElementCount(); i++) {
+         if(hasVar(graph.getElement(i), value)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean hasVar(GraphElement elem, Object value) {
+      if(value == null) {
+         return false;
+      }
+
+      for(String var : elem.getVars()) {
+         if(var.equals(value.toString())) {
+            return true;
+         }
+      }
+
+      return false;
    }
 }
