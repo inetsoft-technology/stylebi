@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import inetsoft.test.EndpointsSource;
+import inetsoft.test.EndpointsSpringContext;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
@@ -55,6 +56,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@EndpointsSpringContext
 @SreeHome
 class ZohoCRMQueryTest {
 

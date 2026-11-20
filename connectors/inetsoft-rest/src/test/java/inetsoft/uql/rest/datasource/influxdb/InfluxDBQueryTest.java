@@ -18,6 +18,7 @@
 package inetsoft.uql.rest.datasource.influxdb;
 
 import inetsoft.test.EndpointsSource;
+import inetsoft.test.EndpointsSpringContext;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Testcontainers
+@EndpointsSpringContext
 @SreeHome
 class InfluxDBQueryTest {
 
