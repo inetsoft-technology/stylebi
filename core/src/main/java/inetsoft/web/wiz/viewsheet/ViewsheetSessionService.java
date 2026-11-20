@@ -20,13 +20,13 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.InvalidDependencyException;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldService;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
-import inetsoft.uql.asset.InvalidDependencyException;
 import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.script.PaneScopeService;
@@ -337,7 +337,14 @@ public class ViewsheetSessionService {
          // A refused dependency cycle (Bug #81884): the service applied the edit before the
          // check threw, and the native Composer rolls back to the last checkpoint here. Without
          // it the runtime kept the invalid binding and later calls failed on it.
-         rvs.rollback();
+         try {
+            // The current checkpoint, not the newest: after an undo they differ.
+            rvs.restoreCurrentCheckpoint();
+         }
+         catch(RuntimeException restoreFailure) {
+            LOG.warn("Could not restore the checkpoint after a refused dependency", restoreFailure);
+         }
+
          rolledBack = true;
          throw e;
       }

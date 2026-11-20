@@ -132,9 +132,49 @@ class ViewsheetSessionServiceTest {
                       throw new inetsoft.uql.asset.InvalidDependencyException("Dependency cycle found!");
                    }));
 
-      verify(rvs).rollback();
+      verify(rvs).restoreCurrentCheckpoint();
+      verify(rvs, never()).rollback();
       verify(rvs, never()).addCheckpoint(any());
       verify(broadcast).broadcastRefresh(any(), any(), anyString(), any(Principal.class), any());
+   }
+
+   /**
+    * Bug #81884: a restore failure must not replace the original refusal.
+    * Bug #81884: a dependency cycle refused mid-edit leaves the runtime holding the partial
+    * edit that caused it, and every later call failed on it. The native Composer rolls back to the
+    * last checkpoint; so must the agent path, without adding an undo step for an edit that no
+    * longer exists.
+    */
+   @Test
+   void aFailedRestoreDoesNotMaskTheDependencyRefusal81884() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      when(rvs.restoreCurrentCheckpoint()).thenThrow(new IllegalStateException("restore failed"));
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(
+         sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
+
+      Exception thrown = assertThrows(inetsoft.uql.asset.InvalidDependencyException.class,
+                   () -> svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {
+                      throw new inetsoft.uql.asset.InvalidDependencyException("Dependency cycle found!");
+                   }));
+
+      verify(rvs).restoreCurrentCheckpoint();
+      verify(rvs, never()).rollback();
+      verify(rvs, never()).rollback();
+      verify(rvs, never()).addCheckpoint(any());
    }
 
    /**
