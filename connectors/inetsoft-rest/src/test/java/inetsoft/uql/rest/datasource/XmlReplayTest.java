@@ -29,11 +29,18 @@ import inetsoft.uql.XTableNode;
 import inetsoft.uql.rest.pagination.PaginationType;
 import inetsoft.uql.rest.xml.RestXMLDataSource;
 import inetsoft.uql.rest.xml.RestXMLQuery;
+import inetsoft.uql.rest.datasource.azureblob.AzureBlobDataSource;
+import inetsoft.uql.rest.datasource.azureblob.AzureBlobQuery;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -102,6 +109,44 @@ class XmlReplayTest {
       assertTrue(http.requests().get(1).contains("p=2"), http.requests().toString());
       assertTrue(http.requests().get(2).contains("p=3"), http.requests().toString());
       assertNotEquals(http.requests().get(1), http.requests().get(2));
+   }
+
+   @Test
+   @Disabled("XML ITERATION paging never reads the next marker, so only the first page is read; no Redmine bug yet")
+   void azureBlobContainersAreReadFollowingTheNextMarker() throws Exception {
+      // ITERATION paging in XML: the marker in the response is sent back as the "marker" parameter
+      ScriptedHttpHandler http = new ScriptedHttpHandler().on("blob.core.windows.net",
+         "<EnumerationResults><Containers><Container><Name>a</Name></Container></Containers>" +
+            "<NextMarker>m1</NextMarker></EnumerationResults>",
+         "<EnumerationResults><Containers><Container><Name>b</Name></Container></Containers>" +
+            "<NextMarker/></EnumerationResults>");
+      AzureBlobDataSource dataSource = new AzureBlobDataSource();
+      dataSource.setAccountName("acct");
+      dataSource.setStorageAccountKey("a2V5");
+      AzureBlobQuery query = new AzureBlobQuery();
+      query.setDataSource(dataSource);
+      query.setEndpoint("Containers");
+      query.setXpath("/EnumerationResults/Containers/Container");
+
+      List<Map<String, Object>> rows = run(query, http);
+
+      assertEquals(2, http.requests().size(), http.requests().toString());
+      assertEquals(2, rows.size(), rows.toString());
+      assertFalse(http.requests().get(0).contains("marker="), http.requests().get(0));
+      assertTrue(http.requests().get(1).contains("marker=m1"), http.requests().get(1));
+   }
+
+   @Test
+   void anXmlFileIsReadWithoutAnyRequest(@TempDir Path dir) throws Exception {
+      Path file = dir.resolve("data.xml");
+      Files.writeString(file, "<root><item><id>1</id></item><item><id>2</id></item></root>",
+                        StandardCharsets.UTF_8);
+      ScriptedHttpHandler http = new ScriptedHttpHandler();
+
+      List<Map<String, Object>> rows = run(query("/root/item", file.toUri().toString()), http);
+
+      assertEquals(List.of(1, 2), column(rows, "item.id"), rows.toString());
+      assertTrue(http.requests().isEmpty(), http.requests().toString());
    }
 
    private static RestXMLQuery query(String xpath) {

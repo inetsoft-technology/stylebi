@@ -147,6 +147,23 @@ public class ScriptedHttpHandler implements IHttpHandler {
       private final IHttpHandler handler;
    }
 
+   /** A runtime for custom REST JSON queries that sends the requests to the given handler. */
+   public static class RestJsonReplayRuntime extends RestJsonRuntime {
+      public RestJsonReplayRuntime(IHttpHandler handler) {
+         this.handler = handler;
+      }
+
+      @Override
+      protected QueryRunner getQueryRunner(AbstractRestQuery q) {
+         JsonTransformer transformer = new JsonTransformer();
+         JsonRestDataIteratorStrategyFactory factory = new JsonRestDataIteratorStrategyFactory(
+            transformer, new HttpResponseParameterParser(transformer), () -> handler);
+         return new RestJsonQueryRunner((RestJsonQuery) q, factory, new LookupService(), transformer);
+      }
+
+      private final IHttpHandler handler;
+   }
+
    /** A GraphQL runtime that sends the requests of a query to the given handler. */
    public static class GraphQLReplayRuntime extends inetsoft.uql.rest.datasource.graphql.GraphQLRuntime {
       public GraphQLReplayRuntime(IHttpHandler handler) {
