@@ -40,6 +40,18 @@ public interface ScriptScope {
    /** All member names exposed by this scope. */
    Object[] getMemberKeys();
 
+   /**
+    * Bug #81929: true if a script read of an absent member should give JS null rather
+    * than undefined, as Rhino did by calling get() for any name. GraalJS reads a member
+    * only when {@link ScopeProxy#hasMember} is true, so {@link ScopeProxy} then reports
+    * every name as present (except "valueOf") and lets {@link #getMember} return null.
+    * The Java {@link #hasMember} contract is unchanged. Side effect: in a script,
+    * {@code 'x' in obj} is true for any name.
+    */
+   default boolean isMissingMemberNull() {
+      return false;
+   }
+
    /** Next scope in the lookup chain, or null. */
    default ScriptScope getParentScope() {
       return null;
