@@ -548,18 +548,12 @@ class EndpointDefinitionsTest {
    /**
     * Endpoints whose suffix template is known to be wrong. They are skipped here so that this test
     * can guard every other endpoint; fix the template and remove the entry (the test fails once an
-    * entry is no longer broken). The defects are tracked in Redmine #81907; these four are the
-    * ones it left, and the Twitter, Zoho CRM and Pipeline CRM ones need the API documentation.
+    * entry is no longer broken). The defects are tracked in Redmine #81907; the Twitter, Zoho CRM
+    * and Pipeline CRM ones it left were fixed in #81913, so only this one remains.
     * <ul>
-    *   <li>"HubSpot / Contacts Informations" has a non-breaking space in the name;</li>
-    *   <li>"Twitter / Users by IDs" has "{User IDs}" with no parameter name before it, and the
-    *   Twitter API expects "ids=";</li>
-    *   <li>"Pipeline CRM / Companies" and "Zoho CRM / Variable Group" have a malformed suffix.</li>
+    *   <li>"HubSpot / Contacts Informations" has a non-breaking space in the name.</li>
     * </ul>
     */
    private static final Set<String> KNOWN_BROKEN = Set.of(
-      "HubSpotQuery/Contacts Informations",
-      "PipelineCRMQuery/Companies",
-      "TwitterQuery/Users by IDs",
-      "ZohoCRMQuery/Variable Group");
+      "HubSpotQuery/Contacts Informations");
 }
