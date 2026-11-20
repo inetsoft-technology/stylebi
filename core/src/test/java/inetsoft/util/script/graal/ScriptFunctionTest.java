@@ -50,6 +50,19 @@ class ScriptFunctionTest {
          this.count = count;
       }
 
+      public long big = -1L;
+      public short small = -1;
+
+      public void setBig(long big) {
+         this.called = true;
+         this.big = big;
+      }
+
+      public void setSmall(short small) {
+         this.called = true;
+         this.small = small;
+      }
+
       public void setRatio(double ratio) {
          this.called = true;
          this.ratio = ratio;
@@ -412,6 +425,50 @@ class ScriptFunctionTest {
 
       ctx.eval("js", "setRatio(1/0)");
       assertEquals(Double.POSITIVE_INFINITY, t.ratio);
+   }
+
+   @Test
+   void nanAndInfinityBecomeZeroForIntParameter() {
+      // Bug #81780: JavaScript ToInt32 maps NaN/+-Infinity to 0; Number.intValue()
+      // would saturate the infinities to Integer.MAX/MIN_VALUE.
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setCount", new ScriptFunction(t, Target.class, "setCount", int.class));
+
+      for(String arg : new String[] { "NaN", "Infinity", "-Infinity", "1/0", "-1/0" }) {
+         t.count = -1;
+         ctx.eval("js", "setCount(" + arg + ")");
+         assertEquals(0, t.count, arg);
+      }
+
+      ctx.eval("js", "setCount(7)");
+      assertEquals(7, t.count);
+   }
+
+   @Test
+   void nanAndInfinityBecomeZeroForLongShortAndCharParameters() {
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setBig", new ScriptFunction(t, Target.class, "setBig", long.class));
+      ctx.getBindings("js").putMember(
+         "setSmall", new ScriptFunction(t, Target.class, "setSmall", short.class));
+      ctx.getBindings("js").putMember(
+         "setChar", new ScriptFunction(t, Target.class, "setChar", char.class));
+
+      for(String arg : new String[] { "NaN", "Infinity", "-Infinity" }) {
+         t.big = -1L;
+         t.small = -1;
+         t.ch = 'X';
+         ctx.eval("js", "setBig(" + arg + ")");
+         ctx.eval("js", "setSmall(" + arg + ")");
+         ctx.eval("js", "setChar(" + arg + ")");
+         assertEquals(0L, t.big, arg);
+         assertEquals(0, t.small, arg);
+         assertEquals('\0', t.ch, arg);
+      }
+
+      ctx.eval("js", "setBig(5000000000)");
+      assertEquals(5000000000L, t.big);
    }
 
    @Test
