@@ -20,7 +20,7 @@ package inetsoft.web.admin.ai.viewsheet;
 /**
  * Outcome of one attempted change -- identical shape to the shared {@code
  * inetsoft.web.admin.ai.ApplyOutcome} plus one field, {@code advisory}, matching {@code
- * DataSourceApplyOutcome}'s/{@code ProviderApplyOutcome}'s own "replicate, don't generalize"
+ * former DataSourceApplyOutcome}'s/{@code ProviderApplyOutcome}'s own "replicate, don't generalize"
  * precedent (01-spec.md section 6).
  *
  * @param advisory non-error, non-null-only-when-relevant disclosure the caller must relay to the

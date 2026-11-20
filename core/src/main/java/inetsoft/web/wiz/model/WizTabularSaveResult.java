@@ -35,14 +35,25 @@ package inetsoft.web.wiz.model;
  *               logged verbatim rather than swallowed.
  * @param path   the saved data source's full repository path, which differs from the requested one
  *               when the connection was renamed. Null on failure.
+ * @param message the server's own text for a refusal it could not map to a code (a cloud-secret id
+ *               the caller may not use, an invalid name). Null when {@code ok} or when the code
+ *               already says it all.
  */
-public record WizTabularSaveResult(boolean ok, String reason, String path) {
+public record WizTabularSaveResult(boolean ok, String reason, String path, String message) {
+   public WizTabularSaveResult(boolean ok, String reason, String path) {
+      this(ok, reason, path, null);
+   }
+
    public static WizTabularSaveResult ok(String path) {
-      return new WizTabularSaveResult(true, null, path);
+      return new WizTabularSaveResult(true, null, path, null);
    }
 
    public static WizTabularSaveResult failed(String reason) {
-      return new WizTabularSaveResult(false, reason, null);
+      return new WizTabularSaveResult(false, reason, null, null);
+   }
+
+   public static WizTabularSaveResult failed(String reason, String message) {
+      return new WizTabularSaveResult(false, reason, null, message);
    }
 
    public static final String DUPLICATE_NAME = "DUPLICATE_NAME";

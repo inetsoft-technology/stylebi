@@ -275,9 +275,10 @@ class WizDatabaseControllerDeleteMoveTest {
     * PERMISSION_DENIED result, never an uncaught exception or a 500.
     */
    @Test
-   void move_messageExceptionSurfacesAsPermissionDenied() throws Exception {
+   void move_messageExceptionSurfacesAsRejectedWithItsText() throws Exception {
       Fixture fixture = new Fixture();
-      doThrow(new MessageException("no write authority"))
+      fixture.allowMoves();
+      doThrow(new MessageException("target already exists"))
          .when(fixture.dataSourceBrowserService).moveDataSource(any(MoveCommand[].class), any());
 
       WizMoveResult result = fixture.controller.moveDatasources(
@@ -286,7 +287,50 @@ class WizDatabaseControllerDeleteMoveTest {
 
       WizMoveItemResult item = result.results().get(0);
       assertFalse(item.ok());
-      assertEquals(WizMoveItemResult.PERMISSION_DENIED, item.reason());
+      assertEquals(WizMoveItemResult.REJECTED, item.reason(),
+                   "an occupied target is not a permission problem");
+      assertEquals("target already exists", item.message());
+   }
+
+   /** A real denial is PERMISSION_DENIED and never reaches the service. */
+   @Test
+   void move_missingWriteOnDestinationOrDeleteOnSourceIsPermissionDenied() throws Exception {
+      Fixture fixture = new Fixture();
+      fixture.allowMoves();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE), eq("/b"),
+         eq(ResourceAction.DELETE))).thenReturn(false);
+
+      WizMoveResult result = fixture.controller.moveDatasources(
+         new WizMoveRequest(List.of(
+            new WizDatasourceRef("/a", "a", false),
+            new WizDatasourceRef("/b", "b", false)), "Examples"),
+         fixture.principal);
+
+      assertTrue(result.results().get(0).ok());
+      assertEquals(WizMoveItemResult.PERMISSION_DENIED, result.results().get(1).reason());
+      assertNull(result.results().get(1).message());
+      verify(fixture.dataSourceBrowserService, times(1))
+         .moveDataSource(any(MoveCommand[].class), any());
+   }
+
+   @Test
+   void move_missingWriteOnTheDestinationIsPermissionDeniedAndNeverReachesTheService()
+      throws Exception
+   {
+      Fixture fixture = new Fixture();
+      fixture.allowMoves();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("Examples/a"),
+         eq(ResourceAction.WRITE))).thenReturn(false);
+
+      WizMoveResult result = fixture.controller.moveDatasources(
+         new WizMoveRequest(List.of(new WizDatasourceRef("/a", "a", false)), "Examples"),
+         fixture.principal);
+
+      assertEquals(WizMoveItemResult.PERMISSION_DENIED, result.results().get(0).reason());
+      verify(fixture.dataSourceBrowserService, never())
+         .moveDataSource(any(MoveCommand[].class), any());
    }
 
    /**
@@ -318,6 +362,7 @@ class WizDatabaseControllerDeleteMoveTest {
    @Test
    void move_bulkRequestStillAttemptsLaterItemsAfterAnEarlierFailure() throws Exception {
       Fixture fixture = new Fixture();
+      fixture.allowMoves();
       doThrow(new MessageException("no write authority"))
          .when(fixture.dataSourceBrowserService).moveDataSource(
             argThat(cmds -> cmds.length == 1 && "/b".equals(cmds[0].getOldPath())), any());
@@ -395,5 +440,10 @@ class WizDatabaseControllerDeleteMoveTest {
       final DatasourcesService datasourcesService = mock(DatasourcesService.class);
       final Principal principal = mock(Principal.class);
       final WizDatabaseController controller;
+
+      void allowMoves() throws Exception {
+         when(securityEngine.checkPermission(any(), any(ResourceType.class), anyString(),
+                                             any(ResourceAction.class))).thenReturn(true);
+      }
    }
 }

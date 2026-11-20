@@ -488,7 +488,10 @@ public class WizTabularController {
          LOG.warn("Tabular data source \"{}\" was not created; type \"{}\" is unknown or its " +
                      "connector is unavailable", fullPath, definition.getType());
 
-         return WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN);
+         return WizTabularSaveResult.failed(
+            WizTabularSaveResult.UNKNOWN,
+            "The data source type \"" + definition.getType() + "\" is unknown or its connector " +
+               "plugin is not installed, so nothing was created");
       }
 
       return WizTabularSaveResult.ok(fullPath);
@@ -660,9 +663,31 @@ public class WizTabularController {
    {
       requireConnectorPermission(principal);
 
-      return AuthorizationClient.doPasswordGrantAuth(
-         request.user(), request.password(), request.clientId(), request.clientSecret(),
-         request.scope(), request.tokenUri());
+      if(request == null || request.tokenUri() == null || request.tokenUri().isBlank()) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tokenUri is required");
+      }
+
+      try {
+         return AuthorizationClient.doPasswordGrantAuth(
+            request.user(), request.password(), request.clientId(), request.clientSecret(),
+            request.scope(), request.tokenUri());
+      }
+      catch(IllegalArgumentException | SecurityException ex) {
+         throw ex;
+      }
+      catch(RuntimeException ex) {
+         // The provider refused the grant or could not be reached: the caller's credentials or
+         // token URI, not a server fault. The client's own text names which, with the cause.
+         Throwable cause = ex.getCause();
+         String detail = ex.getMessage() == null ? "password grant failed" : ex.getMessage();
+
+         if(cause != null && cause.getMessage() != null) {
+            detail += ": " + cause.getMessage();
+         }
+
+         LOG.info("OAuth password grant failed: {}", detail);
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, detail);
+      }
    }
 
    // ─── Browsing a file-based connector, and probing what a target holds ─────────────────────
@@ -1049,7 +1074,7 @@ public class WizTabularController {
 
       LOG.info("Tabular data source {} rejected for \"{}\": {}", operation, path, e.getMessage());
 
-      return WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN);
+      return WizTabularSaveResult.failed(WizTabularSaveResult.UNKNOWN, e.getMessage());
    }
 
    /**

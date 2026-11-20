@@ -50,7 +50,7 @@ import java.util.Set;
 /**
  * Resolves a requested list of stored-asset changes into a {@link ResolvedPlan} and hashes it --
  * the stored-asset analog of {@code inetsoft.web.admin.ai.AdminChangePlanService} and (per
- * 01-design.md section 6.3) {@code DataSourceChangePlanService}, replicated rather than shared,
+ * 01-design.md section 6.3) {@code former DataSourceChangePlanService}, replicated rather than shared,
  * matching every prior area's own "replicate, don't generalize" precedent.
  *
  * <p><b>Scope deviation from 01-design.md/03-reconcile.md, recorded here per this build's own

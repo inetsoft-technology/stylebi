@@ -28,11 +28,23 @@ package inetsoft.web.wiz.model;
  *                {@code DUPLICATE_NAME}, {@code SELF_DESCENDANT}, {@code UNKNOWN}.
  *                {@code DUPLICATE_NAME} is not currently producible by the underlying move call —
  *                the pre-check endpoint covers that case — but the reason is kept for forward
- *                compatibility.
+ *                compatibility. {@code REJECTED}: the move was refused for a reason other than
+ *                permission (an occupied target, a data source ancestor, an additional
+ *                connection, an unloadable source); {@code message} carries the server text.
+ * @param message the server text for a {@code REJECTED} item, else null.
  */
-public record WizMoveItemResult(String oldPath, String newPath, boolean ok, String reason) {
+public record WizMoveItemResult(String oldPath, String newPath, boolean ok, String reason,
+                                String message)
+{
+   public WizMoveItemResult(String oldPath, String newPath, boolean ok, String reason) {
+      this(oldPath, newPath, ok, reason, null);
+   }
+
    public static final String PERMISSION_DENIED = "PERMISSION_DENIED";
    public static final String DUPLICATE_NAME = "DUPLICATE_NAME";
    public static final String SELF_DESCENDANT = "SELF_DESCENDANT";
    public static final String UNKNOWN = "UNKNOWN";
+
+   /** The service refused the move with its own text (occupied target, missing source, ...). */
+   public static final String REJECTED = "REJECTED";
 }

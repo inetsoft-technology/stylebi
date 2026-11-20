@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,20 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.admin.ai.datasource;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-import java.util.List;
+package inetsoft.web.wiz.request;
 
-/** Request body for {@code POST /api/wiz/v1/admin/data-sources/preview}. */
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class DataSourceChangePlanRequest {
-   public String getTask() { return task; }
-   public void setTask(String v) { this.task = v; }
-   public List<DataSourceChangeRequest> getChanges() { return changes; }
-   public void setChanges(List<DataSourceChangeRequest> v) { this.changes = v; }
+import inetsoft.web.wiz.model.WizDatabaseDefinition;
 
-   private String task;
-   private List<DataSourceChangeRequest> changes;
+/**
+ * @param definition the settings to test.
+ * @param name       the stored connection the settings came from, when it exists. Naming one lets a
+ *                   null password mean "the stored one".
+ */
+public record WizAdditionalTestRequest(WizDatabaseDefinition definition, String name) {
 }

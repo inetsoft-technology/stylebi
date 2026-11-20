@@ -30,15 +30,26 @@ package inetsoft.web.wiz.model;
  *               that name already exists in the parent — the only business failure this operation
  *               can report; anything else surfaces as an HTTP error instead.
  * @param path   the new folder's full repository path. Null on failure.
+ * @param message the server's own text when it refused the operation with one (for example a path
+ *               clash with a data source). Null otherwise; {@code reason} is {@code UNKNOWN} then.
  */
-public record WizFolderSaveResult(boolean ok, String reason, String path) {
+public record WizFolderSaveResult(boolean ok, String reason, String path, String message) {
+   public WizFolderSaveResult(boolean ok, String reason, String path) {
+      this(ok, reason, path, null);
+   }
+
    public static WizFolderSaveResult ok(String path) {
-      return new WizFolderSaveResult(true, null, path);
+      return new WizFolderSaveResult(true, null, path, null);
    }
 
    public static WizFolderSaveResult failed(String reason) {
-      return new WizFolderSaveResult(false, reason, null);
+      return new WizFolderSaveResult(false, reason, null, null);
+   }
+
+   public static WizFolderSaveResult failed(String reason, String message) {
+      return new WizFolderSaveResult(false, reason, null, message);
    }
 
    public static final String DUPLICATE_NAME = "DUPLICATE_NAME";
+   public static final String UNKNOWN = "UNKNOWN";
 }

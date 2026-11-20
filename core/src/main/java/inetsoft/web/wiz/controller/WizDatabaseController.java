@@ -128,6 +128,7 @@ public class WizDatabaseController {
       this.xrepository = xrepository;
       this.endpointCatalogReader = endpointCatalogReader;
       this.datasourcesService = datasourcesService;
+      this.mapper = new WizDatabaseMapper(databaseTypeService);
    }
 
    /**
@@ -636,12 +637,28 @@ public class WizDatabaseController {
       if(path != null) {
          requireDataSourcePermission(path, ResourceAction.WRITE, principal);
       }
+      else {
+         // A draft opens a connection to a host and credentials the caller supplies, so it is
+         // limited to a caller who could create a data source; otherwise any logged-in user could
+         // use the server to probe arbitrary hosts. Same rule as the XMLA and additional-connection
+         // draft tests and the tabular connector endpoints.
+         requireCreatePermission(null, principal);
+      }
 
       // Same reason as on update: without oldName the stored password cannot be recovered, so a
       // test of an otherwise-unchanged connection would connect with an empty password and fail.
       DatabaseDefinition database = toDatabaseDefinition(definition, lastSegment(path));
-      ConnectionStatus status = databaseDatasourcesService.testDataSourceConnection(
-         path == null ? "" : path, database, principal, false);
+      ConnectionStatus status;
+
+      try {
+         status = databaseDatasourcesService.testDataSourceConnection(
+            path == null ? "" : path, database, principal, false);
+      }
+      catch(MessageException ex) {
+         // A business refusal, for example a cloud-secret id the caller may not use. Reported with
+         // its text instead of escaping as the generic 500.
+         return new WizConnectionTestResult(false, ex.getMessage());
+      }
 
       return new WizConnectionTestResult(status != null && status.isConnected(),
                                          status == null ? null : status.getStatus());
@@ -679,9 +696,16 @@ public class WizDatabaseController {
       // oldName stays null: a database that does not exist yet has no stored password to recover,
       // and a non-null value would send the recovery lookup after an unrelated data source.
       DatabaseDefinition database = toDatabaseDefinition(definition, null);
-      ConnectionStatus status = databaseDatasourcesService.saveDatabase(
-         parentPath == null ? "" : parentPath, toSettingsModel(database),
-         ActionRecord.ACTION_NAME_CREATE, principal);
+      ConnectionStatus status;
+
+      try {
+         status = databaseDatasourcesService.saveDatabase(
+            parentPath == null ? "" : parentPath, toSettingsModel(database),
+            ActionRecord.ACTION_NAME_CREATE, principal);
+      }
+      catch(MessageException ex) {
+         return refused(ex);
+      }
 
       return toSaveResult(status, parentPath == null ? name : parentPath + "/" + name);
    }
@@ -737,8 +761,16 @@ public class WizDatabaseController {
       DatabaseDefinition updated = toDatabaseDefinition(definition, lastSegment(database));
       carryOverUneditedSettings(current, updated);
 
-      ConnectionStatus status = databaseDatasourcesService.saveDatabase(
-         database, toSettingsModel(updated), actionName, principal);
+      ConnectionStatus status;
+
+      try {
+         status = databaseDatasourcesService.saveDatabase(
+            database, toSettingsModel(updated), actionName, principal);
+      }
+      catch(MessageException ex) {
+         return refused(ex);
+      }
+
       int index = database.lastIndexOf('/');
 
       return toSaveResult(status, index < 0 ? name : database.substring(0, index + 1) + name);
@@ -793,7 +825,14 @@ public class WizDatabaseController {
       }
 
       String auditPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, path, principal);
-      dataSourceBrowserService.addDatasourceFolder(path, auditPath, principal, userScope);
+
+      try {
+         dataSourceBrowserService.addDatasourceFolder(path, auditPath, principal, userScope);
+      }
+      catch(MessageException ex) {
+         LOG.info("Data source folder create rejected for \"{}\": {}", path, ex.getMessage());
+         return WizFolderSaveResult.failed(WizFolderSaveResult.UNKNOWN, ex.getMessage());
+      }
 
       return WizFolderSaveResult.ok(path);
    }
@@ -845,8 +884,16 @@ public class WizDatabaseController {
       String auditPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, path, principal);
       String targetEntityPath =
          Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, newPath, principal);
-      String savedPath = dataSourceBrowserService.renameFolder(
-         path, name, auditPath, targetEntityPath, principal);
+      String savedPath;
+
+      try {
+         savedPath = dataSourceBrowserService.renameFolder(
+            path, name, auditPath, targetEntityPath, principal);
+      }
+      catch(MessageException ex) {
+         LOG.info("Data source folder rename rejected for \"{}\": {}", path, ex.getMessage());
+         return WizFolderSaveResult.failed(WizFolderSaveResult.UNKNOWN, ex.getMessage());
+      }
 
       return WizFolderSaveResult.ok(savedPath);
    }
@@ -1017,15 +1064,22 @@ public class WizDatabaseController {
 
       for(MoveCommand cmd : commands) {
          try {
+            // moveDataSource reports a permission denial and every other refusal (occupied
+            // target, data source ancestor, additional connection, unloadable source) as the
+            // same MessageException, so the two permissions it checks are checked here first, with
+            // the same rules, to tell them apart. PERMISSION_DENIED is only ever this check.
+            if(!movePermitted(cmd, principal)) {
+               results.add(new WizMoveItemResult(
+                  cmd.getOldPath(), cmd.getPath(), false, WizMoveItemResult.PERMISSION_DENIED));
+               continue;
+            }
+
             dataSourceBrowserService.moveDataSource(new MoveCommand[] { cmd }, principal);
             results.add(new WizMoveItemResult(cmd.getOldPath(), cmd.getPath(), true, null));
          }
          catch(MessageException ex) {
-            // Thrown for both the WRITE-on-target and DELETE-on-source permission checks -- both
-            // surface as the same reason code here; the message text itself is not forwarded, it
-            // is an English Catalog string keyed to the server locale.
             results.add(new WizMoveItemResult(
-               cmd.getOldPath(), cmd.getPath(), false, WizMoveItemResult.PERMISSION_DENIED));
+               cmd.getOldPath(), cmd.getPath(), false, WizMoveItemResult.REJECTED, ex.getMessage()));
          }
          catch(Exception ex) {
             LOG.warn("Failed to move {} -> {}: {}", cmd.getOldPath(), cmd.getPath(), ex.getMessage());
@@ -1082,6 +1136,19 @@ public class WizDatabaseController {
       }
 
       return new WizDependencyCheckResult(messagesByPath);
+   }
+
+   /**
+    * The two permissions {@code moveDataSource} demands per item, mirrored: WRITE on the
+    * destination path as a folder, and DELETE on the item's current path.
+    */
+   private boolean movePermitted(MoveCommand cmd, Principal principal) throws Exception {
+      ResourceType sourceType = PortalDataType.DATA_SOURCE_FOLDER.name().equals(cmd.getType())
+         ? ResourceType.DATA_SOURCE_FOLDER : ResourceType.DATA_SOURCE;
+
+      return securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE_FOLDER, cmd.getPath(), ResourceAction.WRITE) &&
+         securityEngine.checkPermission(principal, sourceType, cmd.getOldPath(), ResourceAction.DELETE);
    }
 
    /** Builds a definition carrying only a name, matching what {@code getDataSourceAuditPath} needs. */
@@ -1435,8 +1502,21 @@ public class WizDatabaseController {
    private DatabaseDefinition requireJdbcDefinition(String path, Principal principal)
       throws Exception
    {
-      DatabaseDefinition definition =
-         databaseDatasourcesService.getDatabaseDefinition(path, principal);
+      DatabaseDefinition definition;
+
+      try {
+         definition = databaseDatasourcesService.getDatabaseDefinition(path, principal);
+      }
+      catch(RuntimeException ex) {
+         // The service throws a bare RuntimeException for a path with no data source, which would
+         // leave as the generic 500 "StyleBI-side bug". Anything else is a real fault.
+         if(xrepository.getDataSource(path) == null) {
+            throw new ResponseStatusException(
+               HttpStatus.NOT_FOUND, "No data source at \"" + path + "\"");
+         }
+
+         throw ex;
+      }
 
       if(definition == null) {
          String sourceType = null;
@@ -1462,20 +1542,15 @@ public class WizDatabaseController {
     * to its default by an update, since the definition handed to the save path is built from
     * scratch. Two are worth preserving: {@code unasgn} governs whether users with no explicit grant
     * are denied data, and the cloud-secret credential reference replaces the user name and password
-    * entirely — clearing either through a connection edit would be a silent security change.</p>
+    * entirely — clearing either through a connection edit would be a silent security change. A credential
+    * reference the caller did set is kept as sent, see
+    * {@link WizDatabaseMapper#carryOverCredentialReference}.</p>
     */
    private static void carryOverUneditedSettings(DatabaseDefinition current,
                                                  DatabaseDefinition updated)
    {
       updated.setUnasgn(current.isUnasgn());
-
-      AuthenticationDetails currentAuth = current.getAuthentication();
-      AuthenticationDetails updatedAuth = updated.getAuthentication();
-
-      if(currentAuth != null && updatedAuth != null) {
-         updatedAuth.setUseCredentialId(currentAuth.isUseCredentialId());
-         updatedAuth.setCredentialId(currentAuth.getCredentialId());
-      }
+      WizDatabaseMapper.carryOverCredentialReference(current, updated);
    }
 
    /**
@@ -1500,6 +1575,17 @@ public class WizDatabaseController {
     * <p>A business failure arrives as an English string inside a successful call, and a null status
     * means the save went through.</p>
     */
+   /**
+    * A save the server refused with a message (a cloud-secret id the caller may not use, a name
+    * that clashes with a folder, ...). {@code reason} stays {@code UNKNOWN} so clients that switch
+    * on it do not change; the text rides in {@code message}.
+    */
+   private static WizDatabaseSaveResult refused(MessageException ex) {
+      LOG.info("Database save rejected: {}", ex.getMessage());
+
+      return new WizDatabaseSaveResult(false, "UNKNOWN", null, ex.getMessage());
+   }
+
    private static WizDatabaseSaveResult toSaveResult(ConnectionStatus status, String path) {
       String reason = status == null ? null : status.getStatus();
 
@@ -1520,185 +1606,13 @@ public class WizDatabaseController {
    }
 
    private WizDatabaseDefinition toWizDefinition(DatabaseDefinition definition) {
-      if(definition == null) {
-         return null;
-      }
-
-      NetworkLocation network = definition.getNetwork();
-      WizNetworkLocation wizNetwork = network == null
-         ? null : new WizNetworkLocation(network.getHostName(), network.getPortNumber());
-      AuthenticationDetails authentication = definition.getAuthentication();
-
-      // The password is dropped, never masked. StyleBI's own model sends a placeholder constant
-      // here, but a client that returned that constant unchanged would be indistinguishable from a
-      // user who had typed it, and the wiz contract expresses "unchanged" as null instead.
-      WizAuthentication wizAuthentication = authentication == null
-         ? new WizAuthentication(false, null, null)
-         : new WizAuthentication(authentication.isRequired(), authentication.getUserName(), null);
-
-      return new WizDatabaseDefinition(
-         definition.getName(), definition.getDescription(), definition.getType(), wizNetwork,
-         wizAuthentication, toWizInfo(definition.getInfo()), definition.isAnsiJoin(),
-         definition.getTransactionIsolation(), definition.getTableNameOption(),
-         definition.getDefaultDatabase(), definition.isChangeDefaultDB(),
-         definition.isDeletable());
+      return mapper.toWizDefinition(definition);
    }
 
-   private WizDatabaseInfo toWizInfo(DatabaseInfo info) {
-      if(info == null) {
-         return null;
-      }
-
-      String databaseName = null;
-      String sid = null;
-      String instanceName = null;
-      String serverName = null;
-      String databaseLocale = null;
-      String driverClass = null;
-      String jdbcUrl = null;
-      String testQuery = null;
-
-      // Dispatched on the subclass rather than on the type identifier: the two agree, but only the
-      // subclass can be trusted to actually have the accessor being called.
-      if(info instanceof DatabaseNameInfo nameInfo) {
-         databaseName = nameInfo.getDatabaseName();
-      }
-
-      if(info instanceof OracleDatabaseType.OracleDatabaseInfo oracleInfo) {
-         sid = oracleInfo.getSid();
-      }
-
-      if(info instanceof SQLServerDatabaseType.SQLServerDatabaseInfo sqlServerInfo) {
-         instanceName = sqlServerInfo.getInstanceName();
-      }
-
-      if(info instanceof InformixDatabaseType.InformixDatabaseInfo informixInfo) {
-         serverName = informixInfo.getServerName();
-         databaseLocale = informixInfo.getDatabaseLocale();
-      }
-
-      if(info instanceof CustomDatabaseType.CustomDatabaseInfo customInfo) {
-         driverClass = customInfo.getDriverClass();
-         jdbcUrl = customInfo.getJdbcUrl();
-         testQuery = customInfo.getTestQuery();
-      }
-
-      Map<String, String> poolProperties = info.getPoolProperties() == null
-         ? null : new LinkedHashMap<>(info.getPoolProperties());
-
-      return new WizDatabaseInfo(databaseName, sid, instanceName, serverName, databaseLocale,
-                                 driverClass, jdbcUrl, testQuery, info.isCustomEditMode(),
-                                 info.getCustomUrl(), poolProperties);
-   }
-
-   /**
-    * Builds the definition the save and test paths take.
-    *
-    * @param definition the client's settings.
-    * @param oldName    the name the database is stored under, or null when it does not exist yet.
-    *                   Never taken from the client: it is the key to the stored password, and a save
-    *                   without it leaves the password at the placeholder, skips {@code setPassword}
-    *                   and then has the whole credential — placeholder and all — copied over the
-    *                   real one. The password is gone with no error anywhere.
-    */
    private DatabaseDefinition toDatabaseDefinition(WizDatabaseDefinition definition,
                                                    String oldName)
    {
-      DatabaseDefinition result = new DatabaseDefinition();
-      result.setName(definition.name());
-      result.setOldName(oldName);
-      result.setType(definition.type());
-      result.setDescription(definition.description());
-      result.setInfo(toDatabaseInfo(definition.type(), definition.info()));
-
-      // Always non-null: the URL formatters read the host and port unconditionally for every type
-      // that has them, so a client that omitted the network would get a NullPointerException.
-      NetworkLocation network = new NetworkLocation();
-
-      if(definition.network() != null) {
-         network.setHostName(definition.network().hostName());
-         network.setPortNumber(definition.network().portNumber());
-      }
-
-      result.setNetwork(network);
-
-      AuthenticationDetails authentication = new AuthenticationDetails();
-      WizAuthentication wizAuthentication = definition.authentication();
-      authentication.setRequired(wizAuthentication != null && wizAuthentication.required());
-
-      if(wizAuthentication != null) {
-         authentication.setUserName(wizAuthentication.userName());
-      }
-
-      // null means "leave the stored password alone", which the save path expresses as the
-      // placeholder constant; paired with oldName above it recovers the real password. An empty
-      // string is a deliberate clear and is passed through as itself.
-      String password = wizAuthentication == null ? null : wizAuthentication.password();
-      authentication.setPassword(password == null ? Util.PLACEHOLDER_PASSWORD : password);
-      result.setAuthentication(authentication);
-
-      result.setAnsiJoin(definition.ansiJoin());
-      result.setTransactionIsolation(definition.transactionIsolation());
-      result.setTableNameOption(definition.tableNameOption());
-      result.setDefaultDatabase(definition.defaultDatabase());
-      result.setChangeDefaultDB(definition.changeDefaultDB());
-      result.setDeletable(definition.deletable());
-
-      return result;
-   }
-
-   private DatabaseInfo toDatabaseInfo(String type, WizDatabaseInfo wizInfo) {
-      DatabaseType<?> databaseType = databaseTypeService.getDatabaseType(type);
-
-      if(databaseType == null) {
-         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown database type: " + type);
-      }
-
-      DatabaseInfo info = databaseType.createDatabaseInfo();
-
-      // Never left null: the save path reads the pool properties unconditionally.
-      info.setPoolProperties(wizInfo == null || wizInfo.poolProperties() == null
-                                ? new TreeMap<>() : new TreeMap<>(wizInfo.poolProperties()));
-
-      if(wizInfo != null) {
-         info.setCustomEditMode(wizInfo.customEditMode());
-         info.setCustomUrl(wizInfo.customUrl());
-
-         if(info instanceof DatabaseNameInfo nameInfo) {
-            nameInfo.setDatabaseName(wizInfo.databaseName());
-         }
-
-         if(info instanceof OracleDatabaseType.OracleDatabaseInfo oracleInfo) {
-            oracleInfo.setSid(wizInfo.sid());
-         }
-
-         if(info instanceof SQLServerDatabaseType.SQLServerDatabaseInfo sqlServerInfo) {
-            sqlServerInfo.setInstanceName(wizInfo.instanceName());
-         }
-
-         if(info instanceof InformixDatabaseType.InformixDatabaseInfo informixInfo) {
-            informixInfo.setServerName(wizInfo.serverName());
-            informixInfo.setDatabaseLocale(wizInfo.databaseLocale());
-         }
-
-         if(info instanceof CustomDatabaseType.CustomDatabaseInfo customInfo) {
-            customInfo.setDriverClass(wizInfo.driverClass());
-            customInfo.setJdbcUrl(wizInfo.jdbcUrl());
-            customInfo.setTestQuery(wizInfo.testQuery());
-
-            // A CUSTOM connection is always read back with customEditMode set, and in that mode the
-            // stored URL is taken from customUrl, not from jdbcUrl. Pinning the flag and falling
-            // back to jdbcUrl keeps a client that filled in only one of the two from saving a
-            // database with no URL at all.
-            customInfo.setCustomEditMode(true);
-
-            if(customInfo.getCustomUrl() == null) {
-               customInfo.setCustomUrl(wizInfo.jdbcUrl());
-            }
-         }
-      }
-
-      return info;
+      return mapper.toDatabaseDefinition(definition, oldName);
    }
 
    private static String requirePath(String path) {
@@ -1817,6 +1731,7 @@ public class WizDatabaseController {
    private final XRepository xrepository;
    private final EndpointCatalogReader endpointCatalogReader;
    private final DatasourcesService datasourcesService;
+   private final WizDatabaseMapper mapper;
 
    /** Annotation classes. See {@link WizDatasourceEntry} for what each one means to the portal. */
    private static final String JDBC = "JDBC";

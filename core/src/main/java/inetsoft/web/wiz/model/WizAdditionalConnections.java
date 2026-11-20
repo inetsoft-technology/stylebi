@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,21 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.admin.ai.datasource;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import inetsoft.web.admin.ai.RollbackFailure;
+
+package inetsoft.web.wiz.model;
 
 import java.util.List;
 
 /**
- * Result of applying a whole data-source changeset -- identical shape to the shared {@code
- * inetsoft.web.admin.ai.ApplyResult} except {@code results} carries {@link DataSourceApplyOutcome}.
- * {@code rollbackFailures} reuses the shared {@code RollbackFailure} unmodified.
+ * The additional connections of a data source that the caller may read.
+ *
+ * @param connections the readable connections. One the caller lacks READ on is omitted.
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
-public record DataSourceApplyResult(String transactionId, String status, String backupRef,
-                                    List<DataSourceApplyOutcome> results,
-                                    List<RollbackFailure> rollbackFailures)
-{
+public record WizAdditionalConnections(List<WizAdditionalConnection> connections) {
 }

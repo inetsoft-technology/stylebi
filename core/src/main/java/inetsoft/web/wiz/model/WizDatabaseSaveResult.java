@@ -34,6 +34,12 @@ package inetsoft.web.wiz.model;
  *               recognize, which is logged verbatim server-side rather than swallowed.
  * @param path   the saved database's full repository path, which differs from the requested path
  *               when the connection was renamed. Null on failure.
+ * @param message the server's own text when it refused the save with one (a cloud-secret id the
+ *               caller may not use, a name clash with a folder). Null otherwise. Display it as an
+ *               opaque string; {@code reason} stays {@code UNKNOWN} in that case.
  */
-public record WizDatabaseSaveResult(boolean ok, String reason, String path) {
+public record WizDatabaseSaveResult(boolean ok, String reason, String path, String message) {
+   public WizDatabaseSaveResult(boolean ok, String reason, String path) {
+      this(ok, reason, path, null);
+   }
 }
