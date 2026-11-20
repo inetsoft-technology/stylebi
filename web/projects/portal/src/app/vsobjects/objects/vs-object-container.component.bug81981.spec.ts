@@ -77,4 +77,33 @@ describe("VSObjectContainer container child z-index (Bug #81981)", () => {
 
       expect(comp.zIndex(c2)).toBeGreaterThan(comp.zIndex(c1));
    });
+
+   // An open dropdown selection list/tree raises its own body by 9999 only inside its wrapper's
+   // stacking context; the wrapper must be raised too, as for an open dropdown calendar
+   // (Bug #78478). In a tab or group it used to be lifted only by the container z-index.
+   for(const objectType of ["VSSelectionList", "VSSelectionTree"]) {
+      it(`raises an open dropdown ${objectType} in a tab above a later top-level chart`, () => {
+         const tab = obj("Tab1", 51, { objectType: "VSTab" });
+         const list = obj("Selection1", 52,
+            { objectType, container: "Tab1", dropdown: true, hidden: false });
+         const chart = obj("Chart1", 101, { objectType: "VSChart" });
+         const comp = make([tab, list, chart]);
+
+         expect(comp.getContainerZIndex(list)).toBe(52 + 9999);
+         expect(comp.getContainerZIndex(list)).toBeGreaterThan(comp.getContainerZIndex(chart));
+
+         (<any> list).hidden = true;
+         expect(comp.getContainerZIndex(list)).toBe(52);
+      });
+   }
+
+   it("does not raise an open dropdown selection list outside the viewer", () => {
+      const list = obj("Selection1", 52,
+         { objectType: "VSSelectionList", dropdown: true, hidden: false });
+      const context = makeContextProvider();
+      context.viewer = false;
+      const comp = makeComponent({ context, vsInfo: makeVsInfo([list]) }).comp;
+
+      expect(comp.getContainerZIndex(list)).toBe(52);
+   });
 });

@@ -2441,7 +2441,8 @@ public class VSObjectPropertyService {
             tab.setAssemblies(tabchildren);
          }
 
-         vsCompositionService.updateZIndex(vs, gassembly);
+         // the remaining child keeps its absolute z-index, see ComposerGroupService.ungroup
+         // (Bug #81981)
          coreLifecycleService.removeVSAssembly(rvs, uri, gassembly, dispatcher, false, true);
       }
       else {
