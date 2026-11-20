@@ -80,7 +80,7 @@ class XmlReplayTest {
       }
 
       // unlike a JSON query with no data (no table at all), XML gives a single empty row in a
-      // column called "Column"; this pins that
+      // column called "Column"; this pins that (Bug #81916)
       assertEquals("Column=null;", seen.toString());
    }
 

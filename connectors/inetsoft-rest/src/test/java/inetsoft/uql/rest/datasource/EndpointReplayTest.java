@@ -113,7 +113,7 @@ class EndpointReplayTest {
    void clockifyWithAnEmptyFirstPageReturnsNoTableAfterOneRequest() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler().on("/workspaces/ws1/clients", "[]");
 
-      // a query with no data at all returns no table, not an empty one; this pins that
+      // a query with no data at all returns no table, not an empty one; this pins that (Bug #81916)
       assertNull(ReplaySupport.runTable(clockifyClients(), http));
       assertEquals(1, http.requests().size(), http.requests().toString());
    }

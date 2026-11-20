@@ -28,6 +28,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.rest.datasource.graphql.GraphQLDataSource;
 import inetsoft.uql.rest.datasource.graphql.GraphQLQuery;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -96,6 +97,7 @@ class GraphQLReplayTest {
       List<Map<String, Object>> rows = rows(run(query, http));
 
       // the page that echoes the cursor it was asked for is treated as the end and not kept
+      // (Bug #81915 is about the same rule dropping a last page whose cursor is null)
       assertEquals(List.of(1, 2), ids(rows), rows.toString());
       assertEquals(3, http.requests().size(), http.requests().toString());
       assertFalse(http.bodies().get(0).contains("\"cursor\":\"c"), http.bodies().get(0));
@@ -125,6 +127,20 @@ class GraphQLReplayTest {
 
       assertEquals("{ items { id } }", sent.get("query"), sent.toString());
       assertEquals("{}", sent.get("variables"), sent.toString());
+   }
+
+   @Test
+   @Disabled("Bug #81915: a last page whose cursor is null is dropped; enable when it is fixed")
+   void theLastPageIsKeptWhenItsCursorIsNull() throws Exception {
+      ScriptedHttpHandler http = new ScriptedHttpHandler().on("graphql.test", page(1, "c1"),
+         "{\"data\":{\"endCursor\":null,\"items\":[{\"id\":2},{\"id\":3}]}}");
+      GraphQLQuery query = query("query($cursor:String){ items(after:$cursor){ id } }", "{}");
+      query.setUsePagination(true);
+      query.setCursorPagination(true);
+      query.setPaginationVariable("cursor");
+      query.setPaginationCountPath("$.data.endCursor");
+
+      assertEquals(List.of(1, 2, 3), ids(rows(run(query, http))));
    }
 
    private static String page(int id, String cursor) {
