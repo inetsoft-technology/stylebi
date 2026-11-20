@@ -25,6 +25,11 @@ public enum PaginationType {
    TOTAL_COUNT_AND_OFFSET,
    TOTAL_COUNT_AND_PAGE,
    ITERATION,
+   /**
+    * @deprecated no longer used; Twitter queries use {@link #ITERATION}. Kept only so
+    * that previously saved queries can still be loaded by {@code PaginationSpec.parseXML}.
+    */
+   @Deprecated
    TWITTER_ITERATION,
    LINK_ITERATION,
    GRAPHQL,

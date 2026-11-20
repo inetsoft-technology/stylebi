@@ -19,7 +19,6 @@ package inetsoft.uql.rest.json;
 
 import inetsoft.uql.rest.*;
 import inetsoft.uql.rest.datasource.graphql.GraphQLQuery;
-import inetsoft.uql.rest.datasource.twitter.TwitterQuery;
 import inetsoft.uql.rest.pagination.HttpResponseParameterParser;
 import inetsoft.uql.rest.pagination.PagedIterationIteratorStrategy;
 
@@ -85,9 +84,9 @@ public class JsonRestDataIteratorStrategyFactory implements RestDataIteratorStra
                 strategy = new PagedIterationIteratorStrategy<>(query, transformer, httpHandler, errorHandler, parser);
                 break;
             case TWITTER_ITERATION:
-                strategy = new TwitterRestDataIteratorStrategy((TwitterQuery) query, transformer, httpHandler,
-                   errorHandler, parser);
-                break;
+                throw new IllegalStateException(
+                   "Pagination type TWITTER_ITERATION is no longer supported; re-select the " +
+                   "endpoint or set Pagination to Iteration");
             case LINK_ITERATION:
                 strategy = new JsonPagedLinkIterationStrategy(query, transformer, httpHandler, errorHandler, parser);
                 break;
