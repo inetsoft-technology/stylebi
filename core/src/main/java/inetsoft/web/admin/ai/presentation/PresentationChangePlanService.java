@@ -83,7 +83,8 @@ public class PresentationChangePlanService {
     *         unrecognized {@code spec} field, {@code scope: "organization"} for a global-only
     *         sub-model, an unsafe {@code lookAndFeel} file name, a secret {@code webMap} field, a
     *         {@code portalIntegration.tabs} array that does not list every current tab exactly once
-    *         by its {@code originalIndex} (or renames a built-in tab), or an organization-scope change
+    *         by its {@code originalIndex} unless it is named in {@code removeTabs} (or renames a built-in
+    *         tab), or an organization-scope change
     *         to a global-only {@code portalIntegration} field (tabs and the five buttons).
     */
    public ResolvedPlan resolve(PresentationChangePlanRequest req, Principal principal)
@@ -168,13 +169,22 @@ public class PresentationChangePlanService {
          }
 
          JsonNode spec = requireSpecObject(label, raw.getSpec());
+         List<String> removeTabs = List.of();
+
+         if(subModel == PresentationSubModel.PORTAL_INTEGRATION) {
+            removeTabs = readRemoveTabs(label, spec);
+            ObjectNode withoutRemoval = spec.deepCopy();
+            withoutRemoval.remove("removeTabs");
+            spec = withoutRemoval;
+         }
+
          requireKnownFields(label, subModel, spec);
 
          Object currentModel = access.read(subModel, principal, global);
          JsonNode currentNode = PresentationJson.toNode(currentModel);
 
          if(subModel == PresentationSubModel.PORTAL_INTEGRATION) {
-            requireWholeTabList(label, spec, currentNode);
+            spec = requireWholeTabList(label, spec, currentNode, removeTabs);
          }
 
          if(subModel == PresentationSubModel.LOOK_AND_FEEL) {
@@ -212,8 +222,11 @@ public class PresentationChangePlanService {
             PresentationChangeRequest.SCOPE_ORGANIZATION;
          String property = subModel.key() + ":" + scopeLabel;
 
-         JsonNode readbackNode = subModel == PresentationSubModel.LOOK_AND_FEEL
-            ? simulateLookAndFeelReadback(mergedNode, global, orgId) : mergedNode;
+         JsonNode readbackNode = switch(subModel) {
+            case LOOK_AND_FEEL -> simulateLookAndFeelReadback(mergedNode, global, orgId);
+            case PORTAL_INTEGRATION -> simulatePortalReadback(mergedNode);
+            default -> mergedNode;
+         };
 
          Map<String, String> hidden = new LinkedHashMap<>();
 
@@ -564,26 +577,43 @@ public class PresentationChangePlanService {
       }
    }
 
-   /** 03-reconcile.md Addition 2: {@code portalIntegration.tabs} must always be every current tab, in
-    * full -- {@code PortalIntegrationViewSettingsService.setModel} both indexes into the live tab list
-    * by a caller-echoed {@code originalIndex} with no bounds/identity check AND does a whole-list
-    * replace underneath, so a shorter {@code tabs} array would silently drop the missing tabs.
+   /** 03-reconcile.md Addition 2: {@code portalIntegration.tabs} must always account for every
+    * current tab -- {@code PortalIntegrationViewSettingsService.setModel} both indexes into the live
+    * tab list by a caller-echoed {@code originalIndex} with no bounds/identity check AND does a
+    * whole-list replace underneath, so a tab left out of {@code tabs} is deleted.
     *
     * <p>Bug #78867: a count alone is not identity. {@code setModel} rebuilds the list from the spec
-    * entries' {@code originalIndex}, so an equal-length list that repeats one index (or substitutes
-    * one index for another) deletes the tab whose index is left out -- a built-in tab included, with
-    * no live rollback (storage scope). A tab's identity is therefore its {@code originalIndex}: every
-    * live index must appear exactly once. An entry without one would be a new tab, which this path
-    * cannot add (it could never verify against the read-back, which assigns it an index); new tabs
-    * are added in Enterprise Manager. A built-in ({@code editable:false}) tab cannot be renamed
+    * entries' {@code originalIndex}, so a list that repeats one index (or substitutes one index for
+    * another) deletes the tab whose index is left out -- a built-in tab included, with no live
+    * rollback (storage scope). A tab's identity is therefore its {@code originalIndex}: every live
+    * index must appear exactly once, unless the tab is deleted on purpose.
+    *
+    * <p>Bug #81928: a deletion is deliberate only when the spec names the tab in
+    * {@code removeTabs}; leaving a tab out of {@code tabs} without naming it stays refused, so a
+    * client that sends a shorter list by mistake never deletes anything. Only an editable tab can be
+    * named ({@code removeTabs} entries are tab names; a built-in tab cannot be deleted), and a named
+    * tab must not also be listed. An entry without {@code originalIndex} is a NEW tab: it needs a
+    * non-blank {@code name} and {@code uri}, its name must not repeat another entry's name, and it is
+    * completed to what {@code setModel} creates ({@code label} = name, {@code editable} true,
+    * {@code visible} defaulting to true). A built-in ({@code editable:false}) tab cannot be renamed
     * ({@code setModel} throws {@code tabsChanged} at apply, compared with {@code Objects.equals}), so
     * its name must equal the live name exactly; an editable tab's name is free (a rename). Order is
-    * free: {@code setModel} writes the tabs in spec order. */
-   private static void requireWholeTabList(String label, JsonNode spec, JsonNode current) {
+    * free: {@code setModel} writes the tabs in spec order.
+    *
+    * @return the spec, with every new tab entry completed */
+   private static JsonNode requireWholeTabList(String label, JsonNode spec, JsonNode current,
+                                               List<String> removeTabs)
+   {
       JsonNode tabs = spec.get("tabs");
 
       if(tabs == null) {
-         return;
+         if(!removeTabs.isEmpty()) {
+            throw new IllegalArgumentException(
+               label + ".spec.removeTabs: needs spec.tabs -- list the tabs that stay in " +
+               "spec.tabs and name the deleted ones in spec.removeTabs");
+         }
+
+         return spec;
       }
 
       if(!tabs.isArray()) {
@@ -592,18 +622,38 @@ public class PresentationChangePlanService {
 
       JsonNode currentTabs = current.get("tabs");
       int currentCount = currentTabs == null || !currentTabs.isArray() ? 0 : currentTabs.size();
+      Set<Integer> removed = new HashSet<>();
 
-      if(tabs.size() != currentCount) {
-         throw new IllegalArgumentException(
-            label + ".spec.tabs: must include every current tab (" + currentCount + "), not a " +
-            "partial list -- got " + tabs.size() + " entries. portalIntegration.tabs is a " +
-            "whole-list replace underneath (PortalIntegrationViewSettingsService.setModel); a " +
-            "shorter list would silently drop the tabs left out, not leave them unchanged, and a " +
-            "new tab cannot be added through admin-chat (add it in Enterprise Manager).");
+      for(int i = 0; i < removeTabs.size(); i++) {
+         String name = removeTabs.get(i);
+         int found = -1;
+
+         for(int j = 0; j < currentCount && found < 0; j++) {
+            if(name.equals(currentTabs.get(j).path("name").asText(null))) {
+               found = j;
+            }
+         }
+
+         if(found < 0) {
+            throw new IllegalArgumentException(
+               label + ".spec.removeTabs[" + i + "]: \"" + name + "\" is not the name of a " +
+               "current tab (names are case-sensitive)");
+         }
+
+         if(!currentTabs.get(found).path("editable").asBoolean(false)) {
+            throw new IllegalArgumentException(
+               label + ".spec.removeTabs[" + i + "]: \"" + name + "\" is a built-in tab, which " +
+               "cannot be deleted");
+         }
+
+         removed.add(found);
       }
 
       Set<Integer> seen = new HashSet<>();
       Set<Integer> duplicates = new TreeSet<>();
+      List<String> names = new ArrayList<>();
+      List<Integer> newEntries = new ArrayList<>();
+      ArrayNode completed = PresentationJson.MAPPER.createArrayNode();
 
       for(int i = 0; i < tabs.size(); i++) {
          String entryLabel = label + ".spec.tabs[" + i + "]";
@@ -613,21 +663,47 @@ public class PresentationChangePlanService {
             throw new IllegalArgumentException(entryLabel + ": must be an object");
          }
 
+         JsonNode nameNode = tab.get("name");
+         String name = nameNode == null || !nameNode.isTextual() ? null : nameNode.asText();
          JsonNode indexNode = tab.get("originalIndex");
 
          if(indexNode == null || indexNode.isNull()) {
-            throw new IllegalArgumentException(
-               entryLabel + ".originalIndex: required -- every entry must echo the originalIndex " +
-               "of the current tab it stands for (0.." + (currentCount - 1) + "). An entry without " +
-               "one would be a new tab, which admin-chat cannot add; add it in Enterprise Manager.");
+            JsonNode uriNode = tab.get("uri");
+
+            if(name == null || name.isBlank()) {
+               throw new IllegalArgumentException(
+                  entryLabel + ".name: required -- an entry without originalIndex is a new tab " +
+                  "and needs a name");
+            }
+
+            if(uriNode == null || !uriNode.isTextual() || uriNode.asText().isBlank()) {
+               throw new IllegalArgumentException(
+                  entryLabel + ".uri: required -- an entry without originalIndex is a new tab " +
+                  "and needs a uri");
+            }
+
+            ObjectNode created = tab.deepCopy();
+            created.put("label", name);
+            created.put("editable", true);
+
+            if(!created.hasNonNull("visible")) {
+               created.put("visible", true);
+            }
+
+            completed.add(created);
+            names.add(name);
+            newEntries.add(i);
+            continue;
          }
+
+         completed.add(tab);
 
          if(!indexNode.isIntegralNumber() || !indexNode.canConvertToInt() ||
             indexNode.asInt() < 0 || indexNode.asInt() >= currentCount)
          {
             throw new IllegalArgumentException(
                entryLabel + ".originalIndex: " + indexNode + " is not the originalIndex of a " +
-               "current tab -- valid values are 0.." + (currentCount - 1) + ", each exactly once");
+               "current tab -- valid values are 0.." + (currentCount - 1) + ", each at most once");
          }
 
          int originalIndex = indexNode.asInt();
@@ -636,12 +712,14 @@ public class PresentationChangePlanService {
             duplicates.add(originalIndex);
          }
 
+         if(name != null) {
+            names.add(name);
+         }
+
          JsonNode live = currentTabs.get(originalIndex);
 
          if(!live.path("editable").asBoolean(false)) {
             String liveName = live.path("name").asText();
-            JsonNode nameNode = tab.get("name");
-            String name = nameNode == null || !nameNode.isTextual() ? null : nameNode.asText();
 
             if(!Objects.equals(liveName, name)) {
                throw new IllegalArgumentException(
@@ -652,11 +730,21 @@ public class PresentationChangePlanService {
          }
       }
 
+      for(int i : newEntries) {
+         String name = tabs.get(i).get("name").asText();
+
+         if(Collections.frequency(names, name) > 1) {
+            throw new IllegalArgumentException(
+               label + ".spec.tabs[" + i + "].name: \"" + name + "\" is already used by another " +
+               "tab in this list -- tab names must be unique");
+         }
+      }
+
       if(!duplicates.isEmpty()) {
          List<String> missing = new ArrayList<>();
 
          for(int i = 0; i < currentCount; i++) {
-            if(!seen.contains(i)) {
+            if(!seen.contains(i) && !removed.contains(i)) {
                missing.add(i + " (\"" + currentTabs.get(i).path("name").asText() + "\")");
             }
          }
@@ -666,6 +754,93 @@ public class PresentationChangePlanService {
             "current tab(s) " + missing + " would be deleted -- list every current tab exactly " +
             "once, by its own originalIndex");
       }
+
+      for(int i = 0; i < currentCount; i++) {
+         String liveName = currentTabs.get(i).path("name").asText();
+
+         if(seen.contains(i)) {
+            if(removed.contains(i)) {
+               throw new IllegalArgumentException(
+                  label + ".spec.removeTabs: \"" + liveName + "\" is also listed in spec.tabs " +
+                  "-- a tab is either kept or deleted");
+            }
+         }
+         else if(!removed.contains(i)) {
+            boolean editable = currentTabs.get(i).path("editable").asBoolean(false);
+
+            throw new IllegalArgumentException(
+               label + ".spec.tabs: current tab " + i + " (\"" + liveName + "\") is left out, " +
+               "and a tab left out would be deleted -- " +
+               (editable ? "to delete it name it in spec.removeTabs, otherwise list it by its " +
+                  "originalIndex" : "a built-in tab cannot be deleted, list it by its " +
+                  "originalIndex"));
+         }
+      }
+
+      if(newEntries.isEmpty()) {
+         return spec;
+      }
+
+      ObjectNode result = spec.deepCopy();
+      result.set("tabs", completed);
+      return result;
+   }
+
+   /** Bug #81928: {@code spec.removeTabs}, the names of the editable tabs to delete. It is consumed
+    * here and never reaches the typed model. */
+   private static List<String> readRemoveTabs(String label, JsonNode spec) {
+      JsonNode node = spec.get("removeTabs");
+
+      if(node == null) {
+         return List.of();
+      }
+
+      String field = label + ".spec.removeTabs";
+
+      if(!node.isArray()) {
+         throw new IllegalArgumentException(field + ": must be an array of tab names");
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(int i = 0; i < node.size(); i++) {
+         JsonNode entry = node.get(i);
+
+         if(entry == null || !entry.isTextual() || entry.asText().isBlank()) {
+            throw new IllegalArgumentException(field + "[" + i + "]: must be a tab name");
+         }
+
+         if(names.contains(entry.asText())) {
+            throw new IllegalArgumentException(
+               field + "[" + i + "]: \"" + entry.asText() + "\" is listed more than once");
+         }
+
+         names.add(entry.asText());
+      }
+
+      return names;
+   }
+
+   /** Bug #81928: {@code getModel} numbers {@code originalIndex} by position on every read, so after a
+    * write that adds, deletes or reorders tabs the read-back carries the new positions. The
+    * proposed value is the value the read-back is compared with, so it is numbered the same way. */
+   private static JsonNode simulatePortalReadback(JsonNode merged) {
+      JsonNode tabs = merged.get("tabs");
+
+      if(tabs == null || !tabs.isArray()) {
+         return merged;
+      }
+
+      ObjectNode copy = merged.deepCopy();
+      JsonNode copiedTabs = copy.get("tabs");
+
+      for(int i = 0; i < copiedTabs.size(); i++) {
+         if(copiedTabs.get(i).isObject()) {
+            ((ObjectNode) copiedTabs.get(i)).put("originalIndex", i);
+         }
+      }
+
+      return copy;
    }
 
    /** Bug #78867 (folded-in org-scope finding): {@code PortalIntegrationViewSettingsService.setModel}

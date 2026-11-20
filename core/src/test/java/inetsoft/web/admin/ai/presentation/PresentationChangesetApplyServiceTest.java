@@ -128,6 +128,16 @@ class PresentationChangesetApplyServiceTest {
          state.put(stateKey(subModel, global), model);
          return null;
       }).when(access).write(any(), any(), any(), anyBoolean());
+
+      // getModel numbers originalIndex by position on every read, so a stored tab list never reads
+      // back with the indexes the write was addressed by
+      lenient().doAnswer(inv -> {
+         boolean global = inv.getArgument(3);
+         String key = stateKey(PresentationSubModel.PORTAL_INTEGRATION, global);
+         state.put(key, portalAsStored((PortalIntegrationSettingsModel) state.get(key),
+                                       (PortalIntegrationSettingsModel) inv.getArgument(1)));
+         return null;
+      }).when(access).write(eq(PresentationSubModel.PORTAL_INTEGRATION), any(), any(), anyBoolean());
    }
 
    @AfterEach
@@ -396,6 +406,30 @@ class PresentationChangesetApplyServiceTest {
          .visible(true).editable(editable).originalIndex(originalIndex).build();
    }
 
+   /** what PortalIntegrationViewSettingsService.setModel stores and getModel reads back */
+   private static PortalIntegrationSettingsModel portalAsStored(PortalIntegrationSettingsModel live,
+                                                                PortalIntegrationSettingsModel written)
+   {
+      List<PortalTabModel> stored = new ArrayList<>();
+
+      for(PortalTabModel tab : written.tabs()) {
+         PortalTabModel kept;
+
+         if(tab.originalIndex() == null) {
+            kept = PortalTabModel.builder().name(tab.name()).label(tab.name()).uri(tab.uri())
+               .visible(tab.visible()).editable(true).build();
+         }
+         else {
+            PortalTabModel old = live.tabs().get(tab.originalIndex());
+            kept = old.editable() ? PortalTabModel.builder().from(tab).label(tab.name()).build() : old;
+         }
+
+         stored.add(PortalTabModel.builder().from(kept).originalIndex(stored.size()).build());
+      }
+
+      return PortalIntegrationSettingsModel.builder().from(written).tabs(stored).build();
+   }
+
    private static ObjectNode liveTabsSpec(PortalIntegrationSettingsModel model) {
       ObjectNode spec = obj();
       spec.set("tabs", MAPPER.valueToTree(model).get("tabs").deepCopy());
@@ -554,6 +588,57 @@ class PresentationChangesetApplyServiceTest {
       PortalIntegrationSettingsModel after = (PortalIntegrationSettingsModel)
          state.get(stateKey(PresentationSubModel.PORTAL_INTEGRATION, true));
       assertEquals("Renamed", after.tabs().get(4).name());
+   }
+
+   @Test
+   void applyAddsATabAndItVerifies() throws Exception {
+      seed(PresentationSubModel.PORTAL_INTEGRATION, true, portal());
+      ObjectNode spec = liveTabsSpec(portal());
+      ((ArrayNode) spec.get("tabs")).addObject().put("name", "Wiki").put("uri", "https://wiki.example");
+
+      assertAppliedAndVerified(applyRequest("t", "ok", true,
+         change("portalIntegration", "global", spec)));
+      PortalIntegrationSettingsModel after = (PortalIntegrationSettingsModel)
+         state.get(stateKey(PresentationSubModel.PORTAL_INTEGRATION, true));
+      assertEquals(6, after.tabs().size());
+      assertEquals("Wiki", after.tabs().get(5).name());
+      assertEquals(5, after.tabs().get(5).originalIndex());
+   }
+
+   @Test
+   void applyDeletesANonLastEditableTabAndItVerifies() throws Exception {
+      PortalIntegrationSettingsModel live = PortalIntegrationSettingsModel.builder().from(portal())
+         .tabs(List.of(tab("Dashboard", false, 0), tab("Report", false, 1), tab("Schedule", false, 2),
+                       tab("Data", false, 3), tab("Custom", true, 4), tab("Other", true, 5)))
+         .build();
+      seed(PresentationSubModel.PORTAL_INTEGRATION, true, live);
+      ObjectNode spec = liveTabsSpec(live);
+      ((ArrayNode) spec.get("tabs")).remove(4);
+      spec.putArray("removeTabs").add("Custom");
+
+      assertAppliedAndVerified(applyRequest("t", "ok", true,
+         change("portalIntegration", "global", spec)));
+      PortalIntegrationSettingsModel after = (PortalIntegrationSettingsModel)
+         state.get(stateKey(PresentationSubModel.PORTAL_INTEGRATION, true));
+      assertEquals(5, after.tabs().size());
+      assertEquals("Other", after.tabs().get(4).name());
+      assertEquals(4, after.tabs().get(4).originalIndex());
+   }
+
+   @Test
+   void applyVerifiesATabReorder() throws Exception {
+      seed(PresentationSubModel.PORTAL_INTEGRATION, true, portal());
+      ObjectNode spec = obj();
+      ArrayNode tabs = (ArrayNode) liveTabsSpec(portal()).get("tabs");
+      ArrayNode reordered = MAPPER.createArrayNode();
+      reordered.add(tabs.get(1)).add(tabs.get(0)).add(tabs.get(2)).add(tabs.get(3)).add(tabs.get(4));
+      spec.set("tabs", reordered);
+
+      assertAppliedAndVerified(applyRequest("t", "ok", true,
+         change("portalIntegration", "global", spec)));
+      PortalIntegrationSettingsModel after = (PortalIntegrationSettingsModel)
+         state.get(stateKey(PresentationSubModel.PORTAL_INTEGRATION, true));
+      assertEquals("Report", after.tabs().get(0).name());
    }
 
    @Test

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.presentation;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -597,7 +598,7 @@ class PresentationChangePlanServiceTest {
    }
 
    @Test
-   void tabEntryWithoutOriginalIndexIsRefusedPointingToEnterpriseManager() throws Exception {
+   void replacingABuiltInTabByANewEntryLeavesTheBuiltInTabOutAndIsRefused() throws Exception {
       PortalIntegrationSettingsModel live = portal(false);
       stub(PresentationSubModel.PORTAL_INTEGRATION, live);
       ArrayNode tabs = liveTabs(live);
@@ -605,8 +606,8 @@ class PresentationChangePlanServiceTest {
 
       IllegalArgumentException ex = refusedTabs("global", tabs);
 
-      assertTrue(ex.getMessage().contains("tabs[3].originalIndex: required"), ex.getMessage());
-      assertTrue(ex.getMessage().contains("Enterprise Manager"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("current tab 3 (\"Data\") is left out"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("built-in tab cannot be deleted"), ex.getMessage());
    }
 
    @Test
@@ -665,20 +666,221 @@ class PresentationChangePlanServiceTest {
    }
 
    @Test
-   void longerAndShorterTabListsAreRefused() throws Exception {
+   void aTabLeftOutWithoutBeingNamedInRemoveTabsIsRefused() throws Exception {
+      PortalIntegrationSettingsModel live = portal(true);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+
+      ArrayNode editableLeftOut = liveTabs(live);
+      editableLeftOut.remove(4);
+      IllegalArgumentException ex = refusedTabs("global", editableLeftOut);
+      assertTrue(ex.getMessage().contains("current tab 4 (\"Custom\") is left out"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("spec.removeTabs"), ex.getMessage());
+
+      ArrayNode builtInLeftOut = liveTabs(live);
+      builtInLeftOut.remove(3);
+      assertTrue(refusedTabs("global", builtInLeftOut).getMessage()
+                    .contains("a built-in tab cannot be deleted"));
+   }
+
+   // ---------------------------------------------------------------- Bug #81928: add and delete tabs
+
+   private static ObjectNode newTab(String name, String uri) {
+      ObjectNode tab = obj();
+      tab.put("name", name);
+
+      if(uri != null) {
+         tab.put("uri", uri);
+      }
+
+      return tab;
+   }
+
+   private static ObjectNode removalSpec(ArrayNode tabs, String... names) {
+      ObjectNode spec = tabsSpec(tabs);
+      ArrayNode removals = spec.putArray("removeTabs");
+
+      for(String name : names) {
+         removals.add(name);
+      }
+
+      return spec;
+   }
+
+   private IllegalArgumentException refusedSpec(String scope, ObjectNode spec) {
+      PresentationChangePlanRequest req = request("t", change("portalIntegration", scope, spec));
+      return assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
+   }
+
+   /** four built-in tabs plus two editable ones, "First" (index 4) and "Second" (index 5) */
+   private static PortalIntegrationSettingsModel portalWithTwoCustomTabs() {
+      PortalIntegrationSettingsModel base = portal(true);
+      List<PortalTabModel> tabs = new java.util.ArrayList<>(base.tabs());
+      tabs.set(4, PortalTabModel.builder().name("First").label("First").uri("https://first.example")
+                  .visible(true).editable(true).originalIndex(4).build());
+      tabs.add(PortalTabModel.builder().name("Second").label("Second").uri("https://second.example")
+                  .visible(false).editable(true).originalIndex(5).build());
+      return PortalIntegrationSettingsModel.builder().from(base).tabs(tabs).build();
+   }
+
+   @Test
+   void newTabIsAcceptedCompletedAndItsReadBackIsNumberedByPosition() throws Exception {
+      PortalIntegrationSettingsModel live = portal(false);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+      ArrayNode tabs = liveTabs(live);
+      tabs.add(newTab("Wiki", "https://wiki.example"));
+
+      PresentationChangePlanRequest req =
+         request("t", change("portalIntegration", "global", tabsSpec(tabs)));
+      List<PresentationChangePlanService.ResolvedChange> entries = service.resolveEntries(req, PRINCIPAL);
+
+      PortalIntegrationSettingsModel proposed =
+         (PortalIntegrationSettingsModel) entries.get(0).proposedModel();
+      assertEquals(5, proposed.tabs().size());
+      PortalTabModel added = proposed.tabs().get(4);
+      assertEquals("Wiki", added.name());
+      assertEquals("Wiki", added.label());
+      assertEquals("https://wiki.example", added.uri());
+      assertTrue(added.visible());
+      assertTrue(added.editable());
+      assertNull(added.originalIndex());
+
+      JsonNode projected = MAPPER.readTree(entries.get(0).planChange().proposedValue());
+      assertEquals(4, projected.get("tabs").get(4).get("originalIndex").asInt());
+   }
+
+   @Test
+   void newTabNeedsANameAndAUriAndAUniqueName() throws Exception {
       PortalIntegrationSettingsModel live = portal(false);
       stub(PresentationSubModel.PORTAL_INTEGRATION, live);
 
-      ArrayNode longer = liveTabs(live);
-      longer.addObject().put("name", "New").put("label", "New").put("uri", "https://example.com")
-         .put("visible", true).put("editable", true);
-      IllegalArgumentException ex = refusedTabs("global", longer);
-      assertTrue(ex.getMessage().contains("must include every current tab (4)"), ex.getMessage());
-      assertTrue(ex.getMessage().contains("got 5 entries"), ex.getMessage());
+      ArrayNode noUri = liveTabs(live);
+      noUri.add(newTab("Wiki", null));
+      assertTrue(refusedTabs("global", noUri).getMessage().contains("tabs[4].uri: required"));
 
-      ArrayNode shorter = liveTabs(live);
-      shorter.remove(3);
-      assertTrue(refusedTabs("global", shorter).getMessage().contains("got 3 entries"));
+      ArrayNode blankName = liveTabs(live);
+      blankName.add(newTab("  ", "https://wiki.example"));
+      assertTrue(refusedTabs("global", blankName).getMessage().contains("tabs[4].name: required"));
+
+      ArrayNode sameAsLive = liveTabs(live);
+      sameAsLive.add(newTab("Report", "https://wiki.example"));
+      assertTrue(refusedTabs("global", sameAsLive).getMessage()
+                    .contains("tabs[4].name: \"Report\" is already used"));
+
+      ArrayNode twice = liveTabs(live);
+      twice.add(newTab("Wiki", "https://a.example")).add(newTab("Wiki", "https://b.example"));
+      assertTrue(refusedTabs("global", twice).getMessage().contains("is already used"));
+   }
+
+   @Test
+   void editableTabNamedInRemoveTabsIsDeletedAndTheSurvivorsAreRenumbered() throws Exception {
+      PortalIntegrationSettingsModel live = portalWithTwoCustomTabs();
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+      ArrayNode tabs = liveTabs(live);
+      tabs.remove(4);
+
+      PresentationChangePlanRequest req =
+         request("t", change("portalIntegration", "global", removalSpec(tabs, "First")));
+      List<PresentationChangePlanService.ResolvedChange> entries = service.resolveEntries(req, PRINCIPAL);
+
+      PortalIntegrationSettingsModel proposed =
+         (PortalIntegrationSettingsModel) entries.get(0).proposedModel();
+      assertEquals(5, proposed.tabs().size());
+      // setModel resolves the surviving entry by its live index
+      assertEquals(5, proposed.tabs().get(4).originalIndex());
+
+      JsonNode projected = MAPPER.readTree(entries.get(0).planChange().proposedValue());
+      assertEquals("Second", projected.get("tabs").get(4).get("name").asText());
+      assertEquals(4, projected.get("tabs").get(4).get("originalIndex").asInt());
+   }
+
+   @Test
+   void removeTabsRefusesUnknownBuiltInDuplicateAndKeptTabs() throws Exception {
+      PortalIntegrationSettingsModel live = portalWithTwoCustomTabs();
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+      ArrayNode withoutFirst = liveTabs(live);
+      withoutFirst.remove(4);
+
+      assertTrue(refusedSpec("global", removalSpec(withoutFirst, "Nope")).getMessage()
+                    .contains("removeTabs[0]: \"Nope\" is not the name of a current tab"));
+      assertTrue(refusedSpec("global", removalSpec(withoutFirst, "first")).getMessage()
+                    .contains("is not the name of a current tab"));
+      assertTrue(refusedSpec("global", removalSpec(withoutFirst, "First", "First")).getMessage()
+                    .contains("removeTabs[1]: \"First\" is listed more than once"));
+
+      ArrayNode withoutData = liveTabs(live);
+      withoutData.remove(3);
+      assertTrue(refusedSpec("global", removalSpec(withoutData, "Data")).getMessage()
+                    .contains("\"Data\" is a built-in tab, which cannot be deleted"));
+
+      assertTrue(refusedSpec("global", removalSpec(liveTabs(live), "First")).getMessage()
+                    .contains("\"First\" is also listed in spec.tabs"));
+
+      ObjectNode notAnArray = tabsSpec(withoutFirst);
+      notAnArray.put("removeTabs", "First");
+      assertTrue(refusedSpec("global", notAnArray).getMessage()
+                    .contains("removeTabs: must be an array of tab names"));
+
+      ObjectNode blank = tabsSpec(withoutFirst);
+      blank.putArray("removeTabs").add(" ");
+      assertTrue(refusedSpec("global", blank).getMessage().contains("removeTabs[0]: must be a tab name"));
+   }
+
+   @Test
+   void removeTabsWithoutTabsIsRefusedAndAnEmptyListChangesNothing() throws Exception {
+      PortalIntegrationSettingsModel live = portalWithTwoCustomTabs();
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+
+      ObjectNode only = obj();
+      only.putArray("removeTabs").add("First");
+      assertTrue(refusedSpec("global", only).getMessage().contains("removeTabs: needs spec.tabs"));
+
+      ObjectNode empty = tabsSpec(liveTabs(live));
+      empty.putArray("removeTabs");
+      assertEquals(1, service.resolve(request("t", change("portalIntegration", "global", empty)),
+                                      PRINCIPAL).changes().size());
+   }
+
+   @Test
+   void tabDeletionAtOrganizationScopeIsRefused() throws Exception {
+      PortalIntegrationSettingsModel live = portalWithTwoCustomTabs();
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+      ArrayNode tabs = liveTabs(live);
+      tabs.remove(4);
+
+      assertTrue(refusedSpec("organization", removalSpec(tabs, "First")).getMessage()
+                    .contains("portalIntegration.tabs is global-only"));
+   }
+
+   @Test
+   void removeTabsOnAnotherSubModelIsAnUnknownField() throws Exception {
+      stub(PresentationSubModel.FORMATS, currentFor(PresentationSubModel.FORMATS));
+      ObjectNode spec = obj();
+      spec.putArray("removeTabs").add("First");
+      PresentationChangePlanRequest req = request("t", change("formats", "global", spec));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
+      assertTrue(ex.getMessage().contains("spec.removeTabs: not a field of \"formats\""),
+                 ex.getMessage());
+   }
+
+   @Test
+   void tabReorderProjectsTheReadBackPositions() throws Exception {
+      PortalIntegrationSettingsModel live = portal(true);
+      stub(PresentationSubModel.PORTAL_INTEGRATION, live);
+      ArrayNode tabs = liveTabs(live);
+      ArrayNode reordered = MAPPER.createArrayNode();
+      reordered.add(tabs.get(1)).add(tabs.get(0)).add(tabs.get(3)).add(tabs.get(2)).add(tabs.get(4));
+
+      PresentationChangePlanRequest req =
+         request("t", change("portalIntegration", "global", tabsSpec(reordered)));
+      JsonNode projected =
+         MAPPER.readTree(service.resolve(req, PRINCIPAL).changes().get(0).proposedValue());
+
+      assertEquals("Report", projected.get("tabs").get(0).get("name").asText());
+      for(int i = 0; i < 5; i++) {
+         assertEquals(i, projected.get("tabs").get(i).get("originalIndex").asInt());
+      }
    }
 
    @Test
