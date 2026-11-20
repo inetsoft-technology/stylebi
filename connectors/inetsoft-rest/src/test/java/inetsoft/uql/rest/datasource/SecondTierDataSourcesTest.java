@@ -28,6 +28,7 @@ import inetsoft.uql.rest.datasource.servicenow.ServiceNowDataSource;
 import inetsoft.uql.rest.datasource.shopify.ShopifyDataSource;
 import inetsoft.uql.tabular.HttpParameter;
 import inetsoft.util.XMLSerializable;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Element;
@@ -190,4 +191,23 @@ class SecondTierDataSourcesTest {
       assertTrue(copy.isProduction());
    }
 
+   // XML 1.0: the text of an element may not contain a bare & or <
+   @Test
+   @Disabled("Bug #81963: shop, API version and scope are written to XML without escaping; enable when it is fixed")
+   void shopifySettingsWithXmlSpecialCharactersStillSaveAsWellFormedXml() throws Exception {
+      ShopifyDataSource ds = new ShopifyDataSource();
+      ds.setShop("a&b<c");
+      ds.setApiVersion("v&1");
+      ds.setScope("read & write");
+      assertEquals("a&b<c", roundTrip(ds, new ShopifyDataSource()).getShop());
+   }
+
+   // before the first authorization there is no company, and saving must not invent one
+   @Test
+   @Disabled("Bug #81964: a missing company id is saved as the text 'null'; enable when it is fixed")
+   void quickbooksWithoutACompanyStaysWithoutOneAfterSaving() throws Exception {
+      QuickbooksReportsDataSource copy =
+         roundTrip(new QuickbooksReportsDataSource(), new QuickbooksReportsDataSource());
+      assertNull(copy.getCompanyId());
+   }
 }

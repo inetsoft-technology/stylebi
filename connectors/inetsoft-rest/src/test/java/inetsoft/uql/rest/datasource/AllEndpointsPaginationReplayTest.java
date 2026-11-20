@@ -52,8 +52,11 @@ class AllEndpointsPaginationReplayTest {
    /** OFFSET paging that never ends at an empty page: TeamDesk #81879, SEOmonitor #81958. */
    private static final Set<String> NEVER_ENDS = Set.of("TeamDeskQuery", "SEOmonitorQuery");
 
-   /** A request body is needed that the generic fill does not know. */
-   private static final Set<String> NOT_CONFIGURED = Set.of("YouTubeAnalyticsQuery");
+   /**
+    * YouTube Analytics has its own test; the Salesforce ones log in to the real service to build
+    * their URL.
+    */
+   private static final Set<String> NOT_CONFIGURED = Set.of("YouTubeAnalyticsQuery", "SalesforceReportsQuery", "RemedyforceQuery");
 
    private static final Set<String> SKIP = Set.of(
       "setName", "setURL", "setUrl", "setTokenUri", "setAuthorizationUri", "setScope",
@@ -70,7 +73,12 @@ class AllEndpointsPaginationReplayTest {
       try {
          String url = (String) dataSource.getClass().getMethod("getURL").invoke(dataSource);
 
-         if(url != null && url.contains("[")) {
+         if(url == null || url.isEmpty()) {
+            // the user gives the whole URL (Jive)
+            dataSource.getClass().getMethod("setURL", String.class)
+               .invoke(dataSource, "https://acct1.example.com");
+         }
+         else if(url.contains("[")) {
             // the URL holds the account name as a placeholder
             dataSource.getClass().getMethod("setURL", String.class)
                .invoke(dataSource, url.replaceAll("\\[[^\\]]*\\]", "acct1"));

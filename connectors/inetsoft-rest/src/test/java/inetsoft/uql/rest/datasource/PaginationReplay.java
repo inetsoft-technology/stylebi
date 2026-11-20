@@ -119,6 +119,9 @@ public final class PaginationReplay {
       boolean firstHasOffset = false;
       String headerName = null;
       String headerValue = null;
+      ScriptedHttpHandler.Reply[] replies = null;
+      String firstValue = null;
+      String secondUrl = null;
       int expectedRequests = 2;
 
       switch(spec.getType()) {
@@ -200,14 +203,143 @@ public final class PaginationReplay {
          offsetValues = new String[] { offsetFromLastRecord ? "3" : "NEXT-1" };
          break;
       }
+      case PAGE: {
+         if(spec.getPageNumberParamToWrite().getType() != PaginationParamType.QUERY ||
+            spec.getRecordCountPath() == null)
+         {
+            return null;
+         }
+
+         int first = spec.getFirstPageIndex();
+         expectedRows = 5;
+         pages = new String[] { page(spec, recordsKey, rootArray, 3, 1, Map.of()),
+                                page(spec, recordsKey, rootArray, 2, 1000, Map.of()),
+                                page(spec, recordsKey, rootArray, 0, 2000, Map.of()) };
+         offsetName = spec.getPageNumberParamToWrite().getValue();
+         firstValue = String.valueOf(first);
+         offsetValues = new String[] { String.valueOf(first + 1), String.valueOf(first + 2) };
+         firstHasOffset = true;
+         expectedRequests = 3;
+         break;
+      }
+      case PAGE_COUNT: {
+         PaginationParamType totalType = spec.getTotalPagesParam().getType();
+
+         if(spec.getPageNumberParamToWrite().getType() != PaginationParamType.QUERY ||
+            totalType != PaginationParamType.JSON_PATH && totalType != PaginationParamType.HEADER)
+         {
+            return null;
+         }
+
+         expectedRows = 5;
+         boolean inHeader = totalType == PaginationParamType.HEADER;
+         pages = new String[] {
+            page(spec, recordsKey, rootArray, 3, 1, inHeader ? Map.of() : Map.of(
+               spec.getTotalPagesParam().getValue(), 2)),
+            page(spec, recordsKey, rootArray, 2, 1000, inHeader ? Map.of() : Map.of(
+               spec.getTotalPagesParam().getValue(), 2)) };
+
+         if(inHeader) {
+            headerName = spec.getTotalPagesParam().getValue();
+            headerValue = "2";
+         }
+
+         offsetName = spec.getPageNumberParamToWrite().getValue();
+         offsetValues = new String[] { String.valueOf(spec.getFirstPageIndex() + 1) };
+         break;
+      }
+      case TOTAL_COUNT_AND_PAGE: {
+         PaginationParamType totalType = spec.getTotalCountParam().getType();
+
+         if(spec.getPageNumberParamToWrite().getType() != PaginationParamType.QUERY ||
+            totalType != PaginationParamType.JSON_PATH && totalType != PaginationParamType.HEADER ||
+            query.getDataSource() instanceof inetsoft.uql.rest.datasource.mixpanel.MixpanelDataSource)
+         {
+            return null;
+         }
+
+         int max = spec.getMaxResultsPerPage();
+         int second = Math.max(1, max / 2);
+         expectedRows = max + second;
+         boolean inHeader = totalType == PaginationParamType.HEADER;
+         pages = new String[] {
+            page(spec, recordsKey, rootArray, max, 1, inHeader ? Map.of() : Map.of(
+               spec.getTotalCountParam().getValue(), expectedRows)),
+            page(spec, recordsKey, rootArray, second, 1000, inHeader ? Map.of() : Map.of(
+               spec.getTotalCountParam().getValue(), expectedRows)) };
+
+         if(inHeader) {
+            headerName = spec.getTotalCountParam().getValue();
+            headerValue = String.valueOf(expectedRows);
+         }
+
+         offsetName = spec.getPageNumberParamToWrite().getValue();
+         offsetValues = new String[] { String.valueOf(spec.getFirstPageIndex() + 1) };
+         break;
+      }
+      case LINK_ITERATION: {
+         PaginationParamType linkType = spec.getLinkParam().getType();
+         String next = "https://next.example.com/page2?cursor=abc";
+         expectedRows = 6;
+         secondUrl = next;
+
+         if(linkType == PaginationParamType.LINK_HEADER) {
+            String relation = spec.getLinkParam().getLinkRelation();
+            pages = new String[] { page(spec, recordsKey, rootArray, 3, 1, Map.of()),
+                                   page(spec, recordsKey, rootArray, 3, 1000, Map.of()) };
+            replies = new ScriptedHttpHandler.Reply[] {
+               ScriptedHttpHandler.reply(pages[0], spec.getLinkParam().getValue(),
+                                         "<" + next + ">; rel=\"" + relation + "\""),
+               ScriptedHttpHandler.reply(pages[1], spec.getLinkParam().getValue(),
+                                         "<https://prev.example.com/page1>; rel=\"prev\"") };
+         }
+         else if(linkType == PaginationParamType.JSON_PATH) {
+            String path = spec.getLinkParam().getValue();
+            java.util.regex.Matcher filter = java.util.regex.Pattern.compile(
+               "^\\$\\.(\\w+)\\[\\?\\(@\\.(\\w+) == '(\\w+)'\\)\\]\\.(\\w+)$").matcher(path);
+
+            if(filter.matches()) {
+               // an array of link objects, the next one is picked by its rel
+               ObjectNode root = MAPPER.readValue(page(spec, recordsKey, rootArray, 3, 1,
+                                                       Map.of()), ObjectNode.class);
+               root.putArray(filter.group(1)).addObject().put(filter.group(2), filter.group(3))
+                  .put(filter.group(4), next);
+               pages = new String[] { root.toString(),
+                                      page(spec, recordsKey, rootArray, 3, 1000, Map.of()) };
+            }
+            else if(path.contains("[")) {
+               return null;
+            }
+            else {
+               pages = new String[] {
+                  page(spec, recordsKey, rootArray, 3, 1, Map.of(path, next)),
+                  page(spec, recordsKey, rootArray, 3, 1000, Map.of()) };
+            }
+         }
+         else if(linkType == PaginationParamType.HEADER) {
+            pages = new String[] { page(spec, recordsKey, rootArray, 3, 1, Map.of()),
+                                   page(spec, recordsKey, rootArray, 3, 1000, Map.of()) };
+            replies = new ScriptedHttpHandler.Reply[] {
+               ScriptedHttpHandler.reply(pages[0], spec.getLinkParam().getValue(), next),
+               new ScriptedHttpHandler.Reply(pages[1], List.of(), null) };
+         }
+         else {
+            return null;
+         }
+
+         break;
+      }
       default:
          return null;
       }
 
       ScriptedHttpHandler http = new ScriptedHttpHandler();
 
-      if(headerName != null) {
-         ScriptedHttpHandler.Reply[] replies = new ScriptedHttpHandler.Reply[pages.length];
+      if(replies != null) {
+         http.onReplies(url -> true, replies);
+      }
+      else if(headerName != null) {
+         replies = new ScriptedHttpHandler.Reply[pages.length];
 
          for(int i = 0; i < pages.length; i++) {
             replies[i] = ScriptedHttpHandler.reply(pages[i], headerName, headerValue);
@@ -231,11 +363,23 @@ public final class PaginationReplay {
                       ": " + requests);
       }
       else {
-         if(!firstHasOffset && hasParam(requests.get(0), offsetName)) {
+         if(!firstHasOffset && offsetName != null && hasParam(requests.get(0), offsetName)) {
             problems.add("the first request already has " + offsetName + ": " + requests.get(0));
          }
 
-         for(int i = 0; checkOffsetValues && i < offsetValues.length; i++) {
+         if(secondUrl != null && !requests.get(1).equals(secondUrl)) {
+            problems.add("the second request is not the link " + secondUrl + ": " +
+                         requests.get(1));
+         }
+
+         if(firstValue != null && checkOffsetValues && !requests.get(0).matches(
+            ".*[?&]" + java.util.regex.Pattern.quote(offsetName + "=" + firstValue) + "(&.*)?"))
+         {
+            problems.add("the first request lacks " + offsetName + "=" + firstValue + ": " +
+                         requests.get(0));
+         }
+
+         for(int i = 0; offsetValues != null && checkOffsetValues && i < offsetValues.length; i++) {
             if(!requests.get(i + 1).matches(".*[?&]" + java.util.regex.Pattern.quote(offsetName + "=" + offsetValues[i]) + "(&.*)?")) {
                problems.add("request " + (i + 2) + " lacks " + offsetName + "=" + offsetValues[i] +
                             ": " + requests.get(i + 1));
