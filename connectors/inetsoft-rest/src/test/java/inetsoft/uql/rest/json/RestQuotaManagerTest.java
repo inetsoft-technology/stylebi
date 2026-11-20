@@ -155,9 +155,9 @@ class RestQuotaManagerTest {
    }
 
    @Test
-   @Disabled("the quota is cached by the name of the data source only, so a data source that is " +
-             "given other limits under the same name keeps the old ones while it is in use; " +
-             "no Redmine bug yet")
+   @Disabled("Bug #81934: the quota is cached by the name of the data source only, so a data " +
+             "source given other limits under the same name keeps the old ones; enable when it " +
+             "is fixed")
    void aDataSourceWithNewLimitsGetsThem() throws Exception {
       assertEquals(1, peakConcurrency(limited("quota-changed", -1, 1), 4));
 
@@ -166,8 +166,9 @@ class RestQuotaManagerTest {
    }
 
    @Test
-   @Disabled("the quota is cached by the name of the data source only, so a Salesforce account " +
-             "whose type is changed keeps the limits of the old type; no Redmine bug yet")
+   @Disabled("Bug #81934: the quota is cached by the name of the data source only, so a " +
+             "Salesforce account whose type is changed keeps the limits of the old type; enable " +
+             "when it is fixed")
    void aSalesforceAccountThatChangesTypeGetsTheLimitsOfTheNewType() throws Exception {
       // a developer account is allowed one request a second, a sandbox almost six
       SalesforceReportsDataSource developer = new SalesforceReportsDataSource();
