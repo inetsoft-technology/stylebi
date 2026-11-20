@@ -740,13 +740,15 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       }
 
       if(servicePrincipalName != null) {
-         writer.format("<servicePrincipalName>%s</servicePrincipalName>%n", servicePrincipalName);
+         writer.format("<servicePrincipalName><![CDATA[%s]]></servicePrincipalName>%n",
+                       Tool.cdataText(servicePrincipalName));
       }
 
       writer.format("<constrainedDelegation>%s</constrainedDelegation>%n", constrainedDelegation);
 
       if(impersonatePrincipal != null) {
-         writer.format("<impersonatePrincipal>%s</impersonatePrincipal>%n", impersonatePrincipal);
+         writer.format("<impersonatePrincipal><![CDATA[%s]]></impersonatePrincipal>%n",
+                       Tool.cdataText(impersonatePrincipal));
       }
 
       if(impersonationType != null) {
@@ -754,7 +756,8 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       }
 
       if(configurationServiceName != null) {
-         writer.format("<configurationServiceName>%s</configurationServiceName>%n", configurationServiceName);
+         writer.format("<configurationServiceName><![CDATA[%s]]></configurationServiceName>%n",
+                       Tool.cdataText(configurationServiceName));
       }
 
       if(authorizationUri != null) {
