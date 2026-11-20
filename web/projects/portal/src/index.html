@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <!doctype html>
-<html data-th-classappend="${shellDark} ? 'shell-dark'">
+<html data-th-classappend="(${shellDark} ? 'shell-dark ' : '') + (${customTheme} == true ? 'custom-theme' : '')">
 <head>
   <meta charset="utf-8">
   <title data-th-text="#{InetSoft}">InetSoft</title>

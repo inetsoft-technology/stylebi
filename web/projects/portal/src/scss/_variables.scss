@@ -289,6 +289,12 @@ $dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly
 // (the .dropdown-datepicker.viz-dark block at the end of _shell-dark.scss). The combo box list stays
 // light when marked.
 $content-popup: ".vs-combo-box__list, .dropdown-datepicker";
+// The hidden-annotation tooltip and the visible annotation's overflow tooltip. Other tooltips are
+// body-attached shell chrome and go dark, but these show the annotation's own rich text on the
+// annotation's own fill (white by default; Bug #81352), whose text colors were picked against it
+// (a new annotation's text is written inline black). So they compute exactly as in a light shell,
+// with the light tokens, in either shell and for any assembly mark.
+$annotation-tooltip: ".hidden__annotation-tooltip, .vs-annotation__tooltip";
 // Matches an element outside dashboard content without adding specificity, for shell rules that
 // would otherwise also reach the content.
 $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))";
@@ -673,8 +679,60 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   --inet-float-label-bg-color: var(--inet-main-panel-bg-color);
 }
 
+// The shell's own state values (Feature #80673). Only the base tokens are set here: their derived
+// tokens are declared on the same :root by inet-runtime-tokens, so they resolve with the shell
+// value. The runtime tokens keep the content values, which dashboard content re-declares below.
+@mixin inet-shell-state-tokens {
+}
+
 :root {
   @include inet-runtime-tokens;
+}
+
+// Custom themes keep today's colours: a theme is one `:root { ... }` block, and the shell values
+// would otherwise replace the defaults it leaves alone. :where() keeps :root's own specificity, so
+// this wins over the block above by coming later and still loses to :root.shell-dark.
+:root:where(:not(.custom-theme)) {
+  @include inet-shell-state-tokens;
+}
+
+// Dashboard content keeps today's values in the light shell: the shell state tokens and every
+// token derived from them are declared again with the runtime tokens' own expressions, so the
+// derived tokens resolve on the content element from the content values. Only this chain, never
+// the whole runtime set, which would cut a custom theme's tokens off from dashboards (and the rule
+// is gated off on themed pages anyway, since a theme's values must reach dashboards). The dark
+// shell's content rule re-includes the whole light set and outranks this one. The dark-marked
+// calendar is left out: it follows its mark (the .dropdown-datepicker.viz-dark block in
+// _shell-dark.scss), and in a dark shell these light values would replace the shell values it
+// inherits.
+:where(:root:not(.custom-theme)) :where(#{$dashboard-content}, #{$content-popup}, #{$annotation-tooltip}):where(:not(.dropdown-datepicker.viz-dark)) {
+  // focus ring
+  --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
+  --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+
+  // selected
+  --inet-shell-selected-bg-color: #{$shell-selected-bg};
+  --inet-selected-item-bg-color: var(--inet-shell-selected-bg-color);
+  --inet-table-selected-bg-color: var(--inet-shell-selected-bg-color);
+  --inet-list-selected-bg-color: var(--inet-shell-selected-bg-color);
+
+  // muted text
+  --inet-text-muted-color: #{$shell-text-muted};
+  --inet-shell-text-muted: var(--inet-text-muted-color);
+  --inet-table-heading-text-color: var(--inet-text-muted-color);
+  --inet-ui-neutral-color: var(--inet-text-muted-color);
+  --inet-button-default-text-color: var(--inet-ui-neutral-color);
+
+  // hover
+  --inet-shell-surface-hover: #{$shell-surface-hover};
+  --inet-ui-neutral-hover-bg-color: var(--inet-shell-surface-hover);
+  --inet-hover-primary-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-hover-secondary-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-table-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-list-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-secondary-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-default-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-light-hover-bg-color: var(--inet-shell-surface-hover);
 }
 
 // Adaptive label colour: only where relative color syntax is supported (Chrome 119+, Safari 16.4+,
