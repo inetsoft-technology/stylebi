@@ -81,6 +81,8 @@ class ChartCardInsetDensityTest {
    void unmarkedChartKeepsTheLegacyInset() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      // creation writes the legacy inset; a later seed on the unmarked chart leaves it be
+      info.initDefaultFormat();
 
       info.seedChromeDefaults(VizContext.of((VizMark) null));
 
@@ -109,5 +111,29 @@ class ChartCardInsetDensityTest {
       info.resetPadding(VizContext.of(VizMark.MODERN_LIGHT));
 
       assertEquals(new Insets(8, 8, 8, 8), info.getPadding());
+   }
+
+   @Test
+   void openingAnUnmarkedChartKeepsItsStoredInset() {
+      // Bug #81759: a wizard's or an older file's inset carries no userPadding flag, and the
+      // reseed an open or restore runs must not flatten it to the legacy 10px
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setPadding(new Insets(23, 22, 37, 13));
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(new Insets(23, 22, 37, 13), info.getPadding());
+   }
+
+   @Test
+   void revertStillRestoresTheLegacyInset() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setPadding(new Insets(16, 16, 16, 16));
+
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
+
+      assertEquals(new Insets(10, 10, 10, 10), info.getPadding());
    }
 }

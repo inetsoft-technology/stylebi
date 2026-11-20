@@ -797,8 +797,9 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
          }
       }
 
-      // the card inset, kept when the author or a format.css padding set one
-      if(!isUserPadding() && !isCssPaddingDefined()) {
+      // the card inset, kept when the author or a format.css padding set one, and on an unmarked
+      // slider that is merely opened or re-seeded (seedsPadding)
+      if(seedsPadding(ctx)) {
          setPadding(VSDensityDefaults.tablePadding(ctx));
       }
 

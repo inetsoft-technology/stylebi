@@ -1668,6 +1668,22 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * Whether the seed owns the card inset. An author's padding and a format.css class's are never
+    * replaced. An unmarked assembly keeps what it holds unless this is a Modernize or Revert: an
+    * open or restore of a classic dashboard runs the seed too, and a padding that did not come
+    * from the property dialog (a wizard's, a script's, an older file's) carries no userPadding
+    * flag, so writing the legacy default there would flatten it. Creation needs no write, since
+    * the field and each type's setDefaultFormat already hold the legacy value.
+    *
+    * The trade-off: an unmarked assembly cannot tell such a padding from a stale modern one, so a
+    * bookmark taken while it was marked and restored after a Revert keeps the modern inset. Other
+    * seeded chrome (colours, fonts) is still reset by that restore.
+    */
+   protected boolean seedsPadding(VizContext ctx) {
+      return (ctx.modern || ctx.transition) && !isUserPadding() && !isCssPaddingDefined();
+   }
+
+   /**
     * The card inset this type takes when nobody has an opinion. Overridden by the types that have
     * one; every other assembly keeps whatever it was constructed with.
     */

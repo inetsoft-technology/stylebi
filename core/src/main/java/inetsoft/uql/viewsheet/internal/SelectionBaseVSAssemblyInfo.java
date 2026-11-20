@@ -1077,7 +1077,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       // is never grown, since that would overlap its neighbours and Revert keeps no record of the
       // growth, so it takes the sides only: a top and bottom inset would come out of the rows
       // the author sized the box for and clip them
-      if(!isUserPadding() && !isCssPaddingDefined()) {
+      if(seedsPadding(ctx)) {
          setPadding(defaultPadding(ctx));
       }
 

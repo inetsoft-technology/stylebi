@@ -97,6 +97,18 @@ class TableCardInsetSeedTest {
       assertEquals(new Insets(8, 8, 8, 8), dense.getPadding());
    }
 
+   // Bug #81759: an open or a density re-seed of an unmarked table keeps the inset it holds
+   @Test
+   void anUnmarkedTableKeepsItsStoredInsetOnAReseed() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setPadding(new Insets(7, 8, 9, 10));
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(new Insets(7, 8, 9, 10), info.getPadding());
+   }
+
    @Test
    void unmarkedTableHasNoCardInset() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
@@ -113,7 +125,8 @@ class TableCardInsetSeedTest {
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      // Revert's own context: an open or a density re-seed leaves an unmarked inset alone
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(new Insets(0, 0, 0, 0), info.getPadding());
    }

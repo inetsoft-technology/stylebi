@@ -73,6 +73,17 @@ class RangeSliderDensityTest {
       assertEquals(new Insets(0, 0, 0, 0), info.getPadding());
    }
 
+   // Bug #81759: an open or a density re-seed of an unmarked slider keeps the inset it holds
+   @Test
+   void anUnmarkedSliderKeepsItsStoredPaddingOnAReseed() {
+      TimeSliderVSAssemblyInfo info = new TimeSliderVSAssemblyInfo();
+      info.setPadding(new Insets(7, 8, 9, 10));
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(new Insets(7, 8, 9, 10), info.getPadding());
+   }
+
    // a format.css padding is stored on creation; legacy renderers never drew it
    @Test
    void anUnmarkedSliderDrawsNoStoredPadding() {
