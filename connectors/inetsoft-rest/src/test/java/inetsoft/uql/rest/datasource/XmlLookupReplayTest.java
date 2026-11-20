@@ -67,7 +67,7 @@ class XmlLookupReplayTest {
    }
 
    @Test
-   @Disabled("an entity without the lookup key makes the whole XML query fail, while the JSON runner skips the row; no Redmine bug yet")
+   @Disabled("Bug #81925: an entity without the lookup key makes the whole XML query fail, while the endpoint query skips the row; enable when it is fixed")
    void aContainerWithoutANameIsSkippedAndItsNeighboursAreNot() throws Exception {
       // the JSON runner skips a row whose key is missing; the XML one has to as well
       ScriptedHttpHandler http = new ScriptedHttpHandler()
@@ -97,7 +97,7 @@ class XmlLookupReplayTest {
    }
 
    @Test
-   @Disabled("the XML runner looks up every entity of a page, ignoring the row limit; no Redmine bug yet")
+   @Disabled("Bug #81926: the XML runner looks up every entity of a page, ignoring the row limit; enable when it is fixed")
    void theRowLimitStopsTheLookupsToo() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler()
          .on("/c1?restype=container", blobs("b1"))
@@ -116,7 +116,7 @@ class XmlLookupReplayTest {
    }
 
    @Test
-   @Disabled("a lookup result replaces an element of the parent with the same name; no Redmine bug yet")
+   @Disabled("Bug #81927: a lookup result replaces an element of the parent with the same name; enable when it is fixed")
    void aLookupDoesNotOverwriteAnElementOfTheParentThatHasTheSameName() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler()
          .on("/c1?restype=container", blobs("b1"))

@@ -105,8 +105,8 @@ class LookupReplayTest {
    }
 
    @Test
-   @Disabled("a lookup result replaces a field of the parent with the same name (the code has a " +
-             "'todo property name conflicts'); no Redmine bug yet")
+   @Disabled("Bug #81927: a lookup result replaces a field of the parent with the same name; " +
+             "enable when it is fixed")
    void aLookupDoesNotOverwriteAFieldOfTheParentThatHasTheSameName() throws Exception {
       // the workspace already has a field called "Users"
       ScriptedHttpHandler http = new ScriptedHttpHandler()
@@ -150,8 +150,8 @@ class LookupReplayTest {
    }
 
    @Test
-   @Disabled("lookups are not cached per key, so a key that repeats over many rows (a foreign " +
-             "key) is requested once per row; no Redmine bug yet")
+   @Disabled("Bug #81927 (related): lookups are not cached per key, so a key that repeats over " +
+             "many rows is requested once per row; not a wrong result, enable if it is changed")
    void theSameKeyIsLookedUpOnceNotOncePerRow() throws Exception {
       // the same user listed twice: its time entries are asked for twice
       ScriptedHttpHandler http = new ScriptedHttpHandler()
