@@ -27,6 +27,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -42,7 +44,8 @@ import static org.mockito.Mockito.when;
 /**
  * Bug #81633: a failed property assignment must reach the script author when the product has
  * a clear error text. Bug #81922: that text shows the value and the expected type in words a
- * script author reads, never a Java class name or an identity hash.
+ * script author reads, never a Java class name or an identity hash. Bug #81923: a null
+ * position/size or a non-numeric imageAlpha gives such a text instead of a silent NPE.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -194,10 +197,70 @@ public class VSAScriptablePutMemberReportTest {
       assertEquals(new Point(5, 6), scriptable.getPosition());
    }
 
+   // Bug #81923: Text1.position = null (replaces #81633's rawNullPointerStaysInLogOnly, which
+   // pinned the silent NPE of this input as its example of a raw JDK failure)
    @Test
-   void rawNullPointerStaysInLogOnly() {
+   void nullPositionReachesAuthor() {
+      scriptable.putMember("position", new Object[] { 5.0, 6.0 });
       scriptable.putMember("position", null);
 
+      String text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("'position'"), text);
+      assertTrue(text.contains("null"), text);
+      assertEquals(new Point(5, 6), scriptable.getPosition());
+   }
+
+   // Bug #81923: size = null on the base and on the setSize overrides that read the size first
+   @ParameterizedTest
+   @ValueSource(strings = { "Text", "Line", "CalcTable", "SelectionList" })
+   void nullSizeReachesAuthor(String kind) {
+      VSAScriptable target = switch(kind) {
+         case "Line" -> add(new LineVSAssembly(), "Line1", LineVSAScriptable::new);
+         case "CalcTable" -> add(new CalcTableVSAssembly(), "CalcTable1",
+                                 CalcTableVSAScriptable::new);
+         case "SelectionList" -> add(new SelectionListVSAssembly(), "SelectionList1",
+                                     SelectionListVSAScriptable::new);
+         default -> scriptable;
+      };
+      Dimension before = target.getSize();
+      target.putMember("size", null);
+
+      String text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("'size'"), text);
+      assertTrue(text.contains("null"), text);
+      assertEquals(before, target.getSize());
+   }
+
+   // Bug #81923: Image1.imageAlpha = 'abc' / '' / null
+   @Test
+   void nonNumericImageAlphaReachesAuthor() {
+      ImageVSAScriptable image = add(new ImageVSAssembly(), "Image1", ImageVSAScriptable::new);
+      image.putMember("imageAlpha", "50");
       assertNull(Tool.getUserMessage());
+
+      for(String value : new String[] { "abc", "", null }) {
+         image.putMember("imageAlpha", value);
+
+         String text = warning();
+         assertReadable(text);
+         assertTrue(text.contains("'imageAlpha'"), text);
+         assertTrue(text.contains("Numeric value expected"), text);
+         assertTrue(text.contains(value == null ? "null" : "'" + value + "'"), text);
+         assertEquals("50", image.getMember("imageAlpha"));
+      }
+   }
+
+   // Bug #81923: Group1.imageAlpha = 'abc'
+   @Test
+   void nonNumericGroupImageAlphaReachesAuthor() {
+      GroupContainerVSAScriptable group = add(new GroupContainerVSAssembly(), "Group1",
+                                              GroupContainerVSAScriptable::new);
+      group.putMember("imageAlpha", "abc");
+
+      String text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("Numeric value expected: 'abc'"), text);
    }
 }

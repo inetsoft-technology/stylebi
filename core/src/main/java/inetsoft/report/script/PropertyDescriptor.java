@@ -185,6 +185,13 @@ public class PropertyDescriptor {
    }
 
    /**
+    * Check if this property can be set (has a setter method).
+    */
+   public boolean hasSetter() {
+      return setter != null;
+   }
+
+   /**
     * Get the type of this property.
     */
    public Class getType() {
