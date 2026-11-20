@@ -489,7 +489,9 @@ public class PaneContextService {
             "text keeps its leading '=' (update_script adds it when missing), and " +
             "=\"message:...\" is the form that makes the link a message link. Reach a component " +
             "by its name and a parameter as parameter.<name>; a row, column or field value is " +
-            "reached as the dialog's own tree offers it. Parsed but not run when pushed.");
+            "reached as the dialog's own tree offers it. $ is not defined here: $(Name) or " +
+            "String($(Name)) fails with 'ReferenceError: $ is not defined'; use parameter.<name> " +
+            "or a component's own property. Parsed but not run when pushed.");
          case WORKSHEET_VARIABLE_DEFAULT -> new PaneContext.Syntax("javascript",
             "The Expression default value of a worksheet variable is JavaScript. This session " +
             "is served by the worksheet editor tools, not by this viewsheet context.");

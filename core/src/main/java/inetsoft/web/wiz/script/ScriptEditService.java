@@ -337,6 +337,12 @@ public class ScriptEditService {
       DraftText.Prepared prepared =
          DraftText.prepare(text, DraftText.EqualsMode.ENSURE, this::conditionSyntaxProblem);
 
+      if(DynamicValueTargets.callsDollar(prepared.text())) {
+         // The dialog has no SQL toggle, so $ is never defined here; it parses fine and would
+         // only fail when the link is followed.
+         throw DynamicValueTargets.dollarCallRefusal("Hyperlink Expression");
+      }
+
       ScriptReadService.requireAssemblyInfo(requireViewsheet(rvs), target.assemblyName());
       push(rvs, agent, target, prepared.text());
 
@@ -386,11 +392,7 @@ public class ScriptEditService {
       if(dollar && !highlight) {
          // A filter expression is always JavaScript, where $ is not defined, and it parses fine,
          // so it would only fail when the user clicks OK.
-         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
-            "That expression calls $(...). A filter Expression is JavaScript and $ is not " +
-            "defined in it, so it would fail with 'ReferenceError: $ is not defined'. Use " +
-            "parameter.<name> or a component's own property, e.g. RadioButton1.selectedObject. " +
-            "Nothing was pushed.");
+         throw DynamicValueTargets.dollarCallRefusal("filter Expression");
       }
 
       String problem = conditionSyntaxProblem(text);
