@@ -93,6 +93,35 @@ class WizLogicalModelValidatorTest extends WizLogicalModelTestBase {
       assertEquals(List.of("EXPRESSION_INVALID"), codesOf(result));
    }
 
+   /** P4 D-2: these were saved with parseable:true; the live parser path accepts them quietly. */
+   @Test
+   void unparsableExpressionsAreRefusedByTheRealParser() {
+      for(String bad : new String[] { "1 +", "foo(", "SA.PRODUCTS.PRICE +",
+                                      "SA.PRODUCTS.PRICE garbage", "((1 +", "(1", "1)",
+                                      "SA.PRODUCTS.PRICE *", "1 2" })
+      {
+         WizLogicalModelValidator.Result result = validate(one(exp("X", bad, "double")));
+
+         assertEquals(List.of("EXPRESSION_INVALID"), codesOf(result), bad);
+         assertEquals(List.of("entities[E].attributes[X].expression"), fields(result), bad);
+      }
+   }
+
+   @Test
+   void validExpressionsAreStillAccepted() {
+      for(String good : new String[] { "SA.PRODUCTS.PRICE * 2", "upper(SA.PRODUCTS.NAME)",
+                                       "SA.PRODUCTS.PRICE + SA.ORDERS.QTY",
+                                       "case when a.b = 1 then 2 else 3 end",
+                                       "cast(a.b as integer)", "(1 + 2) * 3",
+                                       "coalesce(a.b, 0)", "a.b || 'x'", "-a.b", "count(*)",
+                                       "sum(a.b) / count(a.c)", "'x'", "1" })
+      {
+         WizLogicalModelValidator.Result result = validate(one(exp("X", good, "double")));
+
+         assertTrue(result.valid(), good + ": " + result.errors());
+      }
+   }
+
    @Test
    void textLeftAfterAnExpressionIsRefused() {
       WizLogicalModelValidator.Result result = validate(one(exp("X", "T1.AMOUNT T1.ID", "double")));

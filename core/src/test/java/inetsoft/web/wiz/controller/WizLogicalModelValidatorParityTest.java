@@ -43,9 +43,23 @@ class WizLogicalModelValidatorParityTest extends WizLogicalModelTestBase {
       { "T1", "NOPE", true }, { "T1", "amount", true }, { "T9", "ID", true },
       { "T2", "CODE", true } };
 
-   private static final String[] EXPRESSIONS = {
-      "T1.AMOUNT * 2", "T1.AMOUNT +", "T1.AMOUNT T1.ID", "(T1.AMOUNT", "1", "T1.AMOUNT, 2",
-      "case when T1.ID = 1 then 2 else 3 end", "T1.AMOUNT )" };
+   /**
+    * expression, whether the Portal check refuses it, whether the bridge refuses it. The Portal
+    * check reads the NEXT token of the lexer, but the parser has already buffered its lookahead,
+    * so it only ever sees an exception thrown mid-parse and accepts a trailing operator, an
+    * unclosed function call, an alias-like trailing word and a stray ")" (P4 D-2). The bridge
+    * asks the parser what it has not consumed, so it refuses exactly those. Everything else
+    * agrees. The Portal column pins the Portal's behavior: if it is fixed, this row changes.
+    */
+   private static final Object[][] EXPRESSIONS = {
+      { "T1.AMOUNT * 2", false, false }, { "1", false, false },
+      { "case when T1.ID = 1 then 2 else 3 end", false, false },
+      { "upper(T1.NAME)", false, false }, { "(T1.ID + 1) * 3", false, false },
+      { "T1.AMOUNT T1.ID", true, true }, { "(T1.AMOUNT", true, true },
+      { "((1 +", true, true },
+      { "1 +", false, true }, { "foo(", false, true }, { "T1.AMOUNT +", false, true },
+      { "T1.AMOUNT garbage", false, true }, { "T1.AMOUNT )", false, true },
+      { "T1.AMOUNT *", false, true }, { "1 2", false, true } };
 
    @Test
    void columnVerdictAgreesWithTheServicesOwnErrorMessage() throws Exception {
@@ -75,32 +89,33 @@ class WizLogicalModelValidatorParityTest extends WizLogicalModelTestBase {
    }
 
    @Test
-   void expressionVerdictAgreesWithTheControllerCheck() {
+   void expressionVerdictIsPinnedToThePortalCheckAndTheBridgeIsStricterOnlyWhereListed() {
       LogicalModelController portal = new LogicalModelController(null, null, null, null, null,
                                                                  null);
-      List<String> disagreements = new ArrayList<>();
+      List<String> wrong = new ArrayList<>();
 
-      for(String expression : EXPRESSIONS) {
+      for(Object[] row : EXPRESSIONS) {
+         String expression = (String) row[0];
          StringWrapper wrapper = new StringWrapper();
          wrapper.setBody(expression);
-         boolean portalSaysBad = portal.checkExpressionSQL(wrapper) != null;
-         boolean bridgeSaysBad = WizLogicalModelValidator.expressionProblem(expression) != null;
+         boolean portalBad = portal.checkExpressionSQL(wrapper) != null;
+         boolean bridgeBad = WizLogicalModelValidator.expressionProblem(expression) != null;
 
-         if(portalSaysBad != bridgeSaysBad) {
-            disagreements.add(expression + " (portal bad=" + portalSaysBad + ")");
+         if(portalBad != (Boolean) row[1] || bridgeBad != (Boolean) row[2]) {
+            wrong.add(expression + " (portal bad=" + portalBad + ", bridge bad=" + bridgeBad +
+                         ")");
          }
       }
 
-      assertTrue(disagreements.isEmpty(), "the bridge and the controller disagree on: " +
-         disagreements);
+      assertTrue(wrong.isEmpty(), "unexpected verdicts: " + wrong);
    }
 
    @Test
    void theTableIsNotAllGoodOrAllBad() {
       long bad = java.util.Arrays.stream(COLUMNS).filter(r -> (Boolean) r[2]).count();
       assertTrue(bad > 0 && bad < COLUMNS.length);
-      long badExpressions = java.util.Arrays.stream(EXPRESSIONS)
-         .filter(e -> WizLogicalModelValidator.expressionProblem(e) != null).count();
+      long badExpressions = java.util.Arrays.stream(EXPRESSIONS).filter(r -> (Boolean) r[2])
+         .count();
       assertTrue(badExpressions > 0 && badExpressions < EXPRESSIONS.length,
                  "the expression table has both parseable and unparseable rows");
    }
