@@ -1181,6 +1181,22 @@ describe("CrosstabActions", () => {
          expect(edit.visible()).toBe(true);
       });
 
+      // The route into the binding editor is named for what it opens. A bare "Edit" sits beside
+      // Format and Properties, which also change the object.
+      it("labels the way into the binding editor Binding..., in the menu and the toolbar", () => {
+         const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+         model.enableAdhoc = true;
+         model.visible = true;
+         const actions = new CrosstabActions(model, ViewerContextProviderFactory(false));
+         const all = (groups) => groups.reduce((a, g) => a.concat(g.actions), []);
+         const labels = [...all(actions.menuActions), ...all(actions.toolbarActions)]
+            .filter(a => a.id() === "crosstab edit")
+            .map(a => a.label());
+
+         expect(labels.length).toBeGreaterThan(0);
+         expect(labels.every(l => l === "_#(js:Binding)...")).toBe(true);
+      });
+
       it("appends them as the last group, so existing positional assertions do not shift", () => {
          const actions = new CrosstabActions(TestUtils.createMockVSCrosstabModel("Crosstab1"),
             ViewerContextProviderFactory(false));
