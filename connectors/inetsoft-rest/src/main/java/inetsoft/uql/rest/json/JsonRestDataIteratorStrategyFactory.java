@@ -23,13 +23,27 @@ import inetsoft.uql.rest.datasource.twitter.TwitterQuery;
 import inetsoft.uql.rest.pagination.HttpResponseParameterParser;
 import inetsoft.uql.rest.pagination.PagedIterationIteratorStrategy;
 
+import java.util.function.Supplier;
+
 /**
  * Factory which handles the creation of {@link RestDataIteratorStrategy} for RestJsonQuery.
  */
 public class JsonRestDataIteratorStrategyFactory implements RestDataIteratorStrategyFactory<RestJsonQuery, Object> {
     public JsonRestDataIteratorStrategyFactory(JsonTransformer transformer, HttpResponseParameterParser parser) {
+        this(transformer, parser, HttpHandler::new);
+    }
+
+    /**
+     * Creates a factory that gets the HTTP handler of each strategy from the given supplier,
+     * so that the requests can be answered without a network.
+     */
+    public JsonRestDataIteratorStrategyFactory(JsonTransformer transformer,
+                                               HttpResponseParameterParser parser,
+                                               Supplier<? extends IHttpHandler> httpHandlers)
+    {
         this.transformer = transformer;
         this.parser = parser;
+        this.httpHandlers = httpHandlers;
     }
 
     @Override
@@ -57,7 +71,7 @@ public class JsonRestDataIteratorStrategyFactory implements RestDataIteratorStra
      */
     private RestDataIteratorStrategy<Object> createHttpRestDataIterator(RestJsonQuery query) {
         final RestDataIteratorStrategy<Object> strategy;
-        final IHttpHandler httpHandler = new HttpHandler();
+        final IHttpHandler httpHandler = httpHandlers.get();
         final RestErrorHandler errorHandler = new RestErrorHandler();
 
         switch(query.getPaginationType()) {
@@ -123,4 +137,5 @@ public class JsonRestDataIteratorStrategyFactory implements RestDataIteratorStra
 
     private final JsonTransformer transformer;
     private final HttpResponseParameterParser parser;
+    private final Supplier<? extends IHttpHandler> httpHandlers;
 }
