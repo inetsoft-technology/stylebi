@@ -636,12 +636,12 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }
 
-      if(sortTypeValue != linfo.sortTypeValue) {
+      if(!Tool.equals(sortTypeValue, linfo.sortTypeValue)) {
          sortTypeValue = linfo.sortTypeValue;
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }
 
-      if(edataDownValue != linfo.edataDownValue) {
+      if(!Tool.equals(edataDownValue, linfo.edataDownValue)) {
          edataDownValue = linfo.edataDownValue;
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }
