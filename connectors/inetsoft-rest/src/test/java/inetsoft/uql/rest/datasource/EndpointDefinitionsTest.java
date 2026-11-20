@@ -471,7 +471,7 @@ class EndpointDefinitionsTest {
     * Creates a query and gives it the data source that sits next to it in the same package,
     * since some queries read the data source when an endpoint is selected.
     */
-   private static EndpointJsonQuery<?> newQuery(Class<?> type) throws Exception {
+   static EndpointJsonQuery<?> newQuery(Class<?> type) throws Exception {
       EndpointJsonQuery<?> query = (EndpointJsonQuery<?>) type.getConstructor().newInstance();
       String name = type.getName();
       String dataSourceName = name.substring(0, name.length() - "Query".length()) + "DataSource";
@@ -500,7 +500,7 @@ class EndpointDefinitionsTest {
       return query;
    }
 
-   private static List<Class<?>> queryTypes() {
+   static List<Class<?>> queryTypes() {
       if(queryTypes == null) {
          ClassPathScanningCandidateComponentProvider scanner =
             new ClassPathScanningCandidateComponentProvider(false);
