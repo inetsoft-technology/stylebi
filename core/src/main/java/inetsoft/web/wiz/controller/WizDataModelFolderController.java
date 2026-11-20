@@ -220,9 +220,9 @@ public class WizDataModelFolderController {
             item.setName(ref.name());
 
             try {
-               moved = true;
                browserService.moveDataModels(database, List.of(item), folder == null ? "/" :
                                                 folder, principal);
+               moved = true;
                results[i] = new MoveResult(ref.kind(), ref.name(), true, null, null, from, folder);
             }
             catch(SecurityException e) {

@@ -233,8 +233,8 @@ public class WizDataModelItemController {
             database);
       }
 
-      List<Dependent> dependents =
-         visibleOnly(ctx, wire(ops.dependents(ctx, modelRef)));
+      List<Dependent> allDependents = wire(ops.dependents(ctx, modelRef));
+      List<Dependent> dependents = visibleOnly(ctx, allDependents);
       List<AlsoDeleted> also = new ArrayList<>();
       List<Dangling> dangling = new ArrayList<>();
 
@@ -249,9 +249,36 @@ public class WizDataModelItemController {
          }
       }
 
+      // a view that any model or VPM uses, seen or not, is in use: the hidden users are only
+      // counted in the payload, never named (review r3)
+      String reason = null;
+      String message = null;
+
+      if(KIND_PHYSICAL_VIEW.equals(ref.kind()) && usedByModels(allDependents)) {
+         reason = VIEW_IN_USE;
+         message = viewInUseMessage(ref.name(), dependents);
+      }
+
       return new DepItem(ref.kind(), ref.name(), info.get().folder(), true,
-                         ops.mayDelete(ctx, modelRef), null, null, dependents, describe(dependents),
-                         List.of(), also, dangling);
+                         ops.mayDelete(ctx, modelRef), reason, message, dependents,
+                         describe(dependents), List.of(), also, dangling);
+   }
+
+   private static boolean usedByModels(List<Dependent> dependents) {
+      return dependents.stream().anyMatch(
+         d -> KIND_LOGICAL_MODEL.equals(d.type()) || KIND_VPM.equals(d.type()));
+   }
+
+   private static String viewInUseMessage(String view, List<Dependent> shown) {
+      StringBuilder names = new StringBuilder();
+
+      for(Dependent d : shown) {
+         names.append(names.length() == 0 ? "" : ", ").append(d.name());
+      }
+
+      return "the physical view \"" + view + "\" is used by " +
+         (names.length() == 0 ? "models that the caller may not see" : names) +
+         "; delete or change those first";
    }
 
    private DepItem folderDepItem(WizModelKindOps.Ctx ctx, Ref ref) throws Exception {
@@ -466,17 +493,28 @@ public class WizDataModelItemController {
       }
 
       DeleteResult[] results = new DeleteResult[items.size()];
+      // the logical models and VPMs this call deletes: a view they use is not "in use" by them
+      Set<String> inCall = new HashSet<>();
 
-      for(int i = 0; i < items.size(); i++) {
-         results[i] = precheckDelete(ctx, items.get(i));
+      for(DeleteItem item : items) {
+         if(KIND_LOGICAL_MODEL.equals(item.kind()) || KIND_VPM.equals(item.kind())) {
+            inCall.add(item.kind() + ":" + item.name());
+         }
       }
 
-      // folders first, then the rest, each in request order (as the Portal deletes)
-      for(int pass = 0; pass < 2; pass++) {
+      for(int i = 0; i < items.size(); i++) {
+         results[i] = precheckDelete(ctx, items.get(i), inCall);
+      }
+
+      // folders first, then models and VPMs, then physical views (a view goes after the models
+      // that use it), each in request order
+      for(int pass = 0; pass < 3; pass++) {
          for(int i = 0; i < items.size(); i++) {
             DeleteItem item = items.get(i);
+            int itemPass = KIND_FOLDER.equals(item.kind()) ? 0 :
+               KIND_PHYSICAL_VIEW.equals(item.kind()) ? 2 : 1;
 
-            if(results[i] != null || KIND_FOLDER.equals(item.kind()) != (pass == 0)) {
+            if(results[i] != null || itemPass != pass) {
                continue;
             }
 
@@ -500,7 +538,10 @@ public class WizDataModelItemController {
    }
 
    /** Returns the failure that stops the item before anything is written, or null. */
-   private DeleteResult precheckDelete(WizModelKindOps.Ctx ctx, DeleteItem item) throws Exception {
+   private DeleteResult precheckDelete(WizModelKindOps.Ctx ctx, DeleteItem item,
+                                       Set<String> inCall)
+      throws Exception
+   {
       XDataModel dataModel = ctx.dataModel();
       String database = ctx.database();
       boolean force = Boolean.TRUE.equals(item.force());
@@ -597,30 +638,34 @@ public class WizDataModelItemController {
             item.kind() + " \"" + database + "/" + item.name() + "\"", null);
       }
 
+      // what blocks the delete is decided on EVERY user; what is printed and returned is only
+      // what the caller may see (a hidden user is counted, never named)
+      List<Dependent> all = wire(ops.dependents(ctx, ref));
+      List<Dependent> shown = visibleOnly(ctx, all);
+
+      // a view that a model or VPM outside this call uses is never deleted, whatever force says
+      // (review r3): force only means "the recorded sheets may go"
+      if(KIND_PHYSICAL_VIEW.equals(item.kind()) && all.stream().anyMatch(d ->
+         (KIND_LOGICAL_MODEL.equals(d.type()) || KIND_VPM.equals(d.type())) &&
+            !inCall.contains(d.type() + ":" + d.name())))
+      {
+         return deleteFailed(item, VIEW_IN_USE, viewInUseMessage(item.name(), shown), shown);
+      }
+
       if(!force) {
-         // what blocks the delete is decided on EVERY user; what is printed and returned is only
-         // what the caller may see (a hidden user is counted, never named)
-         List<Dependent> all = wire(ops.dependents(ctx, ref));
-         List<Dependent> dependents = visibleOnly(ctx, all);
+         List<Dependent> remaining = new ArrayList<>();
 
-         if(!all.isEmpty()) {
-            boolean models = KIND_PHYSICAL_VIEW.equals(item.kind()) && all.stream()
-               .anyMatch(d -> KIND_LOGICAL_MODEL.equals(d.type()) || KIND_VPM.equals(d.type()));
-
-            if(models) {
-               StringBuilder names = new StringBuilder();
-
-               for(Dependent d : dependents) {
-                  names.append(names.length() == 0 ? "" : ", ").append(d.name());
-               }
-
-               return deleteFailed(item, VIEW_IN_USE, "the physical view \"" + item.name() +
-                  "\" is used by " + names + "; delete or change those first", dependents);
+         for(Dependent d : all) {
+            if(!inCall.contains(d.type() + ":" + d.name())) {
+               remaining.add(d);
             }
+         }
 
-            return deleteFailed(item, HAS_DEPENDENCIES, describe(dependents) +
+         if(!remaining.isEmpty()) {
+            List<Dependent> visibleRemaining = visibleOnly(ctx, remaining);
+            return deleteFailed(item, HAS_DEPENDENCIES, describe(visibleRemaining) +
                ". Call delete_data_models without confirm and show the user the dependents",
-               dependents);
+               visibleRemaining);
          }
       }
 
@@ -648,7 +693,9 @@ public class WizDataModelItemController {
       WizModelKindOps ops = opsFor(item.kind());
       WizModelKindOps.ModelRef ref =
          new WizModelKindOps.ModelRef(toKind(item.kind()), item.name(), item.parent());
-      WizModelKindOps.OpResult result = ops.delete(ctx, ref, force);
+      // the service refuses a view that is still in use unless forced: never forced here
+      WizModelKindOps.OpResult result = ops.delete(
+         ctx, ref, force && !KIND_PHYSICAL_VIEW.equals(item.kind()));
 
       if(!result.ok()) {
          return deleteFailed(item, result.reason() == null ? UNKNOWN : result.reason(),

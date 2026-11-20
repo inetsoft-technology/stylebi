@@ -525,11 +525,74 @@ class WizDataModelBridgeTest {
       assertEquals(VIEW_IN_USE, refused.reason());
       assertNotNull(registry().getPartition("used"), "nothing was deleted");
 
+      // force never deletes a view that models still use (review r3)
       DeleteResult forced = only(ok(items.delete(new DeleteRequest(ds, List.of(
          new DeleteItem(KIND_PHYSICAL_VIEW, "used", null, true, null))), bob),
                                     DeleteResponse.class).results());
-      assertTrue(forced.ok(), forced.message());
-      assertNull(registry().getPartition("used"));
+      assertFalse(forced.ok());
+      assertEquals(VIEW_IN_USE, forced.reason());
+      assertNotNull(registry().getPartition("used"), "force did not delete a used view");
+   }
+
+   @Test
+   void forceNeverDeletesAViewUsedOnlyByModelsTheCallerCannotSee() throws Exception {
+      addView("V", null);
+      addLogical("SecretModel", "V", null);
+      LogicalModelService denying = mock(LogicalModelService.class);
+      when(denying.checkPermission(anyString(), any(), anyString(), any(), any(), any()))
+         .thenAnswer(i -> !"SecretModel".equals(i.getArgument(2)));
+      WizDataModelItemController controller = new WizDataModelItemController(
+         List.of(new WizPhysicalViewOps(dss, lmsPmms())),
+         mock(DataModelFolderManagerService.class), dss, denying, repository);
+
+      DeleteResult result = only(ok(controller.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "V", null, true, null))), bob),
+                                    DeleteResponse.class).results());
+
+      assertEquals(VIEW_IN_USE, result.reason());
+      assertFalse(result.message().contains("SecretModel"), result.message());
+      assertNotNull(registry().getPartition("V"), "the view was not deleted");
+      assertNotNull(registry().getLogicalModel("SecretModel"));
+
+      // the dependency answer says VIEW_IN_USE too and keeps the nameless placeholder
+      DepItem item = only(ok(controller.dependencies(new DependenciesRequest(ds, List.of(
+         new Ref(KIND_PHYSICAL_VIEW, "V", null))), bob), DependenciesResponse.class).items());
+      assertEquals(VIEW_IN_USE, item.reason());
+      assertFalse(String.valueOf(item.message()).contains("SecretModel"), item.message());
+      assertTrue(item.dependents().stream().anyMatch(d -> d.name().contains("may not see")));
+      assertTrue(item.dependents().stream().noneMatch(d -> "SecretModel".equals(d.name())));
+   }
+
+   @Test
+   void aViewWhoseOnlyUsersAreDeletedInTheSameCallIsDeleted() throws Exception {
+      addView("V", null);
+      addLogical("lm", "V", null);
+
+      // the view is listed FIRST: the users go before it all the same
+      List<DeleteResult> results = ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "V", null, false, null),
+         new DeleteItem(KIND_LOGICAL_MODEL, "lm", null, false, null))), bob),
+                                       DeleteResponse.class).results();
+
+      assertTrue(results.get(0).ok(), results.get(0).message());
+      assertTrue(results.get(1).ok(), results.get(1).message());
+      assertNull(registry().getPartition("V"));
+      assertNull(registry().getLogicalModel("lm"));
+   }
+
+   @Test
+   void aViewIsKeptWhenAUserListedInTheSameCallIsNotDeleted() throws Exception {
+      addView("V", null);
+      addLogical("lm", "V", null);
+      addLogical("other", "V", null);
+
+      List<DeleteResult> results = ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "V", null, true, null),
+         new DeleteItem(KIND_LOGICAL_MODEL, "lm", null, false, null))), bob),
+                                       DeleteResponse.class).results();
+
+      assertEquals(VIEW_IN_USE, results.get(0).reason(), "'other' still uses it");
+      assertNotNull(registry().getPartition("V"));
    }
 
    @Test
@@ -1005,6 +1068,13 @@ class WizDataModelBridgeTest {
       verify(repository, never()).updateDataModel(any());
    }
 
+   private PhysicalModelManagerService lmsPmms() {
+      return new PhysicalModelManagerService(
+         dss, mock(PhysicalModelService.class), mock(RuntimePartitionService.class),
+         new PhysicalGraphService(), repository, null, mock(DependencyHandler.class),
+         transformHandler);
+   }
+
    @Test
    void viewInUseByAnInvisibleModelIsRefusedWithoutNamingIt() throws Exception {
       addView("V", null);
@@ -1026,6 +1096,26 @@ class WizDataModelBridgeTest {
       assertTrue(result.dependents().stream().noneMatch(d -> "SecretModel".equals(d.name())),
                  String.valueOf(result.dependents()));
       assertNotNull(registry().getPartition("V"), "nothing was deleted");
+   }
+
+   @Test
+   void aMoveThatThrowsWritesNothing() throws Exception {
+      addFolder("F");
+      addLogical("lm", "pv", null);
+      reset(repository);
+      when(repository.getDataSource(ds)).thenReturn(mock(JDBCDataSource.class));
+      when(repository.getDataModel(ds)).thenReturn(dm);
+      DatabaseModelBrowserService failing = mock(DatabaseModelBrowserService.class);
+      doThrow(new SecurityException("denied by the service")).when(failing)
+         .moveDataModels(anyString(), any(), any(), any());
+      WizDataModelFolderController controller = new WizDataModelFolderController(
+         failing, mock(DataModelFolderManagerService.class), dss, lms, security, repository);
+
+      MoveResponse response = ok(controller.move(new MoveRequest(ds, "F", List.of(
+         new Ref(KIND_LOGICAL_MODEL, "lm", null))), bob), MoveResponse.class);
+
+      assertEquals(PERMISSION_DENIED, response.results().get(0).reason());
+      verify(repository, never()).updateDataModel(any());
    }
 
    // -- a logical-model SPI stand-in (J2 owns the real one) ---------------------------------
