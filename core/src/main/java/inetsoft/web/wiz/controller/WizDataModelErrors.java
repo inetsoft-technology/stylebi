@@ -35,6 +35,9 @@ final class WizDataModelErrors {
    private WizDataModelErrors() {
    }
 
+   private static final org.slf4j.Logger LOG =
+      org.slf4j.LoggerFactory.getLogger(WizDataModelErrors.class);
+
    /** A route body that may throw. */
    @FunctionalInterface
    interface Body<T> {
@@ -57,6 +60,20 @@ final class WizDataModelErrors {
       }
       catch(MessageException e) {
          return WizDataModelWire.Failure.of(WizDataModelWire.UNKNOWN, e.getMessage());
+      }
+      catch(SecurityException | IllegalArgumentException | UnsupportedOperationException |
+            inetsoft.sree.security.SecurityException e)
+      {
+         // mapped to 403, 400 and 501 by WizControllerErrorHandler
+         throw e;
+      }
+      catch(Exception e) {
+         // any other exception is a server failure whose text can carry a credential (a driver
+         // or storage message with a URL password): never returned as a business message
+         LOG.error("A data model operation failed", e);
+         return WizDataModelWire.Failure.of(
+            WizDataModelWire.UNKNOWN, "the data model operation failed on the server; " +
+            "see the server log");
       }
    }
 

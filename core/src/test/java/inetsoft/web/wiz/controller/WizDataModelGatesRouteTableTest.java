@@ -138,67 +138,89 @@ class WizDataModelGatesRouteTableTest {
       List<Route> routes = new ArrayList<>();
       // fixture: database {db}; folders F, G; view pv in F; view rv at the root; logical model lm
       // in F on pv; VPM vp
+      // Every J1 route resolves the source first: a caller without READ on it gets exactly the
+      // NOT_FOUND of a missing source (review R1-4), so READ is cited with a "body NOT_FOUND".
       routes.add(route("physical/tables", f -> f.browse.physicalTables(
             new PhysicalTablesRequest(f.db, "pv", null), f.bob),
-         "DS:{db}:READ", "throw", "{db}",
-         "DS:{db}:WRITE", "throw", "{db}"));
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/F:WRITE", "body", NOT_FOUND));
       routes.add(route("dependencies", f -> f.items.dependencies(new DependenciesRequest(
             f.db, List.of(new Ref(KIND_PHYSICAL_VIEW, "rv", null))), f.bob),
-         "DS:{db}:READ", "throw", "{db}"));
+         "DS:{db}:READ", "body", NOT_FOUND));
 
       routes.add(route("delete physicalView (root)", f -> f.items.delete(deleteOf(
             f, new DeleteItem(KIND_PHYSICAL_VIEW, "rv", null, false, null)), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
          "DS:{db}:WRITE", "item", NOT_FOUND));
       routes.add(route("delete logicalModel", f -> f.items.delete(deleteOf(
             f, new DeleteItem(KIND_LOGICAL_MODEL, "lm", null, false, null)), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
          "LM:{db}/F/lm:READ", "item", NOT_FOUND,
          "LM:{db}/F/lm:DELETE", "item", PERMISSION_DENIED));
       routes.add(route("delete vpm", f -> f.items.delete(deleteOf(
             f, new DeleteItem(KIND_VPM, "vp", null, false, null)), f.bob),
-         "DS:{db}:WRITE", "item", PERMISSION_DENIED));
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DS:{db}:WRITE", "item", NOT_FOUND));
       routes.add(route("delete folder (empty)", f -> f.items.delete(deleteOf(
             f, new DeleteItem(KIND_FOLDER, "G", null, false, List.of())), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/G:READ", "item", NOT_FOUND,
          "DMF:{db}/G:DELETE", "item", PERMISSION_DENIED));
       routes.add(route("delete folder (with contents)", f -> f.items.delete(deleteOf(
             f, new DeleteItem(KIND_FOLDER, "F", null, true, List.of(
                new Ref(KIND_LOGICAL_MODEL, "lm", null), new Ref(KIND_PHYSICAL_VIEW, "pv", null)))), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/F:READ", "item", NOT_FOUND,
          "DMF:{db}/F:DELETE", "item", PERMISSION_DENIED,
+         "LM:{db}/F/lm:READ", "item", CONTAINED_NOT_DELETABLE,
          "LM:{db}/F/lm:DELETE", "item", CONTAINED_NOT_DELETABLE,
          "DMF:{db}/F:WRITE", "item", CONTAINED_NOT_DELETABLE));
 
       routes.add(route("rename physicalView", f -> f.items.rename(
             new RenameRequest(f.db, KIND_PHYSICAL_VIEW, "rv", "rv2", null), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
          "DS:{db}:WRITE", "body", NOT_FOUND));
       routes.add(route("rename logicalModel", f -> f.items.rename(
             new RenameRequest(f.db, KIND_LOGICAL_MODEL, "lm", "lm2", null), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
          "LM:{db}/F/lm:READ", "body", NOT_FOUND,
          "LM:{db}/F/lm:DELETE", "throw", "{db}/F/lm"));
       routes.add(route("rename vpm", f -> f.items.rename(
             new RenameRequest(f.db, KIND_VPM, "vp", "vp2", null), f.bob),
-         "DS:{db}:WRITE", "throw", "{db}"));
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DS:{db}:WRITE", "body", NOT_FOUND));
 
       routes.add(route("folders/create", f -> f.folders.createFolder(
             new FolderCreateRequest(f.db, "N"), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
          "DMF:{db}/N:WRITE", "throw", "{db}/N"));
       routes.add(route("folders/rename", f -> f.folders.renameFolder(
             new FolderRenameRequest(f.db, "G", "H"), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/G:READ", "body", NOT_FOUND,
          "DMF:{db}/G:WRITE", "throw", "{db}/G",
          "DMF:{db}/G:DELETE", "throw", "{db}/G",
          "DMF:{db}/H:WRITE", "throw", "{db}/H"));
 
       routes.add(route("move logicalModel to a folder", f -> f.folders.move(new MoveRequest(
             f.db, "G", List.of(new Ref(KIND_LOGICAL_MODEL, "lm", null))), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/G:READ", "body", FOLDER_NOT_FOUND,
          "DMF:{db}/G:WRITE", "throw", "{db}/G",
+         "LM:{db}/F/lm:READ", "item", NOT_FOUND,
          "LM:{db}/F/lm:WRITE", "item", PERMISSION_DENIED,
          "LM:{db}/F/lm:DELETE", "item", PERMISSION_DENIED));
       routes.add(route("move physicalView to a folder", f -> f.folders.move(new MoveRequest(
             f.db, "G", List.of(new Ref(KIND_PHYSICAL_VIEW, "pv", null))), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/G:READ", "body", FOLDER_NOT_FOUND,
          "DMF:{db}/G:WRITE", "throw", "{db}/G",
-         "DMF:{db}/F:WRITE", "item", PERMISSION_DENIED));
+         "DMF:{db}/F:WRITE", "item", NOT_FOUND));
       routes.add(route("move physicalView to the root", f -> f.folders.move(new MoveRequest(
             f.db, "/", List.of(new Ref(KIND_PHYSICAL_VIEW, "pv", null))), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
          "DS:{db}:WRITE", "throw", "{db}",
-         "DMF:{db}/F:WRITE", "item", PERMISSION_DENIED));
+         "DMF:{db}/F:WRITE", "item", NOT_FOUND));
 
       routes.add(route("logical/get", f -> f.logical.get(
             new WizLogicalModelWire.GetRequest(f.db, "lm", null), f.bob),
@@ -306,6 +328,49 @@ class WizDataModelGatesRouteTableTest {
             assertEquals(before, f.snapshot(), label + " changed the data source");
          }
       }
+   }
+
+   @Test
+   void aCallerWhoMayNotRenameLearnsNothingAboutWhichNamesAreTaken() throws Exception {
+      // READ on the model only: the answer is the same denial whether the new name is the name
+      // of an existing VPM (which the caller cannot see) or a free one
+      Fixture f = new Fixture(List.of("DS:{db}:READ", "LM:{db}/F/lm:READ"));
+      Outcome clash = f.run(fx -> fx.items.rename(
+         new RenameRequest(fx.db, KIND_LOGICAL_MODEL, "lm", "vp", null), fx.bob));
+      Outcome free = f.run(fx -> fx.items.rename(
+         new RenameRequest(fx.db, KIND_LOGICAL_MODEL, "lm", "freeName", null), fx.bob));
+
+      assertTrue(clash.thrownDenied(), clash.toString());
+      assertEquals(clash, free);
+      assertFalse(clash.message().contains("vpm"));
+   }
+
+   @Test
+   void aRenamerWhoCannotSeeVpmsIsRefusedAClashWithoutTheKind() throws Exception {
+      Fixture f = new Fixture(List.of("DS:{db}:READ", "LM:{db}/F/lm:READ",
+                                      "LM:{db}/F/lm:DELETE"));
+      Outcome clash = f.run(fx -> fx.items.rename(
+         new RenameRequest(fx.db, KIND_LOGICAL_MODEL, "lm", "vp", null), fx.bob));
+
+      assertEquals("body", clash.kind(), clash.toString());
+      assertEquals(DUPLICATE_NAME, clash.reason());
+      assertFalse(clash.message().contains("vpm"), clash.message());
+   }
+
+   @Test
+   void anItemOfAnInvisibleKindIsAnsweredLikeAMissingOne() throws Exception {
+      // rename and delete of the VPM by a caller without WRITE on the source
+      Fixture f = new Fixture(List.of("DS:{db}:READ"));
+      Outcome vpm = f.run(fx -> fx.items.rename(
+         new RenameRequest(fx.db, KIND_VPM, "vp", "x", null), fx.bob));
+      Outcome missing = f.run(fx -> fx.items.rename(
+         new RenameRequest(fx.db, KIND_VPM, "ghost", "x", null), fx.bob));
+      Outcome asModel = f.run(fx -> fx.items.rename(
+         new RenameRequest(fx.db, KIND_LOGICAL_MODEL, "vp", "x", null), fx.bob));
+
+      assertEquals(NOT_FOUND, vpm.reason());
+      assertEquals(missing.message().replace("ghost", "vp"), vpm.message());
+      assertEquals(NOT_FOUND, asModel.reason(), "no WRONG_KIND that names the VPM");
    }
 
    @Test

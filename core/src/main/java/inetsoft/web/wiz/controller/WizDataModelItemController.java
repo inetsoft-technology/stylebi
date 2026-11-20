@@ -73,8 +73,7 @@ public class WizDataModelItemController {
       List<Ref> refs = requireRefs("items", request.items());
 
       return WizDataModelErrors.run(() -> {
-         XDataModel dataModel = source.requireJdbcDataModel(database);
-         gates.requireDataSourcePermission(database, ResourceAction.READ, principal);
+         XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
          WizModelKindOps.Ctx ctx = new WizModelKindOps.Ctx(database, dataModel, principal);
          List<DepItem> items = new ArrayList<>();
 
@@ -131,13 +130,12 @@ public class WizDataModelItemController {
       WizDataModelNames.requireValidModelName(newName);
 
       return WizDataModelErrors.run(() -> WizDataModelLocks.withDatabase(database, () -> {
-         XDataModel dataModel = source.requireJdbcDataModel(database);
-         String existing = kindOfName(dataModel, name);
+         XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
+         // an item the caller may not see is answered like a missing one: no kind, no clash text
+         String existing = gates.visibleKindOfName(dataModel, database, name, principal);
 
          if(existing == null) {
-            throw new WizDataModelErrors.DmFailure(
-               NOT_FOUND, "name", "no " + kind + " named \"" + name + "\" in " + database +
-               " (check the name with browse_data_models)");
+            throw WizDataModelGates.notFound(kind, "name", database, name);
          }
 
          if(!existing.equals(kind)) {
@@ -146,12 +144,6 @@ public class WizDataModelItemController {
                null, existing);
          }
 
-         if(name.equals(newName)) {
-            throw new WizDataModelErrors.DmFailure(
-               INVALID, "newName", "newName is the current name; nothing to rename");
-         }
-
-         WizDataModelNames.requireUniqueInSource(dataModel, newName);
          WizModelKindOps ops = opsFor(kind);
 
          if(ops == null) {
@@ -161,15 +153,24 @@ public class WizDataModelItemController {
          WizModelKindOps.Ctx ctx = new WizModelKindOps.Ctx(database, dataModel, principal);
          WizModelKindOps.ModelRef ref = new WizModelKindOps.ModelRef(toKind(kind), name, null);
          WizModelKindOps.ModelInfo info = ops.find(ctx, ref).orElseThrow(() ->
-            new WizDataModelErrors.DmFailure(
-               NOT_FOUND, "name", "no " + kind + " named \"" + name + "\" in " + database));
+            WizDataModelGates.notFound(kind, "name", database, name));
 
+         // the permission to rename first, then the name checks: a caller who may not rename the
+         // item learns nothing about which names are taken
          if(!ops.mayRename(ctx, ref)) {
             throw new SecurityException(
                "Unauthorized access to resource \"" + database + "/" +
                   (info.folder() == null || info.folder().isEmpty() ? "" : info.folder() + "/") +
                   name + "\" by user " + principal);
          }
+
+         if(name.equals(newName)) {
+            throw new WizDataModelErrors.DmFailure(
+               INVALID, "newName", "newName is the current name; nothing to rename");
+         }
+
+         WizDataModelNames.requireUniqueInSource(
+            dataModel, newName, (k, n) -> gates.maySee(dataModel, database, k, n, principal));
 
          // the services overwrite the description with their argument: pass the stored one
          String description = request.description() != null ? request.description() :
@@ -203,10 +204,16 @@ public class WizDataModelItemController {
          return folderDepItem(ctx, ref);
       }
 
-      String existing = kindOfName(dataModel, ref.name());
+      // an item the caller may not see is answered like a missing one, naming no kind
+      String existing = gates.visibleKindOfName(dataModel, database, ref.name(), ctx.principal());
       WizModelKindOps ops = opsFor(ref.kind());
 
-      if(existing != null && !existing.equals(ref.kind())) {
+      if(existing == null) {
+         return missing(ref, NOT_FOUND, "no " + ref.kind() + " named \"" + ref.name() + "\" in " +
+            database);
+      }
+
+      if(!existing.equals(ref.kind())) {
          return missing(ref, WRONG_KIND, "\"" + ref.name() + "\" is a " + existing + ", not a " +
             ref.kind());
       }
@@ -226,7 +233,8 @@ public class WizDataModelItemController {
             database);
       }
 
-      List<Dependent> dependents = wire(ops.dependents(ctx, modelRef));
+      List<Dependent> dependents =
+         visibleOnly(ctx, wire(ops.dependents(ctx, modelRef)));
       List<AlsoDeleted> also = new ArrayList<>();
       List<Dangling> dangling = new ArrayList<>();
 
@@ -235,7 +243,7 @@ public class WizDataModelItemController {
       }
 
       if(KIND_PHYSICAL_VIEW.equals(ref.kind())) {
-         for(Dependent user : viewUsers(dataModel, database, ref.name())) {
+         for(Dependent user : visibleOnly(ctx, viewUsers(dataModel, database, ref.name()), false)) {
             dangling.add(new Dangling(user.type(), user.name(), "uses physical view " +
                ref.name()));
          }
@@ -251,18 +259,27 @@ public class WizDataModelItemController {
       String database = ctx.database();
       String folder = ref.name();
 
-      if(!hasFolder(dataModel, folder)) {
+      if(!gates.maySee(dataModel, database, KIND_FOLDER, folder, ctx.principal())) {
          return missing(ref, NOT_FOUND, "no folder named \"" + folder + "\" in " + database);
       }
 
-      List<Ref> contains = contents(dataModel, folder);
-
+      // a denied answer carries nothing but the denial
       if(!dataSourceService.checkPermission(database, folder, ResourceAction.DELETE,
                                             ctx.principal()))
       {
          return new DepItem(KIND_FOLDER, folder, null, true, false, PERMISSION_DENIED,
                             "the caller lacks DELETE on data model folder \"" + database + "/" +
-                            folder + "\"", List.of(), "", contains, List.of(), List.of());
+                            folder + "\"", List.of(), "", List.of(), List.of(), List.of());
+      }
+
+      List<Ref> contains = new ArrayList<>();
+
+      for(Ref contained : contents(dataModel, folder)) {
+         if(gates.maySee(dataModel, database, contained.kind(), contained.name(),
+                         ctx.principal()))
+         {
+            contains.add(contained);
+         }
       }
 
       List<Object> outer = new ArrayList<>();
@@ -282,7 +299,7 @@ public class WizDataModelItemController {
          also.addAll(extendedChildren(dataModel, contained));
 
          if(KIND_PHYSICAL_VIEW.equals(contained.kind())) {
-            for(Dependent user : viewUsers(dataModel, database, contained.name())) {
+            for(Dependent user : visibleOnly(ctx, viewUsers(dataModel, database, contained.name()), false)) {
                boolean inside = KIND_LOGICAL_MODEL.equals(user.type()) &&
                   Objects.equals(folder, storedFolder(dataModel, KIND_LOGICAL_MODEL, user.name()));
 
@@ -297,9 +314,10 @@ public class WizDataModelItemController {
          }
       }
 
-      List<Dependent> dependents = toDependents(database, outer);
+      List<Dependent> dependents = visibleOnly(ctx, toDependents(database, outer));
 
-      return new DepItem(KIND_FOLDER, folder, null, true, containedDeletable(ctx, folder, contains),
+      return new DepItem(KIND_FOLDER, folder, null, true,
+                         containedDeletable(ctx, folder, contents(dataModel, folder)),
                          null, null, dependents, describe(dependents), contains, also, dangling);
    }
 
@@ -309,15 +327,27 @@ public class WizDataModelItemController {
       return containedBlockers(ctx, folder, contains).isEmpty();
    }
 
-   /** The names inside the folder the caller may not delete (DELETE on a model, WRITE on a view). */
+   /**
+    * What inside the folder stops the caller from deleting it: the names of visible items the
+    * caller may not delete (DELETE on a model, WRITE on a view), and a count of items the caller
+    * may not see at all (never named: a caller cannot delete what it cannot see).
+    */
    private List<String> containedBlockers(WizModelKindOps.Ctx ctx, String folder,
                                           List<Ref> contains)
       throws Exception
    {
       List<String> blockers = new ArrayList<>();
       String database = ctx.database();
+      int hidden = 0;
 
       for(Ref contained : contains) {
+         if(!gates.maySee(ctx.dataModel(), database, contained.kind(), contained.name(),
+                          ctx.principal()))
+         {
+            hidden++;
+            continue;
+         }
+
          boolean allowed = KIND_LOGICAL_MODEL.equals(contained.kind()) ?
             logicalModelService.checkPermission(database, folder, contained.name(), null,
                                                 ResourceAction.DELETE, ctx.principal()) :
@@ -329,7 +359,51 @@ public class WizDataModelItemController {
          }
       }
 
+      if(hidden > 0) {
+         blockers.add(hidden + " item(s) the caller may not see");
+      }
+
       return blockers;
+   }
+
+   /** Drops the models, views and VPMs from a dependent list that the caller may not see. */
+   private List<Dependent> visibleOnly(WizModelKindOps.Ctx ctx, List<Dependent> dependents) {
+      return visibleOnly(ctx, dependents, true);
+   }
+
+   /**
+    * @param placeholder whether the dropped items leave one nameless entry, so a delete that must
+    *                    be forced because of them still is
+    */
+   private List<Dependent> visibleOnly(WizModelKindOps.Ctx ctx, List<Dependent> dependents,
+                                       boolean placeholder)
+   {
+      List<Dependent> visible = new ArrayList<>();
+      int hidden = 0;
+
+      for(Dependent dependent : dependents) {
+         String kind = switch(dependent.type()) {
+            case KIND_LOGICAL_MODEL -> KIND_LOGICAL_MODEL;
+            case KIND_PHYSICAL_VIEW -> KIND_PHYSICAL_VIEW;
+            case KIND_VPM -> KIND_VPM;
+            default -> null;
+         };
+
+         if(kind == null || gates.maySee(ctx.dataModel(), ctx.database(), kind, dependent.name(),
+                                         ctx.principal()))
+         {
+            visible.add(dependent);
+         }
+         else {
+            hidden++;
+         }
+      }
+
+      if(placeholder && hidden > 0) {
+         visible.add(new Dependent("other", hidden + " item(s) the caller may not see", null, null));
+      }
+
+      return visible;
    }
 
    private List<AlsoDeleted> extendedChildren(XDataModel dataModel, Ref ref) {
@@ -369,7 +443,7 @@ public class WizDataModelItemController {
    private DeleteResponse doDelete(String database, List<DeleteItem> items, Principal principal)
       throws Exception
    {
-      XDataModel dataModel = source.requireJdbcDataModel(database);
+      XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
       WizModelKindOps.Ctx ctx = new WizModelKindOps.Ctx(database, dataModel, principal);
       Set<String> folderNames = new HashSet<>();
 
@@ -413,7 +487,11 @@ public class WizDataModelItemController {
                results[i] = deleteFailed(item, PERMISSION_DENIED, e.getMessage(), null);
             }
             catch(Exception e) {
-               results[i] = deleteFailed(item, UNKNOWN, String.valueOf(e.getMessage()), null);
+               // the exception text of a server failure can carry a credential (a driver or
+               // storage message with a URL password): name the item, log the rest
+               LOG.error("Failed to delete {} \"{}\" in {}", item.kind(), item.name(), database, e);
+               results[i] = deleteFailed(item, UNKNOWN, "deleting " + item.kind() + " \"" +
+                  item.name() + "\" failed on the server; see the server log", null);
             }
          }
       }
@@ -428,7 +506,7 @@ public class WizDataModelItemController {
       boolean force = Boolean.TRUE.equals(item.force());
 
       if(KIND_FOLDER.equals(item.kind())) {
-         if(!hasFolder(dataModel, item.name())) {
+         if(!gates.maySee(dataModel, database, KIND_FOLDER, item.name(), ctx.principal())) {
             return deleteFailed(item, NOT_FOUND,
                                 "no folder named \"" + item.name() + "\" in " + database, null);
          }
@@ -447,7 +525,7 @@ public class WizDataModelItemController {
          if(!blockers.isEmpty()) {
             return deleteFailed(item, CONTAINED_NOT_DELETABLE,
                "the folder \"" + item.name() + "\" contains " + String.join(", ", blockers) +
-               " that the caller may not delete; nothing was deleted", null);
+               " that the caller may not see or delete; nothing was deleted", null);
          }
 
          List<String> expected = new ArrayList<>();
@@ -488,7 +566,7 @@ public class WizDataModelItemController {
          return null;
       }
 
-      String existing = kindOfName(dataModel, item.name());
+      String existing = gates.visibleKindOfName(dataModel, database, item.name(), ctx.principal());
 
       if(existing == null) {
          return deleteFailed(item, NOT_FOUND, "no " + item.kind() + " named \"" + item.name() +
@@ -650,6 +728,8 @@ public class WizDataModelItemController {
       "source's tables directly, or that were saved before dependency records existed, are not " +
       "covered by this check.";
 
+   private static final org.slf4j.Logger LOG =
+      org.slf4j.LoggerFactory.getLogger(WizDataModelItemController.class);
    private final List<WizModelKindOps> kindOps;
    private final DataModelFolderManagerService folderManagerService;
    private final DataSourceService dataSourceService;

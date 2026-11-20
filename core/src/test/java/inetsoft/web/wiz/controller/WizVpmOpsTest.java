@@ -88,14 +88,17 @@ class WizVpmOpsTest {
          items.rename(new WizDataModelWire.RenameRequest(support.ds, "vpm", "A", "pv", null),
                       support.bob));
       assertEquals("DUPLICATE_NAME", taken.reason());
-      assertEquals("physicalView", taken.existingKind());
+      // the caller cannot see physical views here, so the clash does not name the kind (R1-4)
+      assertNull(taken.existingKind());
+      assertFalse(taken.message().contains("physicalView"), taken.message());
       assertNotNull(support.fresh().getVirtualPrivateModel("A"));
 
-      // a caller without WRITE on the source is refused with a denial naming the path
+      // a caller without access to the source is answered like a missing source (R1-4)
       support.writeAllowed = false;
-      SecurityException hidden = assertThrows(SecurityException.class, () -> items.rename(
-         new WizDataModelWire.RenameRequest(support.ds, "vpm", "A", "Z", null), support.bob));
-      assertTrue(hidden.getMessage().contains(support.ds), hidden.getMessage());
+      WizDataModelWire.Failure hidden = assertInstanceOf(WizDataModelWire.Failure.class,
+         items.rename(new WizDataModelWire.RenameRequest(support.ds, "vpm", "A", "Z", null),
+                      support.bob));
+      assertEquals("NOT_FOUND", hidden.reason());
       support.writeAllowed = true;
       assertNull(support.fresh().getVirtualPrivateModel("Z"));
       assertNotNull(support.fresh().getVirtualPrivateModel("A"));
@@ -116,12 +119,13 @@ class WizVpmOpsTest {
    @Test
    void deleteWithoutWriteIsReportedPerItemAndRemovesNothing() throws Exception {
       support.writeAllowed = false;
-      WizDataModelWire.DeleteResponse response = assertInstanceOf(
-         WizDataModelWire.DeleteResponse.class,
+      // no access to the source at all: answered like a missing source, nothing removed (R1-4)
+      WizDataModelWire.Failure response = assertInstanceOf(
+         WizDataModelWire.Failure.class,
          items.delete(new WizDataModelWire.DeleteRequest(support.ds, List.of(
             new WizDataModelWire.DeleteItem("vpm", "A", null, false, null))), support.bob));
 
-      assertFalse(response.results().get(0).ok());
+      assertEquals("NOT_FOUND", response.reason());
       assertNotNull(support.fresh().getVirtualPrivateModel("A"));
    }
 
@@ -137,7 +141,9 @@ class WizVpmOpsTest {
          items.dependencies(new WizDataModelWire.DependenciesRequest(support.ds, List.of(
             new WizDataModelWire.Ref("vpm", "A", null))), support.bob));
       WizDataModelWire.DepItem item = response.items().get(0);
-      assertTrue(item.exists());
+      // a VPM needs WRITE on the source to be seen at all: answered like a missing one (R1-4)
+      assertFalse(item.exists());
+      assertEquals("NOT_FOUND", item.reason());
       assertFalse(item.deletable());
       assertTrue(item.dependents().isEmpty());
    }

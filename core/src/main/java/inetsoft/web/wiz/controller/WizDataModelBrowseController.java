@@ -77,14 +77,15 @@ public class WizDataModelBrowseController {
       String view = requireText("view", request.view());
 
       return WizDataModelErrors.run(() -> {
-         XDataModel dataModel = source.requireJdbcDataModel(database);
-         gates.requireDataSourcePermission(database, ResourceAction.READ, principal);
-         gates.requireEditAccess(database, request.connection(), principal);
+         // the gates run first: a source or view the caller may not see is answered like a
+         // missing one (review R1-4)
+         XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
 
-         if(dataModel.getPartition(view) == null) {
-            throw new WizDataModelErrors.DmFailure(
-               NOT_FOUND, "view", "no physicalView named \"" + view + "\" in " + database);
+         if(!gates.maySee(dataModel, database, KIND_PHYSICAL_VIEW, view, principal)) {
+            throw WizDataModelGates.notFound(KIND_PHYSICAL_VIEW, "view", database, view);
          }
+
+         gates.requireEditAccess(database, request.connection(), principal);
 
          TreeNodeModel root = treeService.getPhysicalModelTree(
             database, view, null, null, request.connection());
@@ -110,12 +111,13 @@ public class WizDataModelBrowseController {
                                    int limit, Principal principal)
       throws Exception
    {
-      XDataModel dataModel = source.requireJdbcDataModel(database);
+      XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
       String folder = folderOrRoot(request.folder());
       String query = request.query() == null || request.query().isBlank() ? null :
          request.query();
 
-      if(folder != null && !hasFolder(dataModel, folder)) {
+      // a folder the caller may not read is answered like a missing one, not as an empty list
+      if(folder != null && !gates.maySee(dataModel, database, KIND_FOLDER, folder, principal)) {
          throw new WizDataModelErrors.DmFailure(
             FOLDER_NOT_FOUND, "folder",
             "no data-model folder \"" + folder + "\"; create it with manage_data_model_folder");

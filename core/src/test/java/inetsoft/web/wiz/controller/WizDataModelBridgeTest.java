@@ -108,6 +108,8 @@ class WizDataModelBridgeTest {
          .thenReturn(true);
       dss = mock(DataSourceService.class);
       allowAll();
+      when(dss.checkDataModelFolderPermission(anyString(), any(ResourceAction.class), any()))
+         .thenReturn(true);
       when(dss.getModelAssetEntry(any())).thenAnswer(i -> i.getArgument(0));
       when(dss.getDataModel(ds)).thenReturn(dm);
       when(dss.isRootDataModelFolder(any())).thenAnswer(i -> {
@@ -284,9 +286,12 @@ class WizDataModelBridgeTest {
       when(dss.checkPermission(eq(ds), eq(ResourceAction.READ), any(Principal.class)))
          .thenReturn(false);
 
-      SecurityException denied = assertThrows(SecurityException.class, () ->
-         browse.physicalTables(new PhysicalTablesRequest(ds, "pv", null), bob));
-      assertTrue(denied.getMessage().contains(ds));
+      // answered exactly like a source that does not exist (review R1-4), tree never touched
+      Failure denied = failure(
+         browse.physicalTables(new PhysicalTablesRequest(ds, "pv", null), bob), NOT_FOUND);
+      Failure missing = failure(
+         browse.physicalTables(new PhysicalTablesRequest("nosuch", "pv", null), bob), NOT_FOUND);
+      assertEquals(missing.message().replace("nosuch", ds), denied.message());
       verifyNoInteractions(tree);
    }
 
@@ -367,8 +372,11 @@ class WizDataModelBridgeTest {
       doThrow(new IllegalStateException("registry write failed"))
          .when(repository).updateDataModel(any());
 
-      assertThrows(IllegalStateException.class, () ->
-         folders.renameFolder(new FolderRenameRequest(ds, "Old", "New"), bob));
+      // a server failure is a failure body whose text is generic: the exception text of a
+      // server failure can carry a credential and is never returned (review R1-1)
+      Failure failed = failure(
+         folders.renameFolder(new FolderRenameRequest(ds, "Old", "New"), bob), UNKNOWN);
+      assertFalse(failed.message().contains("registry write failed"), failed.message());
       failure(folders.renameFolder(new FolderRenameRequest(ds, "Missing", "X"), bob), NOT_FOUND);
    }
 
@@ -422,7 +430,7 @@ class WizDataModelBridgeTest {
       // the caller may not WRITE+DELETE the logical model
       LogicalModelService denying = mock(LogicalModelService.class);
       when(denying.checkPermission(anyString(), any(), eq("lm"), any(), any(), any()))
-         .thenReturn(false);
+         .thenAnswer(i -> i.getArgument(4) == ResourceAction.READ);
       WizDataModelFolderController controller = new WizDataModelFolderController(
          browser, mock(DataModelFolderManagerService.class), dss, denying, security, repository);
 
@@ -493,8 +501,13 @@ class WizDataModelBridgeTest {
       when(dss.checkPermission(eq(ds), eq(ResourceAction.READ), any(Principal.class)))
          .thenReturn(false);
 
-      assertThrows(SecurityException.class, () -> items.dependencies(
-         new DependenciesRequest(ds, List.of(new Ref(KIND_PHYSICAL_VIEW, "pv", null))), bob));
+      Failure denied = failure(items.dependencies(
+         new DependenciesRequest(ds, List.of(new Ref(KIND_PHYSICAL_VIEW, "pv", null))), bob),
+                               NOT_FOUND);
+      Failure missing = failure(items.dependencies(
+         new DependenciesRequest("nosuch", List.of(new Ref(KIND_PHYSICAL_VIEW, "pv", null))), bob),
+                                NOT_FOUND);
+      assertEquals(missing.message().replace("nosuch", ds), denied.message());
    }
 
    // -- delete (DM-A4) --------------------------------------------------------------------
@@ -603,7 +616,8 @@ class WizDataModelBridgeTest {
       addLogical("locked", "pv", "F");
       LogicalModelService denying = mock(LogicalModelService.class);
       when(denying.checkPermission(anyString(), any(), anyString(), any(), any(), any()))
-         .thenAnswer(i -> !"locked".equals(i.getArgument(2)));
+         .thenAnswer(i -> !"locked".equals(i.getArgument(2)) ||
+            i.getArgument(4) == ResourceAction.READ);
       WizDataModelItemController controller = new WizDataModelItemController(
          List.of(), mock(DataModelFolderManagerService.class), dss, denying, repository);
 
@@ -742,9 +756,258 @@ class WizDataModelBridgeTest {
       assertTrue(unavailable.message().contains("not available in this build"));
    }
 
+   // -- review r1 ---------------------------------------------------------------------------
+
+   /** A caller who can read but not write: sees logical models, not VPMs or views. */
+   private void readOnlyCaller() throws Exception {
+      when(dss.checkPermission(anyString(), any(ResourceAction.class), any(Principal.class)))
+         .thenAnswer(i -> i.getArgument(1) == ResourceAction.READ);
+      when(dss.checkPermission(anyString(), any(), any(ResourceAction.class), any()))
+         .thenAnswer(i -> i.getArgument(2) == ResourceAction.READ);
+   }
+
+   @Test
+   void renameByAReadOnlyCallerNamesNeitherTheKindNorTheClash() throws Exception {
+      addLogical("SalesModel", "pv", null);
+      dm.addVirtualPrivateModel(new VirtualPrivateModel("SecretVpm"), true);
+      LogicalModelService readOnly = mock(LogicalModelService.class);
+      when(readOnly.checkPermission(anyString(), any(), anyString(), any(), any(), any()))
+         .thenAnswer(i -> i.getArgument(4) == ResourceAction.READ);
+      WizDataModelItemController controller = new WizDataModelItemController(
+         List.of(new FakeLogicalOps(readOnly) {
+            @Override
+            public boolean mayRename(Ctx ctx, ModelRef ref) {
+               return false;
+            }
+         }), mock(DataModelFolderManagerService.class), dss, readOnly, repository);
+
+      // may not rename the model: the answer does not depend on whether the new name is taken
+      SecurityException taken = assertThrows(SecurityException.class, () -> controller.rename(
+         new RenameRequest(ds, KIND_LOGICAL_MODEL, "SalesModel", "SecretVpm", null), bob));
+      SecurityException free = assertThrows(SecurityException.class, () -> controller.rename(
+         new RenameRequest(ds, KIND_LOGICAL_MODEL, "SalesModel", "NoSuchName", null), bob));
+      assertEquals(taken.getMessage(), free.getMessage());
+   }
+
+   @Test
+   void renameOfAnInvisibleItemAnswersLikeAMissingOneWithNoKind() throws Exception {
+      dm.addVirtualPrivateModel(new VirtualPrivateModel("SecretVpm"), true);
+      when(dss.checkPermission(eq(ds), eq(ResourceAction.WRITE), any(Principal.class)))
+         .thenReturn(false);
+
+      Failure invisible = failure(items.rename(
+         new RenameRequest(ds, KIND_LOGICAL_MODEL, "SecretVpm", "x", null), bob), NOT_FOUND);
+      Failure missing = failure(items.rename(
+         new RenameRequest(ds, KIND_LOGICAL_MODEL, "NoSuch", "x", null), bob), NOT_FOUND);
+
+      assertEquals(missing.message().replace("NoSuch", "SecretVpm"), invisible.message());
+      assertNull(invisible.existingKind());
+      assertFalse(invisible.message().contains("is a vpm"));
+   }
+
+   @Test
+   void aClashWithAnInvisibleKindIsRefusedWithoutNamingIt() throws Exception {
+      addLogical("lm", "pv", null);
+      dm.addVirtualPrivateModel(new VirtualPrivateModel("SecretVpm"), true);
+      when(dss.checkPermission(eq(ds), eq(ResourceAction.WRITE), any(Principal.class)))
+         .thenReturn(false);
+      // the caller may rename lm but cannot see VPMs (no WRITE on the source)
+
+      Failure clash = failure(items.rename(
+         new RenameRequest(ds, KIND_LOGICAL_MODEL, "lm", "SecretVpm", null), bob), DUPLICATE_NAME);
+
+      assertNull(clash.existingKind());
+      assertFalse(clash.message().toLowerCase().contains("vpm named"), clash.message());
+      assertNotNull(registry().getLogicalModel("lm"), "nothing was renamed");
+   }
+
+   @Test
+   void browseOfAFolderTheCallerCannotReadIsFolderNotFoundNotAnEmptyList() throws Exception {
+      addFolder("Secret");
+      when(dss.checkDataModelFolderPermission(eq(ds + "/Secret"), any(ResourceAction.class), any()))
+         .thenReturn(false);
+
+      Failure hidden = failure(browse.browse(new BrowseRequest(ds, "Secret", null, null, null), bob),
+                               FOLDER_NOT_FOUND);
+      Failure missing = failure(browse.browse(new BrowseRequest(ds, "Nope", null, null, null), bob),
+                                FOLDER_NOT_FOUND);
+      assertEquals(missing.message().replace("Nope", "Secret"), hidden.message());
+   }
+
+   @Test
+   void aSourceWithoutReadIsTheSameForBrowseAndForAMissingSource() throws Exception {
+      when(dss.checkPermission(eq(ds), eq(ResourceAction.READ), any(Principal.class)))
+         .thenReturn(false);
+      when(repository.getDataSource("xmla1")).thenReturn(
+         mock(inetsoft.uql.xmla.XMLADataSource.class));
+
+      Failure real = failure(browse.browse(new BrowseRequest(ds, null, null, null, null), bob),
+                             NOT_FOUND);
+      Failure missing = failure(browse.browse(new BrowseRequest("nosuch", null, null, null, null),
+                                              bob), NOT_FOUND);
+      when(dss.checkPermission(eq("xmla1"), eq(ResourceAction.READ), any(Principal.class)))
+         .thenReturn(false);
+      Failure typed = failure(browse.browse(new BrowseRequest("xmla1", null, null, null, null),
+                                            bob), NOT_FOUND);
+
+      assertEquals(missing.message().replace("nosuch", ds), real.message());
+      assertEquals(missing.message().replace("nosuch", "xmla1"), typed.message(),
+                   "the type of a source the caller cannot read is not revealed");
+   }
+
+   @Test
+   void dependenciesOfAFolderTheCallerMayNotDeleteCarryNothingButTheDenial() throws Exception {
+      addFolder("F");
+      addLogical("lm", "pv", "F");
+      addView("fv", "F");
+      when(dss.checkPermission(eq(ds), eq("F"), eq(ResourceAction.DELETE), any(Principal.class)))
+         .thenReturn(false);
+
+      DepItem denied = only(ok(items.dependencies(new DependenciesRequest(ds, List.of(
+         new Ref(KIND_FOLDER, "F", null))), bob), DependenciesResponse.class).items());
+
+      assertEquals(PERMISSION_DENIED, denied.reason());
+      assertTrue(denied.contains().isEmpty(), "no folder contents in a denied answer");
+      assertTrue(denied.dependents().isEmpty());
+      assertTrue(denied.alsoDeleted().isEmpty());
+   }
+
+   @Test
+   void dependenciesListOnlyWhatTheCallerMaySee() throws Exception {
+      addFolder("F");
+      addLogical("seen", "pv", "F");
+      addLogical("hidden", "pv", "F");
+      addView("fv", "F");
+      addLogical("outsideSeen", "fv", null);
+      addLogical("outsideHidden", "fv", null);
+      dm.addVirtualPrivateModel(vpmUsing("fv"), true);
+      LogicalModelService denying = mock(LogicalModelService.class);
+      when(denying.checkPermission(anyString(), any(), anyString(), any(), any(), any()))
+         .thenAnswer(i -> !i.<String>getArgument(2).contains("idden"));
+      // the caller cannot see VPMs
+      when(dss.checkPermission(eq(ds), eq(ResourceAction.WRITE), any(Principal.class)))
+         .thenReturn(false);
+      WizDataModelItemController controller = new WizDataModelItemController(
+         List.of(new WizPhysicalViewOps(dss, mock(PhysicalModelManagerService.class))),
+         mock(DataModelFolderManagerService.class), dss, denying, repository);
+
+      DepItem folder = only(ok(controller.dependencies(new DependenciesRequest(ds, List.of(
+         new Ref(KIND_FOLDER, "F", null))), bob), DependenciesResponse.class).items());
+      DepItem view = only(ok(controller.dependencies(new DependenciesRequest(ds, List.of(
+         new Ref(KIND_PHYSICAL_VIEW, "fv", null))), bob), DependenciesResponse.class).items());
+
+      assertEquals(List.of("seen"), folder.contains().stream().filter(r ->
+         KIND_LOGICAL_MODEL.equals(r.kind())).map(Ref::name).toList(),
+                   "a model the caller cannot read is not listed in the folder");
+      assertFalse(folder.deletable(), "an item the caller cannot see blocks the delete");
+      assertEquals(List.of("outsideSeen", "2 item(s) the caller may not see"),
+                   view.dependents().stream().map(Dependent::name).toList(),
+                   "neither the unreadable model nor the VPM is named, but they still count");
+      assertEquals(List.of("outsideSeen"),
+                   view.danglingAfter().stream().map(Dangling::name).toList());
+   }
+
+   @Test
+   void folderDeleteBlockedByAnInvisibleModelNamesNoModel() throws Exception {
+      addFolder("F");
+      addLogical("seen", "pv", "F");
+      addLogical("hidden", "pv", "F");
+      LogicalModelService denying = mock(LogicalModelService.class);
+      when(denying.checkPermission(anyString(), any(), anyString(), any(), any(), any()))
+         .thenAnswer(i -> !"hidden".equals(i.getArgument(2)));
+      WizDataModelItemController controller = new WizDataModelItemController(
+         List.of(), mock(DataModelFolderManagerService.class), dss, denying, repository);
+
+      DeleteResult result = only(ok(controller.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_FOLDER, "F", null, false, List.of(
+            new Ref(KIND_LOGICAL_MODEL, "seen", null))))), bob), DeleteResponse.class).results());
+
+      assertEquals(CONTAINED_NOT_DELETABLE, result.reason());
+      assertFalse(result.message().contains("hidden"), result.message());
+      assertTrue(result.message().contains("1 item(s) the caller may not see"), result.message());
+      assertNotNull(registry().getLogicalModel("hidden"));
+   }
+
+   private static VirtualPrivateModel vpmUsing(String view) {
+      VirtualPrivateModel vpm = new VirtualPrivateModel("vp");
+      inetsoft.uql.erm.vpm.VpmCondition condition = new inetsoft.uql.erm.vpm.VpmCondition();
+      condition.setName("c");
+      condition.setType(inetsoft.uql.erm.vpm.VpmCondition.PHYSICMODEL);
+      condition.setTable(view);
+      vpm.addCondition(condition);
+      return vpm;
+   }
+
+   @Test
+   void aServerFailureDuringDeleteIsNeverReturnedAsAMessage() throws Exception {
+      addLogical("lm", "pv", null);
+      String secret = "jdbc:mysql://u:Sup3rSecret@h/x";
+      WizModelKindOps boom = new FakeLogicalOps(lms) {
+         @Override
+         public OpResult delete(Ctx ctx, ModelRef ref, boolean force) throws Exception {
+            throw new IllegalStateException("could not connect " + secret);
+         }
+      };
+      WizDataModelItemController controller = new WizDataModelItemController(
+         List.of(boom), mock(DataModelFolderManagerService.class), dss, lms, repository);
+
+      DeleteResult result = only(ok(controller.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_LOGICAL_MODEL, "lm", null, false, null))), bob),
+                                    DeleteResponse.class).results());
+
+      assertFalse(result.ok());
+      assertEquals(UNKNOWN, result.reason());
+      assertFalse(result.message().contains("Sup3rSecret"), result.message());
+      assertFalse(result.message().contains("jdbc:"), result.message());
+      assertTrue(result.message().contains("lm"), "the item is named: " + result.message());
+   }
+
+   @Test
+   void aNonBusinessExceptionInARouteBodyIsAGenericFailureNotItsText() throws Exception {
+      Object body = WizDataModelErrors.run(() -> {
+         throw new IllegalStateException("open failed jdbc:mysql://u:Sup3rSecret@h/x");
+      });
+
+      Failure failure = ok(body, Failure.class);
+      assertEquals(UNKNOWN, failure.reason());
+      assertFalse(failure.message().contains("Sup3rSecret"), failure.message());
+      // business and mapped exceptions are unchanged
+      assertEquals(NOT_FOUND, ok(WizDataModelErrors.run(() -> {
+         throw new java.io.FileNotFoundException("D/x");
+      }), Failure.class).reason());
+      assertThrows(IllegalArgumentException.class, () -> WizDataModelErrors.run(() -> {
+         throw new IllegalArgumentException("bad");
+      }));
+      assertThrows(SecurityException.class, () -> WizDataModelErrors.run(() -> {
+         throw new SecurityException("no");
+      }));
+      assertThrows(UnsupportedOperationException.class, () -> WizDataModelErrors.run(() -> {
+         throw new UnsupportedOperationException("later");
+      }));
+   }
+
+   @Test
+   void moveThatMovesNothingWritesNothing() throws Exception {
+      addFolder("F");
+      addLogical("lm", "pv", "F");
+      reset(repository);
+      when(repository.getDataSource(ds)).thenReturn(mock(JDBCDataSource.class));
+      when(repository.getDataModel(ds)).thenReturn(dm);
+
+      // already in F: nothing to move, nothing to write
+      MoveResponse already = ok(folders.move(new MoveRequest(ds, "F", List.of(
+         new Ref(KIND_LOGICAL_MODEL, "lm", null))), bob), MoveResponse.class);
+      MoveResponse invalid = ok(folders.move(new MoveRequest(ds, "F", List.of(
+         new Ref(KIND_VPM, "x", null))), bob), MoveResponse.class);
+
+      assertTrue(already.results().get(0).ok());
+      assertEquals(INVALID, invalid.results().get(0).reason());
+      verify(repository, never()).updateDataModel(any());
+   }
+
    // -- a logical-model SPI stand-in (J2 owns the real one) ---------------------------------
 
-   private static final class FakeLogicalOps implements WizModelKindOps {
+   private static class FakeLogicalOps implements WizModelKindOps {
       FakeLogicalOps(LogicalModelService service) {
          this.service = service;
       }

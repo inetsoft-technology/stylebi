@@ -64,6 +64,7 @@ public class WizDataModelFolderController {
       this.securityEngine = securityEngine;
       this.repository = repository;
       this.source = new WizDataModelSource(repository);
+      this.gates = new WizDataModelGates(dataSourceService, logicalModelService);
    }
 
    @PostMapping(value = "/folders/create", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -75,20 +76,20 @@ public class WizDataModelFolderController {
       WizDataModelNames.requireValidFolderName(name);
 
       return WizDataModelErrors.run(() -> WizDataModelLocks.withDatabase(database, () -> {
-         source.requireJdbcDataModel(database);
+         gates.requireVisibleJdbcDataModel(source, database, principal);
 
-         if(browserService.dataModelFolderDuplicateCheck(database, name)) {
-            throw new WizDataModelErrors.DmFailure(
-               DUPLICATE_NAME, "name", "a folder named \"" + name + "\" already exists in " +
-               database + "; nothing changed", null, KIND_FOLDER);
-         }
-
-         // the service checks the same grant but words its denial without the separator
+         // the grant first: only a caller who may create the folder learns that it exists
          if(!securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
                                             database + "/" + name, ResourceAction.WRITE))
          {
             throw new SecurityException("Unauthorized access to resource \"" + database + "/" +
                                            name + "\" by user " + principal);
+         }
+
+         if(browserService.dataModelFolderDuplicateCheck(database, name)) {
+            throw new WizDataModelErrors.DmFailure(
+               DUPLICATE_NAME, "name", "a folder named \"" + name + "\" already exists in " +
+               database + "; nothing changed", null, KIND_FOLDER);
          }
 
          folderManagerService.setDataModelFolder(database, name, principal);
@@ -114,12 +115,18 @@ public class WizDataModelFolderController {
       WizDataModelNames.requireValidFolderName(newName);
 
       return WizDataModelErrors.run(() -> WizDataModelLocks.withDatabase(database, () -> {
-         XDataModel before = source.requireJdbcDataModel(database);
+         XDataModel before = gates.requireVisibleJdbcDataModel(source, database, principal);
 
-         if(!hasFolder(before, name)) {
-            throw new WizDataModelErrors.DmFailure(
-               NOT_FOUND, "name", "no folder named \"" + name + "\" in " + database);
+         // a folder the caller may not read is answered like a missing one
+         if(!gates.maySee(before, database, KIND_FOLDER, name, principal)) {
+            throw WizDataModelGates.notFound(KIND_FOLDER, "name", database, name);
          }
+
+         // the grants of the service, asked first so the clash check below is only answered to a
+         // caller who may rename to that name
+         requireFolderGrant(database, name, ResourceAction.WRITE, principal);
+         requireFolderGrant(database, name, ResourceAction.DELETE, principal);
+         requireFolderGrant(database, newName, ResourceAction.WRITE, principal);
 
          // the service merges into an existing folder and drops the old entry (design F10)
          if(!name.equals(newName) && hasFolder(before, newName)) {
@@ -149,7 +156,15 @@ public class WizDataModelFolderController {
             }
          }
 
-         return new FolderRenameResponse(true, newName, contained);
+         List<Ref> visible = new ArrayList<>();
+
+         for(Ref ref : contained) {
+            if(gates.maySee(after, database, ref.kind(), ref.name(), principal)) {
+               visible.add(ref);
+            }
+         }
+
+         return new FolderRenameResponse(true, newName, visible);
       }));
    }
 
@@ -169,9 +184,9 @@ public class WizDataModelFolderController {
       }
 
       return WizDataModelErrors.run(() -> WizDataModelLocks.withDatabase(database, () -> {
-         XDataModel dataModel = source.requireJdbcDataModel(database);
+         XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
 
-         if(folder != null && !hasFolder(dataModel, folder)) {
+         if(folder != null && !gates.maySee(dataModel, database, KIND_FOLDER, folder, principal)) {
             throw new WizDataModelErrors.DmFailure(
                FOLDER_NOT_FOUND, "folder",
                "no data-model folder \"" + folder + "\"; create it with manage_data_model_folder");
@@ -189,6 +204,8 @@ public class WizDataModelFolderController {
             }
          }
 
+         boolean moved = false;
+
          for(int i : movable) {
             Ref ref = request.items().get(i);
             String from = storedFolder(dataModel, ref.kind(), ref.name());
@@ -203,6 +220,7 @@ public class WizDataModelFolderController {
             item.setName(ref.name());
 
             try {
+               moved = true;
                browserService.moveDataModels(database, List.of(item), folder == null ? "/" :
                                                 folder, principal);
                results[i] = new MoveResult(ref.kind(), ref.name(), true, null, null, from, folder);
@@ -214,7 +232,11 @@ public class WizDataModelFolderController {
 
          // the registry write of a moved model persists on its own (probe (b)); the data model
          // is written once more after the batch so the folder list and any cache see the result
-         repository.updateDataModel(dataModel);
+         // nothing moved, nothing written: no write of a snapshot that may be stale
+         if(moved) {
+            repository.updateDataModel(dataModel);
+         }
+
          XDataModel after = repository.getDataModel(database);
 
          for(int i : movable) {
@@ -233,6 +255,18 @@ public class WizDataModelFolderController {
 
          return new MoveResponse(Arrays.asList(results));
       }));
+   }
+
+   private void requireFolderGrant(String database, String folder, ResourceAction action,
+                                   Principal principal)
+      throws Exception
+   {
+      if(!securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
+                                         database + "/" + folder, action))
+      {
+         throw new SecurityException("Unauthorized access to resource \"" + database + "/" +
+                                        folder + "\" by user " + principal);
+      }
    }
 
    private void requireDestinationWrite(String database, String folder, Principal principal)
@@ -267,7 +301,8 @@ public class WizDataModelFolderController {
             (KIND_FOLDER.equals(ref.kind()) ? "a folder" : "a VPM") + " stays where it is");
       }
 
-      String existing = kindOfName(dataModel, ref.name());
+      // an item the caller may not see is answered like a missing one, naming no kind
+      String existing = gates.visibleKindOfName(dataModel, database, ref.name(), principal);
 
       if(existing == null) {
          return failed(ref, NOT_FOUND, "no " + ref.kind() + " named \"" + ref.name() + "\" in " +
@@ -310,4 +345,5 @@ public class WizDataModelFolderController {
    private final SecurityEngine securityEngine;
    private final XRepository repository;
    private final WizDataModelSource source;
+   private final WizDataModelGates gates;
 }
