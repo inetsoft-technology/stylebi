@@ -74,8 +74,24 @@ class TabularProbeCauseTest {
       assertFalse(cause.isTimeout());
       assertEquals(" The connector reported: Error executing Rest query: Connection refused",
                    cause.detail());
-      assertEquals("Check it. The connector reported: Error executing Rest query: Connection " +
-                   "refused", cause.advice("Check it."));
+      assertEquals("The connector reported: Error executing Rest query: Connection refused",
+                   cause.advice("Check it."));
+   }
+
+   @Test
+   void adviceReplacesTheGenericTextWhenAConnectorMessageIsKnown() {
+      CoreTool.addUserMessage("not found (HTTP 404)");
+
+      String advice = TabularProbeCause.read(query(0), null).advice("Check the credentials.");
+
+      assertTrue(advice.startsWith("The connector reported:"), advice);
+      assertFalse(advice.contains("credentials"), advice);
+   }
+
+   @Test
+   void adviceKeepsTheGenericTextWhenNothingIsKnown() {
+      assertEquals("Check the credentials.",
+                   TabularProbeCause.read(query(0), null).advice("Check the credentials."));
    }
 
    @Test

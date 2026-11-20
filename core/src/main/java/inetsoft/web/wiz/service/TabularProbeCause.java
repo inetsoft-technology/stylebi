@@ -100,12 +100,18 @@ public final class TabularProbeCause {
    }
 
    /**
-    * The closing advice of a message: for a timeout, the timeout sentence in place of
-    * {@code generic} (which would send the caller to credentials and parameters); otherwise
-    * {@code generic} followed by the connector's message, if any.
+    * The closing advice of a message: for a timeout, the timeout sentence; otherwise the
+    * connector's own message when one was recorded; {@code generic} only when nothing is known.
+    * A known cause replaces {@code generic} (which sends the caller to credentials and
+    * parameters) rather than being appended after it, so the advice never contradicts the cause.
     */
    public String advice(String generic) {
-      return isTimeout() ? timeoutSentence() : generic + detail();
+      if(isTimeout()) {
+         return timeoutSentence();
+      }
+
+      String detail = detail();
+      return detail.isEmpty() ? generic : detail.trim();
    }
 
    private String timeoutSentence() {

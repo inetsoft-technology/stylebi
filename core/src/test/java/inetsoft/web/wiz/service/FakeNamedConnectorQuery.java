@@ -101,6 +101,10 @@ public class FakeNamedConnectorQuery extends TabularQuery {
          setResponseShape(shapeToReport, shapeTruncated);
       }
 
+      if(userMessageToReport != null) {
+         CoreTool.addUserMessage(userMessageToReport);
+      }
+
       if(exceptionToReport != null) {
          CoreTool.addUserMessage("Error executing Rest query: " + exceptionToReport);
       }
@@ -137,6 +141,13 @@ public class FakeNamedConnectorQuery extends TabularQuery {
       this.exceptionToReport = message;
    }
 
+   /** Like {@link #reportException} but records {@code message} verbatim, as a connector that
+    *  writes its own user message (e.g. the Datagov runtime) does. Public for tests in other
+    *  packages. */
+   public void reportUserMessage(String message) {
+      this.userMessageToReport = message;
+   }
+
    /** Mirrors {@code loadOutputColumns} itself throwing -- the case {@code
     *  TabularTableAssembly.loadColumnSelection}'s own catch (and the {@code wizLoadColumnsError}
     *  property it stashes, added by #5137) exists for, as opposed to an exception the runner's own
@@ -148,6 +159,7 @@ public class FakeNamedConnectorQuery extends TabularQuery {
    private Object shapeToReport;
    private boolean shapeTruncated;
    private String exceptionToReport;
+   private String userMessageToReport;
    private String exceptionToThrow;
 
    /** Mirrors {@code RestJsonQuery.getValidJsonPath()} exactly, so the reflective row-path lookup
