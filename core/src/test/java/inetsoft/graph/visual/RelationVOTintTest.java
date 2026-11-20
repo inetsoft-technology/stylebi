@@ -62,6 +62,8 @@ class RelationVOTintTest {
    private static final Color BLUE = new Color(0x0490FF);
    private static final Color BACKDROP = new Color(0xECEBE9);
    private static final Color INK = new Color(0x35342F);
+   // white under the classic ink rule, black under the contrast rule
+   private static final Color MID_TONE = new Color(0xE5197E);
 
    // the batik SVG support is not on the test classpath; seed a stub and restore the cache after
    private SVGSupport savedSvgSupport;
@@ -204,6 +206,52 @@ class RelationVOTintTest {
       plot(elem);
 
       assertEquals(before, shared.getColor());
+   }
+
+   @Test
+   void aSolidNodeLabelTakesTheContrastInk() {
+      VGraph vgraph = plot(autoInk(element(new StaticColorFrame(MID_TONE), 0, null, null)));
+      List<VOText> labels = labels(vgraph);
+      assertFalse(labels.isEmpty(), "premise: labels");
+
+      for(VOText text : labels) {
+         assertEquals(MID_TONE, text.getAutoBackground());
+         // the white-preferring ink would be white on this fill
+         assertEquals(Color.BLACK, text.getColor());
+      }
+   }
+
+   @Test
+   void aTintedNodeLabelTakesTheInkOverTheContrastInk() {
+      VGraph vgraph = plot(autoInk(element(new StaticColorFrame(MID_TONE), 0.15, BACKDROP, INK)));
+      List<VOText> labels = labels(vgraph);
+      assertFalse(labels.isEmpty(), "premise: labels");
+
+      for(VOText text : labels) {
+         assertNull(text.getAutoBackground());
+         assertEquals(INK, text.getColor());
+      }
+   }
+
+   // labels inside the nodes with the automatic, higher-contrast ink a marked chart sets
+   private static RelationElement autoInk(RelationElement elem) {
+      elem.setTextFrame(new DefaultTextFrame("To"));
+      elem.setLabelPlacement(GraphConstants.CENTER);
+      elem.setAutoTextColor(true);
+      elem.setContrastInk(true);
+      return elem;
+   }
+
+   private static List<VOText> labels(VGraph vgraph) {
+      List<VOText> labels = new ArrayList<>();
+
+      for(int i = 0; i < vgraph.getVisualCount(); i++) {
+         if(vgraph.getVisual(i) instanceof VOText text) {
+            labels.add(text);
+         }
+      }
+
+      return labels;
    }
 
    // the opaque result of a colour at an alpha over a backdrop
