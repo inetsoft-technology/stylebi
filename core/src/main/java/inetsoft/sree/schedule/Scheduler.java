@@ -510,11 +510,40 @@ public class Scheduler {
          activity.getLastRunStart(), activity.getLastRunEnd(), activity.getNextRunStatus(), activity.getNextRunStart(), activity.getTaskName());
    }
 
+   /**
+    * Checks whether a STARTED status has outlived the task timeout, so no node can still be
+    * executing the run (the executing task is cancelled at the timeout). A non-positive
+    * timeout means an unbounded run, so the status never expires.
+    */
+   private static boolean isStartedStatusExpired(ScheduleStatusDao.Status status) {
+      long timeout = ScheduleTask.getTaskTimeout();
+      return timeout > 0 && System.currentTimeMillis() - status.getStartTime() >= timeout;
+   }
+
    public void updateLastRun(TaskActivity activity,
                              ScheduleStatusDao.Status status, Catalog catalog)
    {
       if(status != null) {
          switch(status.getStatus()) {
+         case STARTED:
+            // Bug #81917, the status is re-read after the running jobs were collected, so a run
+            // that started in between is still running; only an expired one was lost
+            if(isStartedStatusExpired(status)) {
+               activity.setLastRunStatus(catalog.getString("Failed"));
+               activity.setMessage("Execution Failed");
+               activity.setError("The task did not finish within the task timeout. " +
+                                 "The node executing it may have stopped.");
+               activity.setLastRunStart(status.getStartTime());
+               activity.setLastRunEnd(status.getStartTime() + ScheduleTask.getTaskTimeout());
+            }
+            else {
+               activity.setLastRunStatus(catalog.getString("Running"));
+               activity.setMessage("Execution Started");
+               activity.setLastRunStart(status.getStartTime());
+               activity.setLastRunEnd(0L);
+            }
+
+            break;
          case FAILED:
             activity.setLastRunStatus(catalog.getString("Failed"));
             activity.setMessage("Execution Failed");
@@ -530,8 +559,10 @@ public class Scheduler {
             activity.setMessage("Task Completed");
          }
 
-         activity.setLastRunStart(status.getStartTime());
-         activity.setLastRunEnd(status.getEndTime());
+         if(status.getStatus() != Status.STARTED) {
+            activity.setLastRunStart(status.getStartTime());
+            activity.setLastRunEnd(status.getEndTime());
+         }
       }
 
       SCHEDULE_TEST_LOG.info(
@@ -568,7 +599,11 @@ public class Scheduler {
             if(!runningJobs.containsKey(jobKey)) {
                ScheduleStatusDao.Status lastStatus = dao.getStatus(taskName);
 
-               if(lastStatus != null && lastStatus.getStatus() == Status.STARTED) {
+               // Bug #81917, a STARTED record older than the task timeout belongs to a run
+               // whose node died; it is reported as failed, not as running
+               if(lastStatus != null && lastStatus.getStatus() == Status.STARTED &&
+                  !isStartedStatusExpired(lastStatus))
+               {
                   runningJobs.put(jobKey, lastStatus.getStartTime());
                }
             }

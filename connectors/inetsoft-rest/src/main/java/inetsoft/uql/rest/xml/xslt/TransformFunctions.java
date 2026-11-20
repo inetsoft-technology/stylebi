@@ -62,7 +62,11 @@ public class TransformFunctions {
     * @param transformer  the transformer to set the hasNext of.
     */
    public static void setHasNext(Node node, Object transformer) {
-      ((XMLIterationStreamTransformer) transformer).setHasNext(node.hasChildNodes());
+      // an element is non-empty if it has children; a text/attribute node (an xpath ending in
+      // /text() or @attr) has no children, so it is non-empty if it has a value
+      final boolean hasNext = node.getNodeType() == Node.ELEMENT_NODE ?
+         node.hasChildNodes() : node.getNodeValue() != null && !node.getNodeValue().isEmpty();
+      ((XMLIterationStreamTransformer) transformer).setHasNext(hasNext);
    }
 
    public static void log(Node node) {
