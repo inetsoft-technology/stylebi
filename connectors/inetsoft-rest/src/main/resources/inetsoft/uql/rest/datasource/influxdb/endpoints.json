@@ -1817,7 +1817,7 @@
     {
       "name": "Sources",
       "paged": false,
-      "suffix": "/api/v2/sources?&org={Organization Name?}",
+      "suffix": "/api/v2/sources?org={Organization Name?}",
       "post": false,
       "lookups": [
         {
@@ -2378,7 +2378,7 @@
     {
       "name": "Installed Templates",
       "paged": false,
-      "suffix": "/api/v2/stacks?&orgID={Organization ID}&name={Name?}&stackID={Stack ID?}",
+      "suffix": "/api/v2/stacks?orgID={Organization ID}&name={Name?}&stackID={Stack ID?}",
       "post": false,
       "responseSchema": {
         "stacks": [

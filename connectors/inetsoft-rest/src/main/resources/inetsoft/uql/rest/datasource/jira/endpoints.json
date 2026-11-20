@@ -81,7 +81,7 @@
     {
       "name": "Audit Records",
       "paged": true,
-      "suffix": "/rest/api/2/auditing/record?&filter={Filter?}&from={From?:yyyy-MM-ddTHH:mm:ssZ}&to={To?:yyyy-MM-ddTHH:mm:ssZ}",
+      "suffix": "/rest/api/2/auditing/record?filter={Filter?}&from={From?:yyyy-MM-ddTHH:mm:ssZ}&to={To?:yyyy-MM-ddTHH:mm:ssZ}",
       "description": "The administrative audit log: configuration changes, permission changes, user creation and deletion -- with the actor, the affected objects, a summary and a timestamp. Filter by date with from and to, or by free text. Distinct from Change Logs, which records changes to issues; this records changes to Jira itself. Retention depends on the licence tier, so older entries may simply not exist.",
       "responseSchema": {
         "limit": "double",
@@ -8807,7 +8807,7 @@
     {
       "name": "Screen Tab Fields",
       "paged": true,
-      "suffix": "/rest/api/2/screens/{Screen ID}/tabs/{Tab ID}/fields?&projectKey={Project Key?}",
+      "suffix": "/rest/api/2/screens/{Screen ID}/tabs/{Tab ID}/fields?projectKey={Project Key?}",
       "description": "The fields on one tab of one screen, in order. Requires the screen and tab ids. This is what a user actually sees when filling in an issue.",
       "responseSchema": [
         {

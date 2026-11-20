@@ -2626,7 +2626,7 @@
     {
       "name": "Search for Content",
       "paged": true,
-      "suffix": "/2.0/search?query={Query}&ancestor_folder_ids={Ancestor Folder IDs?}&content_types={Content Types?name|description|file_content|comments|tag}&created_at_range={Created At Range?}&fields={Fields?}&file_extensions={File Extensions?}",
+      "suffix": "/2.0/search?query={Query}&ancestor_folder_ids={Ancestor Folder IDs?}&content_types={Content Types?:name|description|file_content|comments|tag}&created_at_range={Created At Range?}&fields={Fields?}&file_extensions={File Extensions?}",
       "description": "Searches the account's content by keyword, with filters for file extension, size range, date range, owner, ancestor folder and content type. The alternative to walking the folder tree, and usually the faster route to a set of files. Note that search indexes content and metadata, is eventually consistent so very recent uploads may be missing, and returns trashed items only when explicitly asked for.",
       "responseSchema": {
         "total_count": "double",
@@ -3235,7 +3235,7 @@
     {
       "name": "Trashed Items",
       "paged": true,
-      "suffix": "/2.0/folders/trash/items?fields={Fields?}&marker={Marker?}&usemarker={Use Marker?false|true}",
+      "suffix": "/2.0/folders/trash/items?fields={Fields?}&marker={Marker?}&usemarker={Use Marker?:false|true}",
       "description": "Everything currently in the account's trash -- files, folders and web links -- with when each was moved there. Deleted content is EXCLUDED from Folder Items and from search, so a count taken there does not include it; this is where it went. Items leave trash permanently after the retention period, so this is a window, not a history.",
       "responseSchema": {
         "limit": "double",
