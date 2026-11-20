@@ -827,7 +827,65 @@ public final class ScriptHostAccess {
                   .targetTypeMapping(Double.class, Long.class,
                                      ScriptHostAccess::isFractional,
                                      Double::longValue,
-                                     HostAccess.TargetMappingPrecedence.LOWEST);
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  // Rhino parity: a script string bound to a numeric parameter was
+                  // coerced via ScriptRuntime.toNumber (Math.pow('2','3') == 8), an
+                  // array or plain object bound to a String parameter via
+                  // ScriptRuntime.toString, and an array bound to a Collection
+                  // parameter converted to a list. GraalJS refuses all of these on
+                  // the raw host path (host object, Java.type static, constructor),
+                  // which ScriptFunction.coerce does not cover. Shares
+                  // ScriptFunction.toNumber/toStringValue. (Bug #81889)
+                  //
+                  // All at LOWEST except Collection, so an exact or wider overload
+                  // (o(String) / o(int) / o(Object)) still wins. A string converts
+                  // to double for any string (non-numeric -> NaN, as Rhino), but to
+                  // int/long only when it is a finite integral value in range, so a
+                  // fractional or non-numeric string still prefers a double overload
+                  // and otherwise stays refused rather than truncating or clamping.
+                  // Float and Short are omitted: Float would be ambiguous with
+                  // double on the same tier.
+                  //
+                  // Accepted consequence, same as the Number -> Boolean mapping
+                  // above: a numeric-looking string argument to a type declaring
+                  // both a boolean and an int/long overload of the same arity now
+                  // reports "Multiple applicable overloads" instead of binding the
+                  // boolean one, because both land on this final tier.
+                  .targetTypeMapping(String.class, Double.class,
+                                     str -> str != null,
+                                     str -> ScriptFunction.toNumber(str).doubleValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Integer.class,
+                                     str -> str != null
+                                        && integralString(str, Integer.MIN_VALUE,
+                                                          Integer.MAX_VALUE),
+                                     str -> ScriptFunction.toNumber(str).intValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Long.class,
+                                     str -> str != null
+                                        && integralString(str, -0x1p53, 0x1p53),
+                                     str -> ScriptFunction.toNumber(str).longValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(Value.class, String.class,
+                                     v -> v != null && v.hasArrayElements() && !v.isHostObject(),
+                                     ScriptHostAccess::joinArray,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  // only a plain JS object: a Date, RegExp, Map, host object,
+                  // function or proxy has its own string form and stays refused
+                  .targetTypeMapping(Value.class, String.class,
+                                     v -> v != null && !v.isNull() && v.hasMembers()
+                                        && !v.hasArrayElements() && !v.isHostObject()
+                                        && !v.isProxyObject() && !v.canExecute()
+                                        && !v.isDate() && !v.isException()
+                                        && v.getMetaObject() != null
+                                        && "Object".equals(
+                                           v.getMetaObject().getMetaSimpleName()),
+                                     v -> "[object Object]",
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(Value.class, Collection.class,
+                                     v -> v != null && v.hasArrayElements(),
+                                     v -> v.as(List.class),
+                                     HostAccess.TargetMappingPrecedence.LOW);
 
                // Bug #77521: classFilter() is consulted only when a script looks a
                // class up by name. A Class value an allowed API returns (or an
@@ -1395,6 +1453,51 @@ public final class ScriptHostAccess {
     */
    private static boolean fitsInInt(double d) {
       return d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE;
+   }
+
+   /**
+    * Whether a string is a finite whole number inside [min, max] under Rhino
+    * ToNumber (blank is 0), so narrowing to int/long loses nothing. (#81889)
+    */
+   private static boolean integralString(String str, double min, double max) {
+      double d = ScriptFunction.toNumber(str).doubleValue();
+      return !Double.isNaN(d) && !Double.isInfinite(d) && d == Math.rint(d)
+         && d >= min && d <= max;
+   }
+
+   /**
+    * Rhino Array.prototype.toString: elements joined with commas, null/undefined
+    * empty, nested arrays flattened the same way. (#81889)
+    */
+   private static String joinArray(Value arr) {
+      StringBuilder sb = new StringBuilder();
+
+      for(long i = 0; i < arr.getArraySize(); i++) {
+         if(i > 0) {
+            sb.append(',');
+         }
+
+         Value e = arr.getArrayElement(i);
+
+         if(e.isNull()) {
+            continue;
+         }
+
+         if(e.hasArrayElements()) {
+            sb.append(joinArray(e));
+         }
+         else if(e.isString()) {
+            sb.append(e.asString());
+         }
+         else if(e.isNumber()) {
+            sb.append(ScriptFunction.toStringValue(e.as(Number.class)));
+         }
+         else {
+            sb.append(e.toString());
+         }
+      }
+
+      return sb.toString();
    }
 
    /**
