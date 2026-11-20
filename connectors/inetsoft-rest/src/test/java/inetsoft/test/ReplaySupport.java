@@ -67,7 +67,9 @@ public final class ReplaySupport {
     * when there is no data at all.
     */
    public static XTableNode runTable(EndpointJsonQuery<?> query, ScriptedHttpHandler http) {
-      return new ScriptedHttpHandler.Runtime(http).runQuery(query, new VariableTable());
+      XTableNode table = new ScriptedHttpHandler.Runtime(http).runQuery(query, new VariableTable());
+      http.assertNoFailures();
+      return table;
    }
 
    /** Runs the query with the requests going to the handler, and returns the rows. */

@@ -46,7 +46,7 @@ public class ScriptedHttpHandler implements IHttpHandler {
       Reply[] replies = new Reply[bodies.length];
 
       for(int i = 0; i < bodies.length; i++) {
-         replies[i] = new Reply(bodies[i], List.of());
+         replies[i] = new Reply(bodies[i], List.of(), null);
       }
 
       return onReplies(url, replies);
@@ -60,7 +60,17 @@ public class ScriptedHttpHandler implements IHttpHandler {
 
    /** A reply with one header. */
    public static Reply reply(String body, String header, String value) {
-      return new Reply(body, List.of(new HttpHeader(header, value)));
+      return new Reply(body, List.of(new HttpHeader(header, value)), null);
+   }
+
+   /** The body of each request so far (null for a request that has none), in order. */
+   public List<String> bodies() {
+      return Collections.unmodifiableList(bodies);
+   }
+
+   /** A reply that makes the request fail, as a server error or a dropped connection would. */
+   public static Reply failure(IOException error) {
+      return new Reply(null, List.of(), error);
    }
 
    /** The URLs requested so far, in order. */
@@ -75,21 +85,43 @@ public class ScriptedHttpHandler implements IHttpHandler {
       URL url = URLCreator.fromRestRequest(request);
       String text = url.toString();
       requests.add(text);
+      bodies.add(request.query() == null ? null : request.query().getRequestBody());
 
       if(requests.size() > MAX_REQUESTS) {
-         throw new AssertionError("More than " + MAX_REQUESTS + " requests, the pagination does not " +
-                                  "stop; the last ones: " +
-                                  requests.subList(requests.size() - 3, requests.size()));
+         throw fail("More than " + MAX_REQUESTS + " requests, the pagination does not stop; the " +
+                    "last ones: " + requests.subList(requests.size() - 3, requests.size()));
       }
 
       for(Rule rule : rules) {
          if(rule.url.test(text)) {
             Reply reply = rule.replies.size() > 1 ? rule.replies.poll() : rule.replies.peek();
+
+            if(reply.error() != null) {
+               throw reply.error();
+            }
+
             return new TestHttpResponse(reply.body(), reply.headers());
          }
       }
 
-      throw new AssertionError("No response scripted for " + text + "; requests so far: " + requests);
+      throw fail("No response scripted for " + text + "; requests so far: " + requests);
+   }
+
+   /**
+    * Records a failure and returns it to throw. The runtime logs what a query throws and returns
+    * no table, which would hide the cause, so {@link #assertNoFailures()} raises it again.
+    */
+   private AssertionError fail(String message) {
+      AssertionError error = new AssertionError(message);
+      failures.add(error);
+      return error;
+   }
+
+   /** Fails the test if the handler had to reject a request, however the query reacted. */
+   public void assertNoFailures() {
+      if(!failures.isEmpty()) {
+         throw failures.get(0);
+      }
    }
 
    @Override
@@ -115,8 +147,41 @@ public class ScriptedHttpHandler implements IHttpHandler {
       private final IHttpHandler handler;
    }
 
-   /** A response body and its headers. */
-   public record Reply(String body, List<HttpHeader> headers) {
+   /** A GraphQL runtime that sends the requests of a query to the given handler. */
+   public static class GraphQLReplayRuntime extends inetsoft.uql.rest.datasource.graphql.GraphQLRuntime {
+      public GraphQLReplayRuntime(IHttpHandler handler) {
+         this.handler = handler;
+      }
+
+      @Override
+      protected QueryRunner getQueryRunner(AbstractRestQuery q) {
+         JsonTransformer transformer = new JsonTransformer();
+         JsonRestDataIteratorStrategyFactory factory = new JsonRestDataIteratorStrategyFactory(
+            transformer, new HttpResponseParameterParser(transformer), () -> handler);
+         return new RestJsonQueryRunner((RestJsonQuery) q, factory, new LookupService(), transformer);
+      }
+
+      private final IHttpHandler handler;
+   }
+
+   /** An XML runtime that sends the requests of a query to the given handler. */
+   public static class XmlReplayRuntime extends inetsoft.uql.rest.xml.RestXMLRuntime {
+      public XmlReplayRuntime(IHttpHandler handler) {
+         this.handler = handler;
+      }
+
+      @Override
+      protected QueryRunner getQueryRunner(AbstractRestQuery q) {
+         return new inetsoft.uql.rest.xml.RestXMLQueryRunner(
+            (inetsoft.uql.rest.xml.RestXMLQuery) q,
+            new inetsoft.uql.rest.xml.XMLRestDataIteratorStrategyFactory(handler));
+      }
+
+      private final IHttpHandler handler;
+   }
+
+   /** A response body and its headers, or the error the request fails with. */
+   public record Reply(String body, List<HttpHeader> headers, IOException error) {
    }
 
    private record Rule(Predicate<String> url, Deque<Reply> replies) {
@@ -125,4 +190,6 @@ public class ScriptedHttpHandler implements IHttpHandler {
    private static final int MAX_REQUESTS = 50;
    private final List<Rule> rules = new ArrayList<>();
    private final List<String> requests = new ArrayList<>();
+   private final List<String> bodies = new ArrayList<>();
+   private final List<AssertionError> failures = new ArrayList<>();
 }
