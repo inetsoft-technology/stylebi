@@ -126,7 +126,7 @@ class TabularQueryContractSupportTest {
       FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-         () -> apply(query, params("endpoint", "CUSTOM", "templateEndpt", "Project Issue Notes")));
+         () -> apply(query, params("endpoint", "Issues", "templateEndpt", "Project Issue Notes")));
       assertTrue(ex.getMessage().contains("templateEndpt"), ex.getMessage());
       assertTrue(ex.getMessage().contains("customEndpt"), ex.getMessage());
       assertTrue(ex.getMessage().contains("paginationType"), ex.getMessage());

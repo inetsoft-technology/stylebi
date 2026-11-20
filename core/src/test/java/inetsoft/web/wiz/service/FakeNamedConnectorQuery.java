@@ -55,6 +55,7 @@ import java.util.*;
    @View1("endpoint"),
    @View1("parameters"),
    @View1("requestType"),
+   @View1("templateEndpt"),
    @View1("suffix"),
    @View1("jsonPath"),
    @View1("expanded"),
@@ -225,6 +226,18 @@ public class FakeNamedConnectorQuery extends TabularQuery {
    public void setAdditionalParameters(HttpParameter[] additionalParameters) {
       this.additionalParameters = additionalParameters;
    }
+
+   /** Declared like the real REST connectors' templateEndpt: a plain string the dialog's button reads. */
+   @Property(label = "Template Endpoint")
+   public String getTemplateEndpt() {
+      return templateEndpt;
+   }
+
+   public void setTemplateEndpt(String templateEndpt) {
+      this.templateEndpt = templateEndpt;
+   }
+
+   private String templateEndpt;
 
    @Property(label = "Request Type")
    public String getRequestType() {
