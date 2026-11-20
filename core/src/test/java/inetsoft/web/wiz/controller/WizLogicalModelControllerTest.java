@@ -470,6 +470,52 @@ class WizLogicalModelControllerTest extends WizLogicalModelTestBase {
       assertEquals("other", dry.viewDependents().get(0).type());
    }
 
+   /**
+    * R3-3: the dependents of an element or of the view can be VPMs (visible only with WRITE on
+    * the source) and other logical models; a caller who cannot see them gets a count, not names.
+    */
+   @Test
+   void dryRunDependentsNameOnlyWhatTheCallerMaySee() throws Exception {
+      create(def("m", entity("Sales", col("Amount", "T1", "AMOUNT"))));
+      create(def("peer", entity("Sales", col("Amount", "T1", "AMOUNT"))));
+      dataModel.addVirtualPrivateModel(new VirtualPrivateModel("secretVpm"), true);
+      XLogicalModel stored = dataModel.getLogicalModel("m");
+      XAttribute amount = stored.getEntity("Sales").getAttribute("Amount");
+      amount.addOuterDependency(dataModel.getVirtualPrivateModel("secretVpm"));
+      amount.addOuterDependency(dataModel.getLogicalModel("peer"));
+      stored.addOuterDependency(dataModel.getVirtualPrivateModel("secretVpm"));
+      XDataModel spied = spy(dataModel);
+      doReturn(stored).when(spied).getLogicalModel("m");
+      when(repository.getDataModel(anyString())).thenAnswer(i -> spied);
+      // a VPM is visible only with WRITE on the source; the peer model is readable
+      when(dataSourceService.checkPermission(eq(ds), eq(ResourceAction.WRITE),
+                                             any(java.security.Principal.class)))
+         .thenReturn(false);
+
+      UpdateResponse dry = (UpdateResponse) update(
+         "m", withView(def("m", entity("Sales", col("Total", "Amount", "T1", "AMOUNT"))),
+                       "pv3"), true);
+
+      String shown = dry.elementDependents().toString() + dry.viewDependents();
+      assertFalse(shown.contains("secretVpm"), shown);
+      List<WizDataModelWire.Dependent> element = dry.elementDependents().get(0).dependents();
+      assertEquals(List.of("logicalModel", "other"),
+                   element.stream().map(WizDataModelWire.Dependent::type).toList());
+      assertEquals("peer", element.get(0).name());
+      assertEquals("1 item(s) the caller may not see", element.get(1).name());
+      assertEquals(1, dry.viewDependents().size());
+      assertEquals("1 item(s) the caller may not see", dry.viewDependents().get(0).name());
+
+      // with the grant the name is shown
+      when(dataSourceService.checkPermission(eq(ds), eq(ResourceAction.WRITE),
+                                             any(java.security.Principal.class)))
+         .thenReturn(true);
+      UpdateResponse granted = (UpdateResponse) update(
+         "m", withView(def("m", entity("Sales", col("Total", "Amount", "T1", "AMOUNT"))),
+                       "pv3"), true);
+      assertTrue(granted.elementDependents().toString().contains("secretVpm"));
+   }
+
    @Test
    void readOnlyUserCannotUpdate() throws Exception {
       create(def("m", entity("Sales", col("Amount", "T1", "AMOUNT"))));

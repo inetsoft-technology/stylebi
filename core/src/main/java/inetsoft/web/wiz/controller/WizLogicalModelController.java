@@ -193,10 +193,13 @@ public class WizLogicalModelController {
       refuse(result);
       Definition normalized = result.normalized();
       String view = viewOf(normalized, stored);
-      List<ElementDependents> elementDependents = elementDependents(stored, normalized);
-      List<WizDataModelWire.Dependent> viewDependents =
-         Tool.equals(view, stored.getPartition()) ? List.of() :
-            WizLogicalModelOps.dependentsOf(stored.getOuterDependencies());
+      // decided on the full sets, shown filtered to what the caller may see (R3-3): the
+      // placeholder carries the hidden count, so the confirm still has something to bind to
+      List<ElementDependents> elementDependents = visibleElements(
+         dataModel, database, principal, elementDependents(stored, normalized));
+      List<WizDataModelWire.Dependent> viewDependents = Tool.equals(view, stored.getPartition()) ?
+         List.of() : visibleOnly(dataModel, database, principal,
+                                 WizLogicalModelOps.dependentsOf(stored.getOuterDependencies()));
 
       if(Boolean.TRUE.equals(request.dryRun())) {
          return new UpdateResponse(true, null, result.warnings(), elementDependents,
@@ -448,6 +451,57 @@ public class WizLogicalModelController {
       }
 
       return result;
+   }
+
+   private List<ElementDependents> visibleElements(XDataModel dataModel, String database,
+                                                   Principal principal,
+                                                   List<ElementDependents> elements)
+   {
+      List<ElementDependents> result = new ArrayList<>();
+
+      for(ElementDependents element : elements) {
+         result.add(new ElementDependents(
+            element.element(), visibleOnly(dataModel, database, principal,
+                                           element.dependents())));
+      }
+
+      return result;
+   }
+
+   /**
+    * Drops the logical models, views and VPMs the caller may not see from a dependent list; the
+    * dropped ones leave one nameless entry with their count, so a change that has dependents
+    * still shows (and a confirm still binds to the full set through the count).
+    */
+   List<WizDataModelWire.Dependent> visibleOnly(XDataModel dataModel, String database,
+                                                Principal principal,
+                                                List<WizDataModelWire.Dependent> dependents)
+   {
+      List<WizDataModelWire.Dependent> visible = new ArrayList<>();
+      int hidden = 0;
+
+      for(WizDataModelWire.Dependent dependent : dependents) {
+         String kind = switch(dependent.type()) {
+            case WizDataModelWire.KIND_LOGICAL_MODEL -> WizDataModelWire.KIND_LOGICAL_MODEL;
+            case WizDataModelWire.KIND_PHYSICAL_VIEW -> WizDataModelWire.KIND_PHYSICAL_VIEW;
+            case WizDataModelWire.KIND_VPM -> WizDataModelWire.KIND_VPM;
+            default -> null;
+         };
+
+         if(kind == null || gates.maySee(dataModel, database, kind, dependent.name(), principal)) {
+            visible.add(dependent);
+         }
+         else {
+            hidden++;
+         }
+      }
+
+      if(hidden > 0) {
+         visible.add(new WizDataModelWire.Dependent(
+            "other", hidden + " item(s) the caller may not see", null, null));
+      }
+
+      return visible;
    }
 
    private static boolean bindingChanged(XAttribute stored, Attribute attribute) {
