@@ -158,6 +158,39 @@ class EndpointReplayTest {
    }
 
    @Test
+   void jiraReadsAnotherPageWhenOnlyOneRecordIsLeft() throws Exception {
+      ScriptedHttpHandler http = new ScriptedHttpHandler()
+         .on(url -> !url.contains("startAt"), "{\"total\":11,\"values\":" +
+                                              ReplaySupport.array(1, 10) + "}")
+         .on("startAt=10", "{\"total\":11,\"values\":" + ReplaySupport.array(11, 1) + "}");
+
+      List<Map<String, Object>> rows = ReplaySupport.run(jiraRoles(), http);
+
+      assertEquals(11, rows.size());
+      assertEquals(2, http.requests().size(), http.requests().toString());
+   }
+
+   @Test
+   void jiraMakesOneRequestWhenTheTotalIsExactlyOnePage() throws Exception {
+      ScriptedHttpHandler http = new ScriptedHttpHandler()
+         .on("/applicationrole", "{\"total\":10,\"values\":" + ReplaySupport.array(1, 10) + "}");
+
+      List<Map<String, Object>> rows = ReplaySupport.run(jiraRoles(), http);
+
+      assertEquals(10, rows.size());
+      assertEquals(1, http.requests().size(), http.requests().toString());
+   }
+
+   private static JiraQuery jiraRoles() {
+      JiraDataSource dataSource = new JiraDataSource();
+      dataSource.setServerType("local");
+      dataSource.setLocalUrl("https://jira.test");
+      dataSource.setApiToken("token");
+      return ReplaySupport.query(dataSource, new JiraQuery(), "Application Roles", "$.values",
+                                 Map.of());
+   }
+
+   @Test
    void togglPagesAreReadUntilTheTotalCount() throws Exception {
       // TOTAL_COUNT_AND_PAGE: the first request has no page number, the next one asks for page 2
       // while 50 records per page do not cover the total in the body
