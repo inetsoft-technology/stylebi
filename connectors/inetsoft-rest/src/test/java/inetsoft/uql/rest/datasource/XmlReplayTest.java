@@ -70,7 +70,7 @@ class XmlReplayTest {
    }
 
    @Test
-   void anXpathThatMatchesNothingReturnsOneEmptyPlaceholderRow() throws Exception {
+   void anXpathThatMatchesNothingReturnsNoTable() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler()
          .on("xml.test", "<root><item><id>1</id></item></root>");
 
@@ -78,17 +78,10 @@ class XmlReplayTest {
          .runQuery(query("/root/missing"), new VariableTable());
       http.assertNoFailures();
 
-      StringBuilder seen = new StringBuilder();
-
-      while(table != null && table.next()) {
-         for(int i = 0; i < table.getColCount(); i++) {
-            seen.append(table.getName(i)).append('=').append(table.getObject(i)).append(';');
-         }
-      }
-
-      // unlike a JSON query with no data (no table at all), XML gives a single empty row in a
+      // like a JSON query with no data, XML returns no table at all, not a placeholder row in a
       // column called "Column"; this pins that (Bug #81916)
-      assertEquals("Column=null;", seen.toString());
+      assertNull(table);
+      assertEquals(1, http.requests().size(), http.requests().toString());
    }
 
    @Test
