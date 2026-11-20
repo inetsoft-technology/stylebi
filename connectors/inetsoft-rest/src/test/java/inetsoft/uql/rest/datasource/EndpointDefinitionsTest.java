@@ -39,6 +39,7 @@ import org.springframework.core.type.filter.AssignableTypeFilter;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static inetsoft.uql.rest.datasource.EndpointRules.malformed;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -296,51 +297,8 @@ class EndpointDefinitionsTest {
                continue;
             }
 
-            SuffixTemplate parsed = new SuffixTemplate(e.getValue().getSuffix());
-            List<TemplateComponent> variables = new ArrayList<>();
-
-            for(TemplateComponent part : parsed.getPath()) {
-               if(part.isVariable()) {
-                  variables.add(part);
-               }
-            }
-
-            for(TemplateComponent part : parsed.getQuery().values()) {
-               if(part.isVariable()) {
-                  variables.add(part);
-               }
-            }
-
-            Map<String, Boolean> requiredByName = new LinkedHashMap<>();
-
-            for(TemplateComponent variable : variables) {
-               // a name may appear more than once; it is required if any occurrence is
-               requiredByName.merge(variable.getValue(), variable.isRequired(), Boolean::logicalOr);
-            }
-
-            for(Map.Entry<String, Boolean> variable : requiredByName.entrySet()) {
-               SuffixTemplate template = new SuffixTemplate(e.getValue().getSuffix());
-
-               for(String other : requiredByName.keySet()) {
-                  if(!other.equals(variable.getKey())) {
-                     template.setVariable(other, "1");
-                  }
-               }
-
-               try {
-                  String built = template.build();
-
-                  if(variable.getValue()) {
-                     problems.add(where + ": required \"" + variable.getKey() +
-                                  "\" missing but the request was built: " + built);
-                  }
-               }
-               catch(IllegalStateException ex) {
-                  if(!variable.getValue()) {
-                     problems.add(where + ": optional \"" + variable.getKey() +
-                                  "\" missing but the request was rejected: " + ex.getMessage());
-                  }
-               }
+            for(String problem : EndpointRules.requiredParameterProblems(e.getValue().getSuffix())) {
+               problems.add(where + ": " + problem);
             }
          }
       }
@@ -404,13 +362,10 @@ class EndpointDefinitionsTest {
       List<String> problems = new ArrayList<>();
       EndpointJsonQuery.Endpoint endpoint = query.getEndpointMap().get(key);
 
-      if(endpoint.getName() == null || endpoint.getName().isBlank()) {
-         problems.add(where + ": blank name");
-      }
-      else if(!endpoint.getName().equals(endpoint.getName().strip()) ||
-              endpoint.getName().contains("\u00a0"))
-      {
-         problems.add(where + ": non-breaking or surrounding space in the name");
+      String nameProblem = EndpointRules.nameProblem(endpoint.getName());
+
+      if(nameProblem != null) {
+         problems.add(where + ": " + nameProblem);
       }
 
       if(endpoint.getSuffix() == null || endpoint.getSuffix().isBlank()) {
@@ -490,46 +445,6 @@ class EndpointDefinitionsTest {
       }
 
       return problems;
-   }
-
-   /** Returns what is wrong with a built suffix, or null. */
-   private static String malformed(String suffix) {
-      if(suffix == null || suffix.isEmpty()) {
-         return "empty";
-      }
-
-      // only a plain or non-breaking space is checked: PipelineCRM suffixes also hold tabs and
-      // newlines, which are real defects but need the endpoints.json files fixed first
-      if(suffix.matches("(?s).*[ \u00a0].*")) {
-         return "whitespace in " + suffix.replaceAll("[ \u00a0]", "<ws>");
-      }
-
-      int index = suffix.indexOf('?');
-      String path = index < 0 ? suffix : suffix.substring(0, index);
-
-      if(path.contains("&") || path.contains("//") || path.contains("{") || path.contains("}")) {
-         return "bad path in " + suffix;
-      }
-
-      if(index >= 0) {
-         String query = suffix.substring(index + 1);
-
-         if(query.contains("?")) {
-            return "second '?' in " + suffix;
-         }
-
-         if(query.isEmpty()) {
-            return "empty query string in " + suffix;
-         }
-
-         for(String pair : query.split("&", -1)) {
-            if(!pair.matches("[^=&?{}]+=[^=&?{}]*")) {
-               return "bad parameter \"" + pair + "\" in " + suffix;
-            }
-         }
-      }
-
-      return null;
    }
 
    /** Builds the suffix of an endpoint with every parameter set to a simple value. */
@@ -637,7 +552,7 @@ class EndpointDefinitionsTest {
     * <ul>
     *   <li>a variable is left unreplaced: a missing '&amp;', a '?' where '&amp;' belongs, a stray
     *   '}', a missing '=' or a missing ':' before an option list;</li>
-    *   <li>a stray space or non-breaking space in a name or suffix;</li>
+    *   <li>a stray space, newline or non-breaking space in a name or suffix;</li>
     *   <li>an empty parameter ("?&amp;x=", "&amp;&amp;") or a second '?' or '//' in the path;</li>
     *   <li>"Twitter / Users by IDs" has "{User IDs}" with no parameter name before it, and the
     *   Twitter API expects "ids=".</li>
@@ -659,6 +574,21 @@ class EndpointDefinitionsTest {
       "JiveQuery/Direct Message Comments",
       "LiveAgentQuery/Phone numbers list",
       "PipelineCRMQuery/Companies",
+      "PipelineCRMQuery/Company Custom Label Entries",
+      "PipelineCRMQuery/Deal Custom Groups",
+      "PipelineCRMQuery/Deal Custom Labels",
+      "PipelineCRMQuery/Deal Loss Reasons",
+      "PipelineCRMQuery/Deal Stages",
+      "PipelineCRMQuery/Documents Tags",
+      "PipelineCRMQuery/Event Categories",
+      "PipelineCRMQuery/Lead Sources",
+      "PipelineCRMQuery/Lead Statuses",
+      "PipelineCRMQuery/Note Categories",
+      "PipelineCRMQuery/Notes",
+      "PipelineCRMQuery/Person Custom Groups",
+      "PipelineCRMQuery/Person Custom Labels",
+      "PipelineCRMQuery/Predefined Contact Tags",
+      "PipelineCRMQuery/Users",
       "PipedriveQuery/Deal Timeline",
       "QuickbooksReportsQuery/Transaction List By Vendor",
       "ServiceNowQuery/Aggregate Statistics",
