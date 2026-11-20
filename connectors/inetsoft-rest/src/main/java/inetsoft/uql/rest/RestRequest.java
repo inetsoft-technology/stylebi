@@ -37,12 +37,26 @@ public interface RestRequest {
       return Collections.emptyMap();
    }
 
+   /**
+    * The key of the cached response of the request. It includes everything that selects the
+    * response: the method, content type and query type (Accept header) as well as the
+    * credentials applied by the authenticator (Bug #81931). The HTTP parameters, body and
+    * credentials are hashed so that the key, which is also the name of the cache file, does
+    * not contain secrets.
+    */
    @Value.Derived
    default String key() {
-      return url() + ":" + query().getURL() + query().getSuffix() + ":" +
+      final AbstractRestQuery query = query();
+      final AbstractRestDataSource dataSource = dataSource();
+
+      return url() + ":" + query.getURL() + query.getSuffix() + ":" +
              queryParameters() + ":" + urlVariables() + ":" +
-             Arrays.deepToString(dataSource().getQueryHttpParameters()) + ":" +
-             query().getRequestBody();
+             query.getRequestType() + ":" +
+             (query.isPostRequest() ? query.getContentType() : "") + ":" +
+             query.getClass().getName() + ":" +
+             AbstractRestDataSource.hashCacheKeyParts(
+                AbstractRestDataSource.encodeHttpParameters(dataSource.getQueryHttpParameters()),
+                query.getRequestBody(), dataSource.getResponseCacheIdentity());
    }
 
    @Nullable

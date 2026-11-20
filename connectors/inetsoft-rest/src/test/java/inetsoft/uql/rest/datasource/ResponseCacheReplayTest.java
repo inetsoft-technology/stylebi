@@ -32,7 +32,6 @@ import inetsoft.uql.rest.json.RestJsonDataSource;
 import inetsoft.uql.rest.json.RestJsonQuery;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -101,8 +100,6 @@ class ResponseCacheReplayTest {
    }
 
    @Test
-   @Disabled("Bug #81931: the key leaves out the credentials, so a request with other credentials " +
-             "is served the cached response of the first; enable when it is fixed")
    void aRequestWithOtherCredentialsIsNotAnsweredWithTheCachedResponseOfSomeoneElse()
       throws Exception
    {
@@ -118,8 +115,6 @@ class ResponseCacheReplayTest {
    }
 
    @Test
-   @Disabled("Bug #81931: the key leaves out the request method, so a POST is served the cached " +
-             "response of a GET to the same URL; enable when it is fixed")
    void aPostIsNotAnsweredWithTheCachedResponseOfAGet() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler().on("method.test", "[{\"id\":1}]");
       RestJsonQuery post = query("https://method.test", "/items");
