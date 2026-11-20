@@ -61,6 +61,8 @@ public final class TabularQueryContractSupport {
 
    private TabularQueryContractSupport() {}
 
+   private static final String TEMPLATE_ENDPOINT_PROPERTY = "templateEndpt";
+
    /**
     * Fill {@code query}'s bean properties from {@code queryParams}, by the connector's own
     * property names.
@@ -96,6 +98,21 @@ public final class TabularQueryContractSupport {
          throw new IllegalArgumentException(
             "tabularSource.queryParams is required -- it is the whole of what addresses the " +
             "data. Ask GET /api/wiz/tabular/query-schema for the names this data source accepts.");
+      }
+
+      // templateEndpt is only a dialog-side convenience: the Composer's "Apply Endpoint Template"
+      // button (a @Button METHOD, applyEndpointTemplate) copies the template's URL and pagination
+      // into the query. Writing the property alone changes nothing, so accepting it would return
+      // page 1 only, with no signal -- refuse it by name instead (bug #81842).
+      Object template = queryParams.get(TEMPLATE_ENDPOINT_PROPERTY);
+
+      if(template != null && !text(template).isBlank()) {
+         throw new IllegalArgumentException(
+            "'" + TEMPLATE_ENDPOINT_PROPERTY + "' (" + text(template) + ") is not supported: an " +
+            "endpoint template is only applied by the Composer's 'Apply Endpoint Template' " +
+            "button, so setting it here would change nothing. Set 'customEndpt' (the URL suffix) " +
+            "and the pagination properties (paginationType, linkParamValue, ...) directly " +
+            "instead.");
       }
 
       List<String> unknownTop = new ArrayList<>();

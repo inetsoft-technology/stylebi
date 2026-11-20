@@ -121,6 +121,17 @@ class TabularQueryContractSupportTest {
       assertTrue(ex.getMessage().contains("endpoint"), ex.getMessage());
    }
 
+   @Test
+   void refusesTemplateEndptInsteadOfSilentlyIgnoringIt() {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(query, params("endpoint", "Issues", "templateEndpt", "Project Issue Notes")));
+      assertTrue(ex.getMessage().contains("templateEndpt"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("customEndpt"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("paginationType"), ex.getMessage());
+   }
+
    /**
     * "endpoint" ({@code @Property(required = true)}, no {@code visibleMethod} gate) is
     * unconditionally required on {@link FakeNamedConnectorQuery} -- omitting it ENTIRELY from
