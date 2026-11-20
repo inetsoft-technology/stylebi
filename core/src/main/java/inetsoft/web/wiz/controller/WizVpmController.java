@@ -81,7 +81,7 @@ public class WizVpmController {
       return WizDataModelErrors.run(() -> {
          XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
          gates.requireDataSourcePermission(database, ResourceAction.WRITE, principal);
-         requireVpm(dataModel, database, name);
+         requireVpm(dataModel, database, name, principal);
          VirtualPrivateModel vpm = vpmService.getStored(database, name, principal);
          return new WizVpmWire.GetResponse(
             true, mapper.toWire(vpm, dataSource(database)), null, false);
@@ -101,7 +101,10 @@ public class WizVpmController {
       return WizDataModelErrors.run(() -> WizDataModelLocks.withDatabase(database, () -> {
          XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
          gates.requireDataSourcePermission(database, ResourceAction.WRITE, principal);
-         WizDataModelNames.requireUniqueInSource(dataModel, name);
+         // a clash names the existing kind only when the caller may see that item
+         WizDataModelNames.requireUniqueInSource(
+            dataModel, name,
+            (kind, existing) -> gates.maySee(dataModel, database, kind, existing, principal));
          List<String> warnings = validate(
             database, dataModel, definition, WizVpmValidator.Mode.CREATE, null);
 
@@ -137,7 +140,7 @@ public class WizVpmController {
          return WizDataModelLocks.withDatabase(database, () -> {
             XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
             gates.requireDataSourcePermission(database, ResourceAction.WRITE, principal);
-            requireVpm(dataModel, database, name);
+            requireVpm(dataModel, database, name, principal);
             VirtualPrivateModel stored = vpmService.getStored(database, name, principal);
 
             // an omitted key keeps its stored value (an explicit null clears it)
@@ -188,7 +191,7 @@ public class WizVpmController {
          VPMDefinition portal;
 
          if(named) {
-            requireVpm(dataModel, database, request.name());
+            requireVpm(dataModel, database, request.name(), principal);
             VirtualPrivateModel stored = vpmService.getStored(database, request.name(), principal);
             portal = vpmService.toModel(stored, database, principal);
          }
@@ -214,14 +217,17 @@ public class WizVpmController {
       return definition;
    }
 
-   /** The VPM must exist and be a VPM; a name taken by another kind is WRONG_KIND. */
-   private void requireVpm(XDataModel dataModel, String database, String name) {
-      String existing = kindOfName(dataModel, name);
+   /**
+    * The VPM must exist and be a VPM. A name taken by another kind is WRONG_KIND only when the
+    * caller may see that item; an item the caller cannot see is answered like a missing one.
+    */
+   private void requireVpm(XDataModel dataModel, String database, String name,
+                           Principal principal)
+   {
+      String existing = gates.visibleKindOfName(dataModel, database, name, principal);
 
       if(existing == null) {
-         throw new WizDataModelErrors.DmFailure(
-            NOT_FOUND, "name", "no vpm named \"" + name + "\" in " + database +
-            " (check the name with browse_data_models)");
+         throw WizDataModelGates.notFound("vpm", "name", database, name);
       }
 
       if(!KIND_VPM.equals(existing)) {

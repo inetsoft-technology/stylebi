@@ -64,6 +64,10 @@ class WizVpmControllerTest {
       XLogicalModel lm = new XLogicalModel("lm");
       lm.setPartition("pv");
       dataModel.addLogicalModel(lm);
+      // the caller sees the physical view "pv" (WRITE on the source or its folder)
+      when(support.dataSourceService.checkPermission(
+         anyString(), any(), any(inetsoft.sree.security.ResourceAction.class),
+         any(java.security.Principal.class))).thenAnswer(i -> support.writeAllowed);
       controller = support.controller();
    }
 
@@ -217,6 +221,46 @@ class WizVpmControllerTest {
          assertEquals("NOT_FOUND", failure.reason());
          assertEquals("database", failure.field());
       }
+   }
+
+   @Test
+   void aLogicalModelTheCallerCannotReadIsNeitherNamedNorRevealedByAnyVpmRoute() throws Exception {
+      // review r3 R3-2: source WRITE, but no READ on logical model "lm"
+      when(support.logicalModelService.checkPermission(
+         any(), any(), eq("lm"), any(), eq(inetsoft.sree.security.ResourceAction.READ), any()))
+         .thenReturn(false);
+
+      when(support.securityProvider.getRole(any(IdentityID.class))).thenReturn(mock(Role.class));
+      WizDataModelWire.Failure missing = failure(controller.get(
+         new WizVpmWire.GetRequest(support.ds, "ghost"), support.bob));
+      assertEquals("NOT_FOUND", missing.reason());
+
+      for(Object answer : List.of(
+         controller.get(new WizVpmWire.GetRequest(support.ds, "lm"), support.bob),
+         controller.update(new WizVpmWire.WriteRequest(
+            support.ds, "lm", definition("lm"), false), support.bob),
+         controller.test(new WizVpmWire.TestRequest(
+            support.ds, "lm", null, "role", "R"), support.bob)))
+      {
+         WizDataModelWire.Failure failure = failure(answer);
+         assertEquals("NOT_FOUND", failure.reason());
+         assertNull(failure.existingKind());
+         assertEquals(missing.message().replace("ghost", "lm"), failure.message());
+      }
+
+      WizDataModelWire.Failure clash = failure(create(definition("lm"), false));
+      assertEquals("DUPLICATE_NAME", clash.reason());
+      assertNull(clash.existingKind(), "the kind of an invisible item is not named");
+      assertFalse(clash.message().contains("logicalModel"), clash.message());
+      assertEquals("DUPLICATE_NAME", failure(create(definition("lm"), true)).reason());
+
+      // a model the caller can see is still named
+      when(support.logicalModelService.checkPermission(
+         any(), any(), eq("lm"), any(), eq(inetsoft.sree.security.ResourceAction.READ), any()))
+         .thenReturn(true);
+      assertEquals("logicalModel", failure(create(definition("lm"), false)).existingKind());
+      assertEquals("WRONG_KIND", failure(controller.get(
+         new WizVpmWire.GetRequest(support.ds, "lm"), support.bob)).reason());
    }
 
    // -- get ---------------------------------------------------------------------------------
