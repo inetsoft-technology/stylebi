@@ -249,15 +249,23 @@ class WizDataModelGatesRouteTableTest {
 
       routes.add(route("vpm/get", f -> f.vpm.get(
             new WizVpmWire.GetRequest(f.db, "vp"), f.bob),
+         // review r2 R2-2: a source the caller cannot read is answered like a missing one
+         "DS:{db}:READ", "body", NOT_FOUND,
          "DS:{db}:WRITE", "throw", "{db}"));
       routes.add(route("vpm/create", f -> f.vpm.create(new WizVpmWire.WriteRequest(
             f.db, null, Map.of("name", "vn"), true), f.bob),
+         // review r2 R2-2: a source the caller cannot read is answered like a missing one
+         "DS:{db}:READ", "body", NOT_FOUND,
          "DS:{db}:WRITE", "throw", "{db}"));
       routes.add(route("vpm/update", f -> f.vpm.update(new WizVpmWire.WriteRequest(
             f.db, "vp", Map.of("name", "vp"), true), f.bob),
+         // review r2 R2-2: a source the caller cannot read is answered like a missing one
+         "DS:{db}:READ", "body", NOT_FOUND,
          "DS:{db}:WRITE", "throw", "{db}"));
       routes.add(route("vpm/test", f -> f.vpm.test(new WizVpmWire.TestRequest(
             f.db, "vp", null, "user", "u1"), f.bob),
+         // review r2 R2-2: a source the caller cannot read is answered like a missing one
+         "DS:{db}:READ", "body", NOT_FOUND,
          "DS:{db}:WRITE", "throw", "{db}"));
 
       return routes;

@@ -55,8 +55,8 @@ class WizVpmOps implements WizModelKindOps {
       XDataModel dataModel = ctx.dataModel();
       VirtualPrivateModel vpm = dataModel.getVirtualPrivateModel(ref.name());
 
-      // existence is not hidden from the kind-agnostic routes (the shared name space reveals it
-      // anyway); mayDelete and mayRename are the gate, so a denial names the action and path
+      // existence only; what the caller may SEE is decided first by the item controller
+      // (WizDataModelGates.maySee: a VPM needs WRITE on the source), and mayDelete/mayRename gate
       if(vpm == null) {
          return Optional.empty();
       }

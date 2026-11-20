@@ -79,7 +79,7 @@ public class WizVpmController {
       String name = requireText("name", request.name());
 
       return WizDataModelErrors.run(() -> {
-         XDataModel dataModel = source.requireJdbcDataModel(database);
+         XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
          gates.requireDataSourcePermission(database, ResourceAction.WRITE, principal);
          requireVpm(dataModel, database, name);
          VirtualPrivateModel vpm = vpmService.getStored(database, name, principal);
@@ -99,7 +99,7 @@ public class WizVpmController {
       boolean dryRun = Boolean.TRUE.equals(request.dryRun());
 
       return WizDataModelErrors.run(() -> WizDataModelLocks.withDatabase(database, () -> {
-         XDataModel dataModel = source.requireJdbcDataModel(database);
+         XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
          gates.requireDataSourcePermission(database, ResourceAction.WRITE, principal);
          WizDataModelNames.requireUniqueInSource(dataModel, name);
          List<String> warnings = validate(
@@ -135,7 +135,7 @@ public class WizVpmController {
          }
 
          return WizDataModelLocks.withDatabase(database, () -> {
-            XDataModel dataModel = source.requireJdbcDataModel(database);
+            XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
             gates.requireDataSourcePermission(database, ResourceAction.WRITE, principal);
             requireVpm(dataModel, database, name);
             VirtualPrivateModel stored = vpmService.getStored(database, name, principal);
@@ -182,7 +182,7 @@ public class WizVpmController {
       }
 
       return WizDataModelErrors.run(() -> {
-         XDataModel dataModel = source.requireJdbcDataModel(database);
+         XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
          gates.requireDataSourcePermission(database, ResourceAction.WRITE, principal);
          requirePrincipal(type, principalName);
          VPMDefinition portal;
