@@ -278,7 +278,11 @@ public abstract class AbstractVSExporter implements VSExporter {
             }
          }
 
-         box.executeScript(assembly);
+         // a failing script is skipped, logged and marked on the document, see
+         // ViewsheetSandbox.skipScriptErrorsForExport() (Bug #81796)
+         try(ViewsheetSandbox.ExportScriptSkip skip = ViewsheetSandbox.skipScriptErrorsForExport()) {
+            box.executeScript(assembly);
+         }
 
          if(assembly instanceof CalcTableVSAssembly) {
             continue;
@@ -401,7 +405,9 @@ public abstract class AbstractVSExporter implements VSExporter {
     * with the document, including to the recipient of a scheduled export. (#76780)
     */
    private void addScriptErrorMessage(ViewsheetSandbox box) {
-      if(box == null || box.getExportScriptError() == null) {
+      if(box == null ||
+         box.getExportScriptError() == null && box.getExportSkippedScript() == null)
+      {
          return;
       }
 
@@ -411,7 +417,15 @@ public abstract class AbstractVSExporter implements VSExporter {
          return;
       }
 
-      addWarningMessage(warningText, Catalog.getCatalog().getString("vs.export.onLoadScriptFailed"));
+      if(box.getExportScriptError() != null) {
+         addWarningMessage(warningText,
+                           Catalog.getCatalog().getString("vs.export.onLoadScriptFailed"));
+      }
+
+      if(box.getExportSkippedScript() != null) {
+         addWarningMessage(warningText,
+                           Catalog.getCatalog().getString("vs.export.componentScriptFailed"));
+      }
    }
 
    /**
@@ -1286,6 +1300,19 @@ public abstract class AbstractVSExporter implements VSExporter {
     */
    public void export(ViewsheetSandbox box, String sheet, int index,
                       XPortalHelper helper, boolean cloneVs)
+      throws Exception
+   {
+      // a failing component script is skipped, not fatal, anywhere in the export (Bug #81796)
+      try(ViewsheetSandbox.ExportScriptSkip skip = ViewsheetSandbox.skipScriptErrorsForExport()) {
+         export0(box, sheet, index, helper, cloneVs);
+      }
+      finally {
+         box.clearExportSkippedScript();
+      }
+   }
+
+   private void export0(ViewsheetSandbox box, String sheet, int index,
+                        XPortalHelper helper, boolean cloneVs)
       throws Exception
    {
       this.index = index;
