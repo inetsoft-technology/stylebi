@@ -912,6 +912,20 @@ public abstract class GraphElement extends Graphable {
    }
 
    /**
+    * Check if the auto text color is the ink with the higher contrast ratio.
+    */
+   public boolean isContrastInk() {
+      return contrastInk;
+   }
+
+   /**
+    * Set whether the auto text color is the ink with the higher contrast ratio.
+    */
+   public void setContrastInk(boolean contrastInk) {
+      this.contrastInk = contrastInk;
+   }
+
+   /**
     * Set the text spec for a tree dim's labels.
     */
    @TernMethod
@@ -1094,6 +1108,7 @@ public abstract class GraphElement extends Graphable {
          inPlot == elem2.inPlot &&
          textPos == elem2.textPos &&
          autoTextColor == elem2.autoTextColor &&
+         contrastInk == elem2.contrastInk &&
          Objects.equals(textSpec, elem2.textSpec) &&
          Objects.equals(textSpecMap, elem2.textSpecMap) &&
          Objects.equals(borderColor, elem2.borderColor) &&
@@ -1173,6 +1188,7 @@ public abstract class GraphElement extends Graphable {
    private int endRow = -1;
    private transient DataSet vdata;
    private boolean autoTextColor = false;
+   private boolean contrastInk = false;
    private Map<String, TextSpec> textSpecMap = new HashMap<>();
    private GraphtDataSelector selector;
    private Color borderColor;

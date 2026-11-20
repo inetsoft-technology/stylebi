@@ -26,6 +26,7 @@ import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.SortedDataSet;
 import inetsoft.graph.geometry.TreemapGeometry;
 import inetsoft.graph.internal.Donut;
+import inetsoft.graph.internal.OKLab;
 import inetsoft.graph.internal.TreemapVisualModel;
 import inetsoft.graph.treemap.*;
 import inetsoft.graph.treeviz.ProgressTracker;
@@ -256,6 +257,57 @@ public class TreemapElement extends GraphElement {
     */
    public void setBackground(int level, Color background) {
       backgrounds.put(level, background);
+   }
+
+   /**
+    * Set the level the node colours step down from, and the card colour each deeper level is
+    * mixed toward.
+    * @param base the tree dim index that keeps its colour, -1 for no steps.
+    * @param card the card colour.
+    */
+   public void setLevelStep(int base, Color card) {
+      this.levelStepBase = base;
+      this.levelStepCard = card;
+   }
+
+   /**
+    * Get the tree dim index the node colours step down from, -1 for no steps.
+    */
+   public int getLevelStepBase() {
+      return levelStepBase;
+   }
+
+   /**
+    * Get the card colour deeper levels are mixed toward.
+    */
+   public Color getLevelStepCard() {
+      return levelStepCard;
+   }
+
+   /**
+    * Get the colour a node draws at a level. A node n levels below the base, n at most 3, is
+    * mixed toward the card in OKLab by 1 - 0.62^n. The alpha is kept.
+    * @param color the node colour.
+    * @param k the node's tree dim index, 0 for the top level.
+    */
+   public Color getLevelColor(Color color, int k) {
+      if(levelStepBase < 0 || levelStepCard == null || color == null || k <= levelStepBase) {
+         return color;
+      }
+
+      double t = 1 - Math.pow(0.62, Math.min(k - levelStepBase, 3));
+      double[] from = OKLab.fromColor(color);
+      double[] to = OKLab.fromColor(levelStepCard);
+      double[] mix = new double[3];
+
+      for(int i = 0; i < mix.length; i++) {
+         mix[i] = from[i] + (to[i] - from[i]) * t;
+      }
+
+      double[] lch = OKLab.toLCH(mix);
+      Color stepped = OKLab.toColorInGamut(lch[0], lch[1], lch[2]);
+
+      return new Color(stepped.getRed(), stepped.getGreen(), stepped.getBlue(), color.getAlpha());
    }
 
    protected VisualModel createVisualModel(DataSet data) {
@@ -608,7 +660,8 @@ public class TreemapElement extends GraphElement {
 
       return treeDims.equals(elem.treeDims) && algorithm.equals(elem.algorithm) &&
          mapType.equals(elem.mapType) && backgrounds.equals(elem.backgrounds) &&
-         orientation.equals(elem.orientation);
+         orientation.equals(elem.orientation) && levelStepBase == elem.levelStepBase &&
+         Objects.equals(levelStepCard, elem.levelStepCard);
    }
 
    @Override
@@ -629,6 +682,8 @@ public class TreemapElement extends GraphElement {
    private IntSet radialLevels = new IntArraySet();
    private Map<Integer, Color> backgrounds = new HashMap<>();
    private Map<Integer, Color> borderColors = new HashMap<>();
+   private int levelStepBase = -1;
+   private Color levelStepCard;
 
    private static final long serialVersionUID = 1L;
 }

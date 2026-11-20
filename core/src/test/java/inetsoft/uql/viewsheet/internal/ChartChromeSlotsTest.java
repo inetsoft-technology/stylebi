@@ -22,6 +22,8 @@ import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.aesthetic.SpectralColorFrame;
 import inetsoft.graph.aesthetic.StaticColorFrame;
+import inetsoft.graph.aesthetic.TealColorFrame;
+import inetsoft.graph.aesthetic.VarianceColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.StyleFont;
@@ -35,6 +37,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.LinearColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.util.css.CSSDictionary;
 import org.junit.jupiter.api.*;
@@ -678,6 +681,31 @@ class ChartChromeSlotsTest {
       assertEquals(
          VSChartPaletteDefaults.defaultLinearFrame(VizContext.of(VizMark.MODERN_LIGHT)).getClass(),
          info.getVSChartInfo().getColorField().getVisualFrame().getClass());
+   }
+
+   @Test
+   void theResetCopyClearsTheAuthorRampFlag() {
+      ChartVSAssemblyInfo info = chart();
+      VSAestheticRef colorRef = colorBinding(info, aggregate("Sales"),
+         VSChartPaletteDefaults.defaultLinearFrame(VizContext.of(VizMark.MODERN_LIGHT)));
+      LinearColorFrameWrapper wrapper = (LinearColorFrameWrapper) colorRef.getVisualFrameWrapper();
+      wrapper.setAuthorRamp(true);
+
+      resetAll(info, fresh(VizMark.MODERN_LIGHT));
+
+      assertInstanceOf(TealColorFrame.class, colorRef.getVisualFrame());
+      assertFalse(wrapper.isAuthorRamp());
+   }
+
+   @Test
+   void theResetCopyStillReplacesAnAuthorsVariance() {
+      ChartVSAssemblyInfo info = chart();
+      colorBinding(info, aggregate("Sales"), new VarianceColorFrame());
+
+      resetAll(info, fresh(VizMark.MODERN_LIGHT));
+
+      assertInstanceOf(TealColorFrame.class,
+                       info.getVSChartInfo().getColorField().getVisualFrame());
    }
 
    @Test

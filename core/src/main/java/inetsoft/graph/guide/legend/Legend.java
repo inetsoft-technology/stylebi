@@ -670,6 +670,13 @@ public abstract class Legend extends BoundedContainer {
          return false;
       }
 
+      // a marked funnel lists its stages from the top
+      if(inMarkOrder && isSingleSegment() &&
+         (elem.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0)
+      {
+         return false;
+      }
+
       // ignore fake categorical frame.
       // only reverse for vertical legend layout
       return (frame instanceof CategoricalFrame || frame instanceof StackedMeasuresFrame) &&

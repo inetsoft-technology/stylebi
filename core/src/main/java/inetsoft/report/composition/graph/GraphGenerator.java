@@ -212,6 +212,13 @@ public abstract class GraphGenerator {
    protected abstract void createEGraph0();
 
    /**
+    * The stage a marked funnel orders its colours by, from the top, or null.
+    */
+   XDimensionRef getFunnelStage() {
+      return cstrategy.getFunnelStage();
+   }
+
+   /**
     * Get the axis descriptor of a column.
     */
    protected abstract AxisDescriptor getAxisDescriptor(String col);
@@ -336,6 +343,14 @@ public abstract class GraphGenerator {
          String vsrc = GraphUtil.getVisualSource(chart);
 
          cstrategy = new VSColorFrameStrategy(info, vizContext);
+         XDimensionRef funnelStage = info instanceof VSChartInfo ?
+            FunnelColorOrder.stage(vizContext, (VSChartInfo) info) : null;
+
+         if(funnelStage != null) {
+            cstrategy.setFunnelOrder(funnelStage, FunnelColorOrder.standalone(
+               (VSChartInfo) info, chart.getViewsheet(), chart.getAbsoluteName(), sourceType));
+         }
+
          cvisitor = new VSFrameVisitor(info, fdata, cstrategy, global, vdata, cubeType, vsrc,
             sourceType, dateComparison, getFrameInitializer());
 
@@ -1505,7 +1520,15 @@ public abstract class GraphGenerator {
          }
 
          colorFrame = (ColorFrame) rinfo.getNodeColorField().getVisualFrame().clone();
+         colorFrame = (ColorFrame) DivergingRamps.substitute(
+            colorFrame, rinfo.getNodeColorField().getVisualFrameWrapper(), vizContext);
          colorFrame.setField(rinfo.getNodeColorField().getFullName());
+
+         // the plot data may hold brushed rows only, so decide the sign on all data
+         if(adata != null && colorFrame instanceof AutoDivergingColorFrame) {
+            ((AutoDivergingColorFrame) colorFrame).setSignData(cvisitor.getData());
+         }
+
          colorFrame.getLegendSpec().setTitle(GraphUtil.getCaption(rinfo.getRTNodeColorField()));
 
          VSFrameVisitor.setLegendComparator(tref, colorFrame, data);
@@ -5249,6 +5272,8 @@ public abstract class GraphGenerator {
          return;
       }
 
+      elem.setContrastInk(true);
+
       if(elem instanceof IntervalElement interval) {
          interval.setCornerFloor(true);
          interval.setWidthClamp(isWidthClamped(interval, chartType));
@@ -5286,6 +5311,32 @@ public abstract class GraphGenerator {
          // an author's plot resize keeps today's layout
          relation.setPlotFit(!info.isWidthResized() && !info.isHeightResized());
       }
+      else if(elem instanceof TreemapElement treemap &&
+              (treemap.getMapType() == TreemapElement.Type.SUNBURST ||
+               treemap.getMapType() == TreemapElement.Type.ICICLE))
+      {
+         treemap.setLevelStep(getLevelStepBase(treemap),
+                              VSObjectChromeDefaults.cardComposite(vizContext));
+      }
+   }
+
+   /**
+    * Get the tree level a sunburst or icicle steps its colours down from: the colour field's
+    * level, or the top level with no colour field. A ramp, or a colour field outside the tree,
+    * gets no steps (-1).
+    */
+   private int getLevelStepBase(TreemapElement treemap) {
+      AestheticRef colorField = info.getColorField();
+
+      if(colorField == null) {
+         return 0;
+      }
+
+      if(colorField.getVisualFrame() instanceof LinearColorFrame) {
+         return -1;
+      }
+
+      return treemap.getTreeDims().indexOf(colorField.getFullName());
    }
 
    /**

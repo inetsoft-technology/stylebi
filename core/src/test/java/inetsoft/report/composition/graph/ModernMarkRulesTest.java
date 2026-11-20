@@ -253,6 +253,18 @@ class ModernMarkRulesTest {
    }
 
    @Test
+   void markedElementsUseContrastInk() {
+      List<IntervalElement> marked = intervals(measureChart(GraphTypes.CHART_BAR),
+                                               VizMark.MODERN_LIGHT);
+      List<IntervalElement> classic = intervals(measureChart(GraphTypes.CHART_BAR), null);
+
+      assertEquals(1, marked.size(), "premise: one marked bar element");
+      assertEquals(1, classic.size(), "premise: one classic bar element");
+      assertTrue(marked.get(0).isContrastInk(), "marked");
+      assertFalse(classic.get(0).isContrastInk(), "classic");
+   }
+
+   @Test
    void aMarkedBoxPlotTakesTheBarCorner() {
       SchemaElement box = boxElement(measureChart(GraphTypes.CHART_BOXPLOT), VizMark.MODERN_LIGHT);
 

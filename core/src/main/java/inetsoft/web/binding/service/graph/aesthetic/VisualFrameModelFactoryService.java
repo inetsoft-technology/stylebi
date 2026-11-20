@@ -18,8 +18,9 @@
 package inetsoft.web.binding.service.graph.aesthetic;
 
 import inetsoft.graph.aesthetic.VisualFrame;
-import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
-import inetsoft.uql.viewsheet.graph.aesthetic.VisualFrameWrapper;
+import inetsoft.graph.rgb.SplineColorFrame;
+import inetsoft.uql.viewsheet.graph.aesthetic.*;
+import inetsoft.web.binding.model.graph.aesthetic.VarianceColorModel;
 import inetsoft.web.binding.model.graph.aesthetic.VisualFrameModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,7 +84,16 @@ public class VisualFrameModelFactoryService {
       VisualFrameWrapper nwrapper = getVisualFrameWrapper(wrapper, model);
       VisualFrameModelFactory<V, F> factory = getFactory(nwrapper);
 
-      return factory.updateVisualFrameWrapper((V) nwrapper, model);
+      V updated = factory.updateVisualFrameWrapper((V) nwrapper, model);
+
+      // an author's spline ramp pick is flagged; the flag is never cleared here
+      if(updated instanceof LinearColorFrameWrapper &&
+         updated.getVisualFrame() instanceof SplineColorFrame && model.isChanged())
+      {
+         ((LinearColorFrameWrapper) updated).setAuthorRamp(true);
+      }
+
+      return updated;
    }
 
    @SuppressWarnings("rawtypes")
@@ -109,6 +119,14 @@ public class VisualFrameModelFactoryService {
    {
       if(model == null) {
          return null;
+      }
+
+      // the automatic Variance sent back by the pane keeps the seeded Teal
+      if(wrapper instanceof TealColorFrameWrapper &&
+         !((TealColorFrameWrapper) wrapper).isAuthorRamp() &&
+         model instanceof VarianceColorModel && !model.isChanged())
+      {
+         return wrapper;
       }
 
       VisualFrame frame = model.createVisualFrame();

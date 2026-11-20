@@ -248,6 +248,7 @@ public class PolygonVO extends ElementVO {
          // text in middle of bar, support auto text color
          if(elem.isAutoTextColor()) {
             vtext.setAutoBackground(gobj.getColor(0));
+            vtext.setContrastInk(elem.isContrastInk());
          }
          break;
       }

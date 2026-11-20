@@ -182,6 +182,8 @@ public class MapGenerator extends MergedGraphGenerator {
     */
    @Override
    protected void applyBrushing() {
+      applyRampFloor();
+
       // not brushing target?
       if(adata == null) {
          // brushing source?
@@ -492,6 +494,8 @@ public class MapGenerator extends MergedGraphGenerator {
     * highlight and brush is in applyHighlight and applyBrush method.
     */
    private void initColorFrame(boolean forced) {
+      applyRampFloor();
+
       PlotDescriptor plotdesc = desc.getPlotDescriptor();
       boolean showPolygonColor = plotdesc.isPolygonColor();
       boolean isBrushing = adata != null || isBrushingSource();
@@ -545,6 +549,25 @@ public class MapGenerator extends MergedGraphGenerator {
             }
          }
       }
+   }
+
+   /**
+    * Start the ramp of a marked region-only map at a quarter of its range.
+    */
+   private void applyRampFloor() {
+      if(vizContext.modern && getColorFrame(null) instanceof AutoDivergingColorFrame &&
+         floorsRamp(true, GraphUtil.containsMapPolygon(info), GraphUtil.containsMapPoint(info),
+                    GraphTypes.isContour(getChartType())))
+      {
+         ((AutoDivergingColorFrame) getColorFrame(null)).setLowStop(MAP_RAMP_FLOOR);
+      }
+   }
+
+   /**
+    * Check if a map's ramp starts above zero: a marked, region-only, non-contour map.
+    */
+   static boolean floorsRamp(boolean modern, boolean polygon, boolean point, boolean contour) {
+      return modern && polygon && !point && !contour;
    }
 
    /**
@@ -1533,6 +1556,7 @@ public class MapGenerator extends MergedGraphGenerator {
    // geo field names
    private List<String> gfields = new ArrayList<>();
    private List<Integer> types = new ArrayList<>(); // element types
+   private static final double MAP_RAMP_FLOOR = 0.25;
    private ColorFrame ptcolor;                // point color frame
    private ColorFrame pocolor;                // polygon color frame
    private ColorFrame aptcolor;               // all point color frame

@@ -1269,7 +1269,7 @@ public class VLabel extends BoundedVisualizable {
     */
    @TernMethod
    public Color getColor() {
-      return autoBG != null ? GTool.getTextColor(autoBG) : spec.getColor(label);
+      return autoBG != null ? GTool.getTextColor(autoBG, contrastInk) : spec.getColor(label);
    }
 
    /**
@@ -1304,6 +1304,20 @@ public class VLabel extends BoundedVisualizable {
    @TernMethod
    public void setAutoBackground(Color bg) {
       this.autoBG = bg;
+   }
+
+   /**
+    * Check if the auto text color is the ink with the higher contrast ratio.
+    */
+   public boolean isContrastInk() {
+      return contrastInk;
+   }
+
+   /**
+    * Set whether the auto text color is the ink with the higher contrast ratio.
+    */
+   public void setContrastInk(boolean contrastInk) {
+      this.contrastInk = contrastInk;
    }
 
    /**
@@ -1889,6 +1903,7 @@ public class VLabel extends BoundedVisualizable {
    private boolean clipHeight = false;
    private Font font = null;
    private Color autoBG;
+   private boolean contrastInk = false;
 
    private transient String[] dlabels0; // cached display label (lines)
    private transient Rectangle2D dbounds0; // bounds of cached label

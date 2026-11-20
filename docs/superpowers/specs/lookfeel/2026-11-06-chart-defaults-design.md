@@ -257,6 +257,7 @@ Ruled by the owner on 2026-11-06. Each overrides the decision named. The older d
 | R7 | The reset copy applies creation-time defaults, except the date level (M6). | MD §2 anti-goal "data bindings change" |
 | R8 | The reset copy clears author axis-title visibility and value-axis-line visibility. | MD §5.1 (visibility kept) |
 | R11 | The S4 mark sizes (Gantt bar, bubble, edge, milestone, radar line) are drawing rules chosen under the mark, not seeded values. Ruled 2026-11-12 (D44). | D2 and D3 for these items. Every draw rewrites the default sizes, so a seed could not survive (M2) |
+| R13 | The S2-10 map ramp floor is a drawing rule, not a stored value. Ruled 2026-11-11 (S2b ruling Q7). | D2 for this item. The floor depends only on the mark, the map type and a seeded ramp. Storing it would add a field for Revert and the transitions to manage, and gain nothing. An older build draws the full ramp (M9) |
 
 **Where the bundle is overruled instead:**
 
@@ -280,7 +281,7 @@ Ruled by the owner on 2026-11-06. Each overrides the decision named. The older d
 |---|---|---|---|
 | S0 | Chart defaults travel | Written with this spec | — |
 | S1 | Chart chrome | Written with this spec | S0. 80398's slot lists for S1-2, S1-4, S1-5 and S1-8 |
-| S2 | Colour | Later | S0, 80398 |
+| S2 | Colour: S2a (S2-1 to S2-5, S2-8) and S2b-1 (S2-6, S2-7, S2-13) shipped as one PR (#8038); S2b-2 is S2-9 to S2-12 | Later | S0, 80398 |
 | S3 | Legend layout | Later | S0, 80398 |
 | S4a | Corners and widths: S4-1 to S4-6, and the Gantt bar size | Later | S0, 80398. Stacked on S3 |
 | S4b | The other marks: S4-7 to S4-12 | Later | S4a |
@@ -359,10 +360,10 @@ C1 (card), C13 (text sizes and colours) and C15 (density) are already shipped. S
 | S2-6 | Direction colours: candle up and down, stock with no colour dimension, waterfall increase and decrease | C12, candle 1, stock 1 and 2, funnel 4 | Candle: `CandleGraphGenerator:217-224` (static `Color.gray`), `CandlePainter.paint:116-150` draws one colour (there is no darkening). Stock: `StockPainter` draws one colour. Waterfall: see notes. | N | See "S2-6 direction tokens" under this table. |
 | S2-7 | Waterfall Total in the neutral token | C12, funnel 4 | `VSChartAggregateRef:59-60` summary colour `#7030A0`, applied at `GraphGenerator:4509-4515` (tiered, saved) | V | Skipped when the author set a colour. |
 | S2-8 | Size-legend symbols in the chrome label grey, bordered in the grid colour | C20, point 9, relation 6, geo 5 | `Legend.createItems:702-707` falls back to `LegendItem.SYMBOL_COLOR` `#759595` and `SYMBOL_BORDER` (`:306-307`) when `getElementColor` (`:725`) returns null | D | Add a symbol-colour property to `LegendSpec`, set in `GraphGenerator.processSizeLegend` (about `:1830`) from the modern chrome. |
-| S2-9 | A measure on colour that crosses zero uses the diverging ramp, centred on zero | C23, point 4 | Frame class chosen at bind (`GraphUtil:972` `defaultLinearFrame(ctx)`). `ChangeChartProcessor.fixColorField:234` always picks Blues, even on modern charts. `LinearColorFrame:52-70` runs min to max with no centre | D + flag | See "S2-9 diverging ramp" under this table. |
-| S2-10 | Map ramp starts at about 25% of its range | C23, geo 2 | `TealColorFrame` has fixed spline stops and no offset | N | The builder chooses between a stored low-stop property and a modern-only frame. Mark detection keys on the frame class (`ChartVSAssemblyInfo:264-268`). |
-| S2-11 | Each deeper level of a sunburst or icicle is a lighter step of its group colour, up to three levels | hierarchy 3 | `TreemapVO.paint:212-242` fills every level with `gobj.getColor(0)` | D | A level-step flag on `TreemapElement`, set by the generator. Use the palette's shade function, not `getCompanionColor` (COMP §8 says they differ). Labels must keep 4.5:1 on the lightest step. A per-level author colour wins (the builder defines how one is set). |
-| S2-12 | Funnel colours in funnel order, top stage = slot 1 | funnel 3 | The colours follow the colour field's own comparator (alphabetical). `ChartVSAQuery.applyFunnelSort:2080-2102` sorts the stage by value and leaves colour out on purpose (comment 55854) | D | It recolours saved modern colour-by-stage funnels, which is accepted (a look change; Revert undoes it). The funnel legend lists the stages in the same order, top stage first: moved here from S3-4 by the owner's S2b ruling Q9 (2026-11-11). |
+| S2-9 | A measure on colour that crosses zero uses the diverging ramp, centred on zero | C23, point 4 | The ramp is the colour ref's stored frame, cloned for each render in `VSFrameVisitor.createVisualFrame` (`:404`), and for a relation chart's node colour in `GraphGenerator.initRelationElement` (`:1495`). `LinearColorFrame.getColor(Object)` (`:52-75`) runs the scale's minimum to maximum with no centre. `ChangeChartProcessor.fixColorField` has no callers | D + flag | See "S2-9 diverging ramp" under this table (D152 to D154). |
+| S2-10 | Map ramp starts at about 25% of its range, on map polygons | C23, geo 2 | `MapGenerator.initColorFrame` (`:494-548`) puts the ramp on the polygons. Brushing builds its own polygon frames in `MapGenerator.applyBrushing` (`:184-213`) | D | A drawing rule, not a stored value (R13). See "S2-10 map ramp floor" under this table (D155). |
+| S2-11 | Each deeper level of a sunburst or icicle steps its group colour toward the card, up to three levels | hierarchy 3 | `TreemapVO.paint` fills every node with `gobj.getColor(0)` (`:212`), and the automatic label ink reads the same unstepped colour (`:110-112`) | D | See "S2-11 level steps" under this table (D150, D151, D156). |
+| S2-12 | Funnel colours in funnel order, top stage = slot 1, and the legend in the same order | funnel 3 | Colour slots follow the colour field's design order (`VSFrameVisitor.createVisualFrame:415-422`, `sortValues:960-997`). `ChartVSAQuery.applyFunnelSort` (`:2213-2253`) sorts the stage ascending by value, so the top stage is the last value. A side legend reverses a stacked element's items (`Legend.isReversed:665-680`) | D | See "S2-12 funnel order" under this table (D149, D157). Moved here from S3-4 by the owner's S2b ruling Q9 (2026-11-11). |
 | S2-13 | Contrast of the direction tokens on the real translucent card | C16, financial open item | The card shipped in #7750, so this is no longer blocked | check | Sample the composited card in light and dark at 15%. Record the figures in the plan for S2-6. |
 
 **S2-1 palette readers.**
@@ -392,13 +393,84 @@ C1 (card), C13 (text sizes and colours) and C15 (density) are already shipped. S
 - **Waterfall:** reuse the sparkline's negative-colour pattern (`GraphGenerator:4696-4700`) if it has a stored property (then kind V). Otherwise a new property.
 - **In an older build:** these charts draw as before.
 
-**S2-9 diverging ramp.**
-- Make `fixColorField` use the context.
-- At draw time:
-  - when the bound frame is the seeded default teal, and
-  - the data range crosses zero,
-  - draw with Variance, using a scale symmetric about zero.
-- A seeded Teal and an author's Teal are the same class (comment at `ChartVSAssemblyInfo:271`). So a new flag records an author's pick.
+**S2b-2 rulings.** S2-9 to S2-12 were reviewed on 2026-11-10 (the S2b research note's "Review and recommendations") and ruled on 2026-11-11 (its Q6 to Q9). Two of those rulings were revised on 2026-11-19, once the code was read again at `9e3ba9ca8e`:
+- Q8's fixed lightness step turned the bright slots white (D150).
+- Q9 rested on the claim that automatic colour picks are not shared between charts. They are shared, within a dashboard (D149).
+
+**S2-9 diverging ramp.** Rulings Q6; D152 to D154.
+- **Which ramps change.** Only a seeded Teal changes: on a marked chart, a colour ref whose stored frame is exactly `TealColorFrame` without the author flag.
+  - An author's Teal and every other ramp draw as stored.
+  - An author's Variance draws minimum to maximum, as picked.
+  - Classic charts never change.
+- **What "crosses zero" means.** The minimum is below zero and the maximum above it. Data that only touches zero stays Teal.
+- **Brushing and tips.**
+  - Under brushing, the target's colour scale is built on all data (`GraphGenerator:287`, `fdata = adata`), so brushing never switches the ramp.
+  - A relation chart's node colour is the exception today. Its frame is initialised later, by `Plotter.initFrames`, from the brushed graph data (`Plotter.java:212-236`, `BrushDataSet`). Its decision reads the chart's full data, which the generator hands to the frame under brushing (`GraphGenerator.initRelationElement`). The plot data cannot carry it: a relation chart without a general Size measure draws brushed rows only. Without that hand-over, the decision reads the all-data column when there is one (`ElementVO.ALL_PREFIX`). So it does not switch either. Its range stays as it draws today, centred when it diverges (D158).
+  - A data tip or flyover view is re-queried on its own rows. It may switch, just as its ramp already re-ranges today.
+- **Old files.** An old file's unflagged author Teal turns diverging. Teal shipped only on the epic, so no released file has one.
+- **The author flag.** `LinearColorFrameWrapper.authorRamp`, written as an attribute only when true.
+  - It is not the wrapper's `changed`. On an aesthetic ref that flag drives `isColorChanged` (`AbstractAestheticRef:414`), which turns off the 0.75 darkening of lines and points.
+  - It is stamped by an explicit pick in the colour pane. Nothing sends that signal today: `switchColorModel` (`linear-color-pane.component.ts:248-279`) clones a fresh model whose `changed` is false, and no ramp factory reads `changed`. This slice adds it: `switchColorModel` marks a ramp model `changed`, a ramp model built from a flagged wrapper carries `changed`, and the server stamps the flag from it.
+  - A script `setColorFrame` stamps it too.
+  - An ordinary Apply never stamps it.
+  - It stops the Blues↔Teal swap on Modernize and Revert (`ChartVSAssemblyInfo.isOtherMarkSeededLinearFrame`).
+  - The reset copy clears it. Today the `ChartChromeSlots` ramp slot does nothing when the class already matches.
+- **Drawing (D154).** A render-only frame takes the place of the seeded Teal in the render clone.
+  - It draws Teal until its scale is initialised.
+  - If the scale is linear and its range crosses zero, the frame draws the Variance ramp. It also sets the scale's minimum and maximum to −M and +M, where M = max(|min|, |max|).
+  - Tick rounding never changes the sign test. Rounding moves a minimum down and a maximum up, and never past zero from a non-negative minimum or a non-positive maximum.
+  - The decision is made again whenever the scale is rebuilt, which the legend's "include zero", "reversed" and logarithmic options do (`GraphGenerator.setLegendProperties`).
+  - A logarithmic scale never diverges.
+  - The frame is never stored. The stored frame stays the seeded Teal, so Revert, older builds and the seeds all see a Teal.
+- **The colour pane shows what draws (D152).**
+  - While the automatic Variance draws, the colour pane shows Variance.
+  - Picking Teal there stamps the flag, and the chart draws Teal.
+  - An unchanged Variance sent back with any other edit keeps the stored Teal.
+  - The composer's draw records which colour fields drew diverging. The pane can therefore lag one draw behind a binding change.
+
+**S2-10 map ramp floor.** Ruling Q7; R13, D155.
+- **Where it applies.** A marked polygon map whose ramp is the seeded Teal, meaning polygons with no points, and not a contour map.
+- **What it draws.** Data colours start at 25% of the ramp: ratio r draws the ramp at 0.25 + 0.75r.
+  - The gradient legend samples the same frame (`ColorLegendBand.paint:57-64`), so the legend shows the floor too.
+- **Where it doesn't apply.** Points, contour maps, an author's ramp, and a ramp that is drawing Variance.
+- **Where it lives.** On S2-9's render-only frame, not on `SplineColorFrame`. It is set before brushing builds its polygon frames.
+- **No-data regions are unchanged.** They never reach the ramp: `LinearColorFrame.getColor` returns null for a missing value, so the composite falls through to the empty colour.
+
+**S2-11 level steps.** Ruling Q8 as revised on 2026-11-19; D150, D156.
+- **Chart types.** Sunburst and icicle only. Treemap and circle packing fill only their leaves.
+- **The base level.**
+  - It is the colour field's level in the tree.
+  - With no colour field, or a single colour (the author's included), the top level is the base.
+  - A measure on Color, which is a ramp, gets no steps. Nor does a colour dimension that is not one of the tree's levels.
+- **The step.**
+  - A node n levels below the base, with n capped at 3, is mixed toward the card colour in OKLab by 1 − 0.62ⁿ, which gives 38%, 62% and 76%.
+  - The card is the composited modern card (`VSObjectChromeDefaults.cardComposite`: `#ECEBE9` light, `#313034` dark).
+  - So steps go lighter on a light card and deeper on a dark one, and never past the card.
+  - This replaces Q8's fixed lightness step, which turned the bright slots (teal, amber, lime) white on a light card.
+  - The bundle drew its second ring at 62% opacity over the card, which is the first step.
+- **What it applies to.** The colour the node already draws, after highlight and brushing. Its alpha is kept.
+- **Per-level author colour.** An author sets one by binding Color to that level; the steps then start below it.
+- **Checked on the eight modern head slots.**
+  - The smallest steps are about 0.03 in OKLab (teal and amber on a light card, step 3) and about 0.02 (navy on a dark card, step 3).
+  - With D151's ink, every step keeps its label at 4.66:1 or more.
+
+**Automatic label ink (D151).**
+- On a marked chart, a label drawn on its mark takes whichever of black and white has the higher contrast with the fill. That is the crossover at a relative luminance of about 0.18, so every fill reaches at least 4.58:1, as C21 requires.
+- Today's rule (`GTool.getTextColor`) prefers white up to a luminance of 0.25. That misses 4.5:1 on mid-tone fills, including two unstepped modern slots: `#E5197E` (4.40:1, light) and `#AE41F5` (4.31:1, dark).
+- It covers every element with automatic ink on a marked chart: the treemap family and relation nodes today, and funnel and waterfall values once S8-3 lands.
+- Classic charts keep today's rule.
+
+**S2-12 funnel order.** Ruling Q9 as revised on 2026-11-19; D149, D157.
+- **When it applies.** On a marked funnel whose colour field is its stage, the innermost Y dimension. Any other colour field is unchanged.
+- **Slot order.** Colour slots follow the drawn stage order from the top. That is the reverse of the ascending value order that `applyFunnelSort` sets on the stage.
+  - **Panels.** With an outer Y dimension, a facet or several measures, each panel's funnel can order its stages differently, but one colour frame serves every panel. Funnel order is then the stages ordered by the sort-by measure's total over all rows, largest first. This is what the stage's value comparator gives over the whole data set (D159).
+  - **An author's order wins (M4, D158).** The colour field has its own sort, separate from the stage's forced one. Funnel order applies only while that sort is the default ascending order. Any other order (descending, by value, manual or none) is the author's: the slots follow it, and the legend lists it first at the top.
+- **Shared colours win (D149).** Charts on one dashboard that colour by the same column share their value-to-colour picks (`Viewsheet.getSharedFrames`, `CategoricalColorFrameContext`). This is the Share Colors option, on by default, and the first chart to draw fixes the picks.
+  - The funnel takes funnel order only when its own Share Colors is off, or when no other chart on the dashboard colours by that column with Share Colors on. It then neither reads nor writes the shared picks for that column.
+  - With such a partner, the funnel keeps the shared picks, so a stage has one colour across the dashboard. Adding such a chart changes the funnel's colours.
+  - The S2b review had said that automatic picks are not shared between charts. That was wrong, and ruling Q9 was made on it.
+- **Legend (D157).** In both cases above, the funnel's colour values are listed top stage first, and a marked funnel's stage legend is not reversed (`Legend.isReversed`).
+- **Saved funnels.** Saved modern colour-by-stage funnels change colour. This is accepted as a look change, and Revert undoes it.
 
 ### S3. Legend layout
 
@@ -945,6 +1017,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | Gantt tick count | S8-7 | "Dozens" of grid lines at 25 tasks against about 5 ticks from `TimeScale`. |
 | Relation edge width | S4-9 | Answered 2026-11-12: the capture shows edges of about 15px, which largest 15 explains. |
 | Direction-token contrast on the real card | S2-13 | Sample now that #7750 has shipped. |
+| Funnel colour and legend order | S2-12 | Record the slot order and the legend order of a classic and a marked funnel coloured by its stage, alone and next to a second chart coloured by the stage. The code reading could not settle whether `applyFunnelSort` also sorts a colour ref that names the stage's column (`ArrayUtils.contains` compares refs by column). |
 | Label rotation and thinning today | S5-1 | Confirm that a 400×240 bar with 8 short product names rotates to 90° today, and record its label band. Confirm the steps `removeOverlappedLabels` produces on a uniform category axis (2, 4, 8 or any k). |
 | Date labels today | S5-2 | Record the labels of a monthly bar, a daily candle, a time-series line and the Gantt, and the format each shows in the Format dialog, before any change. |
 
@@ -983,7 +1056,8 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 - Which legend descriptors carry the title flag (S3-6).
 - The shape of the up and down colour property, and the editor for it (S2-6).
 - The pre-blend base for the map highlight and the tree tint (S2-4, S8-6).
-- How an author sets a per-level colour on a sunburst or icicle (S2-11).
+- How the composer's draw records the colour fields that drew the automatic Variance, and how the colour pane's model reads them (S2-9, D152).
+- How the funnel's partner check names a column the same way the shared colour picks do (S2-12, D149).
 - How the generator estimates an axis's length before layout for S5-1: the Y labels, a side legend, the axis title and the facet panels.
 - How `fixAxisDefaultFormat` learns the mark and the drawn level for S5-2 (D82).
 - How the year moves to the first shown label after thinning (S5-2).
@@ -1008,7 +1082,9 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 
 ## 10. Decisions
 
-"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, on 2026-11-16 from D69 on, on 2026-11-17 from D94 on, or on 2026-11-18 from D116 on. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, while amending S5 for D83 to D85 and D87 to D90, while amending S6 for D100 to D107, or while amending S7 for D122 to D129, and D131 from its build.
+"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, on 2026-11-16 from D69 on, on 2026-11-17 from D94 on, on 2026-11-18 from D116 on, or on 2026-11-19 for D149 and D150. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, while amending S5 for D83 to D85 and D87 to D90, while amending S6 for D100 to D107, while amending S7 for D122 to D129, and D131 from its build, or while amending S2 for D151 to D159.
+
+S2b-2 numbered its rows D150 to D160 while it was built. They are D149 to D159 here, after the open S8 branch's D132 to D148, and its ruling R12 is R13 here, because S7 merged first with its own R12. The S2b-2 plan and live-check notes use the old numbers.
 
 | # | Decision | Who |
 |---|---|---|
@@ -1028,7 +1104,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D14 | Data-label ink off a mark stays the title tier (R10) | Design, following the owner's acceptance of the recommendations |
 | D15 | The bubble cap is expressed as about 20px across, because the code's size is close to a radius (S4-8) | Design |
 | D16 | Radar scale labels go on the spoke nearest 12 o'clock (S5-6) | Design |
-| D17 | Hierarchy level steps use the palette's shade function (S2-11) | Design |
+| D17 | Hierarchy level steps use the palette's shade function (S2-11). Revised by D150: no shade function exists, and each level is mixed toward the card instead | Design |
 | D18 | The Gantt milestone takes slot 2 by measure order, and its legend loses the "Measures" title through S3-6 | Design |
 | D19 | A waterfall's "data order" means no sort (S7-4). Revised by D130: a saved manual order, because an aggregated chart's query sorts `SORT_NONE` ascending | Design |
 | D20 | Pie start angle and direction are look, a new property that follows the mark. The largest-first sort is creation-time (S6-8, S7-3). Revised by D102: a drawing rule, not a stored property | Design |
@@ -1143,6 +1219,17 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D129 | The type-change rules run from `ChangeChartTypeService`, after `ChangeChartTypeProcessor.process()` returns, not inside it. A script that sets `chartStyle` on a marked chart goes through `process()` too, and §8 keeps script behaviour unchanged, so a script never re-colours, re-sorts or moves fields at run time (S7) | Design, from the builder check |
 | D130 | A waterfall's data order is saved as a manual order listing the category's values in the order they first appear in the source rows, read once when the rule fires. `SORT_NONE` is sorted ascending by the query of an aggregated chart (issue 56590), and lifting that sort would leave the order to the grouping step or the database, which can change between runs. Values that first appear later go after the list, ascending. A detail calc field is read and ordered like any other column, because the query adds it to the runtime worksheet table (`VSAQuery.appendCalcField`); the owner accepted this after the live checks (S7-W5). Revises D19 (S7-4) | Owner, 2026-11-18, after the builder check |
 | D131 | On a marked chart, a stacked area or step area with a single stack layer keeps the area's own fill alpha (0.8), so it draws exactly as the plain area and picking Area changes nothing until a series arrives (D124). Its tooltip shows no stack total either, because one layer's total is its own value (the element carries `GraphGenerator.SINGLE_STACK_LAYER`, which `PlotArea` reads). A single layer means no dimension on its Color, Shape, Size or group shelf (the series test AUTO uses for bar, now `AbstractChartInfo.hasSeriesDimension`) and not several measures stacked into one element. Classic charts, and stacked areas with a series or with stacked measures, stay opaque as today. An area that gains series only at run time, from a date comparison, keeps 0.8 (S7-2) | Design, from the S7 build |
+| D149 | A marked funnel coloured by its stage takes funnel order only when its Share Colors is off, or when no other chart on the dashboard colours by that column with Share Colors on. It then neither reads nor writes the dashboard's shared picks for that column. With such a partner it keeps the shared picks. Its legend lists the stages top first in every case. Revises S2b ruling Q9, which assumed automatic picks are not shared (S2-12) | Owner |
+| D150 | A sunburst or icicle node n levels below its base (n at most 3) is mixed toward the composited card colour in OKLab by 1 − 0.62ⁿ (38%, 62%, 76%), so it never turns white or passes the card. Replaces the fixed lightness step of S2b ruling Q8 and revises D17 (S2-11) | Owner |
+| D151 | On a marked chart, a label drawn on its mark takes whichever of black and white has the higher contrast with the fill, so every fill reaches 4.5:1 (C21). Classic charts keep today's white-leaning rule (S2-11, S1-6) | Design |
+| D152 | While the automatic Variance draws, the colour pane shows Variance. Picking Teal there is the author's pick. An unchanged Variance sent back with another edit keeps the stored Teal. The pane reads the composer's last draw (S2-9) | Design |
+| D153 | The author's ramp pick is a new `LinearColorFrameWrapper.authorRamp` attribute, written only when true. It is stamped by the colour pane's explicit pick and by a script `setColorFrame`, never by an Apply. It is not the wrapper's `changed`, which drives the darkening rule. It blocks the Blues↔Teal swap, and the reset copy clears it (S2-9) | Design |
+| D154 | The diverging ramp is a render-only frame put in place of an unflagged Teal on a marked chart, for colour fields and the relation node colour. It decides each time its scale is initialised, from that scale's range, and centres by setting the scale to ±max(\|min\|, \|max\|). A logarithmic scale never diverges. It is never stored (S2-9) | Design |
+| D155 | The map floor lives on D154's render-only frame, is set for a marked polygon map before brushing builds its frames, and is off while the frame draws Variance (S2-10) | Design |
+| D156 | The step base is the colour field's level in the tree. With no colour field or a single colour, the top level is the base. A ramp on Color, or a colour dimension outside the tree, gets no steps. The step applies to the colour the node already draws, after highlight and brushing, and keeps its alpha. The label ink reads the stepped colour (S2-11) | Design |
+| D157 | A marked funnel's colour values are ordered from the top stage, and its stage legend is not reversed. The graph package recognises the funnel by its middle-stacked element (`MOVE_MIDDLE`) whose legend field is one of the element's dimensions (S2-12) | Design |
+| D158 | A relation node colour under brushing decides on the all-data copy of its column, as the S2b ruling Q6 asks, and keeps today's range. On a funnel, a colour-field order other than the default ascending is the author's and wins over funnel order (S2-9, S2-12) | Design, from the builder check |
+| D159 | A funnel split into panels takes funnel order from the stages' totals over all rows (S2-12) | Design, from the builder check |
 
 ## 11. Testing
 
@@ -1183,6 +1270,31 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
   - The reset copy applies S7-2 to S7-7 and not S7-1. A two-ticker candle on the copy becomes two panels with each ticker's own prices (D120).
   - An area with no series dimension draws the same stacked and plain: one measure, and two measures with Stack Measures off (D124).
   - The candle Color drop is refused in the portal (TL test) and on the server.
+- **Colour, S2-9 to S2-12:**
+  - S2-9:
+    - A marked point chart whose colour measure crosses zero draws Variance centred on zero, and its legend runs from −M to +M.
+    - Data that only touches zero stays Teal.
+    - An author's Teal and an author's Variance draw as picked.
+    - A brushed target keeps the all-data decision.
+    - A relation node colour follows the same rule.
+    - The legend's "include zero" and "reversed" options keep the centre, and a logarithmic legend never diverges.
+    - The flag round-trips, is absent from classic XML, survives Modernize and Revert, and is cleared by the reset copy.
+    - The pane shows Variance while it draws, and an unchanged Variance sent back keeps the stored Teal.
+  - S2-10: a marked polygon map's lowest value draws the ramp at 25%, and so does its legend. The floor is absent on point maps, contour maps, an author's ramp and a diverging map, and it holds under brushing.
+  - S2-11:
+    - Steps on a coloured and a single-colour sunburst and icicle, both light and dark.
+    - The base follows the colour field's level, and a ramp on Color gets no steps.
+    - The label ink reads the stepped colour.
+    - Every modern head slot reaches 4.5:1 at every step.
+  - D151: the ink on a marked treemap flips to black on a mid-tone fill that today takes white; a classic treemap is unchanged.
+  - S2-12:
+    - A marked funnel alone takes slot 1 on its top stage, and its legend lists the top stage first.
+    - With a partner chart on the same column, the funnel keeps the shared picks and its legend still lists the top stage first.
+    - With Share Colors off, the funnel takes funnel order again.
+    - An author's descending or manual order on the colour field keeps its slots and legend order.
+    - A funnel with an outer Y dimension takes its order from the stage totals.
+    - A classic funnel is unchanged.
+  - Every item renders a classic chart identically before and after.
 - **Spring context:** Java tests that reach the seed or the generator need the Spring context set up as `CLAUDE.md` describes.
 - **Manual:**
   - Rebuild the bundle's dashboards from `repro/charts.md` on the built server.

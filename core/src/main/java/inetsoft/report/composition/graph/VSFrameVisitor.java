@@ -139,6 +139,13 @@ public class VSFrameVisitor {
    }
 
    /**
+    * Get the data the frames are initialized with, all data when brushing.
+    */
+   DataSet getData() {
+      return data;
+   }
+
+   /**
     * Create legend frame.
     */
    private VisualFrame createFrame() {
@@ -402,6 +409,23 @@ public class VSFrameVisitor {
       }
 
       frame = (VisualFrame) frame.clone();
+
+      if(strategy instanceof VSColorFrameStrategy) {
+         frame = DivergingRamps.substitute(frame, tref.getVisualFrameWrapper(),
+                                           ((VSColorFrameStrategy) strategy).getVizContext());
+      }
+
+      Comparator<Object> funnelOrder = getFunnelOrder(col, frame);
+      boolean funnelAlone = funnelOrder != null &&
+         ((VSColorFrameStrategy) strategy).isFunnelStandalone();
+      // a standalone funnel syncs in funnel order
+      Comparator<Object> syncOrder = funnelAlone ? funnelOrder : null;
+
+      if(funnelAlone) {
+         // palette picks from an earlier draw would keep their old slots
+         ((CategoricalColorFrame) frame).clearDerivedColors();
+      }
+
       // legendSpec is only set at runtime by graph generator, clear it so no
       // leftovers from last run
       frame.setLegendSpec(new LegendSpec());
@@ -425,9 +449,9 @@ public class VSFrameVisitor {
       frame.getLegendSpec().getTextSpec().setFormat(dfmt);
 
       if(col != null && frame instanceof CategoricalColorFrame &&
-         ((CategoricalColorFrame) frame).isShareColors())
+         ((CategoricalColorFrame) frame).isShareColors() && !funnelAlone)
       {
-         String columnName = resolveColumnName(col, tref);
+         String columnName = resolveColumnName(col, tref, sourceType);
 
          // pull colors from other categorical color frames referencing the same column
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
@@ -456,7 +480,7 @@ public class VSFrameVisitor {
          context.addSharedFrame(columnName, saveFrame, ref);
       }
       else if(col != null && frame instanceof CategoricalShapeFrame) {
-         String columnName = resolveColumnName(col, tref);
+         String columnName = resolveColumnName(col, tref, sourceType);
 
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
          // a data tip view only renders filtered data and has no full data frame of its own,
@@ -480,7 +504,7 @@ public class VSFrameVisitor {
          syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime());
       }
       else {
-         syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime());
+         syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime(), syncOrder);
       }
 
       // treemap areas should always be zero based
@@ -496,7 +520,10 @@ public class VSFrameVisitor {
       }
 
       initFrame(frame, tref);
-      syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime());
+      syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime(), syncOrder);
+
+      // list the stages from the top, each keeping its colour
+      FunnelColorOrder.sortScale(frame, funnelOrder);
 
       if(col != null && frame instanceof CategoricalShapeFrame && hasFullData) {
          // Save the fully-initialised frame (after initFrame + second syncCategoricalFrame) so
@@ -509,7 +536,7 @@ public class VSFrameVisitor {
          // view), initFrame depletes the cmap to only the visible category's entries. Saving that
          // depleted frame to the shared context would corrupt subsequent renders by stripping
          // SVGShape assignments for all other categories. (74191-related)
-         String columnName = resolveColumnName(col, tref);
+         String columnName = resolveColumnName(col, tref, sourceType);
 
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
          final CategoricalShapeFrame saveShapeFrame = (CategoricalShapeFrame) frame.clone();
@@ -535,7 +562,7 @@ public class VSFrameVisitor {
     * For MODEL source types, the attribute may be qualified (e.g. "entity:attribute");
     * only the local attribute name is used as the sharing key.
     */
-   private String resolveColumnName(String col, AestheticRef tref) {
+   static String resolveColumnName(String col, AestheticRef tref, int sourceType) {
       if(sourceType == XSourceInfo.MODEL) {
          final String attribute = tref.getAttribute();
 
@@ -545,6 +572,20 @@ public class VSFrameVisitor {
       }
 
       return col;
+   }
+
+   // the top-first stage order, when this frame colours a funnel by its stage
+   private Comparator<Object> getFunnelOrder(String col, VisualFrame frame) {
+      XDimensionRef stage = strategy instanceof VSColorFrameStrategy ?
+         ((VSColorFrameStrategy) strategy).getFunnelStage() : null;
+
+      if(stage == null || !(frame instanceof CategoricalColorFrame) ||
+         !Objects.equals(stage.getFullName(), col))
+      {
+         return null;
+      }
+
+      return FunnelColorOrder.topFirst(stage, data);
    }
 
    private static boolean isMetaData(DataSet data) {
@@ -582,6 +623,18 @@ public class VSFrameVisitor {
                                             DataRef aestheticDataRef, DateComparisonInfo dc,
                                             boolean isDcRuntime)
    {
+      syncCategoricalFrame(frame, data, aestheticDataRef, dc, isDcRuntime, null);
+   }
+
+   /**
+    * Make sure categorical values are initialized with full dataset.
+    *
+    * @param valueOrder the order of the colour values in place of the field's, or null.
+    */
+   private static void syncCategoricalFrame(VisualFrame frame, DataSet data,
+                                            DataRef aestheticDataRef, DateComparisonInfo dc,
+                                            boolean isDcRuntime, Comparator<Object> valueOrder)
+   {
       data = getVisualDataSet(frame.getField(), data);
 
       if(isMetaData(data)) {
@@ -591,7 +644,8 @@ public class VSFrameVisitor {
       // track the categorical model for share
       if(frame instanceof CategoricalColorFrame) {
          if(frame.getField() != null) {
-            syncColors((CategoricalColorFrame) frame, data, aestheticDataRef, dc, isDcRuntime);
+            syncColors((CategoricalColorFrame) frame, data, aestheticDataRef, dc, isDcRuntime,
+                       valueOrder);
 
             // userColors should be explicitly ignored if sync occurs
             frame = (CategoricalColorFrame) frame.clone();
@@ -694,7 +748,8 @@ public class VSFrameVisitor {
     * Make the frame display the same color as the full data set.
     */
    private static void syncColors(CategoricalColorFrame frame, DataSet data, DataRef aestheticRef,
-                                  DateComparisonInfo dc, boolean isDcRuntime)
+                                  DateComparisonInfo dc, boolean isDcRuntime,
+                                  Comparator<Object> valueOrder)
    {
       frame.init(data);
       String field = getBaseName(frame.getField());
@@ -716,7 +771,7 @@ public class VSFrameVisitor {
 
       // sort values so the ordering of values are predictable and not
       // dependent on the sorting/grouping of the current binding.
-      sortValues(data, field, vals, frame, aestheticRef);
+      sortValues(data, field, vals, frame, aestheticRef, valueOrder);
 
       if(frame.isUseGlobal()) {
          applyGlobalColors(frame);
@@ -960,11 +1015,21 @@ public class VSFrameVisitor {
    private static void sortValues(DataSet vdata, String field, Object[] vals, VisualFrame frame,
                                   DataRef aestheticDataRef)
    {
-      Comparator comp = null;
+      sortValues(vdata, field, vals, frame, aestheticDataRef, null);
+   }
+
+   /**
+    * Sort the values for visual frame.
+    * @param valueOrder  the order of the values in place of the field's, or null.
+    */
+   private static void sortValues(DataSet vdata, String field, Object[] vals, VisualFrame frame,
+                                  DataRef aestheticDataRef, Comparator<Object> valueOrder)
+   {
+      Comparator comp = valueOrder;
       boolean sorted = false;
 
       // see getVisualDataSet(). (43336)
-      if(aestheticDataRef instanceof XDimensionRef) {
+      if(comp == null && aestheticDataRef instanceof XDimensionRef) {
          XDimensionRef dim = (XDimensionRef) aestheticDataRef;
          comp = dim.createComparator(vdata);
          // if dim is explicitly not sorted (NONE), keep the original order so the color

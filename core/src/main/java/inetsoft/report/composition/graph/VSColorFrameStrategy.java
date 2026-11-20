@@ -18,6 +18,7 @@
 package inetsoft.report.composition.graph;
 
 import inetsoft.graph.aesthetic.*;
+import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
 import inetsoft.uql.viewsheet.internal.VizContext;
@@ -158,6 +159,31 @@ public class VSColorFrameStrategy implements VSFrameStrategy {
       return ctx;
    }
 
+   /**
+    * Set the funnel stage whose colour values follow funnel order, and whether the funnel keeps
+    * its colours to itself.
+    */
+   void setFunnelOrder(XDimensionRef stage, boolean standalone) {
+      this.funnelStage = stage;
+      this.funnelStandalone = standalone;
+   }
+
+   /**
+    * The funnel stage whose colour values follow funnel order, or null.
+    */
+   XDimensionRef getFunnelStage() {
+      return funnelStage;
+   }
+
+   /**
+    * Whether the funnel neither reads nor writes the shared colour picks.
+    */
+   boolean isFunnelStandalone() {
+      return funnelStandalone;
+   }
+
    private ChartInfo info;
    private final VizContext ctx;
+   private XDimensionRef funnelStage;
+   private boolean funnelStandalone;
 }

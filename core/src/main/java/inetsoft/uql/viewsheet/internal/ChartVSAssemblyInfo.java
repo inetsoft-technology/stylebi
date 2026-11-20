@@ -43,7 +43,9 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.LinearColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.VisualFrameWrapper;
 import inetsoft.util.*;
 import inetsoft.util.css.*;
 import org.slf4j.Logger;
@@ -301,7 +303,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedMeasureColors(info, ctx);
 
       // the chart-level ramp, as the aesthetic-ref ramps below: a mark transition only
-      if(ctx.transition && isOtherMarkSeededLinearFrame(info.getColorFrame(), ctx)) {
+      if(ctx.transition && isOtherMarkSeededLinearFrame(info.getColorFrameWrapper(), ctx)) {
          info.setColorFrame(VSChartPaletteDefaults.defaultLinearFrame(ctx));
       }
 
@@ -363,7 +365,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // deliberate Teal. A Modernize or a Revert is the only moment the seeded default is
       // stale by definition
       else if(ctx.transition && ref != null
-         && isOtherMarkSeededLinearFrame(ref.getVisualFrame(), ctx))
+         && isOtherMarkSeededLinearFrame(ref.getVisualFrameWrapper(), ctx))
       {
          ref.setVisualFrame(VSChartPaletteDefaults.defaultLinearFrame(ctx));
       }
@@ -376,11 +378,23 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
     * its changed flag says: linear-color-pane never sets that flag, so keying on it would discard
     * real choices on the first revert after upgrade.
     *
+    * An author's pick is flagged on its wrapper, so even a Teal or Blues pick is kept.
+    *
     * Only a mark transition may ask: the other mark's default is a class an author of a chart on
     * *this* mark can equally have chosen, so outside a transition there is nothing to distinguish
     * the two and the caller must not guess.
     */
-   private static boolean isOtherMarkSeededLinearFrame(VisualFrame frame, VizContext ctx) {
+   private static boolean isOtherMarkSeededLinearFrame(VisualFrameWrapper wrapper,
+                                                        VizContext ctx)
+   {
+      if(wrapper instanceof LinearColorFrameWrapper
+         && ((LinearColorFrameWrapper) wrapper).isAuthorRamp())
+      {
+         return false;
+      }
+
+      VisualFrame frame = wrapper == null ? null : wrapper.getVisualFrame();
+
       if(!(frame instanceof LinearColorFrame)) {
          return false;
       }

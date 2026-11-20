@@ -28,6 +28,7 @@ import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.LinearColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
@@ -575,6 +576,10 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
 
          if(ref != null) {
             ref.setVisualFrame(frame);
+
+            if(ref.getVisualFrameWrapper() instanceof LinearColorFrameWrapper) {
+               ((LinearColorFrameWrapper) ref.getVisualFrameWrapper()).setAuthorRamp(true);
+            }
          }
          else {
             VSDataRef[] aggs = getInfo().getAggregateRefs();
