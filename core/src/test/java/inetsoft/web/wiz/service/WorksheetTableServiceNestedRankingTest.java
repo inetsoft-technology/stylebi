@@ -204,6 +204,20 @@ class WorksheetTableServiceNestedRankingTest {
    }
 
    @Test
+   void twoLeavesWithoutOfAreRefusedOnTheRequestPath() throws Exception {
+      Worksheet ws = worksheet();
+      TableAssembly m = table(ws, "M");
+      String g1 = "{\"field\":\"G1\",\"operation\":\"TOP_N\",\"values\":[{\"type\":\"VALUE\",\"value\":2}]}";
+      String g2 = "{\"junction\":\"and\",\"field\":\"G2\",\"operation\":\"TOP_N\"," +
+         "\"values\":[{\"type\":\"VALUE\",\"value\":1}]}";
+      List<WorksheetTable.ConditionItem> items = leaves(g1, g2);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyRankingCondition(m, items));
+      assertTrue(ex.getMessage().contains("rankingCondition"), ex.getMessage());
+   }
+
+   @Test
    void unsupportedLeafOptionsAreRefusedNotDropped() throws Exception {
       Worksheet ws = worksheet();
       TableAssembly m = table(ws, "M");
