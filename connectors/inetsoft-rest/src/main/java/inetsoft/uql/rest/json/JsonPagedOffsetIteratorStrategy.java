@@ -32,7 +32,8 @@ import java.util.Collections;
 
 /**
  * Strategy that uses a record offset and max results parameters to iterate results until none are
- * returned.
+ * returned, or, when the pagination spec asks for it, until a page holds fewer records than the
+ * page size.
  */
 public class JsonPagedOffsetIteratorStrategy extends HttpRestDataIteratorStrategy<RestJsonQuery, JsonTransformer> {
    public JsonPagedOffsetIteratorStrategy(RestJsonQuery query,
@@ -86,6 +87,13 @@ public class JsonPagedOffsetIteratorStrategy extends HttpRestDataIteratorStrateg
 
          if(count > baseRecordLength) {
             offset += count;
+
+            // A request the server answers without honouring the offset (a lookup of a single
+            // record) returns the same short page for every offset, so it must not be asked again.
+            if(spec.isStopOnShortPage() && count < getMaxResultsPerPage(spec)) {
+               complete();
+            }
+
             return json;
          }
          else {

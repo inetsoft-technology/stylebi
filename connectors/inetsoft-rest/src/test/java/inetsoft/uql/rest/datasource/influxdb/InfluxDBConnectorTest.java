@@ -89,9 +89,33 @@ class InfluxDBConnectorTest {
    void bucketsAsksForPagesByItemOffsetAtTheLargestPageSize() {
       run(query("Buckets", 0));
 
-      // 100, then 30, then an empty page tells it there are no more
-      assertEquals(List.of("limit=100&offset=0", "limit=100&offset=100", "limit=100&offset=130"),
+      // 100, then 30: a page shorter than the page size is the last one
+      assertEquals(List.of("limit=100&offset=0", "limit=100&offset=100"),
                    pagingParams("/api/v2/buckets"));
+   }
+
+   @Test
+   void aListOfExactlyOnePageIsEndedByTheEmptyPageThatFollowsIt() throws Exception {
+      server.close();
+      server = new FakeInfluxDB(100, 45, 1200);
+
+      Result result = run(query("Buckets", 0));
+
+      assertEquals(100, result.rows.size());
+      assertEquals(List.of("limit=100&offset=0", "limit=100&offset=100"),
+                   pagingParams("/api/v2/buckets"));
+   }
+
+   @Test
+   void bucketLookedUpByNameIsReadOnceNotOncePerRowLimit() {
+      InfluxDBQuery query = query("Buckets", 100);
+      setParameter(query, "Bucket Name", "bucket7");
+
+      Result result = run(query);
+
+      assertEquals(1, result.rows.size());
+      assertEquals("bucket7", result.rows.get(0).get(result.col("name")));
+      assertEquals(1, pagingParams("/api/v2/buckets").size());
    }
 
    @Test
@@ -99,8 +123,7 @@ class InfluxDBConnectorTest {
       Result result = run(query("Users", 0));
 
       assertEquals(45, result.rows.size());
-      assertEquals(List.of("limit=100&offset=0", "limit=100&offset=45"),
-                   pagingParams("/api/v2/users"));
+      assertEquals(List.of("limit=100&offset=0"), pagingParams("/api/v2/users"));
    }
 
    @Test
@@ -288,6 +311,7 @@ class InfluxDBConnectorTest {
       InfluxDBQuery loadedV1 = reload(v1);
 
       assertEquals(PaginationType.OFFSET, loadedBuckets.getPaginationSpec().getType());
+      assertTrue(loadedBuckets.getPaginationSpec().isStopOnShortPage());
       assertEquals("results[0].series[0].columns", loadedV1.getHeadersPath());
       assertEquals("results[0].series[0].values", loadedV1.getRowsPath());
    }

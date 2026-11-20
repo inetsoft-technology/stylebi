@@ -179,6 +179,18 @@ public class PaginationSpec implements Serializable, XMLSerializable, Cloneable 
       this.hasNextParamValue = hasNextParamValue;
    }
 
+   /**
+    * Gets whether an offset-paged read ends on the first page that holds fewer records than the
+    * page size, instead of waiting for an empty page.
+    */
+   public boolean isStopOnShortPage() {
+      return stopOnShortPage;
+   }
+
+   public void setStopOnShortPage(boolean stopOnShortPage) {
+      this.stopOnShortPage = stopOnShortPage;
+   }
+
    public int getBaseRecordLength() {
       return this.baseRecordLength;
    }
@@ -195,6 +207,7 @@ public class PaginationSpec implements Serializable, XMLSerializable, Cloneable 
       writer.format("<maxResultsPerPage><![CDATA[%d]]></maxResultsPerPage>%n", maxResultsPerPage);
       writer.format("<incrementOffset><![CDATA[%s]]></incrementOffset>%n", incrementOffset);
       writer.format("<baseRecordLength><![CDATA[%d]]></baseRecordLength>%n", baseRecordLength);
+      writer.format("<stopOnShortPage><![CDATA[%s]]></stopOnShortPage>%n", stopOnShortPage);
 
       if(recordCountPath != null) {
          writer.format("<recordCountPath><![CDATA[%s]]></recordCountPath>%n", recordCountPath);
@@ -247,6 +260,7 @@ public class PaginationSpec implements Serializable, XMLSerializable, Cloneable 
       }
 
       incrementOffset = "true".equals(Tool.getChildValueByTagName(root, "incrementOffset"));
+      stopOnShortPage = "true".equals(Tool.getChildValueByTagName(root, "stopOnShortPage"));
       recordCountPath = Tool.getChildValueByTagName(root, "recordCountPath");
       hasNextParamValue = Tool.getChildValueByTagName(root, "hasNextParamValue");
 
@@ -313,6 +327,7 @@ public class PaginationSpec implements Serializable, XMLSerializable, Cloneable 
    private int maxResultsPerPage = -1;
    private boolean incrementOffset = false;
    private int baseRecordLength = 0;
+   private boolean stopOnShortPage = false;
    private String recordCountPath;
    private String hasNextParamValue;
    private PaginationParameter totalPagesParam = PaginationParameter.forReadJson();
@@ -343,6 +358,11 @@ public class PaginationSpec implements Serializable, XMLSerializable, Cloneable 
 
       public Builder maxResultsPerPage(int maxResultsPerPage) {
          this.maxResultsPerPage = maxResultsPerPage;
+         return this;
+      }
+
+      public Builder stopOnShortPage(boolean stopOnShortPage) {
+         this.stopOnShortPage = stopOnShortPage;
          return this;
       }
 
@@ -445,6 +465,7 @@ public class PaginationSpec implements Serializable, XMLSerializable, Cloneable 
          zeroBasedPageIndex = spec.zeroBasedPageIndex;
          maxResultsPerPage = spec.maxResultsPerPage;
          incrementOffset = spec.incrementOffset;
+         stopOnShortPage = spec.stopOnShortPage;
          recordCountPath = spec.recordCountPath;
          hasNextParamValue = spec.hasNextParamValue;
          copyParameter(spec.totalPagesParam, totalPagesParam);
@@ -467,6 +488,7 @@ public class PaginationSpec implements Serializable, XMLSerializable, Cloneable 
          spec.zeroBasedPageIndex = zeroBasedPageIndex;
          spec.maxResultsPerPage = maxResultsPerPage;
          spec.incrementOffset = incrementOffset;
+         spec.stopOnShortPage = stopOnShortPage;
          spec.recordCountPath = recordCountPath;
          spec.hasNextParamValue = hasNextParamValue;
          spec.baseRecordLength = baseRecordLength;
@@ -494,6 +516,7 @@ public class PaginationSpec implements Serializable, XMLSerializable, Cloneable 
       private boolean zeroBasedPageIndex = false;
       private int maxResultsPerPage = -1;
       private boolean incrementOffset = false;
+      private boolean stopOnShortPage = false;
       private String recordCountPath;
       private String hasNextParamValue;
       private int baseRecordLength = -1;
