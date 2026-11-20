@@ -160,7 +160,7 @@ Facts that make this safe:
 - **Already have provenance:**
   - static colour frames: the default, CSS and user tiers are saved by `StaticColorFrameWrapper:99-146`
   - size frames: `isSizeChanged`
-- **Shape frames have none.** `VisualFrameWrapper.changed` is saved, but a Shape pane edit never sets it: `ShapeFrameModelFactory:92` copies it from the pane model, which never receives it. Shapes have no tiers either. S8-4 therefore decides by the shape list itself (D139).
+- **Shape frames have none.** `VisualFrameWrapper.changed` is saved, but a Shape pane edit never sets it: `ShapeFrameModelFactory:92` copies it from the pane model, which never receives it. Shapes have no tiers either. S8-4 therefore decides by the shape list itself (D142).
 - **Files saved before a flag existed.**
   - When the flag attribute is missing, the flag is derived on parse. A value that differs from every classic creation default of that field counts as the author's. This follows the `userTitleHeight` precedent (SV, "What changed" §1).
   - `userBarCornerRadius` was built on the opposite precedent, where a missing attribute means no opinion. It moves to this rule in S4-1 (owner, D47). Released builds have the radius but neither the flag nor a seed, so a non-zero radius in a file they saved is the author's.
@@ -292,7 +292,7 @@ Ruled by the owner on 2026-11-06. Each overrides the decision named. The older d
 | S6b | Relation layouts: S6-4 to S6-6 | Later | S6a |
 | S7 | Creation-time defaults | Later | 80398, for the reset path; S2-6 for the candle's up and down colours. No code dependency on S6 |
 | S8a | Drawing rules: S8-1, S8-2 and S8-7 | Later | S6. Stacked on S6 (`bug-80455-s6`) |
-| S8b | Stored defaults and marks: S8-3 to S8-6 | Later | S8a. Shipped with S8a in one PR (D132) |
+| S8b | Stored defaults and marks: S8-3 to S8-6 | Later | S8a. Shipped with S8a in one PR (D135) |
 
 ### S0. Chart defaults travel
 
@@ -731,7 +731,7 @@ Amended 2026-11-16, after the owner reviewed S5 against the S4b head (`40f883e30
   - The step test uses the widest label after the length limit, plus a 4px gap. At 45° neighbours need about 20px between slots, (line height + 2) / sin 45°.
 - **Thinning** keeps one regular step for the whole axis, every k-th label from the first label, on marked charts, with no tolerated overlap (D92). The step is the smallest k that keeps the labels apart on their ticks, as if no end label ran out of the axis, measured on the label boxes after the length limit, at the width the text draws (its fractional advance, not the whole-pixel width): flat labels side by side on a horizontal axis at least 4px apart along the axis; 45° labels at least 2px apart across the text, which is the (line height + 2) / sin 45° between slots above. Labels stacked down a Y axis keep today's tolerance (their line boxes may overlap by up to about 3px, as before); only the regular step is new for them.
 - **End labels (D93).** With that step, the first and last shown labels slide inside the axis (a facet's panel) if they would pass its end, as today, with their final text. An end label that, slid, would come closer to its neighbour than the gap, or reach past it along the axis, is hidden, and the next label in step becomes the end and slides too. Labels between them are never slid, and end labels never change the step.
-- **Labels never widen the chart (D91).** On a horizontal axis with a label limit the labels reserve no width when the plot is sized, so a marked chart with many categories stays the width of its card and its labels thin. Only the marks' own minimum width can still make it scroll (a bar's is 10px). A Y category axis still reserves one line height per category, as today, so a marked horizontal bar can still scroll down. A Gantt does not: `GraphUtil.isVScrollable` turns forced scrolling off for any chart with a time axis, so a Gantt scrolls only after the author resizes its height (D144).
+- **Labels never widen the chart (D91).** On a horizontal axis with a label limit the labels reserve no width when the plot is sized, so a marked chart with many categories stays the width of its card and its labels thin. Only the marks' own minimum width can still make it scroll (a bar's is 10px). A Y category axis still reserves one line height per category, as today, so a marked horizontal bar can still scroll down. A Gantt does not: `GraphUtil.isVScrollable` turns forced scrolling off for any chart with a time axis, so a Gantt scrolls only after the author resizes its height (D147).
 - **Length (D70).**
   - A label is cut with an ellipsis ("…") at 66px. That is about 12 characters of 10px text, scaled with the label font size.
   - This applies at 0° and at 45°, and the 45° band is whatever that length needs: about 55px at 10px. The bundle's 20% band (C5) no longer limits a default label, because the minimum equals the cap.
@@ -948,7 +948,7 @@ These defaults apply on a marked chart when it is created, when it changes type,
 
 ### S8. Family items
 
-S8 is built in two parts on one branch and shipped as one PR (D132). S8a holds the drawing rules (S8-1, S8-2, S8-7), S8b the stored defaults and marks (S8-3 to S8-6). S8-8 was already delivered by S4-4 and S5a. The citations in this section were read on `5ff9c37362` (S6).
+S8 is built in two parts on one branch and shipped as one PR (D135). S8a holds the drawing rules (S8-1, S8-2, S8-7), S8b the stored defaults and marks (S8-3 to S8-6). S8-8 was already delivered by S4-4 and S5a. The citations in this section were read on `5ff9c37362` (S6).
 
 | # | Item | Bundle | Where | Kind | Part |
 |---|---|---|---|---|---|
@@ -961,7 +961,7 @@ S8 is built in two parts on one branch and shipped as one PR (D132). S8a holds t
 | S8-7 | Gantt grid lines only at labelled ticks | Gantt 3 | `TimeScale` takes its unit from the smallest gap between start dates (`init:141-143`, `:196-238`), one tick per unit, so daily starts give 30 to 46 ticks over two or three months; the plot width is not an input. Labels sit between ticks (`GanttGraphGenerator:149`). Grid lines draw at every tick (`DefaultAxis.createGridLines`) | D | S8a |
 | S8-8 | Gantt bars at least about 3px tall, task labels thinned | Gantt 4 | Delivered. The floor at the slot share (S4-4, D63) reaches the Gantt bar, and the task labels are limited and thinned in one step (S5a) | — | — |
 
-**S8-1 zero line (D131, D133, D134).**
+**S8-1 zero line (D134, D136, D137).**
 - **Types,** from the family pages that adopt C18:
   - bar, horizontal bar and interval
   - line, step, jump, area and step area
@@ -975,24 +975,24 @@ S8 is built in two parts on one branch and shipped as one PR (D132). S8a holds t
 - **What it is.** A separate line at the value 0, not the 0 gridline, so it does not depend on 0 being a tick. Where it draws, the darkened 0 gridline is left out; elsewhere that gridline stays as today.
 - **Colour:** the value axis's line colour. The S1 seed sets it to the axis-line colour (`#85827A` light, `#7E7B86` dark), and an author's axis line colour reaches it.
 - **Layer:** the axis layer (z 70), so bars hang from it.
-- **No author switch.** It draws whatever the grid style and the value axis line's visibility are. The bottom category axis line stays (D131).
+- **No author switch.** It draws whatever the grid style and the value axis line's visibility are. The bottom category axis line stays (D134).
 - **Facets and second axes.** Each facet panel draws its own. On a chart with a second value axis, only the primary value axis draws one.
 - **Mechanism.** The generator sets it on the value axis specs of marked charts only. The graph package draws it once the scale has its range.
 
-**S8-2 radar web (D130, D135).**
+**S8-2 radar web (D133, D138).**
 - **Gate.** On a marked radar each spoke spec takes the plot's Y grid style and colour (`PlotDescriptor.yGridStyle`, THIN by default, and `yGridColor`, seeded to the grid colour), and the coordinate draws a web (`setWebGrid`). The gate keeps classic radars as they are: their Y grid also defaults to THIN.
 - **Polygons on every marked radar.** A one-measure radar reports one side today, so the generator sets the side count to the number of spokes, on marked charts only. A classic script's `setWebGrid` gives today's result.
 - **Ring positions.**
   - When every spoke has the same scale (S5-6's test, `PolarCoord.isSameScale`): at its ticks.
-  - Otherwise (D130): four rings a quarter of the radius apart, the same on every spoke, the outermost on the outer ring. They mark fractions of each spoke, not values; each spoke labels only its outermost value (D73).
+  - Otherwise (D133): four rings a quarter of the radius apart, the same on every spoke, the outermost on the outer ring. They mark fractions of each spoke, not values; each spoke labels only its outermost value (D73).
 - **Spokes in the grid colour.** The spokes take the grid colour instead of the axis-line colour on marked radars ("Radar spokes and rings: same as grid line", common line specs, and the drawn card). An author's spoke line colour wins.
-- **Layer (D145).** Rings, spokes and the outer ring draw on the grid layer (z 30), under the series and the fill. Axis ticks and labels stay on top. On marked radars only, the spoke and outer-ring axis lines are drawn as grid lines:
+- **Layer (D148).** Rings, spokes and the outer ring draw on the grid layer (z 30), under the series and the fill. Axis ticks and labels stay on top. On marked radars only, the spoke and outer-ring axis lines are drawn as grid lines:
   - The spokes take the measure axes' line colour and visibility.
   - The outer ring takes the label axis's line colour and visibility.
   - An author's spoke colour still wins, and the Y grid row turns off only the rings.
 - **Author control.** The Lines tab offers the Y grid row on a marked radar, so an author can turn the rings off or recolour them. Scripts and `format.css` reach the same properties.
 
-**S8-3 funnel and waterfall values (D129, D136 to D138).**
+**S8-3 funnel and waterfall values (D132, D139 to D141).**
 - **Seed.** `valuesVisible` is seeded by resolved type while a new flag, `userValuesVisible`, is false:
   - true for funnel and waterfall while no Text field is bound
   - false for every other type, for a funnel or waterfall with a Text field, and on the legacy branch
@@ -1003,17 +1003,17 @@ S8 is built in two parts on one branch and shipped as one PR (D132). S8a holds t
   - Derived on parse: a stored true is the author's.
   - The reset copy keeps an author's choice. Values are content, and R8 named only titles and axis lines.
 - **Placement.** On marked charts, funnel and waterfall values are centred inside their mark, the waterfall's Total included (drawn card).
-- **Fit (D129).** A value shows only when its label box, plus a 3px inset on each side, fits inside its mark in both directions. At the default 10px font that is the bundle's 18px.
+- **Fit (D132).** A value shows only when its label box, plus a 3px inset on each side, fits inside its mark in both directions. At the default 10px font that is the bundle's 18px.
   - A funnel's stages share one height, so height decides for the whole funnel and width decides per stage.
   - A hidden label returns when a later layout fits it.
   - Inside labels do not move to avoid each other.
 - **Colour.** White or black by the fill: the existing `GTool.getTextColor` rule, turned on for marked funnels and waterfalls. On the direction colours this gives white in light mode and black in dark, as the drawn card shows. An author's text colour, a CSS colour or a highlight colour wins.
 - **Text fields.** The placement, fit and colour rules above apply to values, whether seeded or turned on by the author. With a Text field bound, labels keep today's placement and colour and are never fit-tested: bound text is the author's content, and the fit test would hide it on narrow bars.
 - **Text.** Unchanged: the signed change on a waterfall bar ("-210", no "+"), the grand total on its Total, in the measure's format. The drawn funnel's thousands separators are not a new default.
-- **Funnel grid.** The funnel's value-axis grid (`yGridStyle`, its transposed measure axis) is seeded NONE in the DEFAULT tier (D138). S1-3 already writes its `xGridStyle` NONE.
+- **Funnel grid.** The funnel's value-axis grid (`yGridStyle`, its transposed measure axis) is seeded NONE in the DEFAULT tier (D141). S1-3 already writes its `xGridStyle` NONE.
 - **Brushing.** The all-data layer shows no values, as today.
 
-**S8-4 filled markers (D139, D140).**
+**S8-4 filled markers (D142, D143).**
 - **The list decides.** Shapes have no tiers and no working flag (M4), so the shape list itself is the provenance.
   - On the modern branch of the seed, a categorical shape frame whose list equals the classic default takes the modern list.
   - On the legacy branch, one equal to the modern list takes the classic list.
@@ -1026,7 +1026,7 @@ S8 is built in two parts on one branch and shipped as one PR (D132). S8a holds t
   - On a marked dashboard the wizard writes a filled circle for an unbound point or scatter chart (an outlined circle today, `PointChartFilter:97-100`, `ScatterChartFilter:96-97`), to match the plain dot.
   - Shape legend glyphs take the chrome neutral (`#6A685F` light, `#CAC4D0` dark) when the colour varies, as S2-8 does for size legend symbols.
 
-**S8-5 size legend (D141).**
+**S8-5 size legend (D144).**
 - **Seed.** The size legend's `visible`, and its max-mode copy, are seeded by resolved type while a new flag is false:
   - hidden on treemap, sunburst, circle packing and icicle, even when it is the chart's only legend
   - shown on every other type. The descriptor is chart-wide, so a treemap that becomes a bubble chart gets its legend back.
@@ -1038,7 +1038,7 @@ S8 is built in two parts on one branch and shipped as one PR (D132). S8a holds t
 - **Wizard.** The wizard's legend toggle ignores an unflagged hidden size legend on the treemap family. Otherwise `VSWizardBindingHandler.reloadLegendVisible` reads the chart as having no legend, and finishing the wizard hides every legend through `hideAllLegend`, the colour legend included. Turning the toggle off and on shows every legend, the size legend included, and stamps its flag.
 - **Placement.** The legend count reads visible legends only. The treemap family is placed on the right whatever the count, so no legend moves.
 
-**S8-6 tree boxes (D142).**
+**S8-6 tree boxes (D145).**
 - **Fill and outline.** On a marked tree (network and circular network nodes stay solid), each node fills with its own colour at 15% over the card composite (`#ECEBE9` light, `#313034` dark, the S2-4 base), with a 1px outline in the full colour.
   - The tint is computed per node in `RelationVO`, from a generator-set element property that carries the alpha and the composite. The graph package cannot reach `VSObjectChromeDefaults`.
 - **Which colours.**
@@ -1048,7 +1048,7 @@ S8 is built in two parts on one branch and shipped as one PR (D132). S8a holds t
 - **Ink.** Labels inside a tinted box take the modern title ink (`#35342F` light, `#E6E0E9` dark) instead of the automatic colour; an author's text colour wins. Labels outside the box keep today's ink.
 - **Drawing.** Rounded tinted boxes draw anti-aliased, so the outline is not jagged. The corner floor (D114) applies.
 
-**S8-7 Gantt ticks (D143).**
+**S8-7 Gantt ticks (D146).**
 - **Unit.** On a marked Gantt the time scale picks a round unit from the span and the plot width, so that every tick carries a label: a minute, an hour, a day, a week, a month, a quarter or a year. It is never finer than the unit the classic rule takes from the data, so an intraday schedule keeps hour or minute ticks.
 - **Labels on ticks.** Labels sit on their ticks, not between them, so the grid draws only at labelled ticks with no new grid mode. The drawn card shows this: a line at each month with the month's name on it.
 - **Format.** The compact pattern follows the new unit (S5-2), so month ticks draw "Jan", "Feb" with the year once.
@@ -1056,7 +1056,7 @@ S8 is built in two parts on one branch and shipped as one PR (D132). S8a holds t
 - **Narrow cards.** If thinning still hides labels, the grid lines at those ticks stay.
 - **Task rows.** The task-row lines (`fixGanttCoord:164-168`, from `xGridStyle`) stay off, as seeded.
 
-**S8-8 delivered (D144).** At 60 tasks on a 400×240 card the rows are about 2.7px and the bars fill them (D63). A Gantt does not scroll by default, because `GraphUtil.isVScrollable` turns forced scrolling off for any chart with a time axis. D91's text said it could and is corrected.
+**S8-8 delivered (D147).** At 60 tasks on a 400×240 card the rows are about 2.7px and the bars fill them (D63). A Gantt does not scroll by default, because `GraphUtil.isVScrollable` turns forced scrolling off for any chart with a time axis. D91's text said it could and is corrected.
 
 ## 6. Corrections to the bundle
 
@@ -1187,9 +1187,11 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 
 ## 10. Decisions
 
-"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, on 2026-11-16 from D69 on, on 2026-11-17 from D94 on, on 2026-11-18 from D116 on, or on 2026-11-19 for D149 and D150. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, while amending S5 for D83 to D85 and D87 to D90, while amending S6 for D100 to D107, while amending S7 for D122 to D129, and D131 from its build, while amending S8 for D133 to D144, or while amending S2 for D151 to D159.
+"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, on 2026-11-16 from D69 on, on 2026-11-17 from D94 on, on 2026-11-18 from D116 on, or on 2026-11-19 for D148 to D150. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, while amending S5 for D83 to D85 and D87 to D90, while amending S6 for D100 to D107, while amending S7 for D122 to D129, and D131 from its build, while amending S8 for D136 to D147, or while amending S2 for D151 to D159.
 
-S2b-2 numbered its rows D150 to D160 while it was built. They are D149 to D159 here, after the open S8 branch's D132 to D148, and its ruling R12 is R13 here, because S7 merged first with its own R12. The S2b-2 plan and live-check notes use the old numbers.
+S8 numbered its rows D129 to D145 while it was built. They are D132 to D148 here, because S7 merged first and its rows took D129 to D131. The S8 plans and live-check notes use the old numbers.
+
+S2b-2 numbered its rows D150 to D160 while it was built. They are D149 to D159 here, after S8's D132 to D148, and its ruling R12 is R13 here, because S7 merged first with its own R12. The S2b-2 plan and live-check notes use the old numbers.
 
 | # | Decision | Who |
 |---|---|---|
@@ -1324,23 +1326,23 @@ S2b-2 numbered its rows D150 to D160 while it was built. They are D149 to D159 h
 | D129 | The type-change rules run from `ChangeChartTypeService`, after `ChangeChartTypeProcessor.process()` returns, not inside it. A script that sets `chartStyle` on a marked chart goes through `process()` too, and §8 keeps script behaviour unchanged, so a script never re-colours, re-sorts or moves fields at run time (S7) | Design, from the builder check |
 | D130 | A waterfall's data order is saved as a manual order listing the category's values in the order they first appear in the source rows, read once when the rule fires. `SORT_NONE` is sorted ascending by the query of an aggregated chart (issue 56590), and lifting that sort would leave the order to the grouping step or the database, which can change between runs. Values that first appear later go after the list, ascending. A detail calc field is read and ordered like any other column, because the query adds it to the runtime worksheet table (`VSAQuery.appendCalcField`); the owner accepted this after the live checks (S7-W5). Revises D19 (S7-4) | Owner, 2026-11-18, after the builder check |
 | D131 | On a marked chart, a stacked area or step area with a single stack layer keeps the area's own fill alpha (0.8), so it draws exactly as the plain area and picking Area changes nothing until a series arrives (D124). Its tooltip shows no stack total either, because one layer's total is its own value (the element carries `GraphGenerator.SINGLE_STACK_LAYER`, which `PlotArea` reads). A single layer means no dimension on its Color, Shape, Size or group shelf (the series test AUTO uses for bar, now `AbstractChartInfo.hasSeriesDimension`) and not several measures stacked into one element. Classic charts, and stacked areas with a series or with stacked measures, stay opaque as today. An area that gains series only at run time, from a date comparison, keeps 0.8 (S7-2) | Design, from the S7 build |
-| D129 | A funnel or waterfall value shows only where it fits inside its mark in both directions. A value wider than its bar is hidden, as one on a bar too short for it is. On the canonical 8-item waterfall at 400×240 (bars about 19px wide under S4-4) only short values show; at 20 items none do (S8-3) | Owner, 2026-11-18 |
-| D130 | On a marked radar whose spokes have different scales the rings are four even steps of the radius, the same on every spoke; with one shared scale they sit at its ticks (S8-2) | Owner, 2026-11-18 |
-| D131 | While the value axis crosses zero, the bottom category axis line stays and the zero line is added (S8-1) | Owner, 2026-11-18 |
-| D132 | S8 is built in two parts on one branch and shipped as one PR: S8a (S8-1, S8-2, S8-7), then S8b (S8-3 to S8-6). S8-8 is dropped as delivered by S4-4 and S5a | Owner, 2026-11-18 |
-| D133 | The zero line is a separate line at the value 0, on the axis layer, in the value axis's line colour, drawn while min < 0 < max and never on a log scale. Where it draws, the darkened 0 gridline is left out. No author switch. Each facet panel draws its own, and on a dual-axis chart only the primary value axis draws one (S8-1) | Design |
-| D134 | The zero line covers every type whose family page adopts C18: bar, line and area families, point and scatter contour, waterfall, pareto, candle, stock and box plot, not 3D charts. On a chart with a measure on each axis, the vertical zero line draws only when both axes cross zero, as C18 and the point decision say; the point page's build note "only when the X range includes zero" is a necessary condition, not another rule (S8-1) | Design, from the bundle |
-| D135 | Marked radar rings take the plot's Y grid style and colour, and the Lines tab offers that row on a marked radar. Rings are polygons on every marked radar: the generator sets a one-measure radar's side count to its spokes, under the mark only. The spokes take the grid colour, per the bundle's line specs and drawn card (S8-2) | Design, from the bundle |
-| D136 | `valuesVisible` is seeded by resolved type under a new `userValuesVisible` flag in `PlotDescriptor`: true for funnel and waterfall without a Text field, false otherwise. The pane stamps the flag only on a change; a stored true is the author's on parse; the reset copy keeps the author's choice, because values are content (S8-3) | Design |
-| D137 | Marked funnel and waterfall values, the Total included, are centred inside the mark and fit-tested as the label box plus a 3px inset on each side (the bundle's 18px at 10px). They take the existing white-or-black rule by fill; an author's, CSS or highlight colour wins. The text and number format are unchanged. With a Text field bound, labels keep today's placement and colour and are never fit-tested (S8-3) | Design, from the drawn card and the builder check |
-| D138 | The funnel loses its grid through `yGridStyle`, its transposed measure axis, seeded NONE; the spec's earlier "x grid NONE" was already done by S1-3 and did nothing to the lines the bundle saw (S8-3) | Design |
-| D139 | Filled markers are decided by the shape list: on Modernize a frame equal to the classic default takes the modern list, and on Revert one equal to the modern list takes the classic list. The modern list is the four filled shapes, then the classic outlined order, 30 entries in all (S8-4) | Design |
-| D140 | Every user of the categorical shape frame takes the filled list: point, point with lines, radar points and map points. On a marked chart the Shape pane's Reset gives it, the wizard's unbound point is a filled circle, and shape legend glyphs take the chrome neutral when the colour varies (S8-4) | Design |
-| D141 | The size legend's visibility, both copies, is seeded by resolved type under a new flag: hidden on the treemap family even when it is the only legend, shown elsewhere. Hide, Show and Show All Legends stamp the flag, and Show All shows it. `isLegendHidden` ignores it while Size is not bound. With Size bound the chart menu keeps offering Show Legend, as it does Show All Titles for seeded titles, while the wizard's legend toggle ignores the seeded-hidden size legend so finishing the wizard keeps the other legends (S8-5) | Design, from the builder check |
-| D142 | Marked tree boxes are tinted per node in `RelationVO` from a generator-set alpha and card composite: the seeded, author static and dimension colours are tinted, while a measure on colour and highlighted nodes stay solid. Labels inside take the title ink, and the outline draws anti-aliased (S8-6) | Design, from the drawn card |
-| D143 | A marked Gantt's time scale picks a round unit from the span and the plot width so every tick is labelled, and its labels sit on the ticks, so the grid draws only at labelled ticks. The units run from minute to year, never finer than the classic data-spaced unit. An author's increment turns the rule off for that axis and keeps its classic meaning (S8-7) | Design, from the drawn card and the builder check |
-| D144 | A Gantt does not scroll by default (`GraphUtil.isVScrollable` turns forced scrolling off for a time axis); D91's text that said it could is corrected (S5-1, S8-8) | Design, correction |
-| D145 | On a marked radar the spokes and the outer ring are drawn as grid lines on the grid layer (z 30), under the series and fill, instead of as axis lines over them. Ticks and labels stay on the axes, on top. Spokes take the measure axes' line colour and visibility, and the outer ring the label axis's. The Y grid row and `line_y` turn off only the inner rings. Classic radars, including a scripted `setWebGrid`, are unchanged (S8-2, live check R-2c) | Owner, 2026-11-19 |
+| D132 | A funnel or waterfall value shows only where it fits inside its mark in both directions. A value wider than its bar is hidden, as one on a bar too short for it is. On the canonical 8-item waterfall at 400×240 (bars about 19px wide under S4-4) only short values show; at 20 items none do (S8-3) | Owner, 2026-11-18 |
+| D133 | On a marked radar whose spokes have different scales the rings are four even steps of the radius, the same on every spoke; with one shared scale they sit at its ticks (S8-2) | Owner, 2026-11-18 |
+| D134 | While the value axis crosses zero, the bottom category axis line stays and the zero line is added (S8-1) | Owner, 2026-11-18 |
+| D135 | S8 is built in two parts on one branch and shipped as one PR: S8a (S8-1, S8-2, S8-7), then S8b (S8-3 to S8-6). S8-8 is dropped as delivered by S4-4 and S5a | Owner, 2026-11-18 |
+| D136 | The zero line is a separate line at the value 0, on the axis layer, in the value axis's line colour, drawn while min < 0 < max and never on a log scale. Where it draws, the darkened 0 gridline is left out. No author switch. Each facet panel draws its own, and on a dual-axis chart only the primary value axis draws one (S8-1) | Design |
+| D137 | The zero line covers every type whose family page adopts C18: bar, line and area families, point and scatter contour, waterfall, pareto, candle, stock and box plot, not 3D charts. On a chart with a measure on each axis, the vertical zero line draws only when both axes cross zero, as C18 and the point decision say; the point page's build note "only when the X range includes zero" is a necessary condition, not another rule (S8-1) | Design, from the bundle |
+| D138 | Marked radar rings take the plot's Y grid style and colour, and the Lines tab offers that row on a marked radar. Rings are polygons on every marked radar: the generator sets a one-measure radar's side count to its spokes, under the mark only. The spokes take the grid colour, per the bundle's line specs and drawn card (S8-2) | Design, from the bundle |
+| D139 | `valuesVisible` is seeded by resolved type under a new `userValuesVisible` flag in `PlotDescriptor`: true for funnel and waterfall without a Text field, false otherwise. The pane stamps the flag only on a change; a stored true is the author's on parse; the reset copy keeps the author's choice, because values are content (S8-3) | Design |
+| D140 | Marked funnel and waterfall values, the Total included, are centred inside the mark and fit-tested as the label box plus a 3px inset on each side (the bundle's 18px at 10px). They take the existing white-or-black rule by fill; an author's, CSS or highlight colour wins. The text and number format are unchanged. With a Text field bound, labels keep today's placement and colour and are never fit-tested (S8-3) | Design, from the drawn card and the builder check |
+| D141 | The funnel loses its grid through `yGridStyle`, its transposed measure axis, seeded NONE; the spec's earlier "x grid NONE" was already done by S1-3 and did nothing to the lines the bundle saw (S8-3) | Design |
+| D142 | Filled markers are decided by the shape list: on Modernize a frame equal to the classic default takes the modern list, and on Revert one equal to the modern list takes the classic list. The modern list is the four filled shapes, then the classic outlined order, 30 entries in all (S8-4) | Design |
+| D143 | Every user of the categorical shape frame takes the filled list: point, point with lines, radar points and map points. On a marked chart the Shape pane's Reset gives it, the wizard's unbound point is a filled circle, and shape legend glyphs take the chrome neutral when the colour varies (S8-4) | Design |
+| D144 | The size legend's visibility, both copies, is seeded by resolved type under a new flag: hidden on the treemap family even when it is the only legend, shown elsewhere. Hide, Show and Show All Legends stamp the flag, and Show All shows it. `isLegendHidden` ignores it while Size is not bound. With Size bound the chart menu keeps offering Show Legend, as it does Show All Titles for seeded titles, while the wizard's legend toggle ignores the seeded-hidden size legend so finishing the wizard keeps the other legends (S8-5) | Design, from the builder check |
+| D145 | Marked tree boxes are tinted per node in `RelationVO` from a generator-set alpha and card composite: the seeded, author static and dimension colours are tinted, while a measure on colour and highlighted nodes stay solid. Labels inside take the title ink, and the outline draws anti-aliased (S8-6) | Design, from the drawn card |
+| D146 | A marked Gantt's time scale picks a round unit from the span and the plot width so every tick is labelled, and its labels sit on the ticks, so the grid draws only at labelled ticks. The units run from minute to year, never finer than the classic data-spaced unit. An author's increment turns the rule off for that axis and keeps its classic meaning (S8-7) | Design, from the drawn card and the builder check |
+| D147 | A Gantt does not scroll by default (`GraphUtil.isVScrollable` turns forced scrolling off for a time axis); D91's text that said it could is corrected (S5-1, S8-8) | Design, correction |
+| D148 | On a marked radar the spokes and the outer ring are drawn as grid lines on the grid layer (z 30), under the series and fill, instead of as axis lines over them. Ticks and labels stay on the axes, on top. Spokes take the measure axes' line colour and visibility, and the outer ring the label axis's. The Y grid row and `line_y` turn off only the inner rings. Classic radars, including a scripted `setWebGrid`, are unchanged (S8-2, live check R-2c) | Owner, 2026-11-19 |
 | D149 | A marked funnel coloured by its stage takes funnel order only when its Share Colors is off, or when no other chart on the dashboard colours by that column with Share Colors on. It then neither reads nor writes the dashboard's shared picks for that column. With such a partner it keeps the shared picks. Its legend lists the stages top first in every case. Revises S2b ruling Q9, which assumed automatic picks are not shared (S2-12) | Owner |
 | D150 | A sunburst or icicle node n levels below its base (n at most 3) is mixed toward the composited card colour in OKLab by 1 − 0.62ⁿ (38%, 62%, 76%), so it never turns white or passes the card. Replaces the fixed lightness step of S2b ruling Q8 and revises D17 (S2-11) | Owner |
 | D151 | On a marked chart, a label drawn on its mark takes whichever of black and white has the higher contrast with the fill, so every fill reaches 4.5:1 (C21). Classic charts keep today's white-leaning rule (S2-11, S1-6) | Design |
@@ -1418,10 +1420,10 @@ S2b-2 numbered its rows D150 to D160 while it was built. They are D149 to D159 h
     - A classic funnel is unchanged.
   - Every item renders a classic chart identically before and after.
 - **Family items (S8):**
-  - S8-1: a marked bar, horizontal bar, line, area, waterfall, candle and box plot with values on both sides of zero draw the zero line on the axis layer in the axis-line colour, and none when every value is positive, on a log scale or on a 3D bar. A scatter crossing zero on Y only draws the horizontal line; crossing on both draws both. Facet panels and a dual-axis chart (primary only) behave as D133 says. An author's axis line colour reaches the line. The bottom category axis line stays.
+  - S8-1: a marked bar, horizontal bar, line, area, waterfall, candle and box plot with values on both sides of zero draw the zero line on the axis layer in the axis-line colour, and none when every value is positive, on a log scale or on a 3D bar. A scatter crossing zero on Y only draws the horizontal line; crossing on both draws both. Facet panels and a dual-axis chart (primary only) behave as D136 says. An author's axis line colour reaches the line. The bottom category axis line stays.
   - S8-2: a one-measure and a multi-measure marked radar draw polygon rings in the grid colour under the fill, with spokes in the grid colour.
     - Rings sit at the shared ticks when the spokes share a scale, and at four even steps when they do not. After layout, each ring lies at its fraction of the outer ring's radius.
-    - The spokes and the outer ring are drawn under the series and fill too, with ticks and labels on top (D145).
+    - The spokes and the outer ring are drawn under the series and fill too, with ticks and labels on top (D148).
     - Y grid NONE from the dialog, script or `format.css` removes the rings only.
     - A classic radar, scripted `setWebGrid` included, draws as before.
   - S8-3: a new marked funnel and waterfall show values centred inside every mark that fits in both directions, the Total included, and none on marks that do not. Labels are white on light-mode direction colours and black in dark. Show Values off survives a re-seed, Modernize and Revert, and the reset copy. A waterfall with a Text field gets no seeded values, and its text labels keep today's placement on narrow bars. A brushed waterfall shows values once. The funnel draws no grid.
