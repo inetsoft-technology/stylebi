@@ -21,6 +21,7 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.datasource.graphql.AbstractGraphQLDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.CoreTool;
+import inetsoft.util.Tool;
 import inetsoft.util.credential.CredentialType;
 import org.w3c.dom.Element;
 
@@ -140,9 +141,18 @@ public class ShopifyDataSource extends AbstractGraphQLDataSource<ShopifyDataSour
    @Override
    public void writeContents(PrintWriter writer) {
       super.writeContents(writer);
-      writer.format("<shop>%s</shop>\n", shop);
-      writer.format("<apiVersion>%s</apiVersion>\n", apiVersion);
-      writer.format("<scope>%s</scope>\n", scope);
+
+      if(shop != null) {
+         writer.format("<shop><![CDATA[%s]]></shop>\n", Tool.cdataText(shop));
+      }
+
+      if(apiVersion != null) {
+         writer.format("<apiVersion><![CDATA[%s]]></apiVersion>\n", Tool.cdataText(apiVersion));
+      }
+
+      if(scope != null) {
+         writer.format("<scope><![CDATA[%s]]></scope>\n", Tool.cdataText(scope));
+      }
    }
 
    @Override
