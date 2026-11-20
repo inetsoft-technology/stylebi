@@ -56,6 +56,16 @@
   --ln-nav-h: 56px;
 }
 
+/* PR7 shell state colours for pages without a custom theme (O3): a themed login page keeps the
+   fallbacks above (.28 ring, #ECE9E2 hover, #6A685F muted) unless its theme sets the --inet token.
+   Dark needs nothing here: this page loads global.css, whose :root.shell-dark block defines the
+   tokens these read. */
+:root:not(.custom-theme) {
+  --ln-text-muted: var(--inet-text-muted-color, #5F5E56);
+  --ln-hover: var(--inet-ui-neutral-hover-bg-color, #E9E5DD);
+  --ln-focus: var(--inet-focus-ring-color, #B4610F);
+}
+
 /* Label colour on the primary fill (Bug #81490): dark by default, or, where relative color syntax is
    supported, picked from the fill so a dark theme primary gets a light label even when the portal
    stylesheet that defines --inet-button-primary-text-color is not loaded. */

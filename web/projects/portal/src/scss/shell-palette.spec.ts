@@ -612,3 +612,51 @@ describe("one hover grey per surface (D7)", () => {
       ]);
    });
 });
+
+describe("static pages (Task 6)", () => {
+   const CSS = "core/src/main/resources/inetsoft/web/resources/css/";
+   const layout = () => readRepo(CSS + "layout.css");
+   const login = () => readRepo(CSS + "login.css");
+
+   it("layout.css light root takes the PR7 light values, ungated", () => {
+      const light = declarations(block(layout(), ":root"));
+
+      expect(light.get("--inet-focus-ring-color")).toBe("#B4610F");
+      expect(light.get("--inet-hover-primary-bg-color")).toBe("#E9E5DD");
+      expect(light.get("--inet-ui-neutral-hover-bg-color")).toBe("#E9E5DD");
+      expect(light.get("--inet-shell-selected-bg-color")).toBe("#DFD9CC");
+      expect(light.get("--inet-text-muted-color")).toBe("#5F5E56");
+   });
+
+   it("layout.css dark root takes the PR7 dark values and keeps muted", () => {
+      const dark = declarations(block(layout(), ":root.shell-dark"));
+
+      expect(dark.get("--inet-focus-ring-color")).toBe("#F0A75A");
+      expect(dark.get("--inet-hover-primary-bg-color")).toBe("#36343A");
+      expect(dark.get("--inet-ui-neutral-hover-bg-color")).toBe("#36343A");
+      expect(dark.get("--inet-shell-selected-bg-color")).toBe("#4A4750");
+      expect(dark.get("--inet-text-muted-color")).toBe("#ADA8B4");
+   });
+
+   it("layout.css carries no translucent ring and the tile ring reads the token", () => {
+      expect(layout()).not.toMatch(/--inet-focus-ring-color:\s*rgba/);
+      expect(layout()).toMatch(
+         /\.module-link:focus-visible \.module-tile\s*\{\s*box-shadow: 0 0 0 2px var\(--inet-focus-ring-color\)/);
+   });
+
+   it("login.css applies the new values only under :root:not(.custom-theme)", () => {
+      const gated = declarations(block(login(), ":root:not(.custom-theme)"));
+
+      expect(gated.get("--ln-focus")).toBe("var(--inet-focus-ring-color, #B4610F)");
+      expect(gated.get("--ln-hover")).toBe("var(--inet-ui-neutral-hover-bg-color, #E9E5DD)");
+      expect(gated.get("--ln-text-muted")).toBe("var(--inet-text-muted-color, #5F5E56)");
+   });
+
+   it("login.css themed-page fallbacks keep .28, #ECE9E2 and #6A685F", () => {
+      const base = declarations(block(login(), ":root"));
+
+      expect(base.get("--ln-focus")).toBe("var(--inet-focus-ring-color, rgba(217, 122, 26, 0.28))");
+      expect(base.get("--ln-hover")).toBe("var(--inet-ui-neutral-hover-bg-color, #ECE9E2)");
+      expect(base.get("--ln-text-muted")).toBe("var(--inet-text-muted-color, #6A685F)");
+   });
+});
