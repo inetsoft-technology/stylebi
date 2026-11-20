@@ -70,6 +70,11 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
                break;
             }
 
+            // Remove the fields the endpoint declares as never to be exposed, FIRST: the shape, the
+            // sample and the table below are all taken from this same object, and each of them
+            // would otherwise carry the value out of the connector.
+            transformer.deletePaths(json, ((EndpointJsonQuery<?>) query).resolveExcludedJsonPaths());
+
             // Distil the response's SHAPE before jsonPath narrows it, and before doLookups mutates
             // it by grafting lookup responses in. Three things make this the right point and no
             // other:
