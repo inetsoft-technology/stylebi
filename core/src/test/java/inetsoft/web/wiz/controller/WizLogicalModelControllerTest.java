@@ -267,6 +267,56 @@ class WizLogicalModelControllerTest extends WizLogicalModelTestBase {
       assertEquals("database", failure.field());
    }
 
+   /**
+    * R1-6: a VPM write holds the shared per-data-source lock between its namespace check and its
+    * write (as VpmService and the item controller do); a logical create of the same name must
+    * wait for it and then see the name taken, so exactly one of the two wins.
+    */
+   @Test
+   void concurrentLogicalAndVpmCreateOfTheSameNameLetExactlyOneWin() throws Exception {
+      java.util.concurrent.CountDownLatch checked = new java.util.concurrent.CountDownLatch(1);
+      java.util.concurrent.atomic.AtomicReference<Object> logical =
+         new java.util.concurrent.atomic.AtomicReference<>();
+      Thread logicalThread = new Thread(() -> {
+         try {
+            checked.await();
+            logical.set(controller.create(new CreateRequest(
+               ds, def("X", entity("E", col("A", "T1", "ID"))), null), bob));
+         }
+         catch(Exception e) {
+            logical.set(e);
+         }
+      });
+      logicalThread.start();
+
+      Object vpm = WizDataModelLocks.withDatabase(ds, () -> {
+         WizDataModelNames.requireUniqueInSource(dataModel, "X");
+         checked.countDown();
+         // give the logical create the chance to run its own check while this one is between
+         // its check and its write
+         long end = System.nanoTime() + 1_000_000_000L;
+
+         while(System.nanoTime() < end && logicalThread.isAlive() &&
+               logicalThread.getState() != Thread.State.WAITING &&
+               logicalThread.getState() != Thread.State.BLOCKED)
+         {
+            Thread.sleep(5);
+         }
+
+         assertTrue(logicalThread.isAlive(),
+                    "the logical create must be waiting for the shared lock, not finished");
+         dataModel.addVirtualPrivateModel(new VirtualPrivateModel("X"), true);
+         return "vpm";
+      });
+      logicalThread.join(10_000);
+
+      assertEquals("vpm", vpm);
+      Failure failure = assertInstanceOf(Failure.class, logical.get(), String.valueOf(logical.get()));
+      assertEquals(WizDataModelWire.DUPLICATE_NAME, failure.reason());
+      assertEquals("vpm", failure.existingKind());
+      assertNull(fresh().getLogicalModel("X"));
+   }
+
    // -- DM-A11 extended models --------------------------------------------------------------------
 
    @Test

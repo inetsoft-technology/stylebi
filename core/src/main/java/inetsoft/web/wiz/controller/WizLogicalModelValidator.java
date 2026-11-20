@@ -112,19 +112,46 @@ final class WizLogicalModelValidator {
    /**
     * Whether an expression parses completely. Returns the problem, or {@code null}.
     *
-    * <p>This is deliberately stricter than {@code LogicalModelController.checkExpressionSQL}. That
-    * check reads the lexer's next token after the parse, but the parser has already buffered its
+    * <p>An expression is accepted when it parses fully as a value expression, OR fully as a
+    * search condition (a boolean or flag expression such as {@code T1.AMOUNT > 100},
+    * {@code T1.NAME LIKE 'a%'}, {@code T1.ID IN (1,2,3)}, valid on MySQL and PostgreSQL). "Fully"
+    * is asked of the PARSER: after the rule it must be at the end of input.</p>
+    *
+    * <p>That is deliberately stricter than {@code LogicalModelController.checkExpressionSQL},
+    * which reads the lexer's next token after the parse, but the parser has already buffered its
     * lookahead from the lexer, so the token it reads is always the end of input and it only ever
     * notices an exception thrown mid-parse. A trailing operator ({@code 1 +}), an unclosed call
-    * ({@code foo(}), a trailing word ({@code PRICE garbage}) and a stray {@code )} all slip
-    * through it. The leftover-token rule is applied here to the PARSER: after the expression it
-    * must be at the end of input.</p>
+    * ({@code foo(}), a trailing word ({@code PRICE garbage}) and a stray {@code )} slip through
+    * it; here none of them parses fully under either rule. A national string literal
+    * ({@code N'text'}) is checked with its {@code N} prefix removed (the grammar does not know
+    * it).</p>
     */
    static String expressionProblem(String expression) {
+      String problem = problem(expression);
+
+      if(problem == null) {
+         return null;
+      }
+
+      String plain = NATIONAL.matcher(expression).replaceAll("'");
+      return !plain.equals(expression) && problem(plain) == null ? null : problem;
+   }
+
+   private static String problem(String expression) {
+      String asValue = problem(expression, false);
+
+      if(asValue == null) {
+         return null;
+      }
+
+      return problem(expression, true) == null ? null : asValue;
+   }
+
+   private static String problem(String expression, boolean condition) {
       SQLParser parser;
 
       try {
-         parser = parse(expression, false);
+         parser = parse(expression, condition, false);
       }
       catch(Exception ex) {
          // report the error of the normal parse, which names the token
@@ -139,7 +166,9 @@ final class WizLogicalModelValidator {
     * (every syntax check, no semantic actions) when the normal parse fails on a construct that
     * only the model refuses, such as a scalar subquery.
     */
-   private static SQLParser parse(String expression, boolean guessing) throws Exception {
+   private static SQLParser parse(String expression, boolean condition, boolean guessing)
+      throws Exception
+   {
       SQLParser parser = new SQLParser(new SQLLexer(new StringReader(expression)));
 
       if(guessing) {
@@ -147,7 +176,13 @@ final class WizLogicalModelValidator {
       }
 
       try {
-         parser.value_exp();
+         if(condition) {
+            parser.search_condition();
+         }
+         else {
+            parser.value_exp();
+         }
+
          return parser;
       }
       catch(antlr.SemanticException | RuntimeException ex) {
@@ -156,7 +191,7 @@ final class WizLogicalModelValidator {
          }
 
          try {
-            return parse(expression, true);
+            return parse(expression, condition, true);
          }
          catch(Exception guessEx) {
             throw ex;
@@ -176,6 +211,10 @@ final class WizLogicalModelValidator {
          return e.toString();
       }
    }
+
+   /** A national string literal prefix: an N right before a quote, not part of a word. */
+   private static final java.util.regex.Pattern NATIONAL =
+      java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}_$.])[nN]'");
 
    /** One validation pass; holds the collected errors. */
    private static final class Run {

@@ -34,8 +34,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * {@code /logical/get}, {@code /logical/create}, {@code /logical/update} of the data model bridge
@@ -74,14 +72,27 @@ public class WizLogicalModelController {
    public Object create(@RequestBody CreateRequest request, Principal principal)
       throws Exception
    {
-      return WizDataModelErrors.run(() -> doCreate(request, principal));
+      return WizDataModelErrors.run(() -> locked(request == null ? null : request.database(),
+                                                 () -> doCreate(request, principal)));
    }
 
    @PostMapping(value = "/logical/update", produces = MediaType.APPLICATION_JSON_VALUE)
    public Object update(@RequestBody UpdateRequest request, Principal principal)
       throws Exception
    {
-      return WizDataModelErrors.run(() -> doUpdate(request, principal));
+      return WizDataModelErrors.run(() -> locked(request == null ? null : request.database(),
+                                                 () -> doUpdate(request, principal)));
+   }
+
+   /**
+    * Runs a write holding the shared per-data-source lock of every data model write (the same one
+    * VPM, rename, move and folder writes take), so the namespace check and the write are one step
+    * against them on this node.
+    */
+   private static <T> T locked(String database, WizDataModelErrors.Body<T> body)
+      throws Exception
+   {
+      return WizDataModelLocks.withDatabase(required(database, "database"), body);
    }
 
    // -- get ------------------------------------------------------------------------------------
@@ -121,15 +132,7 @@ public class WizLogicalModelController {
       String folder = blankToNull(definition.folder());
       requireWrite(database, folder, name, blankToNull(definition.connection()), principal);
 
-      String existing = existingKind(dataModel, name);
-
-      if(existing != null) {
-         throw fail(
-            WizDataModelWire.DUPLICATE_NAME, "name",
-            "a " + existing + " named \"" + name + "\" already exists in " + database +
-               "; nothing changed", null, existing);
-      }
-
+      WizDataModelNames.requireUniqueInSource(dataModel, name);
       requireConnectionRead(database, definition.connection(), principal);
       WizLogicalModelValidator.Result result = validator.validate(
          new WizLogicalModelEnv(database, dataModel, dataSourceService), definition,
@@ -143,26 +146,8 @@ public class WizLogicalModelController {
 
       Definition normalized = result.normalized();
       LogicalModelDefinition dto = MAPPER.toDto(normalized, null, viewOf(normalized, null));
-      ReentrantLock lock = lockFor(database);
-      lock.lock();
-
-      try {
-         // the check-then-write is serialized per data source on this node
-         String raced = existingKind(source.requireJdbcDataModel(database), name);
-
-         if(raced != null) {
-            throw fail(
-               WizDataModelWire.DUPLICATE_NAME, "name",
-               "a " + raced + " named \"" + name + "\" already exists in " + database +
-                  "; nothing changed", null, raced);
-         }
-
-         modelService.createModel(database, folder, dto.getPartition(), dto, null, principal);
-         treeService.refreshPartitionMetaData(database, dto);
-      }
-      finally {
-         lock.unlock();
-      }
+      modelService.createModel(database, folder, dto.getPartition(), dto, null, principal);
+      treeService.refreshPartitionMetaData(database, dto);
 
       Definition readBack = readBack(database, name, normalized, principal);
       return new CreateResponse(true, name, folder, readBack, result.warnings());
@@ -228,16 +213,8 @@ public class WizLogicalModelController {
       }
 
       LogicalModelDefinition dto = MAPPER.toDto(normalized, stored, view);
-      ReentrantLock lock = lockFor(database);
-      lock.lock();
-
-      try {
-         modelService.updateModel(database, dto.getFolder(), name, dto, null, principal);
-         assetDataCache.removeCacheDependence(database);
-      }
-      finally {
-         lock.unlock();
-      }
+      modelService.updateModel(database, dto.getFolder(), name, dto, null, principal);
+      assetDataCache.removeCacheDependence(database);
 
       Definition readBack = readBack(database, name, normalized, principal);
       return new UpdateResponse(true, readBack, result.warnings(), elementDependents,
@@ -507,10 +484,6 @@ public class WizLogicalModelController {
       return new DmFailure(reason, field, message, errors, existingKind);
    }
 
-   private static ReentrantLock lockFor(String database) {
-      return LOCKS.computeIfAbsent(database, key -> new ReentrantLock());
-   }
-
    private static String required(String value, String field) {
       if(value == null || value.isBlank()) {
          throw new IllegalArgumentException(field + " is required");
@@ -523,7 +496,6 @@ public class WizLogicalModelController {
       return Tool.isEmptyString(value) ? null : value;
    }
 
-   private static final Map<String, ReentrantLock> LOCKS = new ConcurrentHashMap<>();
    private static final WizLogicalModelMapper MAPPER = new WizLogicalModelMapper();
    private final WizLogicalModelValidator validator = new WizLogicalModelValidator();
    private final DataSourceService dataSourceService;
