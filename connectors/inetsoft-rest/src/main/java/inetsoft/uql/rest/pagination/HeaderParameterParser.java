@@ -35,9 +35,23 @@ class HeaderParameterParser extends AbstractParameterParser {
       return Integer.parseInt(parseString(headerName));
    }
 
+   /**
+    * Parses a header as a boolean. Headers such as GitLab's {@code x-next-page} carry a
+    * value (the next page number) when there is a next page and are empty on the last page,
+    * so a missing, blank, "false", "0" or "no" (case-insensitive) value is false and any
+    * other value is true.
+    */
    @Override
    public boolean parseBoolean(String headerName) {
-      return Boolean.parseBoolean(parseString(headerName));
+      final String value = parseString(headerName);
+
+      if(value == null) {
+         return false;
+      }
+
+      final String trimmed = value.trim();
+      return !trimmed.isEmpty() && !"false".equalsIgnoreCase(trimmed) &&
+         !"0".equals(trimmed) && !"no".equalsIgnoreCase(trimmed);
    }
 
    @Override

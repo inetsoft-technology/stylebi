@@ -103,6 +103,31 @@ public class HttpResponseParameterParserTest {
    }
 
    @Test
+   void headerBooleanNonEmptyMeansTrue() {
+      assertEquals(true, headerBool("2"));
+      assertEquals(true, headerBool("true"));
+      assertEquals(true, headerBool("TRUE"));
+      assertEquals(false, headerBool("false"));
+      assertEquals(false, headerBool("FALSE"));
+      assertEquals(false, headerBool("0"));
+      assertEquals(false, headerBool("no"));
+      assertEquals(false, headerBool("No"));
+      assertEquals(false, headerBool(""));
+      assertEquals(false, headerBool("   "));
+      assertEquals(false, headerBool(null));
+   }
+
+   private boolean headerBool(String value) {
+      final String name = "x-next-page";
+      final TestHttpResponse response = new TestHttpResponse(value == null ?
+         Collections.<HttpHeader>emptyList() :
+         Collections.singletonList(new HttpHeader(name, value)));
+      final PaginationParameter param = new PaginationParameter(name);
+      param.setType(PaginationParamType.HEADER);
+      return parser.parseBoolean(param, null, response);
+   }
+
+   @Test
    void jsonPathExpression() throws IOException {
       final Object json = transformer.transform(loader.getResourceAsStream("links.json"));
 
