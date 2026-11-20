@@ -80,6 +80,17 @@ class DatagovTable extends XTableNode {
       int dataArraySize = maxRows <= 0 ? dataArray.size() : maxRows;
       dataArraySize = dataArraySize > dataArray.size() ? dataArray.size() : dataArraySize;
       data = new Object[dataArraySize][];
+      declaredTypes = new Class[names.size()];
+
+      for(int j = 0; j < declaredTypes.length; j++) {
+         String columnType = query.getColumnType(names.get(j));
+
+         if(columnType != null) {
+            // values of this column are converted with transform(), so the column type must
+            // follow the worksheet column type and not the Socrata metadata type
+            declaredTypes[j] = Tool.getDataClass(columnType);
+         }
+      }
 
       for(int i = 0; i < dataArraySize; i++) {
          data[i] = new Object[names.size()];
@@ -289,6 +300,9 @@ class DatagovTable extends XTableNode {
       if(data.length > 0 && data[0][col] != null) {
          return data[0][col].getClass();
       }
+      else if(declaredTypes != null && declaredTypes[col] != null) {
+         return declaredTypes[col];
+      }
       else {
          return types[col];
       }
@@ -310,6 +324,7 @@ class DatagovTable extends XTableNode {
    private List<String> names = new ArrayList<>();
    private Object[][] data;
    private Class[] types;
+   private Class[] declaredTypes;
    private int curr = -1;
    private String[] dataGovTypes;
    private static final Logger LOG = LoggerFactory.getLogger(DatagovTable.class.getName());

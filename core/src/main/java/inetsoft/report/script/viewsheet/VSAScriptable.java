@@ -169,6 +169,18 @@ public class VSAScriptable
       try {
          if(val instanceof PropertyDescriptor) {
             PropertyDescriptor desc = (PropertyDescriptor) val;
+            Class<?> type = desc.getType();
+
+            // the setSize/setPosition setters (and the setSize overrides) read the value
+            // without a null check, so null would end in a NullPointerException that
+            // reportPutFailure cannot show (Bug #81923)
+            if(value == null && desc.hasSetter() &&
+               (type == Point.class || type == Dimension.class))
+            {
+               throw new IllegalArgumentException(
+                  "The value cannot be null, expected " + JSObject.describeType(type));
+            }
+
             desc.set(element, value);
          }
          else {

@@ -23,7 +23,7 @@
         {
             "name": "Report Suites",
             "paged": false,
-            "suffix": "/collections/suites?expansion={Additional Fields?}&rsids={RSIDs?}&rsidContains{RSID Contains?}"
+            "suffix": "/collections/suites?expansion={Additional Fields?}&rsids={RSIDs?}&rsidContains={RSID Contains?}"
         },
         {
             "name": "Report Suite",

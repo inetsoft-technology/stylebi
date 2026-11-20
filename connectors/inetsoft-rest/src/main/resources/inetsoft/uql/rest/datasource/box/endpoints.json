@@ -328,7 +328,7 @@
         {
             "name": "Search for Content",
             "paged": true,
-            "suffix": "/2.0/search?query={Query}&ancestor_folder_ids={Ancestor Folder IDs?}&content_types={Content Types?name|description|file_content|comments|tag}&created_at_range={Created At Range?}&fields={Fields?}&file_extensions={File Extensions?}"
+            "suffix": "/2.0/search?query={Query}&ancestor_folder_ids={Ancestor Folder IDs?}&content_types={Content Types?:name|description|file_content|comments|tag}&created_at_range={Created At Range?}&fields={Fields?}&file_extensions={File Extensions?}"
         },
         {
             "name": "Find Item for Shared Link",
@@ -403,7 +403,7 @@
         {
             "name": "Trashed Items",
             "paged": true,
-            "suffix": "/2.0/folders/trash/items?fields={Fields?}&marker={Marker?}&usemarker={Use Marker?false|true}"
+            "suffix": "/2.0/folders/trash/items?fields={Fields?}&marker={Marker?}&usemarker={Use Marker?:false|true}"
         },
         {
             "name": "Trashed Web Link",

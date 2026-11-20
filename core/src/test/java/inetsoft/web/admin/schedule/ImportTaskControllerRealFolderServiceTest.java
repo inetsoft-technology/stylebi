@@ -260,6 +260,46 @@ class ImportTaskControllerRealFolderServiceTest {
          any(), eq(new String[0]), argThat(e -> CHILD.equals(e.getPath())), eq(principal));
    }
 
+   // Bug #81903, a task overwritten after it was moved to another folder is saved in the folder
+   // it is stored in, not in the root: a save without a parent adds a root entry, and the move
+   // into the folder of the xml then left the old folder's entry too (listed in both folders)
+   @Test
+   void overwriteOfMovedTask_isSavedInItsStoredFolderThenMoved() throws Exception {
+      allowWrite(CHILD);
+      doNothing().when(folderService).moveScheduleItems(any(), any(), any(), any());
+      ScheduleTask incoming = task("t1", CHILD, ScheduleTask.Type.NORMAL_TASK);
+      ScheduleTask stored = task("t1", PARENT, ScheduleTask.Type.NORMAL_TASK);
+      when(scheduleManager.getScheduleTask(incoming.getTaskId())).thenReturn(stored);
+      when(session.getAttribute(INFO_ATTR)).thenReturn(new ArrayList<>(List.of(incoming)));
+
+      ImportTaskResponse response = controller.importScheduleTask(
+         List.of(incoming.getTaskId()), request, true, "http://host", principal);
+
+      assertEquals(List.of(), response.failedTasks());
+      verify(scheduleManager).setScheduleTask(
+         eq(incoming.getTaskId()), eq(incoming),
+         argThat(e -> e != null && PARENT.equals(e.getPath())), eq(principal));
+      verify(scheduleManager, never()).setScheduleTask(incoming.getTaskId(), incoming, principal);
+      verify(folderService).moveScheduleItems(
+         any(), eq(new String[0]), argThat(e -> CHILD.equals(e.getPath())), eq(principal));
+   }
+
+   // Bug #81903, an overwritten task stored in the root folder keeps the save without a parent
+   @Test
+   void overwriteOfRootTask_isSavedWithoutParent() throws Exception {
+      allowWrite(CHILD);
+      doNothing().when(folderService).moveScheduleItems(any(), any(), any(), any());
+      ScheduleTask incoming = task("t1", CHILD, ScheduleTask.Type.NORMAL_TASK);
+      ScheduleTask stored = task("t1", "/", ScheduleTask.Type.NORMAL_TASK);
+      when(scheduleManager.getScheduleTask(incoming.getTaskId())).thenReturn(stored);
+      when(session.getAttribute(INFO_ATTR)).thenReturn(new ArrayList<>(List.of(incoming)));
+
+      controller.importScheduleTask(
+         List.of(incoming.getTaskId()), request, true, "http://host", principal);
+
+      verify(scheduleManager).setScheduleTask(incoming.getTaskId(), incoming, principal);
+   }
+
    private void allowWrite(String path) throws Exception {
       when(securityEngine.checkPermission(any(), eq(ResourceType.SCHEDULE_TASK_FOLDER),
                                           eq(path), eq(ResourceAction.WRITE)))

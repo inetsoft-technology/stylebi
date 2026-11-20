@@ -618,6 +618,36 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
+   @DisplayName("Bug #81627: an unused failing calc field is not executed when the freehand " +
+      "table groups a column and summarizes another")
+   void unusedFailingCalcWithGroupAndSummary() throws Exception {
+      initCityAb();
+      addCalc("bad", true, "field['city'].foo()", XSchema.INTEGER);
+      Tool.clearUserMessage();
+      TableLens lens = freehand(groupCell("city"), summaryCell("a", "Sum"));
+      List<List<Object>> rows = body(lens, 2);
+      assertEquals(Arrays.asList("A", "B"), column(rows, 0));
+      assertEquals(Arrays.asList(9.0, 1.0), numbers(column(rows, 1)));
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
+   @DisplayName("Bug #81627: a detail calc field used by a group or summary cell is kept " +
+      "next to an unused failing one")
+   void usedCalcKeptWithGroupAndSummary() throws Exception {
+      initCityAb();
+      addCalc("bad", true, "field['city'].foo()", XSchema.INTEGER);
+      addCalc("g", true, "field['city'] + 'x'", XSchema.STRING);
+      addCalc("d", true, "field['a'] * 2", XSchema.INTEGER);
+      Tool.clearUserMessage();
+      TableLens lens = freehand(groupCell("g"), summaryCell("d", "Sum"));
+      List<List<Object>> rows = body(lens, 2);
+      assertEquals(Arrays.asList("Ax", "Bx"), column(rows, 0));
+      assertEquals(Arrays.asList(18.0, 2.0), numbers(column(rows, 1)));
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
    @DisplayName("A detail calc field declared Integer is an Integer in a freehand cell")
    void declaredTypeOfDetailCalc() throws Exception {
       initCityAb();

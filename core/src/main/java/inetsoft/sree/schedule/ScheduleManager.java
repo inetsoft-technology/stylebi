@@ -2278,6 +2278,14 @@ public class ScheduleManager implements MessageListener {
       for(ScheduleTask task : allTasks) {
          String id = task.getTaskId();
          task = getScheduleTask(id);
+
+         // the snapshot may be stale: another request can remove the task
+         // between the snapshot and this read, and a removed task cannot
+         // depend on anything
+         if(task == null) {
+            continue;
+         }
+
          Enumeration<String> en = task.getDependency();
 
          while(en.hasMoreElements()) {
