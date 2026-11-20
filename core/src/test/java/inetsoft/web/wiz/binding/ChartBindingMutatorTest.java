@@ -49,6 +49,7 @@ import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartGeoRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
+import inetsoft.web.binding.model.graph.OriginalDescriptor;
 import inetsoft.web.binding.model.graph.aesthetic.StaticColorModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticLineModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticShapeModel;
@@ -540,6 +541,65 @@ class ChartBindingMutatorTest {
    // shape VTB-004 closed for TableBindingMutator.dimensions(), never ported to this chart
    // path. Matches a new field to the shelf's own previous list by same absolute index + same
    // column (case-insensitive) + same date level, mirroring dimensions()'s matches()/copyOf().
+
+   // Bug #81636: a rewritten dimension was built as a fresh ref, so its axis descriptor
+   // (rotation, alias, label side, line color, ticks, label format) rendered at defaults.
+   // A dimension that matches a previous one must keep pointing at that ref via `original`.
+   @Test
+   void resubmittedDimensionKeepsItsOriginalRefSoAxisSettingsSurvive() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("Region", "dimension", null, null, null),
+         new FieldRef("State", "dimension", null, null, null)));
+      List<ChartRefModel> before = ChartBindingMutator.readShelf(model, "x");
+      before.get(0).setOriginal(new OriginalDescriptor(OriginalDescriptor.X_AXIS, 0));
+      before.get(1).setOriginal(new OriginalDescriptor(OriginalDescriptor.X_AXIS, 1));
+
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("Region", "dimension", null, null, null),
+         new FieldRef("State", "dimension", null, null, null)));
+
+      List<ChartRefModel> after = ChartBindingMutator.readShelf(model, "x");
+      assertEquals(1, after.get(1).getOriginal().getIndex());
+      assertEquals(OriginalDescriptor.X_AXIS, after.get(1).getOriginal().getSource());
+      assertEquals(0, after.get(0).getOriginal().getIndex());
+   }
+
+   @Test
+   void reorderedDimensionFollowsItsOwnOriginalNotItsPosition() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("Region", "dimension", null, null, null),
+         new FieldRef("State", "dimension", null, null, null)));
+      List<ChartRefModel> before = ChartBindingMutator.readShelf(model, "x");
+      before.get(0).setOriginal(new OriginalDescriptor(OriginalDescriptor.X_AXIS, 0));
+      before.get(1).setOriginal(new OriginalDescriptor(OriginalDescriptor.X_AXIS, 1));
+
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("State", "dimension", null, null, null),
+         new FieldRef("Region", "dimension", null, null, null)));
+
+      List<ChartRefModel> after = ChartBindingMutator.readShelf(model, "x");
+      assertEquals(1, after.get(0).getOriginal().getIndex(), "State keeps its own old ref");
+      assertEquals(0, after.get(1).getOriginal().getIndex(), "Region keeps its own old ref");
+   }
+
+   @Test
+   void newDimensionGetsNoOriginalSoItStartsWithDefaultAxisSettings() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.readShelf(model, "x").get(0)
+         .setOriginal(new OriginalDescriptor(OriginalDescriptor.X_AXIS, 0));
+
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("Region", "dimension", null, null, null),
+         new FieldRef("State", "dimension", null, null, null)));
+
+      List<ChartRefModel> after = ChartBindingMutator.readShelf(model, "x");
+      assertEquals(0, after.get(0).getOriginal().getIndex());
+      assertNull(after.get(1).getOriginal());
+   }
 
    @Test
    void resubmittingTheIdenticalXShelfPreservesSortAndRanking() {
