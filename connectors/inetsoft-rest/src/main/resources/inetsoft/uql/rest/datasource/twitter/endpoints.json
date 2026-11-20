@@ -83,7 +83,7 @@
     {
       "name": "Users by IDs",
       "paged": false,
-      "suffix": "/2/users?{User IDs}&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+      "suffix": "/2/users?ids={User IDs}&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
     },
     {
       "name": "Blocked Users",

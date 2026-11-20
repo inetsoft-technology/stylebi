@@ -51,6 +51,12 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
                     break;
                 }
 
+                // an XPath/response that matched nothing parses to an empty root ValueNode(null);
+                // a matched element with a null value is a MapNode child of the root, never this
+                if(data instanceof ValueNode && ((ValueNode) data).unwrap() == null) {
+                    continue;
+                }
+
                if(query instanceof EndpointQuery) {
                   doLookups((EndpointQuery) query, strategy);
                }

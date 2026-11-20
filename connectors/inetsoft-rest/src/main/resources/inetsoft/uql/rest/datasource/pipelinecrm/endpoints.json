@@ -128,7 +128,7 @@
     {
       "name": "Companies",
       "paged": true,
-      "suffix": "/v3/companies.json?search_id={Search ID?}&conditions[company_id]={Company ID?}&conditions[Company Name]={Company Name?}",
+      "suffix": "/v3/companies.json?search_id={Search ID?}&conditions[company_id]={Company ID?}&conditions[company_name]={Company Name?}",
       "lookups": [
         {
           "endpoints": [
