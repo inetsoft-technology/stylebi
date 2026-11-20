@@ -417,9 +417,11 @@ class ModernAxisLabelRuleTest {
       axis.prepareLabels();
       List<String> texts = shownTexts(axis);
 
-      assertTrue(texts.size() >= 3, texts.toString());
-      // labels sit on the month ticks, so the first one is the first month start in range
-      assertEquals(List.of("Feb 2026", "Mar", "Apr"), texts.subList(0, 3));
+      // the fitted unit depends on the measured font, so check the compact form only
+      assertTrue(texts.size() >= 2, texts.toString());
+      assertTrue(texts.get(0).endsWith(" 2026"), texts.toString());
+      assertTrue(texts.subList(1, texts.size()).stream().noneMatch(t -> t.contains("2026")),
+                 texts.toString());
    }
 
    @Test
