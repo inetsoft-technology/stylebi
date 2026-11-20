@@ -86,4 +86,49 @@ class XMLPagedIterationIteratorStrategyTest {
       assertFalse(strategy.hasNext());
       assertEquals(expectedValues.size(), count);
    }
+
+   /**
+    * The factory must create a strategy that follows the marker of each response (as the Azure
+    * Blob data source configures it), not stop after the first page.
+    */
+   @Test
+   public void factoryFollowsNextMarker() throws Exception {
+      final RestXMLQuery query = new RestXMLQuery();
+      final RestXMLDataSource datasource = new RestXMLDataSource();
+      datasource.setURL("http://host");
+      query.setDataSource(datasource);
+      query.setXpath("/EnumerationResults/Containers/Container/Name/text()");
+      final PaginationSpec spec = query.getPaginationSpec();
+      spec.setType(PaginationType.ITERATION);
+      spec.setHasNextParam(
+         new PaginationParameter("/EnumerationResults/NextMarker/text()", PaginationParamType.XPATH));
+      spec.setPageOffsetParamToRead(
+         new PaginationParameter("/EnumerationResults/NextMarker/text()", PaginationParamType.XPATH));
+      spec.setPageOffsetParamToWrite(new PaginationParameter("marker", PaginationParamType.QUERY));
+
+      final String page1 = "<EnumerationResults><Containers><Container><Name>c1</Name></Container>" +
+         "</Containers><NextMarker>m1</NextMarker></EnumerationResults>";
+      final String page2 = "<EnumerationResults><Containers><Container><Name>c2</Name></Container>" +
+         "</Containers><NextMarker/></EnumerationResults>";
+
+      final List<RequestResponse> requestResponses = new ArrayList<>();
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query).build(),
+                                               new TestHttpResponse(page1)));
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query)
+         .queryParameters(Collections.singletonMap("marker", "m1")).build(),
+                                               new TestHttpResponse(page2)));
+
+      final TestHttpHandler httpHandler = new TestHttpHandler(requestResponses);
+      final AbstractRestDataIteratorStrategy<RestXMLQuery, ?> strategy =
+         new XMLRestDataIteratorStrategyFactory(httpHandler).createStrategy(query);
+
+      int count = 0;
+
+      while(strategy.hasNext()) {
+         assertNotNull(strategy.next());
+         count++;
+      }
+
+      assertEquals(2, count);
+   }
 }
