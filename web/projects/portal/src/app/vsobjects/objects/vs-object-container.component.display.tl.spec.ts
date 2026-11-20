@@ -123,16 +123,18 @@ describe("Group 4 — zIndex: base + container traversal + annotation boost", ()
       expect(comp.zIndex(obj)).toBe(5);
    });
 
-   it("should accumulate parent container zIndex", () => {
+   // The server already sends absolute child z-indexes (container + 1, ...), so the container's
+   // z-index must not be added again (Bug #81981).
+   it("should use a container child's own zIndex without adding the container's", () => {
       const { comp } = makeComponent();
-      const parent = makeVSObject({ absoluteName: "Container1", objectFormat: makeObjectFormat({ zIndex: 3 }) });
+      const parent = makeVSObject({ absoluteName: "Container1", objectFormat: makeObjectFormat({ zIndex: 51 }) });
       const child = makeVSObject({
          absoluteName: "Chart1",
          container: "Container1",
-         objectFormat: makeObjectFormat({ zIndex: 2 }),
+         objectFormat: makeObjectFormat({ zIndex: 52 }),
       });
       comp.vsInfo = makeVsInfo([parent, child]);
-      expect(comp.zIndex(child)).toBe(5); // 2 + 3
+      expect(comp.zIndex(child)).toBe(52);
    });
 
    it("should add 5000 to zIndex when object has assemblyAnnotationModels", () => {

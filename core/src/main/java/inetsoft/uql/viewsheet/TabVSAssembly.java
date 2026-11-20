@@ -121,8 +121,10 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
     * Without this, the container z-index that the initing refresh adds to every child is never
     * taken back out, and it builds up again on every open and save (Bug #77451). The children
     * are spaced 1 apart instead of using VSUtil.calcChildZIndex, whose container gap would push
-    * a child container above the next top-level object (Bug #72999). Child containers are
-    * renumbered with the tab's z-index, as before.
+    * a child container above the next top-level object (Bug #72999). A child container's own
+    * children are renumbered from that container's z-index, as GroupContainerVSAssembly does,
+    * so they always stack above their own container: the client paints every assembly as a flat
+    * sibling and no longer adds the container z-index on top (Bug #81981).
     */
    @Override
    public void calcChildZIndex(int zIndex) {
@@ -152,7 +154,7 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
 
       for(VSAssembly child : children) {
          if(child instanceof ContainerVSAssembly) {
-            ((ContainerVSAssembly) child).calcChildZIndex(zIndex);
+            ((ContainerVSAssembly) child).calcChildZIndex(child.getZIndex());
          }
       }
    }

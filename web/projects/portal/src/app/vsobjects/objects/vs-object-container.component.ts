@@ -553,6 +553,15 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          !!calendar.dropdownCalendar && !!calendar.calendarsShown;
    }
 
+   // An expanded dropdown selection list/tree, detected the same way VSSelection.disPlayZIndex
+   // raises its own body (+9999).
+   private isOpenDropdownSelection(vsObject: VSObjectModel): boolean {
+      const selection = vsObject as VSSelectionBaseModel;
+      return this.viewer &&
+         (vsObject.objectType === "VSSelectionList" || vsObject.objectType === "VSSelectionTree") &&
+         !!selection.dropdown && !SelectionBaseController.isHidden(selection);
+   }
+
    needsZIndexBoost(vsObject: VSObjectModel): boolean {
       // Boost the z-index of a max-mode assembly (or an embedded viewsheet containing one)
       // so its stacking context escapes any ancestor's local z-order and renders above
@@ -619,12 +628,14 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          // legitimately authored above an embedded viewsheet, and permanently reordering them
          // would break those layouts. The boost stays well below popUpContentBoostZIndex so it
          // never competes with the max-mode/pop-component/data-tip tiers below.
-         if(this.isOpenDropdownCalendar(vsObject)) {
+         if(this.isOpenDropdownCalendar(vsObject) || this.isOpenDropdownSelection(vsObject)) {
             // Bug #78478: in the viewer every assembly is its own stacking context, so the
             // +9999 the calendar applies to itself (vs-calendar.component.html) stays trapped
             // inside this wrapper. Raise the wrapper too, or a later, higher-z-index assembly
             // paints over the open date grid and takes the clicks. Same boost the composer
-            // already gives it.
+            // already gives it. An open dropdown selection list/tree has the same problem
+            // (VSSelection.disPlayZIndex); in a tab or group it used to be lifted only by the
+            // container z-index the client no longer adds (Bug #81981).
             return this.zIndex(vsObject) + 9999;
          }
 
@@ -670,23 +681,13 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          return DateTipHelper.getPopUpSourceZIndex();
       }
 
+      // The server already sends absolute z-indexes for container children: a container's
+      // children are renumbered from the container's own z-index (container + 1, ...), and all
+      // assemblies of the viewsheet are painted as flat siblings in one stacking context. So the
+      // ancestors' z-index must NOT be added again here -- doing so lifts a group/tab child above
+      // top-level objects that the server stacks over it (#81981). This also keeps a max-mode
+      // assembly below its own adhoc filter popup (#75990).
       let zIndex = vsObject.objectFormat.zIndex;
-
-      // A max-mode (enlarged) assembly is rendered pulled out of its Group Container/Tab, so
-      // that container's own z-index is no longer meaningful to its stacking and must not be
-      // added on top -- otherwise the container's z-index can push the enlarged assembly above
-      // its own adhoc filter popup, which has no container and so never gets this addition (#75990).
-      for(let container = !(<any> vsObject).maxMode ? vsObject.container : null; container; ) {
-         let containerObj = this.vsInfo.vsObjects.find(v => v.absoluteName == container);
-
-         if(containerObj) {
-            zIndex += containerObj.objectFormat.zIndex;
-            container = containerObj.container;
-         }
-         else {
-            break;
-         }
-      }
 
       // Assemblies with visible assembly annotations must appear above all regular objects.
       // Without this, another assembly's stacking context (position:relative + z-index) can

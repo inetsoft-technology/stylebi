@@ -305,7 +305,9 @@ export class EditableObjectContainer extends AbstractActionComponent
       return EditableObjectContainer.calculateZIndex(this.vsObject, this.viewsheet);
    }
 
-   // if an object has a container, its zIndex is that of its container
+   // The server sends absolute z-indexes for container children (a container's children are
+   // renumbered from the container's own z-index), and the composer paints every assembly as a
+   // flat sibling, so the ancestors' z-index must not be added on top (#81981).
    public static calculateZIndex(vsObject: VSObjectModel, viewsheet: Viewsheet): number {
       if((vsObject.objectType === "VSTable" || vsObject.objectType === "VSCrosstab" ||
          vsObject.objectType === "VSCalcTable") && (<BaseTableModel> vsObject).resizingCell)
@@ -314,18 +316,6 @@ export class EditableObjectContainer extends AbstractActionComponent
       }
 
       let zIndex = vsObject.dragZIndex || vsObject.objectFormat.zIndex;
-
-      for(let container = vsObject.container; container; ) {
-         let containerObj = viewsheet.getAssembly(container);
-
-         if(containerObj) {
-            zIndex += containerObj.objectFormat.zIndex;
-            container = containerObj.container;
-         }
-         else {
-            break;
-         }
-      }
 
       if((<any> vsObject).dropdown && !SelectionBaseController.isHidden(<any> vsObject) ||
          (<any> vsObject).dropdownCalendar && (<any> vsObject).calendarsShown)

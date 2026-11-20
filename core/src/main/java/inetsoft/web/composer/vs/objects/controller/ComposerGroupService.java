@@ -270,7 +270,9 @@ public class ComposerGroupService {
 
       updateTab(group, viewsheet);
       coreLifecycleService.removeVSAssembly(rvs, linkUri, group, dispatcher, false, true);
-      vsCompositionService.updateZIndex(viewsheet, group);
+      // The released children keep their z-index: it is already absolute (the group's z-index
+      // + 1, ...), so it keeps their stacking against the other top-level objects. Adding the
+      // group's z-index here lifted them over later top-level objects (Bug #81981).
       coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
                                            objectName, new ChangedAssemblyList());
 

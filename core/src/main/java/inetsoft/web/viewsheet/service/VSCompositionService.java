@@ -32,38 +32,6 @@ import java.util.*;
 @Service
 public class VSCompositionService {
    /**
-    * Update all the children zindex when remove container.
-    */
-   public void updateZIndex(Viewsheet vs, Assembly assembly) {
-      if(!(assembly instanceof ContainerVSAssembly) || vs == null) {
-         return;
-      }
-
-      ContainerVSAssembly cass = (ContainerVSAssembly) assembly;
-      String[] assemblies = cass.getAssemblies();
-      updateZIndex(vs, cass, assemblies);
-   }
-
-   /**
-    * Update specified child zindex when remove container assembly or move out
-    * of container assembly.
-    */
-   private void updateZIndex(Viewsheet vs, ContainerVSAssembly assembly, String[] children) {
-      String name = assembly.getName();
-      String prefix = name.contains(".") ? name.substring(0, name.indexOf('.') + 1) : "";
-
-      Arrays.stream(children)
-         .forEach(child -> {
-            child = child.contains(".") ? child : prefix + child;
-            VSAssembly vsobj = (VSAssembly) vs.getAssembly(child);
-
-            if(vsobj != null) {
-               vsobj.setZIndex(vsobj.getZIndex() + assembly.getZIndex());
-            }
-         });
-   }
-
-   /**
     * Add layer command to set all objects.
     */
    public void addLayerCommand(Viewsheet vs, CommandDispatcher dispatcher) {

@@ -92,7 +92,8 @@ class CurrentSelectionVSAssemblyZIndexTest {
    /**
     * Tab children are renumbered directly above the tab, 1 apart, not with the container gap
     * the selection container fix uses, so the second group stays below the next top-level
-    * object (Bugs #72999 and #77451). The groups' children are numbered from the tab's z-index.
+    * object (Bugs #72999 and #77451). Each group's children are numbered from that group's own
+    * z-index, so they stack above their group (Bug #81981; they were 3, 4, 3, 4 before).
     */
    @Test
    void tabWithGroupsRenumbersWithoutContainerGap() {
@@ -120,10 +121,10 @@ class CurrentSelectionVSAssemblyZIndexTest {
       assertEquals(52, vs.getAssembly("After").getZIndex());
       assertEquals(3, vs.getAssembly("G1").getZIndex());
       assertEquals(4, vs.getAssembly("G2").getZIndex());
-      assertEquals(3, vs.getAssembly("T1").getZIndex());
-      assertEquals(4, vs.getAssembly("T2").getZIndex());
-      assertEquals(3, vs.getAssembly("T3").getZIndex());
-      assertEquals(4, vs.getAssembly("T4").getZIndex());
+      assertEquals(4, vs.getAssembly("T1").getZIndex());
+      assertEquals(5, vs.getAssembly("T2").getZIndex());
+      assertEquals(5, vs.getAssembly("T3").getZIndex());
+      assertEquals(6, vs.getAssembly("T4").getZIndex());
    }
 
    private static Viewsheet createSelectionContainerViewsheet() {

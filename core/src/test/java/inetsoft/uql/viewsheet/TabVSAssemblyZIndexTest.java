@@ -104,8 +104,10 @@ class TabVSAssemblyZIndexTest {
 
    /**
     * Groups in a tab are spaced 1 apart, not by the container gap, so the second group stays
-    * below the next top-level object (Bug #72999). Their children are numbered from the tab's
-    * z-index, as before.
+    * below the next top-level object (Bug #72999). Each group's children are numbered from that
+    * group's own z-index, so they stack above their group: the client paints all assemblies as
+    * flat siblings and no longer adds the container z-index (Bug #81981). Before #81981 they
+    * were numbered from the tab's z-index (T1..T4 = 3, 4, 3, 4), leaving T3 below G2.
     */
    @Test
    void tabWithGroupsKeepsZIndex() throws Exception {
@@ -125,7 +127,42 @@ class TabVSAssemblyZIndexTest {
          tab.setAssemblies(new String[] { "G1", "G2" });
          return vs;
       }, Map.of("Tab1", 2, "After", 52, "G1", 3, "G2", 4,
-                "T1", 3, "T2", 4, "T3", 3, "T4", 4));
+                "T1", 4, "T2", 5, "T3", 5, "T4", 6));
+   }
+
+   /**
+    * Bug #81981: after an open, every child of a group in a tab is above its own group and
+    * below the next top-level object.
+    */
+   @Test
+   void groupInTabChildrenStayAboveTheirGroup() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      add(vs, new TextVSAssembly(vs, "Back"), 1);
+      TabVSAssembly tab = add(vs, new TabVSAssembly(vs, "Tab1"), 2);
+      add(vs, new TextVSAssembly(vs, "After"), 52);
+      GroupContainerVSAssembly g1 = add(vs, new GroupContainerVSAssembly(vs, "G1"), 5);
+      GroupContainerVSAssembly g2 = add(vs, new GroupContainerVSAssembly(vs, "G2"), 6);
+      add(vs, new TextVSAssembly(vs, "T1"), 10);
+      add(vs, new TextVSAssembly(vs, "T2"), 11);
+      add(vs, new TextVSAssembly(vs, "T3"), 12);
+      add(vs, new TextVSAssembly(vs, "T4"), 13);
+      g1.setAssemblies(new String[] { "T1", "T2" });
+      g2.setAssemblies(new String[] { "T3", "T4" });
+      tab.setAssemblies(new String[] { "G1", "G2" });
+
+      vs = reload(vs);
+      composerOpen(vs);
+      int after = vs.getAssembly("After").getZIndex();
+
+      for(String group : new String[] { "G1", "G2" }) {
+         GroupContainerVSAssembly g = (GroupContainerVSAssembly) vs.getAssembly(group);
+
+         for(String child : g.getAssemblies()) {
+            int z = vs.getAssembly(child).getZIndex();
+            assertTrue(z > g.getZIndex(), child + " must be above " + group);
+            assertTrue(z < after, child + " must be below the next top-level object");
+         }
+      }
    }
 
    @Test
@@ -180,7 +217,8 @@ class TabVSAssemblyZIndexTest {
          inner.setAssemblies(new String[] { "I1", "I2" });
          outer.setAssemblies(new String[] { "Inner", "Chart0" });
          return vs;
-      }, Map.of("Outer", 2, "After", 52, "Inner", 3, "Chart0", 4, "I1", 3, "I2", 4));
+      // I1/I2 are numbered from Inner's own z-index (Bug #81981); they were 3, 4 before
+      }, Map.of("Outer", 2, "After", 52, "Inner", 3, "Chart0", 4, "I1", 4, "I2", 5));
    }
 
    /**
