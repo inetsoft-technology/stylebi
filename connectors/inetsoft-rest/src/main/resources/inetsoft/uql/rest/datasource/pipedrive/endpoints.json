@@ -87,7 +87,7 @@
     {
       "name": "Deal Timeline",
       "paged": true,
-      "suffix": "/v1/deals/timeline?start_date={Start Date:YYYY-MM-DD}?interval={Interval:day|week|...}&amount={Amount}&field_key={Field Key}&user_id={User ID?}&pipeline_id={Pipeline ID?}&filter_id={Filter ID?}&exclude_deals={Exclude Deals?:0|1}&totals_convert_currency={Totals Convert Currency?}"
+      "suffix": "/v1/deals/timeline?start_date={Start Date:YYYY-MM-DD}&interval={Interval:day|week|...}&amount={Amount}&field_key={Field Key}&user_id={User ID?}&pipeline_id={Pipeline ID?}&filter_id={Filter ID?}&exclude_deals={Exclude Deals?:0|1}&totals_convert_currency={Totals Convert Currency?}"
     },
     {
       "name": "Deal",
