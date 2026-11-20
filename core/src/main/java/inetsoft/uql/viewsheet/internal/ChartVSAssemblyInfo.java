@@ -139,7 +139,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // the card inset. Seeded rather than resolved at read time so it travels in an exported
       // asset. isUserPadding is the author's opinion, and setCSSDefaults installs a CSS padding
       // just before this hook runs, so both are left alone
-      if(!isUserPadding() && !isCssPaddingDefined()) {
+      if(seedsPadding(ctx)) {
          setPadding(defaultPadding(ctx));
       }
 

@@ -62,7 +62,8 @@ class SelectionCardInsetSeedTest {
    void revertClearsBothValues() {
       SelectionListVSAssemblyInfo info = seeded("comfortable");
       info.setVizMark(null);
-      info.seedChromeDefaults(VizContext.of(info));
+      // Revert's own context: an open or a density re-seed leaves an unmarked inset alone
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(new Insets(0, 0, 0, 0), info.getPadding(), "inset back to legacy zero");
       assertNull(info.getCellPadding(), "cell padding back to legacy absence");

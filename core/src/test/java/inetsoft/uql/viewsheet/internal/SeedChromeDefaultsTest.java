@@ -2110,7 +2110,8 @@ class SeedChromeDefaultsTest {
       assertEquals(new Insets(12, 12, 12, 12), info.getPadding());
 
       info.setVizMark(null);
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      // Revert's own context: an open or a density re-seed leaves an unmarked inset alone
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(new Insets(10, 10, 10, 10), info.getPadding(),
                    "the legacy branch writes the inset back; nothing else would");

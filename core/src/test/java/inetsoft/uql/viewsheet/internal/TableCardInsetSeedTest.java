@@ -113,7 +113,8 @@ class TableCardInsetSeedTest {
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      // Revert's own context: an open or a density re-seed leaves an unmarked inset alone
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(new Insets(0, 0, 0, 0), info.getPadding());
    }
