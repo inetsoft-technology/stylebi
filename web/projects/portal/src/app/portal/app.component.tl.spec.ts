@@ -303,7 +303,7 @@ describe("PortalAppComponent — Wiz portal entry", () => {
          expect(link!.getAttribute("rel")).toContain("noopener");
          expect(link!.classList.contains("wiz-floating-button")).toBe(true);
          expect(link!.querySelector("svg.wiz-robot")).not.toBeNull();
-         expect(link!.querySelector(".wiz-ai-label")!.textContent!.trim()).toBe("AI");
+         expect(link!.querySelector("svg.wiz-ai-mark")).not.toBeNull();
          expect(link!.getAttribute("aria-label")).not.toBeNull();
       });
    });

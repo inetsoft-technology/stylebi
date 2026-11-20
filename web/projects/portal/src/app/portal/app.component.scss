@@ -88,8 +88,9 @@
 // elsewhere. The AI Assistant side/bottom panel (z-index 9940) can cover it, so the template hides
 // the button while that panel is open.
 .wiz-floating-button {
+  --wiz-primary: var(--inet-primary-color, #ed711c);
   position: fixed;
-  right: 24px;
+  right: 32px;
   top: 72px;
   z-index: 9935;
   touch-action: none;
@@ -98,33 +99,43 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 46px;
-  padding: 0 16px 0 12px;
-  border-radius: 23px;
-  background-color: var(--inet-primary-color, #1976d2);
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(0, 0, 0, 0.12));
-  color: #fff;
-  font-size: 24px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%,
+    color-mix(in srgb, var(--wiz-primary) 62%, white),
+    var(--wiz-primary) 55%,
+    color-mix(in srgb, var(--wiz-primary) 76%, black));
+  color: var(--inet-light-color, #fff);
   text-decoration: none;
   cursor: grab;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--wiz-primary) 50%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
   transition: box-shadow 0.15s, transform 0.15s;
 
+  // The robot is drawn in the theme's "light" colour, the one StyleBI uses for content on a
+  // primary-coloured surface, so a custom theme recolours it together with the orb.
   .wiz-robot {
-    flex: none;
+    display: block;
+    color: var(--inet-light-color, #fff);
   }
 
-  .wiz-ai-label {
-    font-size: 17px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    line-height: 1;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  // The "AI" lettermark: drawn artwork on a paper-white tag hanging off the orb's lower right.
+  .wiz-ai-mark {
+    position: absolute;
+    right: -9px;
+    bottom: -6px;
+    color: color-mix(in srgb, var(--wiz-primary) 72%, black);
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+
+    .tag {
+      fill: #fff;
+      stroke: color-mix(in srgb, var(--wiz-primary) 28%, white);
+    }
   }
 
   &:hover {
-    color: #fff;
+    color: var(--inet-light-color, #fff);
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
     transform: translateY(-1px);
   }
@@ -137,8 +148,8 @@
   }
 
   &:focus-visible {
-    color: #fff;
-    outline: 3px solid var(--inet-primary-color, #1976d2);
+    color: var(--inet-light-color, #fff);
+    outline: 3px solid var(--wiz-primary);
     outline-offset: 3px;
   }
 }
