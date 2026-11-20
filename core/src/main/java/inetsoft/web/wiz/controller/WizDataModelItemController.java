@@ -598,10 +598,13 @@ public class WizDataModelItemController {
       }
 
       if(!force) {
-         List<Dependent> dependents = wire(ops.dependents(ctx, ref));
+         // what blocks the delete is decided on EVERY user; what is printed and returned is only
+         // what the caller may see (a hidden user is counted, never named)
+         List<Dependent> all = wire(ops.dependents(ctx, ref));
+         List<Dependent> dependents = visibleOnly(ctx, all);
 
-         if(!dependents.isEmpty()) {
-            boolean models = KIND_PHYSICAL_VIEW.equals(item.kind()) && dependents.stream()
+         if(!all.isEmpty()) {
+            boolean models = KIND_PHYSICAL_VIEW.equals(item.kind()) && all.stream()
                .anyMatch(d -> KIND_LOGICAL_MODEL.equals(d.type()) || KIND_VPM.equals(d.type()));
 
             if(models) {

@@ -1005,6 +1005,29 @@ class WizDataModelBridgeTest {
       verify(repository, never()).updateDataModel(any());
    }
 
+   @Test
+   void viewInUseByAnInvisibleModelIsRefusedWithoutNamingIt() throws Exception {
+      addView("V", null);
+      addLogical("SecretModel", "V", null);
+      LogicalModelService denying = mock(LogicalModelService.class);
+      when(denying.checkPermission(anyString(), any(), anyString(), any(), any(), any()))
+         .thenAnswer(i -> !"SecretModel".equals(i.getArgument(2)));
+      WizDataModelItemController controller = new WizDataModelItemController(
+         List.of(new WizPhysicalViewOps(dss, mock(PhysicalModelManagerService.class))),
+         mock(DataModelFolderManagerService.class), dss, denying, repository);
+
+      DeleteResult result = only(ok(controller.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "V", null, false, null))), bob),
+                                    DeleteResponse.class).results());
+
+      // still refused: the decision is made on every user, visible or not
+      assertEquals(VIEW_IN_USE, result.reason());
+      assertFalse(result.message().contains("SecretModel"), result.message());
+      assertTrue(result.dependents().stream().noneMatch(d -> "SecretModel".equals(d.name())),
+                 String.valueOf(result.dependents()));
+      assertNotNull(registry().getPartition("V"), "nothing was deleted");
+   }
+
    // -- a logical-model SPI stand-in (J2 owns the real one) ---------------------------------
 
    private static class FakeLogicalOps implements WizModelKindOps {
