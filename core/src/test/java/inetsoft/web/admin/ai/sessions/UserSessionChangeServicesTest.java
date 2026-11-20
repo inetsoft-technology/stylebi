@@ -79,7 +79,8 @@ class UserSessionChangeServicesTest {
       audit.when(Audit::getInstance).thenReturn(auditInstance);
       sessions = new ArrayList<>(List.of(session("s1", "alice"), session("s2", "bob")));
       lenient().when(userService.getServerSessionModel(any(), any())).thenAnswer(inv -> sessions);
-      lenient().when(user.getName()).thenReturn("admin");
+      // a real principal name is the identity key name~;~orgID, never the bare name
+      lenient().when(user.getName()).thenReturn("admin~;~host-org");
    }
 
    @AfterEach void tearDown() {
@@ -211,10 +212,46 @@ class UserSessionChangeServicesTest {
       assertEquals("partial", result.status());
    }
 
+   @Test void previewWarnsForASessionOfTheSignedInAdministratorOnly() throws Exception {
+      sessions.add(session("s3", "admin"));
+      List<inetsoft.web.admin.ai.PlanChange> changes =
+         planService.resolve(request("t", "s3", "s1"), user).changes();
+      assertTrue(changes.get(0).description().contains("WARNING"));
+      assertFalse(changes.get(1).description().contains("WARNING"));
+   }
+
+   @Test void previewUsesTheLoginIdentityOfAnSRPrincipal() throws Exception {
+      inetsoft.sree.security.SRPrincipal srp = mock(inetsoft.sree.security.SRPrincipal.class);
+      when(srp.getClientUserID()).thenReturn(new inetsoft.sree.security.IdentityID("admin", "host-org"));
+      sessions.add(session("s3", "admin"));
+      assertTrue(planService.resolve(request("t", "s3"), srp).changes().get(0)
+                    .description().contains("WARNING"));
+   }
+
+   @Test void previewDoesNotWarnForTheSameNameInAnotherOrganization() throws Exception {
+      sessions.add(session("s3", "admin", "other-org"));
+      assertFalse(planService.resolve(request("t", "s3"), user).changes().get(0)
+                     .description().contains("WARNING"));
+   }
+
+   @Test void previewWarnsForAGlobalAdministrator() throws Exception {
+      when(user.getName()).thenReturn("admin~;~__GLOBAL__");
+      sessions.add(session("s3", "admin", ""));
+      sessions.add(session("s4", "admin", "host-org"));
+      List<inetsoft.web.admin.ai.PlanChange> changes =
+         planService.resolve(request("t", "s3", "s4"), user).changes();
+      assertTrue(changes.get(0).description().contains("WARNING"));
+      assertFalse(changes.get(1).description().contains("WARNING"));
+   }
+
    private static UserSessionMonitoringTableModel session(String id, String name) {
+      return session(id, name, "host-org");
+   }
+
+   private static UserSessionMonitoringTableModel session(String id, String name, String org) {
       return UserSessionMonitoringTableModel.builder()
          .sessionID(id).sessionLabel(id).user(name).userName(name).address("10.0.0.1")
-         .age("1 hour").roles("r").groups("g").organization("host-org").build();
+         .age("1 hour").roles("r").groups("g").organization(org).build();
    }
 
    private static UserSessionChangePlanRequest request(String task, String... ids) {
