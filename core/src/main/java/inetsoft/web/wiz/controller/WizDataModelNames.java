@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.controller;
 
+import inetsoft.uql.erm.XDataModel;
+
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -67,6 +69,22 @@ public final class WizDataModelNames {
    /** Validates a data model folder name. */
    public static void requireValidFolderName(String name) {
       WizDatasourceNames.requireValidFolderName(name);
+   }
+
+   /**
+    * Fails with {@code DUPLICATE_NAME} (naming the existing kind) when the name is taken by a
+    * physical view, logical model or VPM of the data source: the three share one namespace, but
+    * only the Portal's advisory duplicate check enforces it, and each service checks one kind.
+    */
+   static void requireUniqueInSource(XDataModel dataModel, String name) {
+      String existing = WizDataModelSupport.kindOfName(dataModel, name);
+
+      if(existing != null) {
+         throw new WizDataModelErrors.DmFailure(
+            WizDataModelWire.DUPLICATE_NAME, "name",
+            "a " + existing + " named \"" + name + "\" already exists in " +
+               dataModel.getDataSource() + "; nothing changed", null, existing);
+      }
    }
 
    /** Whether the name is reserved ({@code Domain}, {@code Data Model}). */
