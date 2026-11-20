@@ -24,6 +24,10 @@ import inetsoft.test.EndpointsTestConfig;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.rest.AbstractRestDataSource;
 import inetsoft.uql.rest.json.EndpointJsonQuery;
+import inetsoft.uql.rest.datasource.azureblob.AzureBlobEndpoint;
+import inetsoft.uql.rest.datasource.azureblob.AzureBlobEndpoints;
+import inetsoft.uql.rest.json.SuffixTemplate;
+import inetsoft.uql.rest.json.TemplateComponent;
 import inetsoft.uql.rest.json.lookup.JsonLookupEndpoint;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.RestParameters;
@@ -31,6 +35,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.type.filter.AssignableTypeFilter;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -89,6 +95,11 @@ class EndpointDefinitionsTest {
 
             if(endpoint.getName() == null || endpoint.getName().isBlank()) {
                problems.add(where + ": blank name");
+            }
+            else if(!endpoint.getName().equals(endpoint.getName().strip()) ||
+                    endpoint.getName().contains(" "))
+            {
+               problems.add(where + ": non-breaking or surrounding space in the name");
             }
 
             if(endpoint.getSuffix() == null || endpoint.getSuffix().isBlank()) {
@@ -176,13 +187,297 @@ class EndpointDefinitionsTest {
       assertNoProblems(problems);
    }
 
+   @Test
+   void everyEndpointsFileBelongsToAScannedQueryAndTheOtherWayAround() throws Exception {
+      Set<String> filePackages = new TreeSet<>();
+
+      for(Resource resource : new PathMatchingResourcePatternResolver().getResources(
+         "classpath*:inetsoft/uql/rest/datasource/*/endpoints.json"))
+      {
+         String path = resource.getURL().getPath();
+         String dir = path.substring(0, path.lastIndexOf('/'));
+         filePackages.add("inetsoft.uql.rest.datasource." + dir.substring(dir.lastIndexOf('/') + 1));
+      }
+
+      Set<String> queryPackages = new TreeSet<>();
+
+      for(Class<?> type : queryTypes()) {
+         queryPackages.add(type.getPackageName());
+      }
+
+      // the only XML endpoint query, covered by azureBlobEndpointsAreWellFormed
+      queryPackages.add("inetsoft.uql.rest.datasource.azureblob");
+      Set<String> withoutQuery = new TreeSet<>(filePackages);
+      withoutQuery.removeAll(queryPackages);
+      Set<String> withoutFile = new TreeSet<>(queryPackages);
+      withoutFile.removeAll(filePackages);
+      withoutFile.remove("inetsoft.uql.rest.datasource.azureblob");
+      assertTrue(filePackages.size() >= 60, "found only " + filePackages);
+      assertTrue(withoutQuery.isEmpty() && withoutFile.isEmpty(),
+                 "endpoints.json without a scanned query: " + withoutQuery +
+                 "\nscanned query without endpoints.json: " + withoutFile);
+   }
+
+   @Test
+   void everyQueryHasTheDataSourceNextToIt() throws Exception {
+      List<String> problems = new ArrayList<>();
+
+      for(Class<?> type : queryTypes()) {
+         if(newQuery(type).getDataSource() == null) {
+            problems.add(type.getSimpleName() + ": no data source class found next to the query");
+         }
+      }
+
+      assertNoProblems(problems);
+   }
+
+   @Test
+   void builtRequestPathAndQueryStringAreWellFormed() throws Exception {
+      List<String> problems = new ArrayList<>();
+
+      for(Class<?> type : queryTypes()) {
+         EndpointJsonQuery<?> query = newQuery(type);
+
+         for(String name : query.getEndpointMap().keySet()) {
+            String where = type.getSimpleName() + "/" + name;
+
+            if(KNOWN_BROKEN.contains(where)) {
+               continue;
+            }
+
+            try {
+               String problem = malformed(buildSuffix(query, name));
+
+               if(problem != null) {
+                  problems.add(where + ": " + problem);
+               }
+            }
+            catch(Exception ex) {
+               problems.add(where + ": " + ex);
+            }
+         }
+      }
+
+      assertNoProblems(problems);
+   }
+
+   @Test
+   void everyOptionOfEveryParameterBuildsAWellFormedRequest() throws Exception {
+      List<String> problems = new ArrayList<>();
+
+      for(Class<?> type : queryTypes()) {
+         EndpointJsonQuery<?> query = newQuery(type);
+
+         for(String name : query.getEndpointMap().keySet()) {
+            String where = type.getSimpleName() + "/" + name;
+
+            if(KNOWN_BROKEN.contains(where)) {
+               continue;
+            }
+
+            query.setEndpoint(name);
+
+            for(RestParameter parameter : query.getParameters().getParameters()) {
+               String placeholder = parameter.getPlaceholder();
+
+               if(placeholder == null || !placeholder.contains("|")) {
+                  continue;
+               }
+
+               for(String option : placeholder.split("\\|")) {
+                  if(option.isBlank() || option.contains("...")) {
+                     continue;
+                  }
+
+                  try {
+                     String problem = malformed(buildSuffix(query, name, parameter.getName(),
+                                                            option.trim()));
+
+                     if(problem != null) {
+                        problems.add(where + " [" + parameter.getName() + "=" + option + "]: " +
+                                     problem);
+                     }
+                  }
+                  catch(Exception ex) {
+                     problems.add(where + " [" + parameter.getName() + "=" + option + "]: " + ex);
+                  }
+               }
+            }
+         }
+      }
+
+      assertNoProblems(problems);
+   }
+
+   @Test
+   void aMissingRequiredParameterIsRejectedAndAMissingOptionalOneIsOmitted() throws Exception {
+      List<String> problems = new ArrayList<>();
+
+      for(Class<?> type : queryTypes()) {
+         EndpointJsonQuery<?> query = newQuery(type);
+
+         for(Map.Entry<String, ? extends EndpointJsonQuery.Endpoint> e :
+            query.getEndpointMap().entrySet())
+         {
+            String where = type.getSimpleName() + "/" + e.getKey();
+
+            if(KNOWN_BROKEN.contains(where)) {
+               continue;
+            }
+
+            SuffixTemplate parsed = new SuffixTemplate(e.getValue().getSuffix());
+            List<TemplateComponent> variables = new ArrayList<>();
+
+            for(TemplateComponent part : parsed.getPath()) {
+               if(part.isVariable()) {
+                  variables.add(part);
+               }
+            }
+
+            for(TemplateComponent part : parsed.getQuery().values()) {
+               if(part.isVariable()) {
+                  variables.add(part);
+               }
+            }
+
+            Map<String, Boolean> requiredByName = new LinkedHashMap<>();
+
+            for(TemplateComponent variable : variables) {
+               // a name may appear more than once; it is required if any occurrence is
+               requiredByName.merge(variable.getValue(), variable.isRequired(), Boolean::logicalOr);
+            }
+
+            for(Map.Entry<String, Boolean> variable : requiredByName.entrySet()) {
+               SuffixTemplate template = new SuffixTemplate(e.getValue().getSuffix());
+
+               for(String other : requiredByName.keySet()) {
+                  if(!other.equals(variable.getKey())) {
+                     template.setVariable(other, "1");
+                  }
+               }
+
+               try {
+                  String built = template.build();
+
+                  if(variable.getValue()) {
+                     problems.add(where + ": required \"" + variable.getKey() +
+                                  "\" missing but the request was built: " + built);
+                  }
+               }
+               catch(IllegalStateException ex) {
+                  if(!variable.getValue()) {
+                     problems.add(where + ": optional \"" + variable.getKey() +
+                                  "\" missing but the request was rejected: " + ex.getMessage());
+                  }
+               }
+            }
+         }
+      }
+
+      assertNoProblems(problems);
+   }
+
+   /**
+    * The Azure Blob query extends the XML endpoint query, not {@link EndpointJsonQuery}, so the
+    * scan does not find it. It has no parameter objects to go through, so its suffix templates
+    * are filled in directly.
+    */
+   @Test
+   void azureBlobEndpointsAreWellFormed() {
+      List<String> problems = new ArrayList<>();
+      Map<String, AzureBlobEndpoint> endpoints = EndpointJsonQuery.Endpoints.load(
+         AzureBlobEndpoints.class);
+      assertFalse(endpoints.isEmpty());
+
+      for(AzureBlobEndpoint endpoint : endpoints.values()) {
+         try {
+            SuffixTemplate template = new SuffixTemplate(endpoint.getSuffix());
+
+            for(TemplateComponent part : template.getPath()) {
+               if(part.isVariable()) {
+                  template.setVariable(part.getValue(), "1");
+               }
+            }
+
+            for(TemplateComponent part : template.getQuery().values()) {
+               if(part.isVariable()) {
+                  template.setVariable(part.getValue(), "1");
+               }
+            }
+
+            String problem = malformed(template.build());
+
+            if(problem != null) {
+               problems.add("AzureBlob/" + endpoint.getName() + ": " + problem);
+            }
+
+            for(JsonLookupEndpoint lookup : endpoint.getLookups()) {
+               if(!endpoints.containsKey(lookup.endpoint())) {
+                  problems.add("AzureBlob/" + endpoint.getName() + ": lookup to unknown endpoint " +
+                               lookup.endpoint());
+               }
+            }
+         }
+         catch(Exception ex) {
+            problems.add("AzureBlob/" + endpoint.getName() + ": " + ex);
+         }
+      }
+
+      assertNoProblems(problems);
+   }
+
+   /** Returns what is wrong with a built suffix, or null. */
+   private static String malformed(String suffix) {
+      if(suffix == null || suffix.isEmpty()) {
+         return "empty";
+      }
+
+      if(suffix.matches("(?s).*[\s ].*")) {
+         return "whitespace in " + suffix.replaceAll("\s", "<ws>");
+      }
+
+      int index = suffix.indexOf('?');
+      String path = index < 0 ? suffix : suffix.substring(0, index);
+
+      if(path.contains("&") || path.contains("//") || path.contains("{") || path.contains("}")) {
+         return "bad path in " + suffix;
+      }
+
+      if(index >= 0) {
+         String query = suffix.substring(index + 1);
+
+         if(query.contains("?")) {
+            return "second '?' in " + suffix;
+         }
+
+         if(query.isEmpty()) {
+            return "empty query string in " + suffix;
+         }
+
+         for(String pair : query.split("&", -1)) {
+            if(!pair.matches("[^=&?{}]+=[^=&?{}]*")) {
+               return "bad parameter \"" + pair + "\" in " + suffix;
+            }
+         }
+      }
+
+      return null;
+   }
+
    /** Builds the suffix of an endpoint with every parameter set to a simple value. */
    private static String buildSuffix(EndpointJsonQuery<?> query, String endpointName) {
+      return buildSuffix(query, endpointName, null, null);
+   }
+
+   /** Same, but sets one parameter to the given value. */
+   private static String buildSuffix(EndpointJsonQuery<?> query, String endpointName,
+                                     String parameterName, String value)
+   {
       query.setEndpoint(endpointName);
       RestParameters parameters = query.getParameters();
 
       for(RestParameter parameter : parameters.getParameters()) {
-         parameter.setValue("1");
+         parameter.setValue(parameter.getName().equals(parameterName) ? value : "1");
       }
 
       query.setParameters(parameters);
@@ -255,9 +550,44 @@ class EndpointDefinitionsTest {
    private static List<Class<?>> queryTypes;
 
    /**
-    * Endpoints whose suffix is known to be wrong and is not fixed here because the intended
-    * query parameter is not clear: "{User IDs}" has no parameter name before it, and the Twitter
-    * API expects "ids=".
+    * Endpoints whose suffix template is known to be wrong. They are skipped here so that this test
+    * can guard every other endpoint; fix the template and remove the entry. The defects are
+    * tracked in Redmine (TODO bug number).
+    * <ul>
+    *   <li>a variable is left unreplaced: a missing '&amp;', a '?' where '&amp;' belongs, a stray
+    *   '}', a missing '=' or a missing ':' before an option list;</li>
+    *   <li>a stray space or non-breaking space in a name or suffix;</li>
+    *   <li>an empty parameter ("?&amp;x=", "&amp;&amp;") or a second '?' or '//' in the path;</li>
+    *   <li>"Twitter / Users by IDs" has "{User IDs}" with no parameter name before it, and the
+    *   Twitter API expects "ids=".</li>
+    * </ul>
     */
-   private static final Set<String> KNOWN_BROKEN = Set.of("TwitterQuery/Users by IDs");
+   private static final Set<String> KNOWN_BROKEN = Set.of(
+      "AdobeAnalyticsQuery/Report Suites",
+      "BoxQuery/Search for Content",
+      "BoxQuery/Trashed Items",
+      "HubSpotQuery/Blog Posts",
+      "HubSpotQuery/Contacts Informations",
+      "HubSpotQuery/Line items Change Log",
+      "InfluxDBQuery/Installed Templates",
+      "InfluxDBQuery/Sources",
+      "InsightlyQuery/Contact File Attachments",
+      "JiraQuery/Audit Records",
+      "JiraQuery/Screen Tab Fields",
+      "LinkedinQuery/Ad Account Users",
+      "JiveQuery/Direct Message Comments",
+      "LiveAgentQuery/Phone numbers list",
+      "PipelineCRMQuery/Companies",
+      "PipedriveQuery/Deal Timeline",
+      "QuickbooksReportsQuery/Transaction List By Vendor",
+      "ServiceNowQuery/Aggregate Statistics",
+      "ServiceNowQuery/Service Catalog Items",
+      "SquareQuery/Cash Drawer Shift Events",
+      "TwilioQuery/Alerts",
+      "TwitterQuery/Users by IDs",
+      "XeroQuery/Aged Receivables By Contact",
+      "XeroQuery/Contact Groups",
+      "XeroQuery/Quotes",
+      "XeroQuery/Repeating Invoices",
+      "ZohoCRMQuery/Variable Group");
 }
