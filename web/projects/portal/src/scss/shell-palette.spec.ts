@@ -62,6 +62,27 @@ const rootTokens = () => new Map([
    ...declarations(block(read("scss/_viz-tokens.scss"), "@mixin inet-viz-legacy-state-tokens")),
 ]);
 
+// the bases and every token in `tokens` whose value reads one of them through var(), transitively
+const chainOf = (tokens: Map<string, string>, bases: string[]): Set<string> => {
+   const chain = new Set(bases);
+   let grew = true;
+
+   while(grew) {
+      grew = false;
+
+      for(const [name, value] of tokens) {
+         const refs = [...value.matchAll(/var\((--[\w-]+)/g)].map(r => r[1]);
+
+         if(!chain.has(name) && refs.some(r => chain.has(r))) {
+            chain.add(name);
+            grew = true;
+         }
+      }
+   }
+
+   return chain;
+};
+
 // the base tokens PR7 gives a shell-only value, and every runtime token that derives from them
 const PR7_BASE_TOKENS = [
    "--inet-focus-ring-color",
@@ -147,22 +168,7 @@ describe("light dashboard content", () => {
    });
 
    it("lists every :root token that derives from a PR7 base token", () => {
-      const tokens = rootTokens();
-      const chain = new Set(PR7_BASE_TOKENS);
-      let grew = true;
-
-      while(grew) {
-         grew = false;
-
-         for(const [name, value] of tokens) {
-            const refs = [...value.matchAll(/var\((--[\w-]+)/g)].map(r => r[1]);
-
-            if(!chain.has(name) && refs.some(r => chain.has(r))) {
-               chain.add(name);
-               grew = true;
-            }
-         }
-      }
+      const chain = chainOf(rootTokens(), PR7_BASE_TOKENS);
 
       expect([...chain].sort()).toEqual([...CONTENT_CHAIN, ...VIZ_CHAIN].sort());
    });
@@ -401,5 +407,208 @@ describe("stronger selected fill and darker shell muted text", () => {
       {
          expect(declared.has(name), name).toBe(true);
       }
+   });
+});
+
+describe("one hover grey per surface (D7)", () => {
+   const dark = () => read("scss/_shell-dark.scss");
+   const sassVar = (src: string, name: string) =>
+      src.match(new RegExp(`^\\$${name}:\\s*([^;]+);`, "m"))?.[1];
+   // a Sass map written one `key: value,` per line, as key -> value
+   const sassMap = (src: string, name: string): Map<string, string> => {
+      const m = src.match(new RegExp(`^\\$${name}:\\s*\\(([\\s\\S]*?)^\\);`, "m"));
+      expect(m, `no $${name} map`).not.toBeNull();
+      return new Map([...m[1].matchAll(/^\s*([\w-]+|"[^"]+"):\s*(.+?),?\s*$/gm)]
+         .map(e => [e[1].replace(/^"|"$/g, ""), e[2]]));
+   };
+   const darkRootTokens = () => new Map([...rootTokens(), ...declarations(block(dark(), ":root.shell-dark"))]);
+   const lightMixin = () => block(variables(), "@mixin inet-surface-hover-tokens($hover)");
+   const darkMixin = () => block(dark(), "@mixin inet-dark-surface-hover-tokens($hover)");
+   const HOVER = "--inet-shell-surface-hover";
+   const LIGHT_HOVER = { default: "#E9E5DD", canvas: "#E9E5DD", subtle: "#E8E4DB" };
+   const DARK_HOVER = { default: "#36343A", canvas: "#2C2A30", subtle: "#3E3B42" };
+   // the D7 container table: selector -> the token that paints it, and its surface, in each shell
+   const CONTAINERS: [string, string, keyof typeof LIGHT_HOVER, string, keyof typeof DARK_HOVER][] = [
+      [".repository-tree-pane, .tab-body .data-tree-pane",
+         "--inet-portal-side-panel-bg-color", "subtle", "--inet-portal-side-panel-bg-color", "subtle"],
+      [".portal-task-list-items .data-tree-pane",
+         "--inet-shell-surface-subtle", "subtle", "--inet-shell-surface-subtle", "subtle"],
+      [".data-model-left-top-pane",
+         "--inet-portal-side-panel-bg-color", "subtle", "--inet-portal-side-panel-bg-color", "subtle"],
+      ["logical-model-property-pane .data-model-left-top-pane",
+         "--inet-shell-surface-subtle", "subtle", "--inet-shell-surface-subtle", "subtle"],
+      [".viewer-toolbar",
+         "--inet-vs-toolbar-bg-color", "subtle", "--inet-vs-toolbar-bg-color", "subtle"],
+      [".data-model-header-pane, .physical-graph-toolbar, .ws-composite-table-breadcrumb-container, " +
+         ".slide-out-toggle-container, .chart-style-container",
+         "--inet-toolbar-bg-color", "subtle", "--inet-toolbar-bg-color", "subtle"],
+      [".ws-table-bar",
+         "--inet-toolbar-bg-color", "subtle", "--inet-shell-surface-default", "default"],
+      [".composer-bottom-tabs",
+         "--inet-nav-tabs-bg-color", "subtle", "--inet-nav-tabs-bg-color", "subtle"],
+      [".binding-editor .left-container:not(.modal *), .object-wizard-pane .left-container:not(.modal *)",
+         "--inet-composer-side-panel-bg-color", "subtle", "--inet-composer-side-panel-bg-color", "subtle"],
+   ];
+
+   // a selector list split at its top-level commas, not those inside :is() or :where()
+   const selectors = (list: string): string[] => {
+      const result = [""];
+      let depth = 0;
+
+      for(const c of list) {
+         depth += c === "(" ? 1 : c === ")" ? -1 : 0;
+
+         if(c === "," && depth === 0) {
+            result.push("");
+         }
+         else {
+            result[result.length - 1] += c;
+         }
+      }
+
+      return result.map(s => s.trim());
+   };
+
+   // the compiled stylesheet's top-level rules, as [selector list, declarations]
+   let compiled: [string[], Map<string, string>][];
+
+   beforeAll(async () => {
+      const sass = await import("sass");
+      const web = join(__dirname, "..", "..", "..", "..");
+      const css = sass.compile(join(__dirname, "..", "global.scss"), {
+         loadPaths: [web, join(web, "node_modules")],
+         quietDeps: true,
+         logger: sass.Logger.silent,
+      }).css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+      compiled =[...css.matchAll(/(?:^|\n)([^{}\n@][^{}]*?)\s*\{([^{}]*)\}/g)]
+         .map(r => [selectors(r[1]), declarations(r[2])]);
+   }, 60000);
+
+   // the compiled rules with a selector that starts with `prefix` and is followed by $outside-content
+   const rulesFor = (prefix: string) =>
+      compiled.filter(([sels]) => sels.some(s => s.startsWith(`${prefix}:where(:not(:is(.vs-pane`)));
+
+   it("keeps $shell-surface-hover at #ECE9E2, so the build-time aliases do not move", () => {
+      expect(sassVar(variables(), "shell-surface-hover")).toBe("#ECE9E2");
+      expect(runtimeTokens().get(HOVER)).toBe("#{$shell-surface-hover}");
+   });
+
+   it("sets the light shell's hover to #E9E5DD on white and canvas, and #E8E4DB on beige", () => {
+      expect(sassVar(variables(), "shell-hover-default")).toBe(LIGHT_HOVER.default);
+      expect(sassVar(variables(), "shell-hover-subtle")).toBe(LIGHT_HOVER.subtle);
+      expect(declarations(block(variables(), "@mixin inet-shell-state-tokens")).get(HOVER))
+         .toBe("#{$shell-hover-default}");
+      expect([...sassMap(variables(), "shell-surface-hovers")]).toEqual([
+         ["canvas", "$shell-hover-default"],
+         ["default", "$shell-hover-default"],
+         ["subtle", "$shell-hover-subtle"],
+      ]);
+   });
+
+   it("sets the dark shell's hover to #36343A on the default surface, #2C2A30 on canvas, #3E3B42 on subtle", () => {
+      expect(sassVar(dark(), "dark-surface-hover")).toBe(DARK_HOVER.default);
+      expect(sassVar(dark(), "dark-surface-hover-canvas")).toBe(DARK_HOVER.canvas);
+      expect(sassVar(dark(), "dark-surface-hover-subtle")).toBe(DARK_HOVER.subtle);
+      expect(declarations(block(dark(), ":root.shell-dark")).get(HOVER)).toBe("#{$dark-surface-hover}");
+      expect([...sassMap(dark(), "dark-surface-hovers")]).toEqual([
+         ["canvas", "$dark-surface-hover-canvas"],
+         ["default", "$dark-surface-hover"],
+         ["subtle", "$dark-surface-hover-subtle"],
+      ]);
+   });
+
+   it("leaves dashboard content on #ECE9E2 in the light shell", () => {
+      expect(declarations(block(variables(), CONTENT_RULE)).get(HOVER)).toBe("#{$shell-surface-hover}");
+   });
+
+   it("re-declares, in the surface mixin, every :root token in the hover chain with its :root expression", () => {
+      const tokens = rootTokens();
+      const chain = chainOf(tokens, [HOVER]);
+      const declared = declarations(lightMixin());
+
+      expect([...declared.keys()].sort()).toEqual([...chain].sort());
+      expect(declared.get(HOVER)).toBe("#{$hover}");
+
+      for(const name of chain) {
+         if(name !== HOVER) {
+            expect(declared.get(name), name).toBe(tokens.get(name));
+         }
+      }
+   });
+
+   it("adds the dark shell's own hover readers in the dark surface mixin", () => {
+      const tokens = darkRootTokens();
+      const lightChain = chainOf(rootTokens(), [HOVER]);
+      const extras = [...chainOf(tokens, [HOVER])].filter(name => !lightChain.has(name));
+      const css = darkMixin();
+
+      expect(css).toMatch(/@include inet-surface-hover-tokens\(\$hover\);/);
+      expect(extras.length).toBeGreaterThan(0);
+      expect([...declarations(css).keys()].sort()).toEqual([...extras].sort());
+
+      for(const name of extras) {
+         expect(declarations(css).get(name), name).toBe(tokens.get(name));
+      }
+   });
+
+   it("lists the container table in $surface-hover-containers", () => {
+      const map = sassMap(variables(), "surface-hover-containers");
+
+      expect([...map]).toEqual(CONTAINERS.map(([sel, light, lightLevel, darkToken, darkLevel]) =>
+         [sel, `(light: "${light}" ${lightLevel}, dark: "${darkToken}" ${darkLevel})`]));
+   });
+
+   for(const [sel, light, lightLevel, darkToken, darkLevel] of CONTAINERS) {
+      describe(sel, () => {
+         const sels = sel.split(", ");
+
+         it(`hovers with ${LIGHT_HOVER[lightLevel]} in the light shell, off custom-themed pages`, () => {
+            for(const s of sels) {
+               const rules = rulesFor(`:where(:root:not(.custom-theme)) ${s}`);
+
+               expect(rules.length, s).toBe(1);
+               expect(rules[0][1].get(HOVER), s).toBe(LIGHT_HOVER[lightLevel]);
+               expect(rules[0][1].get("--inet-ui-neutral-hover-bg-color"), s).toBe(`var(${HOVER})`);
+               expect(rules[0][1].has("--inet-focus-ring-gap-color"), s).toBe(false);
+            }
+         });
+
+         it(`sets the ring gap to var(${light}) on every page`, () => {
+            for(const s of sels) {
+               const rules = rulesFor(s);
+
+               expect(rules.length, s).toBe(1);
+               expect([...rules[0][1]], s).toEqual([["--inet-focus-ring-gap-color", `var(${light})`]]);
+            }
+         });
+
+         it(`hovers with ${DARK_HOVER[darkLevel]} in the dark shell, with the gap on var(${darkToken})`, () => {
+            for(const s of sels) {
+               const rules = rulesFor(`:root.shell-dark ${s}`);
+
+               expect(rules.length, s).toBe(1);
+               expect(rules[0][1].get(HOVER), s).toBe(DARK_HOVER[darkLevel]);
+               expect(rules[0][1].get("--inet-hover-bg-color"), s).toBe(`var(${HOVER})`);
+               expect(rules[0][1].get("--inet-focus-ring-gap-color"), s).toBe(`var(${darkToken})`);
+            }
+         });
+      });
+   }
+
+   it("declares the hover nowhere else outside :root and dashboard content", () => {
+      const hoverRules = compiled.filter(([, d]) => d.has(HOVER));
+      const containerRules = CONTAINERS.length * 2;
+      // :root, the shell-state root, the dark root, the light and dark content rules
+      const others = hoverRules.filter(([sels]) => !sels.some(s => /:where\(:not\(:is\(\.vs-pane/.test(s)));
+
+      expect(hoverRules.length - others.length).toBe(containerRules);
+      expect(others.map(([sels]) => sels[0])).toEqual([
+         ":root",
+         ":root:where(:not(.custom-theme))",
+         ":where(:root:not(.custom-theme)) :where(.vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container, .vs-combo-box__list, .dropdown-datepicker, .hidden__annotation-tooltip, .vs-annotation__tooltip):where(:not(.dropdown-datepicker.viz-dark))",
+         ":root.shell-dark",
+         ":root.shell-dark :is(.vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container, .hidden__annotation-tooltip, .vs-annotation__tooltip, .vs-combo-box__list, .dropdown-datepicker:not(.viz-dark))",
+      ]);
    });
 });

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 @use 'sass:color';
+@use 'sass:list';
+@use 'sass:map';
 
 // $dashboard-content, $content-popup, $annotation-tooltip and $outside-content (the content
 // boundary), and $viz-scopes, live in _variables.scss, so light-shell rules can stay out of
@@ -43,7 +45,11 @@ $content-popup-light: ".vs-combo-box__list, .dropdown-datepicker:not(.viz-dark)"
 $dark-surface-canvas: #1C1B1F;
 $dark-surface-default: #252428;
 $dark-surface-subtle: #2D2B30;
-$dark-surface-hover: #37353B;
+// the hover, one fixed grey per surface (D7): on the default surface (1.26:1), the canvas (1.21:1)
+// and the subtle surface (1.27:1)
+$dark-surface-hover: #36343A;
+$dark-surface-hover-canvas: #2C2A30;
+$dark-surface-hover-subtle: #3E3B42;
 $dark-surface-raised: #3A383D;
 $dark-selected-bg: #4A4750;
 $dark-border-default: #49454F;
@@ -562,6 +568,39 @@ $dark-ws-row-hover-bg: #302D27;
   // keeps the light ring.
   .nav-link:focus-visible#{$outside-content} {
     box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+  }
+}
+
+// the dark shell's hover on each surface (D7)
+$dark-surface-hovers: (
+  canvas: $dark-surface-hover-canvas,
+  default: $dark-surface-hover,
+  subtle: $dark-surface-hover-subtle,
+);
+
+// inet-surface-hover-tokens (_variables.scss) plus the dark shell's own readers of the hover token,
+// declared on :root.shell-dark above
+@mixin inet-dark-surface-hover-tokens($hover) {
+  @include inet-surface-hover-tokens($hover);
+  --inet-dark-surface-hover-color: var(--inet-shell-surface-hover);
+  --inet-hover-bg-color: var(--inet-shell-surface-hover);
+  --ck-color-button-default-hover-background: var(--inet-shell-surface-hover);
+  --ck-color-button-on-hover-background: var(--inet-shell-surface-hover);
+  --ck-color-list-button-hover-background: var(--inet-shell-surface-hover);
+}
+
+// The surface containers ($surface-hover-containers in _variables.scss) with their dark surface's
+// hover and ring gap. Themed pages are never dark (ShellDarkMode.isDark), so no custom-theme gate.
+@each $container, $container-surfaces in $surface-hover-containers {
+  $container-dark: map.get($container-surfaces, dark);
+
+  :root.shell-dark {
+    #{$container} {
+      &#{$outside-content} {
+        @include inet-dark-surface-hover-tokens(map.get($dark-surface-hovers, list.nth($container-dark, 2)));
+        --inet-focus-ring-gap-color: var(#{list.nth($container-dark, 1)});
+      }
+    }
   }
 }
 

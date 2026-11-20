@@ -17,6 +17,8 @@
  */
 @use 'sass:meta';
 @use 'sass:color';
+@use 'sass:list';
+@use 'sass:map';
 
 /***
  * Theming override section begin
@@ -60,6 +62,12 @@ $shell-surface-canvas: #F8F7F4;
 $shell-surface-default: #FFFFFF;
 $shell-surface-subtle: #F1EFEA;
 $shell-surface-hover: #ECE9E2;
+// the shell's own hover (D7), one fixed grey per surface: #E9E5DD on white (1.26:1) and the canvas
+// (1.17:1), #E8E4DB on beige (1.10:1, and 1.11:1 from the selected fill). Dashboards and the
+// build-time aliases ($inet-offwhite4, $table-hover-bg, $dropdown-link-hover-bg) keep
+// $shell-surface-hover.
+$shell-hover-default: #E9E5DD;
+$shell-hover-subtle: #E8E4DB;
 $shell-border-default: #D9D5CC;
 $shell-border-strong: #C8C2B7;
 $shell-chrome-dark: #4A4845;
@@ -702,6 +710,10 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   // content re-declares both below with the old values.
   --inet-shell-selected-bg-color: #{$shell-selected-bg-strong};
   --inet-text-muted-color: #5F5E56;
+
+  // the hover on white and the canvas (D7); beige containers declare their own below. Dashboard
+  // content re-declares the old value below.
+  --inet-shell-surface-hover: #{$shell-hover-default};
 }
 
 :root {
@@ -772,6 +784,70 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
 :where(:root:not(.custom-theme)) :where(#{$dashboard-content}, #{$content-popup}):where(:not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *)) {
   --inet-viz-selected-bg: var(--inet-shell-selected-bg-color);
   --inet-viz-sorted-color: var(--inet-text-muted-color);
+}
+
+// Hover is one fixed grey per surface (D7; Carbon sets an opaque hover token per layer). A token
+// that uses var() is resolved where it is declared, so a surface container declares the base hover
+// token and every token derived from it again, with :root's own expressions. The dark shell adds its
+// own readers (inet-dark-surface-hover-tokens in _shell-dark.scss).
+@mixin inet-surface-hover-tokens($hover) {
+  --inet-shell-surface-hover: #{$hover};
+  --inet-ui-neutral-hover-bg-color: var(--inet-shell-surface-hover);
+  --inet-hover-primary-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-hover-secondary-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-table-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-list-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-secondary-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-default-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-light-hover-bg-color: var(--inet-shell-surface-hover);
+
+  // the Bootstrap bridge, also declared on :root (_bootstrap-override.scss)
+  --bs-dropdown-link-hover-bg: var(--inet-hover-primary-bg-color);
+  --bs-list-group-action-hover-bg: var(--inet-ui-neutral-hover-bg-color);
+}
+
+// the light shell's hover on each surface
+$shell-surface-hovers: (
+  canvas: $shell-hover-default,
+  default: $shell-hover-default,
+  subtle: $shell-hover-subtle,
+);
+
+// The surface containers (D7): content-free shell containers, never dashboard content or an ancestor
+// of it, each with the token that paints it and the surface that token is in each shell. A container
+// whose surface is the :root one (white, or the dark default) needs no entry, unless the shells differ.
+// Menus attached to body are outside every container and take the :root hover.
+$surface-hover-containers: (
+  ".repository-tree-pane, .tab-body .data-tree-pane": (light: "--inet-portal-side-panel-bg-color" subtle, dark: "--inet-portal-side-panel-bg-color" subtle),
+  ".portal-task-list-items .data-tree-pane": (light: "--inet-shell-surface-subtle" subtle, dark: "--inet-shell-surface-subtle" subtle),
+  ".data-model-left-top-pane": (light: "--inet-portal-side-panel-bg-color" subtle, dark: "--inet-portal-side-panel-bg-color" subtle),
+  "logical-model-property-pane .data-model-left-top-pane": (light: "--inet-shell-surface-subtle" subtle, dark: "--inet-shell-surface-subtle" subtle),
+  ".viewer-toolbar": (light: "--inet-vs-toolbar-bg-color" subtle, dark: "--inet-vs-toolbar-bg-color" subtle),
+  ".data-model-header-pane, .physical-graph-toolbar, .ws-composite-table-breadcrumb-container, .slide-out-toggle-container, .chart-style-container": (light: "--inet-toolbar-bg-color" subtle, dark: "--inet-toolbar-bg-color" subtle),
+  ".ws-table-bar": (light: "--inet-toolbar-bg-color" subtle, dark: "--inet-shell-surface-default" default),
+  ".composer-bottom-tabs": (light: "--inet-nav-tabs-bg-color" subtle, dark: "--inet-nav-tabs-bg-color" subtle),
+  ".binding-editor .left-container:not(.modal *), .object-wizard-pane .left-container:not(.modal *)": (light: "--inet-composer-side-panel-bg-color" subtle, dark: "--inet-composer-side-panel-bg-color" subtle),
+);
+
+@each $container, $container-surfaces in $surface-hover-containers {
+  $container-light: map.get($container-surfaces, light);
+
+  // the hover, off custom-themed pages (O3)
+  :where(:root:not(.custom-theme)) {
+    #{$container} {
+      &#{$outside-content} {
+        @include inet-surface-hover-tokens(map.get($shell-surface-hovers, list.nth($container-light, 2)));
+      }
+    }
+  }
+
+  // a filled button's ring is set off from the surface behind it, on every page (D2); a theme's own
+  // surface color reaches it through the token
+  #{$container} {
+    &#{$outside-content} {
+      --inet-focus-ring-gap-color: var(#{list.nth($container-light, 1)});
+    }
+  }
 }
 
 // Adaptive label colour: only where relative color syntax is supported (Chrome 119+, Safari 16.4+,
