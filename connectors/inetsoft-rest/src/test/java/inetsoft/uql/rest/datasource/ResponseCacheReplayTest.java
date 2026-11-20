@@ -94,8 +94,8 @@ class ResponseCacheReplayTest {
    }
 
    @Test
-   @Disabled("the key leaves out the credentials, so a request with other credentials is served " +
-             "the cached response of the first; no Redmine bug yet")
+   @Disabled("Bug #81931: the key leaves out the credentials, so a request with other credentials " +
+             "is served the cached response of the first; enable when it is fixed")
    void aRequestWithOtherCredentialsIsNotAnsweredWithTheCachedResponseOfSomeoneElse()
       throws Exception
    {
@@ -111,8 +111,8 @@ class ResponseCacheReplayTest {
    }
 
    @Test
-   @Disabled("the key leaves out the request method, so a POST is served the cached response of " +
-             "a GET to the same URL; no Redmine bug yet")
+   @Disabled("Bug #81931: the key leaves out the request method, so a POST is served the cached " +
+             "response of a GET to the same URL; enable when it is fixed")
    void aPostIsNotAnsweredWithTheCachedResponseOfAGet() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler().on("method.test", "[{\"id\":1}]");
       RestJsonQuery post = query("https://method.test", "/items");
@@ -128,7 +128,7 @@ class ResponseCacheReplayTest {
 
    /**
     * Clears the property and the parsed value that SreeEnv keeps for it: {@code getLong} keeps the
-    * first value it parsed, so a later change of the property is not seen.
+    * first value it parsed, so a later change of the property is not seen (Bug #81932).
     */
    private static void forgetTheTimeout() throws Exception {
       SreeEnv.remove(TIMEOUT);
