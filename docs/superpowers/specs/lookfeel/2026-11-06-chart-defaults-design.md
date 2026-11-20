@@ -203,10 +203,11 @@ Some defaults choose the binding or the data, not the look. These are:
 - pie slices sorted largest first
 - the treemap coloured by its top level
 - the marimekko coloured by Break By
-- candle refusing a colour dimension
+- candle refusing a colour dimension, and moving one it already has to a panel (D120)
 
 **When they apply:**
 - They apply when a chart is created, or changes type, on a modern dashboard.
+  - Amended by D119 (owner, 2026-11-18): they also apply on the binding change that forms them on a marked chart, such as the drop of a pie's slice field or a treemap's first level. A chart built by picking its style first gets the same binding as one whose fields came first (S7).
 - Modernize ("Keep my formatting") and Revert never touch them. A chart created modern and then reverted keeps its binding; Revert restores the look, not the binding.
 - **The reset copy** (feature-80398, option 2) applies every creation-time default except the date level.
   - Resetting the date level would change the numbers on the copy, for example a "Sales by year" chart becoming monthly.
@@ -263,6 +264,7 @@ Ruled by the owner on 2026-11-06. Each overrides the decision named. The older d
 |---|---|---|
 | R9 | **C16.** Direction colours follow the mark (light or dark tokens), not the page behind the card. | TC D12 stands. If direction colours alone followed the page, a dark-marked chart on a light page would mix light-mode direction colours with dark-mode everything else, and "dark" would mean two things. The composer already offers to switch the mark when the dashboard background crosses the threshold (TC D12, §3.3). The author's Color field covers mid-tone and image pages. |
 | R10 | **C21.** Labels off a mark keep the title-tier ink (DK §2.1). White or near-black is chosen per fill only for text drawn on a filled mark. | The bundle's build item 6 asked to "pick one". DK §2.1 is kept as recorded. |
+| R12 | **Candle 2.** Switching a marked chart to candle, and the reset copy, move a colour dimension to the Y shelf as panels instead of clearing it (D120). A dimension dropped on a marked candle's Color is still refused. | Owner, 2026-11-18. A candle's measures default to Sum, so clearing the dimension adds the tickers' prices together into one series. Panels keep each ticker's own prices, and the bundle's own candle page uses panels for several tickers. |
 
 ## 5. Items by slice
 
@@ -286,7 +288,7 @@ Ruled by the owner on 2026-11-06. Each overrides the decision named. The older d
 | S5b | Titles, radar labels and horizontal order: S5-3 to S5-7 | Later | S5a |
 | S6a | Padding and the pie: S6-1, S6-2, S6-3, S6-7, S6-8 and S6-9 | Later | S5. Stacked on S5 (`bug-80455-s5`) |
 | S6b | Relation layouts: S6-4 to S6-6 | Later | S6a |
-| S7 | Creation-time defaults | Later | 80398, for the reset path |
+| S7 | Creation-time defaults | Later | 80398, for the reset path; S2-6 for the candle's up and down colours. No code dependency on S6 |
 | S8 | Family items | Later | S1 to S4 |
 
 ### S0. Chart defaults travel
@@ -813,17 +815,62 @@ Amended 2026-11-17, after the owner reviewed S6 against the S5 head (`bug-80455-
 
 ### S7. Creation-time defaults
 
-All of these apply when a chart is created or changes type on a modern dashboard (M6). Modernize ("Keep my formatting") and Revert never apply them. The reset copy applies all of them except S7-1.
+Amended 2026-11-18, after the owner reviewed S7 against `epic-74519` at `fe589c28a9` (S0 to S5 merged). The owner's rulings are D119 to D121 and D130, and the design calls made with them are D122 to D129, and D131 came from the build (§10). Lines in this section are at `fe589c28a9`. The rows start at D119, after S6's D94 to D118; S7 was renumbered by 3 when S6 merged first.
 
-| # | Item | Bundle | Where | Notes |
+These defaults apply on a marked chart when it is created, when it changes type, and on the binding change that forms them (M6, D119). Modernize ("Keep my formatting") and Revert never apply them. The reset copy applies all of them except S7-1 (D5).
+
+**Facts that shape this slice.**
+- **The bundle built every capture by picking the style first.** `repro/scripts/build_f1.js:51` picks the style and then drops the fields. On that path the binding is still empty at the type change. So with the type-change trigger alone, S7-2 to S7-6 would never fire on the charts the bundle measured. Only S7-1 (set at the drop) and S7-7 (a rule on the Color slot) would show. This is why D119 adds the drop.
+- **The wizard already applies S7-2, S7-5 and S7-6, on every chart, classic included.**
+  - It recommends stacked area and stacked step area (`AreaChartFilter:52`, `StepAreaChartFilter:34`).
+  - It puts the top level on Color for the treemap (`TreemapChartFilter.addColor:107`); sunburst, icicle and circle packing inherit this.
+  - It puts the marimekko's Break By on Color and Text (`MekkoChartFilter:59`).
+  - It does not sort pies or waterfalls.
+- **The wizard's date level already depends on the data range.**
+  - `IntervalExecutor.getLevelByRange:239`, with `DATE_RANGE_LIMIT` 3: year when the data spans at least 3 calendar years, otherwise month when it spans at least 3 months, otherwise day.
+  - `WizardRecommenderUtil.setDefaultDateLevel:336` falls back to year only when no range was found.
+  - The bundle's two years of daily data already get month there.
+- **Only AUTO stacks a bar.**
+  - A bar the author picks sets its series side by side (`IntervalElement:86`, `DODGE_SYMMETRIC`).
+  - AUTO with a series dimension (a dimension on Color, Shape, Size or Break By) resolves to stacked bar (`AbstractChartInfo.isStack:1087`). So the bundle's "bar already stacks on a colour dimension" means AUTO.
+  - AUTO never resolves to area. Area is always picked by the author.
+- **Every drop reaches the assembly.**
+  - A field from the data tree, including a drop on the plot, goes through `VSChartBindingHandler.addColumns:89`. A move between shelves goes through `addRemoveColumns:68`.
+  - Both hold the assembly, so `VizContext.of(info)` gates there.
+  - A new date dimension gets year, or hour for a time-only field, in `setDefaultDateLevel:471`.
+  - A second drop of the same date takes the next level from `GraphUtil`'s table (`:4219`): year → quarter of year, month → day of month.
+- **The type change already knows the mark.**
+  - `ChangeChartTypeService:190` builds `ChangeChartTypeProcessor` with `VizContext.of(ninfo)`.
+  - The service then sends the server's binding model back, so the client's Stack box shows a stacked type the server chose.
+- **Sort facts.**
+  - Every dimension's order defaults to `SORT_ASC` (`VSDimensionRef:1964`).
+  - "No sort" is `SORT_NONE`, the editor's "None", which uses no comparator (`:911`).
+  - But when every measure is aggregated (`cinfo.isAggregated()`, the normal waterfall), the chart query adds an ascending sort to a `SORT_NONE` or `SORT_ORIGINAL` dimension (`ChartVSAQuery:1497-1511`, issue 56590). The comment there says this differs from reports, which keep the order. So storing `SORT_NONE` alone still draws an aggregated waterfall alphabetically.
+  - In-memory grouping (`SummaryFilter`) needs sorted input, so first-appearance order is not kept there either. This is why S7-4 saves the order as a manual order (D130).
+- **A candle cannot merge tickers.**
+  - Its measures default to Sum (`ChartDndHandler.fixAggregate:1258` → `AssetUtil.getDefaultFormula`), so removing a ticker dimension adds the tickers' prices together.
+  - Its X and Y shelves take dimensions only (`getFixedXYRef:1621`), so a dimension on Y draws one panel per ticker (the bundle's `candle_panels.png`).
+- **The chart binding model carries no mark.** So the client's drop check (`vs-chart-editor.service.ts`, `isFieldAcceptable:177`) cannot gate on it today.
+- **The reset copy** is `VizModernizeUtil.resetToModern:118`, run on a copy (`ModernCopyService:149`). It resets every assembly through `resetChrome:148`.
+
+**One rule set, four entry points (D121).** A new class holds S7-1 to S7-7 (the builder names it and picks its package, next to `ChangeChartTypeProcessor` by default). Every rule checks the chart's mark. An unmarked chart takes none of them, and its binding is unchanged.
+
+| Entry point | Called from | Rules |
+|---|---|---|
+| Type change | `ChangeChartTypeService` only: before the processor for the area type, so every later step sees the stacked type, and right after `process()` returns for the rest. Not inside `process()`, which a script's `chartStyle` also runs (`ChartVSAssemblyInfo.setChartStyle`) (D129) | S7-2 to S7-7 |
+| Drop | `VSChartBindingHandler.addColumns` and `addRemoveColumns`, after the fields land. S7-1 inside `createChartRef` | S7-1, S7-3 to S7-7. S7-2 needs no drop rule (D124) |
+| Wizard | the pie, donut, facet pie and waterfall recommenders, and `WizardRecommenderUtil.setDefaultDateLevel`'s fallback | S7-1 fallback (D123), S7-3, S7-4. The wizard already does S7-2, S7-5 and S7-6 |
+| Reset copy | `VizModernizeUtil.resetChrome` for a chart, after the slot reset, under the mark being given | S7-2 to S7-7, not S7-1 |
+
+| # | Item | Bundle | Rule | Notes |
 |---|---|---|---|---|
-| S7-1 | A date dropped on a shelf groups by month | line 2 | `VSChartBindingHandler.setDefaultDateLevel:470-480`, `BDimensionRefModel:97-105`, `ChartDndHandler.fixChartRef:796-801`, `WizardRecommenderUtil:342` | Gate with `VizContext.of(chart)` at drop. Charts only: the crosstab path (`VSCrosstabBindingHandler:389`) is out. It changes the query. Not applied by the reset (D5). |
-| S7-2 | Area with a colour dimension is stacked | line 3 | Stacking is the chart type (`GraphTypes.isStack`, `GraphGenerator:3967-3984`). AUTO never resolves to area (`AbstractChartInfo:1029`, `:1051`) | Choose the stacked area type in `ChangeChartTypeService` and in the client's stack box default. It changes `StackRange`, tooltips and show-value totals. |
-| S7-3 | Pie and donut slices sorted largest first | pie 2 | The pie dimension moves to colour in `fixPieDimensions:431-461`; its order is the default `SORT_ASC` (`VSDimensionRef:1964`) | Set a by-value descending sort. Slice colours follow the sort (`CategoricalScale:152-160`), so colours go by rank. |
-| S7-4 | Waterfall keeps the data order | funnel 5 | `VSDimensionRef.order` defaults to ascending for every dimension (`:1964`, read at `:1028`) | Set no sort (original order). For an aggregated database query, the original order is whatever order the query returns. |
-| S7-5 | Treemap family coloured by its top level when no colour field is bound | hierarchy 1 | `copyToTreemap` (`ChangeChartTypeProcessor:1132`); the wizard already does this | Clearing the colour stays cleared. |
-| S7-6 | Marimekko coloured by its Break By field when no colour field is bound | funnel 7 | `copyToMekko` (`:1219`); today `GraphGenerator:5013-5014` only sets the inner dimension | — |
-| S7-7 | Candle's Color field takes no dimension; switching to candle clears a colour dimension | candle 2 | Server: `ChartDndHandler.getFixedXYRef:1597-1602`. The client drop check is not traced (`vs-chart-editor.service.ts` `isFieldAcceptable`) | A modern-dashboard rule only. The Color field edits the up and down colours (S2-6). |
+| S7-1 | A new date dimension on an axis groups by month | line 2 | A date dimension created from the data tree on the X or Y shelf of a marked chart starts at month instead of year. The second X and Y shelves count too (D122) | Time-only fields keep hour and cube dates keep day. A second drop of the same date follows today's next-level table. Color, Shape, Size, Text, Break By, the tree and the path keep year. The wizard keeps its range rule and changes only its fallback (D123). Charts only: the crosstab path (`VSCrosstabBindingHandler:389`) is out. It changes the query. Not applied by the type change or the reset copy (D5). `BDimensionRefModel:97` only displays a level for a dimension that has none, and it keeps year, because such a dimension draws year (the builder confirms). |
+| S7-2 | Area and step area are stacked | line 3 | Picking Area or Step Area on a marked chart gives `CHART_AREA_STACK` or `CHART_STEP_AREA_STACK` when the old type is not one of the four area types. In a chart with multiple styles, each measure's own old type decides (D124) | Turning Stack off on an area chart is the author's choice and sticks. The reset copy stacks both area types. With no series dimension the stacked and the plain area must draw the same: check one measure, two measures with Stack Measures off, values shown and tooltips. Once a series dimension is bound, stacking changes `StackRange`, the tooltips and the totals shown with values. |
+| S7-3 | Pie and donut slices sorted largest first | pie 2 | On a marked pie (`GraphTypes.isPie`, the 3D pie included), a slice dimension still on the default order becomes descending by value of the pie's first measure (`SORT_VALUE_DESC` with `sortByCol`) (D125 to D127) | The slice dimension is the dimension on Color, or on Shape or Size when Color holds none (the test in `fixPieDimensions:429`). Triggers: the type change (after `fixPieDimensions`), the slice dimension landing, the pie's measure landing, and the reset copy. A date dimension keeps its time order (D126). With multiple styles, each measure's own Color field and measure. Slice colours follow the sort (`CategoricalScale:152-160`), so colours go by rank. |
+| S7-4 | Waterfall keeps the data order | funnel 5 | On a marked waterfall, the innermost category dimension, still on the default order, gets a manual order (`SORT_SPECIFIC`) that lists its values in the order they first appear in the chart's source rows. The values are read once, when the rule fires. The category is on X, or on Y when the chart is turned on its side (D125, D126, D130) | Triggers: the type change, a dimension landing on the category shelf, and the reset copy. `SORT_NONE` cannot do this: an aggregated chart's query sorts it ascending (facts above). The saved order stays the same between runs on any source, and it shows as a manual order in the sort dialog, where the author can edit it. A value that first appears later goes after the listed ones, ascending (`ManualOrderComparer.compare:83-105`). On the bundle's `waterfall_8.csv` this gives Revenue, Returns, Cost of goods, Gross profit adj, Salaries, Marketing, Other income, Taxes. When the values cannot be read (no data yet, or the query fails), the order stays as it is. A date dimension keeps its time order (D126). |
+| S7-5 | Treemap family coloured by its top level when no colour field is bound | hierarchy 1 | On a marked treemap, sunburst, circle packing or icicle with Color empty, the top tree level is also bound to Color (D128) | Triggers: the type change (after `copyToTreemap:1161`), a dimension becoming the top tree level, and the reset copy. A measure that `copyToTreemap` puts on Color stays. The frame is the one a dimension dropped on Color gets on a marked chart. Clearing Color stays cleared until the author places a new top level while Color is empty. |
+| S7-6 | Marimekko coloured by its Break By field when no colour field is bound | funnel 7 | On a marked marimekko with Color empty, the Break By dimension is also bound to Color (D128) | Triggers: the type change (after `copyToMekko:1248`), a dimension landing on Break By, and the reset copy. A third dimension that `copyToMekko` puts on Color stays. Today `GraphGenerator:5013-5014` sets only the inner dimension. The wizard also puts Break By on Text; S7 does not. |
+| S7-7 | Candle's Color field takes no dimension; a colour dimension becomes panels | candle 2 | When a marked chart switches to candle, and on the reset copy, a dimension on Color moves to the end of the Y shelf and Color is cleared, so the up and down colours (S2-6) take over. A dimension dropped on a marked candle's Color is refused (D120, R12) | The client refuses the drop (the chart binding model gains the mark), and so does the server, in case a drop arrives anyway. A measure on Color behaves as today. Stock is not covered: the bundle lets stock take a colour dimension. The panels share one value range until the blocked per-panel range lands (§8). |
 
 ### S8. Family items
 
@@ -922,6 +969,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 - negative values on a pie or radar
 - small regions on a world map
 - the contour map's Break By shelf
+- candle and stock measures aggregate with Sum, so any date level coarser than the data's own period adds prices together. S7-1 moves a new date from year to month and does not change this.
 
 **Script-only and DSL behaviour** is untouched, except that every script setter of a property flagged in M4 stamps the user flag.
 
@@ -950,10 +998,17 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 - How the S6-9 pad is converted from pixels to time, and what else reads the time scale's maximum (zoom, range, brushing).
 - How `GeoCoord` caps a marked non-web map's zoom-out at the whole layer (S6-7, D96).
 - For S6b: whether the plot box comes from a replot (`Coordinate.requiresReplot`) or an estimate before plotting; how the 75% box floor applies to a tree whose node size is bound; how the tree's root position reaches the client, and when the client applies it instead of today's reset to 0,0.
+- For S7:
+  - where `ChangeChartTypeService` swaps in the stacked area type, so the processor, the smooth-lines transition, the multiple-styles handling and the binding sent back all see it (S7-2)
+  - how the client learns the mark for the candle Color check, and what the server does with a refused drop that arrives anyway (S7-7)
+  - how the wizard's temporary chart's mark is read
+  - what the pie sort does when its measure is later removed: today's fallback for a value sort whose measure has gone (S7-3)
+  - whether a drop on the plot that lands on X or Y counts for S7-1 (it should)
+  - how S7-4 reads the category's values in source order: which query, under which of the chart's filters, the largest list it saves (a waterfall past that size keeps today's order), and keeping the read inside the undo step of the action that fired it (D130)
 
 ## 10. Decisions
 
-"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, on 2026-11-16 from D69 on, or on 2026-11-17 from D94 on. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, while amending S5 for D83 to D85 and D87 to D90, or while amending S6 for D100 to D107.
+"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, on 2026-11-12 from D44 on, on 2026-11-16 from D69 on, on 2026-11-17 from D94 on, or on 2026-11-18 from D116 on. "Design" means settled while writing this spec, while amending S3 for D32 to D42, while amending S4 for D51 to D62, while amending S5 for D83 to D85 and D87 to D90, while amending S6 for D100 to D107, or while amending S7 for D122 to D129, and D131 from its build.
 
 | # | Decision | Who |
 |---|---|---|
@@ -975,7 +1030,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D16 | Radar scale labels go on the spoke nearest 12 o'clock (S5-6) | Design |
 | D17 | Hierarchy level steps use the palette's shade function (S2-11) | Design |
 | D18 | The Gantt milestone takes slot 2 by measure order, and its legend loses the "Measures" title through S3-6 | Design |
-| D19 | A waterfall's "data order" means no sort (S7-4) | Design |
+| D19 | A waterfall's "data order" means no sort (S7-4). Revised by D130: a saved manual order, because an aggregated chart's query sorts `SORT_NONE` ascending | Design |
 | D20 | Pie start angle and direction are look, a new property that follows the mark. The largest-first sort is creation-time (S6-8, S7-3). Revised by D102: a drawing rule, not a stored property | Design |
 | D21 | The bundle's text is mirrored into the repo without images; the zip remains the full source | Design |
 | D22 | DEFAULT tiers are saved on marked charts only. Classic charts keep their XML and their `format.css` lookup (M3) | Design, from the reviewer's check |
@@ -1075,6 +1130,19 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D116 | A fitted tree's minimum size is its laid-out node boxes, widened to their outer size when labels sit outside the node, plus `RelationCoord.GAP` on each side, not the label-padded visual bounds divided by the first plot's scale. The drawing then fills its scroll area, so the first view's centre-and-clamp puts the root at the top centre of a top-to-bottom tree (the far edge for the reversed orientations), and a fitted left-to-right tree no longer scrolls sideways. A tree whose depth fits its card stays centred in the plot. Exports of a scrolling fitted tree shrink to the drawing (S6-6, D107, D113; live checks S6-6b and the left-to-right scroll) | Owner, 2026-11-18, from the bundle's relation page ("the initial scroll position shows the root at the top, centred") |
 | D117 | Reset Size and a binding change left a chart's resize percents behind, and a height resize wrote the width percent; bug 07 fixes this for every chart type on the S6b branch: a percent applies only while its axis is resized (repairing saved files), both resets clear the percents, a height resize writes the height percent, and Swap XY moves each axis's resize, percent included, to the axis that now shows the same data. Swap XY draws the swapped chart before it compares the initial ratios, because only a draw sets them; before, the move never ran, the same on the base (re-check RZ-3). A relation chart folds its percent against a ratio of 1 and draws a resized axis at its percent, so its size no longer drifts from draw to draw, and a relation axis that is not resized keeps a stored ratio of 1. This replaces S6b's skip for fitted charts (S6-4 to S6-6; live check AR-2) | Owner, 2026-11-18, after the S6b live checks |
 | D118 | An author-resized marked tree draws its scroll area 1px wider and its nodes 0.5px right of an unmarked one: the corner floor, which stays on after the resize (D115), narrows a node's label box when the tree is measured at its small first-plot scale, and that minimum width is divided by the scale. Accepted (S6-6; live checks S6-6l and AR-1) | Owner, 2026-11-18, after the S6b live checks |
+| D119 | The creation-time defaults also apply on the binding change that forms them on a marked chart, not only at creation or a type change. A chart built by picking its style first gets the same binding as one whose fields came first. Amends D4 and M6 for the trigger only: Modernize and Revert still never apply them (S7) | Owner, 2026-11-18 |
+| D120 | A colour dimension on a candle moves to the Y shelf as panels when a marked chart switches to candle and on the reset copy, so each ticker keeps its own prices. A dimension dropped on a marked candle's Color is refused (S7-7, R12; replaces the bundle's "clears") | Owner, 2026-11-18 |
+| D121 | One rule set holds S7-1 to S7-7, called from four entry points: the type change, the binding editor's drop, the wizard and the reset copy. It is not spread across each site, and it is not a pass over the binding's state after every change, which could not tell "Color cleared" from "Color never set" without a saved flag per rule (S7) | Owner, 2026-11-18 |
+| D122 | Month applies to a new date dimension on the X and Y shelves only, including the second axes. Color, Shape, Size, Text, Break By, the tree and the path keep year, because month there gives 24 or more categories for two years of data. Time-only fields keep hour and cube dates keep day. A second drop of the same date follows today's next-level table (month → day of month) (S7-1) | Design |
+| D123 | The wizard keeps its range-based date level (year from 3 calendar years, month from 3 months, otherwise day). Only its fallback when it finds no range becomes month on a marked chart. The bundle asked for a fixed month to avoid a data lookup, which the wizard already makes (S7-1) | Design |
+| D124 | Picking Area or Step Area on a marked chart gives the stacked type whenever the old type is not an area type, with or without a series dimension. A series dimension dropped later stacks with no provenance, and turning Stack off is always the author's choice. Step area follows area: the bundle's line family names both, and the wizard stacks both (S7-2) | Design |
+| D125 | An order default replaces only the default order: ascending by label, with no manual order and no value sort. Any other sort is the author's and stays, at a drop, a type change and on the reset copy. An author's explicit Ascending cannot be told apart from the default and is replaced, which is accepted (S7-3, S7-4) | Design |
+| D126 | A date dimension keeps its time order as pie slices and as a waterfall's categories. Ascending already reads in time order there, and the bundle's complaint was alphabetical text (S7-3, S7-4) | Design |
+| D127 | The pie order is set when the slice dimension lands or when the pie's measure lands, whichever comes second, so both drop orders give largest first. It sorts by the pie's first measure. An author who chose Ascending and then binds a different measure gets largest first again, which is accepted (S7-3, D119) | Design |
+| D128 | For the treemap family and the marimekko, a field the type change already puts on Color stays: `copyToTreemap`'s second measure or `copyToMekko`'s third dimension. The top level or the Break By goes on Color only when Color is otherwise empty. A cleared Color stays cleared until the author places a new top level or Break By while Color is empty (S7-5, S7-6, D119) | Design |
+| D129 | The type-change rules run from `ChangeChartTypeService`, after `ChangeChartTypeProcessor.process()` returns, not inside it. A script that sets `chartStyle` on a marked chart goes through `process()` too, and §8 keeps script behaviour unchanged, so a script never re-colours, re-sorts or moves fields at run time (S7) | Design, from the builder check |
+| D130 | A waterfall's data order is saved as a manual order listing the category's values in the order they first appear in the source rows, read once when the rule fires. `SORT_NONE` is sorted ascending by the query of an aggregated chart (issue 56590), and lifting that sort would leave the order to the grouping step or the database, which can change between runs. Values that first appear later go after the list, ascending. A detail calc field is read and ordered like any other column, because the query adds it to the runtime worksheet table (`VSAQuery.appendCalcField`); the owner accepted this after the live checks (S7-W5). Revises D19 (S7-4) | Owner, 2026-11-18, after the builder check |
+| D131 | On a marked chart, a stacked area or step area with a single stack layer keeps the area's own fill alpha (0.8), so it draws exactly as the plain area and picking Area changes nothing until a series arrives (D124). Its tooltip shows no stack total either, because one layer's total is its own value (the element carries `GraphGenerator.SINGLE_STACK_LAYER`, which `PlotArea` reads). A single layer means no dimension on its Color, Shape, Size or group shelf (the series test AUTO uses for bar, now `AbstractChartInfo.hasSeriesDimension`) and not several measures stacked into one element. Classic charts, and stacked areas with a series or with stacked measures, stay opaque as today. An area that gains series only at run time, from a date comparison, keeps 0.8 (S7-2) | Design, from the S7 build |
 
 ## 11. Testing
 
@@ -1084,7 +1152,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 - **Round trip:** `VizModernizeUtilTest` must show that Modernize then Revert renders identically to a dashboard never modernized (P6, as amended by MD §4).
 - **Reset and residue:**
   - Each new property joins feature-80398's `ChartChromeSlotsTest`, `VizModernizeResetTest` and `VizModernizeResidueTest`.
-  - The reset applies S7 except S7-1.
+  - The reset applies S7 except S7-1 (see "Creation-time defaults (S7)" below).
 - **Travel (S0):** write a seeded chart, read it with a fresh descriptor, and check that the DEFAULT tier is there. An author's bare value from an old file still reads as USER. A classic chart's XML is unchanged.
 - **Bookmarks:** a bookmark taken while modern and restored after Revert draws classic, for every chart descriptor value (M5).
 - **Old files:** an old file's non-default plain value is flagged on parse and survives Modernize, Revert and residue cleanup (M4).
@@ -1106,7 +1174,17 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
   - S6-9: the last Gantt bar ends about one density padding before the plot edge; an author's maximum removes the pad.
   - S6b: the circle and network stay inside the plot box at 8, 30 and 120 nodes, with and without a legend; the canonical 15-node tree fits a 400×240 card's width with no horizontal scroll; 60 and 200 nodes scroll and open on the root; an author's plot resize keeps today's layout.
   - Every S6 item renders a classic chart identically before and after.
+- **Creation-time defaults (S7):**
+  - Each rule from each of its entry points on a marked chart. On an unmarked chart, every entry point leaves the binding XML as it is today.
+  - Both build orders give the same binding: style first and then fields, and fields first and then style (D119). This covers pie, donut, waterfall, treemap, sunburst, marimekko and area.
+  - Waterfall order (D130): on `waterfall_8.csv` the saved manual order is the file's order, and the drawn order matches it after a refresh. A value that first appears later goes at the end. On a database source the order is the same across runs. When the values can't be read, the order stays as it is.
+  - An author's sort, a cleared Color and an area with Stack turned off survive later drops. A new top level or Break By adds colour only when Color is empty (D125, D128).
+  - Dates: month on X and Y; year on Color; hour for a time-only field; the second drop of the same date; the wizard's range rule and its fallback (D122, D123). A date slice or waterfall category keeps its time order (D126).
+  - The reset copy applies S7-2 to S7-7 and not S7-1. A two-ticker candle on the copy becomes two panels with each ticker's own prices (D120).
+  - An area with no series dimension draws the same stacked and plain: one measure, and two measures with Stack Measures off (D124).
+  - The candle Color drop is refused in the portal (TL test) and on the server.
 - **Spring context:** Java tests that reach the seed or the generator need the Spring context set up as `CLAUDE.md` describes.
 - **Manual:**
   - Rebuild the bundle's dashboards from `repro/charts.md` on the built server.
+  - For S7, build them by picking the style first, as `repro/scripts/build_f1.js` does, on a modern dashboard and on a classic one.
   - Compare against the drawn cards in light and dark, at the three densities, in the composer, Preview, the portal viewer and the PDF and PNG exports.

@@ -89,6 +89,7 @@ export class ChartBindingModel extends BindingModel implements ChartAestheticMod
    geoCols: DataRef[];
    stackMeasures: boolean;
    hasDateComparison: boolean;
+   vizModern?: boolean;
    // relation chart
    nodeColorField: AestheticInfo;
    nodeSizeField: AestheticInfo;

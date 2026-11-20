@@ -595,6 +595,14 @@ public class ChartBindingModel extends BindingModel implements ChartAestheticMod
       this.hasDateComparison = hasDateComparison;
    }
 
+   public boolean isVizModern() {
+      return vizModern;
+   }
+
+   public void setVizModern(boolean vizModern) {
+      this.vizModern = vizModern;
+   }
+
    @Override
    public AestheticInfo getNodeColorField() {
       return nodeColorField;
@@ -640,6 +648,7 @@ public class ChartBindingModel extends BindingModel implements ChartAestheticMod
    private boolean stackMeasures;
    private boolean separated = true;
    private boolean hasDateComparison;
+   private boolean vizModern;
    private int chartType = GraphTypes.CHART_AUTO;
    private int rtChartType = GraphTypes.CHART_AUTO;
    private String mapType = "";

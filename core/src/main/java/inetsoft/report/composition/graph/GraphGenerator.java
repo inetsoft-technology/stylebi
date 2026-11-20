@@ -79,6 +79,12 @@ import static inetsoft.uql.viewsheet.graph.GraphTypes.*;
  */
 public abstract class GraphGenerator {
    /**
+    * Element hint set on a marked stacked area with a single stack layer, which draws and reads
+    * as the plain area.
+    */
+   public static final String SINGLE_STACK_LAYER = "_single_stack_layer_";
+
+   /**
     * Get the graph generator.
     */
    public static GraphGenerator getGenerator(
@@ -1679,16 +1685,42 @@ public abstract class GraphGenerator {
    }
 
    protected void applyAlpha(PlotDescriptor plotdesc, GraphElement elem) {
+      // a marked single stack layer draws and reads as the plain area
+      boolean singleLayer = isSingleStackLayer(elem);
+
+      if(singleLayer) {
+         elem.setHint(SINGLE_STACK_LAYER, "true");
+      }
+
       if(plotdesc.getAlpha() >= 0) {
          elem.setHint(GraphElement.HINT_ALPHA, plotdesc.getAlpha());
       }
       else if(elem instanceof AreaElement) {
          // if areas are stacked, shoulding see through the area to the area behind since the
          // value behind the front area is not 'real'.
-         if((elem.getCollisionModifier() & GraphElement.MOVE_STACK) != 0) {
+         if((elem.getCollisionModifier() & GraphElement.MOVE_STACK) != 0 && !singleLayer) {
             elem.setHint(GraphElement.HINT_ALPHA, null);
          }
       }
+   }
+
+   private boolean isSingleStackLayer(GraphElement elem) {
+      return vizContext.modern && elem instanceof AreaElement &&
+         (elem.getCollisionModifier() & GraphElement.MOVE_STACK) != 0 &&
+         !hasSeriesDimension(elem) && !hasStackedMeasures(elem);
+   }
+
+   // the aggregate's own aesthetics on a multi-style chart, else the chart's
+   private boolean hasSeriesDimension(GraphElement elem) {
+      ChartBindable bindable = info;
+      ChartRef aggr = info.isMultiStyles() && elem.getVarCount() > 0 ?
+         getChartRef(elem.getVar(0)) : null;
+
+      if(aggr instanceof ChartBindable) {
+         bindable = (ChartBindable) aggr;
+      }
+
+      return AbstractChartInfo.hasSeriesDimension(info, bindable);
    }
 
    private void addDensityContour() {

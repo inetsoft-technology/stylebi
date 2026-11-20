@@ -27,6 +27,7 @@ import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.VSBindingHelper;
 import inetsoft.web.vswizard.model.recommender.ChartSubType;
@@ -73,7 +74,8 @@ public final class ChartRecommenderUtil {
 
          // if it's from predefined info, set the date level
          if(XSchema.isDateType(dim.getDataType())) {
-            WizardRecommenderUtil.setDefaultDateLevel(dim, entry);
+            WizardRecommenderUtil.setDefaultDateLevel(
+               dim, entry, VizContext.of(tempChart == null ? null : tempChart.getVSAssemblyInfo()));
             dim.setTimeSeries(true);
          }
 

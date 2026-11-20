@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.composition.graph.ChartFormatDefaults;
+import inetsoft.report.internal.graph.ChartCreationDefaults;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.TabVSAssembly;
@@ -32,6 +33,7 @@ import java.awt.Point;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -116,6 +118,15 @@ public final class VizModernizeUtil {
     * Returns how many were touched; 0, with nothing changed, when there is no mark to give.
     */
    public static int resetToModern(Viewsheet vs) {
+      return resetToModern(vs, info -> ChartCreationDefaults.SourceOrder.NONE);
+   }
+
+   /**
+    * As above, with a reader per chart for the source order a waterfall saves.
+    */
+   public static int resetToModern(
+      Viewsheet vs, Function<ChartVSAssemblyInfo, ChartCreationDefaults.SourceOrder> orders)
+   {
       VizMark mark = vs.getVSAssemblyInfo() == null ? null : vs.getVSAssemblyInfo().getVizMark();
       mark = mark != null ? mark : VizMark.fromGate();
 
@@ -128,7 +139,7 @@ public final class VizModernizeUtil {
       for(VSAssemblyInfo info : targets) {
          // an embedded dashboard's container keeps the look the host shows it with
          if(!isEmbeddedContainer(vs, info)) {
-            resetChrome(info, mark);
+            resetChrome(info, mark, orders);
          }
       }
 
@@ -145,7 +156,10 @@ public final class VizModernizeUtil {
    /**
     * Clears the author's look on one assembly over DEFAULT tiers refreshed from a new instance.
     */
-   private static void resetChrome(VSAssemblyInfo info, VizMark mark) {
+   private static void resetChrome(
+      VSAssemblyInfo info, VizMark mark,
+      Function<ChartVSAssemblyInfo, ChartCreationDefaults.SourceOrder> orders)
+   {
       // shapes and images keep their look
       if(info.chromeSlots().isEmpty()) {
          return;
@@ -159,6 +173,10 @@ public final class VizModernizeUtil {
          // after the object font, which the label defaults copy
          ChartFormatDefaults.fix(chart);
          resetSlots(ChartChromeSlots.of(chart), info, fresh);
+         // the new mark's creation-time binding, before the per-type seeds read it; the runtime
+         // stays for the legend count's draw of the cached data
+         ChartCreationDefaults.forResetCopy(
+            chart.getVSChartInfo(), VizContext.of(mark), orders.apply(chart));
       }
       else {
          resetSlots(info.chromeSlots(), info, fresh);

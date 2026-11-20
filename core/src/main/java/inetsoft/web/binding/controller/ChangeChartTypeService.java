@@ -39,6 +39,7 @@ import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.*;
+import inetsoft.web.binding.handler.ChartSourceOrder;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.binding.model.BindingModel;
@@ -159,6 +160,18 @@ public class ChangeChartTypeService {
          }
       }
 
+      int stacked = ChartCreationDefaults.stackedAreaType(oldType, newType, VizContext.of(ninfo));
+
+      // a stacked style the user may not use keeps the area picked
+      try {
+         if(stacked != newType && GraphTypeUtil.checkChartStylePermission(stacked)) {
+            newType = stacked;
+         }
+      }
+      catch(MessageException ex) {
+         LOG.debug("Failed to check the stacked chart style permission", ex);
+      }
+
       if(ref != null && (ref.isVariable() || ref.isScript())) {
          box.get().executeDynamicValues(name, ref.getDynamicValues());
       }
@@ -188,6 +201,9 @@ public class ChangeChartTypeService {
       cinfo = (VSChartInfo) new ChangeChartTypeProcessor(oldType, newType, omulti, nmulti, ref,
                                                          cinfo, false, desc,
                                                          VizContext.of(ninfo)).process();
+      ChartCreationDefaults.afterTypeChange(
+         cinfo, oldType, newType, VizContext.of(ninfo),
+         new ChartSourceOrder(box.orElse(null), ninfo.getSourceInfo()));
       SourceInfo sourceInfo = ninfo.getSourceInfo();
       new ChangeChartProcessor().fixParetoSorting(cinfo);
 

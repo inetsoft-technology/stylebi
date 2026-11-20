@@ -28,6 +28,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
+import inetsoft.report.internal.graph.ChartCreationDefaults;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -44,6 +45,7 @@ import inetsoft.util.MessageFormat;
 import inetsoft.util.data.CommonKVModel;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.VSDndEvent;
+import inetsoft.web.binding.handler.ChartSourceOrder;
 import inetsoft.web.binding.handler.VSChartDataHandler;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.binding.model.BindingModel;
@@ -930,6 +932,9 @@ public class VSWizardBindingHandler {
 
       if(info.getVSChartInfo() != null) {
          (new ChangeChartProcessor()).fixSizeFrame(info.getVSChartInfo(), VizContext.of(info));
+         ChartCreationDefaults.afterWizard(
+            info.getVSChartInfo(), VizContext.of(info),
+            new ChartSourceOrder(rvs.getViewsheetSandbox().orElse(null), source));
       }
 
       VSDndEvent event = VSDndEvent.builder()

@@ -19,6 +19,8 @@ package inetsoft.web.binding.handler;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.*;
+import inetsoft.report.composition.region.ChartConstants;
+import inetsoft.report.internal.graph.ChartCreationDefaults;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
@@ -42,7 +44,10 @@ import org.springframework.stereotype.Component;
 
 import java.rmi.RemoteException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class VSChartBindingHandler {
@@ -76,9 +81,17 @@ public class VSChartBindingHandler {
       BindingDropTarget btarget = (BindingDropTarget) target;
       // drop to binding editor.
       List<ChartRef> refs = dndHandler.getChartRefs(ctransfer, vinfo);
-      dropToChartEditor(refs, info, ctransfer, btarget, rvs);
+      Landing landing = new Landing();
+      dropToChartEditor(refs, info, ctransfer, btarget, rvs, landing);
+
+      // a refused drop leaves the binding as it was
+      if(landing.isRefused()) {
+         return;
+      }
+
       GraphDefault.setDefaultFormulas(oinfo, vinfo);
       GraphFormatUtil.fixDefaultNumberFormat(assembly.getChartDescriptor(), vinfo);
+      applyCreationDefaults(rvs, info, landing);
    }
 
    /**
@@ -99,23 +112,48 @@ public class VSChartBindingHandler {
                                             btarget.getDropIndex(), rvs);
 
       List<ChartRef> removeRefs = null;
+      Landing landing = new Landing();
 
       // drop to chart view.
       if(target instanceof ChartViewDropTarget) {
          removeRefs = new ArrayList<>();
 
          for(ChartRef ref : refs) {
-            removeRefs.add(dropToChartView(ref, info, null, btarget, rvs));
+            removeRefs.add(dropToChartView(ref, info, null, btarget, rvs, landing));
          }
       }
       // drop to binding editor.
       else {
-         removeRefs = dropToChartEditor(refs, info, null, btarget, rvs);
+         removeRefs = dropToChartEditor(refs, info, null, btarget, rvs, landing);
+      }
+
+      // a refused drop leaves the binding as it was
+      if(landing.isRefused()) {
+         return;
       }
 
       removeDrillFilter(rvs, assembly, dispatcher, linkUri, removeRefs);
       GraphDefault.setDefaultFormulas(oinfo, vinfo);
       GraphFormatUtil.fixDefaultNumberFormat(assembly.getChartDescriptor(), vinfo);
+      applyCreationDefaults(rvs, info, landing);
+   }
+
+   // after the default formulas, so a pie sorts by its measure's final name
+   private static void applyCreationDefaults(RuntimeViewsheet rvs, ChartVSAssemblyInfo info,
+                                             Landing landing)
+   {
+      VizContext ctx = VizContext.of(info);
+      ChartSourceOrder order =
+         new ChartSourceOrder(rvs.getViewsheetSandbox().orElse(null), info.getSourceInfo());
+
+      landing.regions.forEach((region, landed) -> ChartCreationDefaults.afterDrop(
+         info.getVSChartInfo(), region, landed, ctx, order));
+   }
+
+   // a marked candle keeps a dimension off Color
+   private static boolean refuses(ChartVSAssemblyInfo info, int region, ChartRef ref) {
+      return ChartCreationDefaults.refusesColorDimension(info.getVSChartInfo(), region, ref,
+                                                         VizContext.of(info));
    }
 
    private void removeDrillFilter(RuntimeViewsheet rvs, ChartVSAssembly assembly,
@@ -185,16 +223,26 @@ public class VSChartBindingHandler {
 
    private List<ChartRef> dropToChartEditor(List<ChartRef> refs, ChartVSAssemblyInfo info,
                                             ChartTransfer transfer, BindingDropTarget target,
-                                            RuntimeViewsheet rvs)
+                                            RuntimeViewsheet rvs, Landing landing)
       throws Exception
    {
       if(dndHandler.isChartEditorRegion(target.getDropType()) ||
          dndHandler.isPathRegion(target.getDropType()))
       {
-         return dropToXY(refs, info, transfer, target, rvs);
+         List<ChartRef> removeRefs = dropToXY(refs, info, transfer, target, rvs);
+         landing.add(Integer.parseInt(target.getDropType()), refs);
+         return removeRefs;
       }
       else if(ChartDndHandler.isAestheticRegion(target.getDropType())) {
+         int region = Integer.parseInt(target.getDropType());
+
+         if(refuses(info, region, refs.get(0))) {
+            landing.refuse();
+            return null;
+         }
+
          dropToAesthetic(refs.get(0), info, transfer, (ChartAestheticDropTarget) target, rvs);
+         landing.add(region, refs.subList(0, 1));
       }
       else if(dndHandler.isHighLowRegion(target.getDropType())) {
          dropToHighLow(refs.get(0), info, transfer, target, rvs);
@@ -280,9 +328,21 @@ public class VSChartBindingHandler {
 
    private ChartRef dropToChartView(ChartRef ref, ChartVSAssemblyInfo info,
                                     ChartTransfer transfer, BindingDropTarget target,
-                                    RuntimeViewsheet rvs) throws Exception
+                                    RuntimeViewsheet rvs, Landing landing) throws Exception
    {
       VSChartInfo cinfo = info.getVSChartInfo();
+      int region = Integer.parseInt(target.getDropType());
+
+      // the plot body hands the field to an aesthetic
+      if(region == ChartConstants.DROP_REGION_PLOT) {
+         region = dndHandler.getAestheticDropType(ref, cinfo);
+      }
+
+      if(refuses(info, region, ref)) {
+         landing.refuse();
+         return null;
+      }
+
       ChartRef removeRef = dndHandler.dropToChartView(ref, cinfo, transfer, target,
                                                       VizContext.of(info));
 
@@ -290,6 +350,7 @@ public class VSChartBindingHandler {
          dataHandler.changeChartAesthetic(rvs, info);
       }
 
+      landing.add(region, Collections.singletonList(ref));
       return removeRef;
    }
 
@@ -349,7 +410,8 @@ public class VSChartBindingHandler {
                dim.setDateLevel(DateRangeRef.DAY_INTERVAL);
             }
             else {
-               setDefaultDateLevel(dim, entry.getName(), cinfo, dropType, dropIndex);
+               setDefaultDateLevel(dim, entry.getName(), cinfo, dropType, dropIndex,
+                                   VizContext.of(info));
             }
          }
 
@@ -469,10 +531,11 @@ public class VSChartBindingHandler {
     * Set the default formula from the aggregate info.
     */
    private void setDefaultDateLevel(VSChartDimensionRef dim, String name,
-                                    VSChartInfo cinfo, String dropType, int dropIndex)
+                                    VSChartInfo cinfo, String dropType, int dropIndex,
+                                    VizContext ctx)
    {
-      int level = (XSchema.TIME.equals(dim.getDataType()) ?
-         DateRangeRef.HOUR_INTERVAL : DateRangeRef.YEAR_INTERVAL);
+      int level = ChartCreationDefaults.newDateLevel(dim.getDataType(),
+                                                     dndHandler.isXYRegion(dropType), ctx);
       dim.setDateLevelValue(String.valueOf(level));
       level = dndHandler.getNextDateLevelValue(cinfo, dim, name, dropType, dropIndex);
 
@@ -568,6 +631,28 @@ public class VSChartBindingHandler {
       else {
          agg.setFormulaValue(AggregateFormula.getDefaultFormula(dtype).getFormulaName());
       }
+   }
+
+   /** The fields a drop placed, by the region each took, and whether one was refused. */
+   private static final class Landing {
+      void add(int region, List<ChartRef> refs) {
+         // no region, nothing placed
+         if(region > 0) {
+            regions.computeIfAbsent(region, k -> new ArrayList<>()).addAll(refs);
+         }
+      }
+
+      void refuse() {
+         refused = true;
+      }
+
+      // refused with nothing placed, so the drop changes nothing
+      boolean isRefused() {
+         return refused && regions.isEmpty();
+      }
+
+      private final Map<Integer, List<ChartRef>> regions = new LinkedHashMap<>();
+      private boolean refused;
    }
 
    private final ChartDndHandler dndHandler;

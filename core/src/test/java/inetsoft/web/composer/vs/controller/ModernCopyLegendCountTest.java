@@ -139,6 +139,28 @@ class ModernCopyLegendCountTest {
    }
 
    @Test
+   void aChartTheCopyRebindsIsStillCounted() throws Exception {
+      RuntimeViewsheet rvs = composer.getRuntimeViewsheet();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+      ChartVSAssemblyInfo pie = addClassicBar(box, PIE, "type", "year");
+      pie.getVSChartInfo().removeXFields();
+      pie.getVSChartInfo().setChartType(GraphTypes.CHART_PIE);
+      box.getVGraphPair(PIE, true, null);
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+
+      service.createModernCopy(composer.getRuntimeId(), "EmbeddedVS1 (modern)", principal,
+                               mock(CommandDispatcher.class), LINK);
+
+      copy = rvs.getEntry();
+      ChartVSAssemblyInfo live = chart(rvs.getViewsheet(), PIE);
+      VSDimensionRef slice = (VSDimensionRef) live.getVSChartInfo().getColorField().getDataRef();
+      assertEquals(XConstants.SORT_VALUE_DESC, slice.getOrder(), "premise: the copy sorts the pie");
+      assertFalse(live.isLegendCountPending(), "the count was taken");
+      Viewsheet stored = (Viewsheet) repository.getSheet(copy, principal, false, AssetContent.ALL);
+      assertTrue(chart(stored, PIE).isLegendCrowded(), "the verdict is saved");
+   }
+
+   @Test
    void aFailedCopyDrawsTheOriginalAsItWas() throws Exception {
       RuntimeViewsheet rvs = composer.getRuntimeViewsheet();
       ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
@@ -222,6 +244,7 @@ class ModernCopyLegendCountTest {
    private static final String TABLE = "TableView1";
    private static final String CROWDED = "ChartCrowded";
    private static final String NARROW = "ChartNarrow";
+   private static final String PIE = "ChartPie";
    private Principal principal;
    private AssetRepository repository;
    private ModernCopyService service;
