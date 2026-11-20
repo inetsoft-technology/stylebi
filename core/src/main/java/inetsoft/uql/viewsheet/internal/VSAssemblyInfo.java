@@ -1674,6 +1674,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     * from the property dialog (a wizard's, a script's, an older file's) carries no userPadding
     * flag, so writing the legacy default there would flatten it. Creation needs no write, since
     * the field and each type's setDefaultFormat already hold the legacy value.
+    *
+    * The trade-off: an unmarked assembly cannot tell such a padding from a stale modern one, so a
+    * bookmark taken while it was marked and restored after a Revert keeps the modern inset. Other
+    * seeded chrome (colours, fonts) is still reset by that restore.
     */
    protected boolean seedsPadding(VizContext ctx) {
       return (ctx.modern || ctx.transition) && !isUserPadding() && !isCssPaddingDefined();

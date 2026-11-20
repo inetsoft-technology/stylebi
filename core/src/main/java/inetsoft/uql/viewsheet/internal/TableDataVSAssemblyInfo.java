@@ -1748,8 +1748,9 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       }
 
       // the card inset. Seeded rather than resolved at read time so it travels in an exported
-      // asset. Both branches write: a table has never had an inset, and that zero is what Revert
-      // has to restore
+      // asset. Both branches write when marked or reverting: a table has never had an inset, and
+      // that zero is what Revert has to restore. An unmarked table opened or re-seeded keeps the
+      // inset it holds (seedsPadding)
       if(seedsPadding(ctx)) {
          setPadding(VSDensityDefaults.tablePadding(ctx));
       }
