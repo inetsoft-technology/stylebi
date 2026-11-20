@@ -22,11 +22,13 @@ import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.util.XUtil;
+import inetsoft.uql.util.sqlparser.SQLLexer;
+import inetsoft.uql.util.sqlparser.SQLParser;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.controller.WizDataModelWire.Err;
 import inetsoft.web.wiz.controller.WizLogicalModelWire.*;
 
+import java.io.StringReader;
 import java.util.*;
 
 /**
@@ -39,7 +41,7 @@ import java.util.*;
  * once (at most {@link #MAX_ERRORS}).
  *
  * <p>The table/column rule re-implements the private {@code LogicalModelService.validateAttribute}
- * and the expression rule {@code LogicalModelController.checkExpressionSQL}; the parity test
+ * and the expression rule of {@code LogicalModelController.checkExpressionSQL}, made stricter (see {@link #expressionProblem}); the parity test
  * {@code WizLogicalModelValidatorParityTest} pins both to a shared table of cases. Keys are
  * case-sensitive, as the registry's are.</p>
  */
@@ -108,33 +110,71 @@ final class WizLogicalModelValidator {
    }
 
    /**
-    * The check of {@code LogicalModelController.checkExpressionSQL}: an expression is invalid when
-    * it does not parse or when any token is left after it. Returns the problem, or {@code null}.
+    * Whether an expression parses completely. Returns the problem, or {@code null}.
+    *
+    * <p>This is deliberately stricter than {@code LogicalModelController.checkExpressionSQL}. That
+    * check reads the lexer's next token after the parse, but the parser has already buffered its
+    * lookahead from the lexer, so the token it reads is always the end of input and it only ever
+    * notices an exception thrown mid-parse. A trailing operator ({@code 1 +}), an unclosed call
+    * ({@code foo(}), a trailing word ({@code PRICE garbage}) and a stray {@code )} all slip
+    * through it. The leftover-token rule is applied here to the PARSER: after the expression it
+    * must be at the end of input.</p>
     */
    static String expressionProblem(String expression) {
-      inetsoft.uql.util.sqlparser.SQLLexer lexer;
+      SQLParser parser;
 
       try {
-         lexer = XUtil.parseSQLExpressionSyntax(expression);
+         parser = parse(expression, false);
       }
       catch(Exception ex) {
+         // report the error of the normal parse, which names the token
          return ex.toString();
       }
 
-      String token;
+      return leftover(parser);
+   }
+
+   /**
+    * Parses as {@code XUtil.parseSQLExpressionSyntax} does: normally, and again in guessing mode
+    * (every syntax check, no semantic actions) when the normal parse fails on a construct that
+    * only the model refuses, such as a scalar subquery.
+    */
+   private static SQLParser parse(String expression, boolean guessing) throws Exception {
+      SQLParser parser = new SQLParser(new SQLLexer(new StringReader(expression)));
+
+      if(guessing) {
+         parser.getInputState().guessing = 1;
+      }
 
       try {
-         token = lexer.nextToken().toString();
+         parser.value_exp();
+         return parser;
       }
-      catch(Exception ex) {
-         return null;
-      }
+      catch(antlr.SemanticException | RuntimeException ex) {
+         if(guessing) {
+            throw ex;
+         }
 
-      if(token != null && !token.toLowerCase().contains("null")) {
-         return "unexpected text after the expression: \"" + token + "\"";
+         try {
+            return parse(expression, true);
+         }
+         catch(Exception guessEx) {
+            throw ex;
+         }
       }
+   }
 
-      return null;
+   private static String leftover(SQLParser parser) {
+      try {
+         if(parser.LA(1) == antlr.Token.EOF_TYPE) {
+            return null;
+         }
+
+         return "unexpected text after the expression: \"" + parser.LT(1).getText() + "\"";
+      }
+      catch(Exception e) {
+         return e.toString();
+      }
    }
 
    /** One validation pass; holds the collected errors. */
