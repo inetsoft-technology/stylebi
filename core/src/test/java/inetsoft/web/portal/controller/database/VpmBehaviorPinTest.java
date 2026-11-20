@@ -54,7 +54,7 @@ import static org.mockito.Mockito.*;
 /**
  * Pins today's VPM behavior of {@link VPMController} (design 1.5 step 1, charter D6): create,
  * get, update, rename, delete, test, nested conditions, hidden columns, scripts, and the
- * name-mismatch overwrite of unknown (f). Written against the untouched controller; after the
+ * name-mismatch overwrite of unknown (f) (commit 1; flipped to a refusal in commit 3). Written against the untouched controller; after the
  * {@code VpmService} extraction it must pass UNCHANGED, and the single approved change (the
  * name-consistency guard, reconcile H-A) flips only {@link #updateWithDifferentBodyNameOverwritesOtherVpm}.
  */
@@ -75,7 +75,17 @@ class VpmBehaviorPinTest {
    }
 
    private static int count = 0;
-   private final Principal bob = () -> "bob";
+   private final Principal bob = new Principal() {
+      @Override
+      public String getName() {
+         return "bob";
+      }
+
+      @Override
+      public String toString() {
+         return "bob";
+      }
+   };
    private String ds;
    private DependencyHandler dependencyHandler;
    private RenameTransformHandler transformHandler;
@@ -322,11 +332,12 @@ class VpmBehaviorPinTest {
    }
 
    /**
-    * Unknown (f), reconcile H-A. TODAY an update of A with a body named B removes A and silently
-    * overwrites the existing B. The name-consistency guard flips this test in its own commit.
+    * Unknown (f), reconcile H-A: the ONE approved change to the Portal path. Before the guard an
+    * update of A with a body named B removed A and silently overwrote the existing B (commit 1
+    * pinned that). Now the update is refused and nothing changes.
     */
    @Test
-   void updateWithDifferentBodyNameOverwritesOtherVpm() throws Exception {
+   void updateWithDifferentBodyNameIsRefusedAndChangesNothing() throws Exception {
       VPMDefinition a = definition("A");
       a.setDescription("original A");
       create(a);
@@ -336,14 +347,20 @@ class VpmBehaviorPinTest {
 
       VPMDefinition body = definition("B");
       body.setDescription("written through update of A");
-      update("A", body);
+      SecurityException refused = assertThrows(SecurityException.class, () -> update("A", body));
 
+      assertEquals("Virtual private model \"" + ds + "/A\" cannot be saved as \"B\" by bob",
+                   refused.getMessage());
       XDataModel reloaded = fresh();
-      List<String> names = Arrays.asList(reloaded.getVirtualPrivateModelNames());
-      assertFalse(names.contains("A"), "A is removed by the update of A");
-      assertEquals("written through update of A",
-                   reloaded.getVirtualPrivateModel("B").getDescription(),
-                   "B is silently overwritten by the update of A");
+      assertEquals(List.of("A", "B"),
+                   Arrays.stream(reloaded.getVirtualPrivateModelNames()).sorted().toList());
+      assertEquals("original A", reloaded.getVirtualPrivateModel("A").getDescription());
+      assertEquals("original B", reloaded.getVirtualPrivateModel("B").getDescription());
+
+      // a body without a name is a different name too
+      VPMDefinition nameless = definition(null);
+      assertThrows(SecurityException.class, () -> update("A", nameless));
+      assertEquals("original A", fresh().getVirtualPrivateModel("A").getDescription());
    }
 
    // -- rename -----------------------------------------------------------------------------

@@ -252,6 +252,15 @@ public class VpmService {
          throw new FileNotFoundException(database + "/" + name);
       }
 
+      // the write below removes the model named by the caller and adds the one named in the
+      // definition, silently overwriting a different existing model of that name, so the
+      // definition must be the model the WRITE check was made on (renaming has its own method)
+      if(!Tool.equals(name, vpm.getName())) {
+         throw new SecurityException(String.format(
+            "Virtual private model \"%s\" cannot be saved as \"%s\" by %s",
+            database + "/" + name, vpm.getName(), principal));
+      }
+
       String path = database + "/" + vpm.getName();
       AssetEntry entry = new AssetEntry(
          AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM, path, null);
