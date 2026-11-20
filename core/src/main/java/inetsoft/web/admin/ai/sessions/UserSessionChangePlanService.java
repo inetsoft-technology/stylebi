@@ -18,6 +18,8 @@
 package inetsoft.web.admin.ai.sessions;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -80,6 +82,7 @@ public class UserSessionChangePlanService {
       }
 
       String address = resolveAddress(req.getClusterNode());
+      IdentityID caller = callerIdentity(user);
       Map<String, UserSessionMonitoringTableModel> visible = new HashMap<>();
 
       for(UserSessionMonitoringTableModel s : userService.getServerSessionModel(address, user)) {
@@ -124,7 +127,7 @@ public class UserSessionChangePlanService {
          String description = "log out session " + id + " of user " + s.user() +
             " -- ends that session immediately, discarding any unsaved work, and cannot be undone";
 
-         if(user != null && s.userName() != null && s.userName().equals(user.getName())) {
+         if(isCallerSession(s, caller)) {
             description += "; WARNING: this is a session of the administrator running this " +
                "request, which may be the one in use right now";
          }
@@ -137,6 +140,43 @@ public class UserSessionChangePlanService {
       String planHash = hash(changes, stableCurrents, address);
       return new ResolvedPlan(task, changes, false, true, planHash,
                               TaskAuditToken.issue(planHash, task));
+   }
+
+   /**
+    * The identity a session of the caller carries. A session lists its login user (bare name) and
+    * its organization id, while {@code Principal.getName()} is the identity key
+    * {@code name~;~orgID}, so the two are compared as identities, not as strings.
+    */
+   private static final String GLOBAL_ORG = "__GLOBAL__";
+
+   private static IdentityID callerIdentity(Principal user) {
+      if(user == null) {
+         return null;
+      }
+
+      if(user instanceof SRPrincipal) {
+         IdentityID login = ((SRPrincipal) user).getClientUserID();
+
+         if(login != null) {
+            return login;
+         }
+      }
+
+      return IdentityID.getIdentityIDFromKey(user.getName());
+   }
+
+   /**
+    * True when the session belongs to the caller: same user name in the same organization. Another
+    * organization's user with the same bare name is not the caller; no organization on either side
+    * (the global scope) matches only itself.
+    */
+   private static boolean isCallerSession(UserSessionMonitoringTableModel s, IdentityID caller) {
+      return caller != null && s.userName() != null && s.userName().equals(caller.getName()) &&
+         Objects.equals(globalToNull(s.organization()), globalToNull(caller.getOrgID()));
+   }
+
+   private static String globalToNull(String orgID) {
+      return orgID == null || orgID.isEmpty() || GLOBAL_ORG.equals(orgID) ? null : orgID;
    }
 
    private static String hash(List<PlanChange> changes, List<String> stableCurrents,
