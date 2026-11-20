@@ -361,3 +361,45 @@ describe("solid, keyboard-only focus ring", () => {
       expect(stateTokens().has("--inet-focus-ring-gap-color")).toBe(false);
    });
 });
+
+describe("stronger selected fill and darker shell muted text", () => {
+   const stateTokens = () => declarations(block(variables(), "@mixin inet-shell-state-tokens"));
+   const sassVar = (src: string, name: string) =>
+      src.match(new RegExp(`^\\$${name}:\\s*([^;]+);`, "m"))?.[1];
+
+   it("fills a selected row in the shell with #DFD9CC, a Sass variable of its own", () => {
+      expect(sassVar(variables(), "shell-selected-bg-strong")).toBe("#DFD9CC");
+      expect(stateTokens().get("--inet-shell-selected-bg-color"))
+         .toBe("#{$shell-selected-bg-strong}");
+   });
+
+   it("keeps $shell-selected-bg at #E7E2D8, so build-time aliases do not move", () => {
+      expect(sassVar(variables(), "shell-selected-bg")).toBe("#E7E2D8");
+   });
+
+   it("darkens the shell's muted text to #5F5E56 (light only), and $shell-text-muted stays #6A685F", () => {
+      expect(stateTokens().get("--inet-text-muted-color")).toBe("#5F5E56");
+      expect(sassVar(variables(), "shell-text-muted")).toBe("#6A685F");
+   });
+
+   it("keeps the dark shell's muted text unchanged", () => {
+      expect(sassVar(read("scss/_shell-dark.scss"), "dark-text-muted")).toBe("#ADA8B4");
+   });
+
+   it("fills a selected row in the dark shell with #4A4750", () => {
+      expect(sassVar(read("scss/_shell-dark.scss"), "dark-selected-bg")).toBe("#4A4750");
+   });
+
+   it("leaves dashboard content on the old selected fill and muted chain", () => {
+      const declared = declarations(block(variables(), CONTENT_RULE));
+
+      expect(declared.get("--inet-shell-selected-bg-color")).toBe("#{$shell-selected-bg}");
+      expect(declared.get("--inet-text-muted-color")).toBe("#{$shell-text-muted}");
+
+      for(const name of ["--inet-shell-text-muted", "--inet-table-heading-text-color",
+         "--inet-ui-neutral-color", "--inet-button-default-text-color"])
+      {
+         expect(declared.has(name), name).toBe(true);
+      }
+   });
+});

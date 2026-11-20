@@ -68,6 +68,9 @@ $shell-text-default: #35342F;
 $shell-text-muted: #6A685F;
 $shell-text-subtle: #99958C;
 $shell-selected-bg: #E7E2D8;
+// the shell's own selected fill (D6): 1.11:1 from hover, where #E7E2D8 is 1.06:1. Dashboards keep
+// $shell-selected-bg, which the build-time aliases ($inet-blue, $table-active-bg) read.
+$shell-selected-bg-strong: #DFD9CC;
 
 // Primary family
 $shell-primary: #D97A1A;
@@ -694,6 +697,11 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
 
   // white label on this fill is 5.98:1 (D1)
   --inet-danger-hover-bg-color: #B03A3A;
+
+  // a stronger selected fill (D6), and muted text darkened to stay 4.64:1 on it (O1). Dashboard
+  // content re-declares both below with the old values.
+  --inet-shell-selected-bg-color: #{$shell-selected-bg-strong};
+  --inet-text-muted-color: #5F5E56;
 }
 
 :root {
