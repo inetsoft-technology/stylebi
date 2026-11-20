@@ -1052,6 +1052,32 @@ class PropertyAliasesTest {
       }
    }
 
+   /**
+    * Bug #81919 (regression of #78536 caused by #81050): with the dialog model class supplied the
+    * existence check ran before the refusal, so an indexed spelling got a generic "does not
+    * exist" error instead of the add_hierarchy_dimension hint.
+    */
+   @Test
+   void indexedHierarchyDimensionsSpellingsGetToolRefusalWhenModelClassIsGiven() {
+      for(String assemblyType : java.util.List.of("chart", "crosstab")) {
+         for(String path : java.util.List.of(
+            "hierarchyPropertyPaneModel.dimensions0.members",
+            "hierarchyPropertyPaneModel.dimensions[0]",
+            "hierarchyPropertyPaneModel.dimensions[0].members",
+            "hierarchyPropertyPaneModel.dimensions12"))
+         {
+            IllegalArgumentException thrown = assertThrows(
+               IllegalArgumentException.class,
+               () -> PropertyAliases.resolveForWrite(
+                  assemblyType, path,
+                  inetsoft.web.composer.model.vs.HierarchyPropertyPaneModel.class, null),
+               assemblyType + "/" + path + " must be refused");
+            assertTrue(thrown.getMessage().contains("add_hierarchy_dimension"),
+                       assemblyType + "/" + path + ": " + thrown.getMessage());
+         }
+      }
+   }
+
    /** Bug #78536: the same prefix test guards the sheet refusals, so they catch these too. */
    @Test
    void indexedSpellingsOfRefusedSheetPanesGetTheirSpecificRefusal() {

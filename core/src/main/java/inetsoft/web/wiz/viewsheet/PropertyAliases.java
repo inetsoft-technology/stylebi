@@ -573,6 +573,15 @@ public final class PropertyAliases {
       if(modelClass != null && key != null && key.contains(".") &&
          !forType(assemblyType).aliases().containsKey(key))
       {
+         // The hierarchy refusal is prefix-anchored, so it cannot misfire on a typo'd pane
+         // prefix (81050), and it must win over "does not exist" for indexed spellings such as
+         // dimensions0.members (81919), which the walk cannot resolve but the tools replace.
+         String hierarchyRefusal = hierarchyDimensionsWriteRefusal(normalizedType, key);
+
+         if(hierarchyRefusal != null) {
+            throw new IllegalArgumentException(hierarchyRefusal);
+         }
+
          PropertyPath.requireExists(modelClass, model, resolve(assemblyType, key));
       }
 
