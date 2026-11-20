@@ -263,19 +263,248 @@ public class JSObject {
          }
       }
       catch(Exception ex) {
-         String message = "Failed to convert (" + val + ") to [" + type + "]";
+         // the message is shown to the script author (VSAScriptable.reportPutFailure), so it
+         // names the value and the type in script terms; the Java detail goes to the log only
+         String message = getConvertFailureMessage(val, describeType(type));
+         String detail = message + " (value type " + val.getClass().getName() +
+            ", target type " + type.getName() + ", cause " + ex + ")";
 
          if(LOG.isDebugEnabled()) {
-            LOG.warn(message, ex);
+            LOG.warn(detail, ex);
          }
          else {
-            LOG.warn(message);
+            LOG.warn(detail);
          }
 
          throw new RuntimeException(message, ex);
       }
 
       return val;
+   }
+
+   /**
+    * Get the text of a failed conversion of a script value, for the script author.
+    *
+    * @param val      the value that could not be converted.
+    * @param typeDesc the expected type in words, e.g. from {@link #describeType(Class)}.
+    */
+   public static String getConvertFailureMessage(Object val, String typeDesc) {
+      return "Failed to convert " + toScriptText(val) + " to " + typeDesc;
+   }
+
+   /**
+    * Describe a conversion target type in words a script author understands, e.g.
+    * "a size (two numbers: width and height, e.g. [100, 50])". A type without a
+    * description is named by its simple class name.
+    */
+   public static String describeType(Class<?> type) {
+      if(type == null) {
+         return "a value";
+      }
+
+      if(type == String.class) {
+         return "a text";
+      }
+      else if(type == Color.class) {
+         return "a color (e.g. 'red', 0xFF0000 or [255, 0, 0])";
+      }
+      else if(type == Color[].class) {
+         return "a list of colors (e.g. ['red', 0x00FF00])";
+      }
+      else if(type == Font.class) {
+         return "a font (e.g. 'Arial-BOLD-12')";
+      }
+      else if(type == Insets.class) {
+         return "four numbers (top, left, bottom and right, e.g. [1, 1, 1, 1])";
+      }
+      else if(type == Dimension.class) {
+         return "a size (two numbers: width and height, e.g. [100, 50])";
+      }
+      else if(type == Point.class) {
+         return "a position (two numbers: x and y, e.g. [10, 20])";
+      }
+      else if(type == Shape.class) {
+         return "a shape (e.g. [x, y, width, height])";
+      }
+      else if(NumberFormat.class.isAssignableFrom(type)) {
+         return "a number format pattern (e.g. '#,##0.00')";
+      }
+      else if(DateFormat.class.isAssignableFrom(type)) {
+         return "a date format pattern (e.g. 'yyyy-MM-dd')";
+      }
+      else if(Format.class.isAssignableFrom(type)) {
+         return "a format";
+      }
+      else if(type == int.class || type == Integer.class || type == long.class ||
+         type == Long.class || type == short.class || type == Short.class ||
+         type == byte.class || type == Byte.class || type == int[].class)
+      {
+         return type.isArray() ? "a list of integer numbers" : "an integer number";
+      }
+      else if(type == double.class || type == Double.class || type == float.class ||
+         type == Float.class || Number.class.isAssignableFrom(type))
+      {
+         return "a number";
+      }
+      else if(type == double[].class) {
+         return "a list of numbers";
+      }
+      else if(type == boolean.class || type == Boolean.class) {
+         return "true or false";
+      }
+      else if(type == String[].class) {
+         return "a list of texts";
+      }
+      else if(type == Object[].class) {
+         return "a list";
+      }
+      else if(type == java.sql.Time.class) {
+         return "a time";
+      }
+      else if(Date.class.isAssignableFrom(type)) {
+         return "a date";
+      }
+
+      return type.getSimpleName();
+   }
+
+   /**
+    * Write a script value the way a script author would write it: a text in quotes, a number
+    * without a trailing ".0", an array as [a, b], a viewsheet object by its name. A Java object
+    * is never shown by its default toString (class name and identity hash). Long texts and
+    * arrays are shortened.
+    */
+   public static String toScriptText(Object val) {
+      StringBuilder buf = new StringBuilder();
+      appendScriptText(buf, val, 0);
+
+      if(buf.length() > MAX_TEXT_LENGTH) {
+         buf.setLength(MAX_TEXT_LENGTH);
+         buf.append("...");
+      }
+
+      return buf.toString();
+   }
+
+   private static void appendScriptText(StringBuilder buf, Object val, int depth) {
+      val = JavaScriptEngine.unwrap(val);
+
+      if(val instanceof Value value) {
+         if(value.isHostObject()) {
+            val = value.asHostObject();
+         }
+         else if(value.isProxyObject()) {
+            val = value.asProxyObject();
+         }
+         else {
+            String str = value.toString();
+            buf.append(str.length() > MAX_ELEMENT_LENGTH ?
+                          str.substring(0, MAX_ELEMENT_LENGTH) + "..." : str);
+            return;
+         }
+      }
+
+      if(val == null) {
+         buf.append("null");
+      }
+      else if(val instanceof CharSequence) {
+         String str = val.toString();
+
+         if(str.length() > MAX_ELEMENT_LENGTH) {
+            str = str.substring(0, MAX_ELEMENT_LENGTH) + "...";
+         }
+
+         buf.append('\'').append(str).append('\'');
+      }
+      else if(val instanceof Double || val instanceof Float) {
+         double num = ((Number) val).doubleValue();
+
+         if(num == Math.rint(num) && !Double.isInfinite(num) && Math.abs(num) < 1e15) {
+            buf.append((long) num);
+         }
+         else {
+            buf.append(val);
+         }
+      }
+      else if(val instanceof Number || val instanceof Boolean || val instanceof Date ||
+         val instanceof Character || val instanceof Enum)
+      {
+         buf.append(val);
+      }
+      else if(val instanceof Color color) {
+         buf.append(String.format("0x%06X", color.getRGB() & 0xFFFFFF));
+      }
+      else if(val instanceof Dimension dim) {
+         buf.append('[').append(dim.width).append(", ").append(dim.height).append(']');
+      }
+      else if(val instanceof Point point) {
+         buf.append('[').append(point.x).append(", ").append(point.y).append(']');
+      }
+      else if(val instanceof inetsoft.report.script.viewsheet.VSAScriptable scriptable &&
+         scriptable.getAssembly() != null)
+      {
+         buf.append(scriptable.getAssembly());
+      }
+      else if(val.getClass().isArray() || val instanceof Collection) {
+         if(depth >= MAX_DEPTH) {
+            buf.append("[...]");
+            return;
+         }
+
+         Object[] arr = val instanceof Collection ? ((Collection<?>) val).toArray() : split(val);
+         buf.append('[');
+
+         for(int i = 0; i < arr.length; i++) {
+            if(i > 0) {
+               buf.append(", ");
+            }
+
+            if(i >= MAX_ELEMENTS || buf.length() > MAX_TEXT_LENGTH) {
+               buf.append("...");
+               break;
+            }
+
+            appendScriptText(buf, arr[i], depth + 1);
+         }
+
+         buf.append(']');
+      }
+      else if(val instanceof Map) {
+         if(depth >= MAX_DEPTH) {
+            buf.append("{...}");
+            return;
+         }
+
+         buf.append('{');
+         int i = 0;
+
+         for(Map.Entry<?, ?> entry : ((Map<?, ?>) val).entrySet()) {
+            if(i > 0) {
+               buf.append(", ");
+            }
+
+            if(i++ >= MAX_ELEMENTS || buf.length() > MAX_TEXT_LENGTH) {
+               buf.append("...");
+               break;
+            }
+
+            if(entry.getKey() instanceof CharSequence) {
+               buf.append(entry.getKey());
+            }
+            else {
+               appendScriptText(buf, entry.getKey(), depth + 1);
+            }
+
+            buf.append(": ");
+            appendScriptText(buf, entry.getValue(), depth + 1);
+         }
+
+         buf.append('}');
+      }
+      else {
+         // any other Java object: its toString may be the class name and identity hash
+         buf.append("an object");
+      }
    }
 
    /**
@@ -528,5 +757,10 @@ public class JSObject {
       return val;
    }
 
+   // limits of toScriptText: whole text, one text value, array/map entries, nesting
+   private static final int MAX_TEXT_LENGTH = 200;
+   private static final int MAX_ELEMENT_LENGTH = 60;
+   private static final int MAX_ELEMENTS = 10;
+   private static final int MAX_DEPTH = 3;
    private static final Logger LOG = LoggerFactory.getLogger(JSObject.class);
 }
