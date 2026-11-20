@@ -200,6 +200,13 @@ public class ScriptFunction implements ProxyExecutable {
          : (isNumericType(ptype) ? toNumber(value) : null);
 
       if(n != null) {
+         // JavaScript ToInt32/ToUint16 map NaN and +-Infinity to 0 for an integral
+         // parameter, as Rhino's FunctionObject did. Number.intValue() would
+         // saturate the infinities to MAX/MIN_VALUE instead (Bug #81780).
+         if(isIntegralType(ptype) && !Double.isFinite(n.doubleValue())) {
+            n = 0;
+         }
+
          if(ptype == int.class || ptype == Integer.class) {
             return n.intValue();
          }
@@ -250,6 +257,14 @@ public class ScriptFunction implements ProxyExecutable {
       }
 
       return value != null;
+   }
+
+   private static boolean isIntegralType(Class<?> ptype) {
+      return ptype == int.class || ptype == Integer.class ||
+         ptype == long.class || ptype == Long.class ||
+         ptype == short.class || ptype == Short.class ||
+         ptype == byte.class || ptype == Byte.class ||
+         ptype == char.class || ptype == Character.class;
    }
 
    /**
