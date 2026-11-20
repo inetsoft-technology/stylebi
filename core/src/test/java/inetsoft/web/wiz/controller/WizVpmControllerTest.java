@@ -194,6 +194,31 @@ class WizVpmControllerTest {
                       .hasMoreElements() ? 1 : 0);
    }
 
+   @Test
+   void aSourceTheCallerCannotReadIsAnsweredLikeAMissingOneByEveryVpmRoute() throws Exception {
+      // review r2 R2-2: the source guard must not run before the visibility check
+      when(support.dataSourceService.checkPermission(
+         eq(support.ds), eq(inetsoft.sree.security.ResourceAction.READ),
+         any(java.security.Principal.class))).thenReturn(false);
+      // even a source that is not a database is not revealed as such
+      when(support.repository.getDataSource(support.ds)).thenReturn(
+         mock(inetsoft.uql.tabular.TabularDataSource.class));
+
+      List<Object> answers = List.of(
+         controller.get(new WizVpmWire.GetRequest(support.ds, "x"), support.bob),
+         create(definition("x"), false),
+         controller.update(new WizVpmWire.WriteRequest(
+            support.ds, "x", definition("x"), false), support.bob),
+         controller.test(new WizVpmWire.TestRequest(
+            support.ds, "x", null, "role", "R"), support.bob));
+
+      for(Object answer : answers) {
+         WizDataModelWire.Failure failure = failure(answer);
+         assertEquals("NOT_FOUND", failure.reason());
+         assertEquals("database", failure.field());
+      }
+   }
+
    // -- get ---------------------------------------------------------------------------------
 
    @Test
@@ -334,6 +359,10 @@ class WizVpmControllerTest {
    void everyRouteNeedsWriteOnTheSourceReadsIncluded() throws Exception {
       create(definition("P"), false);
       support.writeAllowed = false;
+      // READ on the source still holds (the source stays visible); only WRITE is missing
+      when(support.dataSourceService.checkPermission(
+         eq(support.ds), eq(inetsoft.sree.security.ResourceAction.READ),
+         any(java.security.Principal.class))).thenReturn(true);
 
       assertDenied(() -> controller.get(new WizVpmWire.GetRequest(support.ds, "P"), support.bob));
       assertDenied(() -> create(definition("Q"), false));
