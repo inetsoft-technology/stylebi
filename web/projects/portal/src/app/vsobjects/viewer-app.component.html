@@ -132,8 +132,7 @@
           <i class="export-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
           <span class="visually-hidden">_#(Export)</span>
         </button>
-        <!-- Feature #80547: icon, label and wording need product sign-off (04-build-l2.md).
-             ngbDropdown block (menu always rendered), as in composer-toolbar: the component
+        <!-- ngbDropdown block (menu always rendered), as in composer-toolbar: the component
              holds the code and the join subscription, which a template dropdown would destroy
              on close. -->
         <div *ngIf="isConnectToClaudeVisible()" ngbDropdown #wizConnectDropdown="ngbDropdown"
