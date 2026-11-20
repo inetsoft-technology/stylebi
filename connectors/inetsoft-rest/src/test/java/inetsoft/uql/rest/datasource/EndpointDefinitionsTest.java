@@ -18,9 +18,7 @@
 
 package inetsoft.uql.rest.datasource;
 
-import inetsoft.test.BaseTestConfiguration;
-import inetsoft.test.ConfigurationContextInitializer;
-import inetsoft.test.EndpointsTestConfig;
+import inetsoft.test.EndpointsSpringContext;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.rest.AbstractRestDataSource;
 import inetsoft.uql.rest.json.EndpointJsonQuery;
@@ -32,18 +30,16 @@ import inetsoft.uql.rest.json.lookup.JsonLookupEndpoint;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.RestParameters;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.type.filter.AssignableTypeFilter;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -52,9 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * endpoints have unique names, every suffix template can be built from its own parameters, and
  * every lookup refers to an endpoint that exists.
  */
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, EndpointsTestConfig.class },
-                      initializers = ConfigurationContextInitializer.class)
+@EndpointsSpringContext
 @SreeHome
 class EndpointDefinitionsTest {
    @Test
@@ -83,42 +77,11 @@ class EndpointDefinitionsTest {
       for(Class<?> type : queryTypes()) {
          EndpointJsonQuery<?> query = newQuery(type);
 
-         for(Map.Entry<String, ? extends EndpointJsonQuery.Endpoint> e :
-            query.getEndpointMap().entrySet())
-         {
-            String where = type.getSimpleName() + "/" + e.getKey();
-            EndpointJsonQuery.Endpoint endpoint = e.getValue();
+         for(String key : query.getEndpointMap().keySet()) {
+            String where = type.getSimpleName() + "/" + key;
 
-            if(KNOWN_BROKEN.contains(where)) {
-               continue;
-            }
-
-            if(endpoint.getName() == null || endpoint.getName().isBlank()) {
-               problems.add(where + ": blank name");
-            }
-            else if(!endpoint.getName().equals(endpoint.getName().strip()) ||
-                    endpoint.getName().contains(" "))
-            {
-               problems.add(where + ": non-breaking or surrounding space in the name");
-            }
-
-            if(endpoint.getSuffix() == null || endpoint.getSuffix().isBlank()) {
-               problems.add(where + ": blank suffix");
-               continue;
-            }
-
-            try {
-               String built = buildSuffix(query, e.getKey());
-
-               if(built == null || built.isEmpty()) {
-                  problems.add(where + ": suffix builds to nothing");
-               }
-               else if(built.contains("{") || built.contains("}")) {
-                  problems.add(where + ": unreplaced variable in " + built);
-               }
-            }
-            catch(Exception ex) {
-               problems.add(where + ": " + ex);
+            if(!KNOWN_BROKEN.contains(where)) {
+               problems.addAll(nameAndSuffixProblems(query, key, where));
             }
          }
       }
@@ -177,7 +140,10 @@ class EndpointDefinitionsTest {
       for(Class<?> type : queryTypes()) {
          try {
             // the endpoint labels and parameter labels come from this bundle
-            assertFalse(newQuery(type).getEndpoints().length == 0);
+            EndpointJsonQuery<?> query = newQuery(type);
+            ResourceBundle bundle = (ResourceBundle) BUNDLE_GETTER.invoke(query);
+            assertNotNull(bundle, "no resource bundle");
+            assertTrue(bundle.getKeys().hasMoreElements(), "resource bundle is empty");
          }
          catch(Exception ex) {
             problems.add(type.getSimpleName() + ": " + ex);
@@ -241,19 +207,8 @@ class EndpointDefinitionsTest {
          for(String name : query.getEndpointMap().keySet()) {
             String where = type.getSimpleName() + "/" + name;
 
-            if(KNOWN_BROKEN.contains(where)) {
-               continue;
-            }
-
-            try {
-               String problem = malformed(buildSuffix(query, name));
-
-               if(problem != null) {
-                  problems.add(where + ": " + problem);
-               }
-            }
-            catch(Exception ex) {
-               problems.add(where + ": " + ex);
+            if(!KNOWN_BROKEN.contains(where)) {
+               problems.addAll(requestProblems(query, name, where));
             }
          }
       }
@@ -271,38 +226,54 @@ class EndpointDefinitionsTest {
          for(String name : query.getEndpointMap().keySet()) {
             String where = type.getSimpleName() + "/" + name;
 
-            if(KNOWN_BROKEN.contains(where)) {
-               continue;
+            if(!KNOWN_BROKEN.contains(where)) {
+               problems.addAll(optionProblems(query, name, where));
             }
+         }
+      }
 
-            query.setEndpoint(name);
+      assertNoProblems(problems);
+   }
 
-            for(RestParameter parameter : query.getParameters().getParameters()) {
-               String placeholder = parameter.getPlaceholder();
+   /**
+    * Keeps {@link #KNOWN_BROKEN} honest: every entry must name an endpoint that exists and that
+    * still fails one of the checks above, otherwise it silently exempts a fixed, renamed or
+    * mistyped endpoint.
+    */
+   @Test
+   void everyKnownBrokenEntryExistsAndIsStillBroken() throws Exception {
+      Map<String, Class<?>> typesByName = new HashMap<>();
 
-               if(placeholder == null || !placeholder.contains("|")) {
-                  continue;
-               }
+      for(Class<?> type : queryTypes()) {
+         typesByName.put(type.getSimpleName(), type);
+      }
 
-               for(String option : placeholder.split("\\|")) {
-                  if(option.isBlank() || option.contains("...")) {
-                     continue;
-                  }
+      List<String> problems = new ArrayList<>();
 
-                  try {
-                     String problem = malformed(buildSuffix(query, name, parameter.getName(),
-                                                            option.trim()));
+      for(String entry : new TreeSet<>(KNOWN_BROKEN)) {
+         int slash = entry.indexOf('/');
+         Class<?> type = slash < 0 ? null : typesByName.get(entry.substring(0, slash));
 
-                     if(problem != null) {
-                        problems.add(where + " [" + parameter.getName() + "=" + option + "]: " +
-                                     problem);
-                     }
-                  }
-                  catch(Exception ex) {
-                     problems.add(where + " [" + parameter.getName() + "=" + option + "]: " + ex);
-                  }
-               }
-            }
+         if(type == null) {
+            problems.add(entry + ": no such query type, remove it from KNOWN_BROKEN");
+            continue;
+         }
+
+         EndpointJsonQuery<?> query = newQuery(type);
+         String key = entry.substring(slash + 1);
+
+         if(!query.getEndpointMap().containsKey(key)) {
+            problems.add(entry + ": no such endpoint, remove it from KNOWN_BROKEN");
+            continue;
+         }
+
+         List<String> found = new ArrayList<>();
+         found.addAll(nameAndSuffixProblems(query, key, entry));
+         found.addAll(requestProblems(query, key, entry));
+         found.addAll(optionProblems(query, key, entry));
+
+         if(found.isEmpty()) {
+            problems.add(entry + ": no longer broken, remove it from KNOWN_BROKEN");
          }
       }
 
@@ -426,14 +397,111 @@ class EndpointDefinitionsTest {
       assertNoProblems(problems);
    }
 
+   /** The name and suffix problems of one endpoint. */
+   private static List<String> nameAndSuffixProblems(EndpointJsonQuery<?> query, String key,
+                                                     String where)
+   {
+      List<String> problems = new ArrayList<>();
+      EndpointJsonQuery.Endpoint endpoint = query.getEndpointMap().get(key);
+
+      if(endpoint.getName() == null || endpoint.getName().isBlank()) {
+         problems.add(where + ": blank name");
+      }
+      else if(!endpoint.getName().equals(endpoint.getName().strip()) ||
+              endpoint.getName().contains("\u00a0"))
+      {
+         problems.add(where + ": non-breaking or surrounding space in the name");
+      }
+
+      if(endpoint.getSuffix() == null || endpoint.getSuffix().isBlank()) {
+         problems.add(where + ": blank suffix");
+         return problems;
+      }
+
+      try {
+         String built = buildSuffix(query, key);
+
+         if(built == null || built.isEmpty()) {
+            problems.add(where + ": suffix builds to nothing");
+         }
+         else if(built.contains("{") || built.contains("}")) {
+            problems.add(where + ": unreplaced variable in " + built);
+         }
+      }
+      catch(Exception ex) {
+         problems.add(where + ": " + ex);
+      }
+
+      return problems;
+   }
+
+   /** The problems of the request built from one endpoint with every parameter set. */
+   private static List<String> requestProblems(EndpointJsonQuery<?> query, String name,
+                                               String where)
+   {
+      List<String> problems = new ArrayList<>();
+
+      try {
+         String problem = malformed(buildSuffix(query, name));
+
+         if(problem != null) {
+            problems.add(where + ": " + problem);
+         }
+      }
+      catch(Exception ex) {
+         problems.add(where + ": " + ex);
+      }
+
+      return problems;
+   }
+
+   /** The problems of the requests built with each option of each option-list parameter. */
+   private static List<String> optionProblems(EndpointJsonQuery<?> query, String name,
+                                              String where)
+   {
+      List<String> problems = new ArrayList<>();
+      query.setEndpoint(name);
+
+      for(RestParameter parameter : query.getParameters().getParameters()) {
+         String placeholder = parameter.getPlaceholder();
+
+         if(placeholder == null || !placeholder.contains("|")) {
+            continue;
+         }
+
+         for(String option : placeholder.split("\\|")) {
+            if(option.isBlank() || option.contains("...")) {
+               continue;
+            }
+
+            try {
+               String problem = malformed(buildSuffix(query, name, parameter.getName(),
+                                                      option.trim()));
+
+               if(problem != null) {
+                  problems.add(where + " [" + parameter.getName() + "=" + option + "]: " +
+                               problem);
+               }
+            }
+            catch(Exception ex) {
+               problems.add(where + " [" + parameter.getName() + "=" + option + "]: " + ex);
+            }
+         }
+      }
+
+      return problems;
+   }
+
    /** Returns what is wrong with a built suffix, or null. */
    private static String malformed(String suffix) {
       if(suffix == null || suffix.isEmpty()) {
          return "empty";
       }
 
-      if(suffix.matches("(?s).*[\s ].*")) {
-         return "whitespace in " + suffix.replaceAll("\s", "<ws>");
+      // only a plain or non-breaking space is checked: PipelineCRM suffixes also hold tabs and
+      // newlines, which are real defects but need the endpoints.json files fixed first
+      if(suffix.matches("(?s).*[ \u00a0].*")) {
+         return "whitespace in " + suffix.replaceAll("[ \u00a0]", "<ws>");
       }
 
       int index = suffix.indexOf('?');
@@ -549,6 +617,19 @@ class EndpointDefinitionsTest {
 
    private static List<Class<?>> queryTypes;
 
+   /** {@code EndpointJsonQuery.getResourceBundle()} is protected, and some queries override it. */
+   private static final java.lang.reflect.Method BUNDLE_GETTER;
+
+   static {
+      try {
+         BUNDLE_GETTER = EndpointJsonQuery.class.getDeclaredMethod("getResourceBundle");
+         BUNDLE_GETTER.setAccessible(true);
+      }
+      catch(NoSuchMethodException e) {
+         throw new ExceptionInInitializerError(e);
+      }
+   }
+
    /**
     * Endpoints whose suffix template is known to be wrong. They are skipped here so that this test
     * can guard every other endpoint; fix the template and remove the entry. The defects are
@@ -567,7 +648,7 @@ class EndpointDefinitionsTest {
       "BoxQuery/Search for Content",
       "BoxQuery/Trashed Items",
       "HubSpotQuery/Blog Posts",
-      "HubSpotQuery/Contacts Informations",
+      "HubSpotQuery/Contacts\u00a0Informations",
       "HubSpotQuery/Line items Change Log",
       "InfluxDBQuery/Installed Templates",
       "InfluxDBQuery/Sources",
