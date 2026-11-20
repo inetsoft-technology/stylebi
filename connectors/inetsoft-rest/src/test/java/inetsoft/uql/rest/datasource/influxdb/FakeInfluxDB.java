@@ -33,7 +33,8 @@ import java.util.function.IntFunction;
  *
  * <ul>
  *    <li>{@code /api/v2/buckets}, {@code /orgs}, {@code /users}: {@code limit} (default 20, at most
- *    100, else 400), {@code offset} and, for buckets and users, {@code after}. Buckets say
+ *    100, else 400), {@code offset} and, for buckets and users, {@code after}; a {@code name}
+ *    lookup answers with that one record whatever the offset is. Buckets say
  *    {@code links.next} once a page is full; users and orgs never do.</li>
  *    <li>{@code /api/v2/tasks}: {@code limit} (default 100, at most 500) and {@code after}, no
  *    {@code offset}. {@code links.next} is present only when the page is full.</li>
@@ -120,6 +121,13 @@ final class FakeInfluxDB implements AutoCloseable {
                        Map<String, String> params, boolean nextWhenFull, boolean offsetKnown,
                        String prefix, IntFunction<String> item, String path)
    {
+      if(params.containsKey("name")) {
+         // a lookup of one record by name answers with that record and ignores offset and after
+         final int id = Integer.parseInt(params.get("name").substring(prefix.length()));
+         return "{\"links\":{\"self\":\"" + path + "\"},\"" + name + "\":[" + item.apply(id) +
+            "]}";
+      }
+
       int limit = defaultLimit;
 
       if(params.containsKey("limit")) {

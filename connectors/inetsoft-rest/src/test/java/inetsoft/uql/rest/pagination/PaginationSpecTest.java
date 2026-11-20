@@ -25,7 +25,41 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 class PaginationSpecTest {
+   @Test
+   void stopOnShortPageIsOffByDefault() {
+      assertFalse(new PaginationSpec().isStopOnShortPage());
+      assertFalse(PaginationSpec.builder().build().isStopOnShortPage());
+   }
+
+   @Test
+   void stopOnShortPageSurvivesCloneBuilderAndXml() throws Exception {
+      final PaginationSpec spec = PaginationSpec.builder()
+         .type(PaginationType.OFFSET)
+         .stopOnShortPage(true)
+         .build();
+
+      assertTrue(spec.isStopOnShortPage());
+      assertTrue(((PaginationSpec) spec.clone()).isStopOnShortPage());
+      assertTrue(PaginationSpec.builder().with(spec).build().isStopOnShortPage());
+
+      final ByteArrayOutputStream output = new ByteArrayOutputStream();
+      final PrintWriter writer = new PrintWriter(output);
+      writer.format("<root>%n");
+      spec.writeXML(writer);
+      writer.format("</root>%n");
+      writer.close();
+      final Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+         .parse(new ByteArrayInputStream(output.toByteArray()));
+      final PaginationSpec parsed = new PaginationSpec();
+      parsed.parseXML(doc.getDocumentElement());
+
+      assertTrue(parsed.isStopOnShortPage());
+   }
+
    @Test
    void xmlWritingAndParsing() throws Exception {
       final PaginationSpec spec = new PaginationSpec();

@@ -130,7 +130,9 @@ public class InfluxDBQuery extends EndpointJsonQuery<InfluxDBEndpoint> {
    /**
     * The paging a catalogue endpoint needs, which InfluxDB does not do the same way everywhere:
     * the list endpoints take {@code limit}/{@code offset} and say nothing about a next page (users
-    * and orgs carry no {@code links.next} at all), so they are read until a page comes back empty;
+    * and orgs carry no {@code links.next} at all), so they are read until a page comes back short
+    * or empty (a lookup of one record by name or id ignores {@code offset} and answers with that
+    * record again, so it can only be read once);
     * tasks take only an {@code after} cursor and do hand back {@code links.next} while the page is
     * full. The page size is the most each endpoint accepts: 100, or 500 for tasks, where it is
     * already in the suffix.
@@ -148,6 +150,7 @@ public class InfluxDBQuery extends EndpointJsonQuery<InfluxDBEndpoint> {
                .recordCountPath("$." + endpoint.getPageItems() + ".length()")
                .baseRecordLength(0)
                .zeroBasedPageIndex(true)
+               .stopOnShortPage(true)
                .build();
          }
 

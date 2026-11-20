@@ -83,4 +83,75 @@ public class JsonPagedOffsetIteratorStrategyTest {
 
         assertEquals(2, count);
     }
+
+    @Test
+    public void shortPageEndsTheReadWhenAskedTo() throws Exception {
+        final RestJsonQuery query = offsetQuery(true);
+        // only the first page is registered: a request for another one fails the handler
+        final TestHttpHandler httpHandler = new TestHttpHandler(List.of(
+           page(query, 1, "{\"results\": 2}")));
+
+        assertEquals(1, read(query, httpHandler));
+    }
+
+    @Test
+    public void fullPageIsStillFollowedByTheEmptyPageWhenAskedToStopOnShortPage() throws Exception {
+        final RestJsonQuery query = offsetQuery(true);
+        final TestHttpHandler httpHandler = new TestHttpHandler(List.of(
+           page(query, 1, "{\"results\": 10}"),
+           page(query, 11, "{\"results\": 4}")));
+
+        assertEquals(2, read(query, httpHandler));
+
+        final RestJsonQuery exact = offsetQuery(true);
+        final TestHttpHandler exactHandler = new TestHttpHandler(List.of(
+           page(exact, 1, "{\"results\": 10}"),
+           page(exact, 11, "{}")));
+
+        assertEquals(1, read(exact, exactHandler));
+    }
+
+    @Test
+    public void shortPageDoesNotEndTheReadByDefault() throws Exception {
+        final RestJsonQuery query = offsetQuery(false);
+        final TestHttpHandler httpHandler = new TestHttpHandler(List.of(
+           page(query, 1, "{\"results\": 2}"),
+           page(query, 3, "{}")));
+
+        assertEquals(1, read(query, httpHandler));
+    }
+
+    private static RestJsonQuery offsetQuery(boolean stopOnShortPage) {
+        final RestJsonQuery query = new RestJsonQuery();
+        final RestJsonDataSource datasource = new RestJsonDataSource();
+        datasource.setURL("http://host");
+        query.setDataSource(datasource);
+        final PaginationSpec spec = query.getPaginationSpec();
+        spec.setType(PaginationType.OFFSET);
+        spec.setRecordCountPath("$.results");
+        spec.setOffsetParam(new PaginationParameter("offset", PaginationParamType.QUERY));
+        spec.setMaxResultsPerPage(10);
+        spec.setZeroBasedPageIndex(false);
+        spec.setStopOnShortPage(stopOnShortPage);
+        return query;
+    }
+
+    private static RequestResponse page(RestJsonQuery query, int offset, String body) {
+        return new RequestResponse(RestRequest.builder().query(query)
+           .queryParameters(Collections.singletonMap("offset", Integer.toString(offset)))
+           .build(), new TestHttpResponse(body));
+    }
+
+    private static int read(RestJsonQuery query, TestHttpHandler httpHandler) throws Exception {
+        final JsonPagedOffsetIteratorStrategy strategy = new JsonPagedOffsetIteratorStrategy(
+           query, new JsonTransformer(), httpHandler, new RestErrorHandler());
+        int count = 0;
+
+        while(strategy.hasNext()) {
+            assertNotNull(strategy.next());
+            count++;
+        }
+
+        return count;
+    }
 }
