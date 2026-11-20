@@ -22,7 +22,10 @@ import inetsoft.util.Tool;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.user.SimpUser;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -30,6 +33,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.security.Principal;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 /**
  * Pairing-authorized join. Validates the feature flag, consumes the single-use pairing code,
@@ -61,12 +65,58 @@ public class SheetJoinService {
                            SheetSessionService sessions,
                            SheetAgentFeature feature,
                            SheetRuntimeAccess runtimeAccess,
+                           SheetAgentBroadcastService broadcast,
+                           ObjectProvider<SimpUserRegistry> userRegistry) {
+      this(pairing, sessions, feature, runtimeAccess, broadcast, registryCheck(userRegistry));
+   }
+
+   /** Back-compat constructor: no STOMP registry, so a viewer join never checks its socket. */
+   public SheetJoinService(SheetPairingService pairing,
+                           SheetSessionService sessions,
+                           SheetAgentFeature feature,
+                           SheetRuntimeAccess runtimeAccess,
                            SheetAgentBroadcastService broadcast) {
+      this(pairing, sessions, feature, runtimeAccess, broadcast, (Predicate<String>) null);
+   }
+
+   /**
+    * @param socketConnected whether a STOMP session id is currently connected, or {@code null} to
+    *                        skip the check (no registry available)
+    */
+   SheetJoinService(SheetPairingService pairing,
+                    SheetSessionService sessions,
+                    SheetAgentFeature feature,
+                    SheetRuntimeAccess runtimeAccess,
+                    SheetAgentBroadcastService broadcast,
+                    Predicate<String> socketConnected) {
       this.pairing = pairing;
       this.sessions = sessions;
       this.feature = feature;
       this.runtimeAccess = runtimeAccess;
       this.broadcast = broadcast;
+      this.socketConnected = socketConnected == null ? id -> true : socketConnected;
+   }
+
+   /**
+    * The live-socket test, from Spring's STOMP user registry (it drops a session on disconnect).
+    * Resolved per call, so a registry that is absent in a context contributes "connected".
+    */
+   private static Predicate<String> registryCheck(ObjectProvider<SimpUserRegistry> provider) {
+      return id -> {
+         SimpUserRegistry registry = provider == null ? null : provider.getIfAvailable();
+
+         if(registry == null) {
+            return true;
+         }
+
+         for(SimpUser user : registry.getUsers()) {
+            if(user.getSession(id) != null) {
+               return true;
+            }
+         }
+
+         return false;
+      };
    }
 
    /**
@@ -168,6 +218,31 @@ public class SheetJoinService {
                                     "Pairing code does not belong to this user");
       }
 
+      // 3b'. Derive the session's mode from the runtime itself, AFTER the user and ownership checks
+      // above so a rejected join never reveals it. Nothing the client sent is read: the grant
+      // carries no mode and the mint validates nothing for a whole-sheet code. A portal Viewer
+      // runtime yields a read + export VIEWER session (ViewerModePolicy); a Composer runtime, or
+      // one this node cannot resolve, stays PAIRED -- and ViewerModeInterceptor re-derives the
+      // mode from the live runtime on every call, so an unresolved runtime is still gated once it
+      // resolves as a viewer.
+      JoinSession.ConnectionMode mode = ViewerModePolicy.isViewerRuntime(runtimeSheet)
+         ? JoinSession.ConnectionMode.VIEWER : JoinSession.ConnectionMode.PAIRED;
+
+      // A viewer session lives only as long as the page it was minted from, and
+      // SheetSessionService.socketClosed is a one-shot event: a page whose socket closed between
+      // mint and join (the code lives minutes) would otherwise get a session nothing ever reaps,
+      // whose keep-alive holds the orphaned runtime open (C7). Refuse it with the same text an
+      // already-reaped viewer session gets. Design (PAIRED) sessions are not subject to this: they
+      // deliberately survive a socket drop. The code is spent; the user clicks Connect again.
+      if(mode == JoinSession.ConnectionMode.VIEWER && grant.socketSessionId() != null &&
+         !socketConnected.test(grant.socketSessionId()))
+      {
+         LOG.warn("Sheet agent pairing join rejected: viewer page socket is gone " +
+                  "(runtimeId={}, agent={})", grant.runtimeId(), PairingUtil.label(agentUser));
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                    ViewerModePolicy.VIEWER_CLOSED_TEXT);
+      }
+
       // 3c. Stamp the runtime's socket session from THIS grant, unconditionally, exactly once.
       // grant.socketSessionId()/socketUserName() were captured moments ago from the live STOMP
       // mint request, so at this specific instant they are provably fresher than whatever the
@@ -197,7 +272,7 @@ public class SheetJoinService {
       // 4. Open a reusable session, carrying the browser's socket session ID for broadcast.
       JoinSession session = sessions.open(grant.runtimeId(), grant.ownerIdentity(),
                                           grant.sheetType(), grant.socketSessionId(),
-                                          grant.socketUserName(), grant.editorContext());
+                                          grant.socketUserName(), grant.editorContext(), mode);
       failedAttempts.remove(throttleKey);
 
       // Close the loop back to the browser that minted this code — it has no other way to learn
@@ -232,8 +307,8 @@ public class SheetJoinService {
       // would break legitimate concurrent/collaborative use.
       int concurrentSessionCount = sessions.findAllOnRuntime(session.runtimeId()).size();
 
-      LOG.info("Sheet agent pairing join granted (runtimeId={}, sheetType={}, agent={})",
-               grant.runtimeId(), grant.sheetType(), PairingUtil.label(agentUser));
+      LOG.info("Sheet agent pairing join granted (runtimeId={}, sheetType={}, mode={}, agent={})",
+               grant.runtimeId(), grant.sheetType(), mode, PairingUtil.label(agentUser));
       return new JoinOutcome(session, sheetLabel, concurrentSessionCount);
    }
 
@@ -468,5 +543,6 @@ public class SheetJoinService {
    private final SheetAgentFeature feature;
    private final SheetRuntimeAccess runtimeAccess;
    private final SheetAgentBroadcastService broadcast;
+   private final Predicate<String> socketConnected;
    private final ConcurrentHashMap<String, AttemptWindow> failedAttempts = new ConcurrentHashMap<>();
 }

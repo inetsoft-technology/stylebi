@@ -109,6 +109,13 @@ public class ViewsheetSessionService {
       JoinSession session = sessions.resolve(sessionToken, agentKey(agent));
 
       if(session == null) {
+         // A viewer session that ended with its page says so (same kind, so the plugin's reaper
+         // still clears it); every other end keeps the generic text.
+         if(SheetSessionService.VIEWER_CLOSED.equals(sessions.endedReason(sessionToken))) {
+            throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                       ViewerModePolicy.VIEWER_CLOSED_TEXT);
+         }
+
          throw new PairingException(
             PairingException.Kind.SESSION_EXPIRED,
             "Invalid or expired viewsheet session: " + sessionToken +

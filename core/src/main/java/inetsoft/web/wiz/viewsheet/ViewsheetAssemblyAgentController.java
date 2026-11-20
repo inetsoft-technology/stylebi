@@ -237,10 +237,28 @@ public class ViewsheetAssemblyAgentController {
     *                      going through {@link SheetJoinService#join}, so there is no co-occupancy
     *                      computation to report (a freshly-minted runtime cannot yet have another
     *                      session on it).
+    * @param connectionMode {@code "VIEWER"} when the joined runtime is a portal Viewer runtime
+    *                      (the session is read + export only, see {@code ViewerModePolicy}),
+    *                      otherwise {@code "PAIRED"}. Always {@code "PAIRED"} on the responses
+    *                      that open a brand-new design runtime ({@link #openBaseWorksheet},
+    *                      {@link #createViewsheet}). A client that predates the field ignores it.
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
                               String sheetType, EditorContext editorContext, String sheetLabel,
-                              Integer concurrentSessionCount) {}
+                              Integer concurrentSessionCount, String connectionMode) {
+      /**
+       * Back-compat constructor predating {@code connectionMode} -- defaults it to
+       * {@code "PAIRED"} (a design session), the only mode there was, so every hand-built
+       * {@code new JoinResponse(...)} that opens a design runtime stays as it was.
+       */
+      public JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
+                          String sheetType, EditorContext editorContext, String sheetLabel,
+                          Integer concurrentSessionCount)
+      {
+         this(sessionToken, runtimeId, ownerIdentity, sheetType, editorContext, sheetLabel,
+              concurrentSessionCount, JoinSession.ConnectionMode.PAIRED.name());
+      }
+   }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/join")
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
@@ -249,7 +267,8 @@ public class ViewsheetAssemblyAgentController {
       JoinSession session = outcome.session();
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase(), session.editorContext(),
-                              outcome.sheetLabel(), outcome.concurrentSessionCount());
+                              outcome.sheetLabel(), outcome.concurrentSessionCount(),
+                              session.connectionMode().name());
    }
 
    /** {@code force} closes a worksheet session already held for this identity instead of
@@ -4629,7 +4648,7 @@ public class ViewsheetAssemblyAgentController {
    public ResponseEntity<Map<String, String>> handlePairingException(PairingException e) {
       HttpStatus status = switch(e.getKind()) {
          case SESSION_EXPIRED -> HttpStatus.NOT_FOUND;
-         case USER_MISMATCH, FEATURE_DISABLED -> HttpStatus.FORBIDDEN;
+         case USER_MISMATCH, FEATURE_DISABLED, VIEWER_MODE -> HttpStatus.FORBIDDEN;
          case RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS;
          case INTERNAL -> HttpStatus.INTERNAL_SERVER_ERROR;
          default -> HttpStatus.BAD_REQUEST;
