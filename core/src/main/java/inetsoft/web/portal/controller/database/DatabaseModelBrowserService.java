@@ -674,9 +674,35 @@ public class DatabaseModelBrowserService {
                                      Principal principal)
       throws Exception
    {
+      renameDataModelFolder(databasePath, folderName, oldName, principal, false);
+   }
+
+   /**
+    * Rename a data model folder like {@link #renameDataModelFolder}, but a failure of the rename
+    * itself (or a data source without a folder list) is thrown instead of logged and swallowed.
+    * The failure is still recorded in the audit record. For callers that must not report success
+    * for a rename that did not happen.
+    */
+   public void renameDataModelFolderStrict(String databasePath,
+                                           String folderName,
+                                           String oldName,
+                                           Principal principal)
+      throws Exception
+   {
+      renameDataModelFolder(databasePath, folderName, oldName, principal, true);
+   }
+
+   private void renameDataModelFolder(String databasePath, String folderName, String oldName,
+                                      Principal principal, boolean rethrow)
+      throws Exception
+   {
       XDataModel dataModel = dataSourceService.getDataModel(databasePath);
 
       if(dataModel == null || dataModel.getFolders() == null) {
+         if(rethrow) {
+            throw new FileNotFoundException(databasePath + "/" + oldName);
+         }
+
          return;
       }
 
@@ -825,6 +851,10 @@ public class DatabaseModelBrowserService {
          }
 
          LOG.error("Failed to rename " + auditOldPath + " to " + auditPath, ex);
+
+         if(rethrow) {
+            throw ex;
+         }
       }
       finally {
          if(actionRecord != null) {

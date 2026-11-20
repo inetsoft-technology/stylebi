@@ -66,6 +66,10 @@ final class WizDataModelErrors {
          this(reason, null, message, null, null);
       }
 
+      DmFailure(String reason, String field, String message) {
+         this(reason, field, message, null, null);
+      }
+
       DmFailure(String reason, String field, String message, List<WizDataModelWire.Err> errors,
                 String existingKind)
       {
