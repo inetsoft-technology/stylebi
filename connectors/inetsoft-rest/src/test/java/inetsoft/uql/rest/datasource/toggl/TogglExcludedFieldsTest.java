@@ -93,6 +93,23 @@ class TogglExcludedFieldsTest {
    }
 
    @Test
+   void currentUserMetadataCarriesNoToken() throws Exception {
+      for(String body : List.of(ME_WITHOUT_RELATED, ME_WITH_RELATED)) {
+         String metadata = metadata("Current User", body);
+         assertFalse(metadata.contains("api_token"), "api_token in metadata: " + metadata);
+         assertFalse(metadata.contains(SECRET) || metadata.contains(WS_SECRET));
+         assertTrue(metadata.contains("email"), "other fields survive: " + metadata);
+      }
+   }
+
+   @Test
+   void workspacesMetadataCarriesNoToken() throws Exception {
+      String metadata = metadata("Workspaces", WORKSPACES);
+      assertFalse(metadata.contains("api_token") || metadata.contains(WS_SECRET), metadata);
+      assertTrue(metadata.contains("\"name\""), metadata);
+   }
+
+   @Test
    void declarationsAreLoadedFromTheRealEndpointsFile() {
       Map<String, TogglEndpoint> map = new TogglQuery().getEndpointMap();
       assertEquals(List.of("$.api_token", "$.workspaces[*].api_token"),
@@ -112,6 +129,16 @@ class TogglExcludedFieldsTest {
                   "a token value reached a cell");
       assertFalse(String.valueOf(r.sample).contains("tok-"), "a token value reached the sample");
       assertFalse(String.valueOf(r.shape).contains("api_token"), "api_token reached the shape");
+   }
+
+   private static String metadata(String endpoint, String body) throws Exception {
+      TogglQuery query = new TogglQuery();
+      query.setEndpoint(endpoint);
+      JsonTransformer transformer = new JsonTransformer();
+      Object json = transformer.transform(
+         new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
+      return new EndpointJsonQueryRunner(
+         query, q -> new OnePage(json), new LookupService(), transformer).generateMetadata();
    }
 
    private static Result run(String endpoint, String body) throws Exception {

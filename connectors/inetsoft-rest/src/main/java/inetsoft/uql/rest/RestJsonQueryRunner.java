@@ -262,6 +262,14 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
         return data;
     }
 
+   /**
+    * Removes, in place, the fields the query's endpoint declares as never to be exposed from a
+    * raw response. Called on every path that hands a response body, or anything derived from it,
+    * out of the runner. Nothing to remove here: only endpoint queries declare any.
+    */
+   protected void removeExcludedFields(Object json) {
+   }
+
    @Override
    public String generateMetadata() {
       try(RestDataIteratorStrategy<Object> strategy = factory.createStrategy(query)) {
@@ -271,6 +279,10 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
          if(json == null) {
             return "{}";
          }
+
+         // The metadata is shown in the query editor and saved with the query, so it must not
+         // carry a field the endpoint declares as never to be exposed.
+         removeExcludedFields(json);
 
          ObjectMapper mapper = new ObjectMapper();
          return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(json);
