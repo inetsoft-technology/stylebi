@@ -52,6 +52,7 @@ final class ModernZeroLine {
          return;
       }
 
+      // the axis line's colour, drawn whether or not the axis line shows
       spec.setZeroLineColor(spec.getLineColor());
       spec.setZeroLineCrossing(x);
    }
