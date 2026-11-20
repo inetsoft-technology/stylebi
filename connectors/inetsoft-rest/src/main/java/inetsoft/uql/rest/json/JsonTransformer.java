@@ -177,6 +177,16 @@ public class JsonTransformer implements InputTransformer {
 
             ((List<Object>) existing).addAll((List<Object>) series);
          }
+
+         // Every chunk but the last of a statement is flagged "partial":true. The merged
+         // statement is as complete as the chunk read last, so it takes that chunk's flag: a
+         // stream that ends on a chunk still flagged partial was cut short and stays flagged.
+         if(Boolean.TRUE.equals(((Map<String, Object>) c).get("partial"))) {
+            tmap.put("partial", Boolean.TRUE);
+         }
+         else {
+            tmap.remove("partial");
+         }
       }
    }
 

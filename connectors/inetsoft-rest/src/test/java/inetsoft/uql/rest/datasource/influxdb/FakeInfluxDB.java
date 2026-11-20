@@ -194,6 +194,15 @@ final class FakeInfluxDB implements AutoCloseable {
          return "{\"results\":[{\"statement_id\":0,\"series\":[{\"name\":\"cpu\",\"columns\":" +
             "[\"time\",\"usage_user\"],\"values\":[" + rows(0, 2) + "],\"partial\":true}]," +
             "\"partial\":true}]}";
+      case "chunkedgroup":
+         // GROUP BY host with chunked=true: one document per series, every one but the last
+         // flagged partial
+         return "{\"results\":[{\"statement_id\":0,\"series\":[{\"name\":\"cpu\",\"tags\":" +
+            "{\"host\":\"web-1\"},\"columns\":[\"time\",\"usage_user\"],\"values\":[" +
+            rows(0, 2) + "]}],\"partial\":true}]}\n" +
+            "{\"results\":[{\"statement_id\":0,\"series\":[{\"name\":\"cpu\",\"tags\":" +
+            "{\"host\":\"web-2\"},\"columns\":[\"time\",\"usage_user\"],\"values\":[" +
+            rows(2, 4) + "]}]}]}\n";
       case "nosuchdb":
          return "{\"error\":\"database not found\"}";
       default:

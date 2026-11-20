@@ -245,6 +245,16 @@ class InfluxDBConnectorTest {
    }
 
    @Test
+   void influxQLChunkedGroupByReadsEverySeries() {
+      Result result = run(v1Query("chunkedgroup", null));
+
+      assertEquals(List.of("time", "usage_user", "host"), result.columns);
+      assertEquals(4, result.rows.size());
+      assertEquals("web-1", result.rows.get(0).get(2));
+      assertEquals("web-2", result.rows.get(3).get(2));
+   }
+
+   @Test
    void influxQLChunkedResponseIsRefusedNotSilentlyCutShort() {
       CoreTool.clearUserMessage();
 

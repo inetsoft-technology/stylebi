@@ -68,6 +68,41 @@ class JsonTransformerChunkedTest {
       assertEquals(6, rows.size());
    }
 
+   private static String partialSeries(String host, boolean partial, int... values) {
+      final String body = series(host, values);
+      // statement-level flag, as InfluxDB sets it on every chunk but the last of a statement
+      return partial ? body.replace("}]}]}", "}],\"partial\":true}]}") : body;
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void chunkedResponseDropsPartialFlagOfFinishedStatement() {
+      final String body = partialSeries("db-1", true, 1, 2) + "\n" +
+         partialSeries("db-2", true, 3) + "\n" + partialSeries("db-3", false, 4) + "\n";
+
+      final java.util.Map<String, Object> json =
+         (java.util.Map<String, Object>) new JsonTransformer().transform(stream(body));
+      final java.util.Map<String, Object> statement =
+         (java.util.Map<String, Object>) ((List<?>) json.get("results")).get(0);
+
+      assertEquals(3, ((List<?>) statement.get("series")).size());
+      assertNull(statement.get("partial"));
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void chunkedResponseCutShortStaysPartial() {
+      final String body = partialSeries("db-1", true, 1) + "\n" +
+         partialSeries("db-2", true, 2) + "\n";
+
+      final java.util.Map<String, Object> json =
+         (java.util.Map<String, Object>) new JsonTransformer().transform(stream(body));
+      final java.util.Map<String, Object> statement =
+         (java.util.Map<String, Object>) ((List<?>) json.get("results")).get(0);
+
+      assertEquals(Boolean.TRUE, statement.get("partial"));
+   }
+
    @Test
    void chunkedResponseKeepsSeriesAsOneList() throws IOException {
       final String body = series("db-1", 1) + "\n" + series("db-2", 2) + "\n";
