@@ -224,6 +224,16 @@
          margin-left: 0.1rem;
          flex-shrink: 0;
       }
+
+      // the edit-measure and value-type buttons are bordered squares at the field box height
+      // (30px) elsewhere; here they match the 22px value trigger, or the chip grows taller than
+      // the Text and Spacer chips
+      button.fieldEditIcon,
+      .dynamic-combo-box-body .type-toggle {
+         width: 22px;
+         height: 22px;
+         min-height: 22px;
+      }
    }
 }
 

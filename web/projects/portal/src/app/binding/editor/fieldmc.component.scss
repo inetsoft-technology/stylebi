@@ -60,8 +60,9 @@
 }
 
 // The icon buttons beside a field (value type f(x), and the dimension/measure or field option
-// settings) were bare glyphs, so nothing said they could be clicked. They now share the shelf
-// tiles' bordered look, sized to the field box beside them.
+// settings) were bare glyphs, so nothing said they could be clicked. They now have the shelf
+// tiles' bordered look, at the height of the field box beside them (the control height, 30px; the
+// shelf tiles themselves are 32px). The text layout designer's compact chip sets its own size.
 @mixin field-icon-button {
   box-sizing: border-box;
   flex: none;
@@ -78,8 +79,14 @@
   color: inherit;
   line-height: 1;
 
-  &:hover:not(:disabled):not(.disabled):not(.disable-actions) {
+  // [disabled] on these buttons binds to the dropdown directive, not the native property, so a
+  // disabled button is recognised by aria-disabled or by its faded glyph
+  &:hover:not(:disabled):not(.disabled):not(.disable-actions):not([aria-disabled="true"]):not(:has(> i.icon-disabled)) {
     background-color: var(--inet-ui-neutral-hover-bg-color);
+  }
+
+  &[aria-disabled="true"], &:has(> i.icon-disabled) {
+    cursor: default;
   }
 }
 
@@ -88,8 +95,18 @@
   @include field-icon-button;
 }
 
+// The 3px radius of the mixin beats the larger one of the .fieldEditIcon rule below by specificity
+// (an element and a class against a class), so the buttons stay square-cornered like the tiles.
 button.fieldEditIcon {
   @include field-icon-button;
+
+  // a click leaves focus on the button: only keyboard focus (and an open menu) shows the ring
+  &:focus:not(:focus-visible):not(:hover):not(.fieldEditIcon--open) {
+    background-color: var(--inet-shell-surface-default);
+    border-color: var(--inet-shell-border-strong);
+    box-shadow: none;
+    outline: none;
+  }
 }
 
 .fieldEditIcon {
