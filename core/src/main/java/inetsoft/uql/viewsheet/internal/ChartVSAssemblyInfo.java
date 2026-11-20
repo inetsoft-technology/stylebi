@@ -263,6 +263,10 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       return VSDensityDefaults.chartPadding(ctx);
    }
 
+   // about half the default axis label height (11px font), the part of the top y-axis label
+   // that rises above the first gridline
+   private static final int TOP_LABEL_OVERHANG = 6;
+
    /**
     * The padding the chart is laid out, drawn and positioned with. It is the author's padding,
     * except that a marked chart whose title is hidden takes extra top space: the top y-axis
@@ -286,10 +290,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       return padding;
    }
-
-   // about half the default axis label height (11px font), the part of the top y-axis label
-   // that rises above the first gridline
-   private static final int TOP_LABEL_OVERHANG = 6;
 
    /**
     * Adds the chart's text, plot, legend, axis, shape and colour slots.

@@ -1677,7 +1677,8 @@ public class VsToReportConverter {
    {
       ChartVSAssemblyInfo cinfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
       Rectangle cbounds = getPixelBounds(assembly);
-      Insets padding = cinfo.getPadding();
+      // the same padding getVGraph() sizes the graph with, so placement and size agree
+      Insets padding = cinfo.getLayoutPadding();
       VSCompositeFormat format = cinfo.getFormat();
       int corner = format != null ? format.getRoundCorner() : 0;
       Insets borders = format != null && format.getBorders() != null ?
