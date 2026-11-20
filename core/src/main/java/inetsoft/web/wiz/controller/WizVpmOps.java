@@ -34,7 +34,8 @@ import java.util.*;
  *
  * <p>A VPM belongs to the data source, not to a data model folder, and every operation on it needs
  * WRITE on the data source (the rule of {@code VpmService.checkVpmPermission}); a caller without it
- * does not see the VPM at all ({@link #find} is empty).</p>
+ * may find the VPM (browse alone hides it) but may not rename or delete it, and its dependents are
+ * not listed.</p>
  */
 @Component
 class WizVpmOps implements WizModelKindOps {
@@ -54,7 +55,9 @@ class WizVpmOps implements WizModelKindOps {
       XDataModel dataModel = ctx.dataModel();
       VirtualPrivateModel vpm = dataModel.getVirtualPrivateModel(ref.name());
 
-      if(vpm == null || !mayWrite(ctx)) {
+      // existence is not hidden from the kind-agnostic routes (the shared name space reveals it
+      // anyway); mayDelete and mayRename are the gate, so a denial names the action and path
+      if(vpm == null) {
          return Optional.empty();
       }
 
@@ -75,6 +78,10 @@ class WizVpmOps implements WizModelKindOps {
    @Override
    public List<DependentRef> dependents(Ctx ctx, ModelRef ref) throws Exception {
       Map<String, DependentRef> unique = new LinkedHashMap<>();
+
+      if(!mayWrite(ctx)) {
+         return List.of();
+      }
 
       for(WizDataModelWire.Dependent dependent : WizDataModelSupport.toDependents(
          ctx.database(), DependencyTransformer.getVPMDependencies(

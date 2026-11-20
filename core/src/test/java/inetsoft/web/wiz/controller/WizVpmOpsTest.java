@@ -31,6 +31,7 @@ import java.util.*;
 
 import static inetsoft.web.wiz.controller.WizModelKindOps.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -90,13 +91,11 @@ class WizVpmOpsTest {
       assertEquals("physicalView", taken.existingKind());
       assertNotNull(support.fresh().getVirtualPrivateModel("A"));
 
-      // a VPM is visible only with WRITE on the source (as in the Portal's browse), so a caller
-      // without it learns nothing: NOT_FOUND, and nothing changes
+      // a caller without WRITE on the source is refused with a denial naming the path
       support.writeAllowed = false;
-      WizDataModelWire.Failure hidden = assertInstanceOf(WizDataModelWire.Failure.class,
-         items.rename(new WizDataModelWire.RenameRequest(support.ds, "vpm", "A", "Z", null),
-                      support.bob));
-      assertEquals("NOT_FOUND", hidden.reason());
+      SecurityException hidden = assertThrows(SecurityException.class, () -> items.rename(
+         new WizDataModelWire.RenameRequest(support.ds, "vpm", "A", "Z", null), support.bob));
+      assertTrue(hidden.getMessage().contains(support.ds), hidden.getMessage());
       support.writeAllowed = true;
       assertNull(support.fresh().getVirtualPrivateModel("Z"));
       assertNotNull(support.fresh().getVirtualPrivateModel("A"));
@@ -127,7 +126,24 @@ class WizVpmOpsTest {
    }
 
    @Test
-   void aCallerWithoutWriteDoesNotSeeTheVpm() throws Exception {
+   void dependenciesOfAVpmWithoutWriteAreNotListedAndNotDeletable() throws Exception {
+      support.writeAllowed = false;
+      // READ on the source still holds (the route's own gate); only WRITE is missing
+      when(support.dataSourceService.checkPermission(
+         eq(support.ds), eq(inetsoft.sree.security.ResourceAction.READ),
+         any(java.security.Principal.class))).thenReturn(true);
+      WizDataModelWire.DependenciesResponse response = assertInstanceOf(
+         WizDataModelWire.DependenciesResponse.class,
+         items.dependencies(new WizDataModelWire.DependenciesRequest(support.ds, List.of(
+            new WizDataModelWire.Ref("vpm", "A", null))), support.bob));
+      WizDataModelWire.DepItem item = response.items().get(0);
+      assertTrue(item.exists());
+      assertFalse(item.deletable());
+      assertTrue(item.dependents().isEmpty());
+   }
+
+   @Test
+   void aCallerWithoutWriteStillFindsTheVpmButMayNotChangeIt() throws Exception {
       Ctx ctx = new Ctx(support.ds, support.fresh(), support.bob);
       ModelRef ref = new ModelRef(Kind.VPM, "A", null);
 
@@ -141,7 +157,7 @@ class WizVpmOpsTest {
       assertEquals(Optional.empty(), ops.find(ctx, new ModelRef(Kind.VPM, "none", null)));
 
       support.writeAllowed = false;
-      assertEquals(Optional.empty(), ops.find(ctx, ref));
+      assertTrue(ops.find(ctx, ref).isPresent());
       assertFalse(ops.mayDelete(ctx, ref));
       assertFalse(ops.mayRename(ctx, ref));
    }
