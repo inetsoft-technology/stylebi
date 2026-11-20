@@ -44,6 +44,7 @@ public enum ResourceType {
       }
    },
    AI_ASSISTANT(false),
+   WIZ_PERMISSION(false),
    CHART_TYPE(true) {
       @Override
       public Resource getParent(String path) {

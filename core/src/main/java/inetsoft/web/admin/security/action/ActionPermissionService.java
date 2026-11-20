@@ -31,6 +31,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.log.logback.LogbackUtil;
 import inetsoft.web.admin.authz.ComponentAuthorizationService;
 import inetsoft.web.admin.authz.ViewComponent;
+import inetsoft.web.wiz.WizPermissions;
 
 import java.security.Principal;
 import java.util.*;
@@ -209,6 +210,8 @@ public class ActionPermissionService {
                           .grant(true)
                           .actions(EnumSet.of(ResourceAction.ACCESS))
                           .build());
+
+      root.addFilteredChildren(getWizPermissionsNode(catalog, isOrgAdmin));
 
       root.addFilteredChildren(ActionTreeNode.builder()
                           .label(catalog.getString("Cross Join"))
@@ -418,6 +421,27 @@ public class ActionPermissionService {
                                    .actions(EnumSet.of(ResourceAction.ACCESS))
                                    .build());
          }
+      }
+
+      return builder.build();
+   }
+
+   private ActionTreeNode getWizPermissionsNode(Catalog catalog, boolean isOrgAdmin) {
+      ActionTreeNode.Builder builder = ActionTreeNode.builder()
+         .orgAdmin(isOrgAdmin)
+         .label(catalog.getString("Wiz Permissions"))
+         .folder(true)
+         .actions(EnumSet.noneOf(ResourceAction.class));
+
+      for(String permission : WizPermissions.ALL) {
+         builder.addFilteredChildren(ActionTreeNode.builder()
+                                        .label(permission)
+                                        .resource(permission)
+                                        .folder(false)
+                                        .grant(WizPermissions.isEndUser(permission))
+                                        .type(ResourceType.WIZ_PERMISSION)
+                                        .actions(EnumSet.of(ResourceAction.ACCESS))
+                                        .build());
       }
 
       return builder.build();
@@ -804,6 +828,10 @@ public class ActionPermissionService {
       new Resource(ResourceType.EM_COMPONENT, "settings/general"),
       new Resource(ResourceType.EM_COMPONENT, "settings/presentation/org-settings"),
       new Resource(ResourceType.EM_COMPONENT, "settings/properties"),
+      // Wiz settings are global (not per organization), like the EM settings above
+      new Resource(ResourceType.WIZ_PERMISSION, "config.read"),
+      new Resource(ResourceType.WIZ_PERMISSION, "config.write"),
+      new Resource(ResourceType.WIZ_PERMISSION, "config.write.critical"),
       new Resource(ResourceType.EM_COMPONENT, "settings/security/provider"),
       new Resource(ResourceType.EM_COMPONENT, "settings/security/sso"),
       new Resource(ResourceType.EM_COMPONENT, "settings/security/googleSignIn"),

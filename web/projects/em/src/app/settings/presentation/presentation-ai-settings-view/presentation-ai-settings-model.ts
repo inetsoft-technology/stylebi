@@ -17,6 +17,8 @@
  */
 export interface PresentationAISettingsModel {
    aiAssistantVisible: boolean;
+   wizPortalVisible?: boolean;
+   wizPortalUrl?: string;
    chatAppInternalUrl?: string;
    chatAppServerUrl?: string;
    chatAppTitle?: string;

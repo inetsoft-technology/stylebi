@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
+
 @Value.Immutable
 @JsonSerialize(as = ImmutablePortalModel.class)
 @JsonDeserialize(as = ImmutablePortalModel.class)
@@ -28,6 +30,9 @@ public abstract class PortalModel {
    public abstract CurrentUserModel currentUser();
    public abstract boolean helpVisible();
    public abstract boolean aiAssistantVisible();
+   public abstract boolean wizVisible();
+   @Nullable
+   public abstract String wizUrl();
    public abstract boolean preferencesVisible();
    public abstract boolean logoutVisible();
    public abstract boolean homeVisible();

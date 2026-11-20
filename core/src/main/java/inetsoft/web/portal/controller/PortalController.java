@@ -33,6 +33,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.admin.presentation.AISettingsService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.GlobalParameterProvider;
+import inetsoft.web.portal.WizPortalEntry;
 import inetsoft.web.portal.model.*;
 import inetsoft.web.reportviewer.model.ParameterPageModel;
 import inetsoft.web.security.RequiredPermission;
@@ -116,11 +117,16 @@ public class PortalController {
       boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible() &&
          securityEngine.checkPermission(principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
 
+      boolean wizVisible = WizPortalEntry.isVisible() && securityEngine.checkPermission(
+         principal, ResourceType.WIZ_PERMISSION, "portal.tab.chat", ResourceAction.ACCESS);
+
       return PortalModel.builder()
          .currentUser(getCurrentUser(principal))
          .helpVisible(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON))
          .aiAssistantVisible(aiAssistantVisible)
          .aiAssistantVisible(aiAssistantVisible)
+         .wizVisible(wizVisible)
+         .wizUrl(wizVisible ? WizPortalEntry.getUrl() : null)
          .preferencesVisible(manager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON))
          .logoutVisible(manager.isButtonVisible(PortalThemesManager.LOGOUT_BUTTON))
          .homeLink(homeLink)

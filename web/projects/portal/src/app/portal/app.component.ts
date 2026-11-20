@@ -17,6 +17,7 @@
  */
 
 import { HttpClient } from "@angular/common/http";
+import { AsyncPipe } from "@angular/common";
 import { Component, Inject, OnDestroy, OnInit, DOCUMENT } from "@angular/core";
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
@@ -40,6 +41,7 @@ import { FixedDropdownDirective } from "../widget/fixed-dropdown/fixed-dropdown.
 import { PortalCreationPermissions } from "./custom/portal-creation-permissions";
 import { PreferencesDialog } from "./dialog/preferences-dialog.component";
 import { PortalModel } from "./portal-model";
+import { WizDraggableButtonDirective } from "./wiz-draggable-button.directive";
 import { PortalTab, PortalTabs } from "./portal-tab";
 import { CurrentRouteService } from "./services/current-route.service";
 import { HideNavService } from "./services/hide-nav.service";
@@ -57,13 +59,15 @@ declare const window: any;
 
 @Component({
     imports: [
+    AsyncPipe,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
     AiAssistantPanelComponent,
     FixedDropdownDirective,
     EnterClickDirective,
-    DefaultFocusDirective
+    DefaultFocusDirective,
+    WizDraggableButtonDirective
 ],
     selector: "portal-app",
     templateUrl: "app.component.html",

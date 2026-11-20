@@ -31,7 +31,7 @@
  */
 
 import { vi } from "vitest";
-import { DOCUMENT } from "@angular/common";
+import { AsyncPipe, DOCUMENT } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture } from "@angular/core/testing";
@@ -163,7 +163,7 @@ export async function renderComponent(opts: RenderOpts = {}): Promise<AppCompone
 
    const { fixture } = await render(PortalAppComponent, {
       schemas:            [NO_ERRORS_SCHEMA],
-      componentImports:   [],
+      componentImports:   [AsyncPipe],
       componentProviders: [
          { provide: HttpClient,               useValue: httpMock },
          { provide: AiAssistantService,       useValue: aiAssistantSvc },

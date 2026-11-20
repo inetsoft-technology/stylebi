@@ -50,6 +50,14 @@
               <input matInput [(ngModel)]="model.chatAppLogoUrl" (input)="emitModel()">
               <mat-hint>_#(ai.assistant.logo.url.hint)</mat-hint>
             </mat-form-field>
+            <mat-checkbox [(ngModel)]="model.wizPortalVisible" (change)="emitModel()">
+              _#(wiz.portal.visible)
+            </mat-checkbox>
+            <mat-form-field appearance="outline" color="accent" class="chat-url-field">
+              <mat-label>_#(Wiz Portal URL)</mat-label>
+              <input matInput [(ngModel)]="model.wizPortalUrl" (input)="emitModel()">
+              <mat-hint>_#(wiz.portal.url.hint)</mat-hint>
+            </mat-form-field>
           </div>
         </mat-card-content>
       </mat-card>

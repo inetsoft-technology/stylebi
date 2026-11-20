@@ -23,6 +23,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.security.action.ActionPermissionService;
+import inetsoft.web.wiz.WizPermissions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -332,7 +333,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          // no local user (e.g. an SSO user whose provider sends no roles) has no identity, but
          // must still get the "My Dashboards allowed by default" rule that a principal with at
          // least one role or group gets. Nothing else is granted without an identity.
-         return isDefaultMyDashboardsRead(principal, pId, type, resource, action, orgID);
+         return isDefaultMyDashboardsRead(principal, pId, type, resource, action, orgID) ||
+            isDefaultWizEndUserPermission(principal, pId, type, resource, orgID);
       }
 
       Permission perm = getPermission(type, resource, action, orgID);
@@ -371,7 +373,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             type == ResourceType.CHART_TYPE_FOLDER ||
             type == ResourceType.WORKSHEET_EXPRESSION_COLUMN ||
             type == ResourceType.VIEWSHEET_CALCULATED_FIELD ||
-            type == ResourceType.AI_ASSISTANT)
+            type == ResourceType.AI_ASSISTANT ||
+            type == ResourceType.WIZ_PERMISSION && WizPermissions.isEndUser(resource))
          {
             return true;
          }
@@ -679,6 +682,31 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
 
       Permission perm = getPermission(type, resource, action, orgID);
+      return perm == null || !perm.hasOrgEditedGrantAll(orgID);
+   }
+
+   /**
+    * Default-allow of an end-user WIZ_PERMISSION for a principal with no identity (no roles, no
+    * groups, no local user), mirroring the default applied to principals that have an identity: it
+    * holds only while no permission is configured on the resource. Admin permissions, anonymous
+    * and internal principals stay denied.
+    */
+   private boolean isDefaultWizEndUserPermission(Principal principal, IdentityID pId,
+                                                 ResourceType type, String resource, String orgID)
+   {
+      if(!(principal instanceof SRPrincipal) || pId == null ||
+         XPrincipal.ANONYMOUS.equals(pId.name) ||
+         "true".equals(((SRPrincipal) principal).getProperty("__internal__")) ||
+         type != ResourceType.WIZ_PERMISSION || !WizPermissions.isEndUser(resource))
+      {
+         return false;
+      }
+
+      if(!ActionPermissionService.isOrgAdminAction(type, resource) && SUtil.isMultiTenant()) {
+         return false;
+      }
+
+      Permission perm = getPermission(type, resource, ResourceAction.ACCESS, orgID);
       return perm == null || !perm.hasOrgEditedGrantAll(orgID);
    }
 

@@ -129,6 +129,67 @@ class SSOTokenControllerTest {
          "Unauthenticated requests must be redirected to login with the original URL preserved");
    }
 
+   private boolean isFirstPartyWizCallback(String callback) {
+      return ReflectionTestUtils.invokeMethod(controller, "isFirstPartyWizCallback", callback);
+   }
+
+   @Test
+   void isFirstPartyWizCallback_exactWizCallback_true() {
+      assertTrue(isFirstPartyWizCallback("https://wiz.example.com/api/wiz/auth/callback"));
+      assertTrue(isFirstPartyWizCallback("HTTPS://WIZ.EXAMPLE.COM/api/wiz/auth/callback"));
+   }
+
+   @Test
+   void isFirstPartyWizCallback_nonceQuery_false() {
+      // The OAuth flow binds a nonce here and hands the token to a third party's client, so it
+      // must keep the explicit consent page.
+      assertFalse(isFirstPartyWizCallback(
+         "https://wiz.example.com/api/wiz/auth/callback?nonce=abc"));
+   }
+
+   @Test
+   void isFirstPartyWizCallback_otherAllowedCallbacks_false() {
+      assertFalse(isFirstPartyWizCallback("https://chat.example.com/api/wiz/auth/callback"));
+      assertFalse(isFirstPartyWizCallback("https://stylebi.example.com/api/assistant/proxy/x"));
+      assertFalse(isFirstPartyWizCallback(null));
+   }
+
+   @Test
+   void isFirstPartyWizCallback_noWizServiceConfigured_false() {
+      sreeEnvMock.when(() -> SreeEnv.getProperty(WizPortalController.WIZ_SERVICE_URL))
+         .thenReturn(null);
+      assertFalse(isFirstPartyWizCallback("https://wiz.example.com/api/wiz/auth/callback"));
+   }
+
+   @Test
+   void buildAutoSubmitForm_silent_submitsWithoutConsentPage() {
+      String html = ReflectionTestUtils.invokeMethod(controller, "buildAutoSubmitForm",
+         "https://wiz.example.com/api/wiz/auth/callback", "tok", "/chat", null, true);
+
+      assertTrue(html.contains("<script>document.getElementById(\"sso-form\").submit();</script>"));
+      assertTrue(html.contains("name=\"redirect_url\" value=\"/chat\""));
+      assertFalse(html.contains("An AI agent is requesting access"));
+   }
+
+   @Test
+   void buildAutoSubmitForm_consent_hasNoAutoSubmitScript() {
+      String html = ReflectionTestUtils.invokeMethod(controller, "buildAutoSubmitForm",
+         "https://chat.example.com/api/wiz/auth/callback?nonce=abc", "tok", null, null, false);
+
+      assertFalse(html.contains("<script>"));
+      assertTrue(html.contains("An AI agent is requesting access"));
+   }
+
+   @Test
+   void buildAutoSubmitForm_silent_escapesHtmlInAllFields() {
+      String html = ReflectionTestUtils.invokeMethod(controller, "buildAutoSubmitForm",
+         "https://wiz.example.com/cb\"><b>x</b>", "token\"><b>y</b>", "/r\"><b>z</b>",
+         "csrf\"><b>w</b>", true);
+
+      assertFalse(html.contains("<b>"), "Interpolated values must be HTML-escaped");
+      assertTrue(html.contains("&lt;b&gt;"));
+   }
+
    @Test
    void buildAutoSubmitForm_escapesHtmlInAllFields() {
       String html = ReflectionTestUtils.invokeMethod(controller, "buildAutoSubmitForm",
