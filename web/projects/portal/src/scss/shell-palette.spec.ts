@@ -305,3 +305,59 @@ describe("danger button state label", () => {
          /color:\s*var\(--inet-danger-color-dark\);\s*background-color:\s*var\(--inet-danger-color\);/);
    });
 });
+
+describe("solid, keyboard-only focus ring", () => {
+   const stateTokens = () => declarations(block(variables(), "@mixin inet-shell-state-tokens"));
+   const buttonFocusBlock = () => {
+      const m = read("scss/_bootstrap-override.scss").match(
+         /^\.btn-secondary, \.btn-default, \.btn-primary\s*\{[\s\S]*?^\}/m);
+
+      expect(m).not.toBeNull();
+      return m[0];
+   };
+   const FILLED_RING = "0 0 0 2px var(--inet-focus-ring-gap-color), " +
+      "0 0 0 calc(2px + var(--inet-focus-ring-width)) var(--inet-focus-ring-color)";
+
+   it("is a solid orange in the light shell, and the content value stays at .28", () => {
+      expect(stateTokens().get("--inet-focus-ring-color")).toBe("#B4610F");
+      expect(runtimeTokens().get("--inet-focus-ring-color")).toBe("rgba(217, 122, 26, 0.28)");
+      expect(declarations(block(variables(), CONTENT_RULE)).get("--inet-focus-ring-color"))
+         .toBe("rgba(217, 122, 26, 0.28)");
+   });
+
+   it("is the dark shell's link orange in the dark shell", () => {
+      const dark = declarations(block(read("scss/_shell-dark.scss"), ":root.shell-dark"));
+
+      expect(dark.get("--inet-focus-ring-color")).toBe("#{$dark-link}");
+   });
+
+   it("draws on :focus-visible, not :focus", () => {
+      const css = buttonFocusBlock();
+
+      expect(css).toMatch(/&:focus-visible\s*\{/);
+      expect(css).not.toMatch(/&:focus(?!-visible)/);
+   });
+
+   it("is not drawn by the press rule", () => {
+      const press = read("scss/_bootstrap-override.scss").match(
+         /^\.btn\.btn-primary, \.btn\.btn-secondary, \.btn\.btn-default, \.btn-light, \.btn\.btn-light,\s*\.btn\.btn-danger\s*\{[\s\S]*?^\}/m);
+
+      expect(press).not.toBeNull();
+      expect(press[0]).toMatch(/filter:\s*brightness\(0\.9\)/);
+      expect(press[0]).not.toMatch(/box-shadow/);
+   });
+
+   it("leaves a 2px surface gap inside a filled button, outside dashboard content only", () => {
+      const css = read("scss/_bootstrap-override.scss");
+
+      expect(css).toMatch(
+         /\.btn\.btn-primary#\{\$outside-content\}, \.btn\.btn-danger#\{\$outside-content\} \{\s*&:focus-visible\s*\{\s*box-shadow:\s*0 0 0 2px/);
+      expect(css.replace(/\s+/g, " ")).toContain(FILLED_RING);
+   });
+
+   it("defaults the gap colour to the shell surface for every page", () => {
+      expect(runtimeTokens().get("--inet-focus-ring-gap-color"))
+         .toBe("var(--inet-shell-surface-default)");
+      expect(stateTokens().has("--inet-focus-ring-gap-color")).toBe(false);
+   });
+});

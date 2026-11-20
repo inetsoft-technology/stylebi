@@ -1023,17 +1023,26 @@ a:not([href]) {
 .btn.btn-primary, .btn.btn-secondary, .btn.btn-default, .btn-light, .btn.btn-light,
 .btn.btn-danger
 {
-  // on click
+  // on click: the ring is the keyboard's, so a mouse press draws none
   &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active:focus {
-    box-shadow: var(--inet-focus-ring);
     filter: brightness(0.9);
   }
 }
 
 .btn-secondary, .btn-default, .btn-primary {
-  &:focus {
+  &:focus-visible {
     box-shadow: var(--inet-focus-ring);
     outline: var(--inet-focus-ring-outline);
+  }
+}
+
+// A filled button's ring is set off from the fill by a 2px gap in the surface colour, so the ring
+// doesn't merge with it (in the dark shell a focused primary fills with the ring's own orange).
+// Dashboard content keeps the plain ring above. Not gated on custom-theme: a themed page gets the gap.
+.btn.btn-primary#{$outside-content}, .btn.btn-danger#{$outside-content} {
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--inet-focus-ring-gap-color),
+                0 0 0 calc(2px + var(--inet-focus-ring-width)) var(--inet-focus-ring-color);
   }
 }
 

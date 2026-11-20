@@ -674,6 +674,8 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
   --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
   --inet-focus-ring-outline: none;
+  // the surface a filled button's ring is set off from it by; a surface container re-declares it
+  --inet-focus-ring-gap-color: var(--inet-shell-surface-default);
 
   // transient surfaces
   --inet-splash-bg: var(--inet-dialog-bg-color);
@@ -686,6 +688,10 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
 // tokens are declared on the same :root by inet-runtime-tokens, so they resolve with the shell
 // value. The runtime tokens keep the content values, which dashboard content re-declares below.
 @mixin inet-shell-state-tokens {
+  // a solid keyboard-focus ring: 3:1 or better on every shell surface (white 4.51, beige 3.92,
+  // selected 3.21) (D2). Dashboard content re-declares the .28 ring below.
+  --inet-focus-ring-color: #B4610F;
+
   // white label on this fill is 5.98:1 (D1)
   --inet-danger-hover-bg-color: #B03A3A;
 }
