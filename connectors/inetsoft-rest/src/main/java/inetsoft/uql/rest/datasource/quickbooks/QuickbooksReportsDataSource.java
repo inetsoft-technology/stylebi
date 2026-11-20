@@ -119,7 +119,11 @@ public class QuickbooksReportsDataSource
    @Override
    public void writeContents(PrintWriter writer) {
       super.writeContents(writer);
-      writer.println("<companyId><![CDATA[" + companyId + "]]></companyId>");
+
+      if(companyId != null) {
+         writer.println("<companyId><![CDATA[" + companyId + "]]></companyId>");
+      }
+
       writer.println("<production><![CDATA[" + production + "]]></production>");
    }
 
