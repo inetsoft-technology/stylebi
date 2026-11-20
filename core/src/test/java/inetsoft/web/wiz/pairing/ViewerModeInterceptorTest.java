@@ -258,6 +258,115 @@ class ViewerModeInterceptorTest {
       return request;
    }
 
+   // ---- raw dialog models (review r2 R2-1) ---------------------------------------------------
+
+   static Stream<Arguments> rawTrueSpellings() {
+      Stream.Builder<Arguments> b = Stream.builder();
+
+      for(String route : new String[] { VS + "/properties", VS + "/vs-properties" }) {
+         for(String v : new String[] { "true", "TRUE", "True", "on", "ON", "yes", "Yes", "1",
+                                       " true ", "false,true" })
+         {
+            b.add(Arguments.of(route, v));
+         }
+      }
+
+      return b.build();
+   }
+
+   private boolean callWithRaw(String pattern, String token, Principal user,
+                               MockHttpServletResponse response, String... raw) throws Exception
+   {
+      MockHttpServletRequest request = new MockHttpServletRequest("GET", "/x");
+      request.setAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE,
+                           Map.of("sessionToken", token));
+      request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, pattern);
+      request.setUserPrincipal(user);
+
+      if(raw.length > 0) {
+         request.setParameter("raw", raw);
+      }
+
+      return interceptor.preHandle(request, response, new Object());
+   }
+
+   @ParameterizedTest
+   @MethodSource("rawTrueSpellings")
+   void aViewerSessionIsRefusedRawTrueInEverySpellingAndTheControllerDoesNotRun(
+      String pattern, String value) throws Exception
+   {
+      String token = open(JoinSession.ConnectionMode.VIEWER).sessionToken();
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      assertFalse(callWithRaw(pattern, token, ALICE_P, response, value));
+
+      assertEquals(403, response.getStatus());
+      JsonNode body = JSON.readTree(response.getContentAsString());
+      assertEquals("VIEWER_MODE", body.get("errorCode").asText());
+      assertEquals(ViewerModePolicy.RAW_REFUSAL, body.get("error").asText());
+   }
+
+   @Test
+   void aRepeatedRawParameterIsRefusedWhenAnyValueIsTrue() throws Exception {
+      String token = open(JoinSession.ConnectionMode.VIEWER).sessionToken();
+
+      assertFalse(callWithRaw(VS + "/properties", token, ALICE_P, new MockHttpServletResponse(),
+                              "false", "true"));
+      assertFalse(callWithRaw(VS + "/vs-properties", token, ALICE_P, new MockHttpServletResponse(),
+                              "0", "on"));
+   }
+
+   @Test
+   void aViewerSessionMayStillReadThePropertiesWithRawAbsentOrFalse() throws Exception {
+      String token = open(JoinSession.ConnectionMode.VIEWER).sessionToken();
+
+      for(String route : new String[] { VS + "/properties", VS + "/vs-properties" }) {
+         assertTrue(callWithRaw(route, token, ALICE_P, new MockHttpServletResponse()));
+
+         for(String v : new String[] { "false", "FALSE", "off", "no", "0", "" }) {
+            assertTrue(callWithRaw(route, token, ALICE_P, new MockHttpServletResponse(), v), v);
+         }
+      }
+
+      // other allow-listed reads are not touched by a raw parameter
+      assertTrue(callWithRaw(VS + "/model", token, ALICE_P, new MockHttpServletResponse(), "true"));
+      assertTrue(callWithRaw(VS + "/properties/list", token, ALICE_P,
+                             new MockHttpServletResponse(), "true"));
+   }
+
+   @Test
+   void aDesignSessionMayUseRaw() throws Exception {
+      String token = open(JoinSession.ConnectionMode.PAIRED).sessionToken();
+      RuntimeViewsheet composer = mock(RuntimeViewsheet.class);
+      when(composer.isViewer()).thenReturn(false);
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.VIEWSHEET, "vs-1")).thenReturn(composer);
+
+      for(String route : new String[] { VS + "/properties", VS + "/vs-properties" }) {
+         assertTrue(callWithRaw(route, token, ALICE_P, new MockHttpServletResponse(), "true"));
+      }
+   }
+
+   @Test
+   void aPairedStampOnALiveViewerRuntimeIsRefusedRawToo() throws Exception {
+      String token = open(JoinSession.ConnectionMode.PAIRED).sessionToken();
+      RuntimeViewsheet viewer = mock(RuntimeViewsheet.class);
+      when(viewer.isViewer()).thenReturn(true);
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.VIEWSHEET, "vs-1")).thenReturn(viewer);
+
+      assertFalse(callWithRaw(VS + "/properties", token, ALICE_P, new MockHttpServletResponse(),
+                              "true"));
+   }
+
+   @Test
+   void rawTrueFromAnUnknownOrForeignCallerPassesThroughForTheControllerToAnswer() throws Exception {
+      String token = open(JoinSession.ConnectionMode.VIEWER).sessionToken();
+
+      assertTrue(callWithRaw(VS + "/properties", "NOSUCH", ALICE_P, new MockHttpServletResponse(),
+                             "true"));
+      assertTrue(callWithRaw(VS + "/properties", token, TestPrincipals.user("bob", "host-org"),
+                             new MockHttpServletResponse(), "true"));
+   }
+
    private JoinSession open(JoinSession.ConnectionMode mode) {
       return sessions.open("vs-1", ALICE, SheetType.VIEWSHEET, "sock-1", "alice", null, mode);
    }

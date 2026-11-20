@@ -20,6 +20,7 @@ package inetsoft.web.wiz.pairing;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -79,6 +80,53 @@ public final class ViewerModePolicy {
       // the plugin's liveness probe for every viewsheet session; read-only (runtime id, type, scope)
       new Route("GET", "/api/wiz/v1/agent/script/{sessionToken}/session"),
       new Route("POST", "/api/wiz/v1/agent/sheet/{sessionToken}/keep-alive"));
+
+   /**
+    * Allow-listed routes that nonetheless have a parameter a viewer session may not use: the
+    * {@code raw} flag of the two property getters returns the unfiltered dialog model, which
+    * carries the assembly's script text, click scripts and data bindings -- the design detail the
+    * class-R allow-list promises a view-only user does not get. Route pattern to the parameter
+    * names that must not be true. A new allow-listed route that takes a flag like this must be
+    * declared here ({@code ViewerModePolicyClassificationTest} fails otherwise).
+    */
+   public static final Map<Route, Set<String>> RESTRICTED_FLAGS = Map.of(
+      new Route("GET", VS + "/properties"), Set.of("raw"),
+      new Route("GET", VS + "/vs-properties"), Set.of("raw"));
+
+   /** What a viewer session is told when it asks for a raw dialog model. */
+   public static final String RAW_REFUSAL =
+      "This session is paired to a dashboard open in the portal Viewer. Raw dialog models (raw=true) " +
+      "include script text and data bindings and are not available in viewer mode; the " +
+      "alias-keyed property values are. Nothing was changed. To see the full model, open the " +
+      "dashboard in the Composer and pair from there.";
+
+   /**
+    * Whether {@code values} (every value the request supplied for one parameter) would bind to
+    * boolean {@code true} the way Spring's {@code StringToBooleanConverter} does: true, on, yes, 1
+    * in any case, with surrounding blanks trimmed. A comma-joined value is judged per part, so no
+    * spelling that any binding path could turn into true gets through.
+    */
+   public static boolean bindsToTrue(String[] values) {
+      if(values == null) {
+         return false;
+      }
+
+      for(String value : values) {
+         if(value == null) {
+            continue;
+         }
+
+         for(String part : value.split(",", -1)) {
+            String v = part.trim().toLowerCase(java.util.Locale.ROOT);
+
+            if(v.equals("true") || v.equals("on") || v.equals("yes") || v.equals("1")) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
 
    /** Prefix every gated route lives under. */
    public static final String AGENT_PREFIX = "/api/wiz/v1/agent/";

@@ -141,6 +141,114 @@ class ViewerModePolicyClassificationTest {
       }
    }
 
+   /** Boolean parameters of allow-listed routes that are NOT restricted, each one reviewed: none
+    *  returns design detail. export's flags only shape the exported file. */
+   private static final Map<String, Set<String>> BENIGN_BOOLEANS = Map.of(
+      "GET /api/wiz/v1/agent/viewsheet/{sessionToken}/export",
+      Set.of("match", "expandSelections", "current", "onlyDataComponents",
+             "exportAllTabbedTables", "keepHeader", "tabDelimited"));
+
+   /**
+    * A future allow-listed route with a boolean (raw-style) request parameter fails here until the
+    * author either restricts it for viewer sessions (ViewerModePolicy.RESTRICTED_FLAGS) or lists it
+    * as benign above after checking it returns no design detail.
+    */
+   @Test
+   void everyBooleanParameterOfAnAllowListedRouteIsRestrictedOrReviewedBenign() throws Exception {
+      Map<String, Method> handlers = scanHandlers();
+
+      for(ViewerModePolicy.Route r : ViewerModePolicy.ALLOWED) {
+         String key = r.method() + " " + r.pattern();
+         Method m = handlers.get(key);
+         assertNotNull(m, key);
+         Set<String> booleans = new TreeSet<>();
+
+         for(java.lang.reflect.Parameter p : m.getParameters()) {
+            RequestParam rp = p.getAnnotation(RequestParam.class);
+
+            if(rp != null && (p.getType() == boolean.class || p.getType() == Boolean.class ||
+                              "raw".equalsIgnoreCase(paramName(p, rp))))
+            {
+               booleans.add(paramName(p, rp));
+            }
+         }
+
+         Set<String> accounted = new TreeSet<>(
+            ViewerModePolicy.RESTRICTED_FLAGS.getOrDefault(r, Set.of()));
+         accounted.addAll(BENIGN_BOOLEANS.getOrDefault(key, Set.of()));
+         assertEquals(accounted, booleans, "unaccounted boolean/raw parameter on " + key);
+      }
+
+      for(ViewerModePolicy.Route restricted : ViewerModePolicy.RESTRICTED_FLAGS.keySet()) {
+         assertTrue(ViewerModePolicy.ALLOWED.contains(restricted), "restricting a denied route");
+      }
+   }
+
+   @Test
+   void theRawFlagOfBothPropertyGettersIsRestricted() {
+      String vs = "/api/wiz/v1/agent/viewsheet/{sessionToken}";
+
+      assertEquals(Set.of("raw"), ViewerModePolicy.RESTRICTED_FLAGS.get(
+         new ViewerModePolicy.Route("GET", vs + "/properties")));
+      assertEquals(Set.of("raw"), ViewerModePolicy.RESTRICTED_FLAGS.get(
+         new ViewerModePolicy.Route("GET", vs + "/vs-properties")));
+   }
+
+   /** The refusal must cover every spelling Spring would bind to true. */
+   @Test
+   void bindsToTrueAgreesWithSpringsBooleanConversion() {
+      org.springframework.core.convert.support.DefaultConversionService conversion =
+         new org.springframework.core.convert.support.DefaultConversionService();
+
+      for(String s : new String[] { "true", "TRUE", "True", "on", "ON", "yes", "Yes", "1", " true ",
+                                    "false", "off", "no", "0", "", "2", "t", "y", "truee", "tru" })
+      {
+         Boolean bound;
+
+         try {
+            bound = conversion.convert(s, Boolean.class);
+         }
+         catch(Exception ex) {
+            bound = null;   // a 400 in Spring, never true
+         }
+
+         assertEquals(Boolean.TRUE.equals(bound), ViewerModePolicy.bindsToTrue(new String[] { s }),
+                      "spelling [" + s + "]");
+      }
+
+      assertTrue(ViewerModePolicy.bindsToTrue(new String[] { "false", "true" }));
+      assertTrue(ViewerModePolicy.bindsToTrue(new String[] { "false,true" }));
+      assertFalse(ViewerModePolicy.bindsToTrue(null));
+      assertFalse(ViewerModePolicy.bindsToTrue(new String[0]));
+   }
+
+   private static String paramName(java.lang.reflect.Parameter p, RequestParam rp) {
+      String n = !rp.name().isEmpty() ? rp.name() : !rp.value().isEmpty() ? rp.value() : p.getName();
+      assertFalse(n.startsWith("arg"), "compile with -parameters or name the @RequestParam: " + n);
+      return n;
+   }
+
+   private static Map<String, Method> scanHandlers() throws Exception {
+      ClassPathScanningCandidateComponentProvider scanner =
+         new ClassPathScanningCandidateComponentProvider(false);
+      scanner.addIncludeFilter(new AnnotationTypeFilter(RestController.class));
+      Map<String, Method> out = new TreeMap<>();
+
+      for(BeanDefinition def : scanner.findCandidateComponents("inetsoft.web.wiz")) {
+         Class<?> type = Class.forName(def.getBeanClassName());
+
+         for(Method m : type.getDeclaredMethods()) {
+            for(String[] mp : mappings(m)) {
+               for(String path : mp[0].split("\\|")) {
+                  out.put(mp[1] + " " + path, m);
+               }
+            }
+         }
+      }
+
+      return out;
+   }
+
    // ---------------------------------------------------------------------------------------
 
    private static Map<String, String> readClassification() throws Exception {

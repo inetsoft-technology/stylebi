@@ -80,9 +80,17 @@ public class ViewerModeInterceptor implements HandlerInterceptor {
 
       Object pattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
 
+      String refusal = ViewerModePolicy.REFUSAL;
+
       if(pattern != null && ViewerModePolicy.isAllowed(request.getMethod(), pattern.toString())) {
-         // On the allow-list: a viewer may call it and a design session always may.
-         return true;
+         // On the allow-list: a viewer may call it and a design session always may -- except for
+         // a restricted flag (raw=true returns the unfiltered dialog model), which only a design
+         // session may use.
+         if(!usesRestrictedFlag(request, pattern.toString())) {
+            return true;
+         }
+
+         refusal = ViewerModePolicy.RAW_REFUSAL;
       }
 
       Principal user = request.getUserPrincipal();
@@ -100,13 +108,33 @@ public class ViewerModeInterceptor implements HandlerInterceptor {
       LOG.info("Viewer-mode session refused (method={}, route={}, runtimeId={}, agent={})",
                request.getMethod(), pattern, session.runtimeId(), PairingUtil.label(user));
       Map<String, String> body = new LinkedHashMap<>();
-      body.put("error", ViewerModePolicy.REFUSAL);
+      body.put("error", refusal);
       body.put("errorCode", ViewerModePolicy.ERROR_CODE);
       response.setStatus(HttpStatus.FORBIDDEN.value());
       response.setContentType(MediaType.APPLICATION_JSON_VALUE);
       response.setCharacterEncoding(StandardCharsets.UTF_8.name());
       response.getWriter().write(MAPPER.writeValueAsString(body));
       response.getWriter().flush();
+      return false;
+   }
+
+   /** Whether the request sets, to a value that binds to true, a flag this route restricts. */
+   private static boolean usesRestrictedFlag(HttpServletRequest request, String pattern) {
+      java.util.Set<String> flags = ViewerModePolicy.RESTRICTED_FLAGS.get(
+         new ViewerModePolicy.Route(
+            "HEAD".equalsIgnoreCase(request.getMethod()) ? "GET"
+               : request.getMethod().toUpperCase(java.util.Locale.ROOT), pattern));
+
+      if(flags == null) {
+         return false;
+      }
+
+      for(String flag : flags) {
+         if(ViewerModePolicy.bindsToTrue(request.getParameterValues(flag))) {
+            return true;
+         }
+      }
+
       return false;
    }
 
