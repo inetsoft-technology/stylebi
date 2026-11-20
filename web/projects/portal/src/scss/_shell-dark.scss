@@ -18,7 +18,8 @@
 @use 'sass:color';
 
 // $dashboard-content, $content-popup, $annotation-tooltip and $outside-content (the content
-// boundary) live in _variables.scss, so light-shell rules can stay out of dashboard content too.
+// boundary), and $viz-scopes, live in _variables.scss, so light-shell rules can stay out of
+// dashboard content too.
 
 // The popups the shell resets to light: a dark-marked calendar is left out, it follows its mark (see
 // the .dropdown-datepicker.viz-dark block at the end of this file). Same specificity as the others.
@@ -644,7 +645,7 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
 // resolves them dark. Content re-derives them from its restored light tokens, unless a viz scope on
 // the content root or any ancestor already declares its own (.viz-shell / .viz-shell-dark on body
 // for the org, .viz-modern / .viz-dark on a marked assembly such as the chart editor preview).
-$viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-theme=\"v2\"]";
+// $viz-scopes lives in _variables.scss.
 :root.shell-dark :is(#{$dashboard-content}, #{$content-popup-light}):not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *) {
   @include inet-viz-legacy-state-tokens;
 }

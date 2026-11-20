@@ -55,6 +55,12 @@ const declarations = (css: string): Map<string, string> => {
 
 const variables = () => read("scss/_variables.scss");
 const runtimeTokens = () => declarations(block(variables(), "@mixin inet-runtime-tokens"));
+// every token set emitted on :root: the runtime tokens, the Bootstrap bridge and the legacy viz state
+const rootTokens = () => new Map([
+   ...runtimeTokens(),
+   ...declarations(block(read("scss/_bootstrap-override.scss"), "@mixin inet-bootstrap-bridge")),
+   ...declarations(block(read("scss/_viz-tokens.scss"), "@mixin inet-viz-legacy-state-tokens")),
+]);
 
 // the base tokens PR7 gives a shell-only value, and every runtime token that derives from them
 const PR7_BASE_TOKENS = [
@@ -86,10 +92,26 @@ const PR7_CHAIN = [
    "--inet-button-default-hover-bg-color",
    "--inet-button-light-hover-bg-color",
 ];
+// the same chain in the Bootstrap bridge (_bootstrap-override.scss), also declared on :root
+const BRIDGE_CHAIN = [
+   "--bs-secondary-color",
+   "--bs-dropdown-link-hover-bg",
+   "--bs-list-group-action-hover-bg",
+   "--bs-list-group-active-bg",
+];
+// and in the legacy viz state tokens (_viz-tokens.scss), which a viz scope replaces
+const VIZ_CHAIN = [
+   "--inet-viz-selected-bg",
+   "--inet-viz-sorted-color",
+];
+const CONTENT_CHAIN = [...PR7_CHAIN, ...BRIDGE_CHAIN];
 
 const CONTENT_RULE = ":where(:root:not(.custom-theme)) " +
    ":where(#{$dashboard-content}, #{$content-popup}, #{$annotation-tooltip})" +
    ":where(:not(.dropdown-datepicker.viz-dark))";
+const VIZ_RULE = ":where(:root:not(.custom-theme)) " +
+   ":where(#{$dashboard-content}, #{$content-popup}, #{$annotation-tooltip})" +
+   ":where(:not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *))";
 
 describe("shell-only state tokens", () => {
    it("are a mixin of their own", () => {
@@ -123,8 +145,8 @@ describe("light dashboard content", () => {
       expect(read("scss/_shell-dark.scss")).not.toMatch(/^\$annotation-tooltip:/m);
    });
 
-   it("lists every runtime token that derives from a PR7 base token", () => {
-      const tokens = runtimeTokens();
+   it("lists every :root token that derives from a PR7 base token", () => {
+      const tokens = rootTokens();
       const chain = new Set(PR7_BASE_TOKENS);
       let grew = true;
 
@@ -141,14 +163,14 @@ describe("light dashboard content", () => {
          }
       }
 
-      expect([...chain].sort()).toEqual([...PR7_CHAIN].sort());
+      expect([...chain].sort()).toEqual([...CONTENT_CHAIN, ...VIZ_CHAIN].sort());
    });
 
-   it("re-declares the PR7 chain with the runtime tokens' own expressions", () => {
-      const tokens = runtimeTokens();
+   it("re-declares the PR7 chain with the :root tokens' own expressions", () => {
+      const tokens = rootTokens();
       const declared = declarations(contentRule());
 
-      for(const name of PR7_CHAIN) {
+      for(const name of CONTENT_CHAIN) {
          expect(declared.get(name), name).toBe(tokens.get(name));
       }
    });
@@ -156,7 +178,7 @@ describe("light dashboard content", () => {
    it("re-declares only the PR7 chain, never the whole runtime token set", () => {
       const css = contentRule();
 
-      expect([...declarations(css).keys()].sort()).toEqual([...PR7_CHAIN].sort());
+      expect([...declarations(css).keys()].sort()).toEqual([...CONTENT_CHAIN].sort());
       expect(css).not.toMatch(/@include inet-runtime-tokens/);
    });
 
@@ -169,6 +191,22 @@ describe("light dashboard content", () => {
       expect(contentRule()).toContain(CONTENT_RULE);
       expect(CONTENT_RULE).toMatch(/^:where\(:root:not\(\.custom-theme\)\) /);
       expect(CONTENT_RULE).toMatch(/:where\(:not\(\.dropdown-datepicker\.viz-dark\)\)$/);
+   });
+
+   it("re-declares the legacy viz state chain outside viz scopes only, which set their own", () => {
+      const tokens = rootTokens();
+      const declared = declarations(block(variables(), VIZ_RULE));
+
+      expect([...declared.keys()].sort()).toEqual([...VIZ_CHAIN].sort());
+
+      for(const name of VIZ_CHAIN) {
+         expect(declared.get(name), name).toBe(tokens.get(name));
+      }
+   });
+
+   it("has $viz-scopes in _variables.scss, shared with the dark shell's legacy viz rule", () => {
+      expect(variables()).toMatch(/^\$viz-scopes:\s*"\.viz-modern, \.viz-dark, \.viz-shell, \.viz-shell-dark, \[data-viz-theme=\\"v2\\"\]";/m);
+      expect(read("scss/_shell-dark.scss")).not.toMatch(/^\$viz-scopes:/m);
    });
 });
 

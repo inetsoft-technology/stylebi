@@ -295,6 +295,9 @@ $content-popup: ".vs-combo-box__list, .dropdown-datepicker";
 // (a new annotation's text is written inline black). So they compute exactly as in a light shell,
 // with the light tokens, in either shell and for any assembly mark.
 $annotation-tooltip: ".hidden__annotation-tooltip, .vs-annotation__tooltip";
+// The viz scopes, each declaring its own legacy viz state tokens (_viz-tokens.scss): .viz-shell /
+// .viz-shell-dark on body for the org, .viz-modern / .viz-dark on a marked assembly.
+$viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-theme=\"v2\"]";
 // Matches an element outside dashboard content without adding specificity, for shell rules that
 // would otherwise also reach the content.
 $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))";
@@ -733,6 +736,20 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   --inet-button-secondary-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
   --inet-button-default-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
   --inet-button-light-hover-bg-color: var(--inet-shell-surface-hover);
+
+  // the Bootstrap bridge, also declared on :root (_bootstrap-override.scss)
+  --bs-secondary-color: var(--inet-text-muted-color);
+  --bs-dropdown-link-hover-bg: var(--inet-hover-primary-bg-color);
+  --bs-list-group-action-hover-bg: var(--inet-ui-neutral-hover-bg-color);
+  --bs-list-group-active-bg: var(--inet-shell-selected-bg-color);
+}
+
+// The legacy viz state tokens in the same chain (_viz-tokens.scss), declared on :root too. A viz
+// scope on the content root or an ancestor declares its own, so only content outside every viz
+// scope takes these, as in the dark shell's legacy viz rule.
+:where(:root:not(.custom-theme)) :where(#{$dashboard-content}, #{$content-popup}, #{$annotation-tooltip}):where(:not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *)) {
+  --inet-viz-selected-bg: var(--inet-shell-selected-bg-color);
+  --inet-viz-sorted-color: var(--inet-text-muted-color);
 }
 
 // Adaptive label colour: only where relative color syntax is supported (Chrome 119+, Safari 16.4+,
