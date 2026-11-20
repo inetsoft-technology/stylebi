@@ -626,15 +626,7 @@ public class WorksheetTableService {
 
       // 6. Ranking / top-N.
       if(request.getRankingCondition() != null && !request.getRankingCondition().isEmpty()) {
-         if(hasRankingOf(request.getRankingCondition())) {
-            applyNestedRankings(table, request.getRankingCondition());
-         }
-         else {
-            ConditionList rankList = buildRankingConditionList(
-               table.getColumnSelection(true), request.getRankingCondition(),
-               table.getColumnSelection(false));
-            table.setRankingConditionList(rankList);
-         }
+         applyRankingCondition(table, request.getRankingCondition());
       }
 
       // 7. Persist any synthetic date-part column(s) that a condition/ranking dateGroupLevel
@@ -2860,6 +2852,24 @@ public class WorksheetTableService {
       }
 
       return list;
+   }
+
+   /**
+    * Applies a request's ranking condition. A lone leaf without {@code of} is the classic "rank
+    * this column by itself" shape. Anything else, a leaf with {@code of} or two or more leaves, goes
+    * through {@link #applyNestedRankings} and the shared evaluability guard: the engine applies only
+    * one of several independent rankings, so a list it would silently ignore is refused, naming
+    * {@code rankingCondition}, rather than stored.
+    */
+   void applyRankingCondition(TableAssembly table, List<WorksheetTable.ConditionItem> items) {
+      if(hasRankingOf(items) || items.size() >= 2) {
+         applyNestedRankings(table, items);
+      }
+      else {
+         ConditionList rankList = buildRankingConditionList(
+            table.getColumnSelection(true), items, table.getColumnSelection(false));
+         table.setRankingConditionList(rankList);
+      }
    }
 
    // Package-private for unit testing (WorksheetTableServiceConditionTest).
