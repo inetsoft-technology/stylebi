@@ -150,7 +150,7 @@ public class TwitterDataSource extends OAuthEndpointJsonDataSource<TwitterDataSo
    @Override
    public void updateTokens(Tokens tokens) {
       setAccessToken(tokens.accessToken());
-      setRefreshToken(tokens.refreshToken());
+      applyRefreshToken(tokens.refreshToken());
       long now = System.currentTimeMillis();
       long expiration = tokens.expiration();
 
