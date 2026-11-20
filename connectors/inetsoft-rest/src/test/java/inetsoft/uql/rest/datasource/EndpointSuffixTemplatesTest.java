@@ -58,7 +58,22 @@ class EndpointSuffixTemplatesTest {
       { "pipedrive", "Deal Timeline" },
       { "quickbooks", "Transaction List By Vendor" },
       { "servicenow", "Aggregate Statistics" },
-      { "servicenow", "Service Catalog Items" }
+      { "servicenow", "Service Catalog Items" },
+      { "pipelinecrm", "Company Custom Label Entries" },
+      { "pipelinecrm", "Deal Custom Groups" },
+      { "pipelinecrm", "Deal Custom Labels" },
+      { "pipelinecrm", "Deal Loss Reasons" },
+      { "pipelinecrm", "Deal Stages" },
+      { "pipelinecrm", "Documents Tags" },
+      { "pipelinecrm", "Event Categories" },
+      { "pipelinecrm", "Lead Sources" },
+      { "pipelinecrm", "Lead Statuses" },
+      { "pipelinecrm", "Note Categories" },
+      { "pipelinecrm", "Notes" },
+      { "pipelinecrm", "Person Custom Groups" },
+      { "pipelinecrm", "Person Custom Labels" },
+      { "pipelinecrm", "Predefined Contact Tags" },
+      { "pipelinecrm", "Users" }
    };
 
    @Test
@@ -77,7 +92,9 @@ class EndpointSuffixTemplatesTest {
          String bare = raw.replaceAll("[{][^}]*[}]", "V");
 
          if(bare.contains("?&") || bare.contains("&&") || bare.contains("//") ||
-            bare.contains(" ") || bare.chars().filter(c -> c == '?').count() > 1)
+            bare.contains(" ") ||
+            java.util.regex.Pattern.compile("\\s").matcher(bare).find() ||
+            bare.chars().filter(c -> c == '?').count() > 1)
          {
             problems.add(where + ": malformed template " + raw);
          }

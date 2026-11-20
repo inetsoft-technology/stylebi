@@ -13,7 +13,7 @@
     {
       "name": "Notes",
       "paged": true,
-      "suffix": "/v3/notes.json?deal_id={Deal ID?}&person_id={Person ID?}&company_id={Company ID?}&\nsearch_id={Search ID?}&conditions[activity_modified][from_date={Activity Modified From?:YYYY-MM-DD}&conditions[activity_modified][to_date]={Activity Modified To?:YYYY-MM-DD}",
+      "suffix": "/v3/notes.json?deal_id={Deal ID?}&person_id={Person ID?}&company_id={Company ID?}&search_id={Search ID?}&conditions[activity_modified][from_date={Activity Modified From?:YYYY-MM-DD}&conditions[activity_modified][to_date]={Activity Modified To?:YYYY-MM-DD}",
       "lookups": [
         {
           "endpoint": "Comments",
@@ -295,7 +295,7 @@
     {
       "name": "Company Custom Label Entries",
       "paged": true,
-      "suffix": "/v3/admin/custom_field_label_dropdown_entries.json?conditions[custom_field_label_dropdown_entry_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[custom_field_label_dropdown_entry_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[custom_field_label_dropdown_entry_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/custom_field_label_dropdown_entries.json?conditions[custom_field_label_dropdown_entry_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Company Custom Label Entry",
@@ -305,7 +305,7 @@
     {
       "name": "Deal Custom Groups",
       "paged": true,
-      "suffix": "/v3/admin/deal_custom_field_groups.json?conditions[deal_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/deal_custom_field_groups.json?conditions[deal_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Deal Custom Group",
@@ -315,7 +315,7 @@
     {
       "name": "Deal Custom Labels",
       "paged": false,
-      "suffix": "/v3/admin/deal_custom_field_labels.json?conditions[deal_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/deal_custom_field_labels.json?conditions[deal_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Deal Custom Label",
@@ -325,7 +325,7 @@
     {
       "name": "Deal Loss Reasons",
       "paged": true,
-      "suffix": "/v3/admin/deal_loss_reasons.json?conditions[deal_loss_reason_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_loss_reason_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_loss_reason_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/deal_loss_reasons.json?conditions[deal_loss_reason_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Deal Loss Reason",
@@ -335,7 +335,7 @@
     {
       "name": "Deal Stages",
       "paged": true,
-      "suffix": "/v3/admin/deal_stages.json?conditions[deal_stage_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_stage_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_stage_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/deal_stages.json?conditions[deal_stage_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Deal Stage",
@@ -345,7 +345,7 @@
     {
       "name": "Documents Tags",
       "paged": true,
-      "suffix": "/v3/admin/document_tags.json?conditions[document_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[document_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[document_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/document_tags.json?conditions[document_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Document Tag",
@@ -355,7 +355,7 @@
     {
       "name": "Event Categories",
       "paged": true,
-      "suffix": "/v3/admin/event_categories.json?conditions[event_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[event_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[event_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/event_categories.json?conditions[event_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Event Category",
@@ -365,7 +365,7 @@
     {
       "name": "Lead Sources",
       "paged": true,
-      "suffix": "/v3/admin/lead_sources.json?conditions[lead_source_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_source_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_source_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/lead_sources.json?conditions[lead_source_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Lead Source",
@@ -375,7 +375,7 @@
     {
       "name": "Lead Statuses",
       "paged": true,
-      "suffix": "/v3/admin/lead_statuses.json?conditions[lead_status_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_status_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_status_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/lead_statuses.json?conditions[lead_status_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Lead Status",
@@ -385,7 +385,7 @@
     {
       "name": "Note Categories",
       "paged": true,
-      "suffix": "/v3/admin/note_categories.json?conditions[note_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[note_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[note_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/note_categories.json?conditions[note_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Note Category",
@@ -395,7 +395,7 @@
     {
       "name": "Person Custom Groups",
       "paged": true,
-      "suffix": "/v3/admin/person_custom_field_groups.json?conditions[person_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/person_custom_field_groups.json?conditions[person_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Person Custom Group",
@@ -405,7 +405,7 @@
     {
       "name": "Person Custom Labels",
       "paged": true,
-      "suffix": "/v3/admin/person_custom_field_labels.json?conditions[person_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/person_custom_field_labels.json?conditions[person_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Person Custom Label",
@@ -415,7 +415,7 @@
     {
       "name": "Predefined Contact Tags",
       "paged": true,
-      "suffix": "/v3/admin/predefined_contacts_tags.json?conditions[predefined_contacts_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[predefined_contacts_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[predefined_contacts_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+      "suffix": "/v3/admin/predefined_contacts_tags.json?conditions[predefined_contacts_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Predefined Contact Tag",
@@ -455,7 +455,7 @@
     {
       "name": "Users",
       "paged": true,
-      "suffix": "/v3/users.json?conditions[email]={Email Address?}&\nconditions[admin]={Admin?:true|false}&conditions[including_inactive]={Including Inactive?:true|false}&conditions[user_level]={User Level?}"
+      "suffix": "/v3/users.json?conditions[email]={Email Address?}&conditions[admin]={Admin?:true|false}&conditions[including_inactive]={Including Inactive?:true|false}&conditions[user_level]={User Level?}"
     },
     {
       "name": "User",
