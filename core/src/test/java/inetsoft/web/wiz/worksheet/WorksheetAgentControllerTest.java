@@ -11371,6 +11371,14 @@ class WorksheetAgentControllerTest {
                                          boolean runCompleted)
       throws Exception
    {
+      return addTableRefusalMessage(token, req, shape, referenced, sandbox, runCompleted, null);
+   }
+
+   private String addTableRefusalMessage(String token, EditRequest req, Object shape,
+                                         List<String> referenced, VariableTable sandbox,
+                                         boolean runCompleted, String connectorMessage)
+      throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService editSvc = mock(WorksheetEditService.class);
       DataSourceService dataSourceService = mock(DataSourceService.class);
@@ -11394,6 +11402,10 @@ class WorksheetAgentControllerTest {
       }
 
       query.setRunCompleted(runCompleted);
+
+      if(connectorMessage != null) {
+         query.reportUserMessage(connectorMessage);
+      }
 
       Worksheet ws = new Worksheet();
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
@@ -11521,6 +11533,13 @@ class WorksheetAgentControllerTest {
    private String editTableRefusalMessage(String token, Object shape, List<String> referenced,
                                           VariableTable sandbox) throws Exception
    {
+      return editTableRefusalMessage(token, shape, referenced, sandbox, null);
+   }
+
+   private String editTableRefusalMessage(String token, Object shape, List<String> referenced,
+                                          VariableTable sandbox, String connectorMessage)
+      throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
       FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
@@ -11529,6 +11548,10 @@ class WorksheetAgentControllerTest {
 
       if(shape != null) {
          liveQuery.reportResponseShape(shape, false);
+      }
+
+      if(connectorMessage != null) {
+         liveQuery.reportUserMessage(connectorMessage);
       }
 
       JDBCDataSource ds = mock(JDBCDataSource.class);
@@ -11595,6 +11618,106 @@ class WorksheetAgentControllerTest {
    @Test
    void editTableWithoutAShapeKeepsTheGenericAdvice() throws Exception {
       assertGenericRefusal(editTableRefusalMessage("TOK-ZR6", null));
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #81825: a connector that recorded why its request failed (Datagov 404, a response that
+   // is not the rows.json shape, ...) must have that cause in the refusal instead of the generic
+   // "check datasource credentials" advice.
+   // ---------------------------------------------------------------------------
+
+   private static final String DATAGOV_404 =
+      "The data.gov request to https://x/api/views/zzzz-zzzz/rows.json failed: not found " +
+      "(HTTP 404), the dataset or path does not exist";
+   private static final String DATAGOV_ARRAY =
+      "The data.gov response from https://x/resource/sn5i-xuny.json is not in the rows.json " +
+      "shape this connector reads (a JSON object with 'meta' and 'data'); for example, a JSON " +
+      "array from a /resource/ endpoint is not supported.";
+
+   private static void assertNamesTheCauseNotCredentials(String message, String cause) {
+      assertTrue(message.contains("The connector reported: " + cause), message);
+      assertFalse(message.contains("datasource credentials"), message);
+      assertFalse(message.toLowerCase().contains("credential"), message);
+      assertFalse(message.contains("\n") || message.contains("\r"), message);
+   }
+
+   private static String refusalWithMessage(String connectorMessage, Object loadError) {
+      CoreTool.clearUserMessage();
+      CoreTool.addUserMessage(connectorMessage);
+
+      try {
+         return refusal(new VariableTable(), List.of(), loadError, 0);
+      }
+      finally {
+         CoreTool.clearUserMessage();
+      }
+   }
+
+   @Test
+   void aDatagov404IsNamedAndNotBlamedOnCredentials() {
+      assertNamesTheCauseNotCredentials(refusalWithMessage(DATAGOV_404, null), DATAGOV_404);
+   }
+
+   @Test
+   void aNonRowsJsonResponseIsNamedAndNotBlamedOnCredentials() {
+      assertNamesTheCauseNotCredentials(refusalWithMessage(DATAGOV_ARRAY, null), DATAGOV_ARRAY);
+   }
+
+   @Test
+   void aConnector401MessageIsSurfacedVerbatim() {
+      String cause = "Error executing Rest query: HTTP response code: 401";
+      String message = refusalWithMessage(cause, null);
+
+      assertTrue(message.contains("The connector reported: " + cause), message);
+      assertFalse(message.contains("datasource credentials"), message);
+   }
+
+   @Test
+   void aLoadErrorAndAConnectorMessageAreBothShownWithoutTheGenericAdvice() {
+      String message = refusalWithMessage(DATAGOV_404, "load failed");
+
+      assertTrue(message.contains("LEAD (load failed)"), message);
+      assertNamesTheCauseNotCredentials(message, DATAGOV_404);
+   }
+
+   @Test
+   void aRefusalWithNoKnownCauseStillHasTheGenericAdvice() {
+      CoreTool.clearUserMessage();
+      assertTrue(refusal(new VariableTable(), List.of(), null, 0)
+                    .contains("datasource credentials"));
+   }
+
+   @Test
+   void addQueryParamsTableNamesTheConnectorCauseInsteadOfCredentials() throws Exception {
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      String message = addTableRefusalMessage(
+         "TOK-81825-1", req, null, null, null, false, DATAGOV_404);
+
+      assertTrue(message.contains("returned no columns"), message);
+      assertTrue(message.contains("Properties sent:"), message);
+      assertNamesTheCauseNotCredentials(message, DATAGOV_404);
+   }
+
+   @Test
+   void addTabularTableEndpointFormNamesTheConnectorCauseInsteadOfCredentials() throws Exception {
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", "Comments", null, Map.of("jsonPath", "$.items[*]"), null);
+
+      String message = addTableRefusalMessage(
+         "TOK-81825-2", req, null, null, null, false, DATAGOV_ARRAY);
+
+      assertTrue(message.contains("URL suffix sent:"), message);
+      assertNamesTheCauseNotCredentials(message, DATAGOV_ARRAY);
+   }
+
+   @Test
+   void editTableNamesTheConnectorCauseInsteadOfCredentials() throws Exception {
+      String message = editTableRefusalMessage("TOK-81825-3", null, null, null, DATAGOV_404);
+
+      assertTrue(message.contains("The request to 'Comments' of 'MyDatasource'"), message);
+      assertNamesTheCauseNotCredentials(message, DATAGOV_404);
    }
 
    /**
