@@ -37,6 +37,12 @@ import inetsoft.util.*;
 import inetsoft.util.dep.ScheduleTaskAsset;
 import inetsoft.util.dep.XAsset;
 import inetsoft.util.dep.XAssetConfig;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
@@ -67,6 +73,11 @@ import static org.mockito.Mockito.*;
  * The deploy path runs through the real per-asset import step with a real ScheduleTaskAsset,
  * a mocked asset would hide the folder writes.
  */
+// Bug #81905, the folder writes take the cluster folder lock, which needs the Spring context
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class DeployManagerServiceScheduleFolderImportTest {
    @BeforeEach

@@ -28,6 +28,12 @@ import inetsoft.util.XMLSerializable;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.schedule.model.EditTaskFolderDialogModel;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
@@ -45,6 +51,11 @@ import static org.mockito.Mockito.*;
  * client sends, and the owner doesn't decide whether a folder of the same name already exists (the
  * folder is stored by its path only, so a rename onto a folder of another owner overwrites it).
  */
+// Bug #81905, the folder service takes the cluster folder lock, which needs the Spring context
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class ScheduleTaskFolderServiceOwnerTest {
    private static final IdentityID X = new IdentityID("x", "orgx");
