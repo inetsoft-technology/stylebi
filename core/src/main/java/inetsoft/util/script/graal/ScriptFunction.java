@@ -278,6 +278,7 @@ public class ScriptFunction implements ProxyExecutable {
     * Java-only numeric suffixes like {@code "3.0d"} are accepted here (JS yields
     * {@code NaN}). These cases do not occur in practice for CALC formula arguments.
     */
+   // package-private: ScriptHostAccess reuses this for String -> number on host calls. (#81889)
    private static Number toNumber(Object value) {
       if(value instanceof Boolean) {
          return ((Boolean) value) ? 1 : 0;
