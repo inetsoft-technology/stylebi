@@ -103,6 +103,18 @@ class EndpointSuffixTemplatesTest {
             problems.add(where + ": unbalanced brace in " + raw);
          }
 
+         if(e[0].equals("pipelinecrm") && bare.contains("?")) {
+            for(String pair : bare.substring(bare.indexOf('?') + 1).split("&")) {
+               String key = pair.substring(0, pair.indexOf('='));
+
+               if(key.chars().filter(c -> c == '[').count() !=
+                  key.chars().filter(c -> c == ']').count())
+               {
+                  problems.add(where + ": unbalanced [] in query key " + key);
+               }
+            }
+         }
+
          java.util.regex.Matcher variables =
             java.util.regex.Pattern.compile("[{]([^}]*)[}]").matcher(raw);
 
