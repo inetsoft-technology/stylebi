@@ -358,6 +358,20 @@ public final class PaginationReplay {
          problems.add("expected " + expectedRows + " rows but got " + rows);
       }
 
+      if(spec.getMaxResultsPerPageParam() != null &&
+         spec.getMaxResultsPerPageParam().getValue() != null &&
+         !spec.getMaxResultsPerPageParam().getValue().isEmpty() &&
+         spec.getMaxResultsPerPageParam().getType() == PaginationParamType.QUERY &&
+         spec.getMaxResultsPerPage() > 0 && !requests.isEmpty() &&
+         !requests.get(0).matches(".*[?&]" + java.util.regex.Pattern.quote(
+            spec.getMaxResultsPerPageParam().getValue() + "=" + spec.getMaxResultsPerPage()) +
+                                  "(&.*)?"))
+      {
+         problems.add("the first request lacks the page size " +
+                      spec.getMaxResultsPerPageParam().getValue() + "=" +
+                      spec.getMaxResultsPerPage() + ": " + requests.get(0));
+      }
+
       if(requests.size() != expectedRequests) {
          problems.add("expected " + expectedRequests + " requests but got " + requests.size() +
                       ": " + requests);
