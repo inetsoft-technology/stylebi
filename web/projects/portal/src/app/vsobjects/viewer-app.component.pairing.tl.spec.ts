@@ -74,6 +74,12 @@ describe("ViewerAppComponent — Connect to Claude [A1]", () => {
       expect(comp.isConnectToClaudeVisible()).toBe(true);
       expect(control(fixture)).not.toBeNull();
       expect(control(fixture).querySelector("button[ngbDropdownToggle]")).not.toBeNull();
+      // Not the share icon the toolbar already has (a chain link looked like it): the AI assistant glyph.
+      const icon = control(fixture).querySelector("button[ngbDropdownToggle] i");
+      expect(icon.classList.contains("ai-assistant-icon")).toBe(true);
+      expect(icon.classList.contains("share-link-icon")).toBe(false);
+      expect(control(fixture).querySelector("button[ngbDropdownToggle]").getAttribute("title"))
+         .toContain("Connect to Claude");
    });
 
    it("hosts the component with the viewer's runtime, VIEWSHEET, its own socket and viewerMode", async () => {
