@@ -322,6 +322,20 @@ class WorksheetTableServiceEmptyResultMessageTest {
          "a shape that is itself a top-level array must hint the root path: " + message);
    }
 
+   @Test
+   void anEmptyArrayAtTheRowPathIsReportedAsEmptyWithoutAHint() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.reportResponseShape(Map.of("data", List.of()), false);
+      query.setJsonPath("$.data");
+
+      String message = only(build(query)).getErrorMessage();
+
+      assertFalse(message.contains("belong at"),
+         "the row path already names the array and the array is empty, so no other path helps: " +
+            message);
+      assertTrue(message.contains("The array at '$.data' is empty"), message);
+   }
+
    // ─── A2: shape absent -> unchanged wording ─────────────────────────────────────────────────
 
    @Test

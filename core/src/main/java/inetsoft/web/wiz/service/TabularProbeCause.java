@@ -146,8 +146,7 @@ public final class TabularProbeCause {
       String rowPathClause = rowPath == null ? "" : " Rows were read from '" + rowPath + "'.";
       String truncatedClause = query.isResponseShapeTruncated()
          ? " (capped — some fields may be missing from this description)" : "";
-      String hint = singleArrayFieldHint(shape, rowPath);
-      String hintClause = hint == null ? "" : " The rows look like they belong at '" + hint + "'.";
+      String hintClause = arrayLocationClause(shape, rowPath);
 
       return "completed successfully and returned a response, but selected zero rows — for a " +
          "JSON REST endpoint, columns are derived from the rows returned, so zero rows means zero " +
@@ -201,39 +200,68 @@ public final class TabularProbeCause {
    }
 
    /**
-    * A best-effort suggestion for where rows actually are, used only when the response's shape
-    * names exactly one top-level field holding an array — an object with two or more array-valued
-    * fields, or none, is ambiguous and returns null rather than guess: a wrong guess is worse than
-    * no hint. Also null when the candidate is already what {@code rowPath} points to, since then
-    * there is nothing new to tell the caller.
+    * A best-effort clause about the response's one top-level array, used only when the response's
+    * shape names exactly one such array — an object with two or more array-valued fields, or none,
+    * is ambiguous and returns "" rather than guess: a wrong guess is worse than no hint. The
+    * clause suggests a row path only when the array holds elements and is not already what
+    * {@code rowPath} points to; pointing at the path the caller already uses tells them nothing.
+    * An empty array is never suggested — no path selects rows from it — so the clause says the
+    * endpoint returned no records. The result is empty or starts with a space.
     */
-   private static String singleArrayFieldHint(Object shape, String rowPath) {
-      if(shape instanceof List<?>) {
-         return "$".equals(rowPath) ? null : "$";
+   private static String arrayLocationClause(Object shape, String rowPath) {
+      String arrayPath;
+      boolean empty;
+
+      if(shape instanceof List<?> list) {
+         arrayPath = "$";
+         empty = list.isEmpty();
       }
+      else if(shape instanceof Map<?, ?> map) {
+         String onlyArrayField = null;
+         boolean onlyArrayEmpty = false;
 
-      if(!(shape instanceof Map<?, ?> map)) {
-         return null;
-      }
+         for(Map.Entry<?, ?> entry : map.entrySet()) {
+            if(entry.getValue() instanceof List<?> value) {
+               if(onlyArrayField != null) {
+                  return "";
+               }
 
-      String onlyArrayField = null;
-
-      for(Map.Entry<?, ?> entry : map.entrySet()) {
-         if(entry.getValue() instanceof List) {
-            if(onlyArrayField != null) {
-               return null;
+               onlyArrayField = String.valueOf(entry.getKey());
+               onlyArrayEmpty = value.isEmpty();
             }
-
-            onlyArrayField = String.valueOf(entry.getKey());
          }
+
+         if(onlyArrayField == null) {
+            return "";
+         }
+
+         arrayPath = "$." + onlyArrayField;
+         empty = onlyArrayEmpty;
+      }
+      else {
+         return "";
       }
 
-      if(onlyArrayField == null) {
-         return null;
+      boolean onRowPath = rowPath != null && stripAllElements(rowPath).equals(arrayPath);
+
+      if(empty) {
+         return onRowPath
+            ? " The array at '" + rowPath + "' is empty: the endpoint returned no records for " +
+               "these parameters."
+            : " The response's only array, at '" + arrayPath + "', is empty: the endpoint " +
+               "returned no records for these parameters.";
       }
 
-      String candidate = "$." + onlyArrayField + "[*]";
-      return candidate.equals(rowPath) ? null : candidate;
+      return onRowPath ? "" : " The rows look like they belong at '" + arrayPath +
+         ("$".equals(arrayPath) ? "" : "[*]") + "'.";
+   }
+
+   /**
+    * {@code $.data} and {@code $.data[*]} select the same array; drop the one trailing {@code [*]}
+    * so both spellings compare equal.
+    */
+   private static String stripAllElements(String path) {
+      return path.endsWith("[*]") ? path.substring(0, path.length() - 3) : path;
    }
 
    private final int timedOutSeconds;

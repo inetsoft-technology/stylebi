@@ -127,15 +127,66 @@ class TabularProbeCauseTest {
 
    @Test
    void zeroRowsClauseIsReturnedOnlyWhenTheRequestSucceededWithNoOtherCause() {
-      String clause = TabularProbeCause.zeroRowsClause(
-         queryWithShape(0, Map.of("data", List.of())), null,
-         TabularProbeCause.read(queryWithShape(0, Map.of("data", List.of())), null));
+      String clause = clauseFor(Map.of("data", List.of(Map.of("id", "string"))), null);
 
       assertNotNull(clause);
       assertTrue(clause.startsWith("completed successfully"), clause);
       assertTrue(clause.contains("selected zero rows"), clause);
-      assertTrue(clause.contains("'$.data[*]'"), clause);
+      assertTrue(clause.contains("belong at '$.data[*]'"), clause);
       assertTrue(clause.contains("not a connection or credentials problem"), clause);
+   }
+
+   @Test
+   void anEmptyArrayAtTheRowPathIsReportedAsEmptyNotAsAnotherPath() {
+      for(String rowPath : new String[] { "$.data", "$.data[*]" }) {
+         String clause = clauseFor(Map.of("data", List.of()), rowPath);
+
+         assertFalse(clause.contains("belong at"), clause);
+         assertTrue(clause.contains("The array at '" + rowPath + "' is empty"), clause);
+         assertTrue(clause.contains("returned no records"), clause);
+      }
+   }
+
+   @Test
+   void anEmptyArrayAwayFromTheRowPathIsNotSuggestedAsTheRowPath() {
+      String clause = clauseFor(Map.of("data", List.of()), "$.wrong");
+
+      assertFalse(clause.contains("belong at"), clause);
+      assertTrue(clause.contains("only array, at '$.data', is empty"), clause);
+   }
+
+   @Test
+   void aNonEmptyArrayAwayFromTheRowPathIsStillSuggested() {
+      String clause = clauseFor(Map.of("data", List.of(Map.of("id", "string"))), "$.wrong");
+
+      assertTrue(clause.contains("belong at '$.data[*]'"), clause);
+   }
+
+   @Test
+   void aNonEmptyArrayAlreadyAtTheRowPathIsNotSuggestedAgain() {
+      for(String rowPath : new String[] { "$.data", "$.data[*]" }) {
+         String clause = clauseFor(Map.of("data", List.of(Map.of("id", "string"))), rowPath);
+
+         assertFalse(clause.contains("belong at"), clause);
+         assertFalse(clause.contains("is empty"), clause);
+      }
+   }
+
+   @Test
+   void anEmptyBareListIsReportedAsEmptyNotAsTheRoot() {
+      String clause = clauseFor(List.of(), "$.wrong");
+
+      assertFalse(clause.contains("belong at"), clause);
+      assertTrue(clause.contains("is empty"), clause);
+   }
+
+   @Test
+   void aNonEmptyBareListIsSuggestedUnlessTheRowPathIsTheRoot() {
+      List<?> shape = List.of(Map.of("id", "string"));
+
+      assertTrue(clauseFor(shape, "$.wrong").contains("belong at '$'"));
+      assertFalse(clauseFor(shape, "$").contains("belong at"));
+      assertFalse(clauseFor(shape, "$[*]").contains("belong at"));
    }
 
    @Test
@@ -204,6 +255,14 @@ class TabularProbeCauseTest {
       assertNull(TabularProbeCause.zeroRowsClause(query, null, TabularProbeCause.read(query, null)));
    }
 
+   private static String clauseFor(Object shape, String rowPath) {
+      // the production code reads the row path reflectively, as RestJsonQuery exposes it
+      JsonPathQuery query = mock(JsonPathQuery.class);
+      when(query.getValidJsonPath()).thenReturn(rowPath);
+      when(query.getResponseShape()).thenReturn(shape);
+      return TabularProbeCause.zeroRowsClause(query, null, TabularProbeCause.read(query, null));
+   }
+
    private static TabularQuery completedQuery(int timedOutSeconds) {
       TabularQuery query = query(timedOutSeconds);
       when(query.isRunCompleted()).thenReturn(true);
@@ -220,5 +279,14 @@ class TabularProbeCauseTest {
       TabularQuery query = mock(TabularQuery.class);
       when(query.getTimedOutSeconds()).thenReturn(timedOutSeconds);
       return query;
+   }
+
+   /** A query type whose public getValidJsonPath is visible to the reflective row-path read. */
+   public abstract static class JsonPathQuery extends TabularQuery {
+      protected JsonPathQuery() {
+         super("test");
+      }
+
+      public abstract String getValidJsonPath();
    }
 }
