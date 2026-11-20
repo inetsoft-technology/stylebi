@@ -1571,22 +1571,61 @@ describe("ConnectToClaudeComponent", () => {
          expect(JSON.parse(detachCalls()[0][2]).runtimeId).toBe("rt-viewer-1");
       });
 
-      it("[A7] sends no detach when nothing was minted for the old runtime", () => {
+      // Rule changed (review r1 F1): a viewer host detaches whenever there is a previous runtime id,
+      // not only when this instance holds a minted code. The server ignores a detach with no
+      // matching session, and a failed or in-flight re-mint must not leave a live one behind.
+      it("[A7] a viewer host detaches the previous runtime even when nothing was minted (server ignores it)", () => {
          asViewer(true);
 
          changeRuntime("rt-viewer-1", "rt-viewer-2");
 
-         expect(detachCalls().length).toBe(0);
+         expect(detachCalls().length).toBe(1);
+         expect(JSON.parse(detachCalls()[0][2]).runtimeId).toBe("rt-viewer-1");
       });
 
-      it("[A7] detaches once only: a second runtime change without a new mint sends nothing", () => {
+      it("[A7] F1: mint, then a re-mint that fails, then a runtime change: exactly one detach for the previous id", () => {
+         asViewer(true);
+         let handler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation((dest: string, h: (msg: any) => void) => {
+            if(dest === "/user/commands/wiz/pairing/mint") {
+               handler = h;
+            }
+
+            return { unsubscribe: vi.fn() };
+         });
+         component.requestCode();
+         handler!({ frame: { body: JSON.stringify({ code: "VIEW-123" }) } });
+         component.requestCode();
+         handler!({ frame: { body: JSON.stringify({ error: "Feature disabled" }) } });
+         expect(component.error).toBe("Feature disabled");
+
+         changeRuntime("rt-viewer-1", "rt-viewer-2");
+
+         expect(detachCalls().length).toBe(1);
+         expect(JSON.parse(detachCalls()[0][2]).runtimeId).toBe("rt-viewer-1");
+      });
+
+      it("[A7] F1: re-mint still in flight (no reply) when the runtime changes: one detach", () => {
+         asViewer(true);
+         mintCode();
+         component.requestCode();
+         expect(component.loading).toBe(true);
+
+         changeRuntime("rt-viewer-1", "rt-viewer-2");
+
+         expect(detachCalls().length).toBe(1);
+         expect(JSON.parse(detachCalls()[0][2]).runtimeId).toBe("rt-viewer-1");
+      });
+
+      it("[A7] each runtime change detaches the id it leaves, one detach per change", () => {
          asViewer(true);
          mintCode();
 
          changeRuntime("rt-viewer-1", "rt-viewer-2");
          changeRuntime("rt-viewer-2", "rt-viewer-3");
 
-         expect(detachCalls().length).toBe(1);
+         expect(detachCalls().map((c: any[]) => JSON.parse(c[2]).runtimeId))
+            .toEqual(["rt-viewer-1", "rt-viewer-2"]);
       });
 
       it("[A7] a mint for the new runtime is detached on the next change, with the new id", () => {

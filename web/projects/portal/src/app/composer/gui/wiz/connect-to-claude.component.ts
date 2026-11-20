@@ -288,10 +288,10 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       }
 
       if(changes["runtimeId"] && !changes["runtimeId"].firstChange) {
-         // Read before the reset below clears hasMinted. The viewer re-opened in the same page
+         // The viewer re-opened in the same page
          // (reopenExpiredViewsheet) on the SAME socket, so the server never sees a socket close
          // and must be told to end the session paired to the runtime that is going away.
-         if(this.viewerMode && this.hasMinted) {
+         if(this.viewerMode) {
             this.detachViewer(changes["runtimeId"].previousValue);
          }
 
