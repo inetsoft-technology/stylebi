@@ -134,6 +134,53 @@ class AzureBlobLookupRunnerTest {
       assertTrue(dump(rows).contains("b1") && dump(rows).contains("b2") && dump(rows).contains("b3"), dump(rows));
    }
 
+   // guard: no row limit, every container is looked up
+   @Test
+   void noRowLimitLooksUpEveryContainer() {
+      final RecordingHandler handler = threeContainers();
+      final AzureBlobQuery query = query();
+      query.setExpandTop(false);
+      query.setMaxRows(0);
+
+      final List<Map<String, Object>> rows = rows(run(query, handler));
+
+      assertEquals(3, handler.blobRequests(), handler.requests.toString());
+      assertTrue(dump(rows).contains("b1") && dump(rows).contains("b2") && dump(rows).contains("b3"), dump(rows));
+   }
+
+   // Bug #81926: an expanded path below the containers still gives each container its own rows
+   @Test
+   void deeperExpandedPathStopsLookupsAtTheRowLimit() {
+      final RecordingHandler handler = threeContainers();
+      final AzureBlobQuery query = query();
+      query.setExpandTop(false);
+      query.setExpandedPath(CONTAINER + ".Blobs.EnumerationResults.Blobs.Blob");
+      query.setMaxRows(1);
+
+      final List<Map<String, Object>> rows = rows(run(query, handler));
+
+      assertEquals(1, handler.blobRequests(), handler.requests.toString());
+      assertFalse(rows.isEmpty(), dump(rows));
+      assertEquals("c1", rows.get(0).get(CONTAINER + ".Name"), dump(rows));
+      // the row limit keeps the first container's blobs
+      assertTrue(dump(rows.subList(0, 1)).contains("b1") && dump(rows.subList(0, 1)).contains("b1x"), dump(rows));
+   }
+
+   // guard: an expanded path beside the containers doesn't expand them, so every lookup is needed
+   @Test
+   void unrelatedExpandedPathKeepsEveryLookup() {
+      final RecordingHandler handler = threeContainers();
+      final AzureBlobQuery query = query();
+      query.setExpandTop(false);
+      query.setExpandedPath("EnumerationResults.NextMarker");
+      query.setMaxRows(1);
+
+      final List<Map<String, Object>> rows = rows(run(query, handler));
+
+      assertEquals(3, handler.blobRequests(), handler.requests.toString());
+      assertTrue(dump(rows).contains("b1") && dump(rows).contains("b2") && dump(rows).contains("b3"), dump(rows));
+   }
+
    // Bug #81927
    @Test
    void aLookupKeepsTheContainersOwnBlobsElement() {
