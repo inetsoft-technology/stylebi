@@ -112,7 +112,7 @@ class XmlReplayTest {
    }
 
    @Test
-   @Disabled("XML ITERATION paging never reads the next marker, so only the first page is read; no Redmine bug yet")
+   @Disabled("Bug #81920: XML iteration paging never reads the next marker, so only the first page is read; enable when it is fixed")
    void azureBlobContainersAreReadFollowingTheNextMarker() throws Exception {
       // ITERATION paging in XML: the marker in the response is sent back as the "marker" parameter
       ScriptedHttpHandler http = new ScriptedHttpHandler().on("blob.core.windows.net",
