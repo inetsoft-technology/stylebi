@@ -88,6 +88,33 @@ class ScriptEditorUndefinedNamesTest {
    }
 
    @Test
+   void aggregateGlobalFolderListsOnlyDefinedFunctions() throws Exception {
+      // Bug #81897: the viewsheet and EM script engines do not define these report-engine names
+      List<String> undefined = Arrays.asList(
+         "correlation", "concat", "covariance", "populationStandardDeviation",
+         "populationVariance", "standardDeviation", "variance", "weightedAverage");
+
+      try(java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(
+         getClass().getResourceAsStream("/inetsoft/report/gui/jsFunctions.tree"),
+         java.nio.charset.StandardCharsets.UTF_8)))
+      {
+         String line;
+         boolean global = false;
+
+         while((line = in.readLine()) != null) {
+            if(!line.startsWith("	")) {
+               global = line.startsWith("Aggregate (Global)");
+            }
+            else if(global) {
+               String name = line.trim().split("[(\s]")[0];
+               assertFalse(undefined.contains(name),
+                           name + " in Aggregate (Global) is not defined by the script engine");
+            }
+         }
+      }
+   }
+
+   @Test
    void crosstabAndCalcTableDoNotListFormTableMethods() throws Exception {
       Properties props = new Properties();
 
