@@ -406,6 +406,9 @@ class SheetEventOrderInterceptorTest {
       });
 
       channel.send(event("s1", "ws1", "/events/composer/worksheet/table/count", 0, "busy"));
+      // busy runs on a pool thread and the close is not held behind it, so wait for busy to run
+      // before sending the close, otherwise the two handlers can run in either order
+      awaitHandled(handled, "busy");
       channel.send(event("s1", "ws1", "/events/composer/touch-asset", 1, "touch",
                          "{\"design\":true,\"changed\":true,\"update\":false}"));
       assertEquals(2, interceptor.getQueuedEventCount(), "the touch-asset was not held");
@@ -436,6 +439,9 @@ class SheetEventOrderInterceptorTest {
       });
 
       channel.send(event("s1", "ws1", "/events/composer/worksheet/table-data-count", 0, "busy"));
+      // busy runs on a pool thread and the close is not held behind it, so wait for busy to run
+      // before sending the close, otherwise the two handlers can run in either order
+      awaitHandled(handled, "busy");
       channel.send(event("s1", "ws1", "/events/ws/table/reload-table-data/C", 1, "reload"));
       channel.send(event("s1", "ws1", "/events/composer/touch-asset", 2, "touch",
                          "{\"design\":true,\"changed\":true,\"update\":false}"));
