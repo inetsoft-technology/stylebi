@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -73,7 +74,7 @@ class RestQuotaManagerTest {
    void noMoreConnectionsThanTheQuotaAllowRunAtOnce() throws Exception {
       LimitedDataSource dataSource = limited("quota-connections", -1, 2);
 
-      assertEquals(2, peakConcurrency(dataSource, 8));
+      assertEquals(2, peakConcurrency(dataSource, 8, 2));
    }
 
    @Test
@@ -113,15 +114,31 @@ class RestQuotaManagerTest {
          assertTrue(holding.await(5, TimeUnit.SECONDS));
 
          // a second call waits for the only connection and is cancelled
-         Future<String> waiting = executor.submit(
-            () -> RestQuotaManager.withQuota(dataSource, () -> "never"));
-         Thread.sleep(200);
+         AtomicReference<Thread> waitingThread = new AtomicReference<>();
+         Future<String> waiting = executor.submit(() -> {
+            waitingThread.set(Thread.currentThread());
+            return RestQuotaManager.withQuota(dataSource, () -> "never");
+         });
+
+         // cancel only once the call is parked on the connection, not before it has started
+         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+
+         while((waitingThread.get() == null ||
+                waitingThread.get().getState() != Thread.State.WAITING) &&
+               System.nanoTime() < deadline)
+         {
+            Thread.sleep(5);
+         }
+
+         assertNotNull(waitingThread.get(), "the second call never started");
+         assertEquals(Thread.State.WAITING, waitingThread.get().getState(),
+                      "the second call did not wait for the connection");
          waiting.cancel(true);
          release.countDown();
          assertEquals("held", holder.get(5, TimeUnit.SECONDS));
 
          // the connection is still there, and still only one
-         assertEquals(1, peakConcurrency(dataSource, 4));
+         assertEquals(1, peakConcurrency(dataSource, 4, 1));
       }
       finally {
          executor.shutdownNow();
@@ -159,10 +176,10 @@ class RestQuotaManagerTest {
              "source given other limits under the same name keeps the old ones; enable when it " +
              "is fixed")
    void aDataSourceWithNewLimitsGetsThem() throws Exception {
-      assertEquals(1, peakConcurrency(limited("quota-changed", -1, 1), 4));
+      assertEquals(1, peakConcurrency(limited("quota-changed", -1, 1), 4, 1));
 
       // the same name, now allowed four connections (the data source was edited or replaced)
-      assertEquals(4, peakConcurrency(limited("quota-changed", -1, 4), 8));
+      assertEquals(4, peakConcurrency(limited("quota-changed", -1, 4), 8, 4));
    }
 
    @Test
@@ -191,7 +208,14 @@ class RestQuotaManagerTest {
    }
 
    /** Runs the calls on separate threads and returns the most that were inside at once. */
-   private static int peakConcurrency(LimitedDataSource dataSource, int calls) throws Exception {
+   /**
+    * Runs {@code calls} calls at once and returns the most that were inside together. Each call
+    * stays inside until {@code expected} calls are inside (or three seconds pass), so the peak does
+    * not depend on how fast the threads start.
+    */
+   private static int peakConcurrency(LimitedDataSource dataSource, int calls, int expected)
+      throws Exception
+   {
       AtomicInteger inside = new AtomicInteger();
       AtomicInteger peak = new AtomicInteger();
       ExecutorService executor = Executors.newFixedThreadPool(calls);
@@ -202,7 +226,13 @@ class RestQuotaManagerTest {
          for(int i = 0; i < calls; i++) {
             futures.add(executor.submit(() -> RestQuotaManager.withQuota(dataSource, () -> {
                peak.accumulateAndGet(inside.incrementAndGet(), Math::max);
-               Thread.sleep(100);
+               long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+
+               while(inside.get() < expected && System.nanoTime() < deadline) {
+                  Thread.sleep(5);
+               }
+
+               Thread.sleep(50);
                inside.decrementAndGet();
                return "ok";
             })));

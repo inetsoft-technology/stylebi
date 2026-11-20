@@ -21,6 +21,7 @@ package inetsoft.uql.rest.datasource;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.EndpointsTestConfig;
+import inetsoft.test.ReplaySupport;
 import inetsoft.test.ScriptedHttpHandler;
 import inetsoft.test.SreeHome;
 import inetsoft.test.SwapperTestConfiguration;
@@ -96,8 +97,10 @@ class GraphQLReplayTest {
 
       List<Map<String, Object>> rows = rows(run(query, http));
 
-      // the page that echoes the cursor it was asked for is treated as the end and not kept
-      // (Bug #81915 is about the same rule dropping a last page whose cursor is null)
+      // the page that echoes the cursor it was asked for is treated as the end and not kept.
+      // This pins today's rule, not a verified requirement: Bug #81915 is about the same rule
+      // dropping a last page whose cursor is null, so if that fix changes how the end is
+      // detected, this expectation has to be revisited together with it.
       assertEquals(List.of(1, 2), ids(rows), rows.toString());
       assertEquals(3, http.requests().size(), http.requests().toString());
       assertFalse(http.bodies().get(0).contains("\"cursor\":\"c"), http.bodies().get(0));
@@ -175,24 +178,10 @@ class GraphQLReplayTest {
    }
 
    private static List<Map<String, Object>> rows(XTableNode table) {
-      List<Map<String, Object>> rows = new ArrayList<>();
-
-      while(table.next()) {
-         Map<String, Object> row = new LinkedHashMap<>();
-
-         for(int i = 0; i < table.getColCount(); i++) {
-            row.put(table.getName(i), table.getObject(i));
-         }
-
-         rows.add(row);
-      }
-
-      return rows;
+      return ReplaySupport.rows(table);
    }
 
    private static List<Object> ids(List<Map<String, Object>> rows) {
-      List<Object> ids = new ArrayList<>();
-      rows.forEach(r -> ids.add(r.get("id")));
-      return ids;
+      return ReplaySupport.column(rows, "id");
    }
 }

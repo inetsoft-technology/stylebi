@@ -19,15 +19,21 @@
 package inetsoft.test;
 
 import inetsoft.uql.rest.*;
+import inetsoft.uql.rest.datasource.graphql.GraphQLRuntime;
 import inetsoft.uql.rest.json.*;
 import inetsoft.uql.rest.json.lookup.LookupService;
 import inetsoft.uql.rest.pagination.HttpHeader;
 import inetsoft.uql.rest.pagination.HttpResponseParameterParser;
+import inetsoft.uql.rest.xml.RestXMLQuery;
+import inetsoft.uql.rest.xml.RestXMLQueryRunner;
+import inetsoft.uql.rest.xml.RestXMLRuntime;
+import inetsoft.uql.rest.xml.XMLRestDataIteratorStrategyFactory;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 
 /**
@@ -94,7 +100,11 @@ public class ScriptedHttpHandler implements IHttpHandler {
 
       for(Rule rule : rules) {
          if(rule.url.test(text)) {
-            Reply reply = rule.replies.size() > 1 ? rule.replies.poll() : rule.replies.peek();
+            Reply reply;
+
+            synchronized(rule.replies) {
+               reply = rule.replies.size() > 1 ? rule.replies.poll() : rule.replies.peek();
+            }
 
             if(reply.error() != null) {
                throw reply.error();
@@ -138,8 +148,7 @@ public class ScriptedHttpHandler implements IHttpHandler {
       @Override
       protected QueryRunner getQueryRunner(AbstractRestQuery q) {
          JsonTransformer transformer = new JsonTransformer();
-         JsonRestDataIteratorStrategyFactory factory = new JsonRestDataIteratorStrategyFactory(
-            transformer, new HttpResponseParameterParser(transformer), () -> handler);
+         JsonRestDataIteratorStrategyFactory factory = newFactory(transformer, handler);
          return new EndpointJsonQueryRunner(
             (EndpointJsonQuery<?>) q, factory, new LookupService(), transformer);
       }
@@ -156,8 +165,7 @@ public class ScriptedHttpHandler implements IHttpHandler {
       @Override
       protected QueryRunner getQueryRunner(AbstractRestQuery q) {
          JsonTransformer transformer = new JsonTransformer();
-         JsonRestDataIteratorStrategyFactory factory = new JsonRestDataIteratorStrategyFactory(
-            transformer, new HttpResponseParameterParser(transformer), () -> handler);
+         JsonRestDataIteratorStrategyFactory factory = newFactory(transformer, handler);
          return new RestJsonQueryRunner((RestJsonQuery) q, factory, new LookupService(), transformer);
       }
 
@@ -165,7 +173,7 @@ public class ScriptedHttpHandler implements IHttpHandler {
    }
 
    /** A GraphQL runtime that sends the requests of a query to the given handler. */
-   public static class GraphQLReplayRuntime extends inetsoft.uql.rest.datasource.graphql.GraphQLRuntime {
+   public static class GraphQLReplayRuntime extends GraphQLRuntime {
       public GraphQLReplayRuntime(IHttpHandler handler) {
          this.handler = handler;
       }
@@ -173,8 +181,7 @@ public class ScriptedHttpHandler implements IHttpHandler {
       @Override
       protected QueryRunner getQueryRunner(AbstractRestQuery q) {
          JsonTransformer transformer = new JsonTransformer();
-         JsonRestDataIteratorStrategyFactory factory = new JsonRestDataIteratorStrategyFactory(
-            transformer, new HttpResponseParameterParser(transformer), () -> handler);
+         JsonRestDataIteratorStrategyFactory factory = newFactory(transformer, handler);
          return new RestJsonQueryRunner((RestJsonQuery) q, factory, new LookupService(), transformer);
       }
 
@@ -182,22 +189,27 @@ public class ScriptedHttpHandler implements IHttpHandler {
    }
 
    /** An XML runtime that sends the requests of a query to the given handler. */
-   public static class XmlReplayRuntime extends inetsoft.uql.rest.xml.RestXMLRuntime {
+   public static class XmlReplayRuntime extends RestXMLRuntime {
       public XmlReplayRuntime(IHttpHandler handler) {
          this.handler = handler;
       }
 
       @Override
       protected QueryRunner getQueryRunner(AbstractRestQuery q) {
-         return new inetsoft.uql.rest.xml.RestXMLQueryRunner(
-            (inetsoft.uql.rest.xml.RestXMLQuery) q,
-            new inetsoft.uql.rest.xml.XMLRestDataIteratorStrategyFactory(handler));
+         return new RestXMLQueryRunner((RestXMLQuery) q, new XMLRestDataIteratorStrategyFactory(handler));
       }
 
       private final IHttpHandler handler;
    }
 
    /** A response body and its headers, or the error the request fails with. */
+   private static JsonRestDataIteratorStrategyFactory newFactory(JsonTransformer transformer,
+                                                                 IHttpHandler handler)
+   {
+      return new JsonRestDataIteratorStrategyFactory(
+         transformer, new HttpResponseParameterParser(transformer), () -> handler);
+   }
+
    public record Reply(String body, List<HttpHeader> headers, IOException error) {
    }
 
@@ -205,8 +217,8 @@ public class ScriptedHttpHandler implements IHttpHandler {
    }
 
    private static final int MAX_REQUESTS = 50;
-   private final List<Rule> rules = new ArrayList<>();
-   private final List<String> requests = new ArrayList<>();
-   private final List<String> bodies = new ArrayList<>();
-   private final List<AssertionError> failures = new ArrayList<>();
+   private final List<Rule> rules = new CopyOnWriteArrayList<>();
+   private final List<String> requests = new CopyOnWriteArrayList<>();
+   private final List<String> bodies = new CopyOnWriteArrayList<>();
+   private final List<AssertionError> failures = new CopyOnWriteArrayList<>();
 }

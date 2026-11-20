@@ -78,6 +78,11 @@ public final class ReplaySupport {
    {
       XTableNode table = runTable(query, http);
       assertNotNull(table, "the query returned no table; see the log for the error");
+      return rows(table);
+   }
+
+   /** Reads the rest of the table into one map per row, keyed by column name. */
+   public static List<Map<String, Object>> rows(XTableNode table) {
       List<Map<String, Object>> rows = new ArrayList<>();
 
       while(table.next()) {

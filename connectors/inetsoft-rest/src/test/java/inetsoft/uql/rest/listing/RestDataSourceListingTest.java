@@ -202,8 +202,10 @@ class RestDataSourceListingTest {
 
    /**
     * Listings that exist but are deliberately left out of the service, so that the data sources
-    * cannot be created from the dialog (Bug #70342, "Hide unused datasources"). The test fails when
-    * one of them is registered, so that the entry is removed.
+    * cannot be created from the dialog (Bug #70342, "Hide unused datasources"). The hiding is done
+    * by {@code RestDataSourceListingService}, which simply does not list these classes; to show one
+    * again, add it there and remove it from this set. The test fails when one of them is
+    * registered, so that the entry is removed.
     */
    private static final Set<String> HIDDEN = Set.of(
       "inetsoft.uql.rest.datasource.adobeanalytics.AdobeAnalyticsListing",
