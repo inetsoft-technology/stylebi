@@ -293,8 +293,9 @@ body {
   }
 }
 
+// a selected row (.bg-selected, or a tree's .bg-node-selected) keeps its selected fill while hovered
 .hover-bg-primary {
-  &:not([disabled]):not(.bg-selected):hover {
+  &:not([disabled]):not(.bg-selected):not(.bg-node-selected):hover {
     @extend %bg-hover-primary;
     cursor: pointer;
   }
@@ -817,16 +818,14 @@ schema-column, edit-join-table-column {
   border: 1px solid transparent;
   border-right: 4px double transparent;
 
+  // hover shows only the resize grip (the double line on the right), in the icon colour: soft
+  // primary is for selection, and a full border box on hover read the same as a selected header
   &:hover {
-    border: 1px solid var(--inet-primary-color-light);
-    border-right: 4px double var(--inet-primary-color-light);
+    border-right-color: var(--inet-icon-color);
   }
 }
 
-.ws-header--selected {
-  border: 1px solid var(--inet-primary-color-light);
-  border-right: 4px double var(--inet-primary-color-light);
-}
+// the selected header's frame (.ws-header--selected) lives in ws-header-cell.component.scss
 
 .ws-header-primary-bg-color {
   background-color: var(--inet-ws-header-primary-bg-color);
@@ -866,9 +865,16 @@ schema-column, edit-join-table-column {
   background-color: var(--inet-ws-table-even-row-bg-color)
 }
 
+// The worksheet details rows are composer chrome, not a dashboard table: they hover with the shell's
+// neutral fill, as every other shell row does, and keep their own text color (the viz hover token
+// they used was cool blue in light, and stayed light under light text in a dark shell). A
+// highlighted row keeps its highlight while hovered.
 .table-data__row:hover {
-  background-color: var(--inet-viz-hover-bg);
-  color: var(--inet-viz-hover-text);
+  color: inherit;
+}
+
+.table-data__row:not(.highlighted):hover {
+  background-color: var(--inet-ui-neutral-hover-bg-color);
 }
 
 .table-data__row.highlighted {
@@ -942,6 +948,60 @@ schema-column, edit-join-table-column {
       background-color: transparent;
     }
   }
+}
+
+// A shell icon button (shell-design-spec.md "Ghost/icon: minimal chrome, hover fill only"), the same
+// hover as .toolbar-ghost-actions .btn: neutral fill and a stronger icon on hover, the same fill plus
+// the 2px ring on keyboard focus. A bare glyph (no padding of its own) adds .icon-btn-ghost--glyph,
+// which draws the fill a few pixels past the glyph with a box-shadow spread, so the rest layout
+// never moves. Shell chrome only: dashboard content keeps its own icon styles.
+.icon-btn-ghost {
+  --icon-btn-ghost-spread: 0px;
+  border-radius: var(--inet-radius-lg);
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+
+  &#{$outside-content}:not([disabled]):not(.disabled):hover {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+    box-shadow: 0 0 0 var(--icon-btn-ghost-spread) var(--inet-ui-neutral-hover-bg-color);
+  }
+
+  // an active toggle (.focus-icon-color, e.g. the tree's Recent) keeps its primary colour on hover
+  &#{$outside-content}:not([disabled]):not(.disabled):not(.focus-icon-color):hover {
+    color: var(--inet-hover-text-color);
+  }
+
+  // the glyph inside the button colours itself (the icon font gives every glyph --inet-icon-color,
+  // .icon-color-default with !important), so it follows the button's stronger hover colour too; an
+  // active glyph (.focus-icon-color, e.g. Favorites when on) keeps its primary colour
+  &#{$outside-content}:not([disabled]):not(.disabled):hover > i:not(.focus-icon-color) {
+    color: var(--inet-hover-text-color) !important;
+  }
+
+  // keyboard focus draws the same neutral chip as hover (fill plus spread) with the 2px ring outside
+  // it; the glyph keeps its rest colour unless hovered. The ring starts past the chip, so a bare
+  // glyph's spread is chip, not ring colour (a single spread of spread + ring width filled it solid).
+  &#{$outside-content}:focus-visible {
+    outline: none;
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+    box-shadow: 0 0 0 var(--icon-btn-ghost-spread) var(--inet-ui-neutral-hover-bg-color),
+                0 0 0 calc(var(--icon-btn-ghost-spread) + var(--inet-focus-ring-width)) var(--inet-focus-ring-color);
+  }
+
+  // hovered while keyboard-focused: the same chip and ring (the hover rule above would drop the ring)
+  &#{$outside-content}:not([disabled]):not(.disabled):focus-visible:hover {
+    box-shadow: 0 0 0 var(--icon-btn-ghost-spread) var(--inet-ui-neutral-hover-bg-color),
+                0 0 0 calc(var(--icon-btn-ghost-spread) + var(--inet-focus-ring-width)) var(--inet-focus-ring-color);
+  }
+}
+
+.icon-btn-ghost--glyph {
+  --icon-btn-ghost-spread: 3px;
+}
+
+// An icon inside a row that already shows the hover fill (tree "..." trigger, list kebab): a second
+// fill on the same neutral would not show, so the icon strengthens its colour instead.
+.icon-btn-in-row#{$outside-content}:not([disabled]):not(.disabled):hover {
+  color: var(--inet-hover-text-color) !important;
 }
 
 .img-button {
@@ -1270,12 +1330,18 @@ binding-editor {
 
 .tree-node-hover {
   &:not([disabled]):hover {
-    background-color: var(--inet-ui-neutral-hover-bg-color);
     cursor: pointer;
   }
 
+  // a selected row keeps its selected fill while hovered
+  &:not([disabled]):not(.bg-node-selected):not(.bg-portal-node-selected):hover {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+  }
+
+  // the hover fill reaches the row's left edge by making the 4px filler border transparent (the fill
+  // paints under it), not by removing it, which would shift the row's content 4px on hover
   &:not([disabled]):hover:not(.bg-node-selected) {
-    border-left: none !important;
+    border-left-color: transparent !important;
   }
 
   &.bl-highlight-primary {
@@ -1396,8 +1462,11 @@ wizard-binding-tree .bg-node-selected {
 .collapse-pane-button {
   background-color: var(--inet-overlay-subtle-bg-color);
 
+  // a translucent overlay, so the hover shows on any panel surface (the opaque neutral hover is
+  // nearly invisible on the subtle panels these handles sit on); Schedule's handle uses it too
   &:hover {
-    background-color: var(--inet-overlay-hover-bg-color);
+    color: var(--inet-text-color);
+    background-color: var(--inet-collapse-handle-hover-bg-color);
   }
 }
 

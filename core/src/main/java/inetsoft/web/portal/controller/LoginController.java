@@ -104,7 +104,9 @@ public class LoginController {
       // organization when not multi-tenant, which is the organization the portal reads)
       String shellDarkOrgID = SUtil.isMultiTenant() ? SUtil.getLoginOrganization(request) :
          Organization.getDefaultOrganizationID();
-      model.addObject("shellDark",
+      // a login page shown for an embed page is inside the customer's own page too, so it is light
+      boolean embedLogin = ShellDarkMode.isEmbedUrl(requestedUrl, request.getContextPath());
+      model.addObject("shellDark", !embedLogin &&
                       ShellDarkMode.isLoginDark(request, shellDarkOrgID, customTheme));
 
       if(welcomePage != null) {

@@ -30,3 +30,11 @@
   width: 100%;
   position: relative;
 }
+
+// list rows hover with the neutral fill, like .selectable-list; not while the list is disabled. The
+// box's padding insets the row on both sides, so the fill is a rounded inset row, not a band that
+// stops short of the border.
+.flyover-item:has(.form-check-input:not(:disabled)):hover {
+  background-color: var(--inet-list-hover-bg-color);
+  border-radius: var(--inet-radius-sm);
+}

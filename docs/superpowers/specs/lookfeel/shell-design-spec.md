@@ -423,6 +423,40 @@ Role guidance:
 - Avoid heavy card styling in dense flows.
 - Use cards where containment matters, not as default layout for everything.
 
+### Clickable cards
+
+A card whose whole area is one link or action (the portal home cards, the workspace chooser tiles,
+the New Data Source picker cards).
+
+| State | Guidance |
+|---|---|
+| Rest | the card spec above: surface, neutral border, `4px`+ radius, low shadow |
+| Hover | border `primary` (`--inet-primary-color`) plus medium shadow, no ring; no lift or movement |
+| Focus | the same border and medium shadow plus the `2px` focus ring (keyboard focus only: focus left by a mouse click draws no ring). The New Data Source picker cards cannot take keyboard focus yet (Bug #81489), so they have no focus state |
+| Selected (picker cards) | primary border plus a solid `1px` primary ring outside it (reads as a `2px` primary edge), so selected is stronger than hover; hover adds the medium shadow and keeps the selection |
+
+- Hover, focus and selected are three distinct states. Hover draws no ring, so the ring always
+  means keyboard focus (a hover ring in the light shell was pixel-identical to focus).
+- A card changes only its border and shadow on hover. It does not fill, tint or move: a fill
+  competes with the card's own content and a lift shifts the layout under the pointer.
+- **Nested actions.** When the whole card is one link (Bootstrap's stretched-link pattern), hovering
+  anywhere on the card also shows its action's hover, because pointer and action are the same
+  target. When a card holds a separate button, that button keeps its own hover (a default button:
+  neutral fill, border drops) and the card's hover does not restyle it. Do not put more than one
+  action inside a whole-card link; Carbon's rule is that "clickable tiles cannot contain separate
+  internal CTAs".
+- **Known exception.** The portal home Schedule and Pinboard cards predate this rule: each is a
+  whole-card target (`role="button"`) that also holds an "Open …" button doing the same thing. The
+  button keeps its own default-button hover, as above. Don't copy this markup into new cards; give a
+  new card either one whole-card link or a plain card with a separate button.
+- The action inside a card is a default or secondary role, so its hover is neutral; soft primary is
+  for active or selected states only, never for hover.
+
+Basis: Carbon tile usage and style (a clickable tile has its own hover; no internal CTAs),
+https://carbondesignsystem.com/components/tile/usage/ ; Bootstrap 5.2 stretched link,
+https://getbootstrap.com/docs/5.2/helpers/stretched-link/ ; Atlassian elevation (a hover uses a
+hovered token or an elevation change), https://atlassian.design/foundations/elevation .
+
 ### Figma-style containment guidance
 
 - prefer open layouts with separators for primary work areas

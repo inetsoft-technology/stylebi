@@ -42,9 +42,9 @@
     }
     @if (showHelpLink) {
       @if (cshid) {
-        <i [helpLink]="cshid" class="mx-1" tabindex="0" aria-label="_#(Help Information)" role="link" enterClick></i>
+        <i [helpLink]="cshid" class="mx-1 icon-btn-ghost icon-btn-ghost--glyph" tabindex="0" aria-label="_#(Help Information)" role="link" enterClick></i>
       } @else {
-        <i class="help-question-mark-icon cursor-pointer mx-1" tabindex="0" title="_#(js:Help)"
+        <i class="help-question-mark-icon cursor-pointer mx-1 icon-btn-ghost icon-btn-ghost--glyph" tabindex="0" title="_#(js:Help)"
            aria-label="_#(Help Information)" role="link" enterClick (click)="openHelpURL()"></i>
       }
     }

@@ -29,19 +29,31 @@
   background: var(--inet-shell-surface-default);
   border: 1px solid var(--inet-default-border-color);
   border-radius: var(--inet-radius-lg);
-  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  box-shadow: var(--inet-shadow-low);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
   cursor: pointer;
 }
 
+// a clickable card hovers like the portal home card (shell-design-spec.md "Clickable cards"):
+// orange border plus medium shadow, no lift and no ring in either shell (the ring is for focus)
 :host(:hover) {
   border-color: var(--inet-primary-color);
-  transform: translateY(-1px);
+  box-shadow: var(--inet-shadow-medium);
 }
 
+// a selected card is stronger than hover: the primary border plus a solid 1px primary ring outside
+// it, which reads as a 2px primary edge (hover draws no ring)
 :host(.bg-selected),
 :host(.selected) {
   border-color: var(--inet-primary-color);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--inet-primary-color) 20%, transparent);
+  box-shadow: 0 0 0 1px var(--inet-primary-color);
+}
+
+// a hovered selected card keeps its selection edge and gains the hover shadow
+:host(.bg-selected:hover),
+:host(.selected:hover) {
+  box-shadow: 0 0 0 1px var(--inet-primary-color),
+              var(--inet-shadow-medium);
 }
 
 // Brand logos are third-party marks drawn for a white page, many in dark ink, so every logo sits on

@@ -44,7 +44,8 @@
   cursor: pointer;
 }
 
-.datasource-category-option:hover {
-  background: var(--inet-shell-surface-default);
-  border-color: var(--inet-default-border-color);
+// a list row hovers with the neutral fill, no border box (shell-design-spec.md); a selected category
+// keeps its selected fill while hovered
+.datasource-category-option:not(.bg-selected):hover {
+  background-color: var(--inet-ui-neutral-hover-bg-color);
 }

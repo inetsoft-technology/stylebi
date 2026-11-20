@@ -20,3 +20,8 @@ cdk-virtual-scroll-viewport {
   border: 1px transparent;
   cursor: default;
 }
+
+// list rows hover with the neutral fill, like .selectable-list; a selected row keeps its fill
+:host ::ng-deep .cdk-virtual-scroll-content-wrapper > div:not(.selected):hover {
+  background-color: var(--inet-list-hover-bg-color);
+}

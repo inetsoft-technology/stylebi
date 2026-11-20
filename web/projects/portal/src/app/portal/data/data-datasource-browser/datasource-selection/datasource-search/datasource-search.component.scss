@@ -34,8 +34,29 @@
   height: var(--inet-control-height-md);
   padding: 0;
   border: 0;
+  border-radius: var(--inet-radius-lg);
   background: transparent;
+  color: var(--inet-icon-color);
   cursor: pointer;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+
+  // an icon button: neutral fill and a stronger icon on hover, the 2px ring on keyboard focus. The
+  // glyph pins its own colour (.icon-color-default is !important), so it is strengthened directly.
+  &:hover {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+    color: var(--inet-hover-text-color);
+
+    .icon-color-default {
+      color: var(--inet-hover-text-color) !important;
+    }
+  }
+
+  // keyboard focus: the hover chip plus the ring, as on every shell icon button
+  &:focus-visible {
+    outline: none;
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+    box-shadow: var(--inet-focus-ring);
+  }
 }
 
 .search-input {

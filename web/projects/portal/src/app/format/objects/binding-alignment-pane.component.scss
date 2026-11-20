@@ -19,9 +19,32 @@
   width: 31px;
   height: 31px;
   border: none;
+  // the icon-button chip's radius, for the hover and focus chip and the selected fill alike
+  border-radius: var(--inet-radius-lg);
 
   &:not(.bg-selected) {
     background-color: transparent;
+  }
+
+  // an icon toggle: neutral fill and a stronger icon on hover (the <i> glyph carries its own icon
+  // colour, so it is set on the glyph); a selected toggle keeps its selected fill
+  &:not(.bg-selected):hover {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+
+    i {
+      color: var(--inet-hover-text-color);
+    }
+  }
+
+  // keyboard focus: the hover chip plus the ring, as on every shell icon button; a selected toggle
+  // keeps its selected fill
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--inet-focus-ring);
+  }
+
+  &:not(.bg-selected):focus-visible {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
   }
 }
 

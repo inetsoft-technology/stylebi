@@ -242,6 +242,10 @@ $table-hover-bg: $shell-surface-hover;
 $table-active-bg: $shell-selected-bg;
 $input-btn-focus-width: 1px;
 $input-btn-focus-color: $primary;
+// nav links (navbar tabs, tree toolbar icons, dialog tabs) take the shell's 2px focus ring
+// (shell-design-spec.md "Focus") instead of Bootstrap's 0.25rem ring. Only this variable: the
+// shared $focus-ring-width also feeds form checks, which dashboard content uses.
+$nav-link-focus-box-shadow: var(--inet-focus-ring);
 $input-disabled-bg: $inet-gray1;
 $input-border-color: $inet-gray1;
 $dropdown-link-hover-bg: $shell-surface-hover;
@@ -269,6 +273,25 @@ $form-check-radio-checked-bg-image: none;
 $asset-path: 'assets';
 $roboto-font-path: 'assets';
 $sqrt2: 1.41421356;
+
+// The content boundary. Shell styles (hover, focus, the dark shell) stop at dashboard content.
+// The composer canvas, the portal viewer, the visualization recommender preview and the chart
+// editor preview. Only the assembly area: the editors' own bars and panes are shell.
+$dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container";
+// An assembly's own value pickers, attached to body: the combo box's value list when it has too
+// many labels for a native select, and the date calendar of a combo box, text input or table cell.
+// They are the dashboard's input controls, not app commands, so they are content and compute as in
+// a light shell, like the native select they stand beside (whose popup follows the content's light
+// color-scheme). Other BI apps' dark modes do the same: chrome only, a report's controls follow the
+// report (Power BI and Tableau dark mode docs, Power BI slicer dropdown theme colors). App command
+// menus attached to body (context menus, the mini-toolbar More menu) and tooltips stay shell chrome.
+// A dark-marked assembly's calendar is the exception: it follows its assembly's mark in both shells
+// (the .dropdown-datepicker.viz-dark block at the end of _shell-dark.scss). The combo box list stays
+// light when marked.
+$content-popup: ".vs-combo-box__list, .dropdown-datepicker";
+// Matches an element outside dashboard content without adding specificity, for shell rules that
+// would otherwise also reach the content.
+$outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))";
 
 // css variables
 // The runtime tokens, as a mixin so a dark shell can restore the light set inside dashboard
@@ -633,6 +656,9 @@ $sqrt2: 1.41421356;
   --inet-overlay-scrim-bg-color: rgba(0, 0, 0, 0.3);
   --inet-overlay-subtle-bg-color: rgba(0, 0, 0, 0.02);
   --inet-overlay-hover-bg-color: rgba(0, 0, 0, 0.1);
+  // the collapse-pane handles' hover: the shared overlay's .1 black reads as a heavy cool grey on
+  // the warm panels the handles sit on, so the light shell's handles take a lighter one
+  --inet-collapse-handle-hover-bg-color: rgba(0, 0, 0, 0.06);
 
   // focus
   --inet-focus-ring-width: 2px;

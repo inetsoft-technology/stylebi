@@ -121,6 +121,45 @@ class HomePageControllerShellDarkTest {
       assertEquals(0, cookie.getMaxAge());
    }
 
+   // An embed page lives inside a customer's own page: it renders light, and it never shows the
+   // shell mode, so it leaves the remembered mode (login page, workspace chooser) alone.
+   @Test
+   void embedRendersLightAndLeavesTheCookieAlone() {
+      SreeEnv.setProperty(ShellDarkMode.PROPERTY, "true");
+      MockHttpServletRequest request = new MockHttpServletRequest();
+      request.setRequestURI("/app/embed/chart/global/Dash/Chart1");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      ModelAndView model = controller.showHomePage(request, response, "http://localhost:8080/");
+
+      assertEquals(Boolean.FALSE, model.getModel().get("shellDark"));
+      assertEquals("../codemirror-eclipse.css", model.getModel().get("scriptThemeCssPath"));
+      assertNull(response.getCookie(ShellDarkMode.COOKIE));
+   }
+
+   // an embed that resolves light (e.g. another principal) must not expire a dark user's cookie
+   @Test
+   void embedDoesNotExpireRememberedDark() {
+      MockHttpServletRequest request = new MockHttpServletRequest();
+      request.setRequestURI("/app/embed/chart/global/Dash/Chart1");
+      request.setCookies(new Cookie(ShellDarkMode.COOKIE, "1"));
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      controller.showHomePage(request, response, "http://localhost:8080/");
+
+      assertNull(response.getCookie(ShellDarkMode.COOKIE));
+   }
+
+   @Test
+   void embedUnderAContextPathRendersLight() {
+      SreeEnv.setProperty(ShellDarkMode.PROPERTY, "true");
+      MockHttpServletRequest request = new MockHttpServletRequest();
+      request.setContextPath("/sree");
+      request.setRequestURI("/sree/app/embed/chart/global/Dash/Chart1");
+      ModelAndView model = controller.showHomePage(request, new MockHttpServletResponse(),
+                                                   "http://localhost:8080/sree/");
+
+      assertEquals(Boolean.FALSE, model.getModel().get("shellDark"));
+   }
+
    private ModelAndView showHomePage(MockHttpServletRequest request,
                                      MockHttpServletResponse response)
    {

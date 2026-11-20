@@ -60,6 +60,12 @@
   display: block;
 }
 
+// the header's sort/text buttons sit on the coloured header strip: an opaque neutral hover chip
+// reads as a hole punched in it, so they hover with the translucent overlay instead
+.column-buttons .column-button.hover-bg-primary:not([disabled]):hover {
+  background-color: var(--inet-overlay-hover-bg-color);
+}
+
 .ws-header {
   display: flex;
   align-items: center;
@@ -95,6 +101,42 @@
 
   &.mini-menu {
     display: flex;
+  }
+}
+
+// a selected header takes a single 1px primary frame, so it is visible and distinct from hover. The
+// frame is the header's own border, 1px on all four sides: the right border drops from the 4px
+// double resize grip to 1px solid (so hover shows no grip while selected) and 3px more right padding
+// keeps the box and the layout where they were. The .column-buttons strip sits inside the padding
+// box, so it never covers the frame.
+.ws-header.ws-header--selected {
+  &,
+  &:hover {
+    border: 1px solid var(--inet-primary-color);
+    padding-right: 4px;
+  }
+
+  // the strip is positioned in the padding box, which the 3px thinner right border widens: inset it
+  // by those 3px so the buttons stay where they were and keep a gap from the frame
+  .column-buttons {
+    right: 3px;
+  }
+
+  // keyboard focus adds the 2px focus ring just inside the frame. It is an overlay, not an outline:
+  // the global [tabindex] { outline: none } reset removes outlines from this focusable header, and
+  // the overlay paints above the .column-buttons strip, so the strip does not cover the ring. It
+  // fills the padding box, because .ws-header clips (overflow: hidden) anything drawn past it.
+  &:focus-visible::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    // the same level as .column-buttons and later in tree order, so it paints above the strip
+    z-index: 1;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
   }
 }
 

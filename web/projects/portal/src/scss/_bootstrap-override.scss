@@ -317,6 +317,15 @@ fieldset.float-title {
     border-color: var(--inet-primary-color);
     box-shadow: var(--inet-focus-ring);
   }
+
+  // checked border == fill, so :focus alone is invisible; add a two-colour ring (checkbox, radio,
+  // switch). Bug #81489 put this here; the main->epic merge had moved it into the .form-switch block,
+  // so checked checkboxes and radios had lost it. The inner ring is the surface the control sits on:
+  // white in a light shell and in dashboard content, the dark surface in a dark shell.
+  &:checked:focus-visible {
+    box-shadow: 0 0 0 2px var(--inet-dark-surface-color, #fff), 0 0 0 4px var(--inet-text-color);
+    box-shadow: 0 0 0 2px var(--inet-dark-surface-color, #fff), 0 0 0 4px color-mix(in srgb, var(--inet-text-color) 70%, white);
+  }
 }
 
 input[type="checkbox"]:not(.form-check-input),
@@ -342,12 +351,6 @@ input[type="radio"]:not(.form-check-input) {
     border-color: var(--inet-primary-color);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3E%3Ccircle r='3' fill='%23ffffff'/%3E%3C/svg%3E");
     background-position: right center;
-  }
-
-  // checked border == fill, so :focus alone is invisible; add a two-colour ring (checkbox, radio, switch)
-  &:checked:focus-visible {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--inet-text-color);
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, var(--inet-text-color) 70%, white);
   }
 }
 
@@ -432,6 +435,37 @@ input[type="radio"]:not(.form-check-input) {
   &, &:hover {
     --bs-btn-close-color: var(--inet-icon-color);
   }
+}
+
+// A dialog's close button is an icon button, so it hovers with the neutral fill (shell-design-spec.md
+// "Ghost/icon"). background-color only: the X itself is the background images above, drawn in
+// --inet-icon-color, so the hover sets that property on the button to darken the X like the help icon
+// beside it. Not in dashboard content (a text input's error box draws a dialog header inside the
+// assembly). Like a bare-glyph .icon-btn-ghost--glyph, a box-shadow spread draws the fill a few
+// pixels past the X, so the chip matches the other icon chips without moving the rest layout.
+.modal-header .btn-close#{$outside-content}:not([disabled]):hover {
+  --inet-icon-color: var(--inet-hover-text-color);
+  background-color: var(--inet-ui-neutral-hover-bg-color);
+  border-radius: var(--inet-radius-lg);
+  box-shadow: 0 0 0 3px var(--inet-ui-neutral-hover-bg-color);
+}
+
+// keyboard focus draws the same neutral chip as hover with the 2px ring outside it, as on
+// .icon-btn-ghost; the X keeps its rest colour unless hovered. The ring starts past the 3px chip
+// spread, so that area is chip, not ring colour (Bootstrap's own focus shadow is made transparent on
+// .btn-close above)
+.modal-header .btn-close#{$outside-content}:not([disabled]):focus-visible {
+  outline: none;
+  background-color: var(--inet-ui-neutral-hover-bg-color);
+  border-radius: var(--inet-radius-lg);
+  box-shadow: 0 0 0 3px var(--inet-ui-neutral-hover-bg-color),
+              0 0 0 calc(3px + var(--inet-focus-ring-width)) var(--inet-focus-ring-color);
+}
+
+// hovered while keyboard-focused: the same chip and ring (the hover rule above would drop the ring)
+.modal-header .btn-close#{$outside-content}:not([disabled]):focus-visible:hover {
+  box-shadow: 0 0 0 3px var(--inet-ui-neutral-hover-bg-color),
+              0 0 0 calc(3px + var(--inet-focus-ring-width)) var(--inet-focus-ring-color);
 }
 
 .dropdown-toggle.no-caret::after {
@@ -725,6 +759,36 @@ a:not([href]) {
     color: var(--inet-text-color);
     background-color: var(--inet-hover-primary-bg-color);
   }
+
+  // an item marked with the shell selected fill (the current bookmark) keeps it while hovered,
+  // focused or pressed
+  &.bg-selected:hover,
+  &.bg-selected:focus,
+  &.bg-selected:active,
+  &.bg-bold-selected:hover,
+  &.bg-bold-selected:focus,
+  &.bg-bold-selected:active {
+    background-color: var(--inet-shell-selected-bg-color);
+  }
+
+  // keyboard focus on a selected item can't show as a fill change, so it gets the shell focus
+  // ring. The fill stays full-bleed; the ring is a rounded ring floating 2px inside the row (the
+  // dropdown clips at its edge), so it never touches the list edge or the divider above. Drawn on
+  // ::after (the item has no pseudo-elements of its own), positioned against the item only while
+  // focused, so nothing changes at rest.
+  &.bg-selected:focus-visible,
+  &.bg-bold-selected:focus-visible {
+    position: relative;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      border-radius: var(--inet-radius-md);
+      box-shadow: inset 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+      pointer-events: none;
+    }
+  }
 }
 
 .card {
@@ -973,7 +1037,8 @@ a:not([href]) {
     }
   }
 
-  &:hover:not(.not-selectable) {
+  // the active (selected) item keeps its selected fill while hovered
+  &:hover:not(.not-selectable):not(.active) {
     color: var(--inet-text-color);
     background-color: var(--inet-list-hover-bg-color);
 
@@ -1041,9 +1106,11 @@ a:not([href]) {
   border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-shell-surface-default);
 }
 
-.nav-tabs .nav-link:hover {
+// the active tab keeps its look (surface fill, open bottom edge) while hovered
+.nav-tabs .nav-link:not(.active):hover {
   background-color: var(--inet-ui-neutral-hover-bg-color);
-  border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-default-border-color);
+  // the neutral fill is the hover; a border box on hover reads as a second, nested tab
+  border-color: transparent;
 }
 
 .nav-pills .nav-link.selected {
@@ -1339,6 +1406,20 @@ custom-select.date-value-editor__nav-select--year {
 ngb-datepicker .btn-light.bg-primary.text-white {
   background-color: var(--inet-primary-color) !important;
   color: var(--inet-button-primary-text-color, #{$inet-on-orange}) !important;
+}
+
+// A calendar day hovers with the neutral fill like other shell lists, instead of ng-bootstrap's
+// tertiary grey (#F8F9FA, a cool grey off the warm palette) and its outline box. Shell calendars
+// only: a dashboard control's calendar (.dropdown-datepicker) is content and keeps its look.
+.ngb-dp-day#{$outside-content} [ngbDatepickerDayView]:hover:not(.bg-primary) {
+  background-color: var(--inet-ui-neutral-hover-bg-color);
+  // the day is a .btn-light, whose hover draws a 1px border
+  border-color: transparent;
+
+  // ng-bootstrap's outline is also the keyboard-focused (.active) day's only focus mark: keep it there
+  &:not(.active) {
+    outline: none;
+  }
 }
 
 .custom-select {

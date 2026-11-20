@@ -20,6 +20,9 @@ slide-out div.slide-out-content-container {
     overflow-y: hidden;
     max-height: calc(100% - 120px);
     flex-grow: 1;
+    // the scrollbar appears only on hover; reserving its gutter keeps the form from reflowing
+    // sideways when it does
+    scrollbar-gutter: stable;
   }
 
   .modal-body:hover {

@@ -226,6 +226,28 @@ class ShellDarkModeTest {
       assertNull(ShellDarkMode.readCookie(request(new Cookie(ShellDarkMode.COOKIE, "yes"))));
    }
 
+   // ---- embed ----
+
+   @Test
+   void embedUrlsAreRecognized() {
+      assertTrue(ShellDarkMode.isEmbedUrl("/app/embed/chart/global/Dash/Chart1", ""));
+      assertTrue(ShellDarkMode.isEmbedUrl("app/embed/chart/global/Dash/Chart1", null));
+      assertTrue(ShellDarkMode.isEmbedUrl("/sree/app/embed/chart/global/Dash/Chart1", "/sree"));
+      assertTrue(ShellDarkMode.isEmbedUrl(
+         "http://localhost:8080/sree/app/embed/chart/global/Dash/Chart1?a=1#x", "/sree"));
+      assertTrue(ShellDarkMode.isEmbedUrl("/app/embed/chart/global/Dash/Chart1?x=/app/portal", ""));
+   }
+
+   @Test
+   void otherUrlsAreNotEmbed() {
+      assertFalse(ShellDarkMode.isEmbedUrl(null, ""));
+      assertFalse(ShellDarkMode.isEmbedUrl("", ""));
+      assertFalse(ShellDarkMode.isEmbedUrl("/app/portal", ""));
+      assertFalse(ShellDarkMode.isEmbedUrl("/app/embedded/x", ""));
+      assertFalse(ShellDarkMode.isEmbedUrl("/app/portal?next=/app/embed/chart/x", ""));
+      assertFalse(ShellDarkMode.isEmbedUrl("http://localhost:8080/app/portal", "/sree"));
+   }
+
    // ---- login ----
 
    @Test

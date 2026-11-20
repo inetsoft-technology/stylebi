@@ -24,6 +24,21 @@
 button {
   padding: 3px;
   border: none;
+  border-radius: var(--inet-radius-lg);
   background: transparent;
   cursor: pointer;
+
+  // icon buttons: neutral fill and a stronger icon on hover (the glyph is the button's own ::before,
+  // so it takes the button's colour), the 2px ring on keyboard focus
+  &:hover {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+    color: var(--inet-hover-text-color);
+  }
+
+  // keyboard focus: the hover chip plus the ring, as on every shell icon button
+  &:focus-visible {
+    outline: none;
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+    box-shadow: var(--inet-focus-ring);
+  }
 }

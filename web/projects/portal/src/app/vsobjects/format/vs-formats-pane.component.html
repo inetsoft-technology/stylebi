@@ -123,7 +123,7 @@
   <div class="col">
     <div class="form-floating" [class.disabled]="borderDisabled">
       @if (borderTooltip) {
-        <i class="help-question-mark-icon field-help-icon"
+        <i class="help-question-mark-icon field-help-icon icon-btn-ghost icon-btn-ghost--glyph"
         [ngbTooltip]="borderTooltip" triggers="click" [openDelay]="0" placement="left"></i>
       }
       <dropdown-view #borderDropdown [label]="getBorderLabel()" [disabled]="borderDisabled"
@@ -243,7 +243,7 @@
 <button class="btn btn-default" [disabled]="formatDisabled" (click)="reset()">
   _#(Reset)
 </button>
-<i class="help-icon" [helpLink]="'FormatDialogBox'"></i>
+<i class="help-icon icon-btn-ghost icon-btn-ghost--glyph" [helpLink]="'FormatDialogBox'"></i>
 </div>
 <ng-template #presenterPropertyDialog let-close="close" let-dismiss="dismiss">
   <presenter-property-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"

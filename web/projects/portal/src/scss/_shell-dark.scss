@@ -17,25 +17,12 @@
  */
 @use 'sass:color';
 
-// The composer canvas, the portal viewer, the visualization recommender preview and the chart
-// editor preview. Only the assembly area: the editors' own bars and panes are shell.
-$dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container";
-// An assembly's own value pickers, attached to body: the combo box's value list when it has too
-// many labels for a native select, and the date calendar of a combo box, text input or table cell.
-// They are the dashboard's input controls, not app commands, so they are content and compute as in
-// a light shell, like the native select they stand beside (whose popup follows the content's light
-// color-scheme). Other BI apps' dark modes do the same: chrome only, a report's controls follow the
-// report (Power BI and Tableau dark mode docs, Power BI slicer dropdown theme colors). App command
-// menus attached to body (context menus, the mini-toolbar More menu) and tooltips stay shell chrome.
-// A dark-marked assembly's calendar is the exception: it follows its assembly's mark in both shells
-// (the .dropdown-datepicker.viz-dark block at the end). The combo box list stays light when marked.
-$content-popup: ".vs-combo-box__list, .dropdown-datepicker";
+// $dashboard-content, $content-popup and $outside-content (the content boundary) live in
+// _variables.scss, so light-shell rules can stay out of dashboard content too.
+
 // The popups the shell resets to light: a dark-marked calendar is left out, it follows its mark (see
 // the .dropdown-datepicker.viz-dark block at the end of this file). Same specificity as the others.
 $content-popup-light: ".vs-combo-box__list, .dropdown-datepicker:not(.viz-dark)";
-// Matches an element outside dashboard content without adding specificity, for dark rules that
-// would otherwise also reach the content.
-$outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))";
 
 /***
  * Shell dark
@@ -207,6 +194,7 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-overlay-scrim-bg-color: rgba(0, 0, 0, 0.55);
   --inet-overlay-subtle-bg-color: rgba(255, 255, 255, 0.03);
   --inet-overlay-hover-bg-color: rgba(255, 255, 255, 0.08);
+  --inet-collapse-handle-hover-bg-color: var(--inet-overlay-hover-bg-color);
   // focus indicators need 3:1 against the dark surfaces they sit on
   --inet-focus-ring-color: rgba(217, 122, 26, 0.75);
 
@@ -234,11 +222,24 @@ $dark-ws-row-hover-bg: #302D27;
   // orange. Dashboard content restores the light shell's label.
   --inet-button-primary-text-color: var(--inet-dark-on-primary-text-color);
   --inet-button-primary-hover-text-color: var(--inet-dark-on-primary-text-color);
-  // Hover and focus lighten the fill, as in a light shell, but to the dark shell's link orange,
+  // Hover and focus lighten the fill (a light shell darkens it) to the dark shell's link orange,
   // which reads as raised like the other hovered surfaces in a dark shell. The dark text reads
-  // 8.5:1 on it, and about 7:1 on a pressed button (brightness(.9) darkens the text too).
+  // 8.5:1 on it, and about 10:1 on a pressed button (the dark press brightens to 1.12).
   --inet-button-primary-hover-bg-color: #{$dark-link};
   --inet-button-primary-hover-border-color: #{$dark-link};
+  // A disabled primary button: the light shell fades the orange to .3 opacity, which on a dark
+  // surface turns a muddy brown with a ~1.5:1 label that reads as a dim active button. The dark
+  // shell uses Material 3's disabled values instead: on-surface at 12% for the container and 38%
+  // for the label (m3.material.io, states: disabled), translucent so they work on any dark surface.
+  // (230, 224, 233 = $dark-text-strong, the dark on-surface)
+  --inet-dark-disabled-primary-bg: rgba(230, 224, 233, 0.12);
+  --inet-dark-disabled-primary-text: rgba(230, 224, 233, 0.38);
+  // A disabled checked checkbox, radio or switch: the same fade (.5 opacity) turns its orange fill
+  // brown. Material 3's selected-disabled checkbox, radio and switch use on-surface at 38% for the
+  // fill and the surface color for the check mark, dot and handle (about 2.9:1 on that fill): quieter
+  // than the white of an enabled control, and the radio keeps its ring, gap and dot.
+  --inet-dark-disabled-selected-color: rgba(230, 224, 233, 0.38);
+  --inet-dark-disabled-selected-mark-color: #252428;
   // error text: the danger color is kept for borders and fills, which pass 3:1, but as text it
   // reads 3.4:1 on the dark surface
   --inet-dark-danger-text-color: #{$dark-danger-text};
@@ -248,10 +249,6 @@ $dark-ws-row-hover-bg: #302D27;
   // the halo around a checked tree checkbox, which is not a focus state: it keeps the dark
   // shell's earlier focus-ring strength
   --inet-dark-check-halo-color: rgba(217, 122, 26, 0.45);
-  // The ring a clickable card draws on hover, outside its orange hover border. Hover is not a focus
-  // state. A light shell's faint ring blends into its light page as a glow, but on a dark page a
-  // translucent orange turns brown and reads as a second edge, so a dark shell shows the border only.
-  --inet-dark-hover-ring-color: transparent;
   // a faint tint for a selected row that holds chips drawn in the hover surface, so the chips
   // still stand out from it
   --inet-dark-selected-tint-color: rgba(255, 255, 255, 0.05);
@@ -483,6 +480,47 @@ $dark-ws-row-hover-bg: #302D27;
     --bs-btn-disabled-border-color: var(--inet-button-light-border-color);
   }
 
+  // A pressed button: the light shell darkens it (brightness .9), the way its hover darkens. In the
+  // dark shell hover lightens, so a darkened press would fall back toward rest and read weaker than
+  // hover. Press lightens a step further instead (Material 3: pressed is a stronger state layer than
+  // hover, in the same direction). Same selector as the light rule, so it wins by source order.
+  .btn.btn-primary, .btn.btn-secondary, .btn.btn-default, .btn-light, .btn.btn-light,
+  .btn.btn-danger {
+    &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active:focus#{$outside-content} {
+      filter: brightness(1.12);
+    }
+  }
+
+  // a disabled primary button takes the dark disabled values (see the tokens) at full opacity; also
+  // inside a disabled fieldset. Dashboard content keeps the light shell's faded orange.
+  .btn.btn-primary:is(:disabled, .disabled)#{$outside-content},
+  fieldset:disabled .btn.btn-primary#{$outside-content} {
+    opacity: 1;
+    color: var(--inet-dark-disabled-primary-text);
+    background-color: var(--inet-dark-disabled-primary-bg);
+    border-color: var(--inet-dark-disabled-primary-bg);
+  }
+
+  // a disabled checked checkbox, radio or switch takes the dark selected-disabled value (see the
+  // token) at full opacity instead of a faded orange; an unchecked one and the label keep their
+  // neutral fade. The class is doubled to outrank component rules that repaint a checked box
+  // (e.g. .physical-table-tree-node__checkbox:checked, emulated to 0,3,0 and loaded after this
+  // sheet). Dashboard content keeps the light shell's faded orange.
+  .form-check-input.form-check-input:checked:disabled#{$outside-content} {
+    opacity: 1;
+    background-color: var(--inet-dark-disabled-selected-color);
+    // the fill already covers the border box; a translucent border on top of it would add a
+    // lighter 1px outline
+    border-color: transparent;
+    --inet-check-mark-color: var(--inet-dark-disabled-selected-mark-color);
+  }
+
+  // the switch's knob is a baked white SVG, so the disabled checked one gets its own in the mark
+  // color (#252428 = --inet-dark-disabled-selected-mark-color); two classes to beat the checked knob
+  .form-switch .form-check-input:checked:disabled#{$outside-content} {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3E%3Ccircle r='3' fill='%23252428'/%3E%3C/svg%3E");
+  }
+
   .btn.btn-light-no-bg#{$outside-content} {
     --bs-btn-active-color: var(--inet-text-color);
     --bs-btn-active-bg: var(--inet-shell-selected-bg-color);
@@ -542,7 +580,8 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
   border-strong-color, input-bg-color, input-border-color, text-color, icon-color, stroke-color,
   drag-indicator-bg, drag-indicator-text-color, shadow-color, shadow-low-filter,
   on-primary-text-color, danger-text-color, warning-soft-color, info-soft-color, check-halo-color,
-  hover-ring-color, selected-tint-color, neutral-chip-color, neutral-chip-border-color;
+  selected-tint-color, neutral-chip-color, neutral-chip-border-color,
+  disabled-primary-bg, disabled-primary-text, disabled-selected-color, disabled-selected-mark-color;
 
 // The hidden-annotation tooltip and the visible annotation's overflow tooltip. Other tooltips are
 // body-attached shell chrome and go dark, but these show the annotation's own rich text on the
@@ -735,5 +774,13 @@ $viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-the
   ngb-datepicker .btn-light.bg-primary.text-white {
     background-color: var(--inet-viz-selected-bg-dark) !important;
     color: var(--inet-viz-selected-text-dark) !important;
+  }
+}
+
+// Forced colors (Windows High Contrast) replace the fill and the mark with system colors, so the
+// grey fill above would no longer say "disabled": keep the light shell's fade there.
+@media (forced-colors: active) {
+  :where(.shell-dark) .form-check-input.form-check-input:checked:disabled#{$outside-content} {
+    opacity: .5;
   }
 }

@@ -97,6 +97,8 @@ button.form-control {
     padding: 0 3px;
     padding-top: 0.1em;
     flex: 0 0 auto;
+    // a borderless toggle stays borderless on hover: the neutral fill is the hover
+    --bs-btn-hover-border-color: transparent;
   }
 
   .no-select-input-text {

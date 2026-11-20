@@ -31,3 +31,52 @@
     color: inherit;
   }
 }
+
+// Apply and its Apply-and-Collapse addon are one split button with one outline. The default
+// button's hover, press and focus states redraw a full 1px border in the hover border colour
+// (transparent), which would open that outline around the hovered half, and on the addon would grow
+// it 1px and shift it. So in the group a half only changes its fill: it keeps the rest border and
+// edges. !important: the global press rule (.btn.btn-default:not(...)x4:active) outranks any
+// component selector. A lone Apply (outside a slide-out) has neither class and hovers as usual.
+.input-group > .btn.btn-default:is(.input-group-btn, .input-group-btn-addon):not(:disabled) {
+  &:hover, &:active, &:focus {
+    border-color: var(--inet-default-border-color) !important;
+  }
+}
+
+// Focus. The two halves are separate tab stops with different actions, so the focus mark is on the
+// focused half, as in every grouped control in the shell (Bootstrap btn-group and input-group,
+// .toolbar-ghost-actions) and in other split buttons (web.dev's split button, Esri Calcite, Material
+// 3's): the shell's 2px ring outside that half plus the neutral chip; the half sits above the other
+// half, so the ring is not hidden under its edge. The default button draws that ring on :focus, so also on
+// every mouse press; here it is keyboard focus (:focus-visible) only. !important for the same reason
+// as above.
+.input-group > .btn.btn-default:is(.input-group-btn, .input-group-btn-addon):not(:disabled) {
+  &:focus {
+    box-shadow: none !important;
+  }
+
+  // (Bootstrap's .input-group .btn:focus already raises the focused half: z-index 5 over 2)
+  &:focus-visible {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+    box-shadow: var(--inet-focus-ring) !important;
+  }
+}
+
+.input-group > .btn.btn-default.input-group-btn:not(:disabled) {
+  &:hover, &:active, &:focus {
+    border-right: 1px dashed !important;
+  }
+
+  // keyboard focus: the ring's right edge marks the seam, so the dashed divider just inside it would
+  // double that line; it hides while Apply has keyboard focus (same specificity, later, so it wins)
+  &:focus-visible {
+    border-right-color: transparent !important;
+  }
+}
+
+.input-group > .btn.btn-default.input-group-btn-addon:not(:disabled) {
+  &:hover, &:active, &:focus {
+    border-left: none !important;
+  }
+}

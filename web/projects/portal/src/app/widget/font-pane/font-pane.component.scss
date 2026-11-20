@@ -22,6 +22,12 @@
    list-style: none;
 }
 
+// list rows hover with the neutral fill, like .selectable-list; the selected font keeps its fill
+.font-option:not(.selected):hover {
+  background-color: var(--inet-list-hover-bg-color);
+  cursor: pointer;
+}
+
 input.font-size {
   width: 4rem;
 }

@@ -47,6 +47,12 @@ fieldset > legend {
   &.selected {
     background-color: var(--inet-list-selected-bg-color);
   }
+
+  // a selected target keeps its selected fill while hovered; the list prefix lifts this above the
+  // global .list-group-item hover (_bootstrap-override.scss), which excludes only .active
+  .chart-target-lines-pane__list &.selected:hover {
+    background-color: var(--inet-list-selected-bg-color);
+  }
 }
 
 .chart-target-lines-pane__list-text {

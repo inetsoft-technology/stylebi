@@ -143,6 +143,16 @@ class ShellDarkLoginPagesTest {
       assertEquals(Boolean.TRUE, loginShellDark());
    }
 
+   // the login page shown for an embed is inside the customer's page too, so it is light
+   @Test
+   void loginForAnEmbedIsLight() throws Exception {
+      SreeEnv.setProperty(DEFAULT_ORG_PROPERTY, "true");
+
+      assertEquals(Boolean.FALSE, loginShellDark("/app/embed/chart/global/Dash/Chart1"));
+      assertEquals(Boolean.FALSE, loginShellDark("http://localhost/app/embed/chart/global/Dash/Chart1"));
+      assertEquals(Boolean.TRUE, loginShellDark("/app/portal"));
+   }
+
    private Object chooserShellDark(Cookie... cookies) {
       MockHttpServletRequest request = new MockHttpServletRequest("GET", "/");
 
@@ -156,13 +166,17 @@ class ShellDarkLoginPagesTest {
    }
 
    private Object loginShellDark() throws Exception {
+      return loginShellDark(null);
+   }
+
+   private Object loginShellDark(String requestedUrl) throws Exception {
       PortalThemesManager themes = mock(PortalThemesManager.class);
       when(themes.getWelcomePage()).thenReturn(new PortalWelcomePage());
       LoginController controller = new LoginController(securityEngine, customThemes, themes);
       MockHttpServletRequest request = new MockHttpServletRequest("GET", "/login.html");
       request.setServerName("localhost");
       request.setServerPort(80);
-      ModelAndView model = controller.showLoginPage(null, request, new MockHttpServletResponse(),
+      ModelAndView model = controller.showLoginPage(requestedUrl, request, new MockHttpServletResponse(),
                                                     "http://localhost/");
       return model.getModel().get("shellDark");
    }

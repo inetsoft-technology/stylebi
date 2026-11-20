@@ -38,13 +38,13 @@
              aria-label="_#(Search Data Tree)"
              (keyup.enter)="search()">
       @if (searchString) {
-        <i class="close-icon icon-size-medium icon-color-default"
+        <i class="close-icon icon-size-medium icon-btn-ghost icon-btn-ghost--glyph"
            aria-hidden="true" (click)="resetSearchMode()"></i>
       }
     </div>
     <ul class="nav nav-inline ms-auto">
       <li class="nav-item">
-        <a class="nav-link nav-icon icon-size-medium p-2" (click)="search()" role="button"
+        <a class="nav-link nav-icon icon-size-medium p-2 icon-btn-ghost" (click)="search()" role="button"
            title="_#(Search)" tabindex="0" aria-label="_#(Execute Search)" enterClick>
           <i class="search-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
           <span class="visually-hidden">_#(Search)</span>

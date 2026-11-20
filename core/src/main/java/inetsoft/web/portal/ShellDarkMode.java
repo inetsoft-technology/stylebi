@@ -80,6 +80,9 @@ public final class ShellDarkMode {
     */
    public static final String SCRIPT_THEME_CSS_PATH = "../" + CustomTheme.ScriptTheme.DARCULA.getFileName();
 
+   // embed pages, which always render light (see isEmbedUrl)
+   private static final String EMBED_PATH = "/app/embed/";
+
    private ShellDarkMode() {
    }
 
@@ -185,6 +188,51 @@ public final class ShellDarkMode {
       }
 
       return null;
+   }
+
+   /**
+    * Determines whether a URL is an embed page ({@code /app/embed/**}). Embed pages are shown
+    * inside a customer's own page, which the shell's dark mode must not restyle, so they and the
+    * login page shown for them always render light.
+    *
+    * @param url         a request URI, an app-relative path (with or without the leading slash) or
+    *                    an absolute URL of this server; a query or fragment is ignored.
+    * @param contextPath the servlet context path, or {@code null} / empty for the root.
+    *
+    * @return {@code true} if the URL's path, after the context path, is under {@code /app/embed/}.
+    *         The raw path is compared, so a percent-encoded or matrix-parameter spelling of the
+    *         prefix is not recognized; generated embed URLs never use one.
+    */
+   public static boolean isEmbedUrl(String url, String contextPath) {
+      if(url == null || url.isEmpty()) {
+         return false;
+      }
+
+      String path = url;
+      int scheme = path.indexOf("://");
+
+      if(scheme >= 0) {
+         int slash = path.indexOf('/', scheme + 3);
+         path = slash < 0 ? "/" : path.substring(slash);
+      }
+
+      for(char end : new char[] { '?', '#' }) {
+         int index = path.indexOf(end);
+
+         if(index >= 0) {
+            path = path.substring(0, index);
+         }
+      }
+
+      if(!path.startsWith("/")) {
+         path = "/" + path;
+      }
+
+      if(contextPath != null && !contextPath.isEmpty() && path.startsWith(contextPath + "/")) {
+         path = path.substring(contextPath.length());
+      }
+
+      return path.startsWith(EMBED_PATH);
    }
 
    /**

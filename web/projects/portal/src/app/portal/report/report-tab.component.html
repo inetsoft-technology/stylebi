@@ -25,7 +25,7 @@
         </div>
         <ul class="nav">
           @for (entry of recentlyViewed; track entry.path) {
-            <li class="nav-item">
+            <li class="nav-item hover-bg-secondary">
               <a class="nav-link" (click)="showEntry(entry)" tabindex="-1" enterClick>{{ entry.alias || entry.label }}</a>
             </li>
           }

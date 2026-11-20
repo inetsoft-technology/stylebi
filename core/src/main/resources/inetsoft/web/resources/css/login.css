@@ -52,7 +52,7 @@
   --ln-radius-md: var(--inet-radius-xl, 6px);
   --ln-shadow-low: var(--inet-shadow-low, 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04));
   --ln-shadow-medium: var(--inet-shadow-medium, 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 6px rgba(0, 0, 0, 0.05));
-  --ln-focus: var(--inet-focus-ring-color, rgba(229, 138, 42, 0.28));
+  --ln-focus: var(--inet-focus-ring-color, rgba(217, 122, 26, 0.28));
   --ln-nav-h: 56px;
 }
 
@@ -223,7 +223,7 @@ body {
 
 .login-left .form-control:focus {
   border-color: var(--ln-primary);
-  box-shadow: 0 0 0 3px var(--ln-focus);
+  box-shadow: 0 0 0 2px var(--ln-focus);
   outline: none;
 }
 
@@ -379,7 +379,6 @@ body {
 #activeSession .modal-footer .btn-primary:hover {
   background: var(--ln-primary-hover);
   border-color: var(--ln-primary-hover);
-  box-shadow: var(--ln-shadow-low);
 }
 
 #loginButton.btn-primary:focus-visible,
@@ -387,7 +386,16 @@ body {
 .restricted-action-btn--primary:focus-visible,
 #activeSession .modal-footer .btn-primary:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--ln-focus);
+  box-shadow: 0 0 0 2px var(--ln-focus);
+}
+
+/* the restricted page's primary action is a link drawn as a button: without this the global
+   a:hover colour (the same orange as the hover fill) hides its label, and the link underline shows */
+.restricted-action-btn--primary,
+.restricted-action-btn--primary:hover,
+.restricted-action-btn--primary:focus-visible {
+  color: var(--ln-button-primary-text);
+  text-decoration: none;
 }
 
 .btn-default,
@@ -418,7 +426,7 @@ body {
 .btn-default:focus-visible,
 .restricted-action-btn:not(.restricted-action-btn--primary):focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--ln-focus);
+  box-shadow: 0 0 0 2px var(--ln-focus);
 }
 
 .social-login-div {
@@ -649,11 +657,11 @@ div.loading-indicator.loading {
   stroke: rgba(255, 255, 255, 0.12);
 }
 
-/* The dark focus ring is strong enough to pass 3:1 on its own, as a button needs. A focused input
-   also turns its border orange, which passes by itself, so its glow keeps the dark shell's earlier
-   strength instead of drawing a second heavy ring. */
-:where(.shell-dark) .login-left .form-control:focus {
-  box-shadow: 0 0 0 3px rgba(229, 138, 42, 0.45);
+/* An input's hover tints it one step toward the page's alternate surface. The light rule mixes in
+   white, which on a dark input makes a light grey slab under light text; dark takes that step to the
+   alternate surface itself. */
+:where(.shell-dark) .login-left .form-control:hover {
+  background: var(--ln-bg-alt);
 }
 
 /* Primary buttons in a dark shell hover to the dark shell's lighter orange, as the portal's do.

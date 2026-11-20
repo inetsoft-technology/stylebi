@@ -40,7 +40,9 @@
   --inet-shadow-medium: 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 6px rgba(0, 0, 0, 0.05);
   --inet-radius-lg: 4px;
   --inet-radius-xl: 6px;
-  --inet-focus-ring-color: rgba(229, 138, 42, 0.28);
+  --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
+  /* clickable cards take the portal's primary (#D97A1A), not this page's --inet-primary-color */
+  --inet-card-hover-border-color: #D97A1A;
 }
 
 /* Shell dark: the server writes the class when the shell is dark (inetsoft.web.portal.ShellDarkMode).
@@ -65,9 +67,8 @@
   --inet-shell-selected-bg-color: #45424B;
   --inet-shadow-low: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
   --inet-shadow-medium: 0 2px 4px rgba(0, 0, 0, 0.45), 0 1px 6px rgba(0, 0, 0, 0.35);
-  /* a focused tile also turns its border orange, which passes 3:1 by itself, so its ring keeps the
-     softer strength instead of drawing a second heavy edge */
-  --inet-focus-ring-color: rgba(229, 138, 42, 0.45);
+  /* the portal's dark focus ring strength, as on the home card */
+  --inet-focus-ring-color: rgba(217, 122, 26, 0.75);
 }
 
 html,
@@ -195,15 +196,17 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
+/* a clickable card hovers like the portal home card (shell-design-spec.md "Clickable cards"):
+   orange border plus medium shadow, no lift and no ring, in both shells. Hover, focus and selected
+   are distinct states, so only keyboard focus draws the border, shadow and ring; focus left by a
+   mouse click looks like rest, as on the portal home cards. */
 .module-link:hover .module-tile,
-.module-link:focus .module-tile,
 .module-link:focus-visible .module-tile {
-  border-color: var(--inet-primary-color);
+  border-color: var(--inet-card-hover-border-color);
   box-shadow: var(--inet-shadow-medium);
-  transform: translateY(-1px);
 }
 
 .module-link:focus,
@@ -211,13 +214,8 @@ a:hover {
   outline: none;
 }
 
+/* keyboard focus always draws the 2px ring, in both shells, hovered or not */
 .module-link:focus-visible .module-tile {
-  box-shadow: 0 0 0 3px var(--inet-focus-ring-color), var(--inet-shadow-medium);
-}
-
-/* on the dark page a 3px ring outside the orange border reads as a second edge; a thinner one still
-   tells focus apart from hover, which shows the border only */
-:root.shell-dark .module-link:focus-visible .module-tile {
   box-shadow: 0 0 0 2px var(--inet-focus-ring-color), var(--inet-shadow-medium);
 }
 
@@ -313,10 +311,12 @@ a:hover {
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
+/* the whole tile is one link, so hovering anywhere on it lights the label; the label hovers like
+   a default button (neutral fill, border drops, stronger text), as the home card's button does */
 .module-link:hover .tile-action,
 .module-link:focus-visible .tile-action {
-  border-color: var(--inet-primary-color);
-  background: var(--inet-primary-soft-color);
+  border-color: transparent;
+  background: var(--inet-ui-neutral-hover-bg-color);
   color: var(--inet-text-strong-color);
 }
 

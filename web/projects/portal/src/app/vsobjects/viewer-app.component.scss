@@ -191,6 +191,31 @@ main {
   outline: none;
   height: 32px;
   width: 32px;
+  // anchor for the hover chip below; isolation keeps the chip (z-index -1) above the button's own
+  // background and below the icon
+  position: relative;
+  isolation: isolate;
+}
+
+// The toolbar is the beige shell surface, on which the neutral hover fill is barely visible
+// (#ECE9E2 on #F1EFEA). Its buttons hover with the translucent overlay the collapse handles use on
+// the same surfaces (black .06 light, white .08 dark), which darkens whatever the toolbar colour is.
+// The 32px buttons fill the 33px toolbar, so a full-cell fill reads as a square block; like every
+// other shell icon button (.icon-btn-ghost, .toolbar-ghost-actions .btn) the overlay is drawn as a
+// rounded chip inset 2px from the button edges. The button itself keeps the toolbar colour (beating
+// the global .icon-hover-bg neutral fill), and the chip is a pseudo-element, so nothing moves.
+.viewer-toolbar-btn.icon-hover-bg:not([disabled]):hover {
+  background-color: var(--inet-vs-toolbar-bg-color);
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    z-index: -1;
+    border-radius: var(--inet-radius-lg);
+    background-color: var(--inet-collapse-handle-hover-bg-color);
+    pointer-events: none;
+  }
 }
 
 .mobile {

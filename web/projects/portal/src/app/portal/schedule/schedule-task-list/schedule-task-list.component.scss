@@ -382,9 +382,10 @@
     transition: background-color 120ms ease, color 120ms ease;
   }
 
+  // the shared collapse-handle hover: a translucent overlay that shows on any panel surface
   .collapse-pane-button:hover {
     color: var(--inet-text-color);
-    background-color: var(--inet-ui-neutral-hover-bg-color);
+    background-color: var(--inet-collapse-handle-hover-bg-color);
   }
 
   .data-tree-pane {
@@ -464,7 +465,7 @@
     background-color: var(--schedule-task-list-rail-bg);
   }
 
-  ::ng-deep .data-tree-pane .tree-node-hover:not([disabled]):hover {
+  ::ng-deep .data-tree-pane .tree-node-hover:not([disabled]):not(.bg-node-selected):not(.bg-portal-node-selected):hover {
     background-color: var(--inet-ui-neutral-hover-bg-color);
   }
 

@@ -109,8 +109,13 @@ public class HomePageController {
       boolean customTheme = customThemesManager.isCustomThemeApplied() || hasOrgTheme;
       Principal principal = request.getUserPrincipal() != null ?
          request.getUserPrincipal() : ThreadContext.getContextPrincipal();
-      boolean shellDark = ShellDarkMode.isDark(principal, customTheme);
-      Cookie shellDarkCookie = ShellDarkMode.getCookieUpdate(request, shellDark);
+      // An embed page is shown inside a customer's own page, which the shell's dark mode must not
+      // restyle (its loading splash, overflow and color-scheme would show dark there), so it
+      // always renders light. It never shows the shell mode either, so it leaves the cookie that
+      // remembers the mode for the login page and the workspace chooser alone.
+      boolean embed = ShellDarkMode.isEmbedUrl(request.getRequestURI(), request.getContextPath());
+      boolean shellDark = !embed && ShellDarkMode.isDark(principal, customTheme);
+      Cookie shellDarkCookie = embed ? null : ShellDarkMode.getCookieUpdate(request, shellDark);
 
       if(shellDarkCookie != null) {
          response.addCookie(shellDarkCookie);
