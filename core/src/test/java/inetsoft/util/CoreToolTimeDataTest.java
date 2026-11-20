@@ -18,6 +18,7 @@
 package inetsoft.util;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,6 +39,14 @@ import static org.junit.jupiter.api.Assertions.*;
 class CoreToolTimeDataTest {
    private TimeZone defaultZone;
 
+   // CoreTool's static format caches take the default zone when the class is initialized, so
+   // initialize it under the JVM's own zone; if this class were the first to load CoreTool, every
+   // later class in the fork would parse dates in the last zone set here.
+   @BeforeAll
+   static void initCoreToolInDefaultZone() throws ClassNotFoundException {
+      Class.forName(CoreTool.class.getName(), true, CoreToolTimeDataTest.class.getClassLoader());
+   }
+
    @BeforeEach
    void saveZone() {
       defaultZone = TimeZone.getDefault();
@@ -46,6 +55,17 @@ class CoreToolTimeDataTest {
    @AfterEach
    void restoreZone() {
       TimeZone.setDefault(defaultZone);
+      // drop the thread-local formats and calendars made in the test's zone
+      CoreTool.yearFmt.remove();
+      CoreTool.monthFmt.remove();
+      CoreTool.dayFmt.remove();
+      CoreTool.dateFmt.remove();
+      CoreTool.timeFmt_old.remove();
+      CoreTool.timeInstantFmt_old.remove();
+      CoreTool.timeFmt.remove();
+      CoreTool.timeInstantFmt.remove();
+      CoreTool.calendar.remove();
+      CoreTool.calendar2.remove();
    }
 
    @ParameterizedTest
