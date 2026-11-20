@@ -471,7 +471,7 @@ class EndpointDefinitionsTest {
     * Creates a query and gives it the data source that sits next to it in the same package,
     * since some queries read the data source when an endpoint is selected.
     */
-   private static EndpointJsonQuery<?> newQuery(Class<?> type) throws Exception {
+   static EndpointJsonQuery<?> newQuery(Class<?> type) throws Exception {
       EndpointJsonQuery<?> query = (EndpointJsonQuery<?>) type.getConstructor().newInstance();
       String name = type.getName();
       String dataSourceName = name.substring(0, name.length() - "Query".length()) + "DataSource";
@@ -500,7 +500,7 @@ class EndpointDefinitionsTest {
       return query;
    }
 
-   private static List<Class<?>> queryTypes() {
+   static List<Class<?>> queryTypes() {
       if(queryTypes == null) {
          ClassPathScanningCandidateComponentProvider scanner =
             new ClassPathScanningCandidateComponentProvider(false);
@@ -547,58 +547,19 @@ class EndpointDefinitionsTest {
 
    /**
     * Endpoints whose suffix template is known to be wrong. They are skipped here so that this test
-    * can guard every other endpoint; fix the template and remove the entry. The defects are
-    * tracked in Redmine #81907.
+    * can guard every other endpoint; fix the template and remove the entry (the test fails once an
+    * entry is no longer broken). The defects are tracked in Redmine #81907; these four are the
+    * ones it left, and the Twitter, Zoho CRM and Pipeline CRM ones need the API documentation.
     * <ul>
-    *   <li>a variable is left unreplaced: a missing '&amp;', a '?' where '&amp;' belongs, a stray
-    *   '}', a missing '=' or a missing ':' before an option list;</li>
-    *   <li>a stray space, newline or non-breaking space in a name or suffix;</li>
-    *   <li>an empty parameter ("?&amp;x=", "&amp;&amp;") or a second '?' or '//' in the path;</li>
+    *   <li>"HubSpot / Contacts Informations" has a non-breaking space in the name;</li>
     *   <li>"Twitter / Users by IDs" has "{User IDs}" with no parameter name before it, and the
-    *   Twitter API expects "ids=".</li>
+    *   Twitter API expects "ids=";</li>
+    *   <li>"Pipeline CRM / Companies" and "Zoho CRM / Variable Group" have a malformed suffix.</li>
     * </ul>
     */
    private static final Set<String> KNOWN_BROKEN = Set.of(
-      "AdobeAnalyticsQuery/Report Suites",
-      "BoxQuery/Search for Content",
-      "BoxQuery/Trashed Items",
-      "HubSpotQuery/Blog Posts",
-      "HubSpotQuery/Contacts\u00a0Informations",
-      "HubSpotQuery/Line items Change Log",
-      "InfluxDBQuery/Installed Templates",
-      "InfluxDBQuery/Sources",
-      "InsightlyQuery/Contact File Attachments",
-      "JiraQuery/Audit Records",
-      "JiraQuery/Screen Tab Fields",
-      "LinkedinQuery/Ad Account Users",
-      "JiveQuery/Direct Message Comments",
-      "LiveAgentQuery/Phone numbers list",
+      "HubSpotQuery/Contacts Informations",
       "PipelineCRMQuery/Companies",
-      "PipelineCRMQuery/Company Custom Label Entries",
-      "PipelineCRMQuery/Deal Custom Groups",
-      "PipelineCRMQuery/Deal Custom Labels",
-      "PipelineCRMQuery/Deal Loss Reasons",
-      "PipelineCRMQuery/Deal Stages",
-      "PipelineCRMQuery/Documents Tags",
-      "PipelineCRMQuery/Event Categories",
-      "PipelineCRMQuery/Lead Sources",
-      "PipelineCRMQuery/Lead Statuses",
-      "PipelineCRMQuery/Note Categories",
-      "PipelineCRMQuery/Notes",
-      "PipelineCRMQuery/Person Custom Groups",
-      "PipelineCRMQuery/Person Custom Labels",
-      "PipelineCRMQuery/Predefined Contact Tags",
-      "PipelineCRMQuery/Users",
-      "PipedriveQuery/Deal Timeline",
-      "QuickbooksReportsQuery/Transaction List By Vendor",
-      "ServiceNowQuery/Aggregate Statistics",
-      "ServiceNowQuery/Service Catalog Items",
-      "SquareQuery/Cash Drawer Shift Events",
-      "TwilioQuery/Alerts",
       "TwitterQuery/Users by IDs",
-      "XeroQuery/Aged Receivables By Contact",
-      "XeroQuery/Contact Groups",
-      "XeroQuery/Quotes",
-      "XeroQuery/Repeating Invoices",
       "ZohoCRMQuery/Variable Group");
 }
