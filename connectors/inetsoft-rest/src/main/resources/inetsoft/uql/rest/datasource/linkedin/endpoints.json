@@ -82,6 +82,24 @@
       "name": "Ad Account User",
       "paged": false,
       "suffix": "/rest/adAccountUsers?account={Sponsored Account URN}&user={User URN}",
+      "responseSchema": {
+        "account": "string",
+        "changeAuditStamps": {
+          "created": {
+            "actor": "string",
+            "time": "double"
+          },
+          "lastModified": {
+            "actor": "string",
+            "time": "double"
+          }
+        },
+        "role": "string",
+        "user": "string",
+        "version": {
+          "versionTag": "string"
+        }
+      },
       "description": "One user's access to one account. Requires both URNs."
     },
     {
@@ -417,6 +435,35 @@
       "name": "Creative",
       "paged": false,
       "suffix": "/rest/creatives/{Creative ID}",
+      "responseSchema": {
+        "account": "string",
+        "campaign": "string",
+        "content": {
+          "reference": "string"
+        },
+        "createdAt": "double",
+        "createdBy": "string",
+        "id": "string",
+        "intendedStatus": "string",
+        "isServing": "boolean",
+        "isTest": "boolean",
+        "lastModifiedAt": "double",
+        "lastModifiedBy": "string",
+        "leadgenCallToAction": {
+          "destination": "string",
+          "label": "string"
+        },
+        "name": "string",
+        "review": {
+          "rejectionReasons": [
+            "string"
+          ],
+          "status": "string"
+        },
+        "servingHoldReasons": [
+          "string"
+        ]
+      },
       "description": "One creative by id."
     },
     {
@@ -568,6 +615,11 @@
       "name": "Sponsored Conversation",
       "paged": false,
       "suffix": "/rest/sponsoredConversations/{Conversation ID}",
+      "responseSchema": {
+        "headlineText": "string",
+        "id": "string",
+        "parentAccount": "string"
+      },
       "description": "One sponsored conversation by id, with its flow."
     },
     {
@@ -575,6 +627,15 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/sponsoredConversations?ids={Conversation IDs:List(id1,id2,...)}",
+      "responseSchema": {
+        "results": {
+          "*": {
+            "headlineText": "string",
+            "id": "string",
+            "parentAccount": "string"
+          }
+        }
+      },
       "description": "The sponsored conversation ads -- LinkedIn's interactive message format -- by id. The message-based ad type, distinct from feed ads."
     },
     {
@@ -629,6 +690,33 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/adAnalytics?q=analytics&pivot={Pivot}&timeGranularity={Time Granularity}&campaignType={Campaign Types?}&shares={Share URNs?}&campaigns={Campaign URNs?}&creatives={Creative URNs?}&campaignGroups={Campaign Group URNs?}&accounts={Account URNs?}&companies={Organization URNs?}&dateRange.start.year={Start Year?}&dateRange.start.month={Start Month?}&dateRange.start.day={Start Day?}&dateRange.end.year={End Year?}&dateRange.end.month={End Month?}&dateRange.end.day={End Day?}",
+      "responseSchema": {
+        "elements": [
+          {
+            "clicks": "double",
+            "dateRange": {
+              "end": {
+                "day": "double",
+                "month": "double",
+                "year": "double"
+              },
+              "start": {
+                "day": "double",
+                "month": "double",
+                "year": "double"
+              }
+            },
+            "impressions": "double",
+            "pivotValues": [
+              "string"
+            ]
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double"
+        }
+      },
       "description": "THE PERFORMANCE TABLE, and the one most questions here reduce to. Requires a pivot, a time granularity and a date range. Returns impressions, clicks, spend, conversions, video views and dozens of other metrics, PIVOTED by whatever dimension is asked for -- campaign, creative, account, company, job function, seniority, industry and more. THREE THINGS TO KNOW. The pivot IS the grouping: the same query pivoted differently is a different report, and only one pivot is allowed per request. Metrics must be named in the fields parameter or a minimal default set comes back. And demographic pivots are subject to a minimum-audience threshold -- LinkedIn withholds rows below it for privacy, so pivoted totals do not add up to the unpivoted figure."
     },
     {
@@ -636,6 +724,33 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/adAnalytics?q=statistics&pivots={Pivots}&objectiveType={Objective Type}&timeGranularity={Time Granularity}&campaignType={Campaign Types?}&shares={Share URNs}&campaigns={Campaign URNs?}&creatives={Creative URNs?}&campaignGroups={Campaign Group URNs?}&accounts={Sponsored Account URNs?}&companies={Organization URNs?}&dateRange.start.year={Start Year?}&dateRange.start.month={Start Month?}&dateRange.start.day={Start Day?}&dateRange.end.year={End Year?}&dateRange.end.month={End Month?}&dateRange.end.day={End Day?}",
+      "responseSchema": {
+        "elements": [
+          {
+            "clicks": "double",
+            "dateRange": {
+              "end": {
+                "day": "double",
+                "month": "double",
+                "year": "double"
+              },
+              "start": {
+                "day": "double",
+                "month": "double",
+                "year": "double"
+              }
+            },
+            "impressions": "double",
+            "pivotValues": [
+              "string"
+            ]
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double"
+        }
+      },
       "description": "The same analytics addressed by the statistics finder, taking multiple pivots and an objective type. Use it where a breakdown needs two dimensions at once, which the single-pivot analytics finder cannot express."
     },
     {
@@ -1402,6 +1517,88 @@
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
       "suffix": "/rest/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}",
+      "responseSchema": {
+        "elements": [
+          {
+            "followerCountsByAssociationType": [
+              {
+                "associationType": "string",
+                "followerCounts": {
+                  "organicFollowerCount": "double",
+                  "paidFollowerCount": "double"
+                }
+              }
+            ],
+            "followerCountsByFunction": [
+              {
+                "followerCounts": {
+                  "organicFollowerCount": "double",
+                  "paidFollowerCount": "double"
+                },
+                "function": "string"
+              }
+            ],
+            "followerCountsByGeo": [
+              {
+                "followerCounts": {
+                  "organicFollowerCount": "double",
+                  "paidFollowerCount": "double"
+                },
+                "geo": "string"
+              }
+            ],
+            "followerCountsByGeoCountry": [
+              {
+                "followerCounts": {
+                  "organicFollowerCount": "double",
+                  "paidFollowerCount": "double"
+                },
+                "geo": "string"
+              }
+            ],
+            "followerCountsByIndustry": [
+              {
+                "followerCounts": {
+                  "organicFollowerCount": "double",
+                  "paidFollowerCount": "double"
+                },
+                "industry": "string"
+              }
+            ],
+            "followerCountsBySeniority": [
+              {
+                "followerCounts": {
+                  "organicFollowerCount": "double",
+                  "paidFollowerCount": "double"
+                },
+                "seniority": "string"
+              }
+            ],
+            "followerCountsByStaffCountRange": [
+              {
+                "followerCounts": {
+                  "organicFollowerCount": "double",
+                  "paidFollowerCount": "double"
+                },
+                "staffCountRange": "string"
+              }
+            ],
+            "followerGains": {
+              "organicFollowerGain": "double",
+              "paidFollowerGain": "double"
+            },
+            "organizationalEntity": "string",
+            "timeRange": {
+              "end": "double",
+              "start": "double"
+            }
+          }
+        ],
+        "paging": {
+          "count": "double",
+          "start": "double"
+        }
+      },
       "description": "Follower counts and gains for one organisation, broken down by seniority, function, industry, staff count and country. THE AUDIENCE COMPOSITION TABLE -- who follows the page, as opposed to how many. Subject to the same minimum-threshold suppression as ad demographics."
     },
     {
