@@ -405,6 +405,8 @@ class PaneContextServiceTest {
       assertTrue(syntax.note().contains("Web Link Expression of one hyperlink"), syntax.note());
       assertTrue(syntax.note().contains("leading '='"), syntax.note());
       assertTrue(syntax.note().contains("=\"message:...\""), syntax.note());
+      assertTrue(syntax.note().contains("$ is not defined"), syntax.note());
+      assertTrue(syntax.note().contains("ReferenceError: $ is not defined"), syntax.note());
       assertTrue(syntax.note().contains("parameter.<name>"), syntax.note());
       assertFalse(syntax.note().contains("not served by this viewsheet context"), syntax.note());
    }

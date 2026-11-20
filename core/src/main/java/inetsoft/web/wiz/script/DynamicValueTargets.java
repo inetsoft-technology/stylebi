@@ -176,6 +176,17 @@ final class DynamicValueTargets {
       return DOLLAR_CALL.matcher(withoutLiterals(text)).find();
    }
 
+   /**
+    * The refusal for a {@code $(...)} call pushed into an expression editor that is always JavaScript
+    * and has no SQL toggle; {@code pane} names it ("filter Expression", "Hyperlink Expression").
+    */
+   static PairingException dollarCallRefusal(String pane) {
+      return new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+         "That expression calls $(...). A " + pane + " is JavaScript and $ is not defined in it, " +
+         "so it would fail with 'ReferenceError: $ is not defined'. Use parameter.<name> or a " +
+         "component's own property, e.g. RadioButton1.selectedObject. Nothing was pushed.");
+   }
+
    private static final Pattern DOLLAR_CALL = Pattern.compile("(?<![\\w$.])\\$\\s*\\(");
 
    /** {@code text} with string/template literals and comments blanked out, so a '$(' inside one is not seen. */

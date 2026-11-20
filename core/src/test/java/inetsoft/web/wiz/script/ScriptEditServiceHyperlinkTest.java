@@ -135,6 +135,33 @@ class ScriptEditServiceHyperlinkTest {
    }
 
    @Test
+   void aDollarCallIsRefusedBeforeAnyPushWhetherOrNotTheTextStartsWithEquals() throws Exception {
+      for(String bad : new String[] { "$(x)", "=$(x)", "String($(x)) == 'x'" }) {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> service.writeDraft(rvs, agent, link("Text1", "link"), bad), bad);
+
+         assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind(), ex.getMessage());
+         assertTrue(ex.getMessage().contains("That expression calls $(...). A Hyperlink " +
+            "Expression is JavaScript and $ is not defined in it"), ex.getMessage());
+         assertTrue(ex.getMessage().contains("parameter.<name>"), ex.getMessage());
+         assertTrue(ex.getMessage().contains("Nothing was pushed"), ex.getMessage());
+      }
+
+      assertNothingPushed();
+   }
+
+   @Test
+   void aDollarInsideAStringLiteralOrAMemberCallIsNotACallAndIsPushed() throws Exception {
+      service.writeDraft(rvs, agent, link("Text1", "link"), "=\"message:$(x)\"");
+      service.writeDraft(rvs, agent, link("Text1", "link"), "a.$(1)");
+
+      verify(broadcast).pushScriptRefresh(rvs, "Viewsheet/foo-7", agent, "vsHyperlinkExpression",
+                                          "Text1", "link", "=\"message:$(x)\"");
+      verify(broadcast).pushScriptRefresh(rvs, "Viewsheet/foo-7", agent, "vsHyperlinkExpression",
+                                          "Text1", "link", "=a.$(1)");
+   }
+
+   @Test
    void nullIsRefused() throws Exception {
       PairingException ex = assertThrows(PairingException.class,
          () -> service.writeDraft(rvs, agent, link("Text1", "link"), null));
