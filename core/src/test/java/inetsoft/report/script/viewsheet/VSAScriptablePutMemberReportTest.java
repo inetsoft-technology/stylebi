@@ -20,8 +20,7 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.*;
-import inetsoft.uql.viewsheet.TextVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,13 +31,18 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.*;
+import java.util.Arrays;
+import java.util.function.Function;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
  * Bug #81633: a failed property assignment must reach the script author when the product has
- * a clear error text.
+ * a clear error text. Bug #81922: that text shows the value and the expected type in words a
+ * script author reads, never a Java class name or an identity hash.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -46,22 +50,44 @@ import static org.mockito.Mockito.when;
 @SreeHome
 @Tag("core")
 public class VSAScriptablePutMemberReportTest {
+   private Viewsheet viewsheet;
+   private ViewsheetSandbox box;
    private TextVSAScriptable scriptable;
 
    @BeforeEach
    void setUp() {
-      Viewsheet viewsheet = new Viewsheet();
-      TextVSAssembly assembly = new TextVSAssembly();
-      assembly.getVSAssemblyInfo().setName("Text1");
-      viewsheet.addAssembly(assembly);
-
-      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      viewsheet = new Viewsheet();
+      box = mock(ViewsheetSandbox.class);
       when(box.getID()).thenReturn("vs1");
       when(box.getViewsheet()).thenReturn(viewsheet);
+      when(box.isRuntime()).thenReturn(true);
 
-      scriptable = new TextVSAScriptable(box);
-      scriptable.setAssembly("Text1");
+      scriptable = add(new TextVSAssembly(), "Text1", TextVSAScriptable::new);
       Tool.getUserMessage();
+   }
+
+   private <T extends VSAScriptable> T add(VSAssembly assembly, String name,
+                                           Function<ViewsheetSandbox, T> factory)
+   {
+      assembly.getVSAssemblyInfo().setName(name);
+      viewsheet.addAssembly(assembly);
+      T result = factory.apply(box);
+      result.setAssembly(name);
+      return result;
+   }
+
+   private static String warning() {
+      UserMessage msg = Tool.getUserMessage();
+      assertNotNull(msg, "expected a warning for the script author");
+      return msg.getMessage();
+   }
+
+   /** The author text must not contain Java internals: class names or identity hashes. */
+   private static void assertReadable(String text) {
+      assertFalse(text.contains("@"), text);
+      assertFalse(text.contains("java."), text);
+      assertFalse(text.contains("class "), text);
+      assertFalse(text.contains("[L"), text);
    }
 
    @Test
@@ -72,6 +98,100 @@ public class VSAScriptablePutMemberReportTest {
       assertNotNull(msg);
       assertTrue(msg.getMessage().contains("popLocation"));
       assertTrue(msg.getMessage().contains("Invalid PopLocation"));
+   }
+
+   // Bug #81922: Text1.size = [100] (a JS array reaches the converter as a host Object[])
+   @Test
+   void shortSizeArrayShowsValueAndExpectedSize() {
+      scriptable.putMember("size", new Object[] { 100.0 });
+
+      String text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("'size'"), text);
+      assertTrue(text.contains("[100]"), text);
+      assertTrue(text.contains("width") && text.contains("height"), text);
+   }
+
+   // Bug #81922: ComboBox1.minDate = '2020-01-01' (the property expects a Date)
+   @Test
+   void minDateTextShowsValueAndExpectedDate() {
+      ComboBoxVSAScriptable combo = add(new ComboBoxVSAssembly(), "ComboBox1",
+                                        ComboBoxVSAScriptable::new);
+      combo.putMember("minDate", "2020-01-01");
+
+      String text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("'minDate'"), text);
+      assertTrue(text.contains("'2020-01-01'"), text);
+      assertTrue(text.contains("date"), text);
+   }
+
+   // Bug #81922: Text1.size = Text2 (a script object, whose toString has an identity hash)
+   @Test
+   void scriptObjectValueShowsNoIdentityHash() {
+      TextVSAScriptable text2 = add(new TextVSAssembly(), "Text2", TextVSAScriptable::new);
+      scriptable.putMember("size", text2);
+
+      String text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("Text2"), text);
+
+      // and as an array element
+      scriptable.putMember("size", new Object[] { text2 });
+      text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("[Text2]"), text);
+   }
+
+   // Bug #81922: other conversion failures (Insets, int, nested array, border colors)
+   @Test
+   void otherConversionFailuresAreReadable() {
+      scriptable.putMember("borders", new Object[] { 1.0, 2.0 });
+      String text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("[1, 2]"), text);
+
+      scriptable.putMember("alpha", "abc");
+      text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("'abc'"), text);
+      assertTrue(text.contains("integer"), text);
+
+      scriptable.putMember("size", new Object[] { new Object[] { 100.0, 50.0 } });
+      text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("[[100, 50]]"), text);
+
+      scriptable.putMember("borderColors", new Object[] { "red", "nope" });
+      text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("'nope'"), text);
+   }
+
+   // Bug #81922: a huge array is shortened in the text
+   @Test
+   void longArrayIsShortened() {
+      ComboBoxVSAScriptable combo = add(new ComboBoxVSAssembly(), "ComboBox1",
+                                        ComboBoxVSAScriptable::new);
+      Object[] values = new Object[10000];
+      Arrays.fill(values, "x");
+      combo.putMember("minDate", values);
+
+      String text = warning();
+      assertReadable(text);
+      assertTrue(text.contains("..."), text);
+      assertTrue(text.length() < 500, text);
+   }
+
+   // valid values still apply without any warning
+   @Test
+   void validSizeAndPositionGiveNoWarning() {
+      scriptable.putMember("size", new Object[] { 100.0, 50.0 });
+      scriptable.putMember("position", new Object[] { 5.0, 6.0 });
+
+      assertNull(Tool.getUserMessage());
+      assertEquals(new Dimension(100, 50), scriptable.getSize());
+      assertEquals(new Point(5, 6), scriptable.getPosition());
    }
 
    @Test
