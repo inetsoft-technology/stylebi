@@ -1,0 +1,122 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.uql.rest.datasource;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.uql.rest.json.SuffixTemplate;
+import inetsoft.uql.rest.json.TemplateComponent;
+import org.junit.jupiter.api.Test;
+
+import java.io.InputStream;
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Checks that the suffix templates of the endpoints fixed for bug #81907 are well formed, using
+ * the real {@link SuffixTemplate} builder. Reads endpoints.json directly, so no Spring context.
+ */
+class EndpointSuffixTemplatesTest {
+   private static final String[][] ENDPOINTS = {
+      { "hubspot", "Blog Posts" },
+      { "hubspot", "Contacts Informations" },
+      { "influxdb", "Installed Templates" },
+      { "influxdb", "Sources" },
+      { "jira", "Audit Records" },
+      { "jira", "Screen Tab Fields" },
+      { "linkedin", "Ad Account Users" },
+      { "liveagent", "Phone numbers list" },
+      { "xero", "Aged Receivables By Contact" },
+      { "xero", "Contact Groups" },
+      { "xero", "Quotes" },
+      { "xero", "Repeating Invoices" },
+      { "square", "Cash Drawer Shift Events" },
+      { "insightly", "Contact File Attachments" },
+      { "jive", "Direct Message Comments" },
+      { "twilio", "Alerts" }
+   };
+
+   @Test
+   void fixedEndpointSuffixesAreWellFormed() throws Exception {
+      List<String> problems = new ArrayList<>();
+
+      for(String[] e : ENDPOINTS) {
+         String where = e[0] + "/" + e[1];
+         String raw = suffix(e[0], e[1]);
+
+         if(raw == null) {
+            problems.add(where + ": endpoint not found");
+            continue;
+         }
+
+         String bare = raw.replaceAll("[{][^}]*[}]", "V");
+
+         if(bare.contains("?&") || bare.contains("&&") || bare.contains("//") ||
+            bare.contains(" ") || bare.chars().filter(c -> c == '?').count() > 1)
+         {
+            problems.add(where + ": malformed template " + raw);
+         }
+
+         SuffixTemplate template = new SuffixTemplate(raw);
+         List<TemplateComponent> components = new ArrayList<>(template.getPath());
+         components.addAll(template.getQuery().values());
+
+         for(TemplateComponent component : components) {
+            if(component.isVariable()) {
+               template.setVariable(component.getValue(), "1");
+            }
+         }
+
+         String built = template.build();
+
+         if(built.contains("{") || built.contains("}") || built.contains("?&") ||
+            built.contains("&&") || built.contains("//") || built.contains(" ") ||
+            built.chars().filter(c -> c == '?').count() > 1)
+         {
+            problems.add(where + ": built suffix is malformed: " + built);
+         }
+      }
+
+      assertEquals(Collections.emptyList(), problems);
+   }
+
+   @Test
+   void twilioAlertsUsesTheRealEndDateKey() throws Exception {
+      String raw = suffix("twilio", "Alerts");
+      assertTrue(raw.contains("&EndDate={"), raw);
+   }
+
+   private static String suffix(String dataSource, String endpoint) throws Exception {
+      try(InputStream in = EndpointSuffixTemplatesTest.class.getResourceAsStream(
+         "/inetsoft/uql/rest/datasource/" + dataSource + "/endpoints.json"))
+      {
+         JsonNode root = new ObjectMapper().readTree(in);
+         JsonNode list = root.isArray() ? root : root.get("endpoints");
+
+         for(JsonNode node : list) {
+            if(endpoint.equals(node.path("name").asText())) {
+               return node.get("suffix").asText();
+            }
+         }
+      }
+
+      return null;
+   }
+}

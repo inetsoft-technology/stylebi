@@ -71,7 +71,7 @@
     {
       "name": "Alerts",
       "paged": true,
-      "suffix": "/v1/Alerts?LogLevel={Log Level?:error|warning|notice|debug}&StartDate={Start Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}&End Date={EndDate?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}"
+      "suffix": "/v1/Alerts?LogLevel={Log Level?:error|warning|notice|debug}&StartDate={Start Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}&EndDate={EndDate?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}"
     },
     {
       "name": "Event",

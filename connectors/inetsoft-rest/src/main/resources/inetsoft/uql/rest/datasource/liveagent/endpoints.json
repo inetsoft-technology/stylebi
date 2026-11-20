@@ -207,7 +207,7 @@
     },
     {
       "name": "Phone numbers list",
-      "suffix": "/v3/phone_numbers?additionalObjects={Additional Objects?}&&_filters={Filters?}",
+      "suffix": "/v3/phone_numbers?additionalObjects={Additional Objects?}&_filters={Filters?}",
       "paged": "true"
     },
     {
