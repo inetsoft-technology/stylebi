@@ -21,7 +21,8 @@
  * token set, dashboard content keeps today's values, and custom-themed pages keep today's colours.
  * Anchored on selectors and token names, not on computed colours.
  */
-import { execFileSync } from "child_process";
+import { execFileSync } from "node:child_process";
+import { execPath } from "node:process";
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -474,10 +475,11 @@ describe("one hover grey per surface (D7)", () => {
    let compiled: [string[], Map<string, string>][];
 
    // Compiled by the sass command line in a node child process: the project's test environment is
-   // jsdom, where sass's JS API refuses to compile (it checks process.release.name on the global).
+   // jsdom, where sass's JS API refuses to compile (it checks process.release.name on the global), and
+   // the global process there has no execPath, so node:process supplies it.
    beforeAll(() => {
       const web = join(__dirname, "..", "..", "..", "..");
-      const css = execFileSync(process.execPath, [
+      const css = execFileSync(execPath, [
          join(web, "node_modules", "sass", "sass.js"),
          `--load-path=${web}`,
          `--load-path=${join(web, "node_modules")}`,
