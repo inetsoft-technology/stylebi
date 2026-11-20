@@ -73,7 +73,10 @@ class EndpointSuffixTemplatesTest {
       { "pipelinecrm", "Person Custom Groups" },
       { "pipelinecrm", "Person Custom Labels" },
       { "pipelinecrm", "Predefined Contact Tags" },
-      { "pipelinecrm", "Users" }
+      { "pipelinecrm", "Users" },
+      { "twitter", "Users by IDs" },
+      { "zohocrm", "Variable Group" },
+      { "pipelinecrm", "Companies" }
    };
 
    @Test
@@ -161,6 +164,23 @@ class EndpointSuffixTemplatesTest {
    void twilioAlertsUsesTheRealEndDateKey() throws Exception {
       String raw = suffix("twilio", "Alerts");
       assertTrue(raw.contains("&EndDate={"), raw);
+   }
+
+   @Test
+   void twitterUsersByIdsNamesTheIdsParameter() throws Exception {
+      assertTrue(suffix("twitter", "Users by IDs").contains("/2/users?ids={User IDs}"));
+   }
+
+   @Test
+   void zohoVariableGroupUsesTheApiPath() throws Exception {
+      assertEquals("/crm/v2/settings/variable_groups/{Variable Group ID}",
+                   suffix("zohocrm", "Variable Group"));
+   }
+
+   @Test
+   void pipelineCrmCompaniesUsesSnakeCaseConditionKey() throws Exception {
+      String raw = suffix("pipelinecrm", "Companies");
+      assertTrue(raw.contains("conditions[company_name]={Company Name?}"), raw);
    }
 
    private static String suffix(String dataSource, String endpoint) throws Exception {
