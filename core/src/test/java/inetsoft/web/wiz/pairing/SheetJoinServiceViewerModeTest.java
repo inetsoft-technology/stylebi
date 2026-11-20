@@ -31,6 +31,7 @@ import java.lang.reflect.RecordComponent;
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -192,5 +193,80 @@ class SheetJoinServiceViewerModeTest {
          () -> svc.join(code, ALICE));
 
       assertEquals(PairingException.Kind.FEATURE_DISABLED, e.getKind());
+   }
+
+   // ---- C7: a viewer join whose page socket is already gone (review I2) ---------------------
+
+   private SheetJoinService withSocketCheck(java.util.function.Predicate<String> connected) {
+      return new SheetJoinService(pairing, sessions, feature, runtimeAccess,
+                                  mock(SheetAgentBroadcastService.class), connected);
+   }
+
+   @Test
+   void aViewerJoinWhoseSocketClosedBetweenMintAndJoinIsRefusedAndOpensNothing() throws Exception {
+      RuntimeViewsheet rvs = runtime(true, ALICE);
+      String code = mintWholeSheet(ALICE_KEY);
+
+      PairingException e = assertThrows(PairingException.class,
+         () -> withSocketCheck(id -> false).join(code, ALICE));
+
+      assertEquals(PairingException.Kind.SESSION_EXPIRED, e.getKind());
+      assertEquals(ViewerModePolicy.VIEWER_CLOSED_TEXT, e.getMessage());
+      assertTrue(sessions.findAllOnRuntime("vs-1").isEmpty(), "no session may be opened");
+      org.mockito.Mockito.verify(rvs, org.mockito.Mockito.never()).setSocketSessionId(any());
+      assertNull(pairing.peek(code), "the code is spent");
+   }
+
+   @Test
+   void aViewerJoinWhileThePageSocketIsConnectedWorks() throws Exception {
+      runtime(true, ALICE);
+      String code = mintWholeSheet(ALICE_KEY);
+
+      JoinSession s = withSocketCheck("sock-1"::equals).join(code, ALICE).session();
+
+      assertEquals(JoinSession.ConnectionMode.VIEWER, s.connectionMode());
+      assertEquals("sock-1", s.socketSessionId());
+   }
+
+   /** Design sessions deliberately survive a socket drop, so the join is not socket-gated. */
+   @Test
+   void aComposerJoinIsNotSubjectToTheSocketCheck() throws Exception {
+      runtime(false, ALICE);
+      String code = mintWholeSheet(ALICE_KEY);
+
+      assertEquals(JoinSession.ConnectionMode.PAIRED,
+                   withSocketCheck(id -> false).join(code, ALICE).session().connectionMode());
+   }
+
+   @Test
+   void theStompUserRegistryDecidesWhetherASocketIsConnected() throws Exception {
+      runtime(true, ALICE);
+      org.springframework.messaging.simp.user.SimpUser user =
+         mock(org.springframework.messaging.simp.user.SimpUser.class);
+      org.springframework.messaging.simp.user.SimpSession live =
+         mock(org.springframework.messaging.simp.user.SimpSession.class);
+      when(user.getSession("sock-1")).thenReturn(live);
+      org.springframework.messaging.simp.user.SimpUserRegistry registry =
+         mock(org.springframework.messaging.simp.user.SimpUserRegistry.class);
+      @SuppressWarnings("unchecked")
+      org.springframework.beans.factory.ObjectProvider<
+         org.springframework.messaging.simp.user.SimpUserRegistry> provider =
+            mock(org.springframework.beans.factory.ObjectProvider.class);
+      when(provider.getIfAvailable()).thenReturn(registry);
+      SheetJoinService svc2 = new SheetJoinService(pairing, sessions, feature, runtimeAccess,
+                                                   mock(SheetAgentBroadcastService.class),
+                                                   provider);
+
+      when(registry.getUsers()).thenReturn(java.util.Set.of(user));
+      assertEquals(JoinSession.ConnectionMode.VIEWER,
+                   svc2.join(mintWholeSheet(ALICE_KEY), ALICE).session().connectionMode());
+
+      when(registry.getUsers()).thenReturn(java.util.Set.of());
+      String code = mintWholeSheet(ALICE_KEY);
+      assertEquals(PairingException.Kind.SESSION_EXPIRED,
+                   assertThrows(PairingException.class, () -> svc2.join(code, ALICE)).getKind());
+
+      when(provider.getIfAvailable()).thenReturn(null);   // no registry: nothing to check against
+      assertNotNull(svc2.join(mintWholeSheet(ALICE_KEY), ALICE).session());
    }
 }

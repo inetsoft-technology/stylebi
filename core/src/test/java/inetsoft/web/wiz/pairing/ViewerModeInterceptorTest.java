@@ -241,7 +241,21 @@ class ViewerModeInterceptorTest {
 
       List<?> registered = (List<?>) m.invoke(registry);
       assertEquals(1, registered.size());
-      assertEquals("/api/wiz/v1/agent/", ViewerModePolicy.AGENT_PREFIX);
+      org.springframework.web.servlet.handler.MappedInterceptor mapped =
+         (org.springframework.web.servlet.handler.MappedInterceptor) registered.get(0);
+      assertSame(interceptor, mapped.getInterceptor());
+
+      assertTrue(mapped.matches(pathRequest("/api/wiz/v1/agent/viewsheet/t/properties")));
+      assertTrue(mapped.matches(pathRequest("/api/wiz/v1/agent/sheet/t/keep-alive")));
+      assertFalse(mapped.matches(pathRequest("/api/wiz/v1/other")));
+      assertFalse(mapped.matches(pathRequest("/api/wiz/v1/agentx/viewsheet/t/properties")));
+      assertFalse(mapped.matches(pathRequest("/api/wiz/pairing/mint")));
+   }
+
+   private static MockHttpServletRequest pathRequest(String path) {
+      MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+      org.springframework.web.util.ServletRequestPathUtils.parseAndCache(request);
+      return request;
    }
 
    private JoinSession open(JoinSession.ConnectionMode mode) {
