@@ -67,10 +67,13 @@ describe("VSObjectContainer open dropdown calendar z-index (Bug #78478)", () => 
       const tab = makeVSObject({
          absoluteName: "Tab1", objectType: "VSTab", objectFormat: makeObjectFormat({ zIndex: 5 })
       });
-      const cal = calendar(1, true, { container: "Tab1" });
+      // the server numbers a tab child from the tab's z-index (tab + 1), and the client no
+      // longer adds the tab's z-index on top of the child's own (Bug #81981)
+      const cal = calendar(6, true, { container: "Tab1" });
       const comp = make(true, [tab, cal, chart(20)]);
 
-      expect(comp.getContainerZIndex(cal)).toBe(5 + 1 + 9999);
+      expect(comp.getContainerZIndex(cal)).toBe(6 + 9999);
+      expect(comp.getContainerZIndex(cal)).toBeGreaterThan(comp.getContainerZIndex(comp.vsInfo.vsObjects[2]));
    });
 
    it("does not raise an open calendar outside the viewer, or a non-dropdown calendar", () => {

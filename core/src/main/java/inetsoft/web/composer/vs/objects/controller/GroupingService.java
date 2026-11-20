@@ -27,6 +27,7 @@ import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import inetsoft.web.viewsheet.service.VSCompositionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 
@@ -45,13 +46,16 @@ public class GroupingService {
     * Creates a new instance of <tt>GroupingService</tt>.
     *
     * @param coreLifecycleService service for general viewsheet actions.
+    * @param vsCompositionService service that sends the updated z-indexes to the client.
     */
    @Autowired
    public GroupingService(CoreLifecycleService coreLifecycleService,
-                          VSLayoutService vsLayoutService)
+                          VSLayoutService vsLayoutService,
+                          VSCompositionService vsCompositionService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.vsLayoutService = vsLayoutService;
+      this.vsCompositionService = vsCompositionService;
    }
 
    public void groupComponents(RuntimeViewsheet rvs, VSAssembly target, VSAssembly object,
@@ -172,6 +176,9 @@ public class GroupingService {
          }
       }
       else {
+         // set when a container (e.g. a group) moved into a tab got a new z-index
+         boolean renumbered = false;
+
          if(target instanceof TabVSAssembly || targetContainer instanceof TabVSAssembly) {
             TabVSAssembly container = targetContainer == null ? (TabVSAssembly) target :
                (TabVSAssembly) targetContainer;
@@ -179,7 +186,7 @@ public class GroupingService {
             if(object instanceof TabVSAssembly) {
                TabVSAssembly add = (TabVSAssembly) object;
 
-               combineContainers(add, container, viewsheet);
+               renumbered = combineContainers(add, container, viewsheet);
 
                String[] assemblies = container.getAssemblies();
                container.setSelectedValue(assemblies[assemblies.length - 1]);
@@ -231,6 +238,7 @@ public class GroupingService {
                Point objectPos = new Point(pos.x, y);
                object.setPixelOffset(objectPos);
                objectInfo.setZIndex(container.getZIndex());
+               renumbered = renumberChildren(object);
 
                coreLifecycleService.execute(rvs, container.getAbsoluteName(), linkUri,
                                             VSAssembly.VIEW_CHANGED, dispatcher);
@@ -270,6 +278,7 @@ public class GroupingService {
             Point targetPos = new Point(pos.x, targetY);
             target.setPixelOffset(targetPos);
             targetInfo.setZIndex(container.getZIndex());
+            renumbered = renumberChildren(target);
 
             coreLifecycleService.execute(rvs, container.getAbsoluteName(), linkUri,
                                          VSAssembly.VIEW_CHANGED, dispatcher);
@@ -312,6 +321,7 @@ public class GroupingService {
             Point objectPos = new Point(pos.x, pos.y + size.height);
             objectInfo.setPixelOffset(objectPos);
             adjustTabZIndex(targetTabInfo, objectInfo, targetInfo);
+            renumbered = renumberChildren(object) | renumberChildren(target);
 
             if(objectInfo.getLayoutPosition() != null) {
                objectInfo.setLayoutPosition(objectPos);
@@ -328,9 +338,31 @@ public class GroupingService {
             coreLifecycleService.execute(rvs, targetTab.getAbsoluteName(), linkUri,
                                          VSAssembly.VIEW_CHANGED, dispatcher);
          }
+
+         if(renumbered) {
+            vsCompositionService.addLayerCommand(viewsheet, dispatcher);
+         }
       }
 
       vsLayoutService.updateVSLayouts(rvs);
+   }
+
+   /**
+    * A container moved into a tab takes the tab's z-index, but its own children keep their old
+    * values, which can now be below the container. The client paints every assembly as a flat
+    * sibling with its own z-index, so the container would cover its children until the next
+    * renumbering (Bug #81981). Renumber the children from the container's new z-index.
+    *
+    * @return true if the assembly is a container whose children were renumbered.
+    */
+   private static boolean renumberChildren(VSAssembly assembly) {
+      if(!(assembly instanceof ContainerVSAssembly)) {
+         return false;
+      }
+
+      ContainerVSAssembly container = (ContainerVSAssembly) assembly;
+      container.calcChildZIndex(container.getZIndex());
+      return true;
    }
 
    private void adjustTabZIndex(VSAssemblyInfo targetTabInfo,  VSAssemblyInfo objectInfo,
@@ -345,9 +377,15 @@ public class GroupingService {
       targetTabInfo.setZIndex(zIndex-1);
    }
 
-   private void combineContainers(AbstractContainerVSAssembly object,
-                                  AbstractContainerVSAssembly target, Viewsheet viewsheet)
+   /**
+    * Move the children of one container into another.
+    *
+    * @return true if a moved child is a container whose children were renumbered.
+    */
+   private boolean combineContainers(AbstractContainerVSAssembly object,
+                                     AbstractContainerVSAssembly target, Viewsheet viewsheet)
    {
+      boolean renumbered = false;
       String[] assemblies = target.getAssemblies();
       String[] addAssemblies = object.getAssemblies();
 
@@ -390,6 +428,7 @@ public class GroupingService {
          Point objectPos = new Point(pos.x, y);
          info.setPixelOffset(objectPos);
          info.setZIndex(target.getZIndex());
+         renumbered |= renumberChildren(assembly);
 
          targetAssemblies.add(name);
       }
@@ -397,8 +436,10 @@ public class GroupingService {
       target.setAssemblies(targetAssemblies.toArray(new String[targetAssemblies.size()]));
 
       viewsheet.removeAssembly(object.getName());
+      return renumbered;
    }
 
    private final CoreLifecycleService coreLifecycleService;
    private final VSLayoutService vsLayoutService;
+   private final VSCompositionService vsCompositionService;
 }

@@ -22,8 +22,10 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.viewsheet.command.UpdateZIndexesCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import inetsoft.web.viewsheet.service.VSCompositionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,7 +60,8 @@ class GroupingServiceTest {
 
    @BeforeEach
    void setUp() {
-      service = new GroupingService(coreLifecycleService, vsLayoutService);
+      service = new GroupingService(coreLifecycleService, vsLayoutService,
+                                    new VSCompositionService());
 
       parentVS = new Viewsheet();
       parentVS.getVSAssemblyInfo().setName("parentVS");
@@ -164,6 +167,50 @@ class GroupingServiceTest {
       // y = tabY - embeddedHeight = 400 - 300 = 100
       assertEquals(100, embeddedVS.getVSAssemblyInfo().getPixelOffset().y,
                    "embedded VS must be positioned using its actual height, not (100,20) fallback");
+   }
+
+   /**
+    * Bug #81981: a group dragged into a tab takes the tab's z-index. Its children must be
+    * renumbered above the group's new z-index, and the client told, or the group paints over
+    * its own children until the next renumbering.
+    */
+   @Test
+   void groupMovedIntoTabRenumbersItsChildren() throws Exception {
+      when(rvs.getViewsheet()).thenReturn(parentVS);
+      TabVSAssembly tab = new TabVSAssembly(parentVS, "Tab1");
+      tab.getVSAssemblyInfo().setPixelOffset(new Point(0, 100));
+      tab.getVSAssemblyInfo().setPixelSize(new Dimension(200, 30));
+      tab.setAssemblies(new String[0]);
+      parentVS.addAssembly(tab);
+
+      TextVSAssembly text1 = new TextVSAssembly(parentVS, "Text1");
+      text1.getVSAssemblyInfo().setPixelOffset(new Point(10, 300));
+      text1.getVSAssemblyInfo().setPixelSize(new Dimension(100, 20));
+      parentVS.addAssembly(text1);
+
+      TextVSAssembly text2 = new TextVSAssembly(parentVS, "Text2");
+      text2.getVSAssemblyInfo().setPixelOffset(new Point(10, 330));
+      text2.getVSAssemblyInfo().setPixelSize(new Dimension(100, 20));
+      parentVS.addAssembly(text2);
+
+      GroupContainerVSAssembly group = new GroupContainerVSAssembly(parentVS, "Group1");
+      group.getVSAssemblyInfo().setPixelOffset(new Point(10, 300));
+      group.getVSAssemblyInfo().setPixelSize(new Dimension(100, 50));
+      group.setAssemblies(new String[] { "Text1", "Text2" });
+      parentVS.addAssembly(group);
+
+      // set after addAssembly, which assigns its own z-index
+      group.setZIndex(1);
+      text1.setZIndex(2);
+      text2.setZIndex(3);
+      tab.setZIndex(51);
+
+      service.groupComponents(rvs, tab, group, false, "", dispatcher);
+
+      assertEquals(51, group.getZIndex(), "the group takes the tab's z-index");
+      assertTrue(text1.getZIndex() > group.getZIndex(), "Text1 must be above its group");
+      assertTrue(text2.getZIndex() > text1.getZIndex(), "Text2 keeps its order above Text1");
+      verify(dispatcher).sendCommand(any(), any(UpdateZIndexesCommand.class));
    }
 
    /**

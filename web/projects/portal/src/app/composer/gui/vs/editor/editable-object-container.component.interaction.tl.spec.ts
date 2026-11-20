@@ -76,20 +76,21 @@ describe("EditableObjectContainer — calculateZIndex", () => {
       expect(EditableObjectContainer.calculateZIndex(model, vs)).toBe(9999);
    });
 
-   it("should accumulate z-index up the container chain", () => {
+   // The server sends absolute child z-indexes (container + 1, ...), so the container's
+   // z-index must not be added again (Bug #81981).
+   it("should use a container child's own z-index without adding the container chain", () => {
       const vs = new Viewsheet();
       const child = makeVsObjectModel("VSText", "Child") as any;
-      child.objectFormat.zIndex = 5;
+      child.objectFormat.zIndex = 52;
       child.container = "Parent";
 
       const parent = makeVsObjectModel("VSGroupContainer", "Parent") as any;
-      parent.objectFormat.zIndex = 10;
+      parent.objectFormat.zIndex = 51;
       parent.container = null;
 
       vs.vsObjects.push(parent);
 
-      const result = EditableObjectContainer.calculateZIndex(child, vs);
-      expect(result).toBeGreaterThan(child.objectFormat.zIndex);
+      expect(EditableObjectContainer.calculateZIndex(child, vs)).toBe(52);
    });
 
    it("should add 100000 boost for objects with dropdown=true and not hidden", () => {

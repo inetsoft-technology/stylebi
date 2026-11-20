@@ -670,23 +670,13 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          return DateTipHelper.getPopUpSourceZIndex();
       }
 
+      // The server already sends absolute z-indexes for container children: a container's
+      // children are renumbered from the container's own z-index (container + 1, ...), and all
+      // assemblies of the viewsheet are painted as flat siblings in one stacking context. So the
+      // ancestors' z-index must NOT be added again here -- doing so lifts a group/tab child above
+      // top-level objects that the server stacks over it (#81981). This also keeps a max-mode
+      // assembly below its own adhoc filter popup (#75990).
       let zIndex = vsObject.objectFormat.zIndex;
-
-      // A max-mode (enlarged) assembly is rendered pulled out of its Group Container/Tab, so
-      // that container's own z-index is no longer meaningful to its stacking and must not be
-      // added on top -- otherwise the container's z-index can push the enlarged assembly above
-      // its own adhoc filter popup, which has no container and so never gets this addition (#75990).
-      for(let container = !(<any> vsObject).maxMode ? vsObject.container : null; container; ) {
-         let containerObj = this.vsInfo.vsObjects.find(v => v.absoluteName == container);
-
-         if(containerObj) {
-            zIndex += containerObj.objectFormat.zIndex;
-            container = containerObj.container;
-         }
-         else {
-            break;
-         }
-      }
 
       // Assemblies with visible assembly annotations must appear above all regular objects.
       // Without this, another assembly's stacking context (position:relative + z-index) can
