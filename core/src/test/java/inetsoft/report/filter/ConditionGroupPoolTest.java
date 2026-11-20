@@ -99,7 +99,12 @@ class ConditionGroupPoolTest {
 
          assertTrue(group.evaluate(table, 1));
          assertFalse(group.evaluate(table, 2));
-         assertEquals(before, PoolMetrics.nodeSlots(), "the throwaway sandbox kept a context");
+         // the node count is JVM-wide: a slot another test leaked is released when it is
+         // collected, which can happen during this test and lower the count. A kept context
+         // can only raise it.
+         int after = PoolMetrics.nodeSlots();
+         assertTrue(after <= before,
+                    "the throwaway sandbox kept a context: " + before + " -> " + after);
       }
       finally {
          SreeEnv.remove(PoolConfig.ENABLED);
