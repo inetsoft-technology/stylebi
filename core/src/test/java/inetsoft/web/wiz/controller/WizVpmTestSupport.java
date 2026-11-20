@@ -86,6 +86,7 @@ final class WizVpmTestSupport {
    final DataRefModelFactoryService factory = new DataRefModelFactoryService(List.of(
       new AttributeRefModel.AttributeRefModelFactory(),
       new ExpressionRefModel.ExpressionRefModelFactory()));
+   final LogicalModelService logicalModelService = mock(LogicalModelService.class);
    final VpmService service;
    final WizVpmMapper mapper = new WizVpmMapper(factory);
    final JDBCDataSource jdbc = new JDBCDataSource();
@@ -109,13 +110,15 @@ final class WizVpmTestSupport {
          .thenAnswer(i -> writeAllowed);
       when(dataSourceService.getModelAssetEntry(any())).thenAnswer(i -> i.getArgument(0));
       when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+      when(logicalModelService.checkPermission(any(), any(), any(), any(), any(), any()))
+         .thenReturn(true);
       service = new VpmService(factory, dataSourceService, repository, securityEngine,
                                dependencyHandler, mock(RenameTransformHandler.class));
    }
 
    /** A controller over the real service; the source guard needs a JDBC source in the mock. */
    WizVpmController controller() {
-      return new WizVpmController(repository, dataSourceService, mock(LogicalModelService.class),
+      return new WizVpmController(repository, dataSourceService, logicalModelService,
                                   service, factory, securityEngine);
    }
 
