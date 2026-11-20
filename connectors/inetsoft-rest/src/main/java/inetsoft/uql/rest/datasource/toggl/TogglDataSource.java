@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.rest.datasource.toggl;
 
+import inetsoft.uql.rest.HttpResponse;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
@@ -31,6 +32,10 @@ import java.util.Objects;
 })
 public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
    static final String TYPE = "Rest.Toggl";
+   static final String TOGGL_2_KEY_PREFIX = "toggl_sk_";
+   static final String TOGGL_2_KEY_HINT =
+      "Toggl 2.0 API keys (toggl_sk_...) are not accepted by the Toggl Track API; " +
+      "use the API token from your Toggl Track profile settings.";
    
    public TogglDataSource() {
       super(TYPE, TogglDataSource.class);
@@ -101,6 +106,27 @@ public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
    @Override
    protected String getTestSuffix() {
       return "/api/v9/me";
+   }
+
+   /**
+    * Keeps the standard failure text and, for a Toggl 2.0 (Focus) API key, adds a hint. Such keys
+    * (prefix {@code toggl_sk_}) are not accepted by the Toggl Track API. Nothing is rejected
+    * by prefix; the hint is only added when the test request has already failed.
+    */
+   @Override
+   protected void validateTestResponse(HttpResponse response) throws Exception {
+      try {
+         super.validateTestResponse(response);
+      }
+      catch(Exception e) {
+         String token = getApiToken();
+
+         if(token != null && token.startsWith(TOGGL_2_KEY_PREFIX)) {
+            throw new Exception(e.getMessage() + ". " + TOGGL_2_KEY_HINT, e);
+         }
+
+         throw e;
+      }
    }
 
    @Override
