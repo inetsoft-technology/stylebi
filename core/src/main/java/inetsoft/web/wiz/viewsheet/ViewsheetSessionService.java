@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.InvalidDependencyException;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldService;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
@@ -290,6 +291,8 @@ public class ViewsheetSessionService {
    {
       RuntimeViewsheet rvs = open(session, agent);
       boolean cellScoped = PaneScopeService.isCellGrant(session.editorContext());
+      // set when a refused dependency cycle was rolled back, so no undo step is added for it
+      boolean rolledBack = false;
 
       List<String> warnings = List.of();
       // set by the broadcast in the finally block below when the browser's socket session is gone
@@ -330,10 +333,25 @@ public class ViewsheetSessionService {
          noted.initCause(e.getCause());
          throw noted;
       }
+      catch(InvalidDependencyException e) {
+         // A refused dependency cycle (Bug #81884): the service applied the edit before the
+         // check threw, and the native Composer rolls back to the last checkpoint here. Without
+         // it the runtime kept the invalid binding and later calls failed on it.
+         try {
+            // The current checkpoint, not the newest: after an undo they differ.
+            rvs.restoreCurrentCheckpoint();
+         }
+         catch(RuntimeException restoreFailure) {
+            LOG.warn("Could not restore the checkpoint after a refused dependency", restoreFailure);
+         }
+
+         rolledBack = true;
+         throw e;
+      }
       finally {
          Viewsheet vs = rvs.getViewsheet();
 
-         if(vs != null) {
+         if(vs != null && !rolledBack) {
             // also covers a binder this very mutation added, and puts it in the undo snapshot
             persistCalcFieldAggregates(rvs);
             rvs.addCheckpoint(vs.prepareCheckpoint());

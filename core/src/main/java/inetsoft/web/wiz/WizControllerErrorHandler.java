@@ -18,6 +18,7 @@
 package inetsoft.web.wiz;
 
 import com.fasterxml.jackson.databind.JsonMappingException;
+import inetsoft.uql.asset.InvalidDependencyException;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidUserException;
 import inetsoft.web.viewsheet.service.ExportInProgressException;
@@ -360,6 +361,33 @@ public class WizControllerErrorHandler {
       Map<String, Object> payload = new HashMap<>();
       payload.put("error", e.getMessage());
       payload.put("errors", e.getErrors());
+      return new ResponseEntity<>(payload, null, HttpStatus.CONFLICT);
+   }
+
+   /**
+    * Maps a refused dependency cycle to 409 carrying the cycle message (Bug #81884).
+    *
+    * <p>{@code AbstractVSAssembly.checkDependency} throws {@code InvalidDependencyException} when
+    * an edit would make assemblies depend on each other (for example a selection list whose measure
+    * is a calc field of the same name on the list's table and on an additional table). The refusal
+    * is correct product behaviour, but unmapped it reached the catch-all, which told the caller
+    * this was a StyleBI-side bug and that retrying would fail the same way, where the native
+    * Composer shows "Dependency cycle found!". 409 like the other conflicts with the sheet's state;
+    * the edit is rolled back by {@code ViewsheetSessionService.mutate}.
+    */
+   @ExceptionHandler(InvalidDependencyException.class)
+   public ResponseEntity<Map<String, String>> handleInvalidDependency(
+      InvalidDependencyException e)
+   {
+      LOG.warn("Wiz edit refused, dependency cycle: {}", e.getMessage());
+
+      String msg = e.getMessage() == null || e.getMessage().isEmpty() ?
+         "Dependency cycle found!" : e.getMessage();
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", msg + " The edit would make assemblies depend on each other, so it " +
+         "was refused and rolled back. Change the binding so that no assembly depends on " +
+         "itself, for example use differently named fields or remove the extra table.");
+      payload.put("errorCode", "INVALID_DEPENDENCY");
       return new ResponseEntity<>(payload, null, HttpStatus.CONFLICT);
    }
 
