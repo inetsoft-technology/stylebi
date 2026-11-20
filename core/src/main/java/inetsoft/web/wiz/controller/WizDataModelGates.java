@@ -18,6 +18,9 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.uql.erm.XPartition;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.LogicalModelService;
 
@@ -82,6 +85,78 @@ class WizDataModelGates {
       throws Exception
    {
       dataSourceService.checkDataModelEditPermission(database, additional, principal);
+   }
+
+   // -- answer a not-visible item exactly like a missing one (DM-A9, review R1-4) --------------
+
+   /**
+    * Resolves the data model of a database the caller may see. The READ gate runs BEFORE any
+    * existence or type answer, and a caller without READ gets exactly the {@code NOT_FOUND} of a
+    * source that does not exist, so a source name (or its type) cannot be probed.
+    */
+   XDataModel requireVisibleJdbcDataModel(WizDataModelSource source, String database,
+                                          Principal principal)
+      throws Exception
+   {
+      if(!dataSourceService.checkPermission(database, ResourceAction.READ, principal)) {
+         throw WizDataModelSource.missingSource(database);
+      }
+
+      return source.requireJdbcDataModel(database);
+   }
+
+   /**
+    * Whether the caller may see the item, by the rule that lists it in the Data tab: a logical
+    * model needs READ on the model, a physical view WRITE on its folder (or the source), a VPM
+    * WRITE on the source, a folder READ on the folder. An item that does not exist is not visible.
+    */
+   boolean maySee(XDataModel dataModel, String database, String kind, String name,
+                  Principal principal)
+   {
+      try {
+         switch(kind) {
+         case WizDataModelWire.KIND_LOGICAL_MODEL:
+            XLogicalModel model = dataModel.getLogicalModel(name);
+            return model != null && modelService.checkPermission(
+               database, model.getFolder(), name, null, ResourceAction.READ, principal);
+         case WizDataModelWire.KIND_PHYSICAL_VIEW:
+            XPartition view = dataModel.getPartition(name);
+            return view != null && dataSourceService.checkPermission(
+               database, view.getFolder(), ResourceAction.WRITE, principal);
+         case WizDataModelWire.KIND_VPM:
+            return dataModel.getVirtualPrivateModel(name) != null &&
+               dataSourceService.checkPermission(database, ResourceAction.WRITE, principal);
+         case WizDataModelWire.KIND_FOLDER:
+            return WizDataModelSupport.hasFolder(dataModel, name) &&
+               dataSourceService.checkDataModelFolderPermission(
+                  database + "/" + name, ResourceAction.READ, principal);
+         default:
+            return false;
+         }
+      }
+      catch(Exception e) {
+         return false;
+      }
+   }
+
+   /**
+    * The kind of the item with this name that the caller may see, or null: a model the caller may
+    * not see is answered like a missing one, and its kind is never named.
+    */
+   String visibleKindOfName(XDataModel dataModel, String database, String name,
+                            Principal principal)
+   {
+      String kind = WizDataModelSupport.kindOfName(dataModel, name);
+      return kind != null && maySee(dataModel, database, kind, name, principal) ? kind : null;
+   }
+
+   /** The one text for an item that is missing or not visible to the caller. */
+   static WizDataModelErrors.DmFailure notFound(String kind, String field, String database,
+                                                String name)
+   {
+      return new WizDataModelErrors.DmFailure(
+         WizDataModelWire.NOT_FOUND, field, "no " + kind + " named \"" + name + "\" in " +
+         database + " (check the name with browse_data_models)");
    }
 
    private static SecurityException denied(String resource, Principal principal) {
