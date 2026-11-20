@@ -1,0 +1,13 @@
+{
+  "roles": ["Analyst", "Auditor"],
+  "name": null,
+  "script": null,
+  "hiddens": [
+    { "classType": "AttributeRef", "name": "ORDERS.COST", "entity": "ORDERS", "attribute": "COST",
+      "caption": "ORDERS.COST" },
+    { "classType": "AttributeRef", "name": "ORDERS.UNIT_PRICE", "entity": "ORDERS",
+      "attribute": "UNIT_PRICE", "caption": "ORDERS.UNIT_PRICE" },
+    { "classType": "AttributeRef", "name": "SALARY", "entity": "", "attribute": "SALARY",
+      "caption": "" }
+  ]
+}
