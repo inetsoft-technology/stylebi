@@ -428,11 +428,11 @@
     {
       "name": "Current User",
       "paged": false,
+      "excludeJsonPaths": ["$.api_token", "$.workspaces[*].api_token"],
       "suffix": "/api/v9/me?with_related_data={With Related Data?:true|false}",
       "description": "The account the credentials belong to. One record. Pass with_related_data to have workspaces, clients, projects and tags returned alongside, which saves several requests when bootstrapping.",
       "responseSchema": {
         "2fa_enabled": "boolean",
-        "api_token": "string",
         "at": "timeInstant",
         "authorization_updated_at": "timeInstant",
         "beginning_of_week": "double",
@@ -619,7 +619,6 @@
         "workspaces": [
           {
             "admin": "boolean",
-            "api_token": "string",
             "at": "timeInstant",
             "business_ws": "boolean",
             "default_currency": "string",
@@ -660,6 +659,7 @@
     {
       "name": "Workspaces",
       "paged": false,
+      "excludeJsonPaths": ["$[*].api_token"],
       "suffix": "/api/v9/workspaces",
       "lookups": [
         {
@@ -682,7 +682,6 @@
         {
           "active_project_count": "double",
           "admin": "boolean",
-          "api_token": "string",
           "at": "timeInstant",
           "business_ws": "boolean",
           "default_currency": "string",
@@ -722,11 +721,11 @@
     {
       "name": "Workspace",
       "paged": false,
+      "excludeJsonPaths": ["$.api_token"],
       "suffix": "/api/v9/workspaces/{Workspace ID}",
       "description": "One workspace by id, with its settings.",
       "responseSchema": {
         "admin": "boolean",
-        "api_token": "string",
         "at": "timeInstant",
         "business_ws": "boolean",
         "default_currency": "string",

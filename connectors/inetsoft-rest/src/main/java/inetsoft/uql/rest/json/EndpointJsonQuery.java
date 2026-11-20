@@ -726,6 +726,24 @@ public abstract class EndpointJsonQuery<T extends EndpointJsonQuery.Endpoint>
    public abstract Map<String, T> getEndpointMap();
 
    /**
+    * Gets the JsonPath expressions whose values must be removed from every response of the
+    * selected endpoint. A custom endpoint takes them from its template endpoint, so reaching the
+    * same URL through "CUSTOM" does not bring the removed fields back.
+    *
+    * <p>Deliberately not a bean getter: it is derived, not a property of the query.</p>
+    */
+   public List<String> resolveExcludedJsonPaths() {
+      String name = isCustomEndpoint() ? templateEndpoint : endpoint;
+
+      if(name == null) {
+         return Collections.emptyList();
+      }
+
+      T ep = getEndpointMap().get(name);
+      return ep == null ? Collections.emptyList() : ep.getExcludeJsonPaths();
+   }
+
+   /**
     * Gets the resource bundle that provides localized strings for this type of
     * data source.
     *
@@ -904,6 +922,14 @@ public abstract class EndpointJsonQuery<T extends EndpointJsonQuery.Endpoint>
       boolean isPaged();
 
       default List<JsonLookupEndpoint> getLookups() {
+         return Collections.emptyList();
+      }
+
+      /**
+       * JsonPath expressions selecting values to remove from this endpoint's responses before
+       * any row is built from them. See {@link AbstractEndpoint#getExcludeJsonPaths()}.
+       */
+      default List<String> getExcludeJsonPaths() {
          return Collections.emptyList();
       }
    }

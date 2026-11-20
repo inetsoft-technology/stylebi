@@ -190,6 +190,33 @@ public class JsonTransformer implements InputTransformer {
       }
    }
 
+   /**
+    * Removes, in place, every value the given JsonPath expressions select from the parsed
+    * response. An expression that matches nothing, including one whose parent object is absent
+    * from this response, is skipped rather than failing the others.
+    *
+    * @param json  a parsed response, as handed out by {@link #transform(InputStream)}.
+    * @param paths the JsonPath expressions to remove.
+    */
+   public void deletePaths(Object json, List<String> paths) {
+      if(json == null || paths == null || paths.isEmpty() ||
+         !(jsonProvider.isMap(json) || jsonProvider.isArray(json)))
+      {
+         return;
+      }
+
+      final DocumentContext context = deleteContext.parse(json);
+
+      for(String path : paths) {
+         try {
+            context.delete(path);
+         }
+         catch(PathNotFoundException ignore) {
+            // Nothing to remove for this response.
+         }
+      }
+   }
+
    private ParseContext createJsonPath() {
       final Configuration conf = Configuration.builder()
          .options(Option.DEFAULT_PATH_LEAF_TO_NULL)
@@ -307,4 +334,11 @@ public class JsonTransformer implements InputTransformer {
    private final ParseContext parseContext;
 
    private static final JsonProvider jsonProvider = new JacksonJsonProvider();
+
+   // SUPPRESS_EXCEPTIONS: a path through an object this response lacks must remove nothing, not throw
+   private static final ParseContext deleteContext = JsonPath.using(
+      Configuration.builder()
+         .options(Option.SUPPRESS_EXCEPTIONS)
+         .jsonProvider(jsonProvider)
+         .build());
 }

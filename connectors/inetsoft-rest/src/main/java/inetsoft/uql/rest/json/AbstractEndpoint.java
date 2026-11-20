@@ -104,6 +104,33 @@ public class AbstractEndpoint implements EndpointJsonQuery.Endpoint {
    }
 
    /**
+    * JsonPath expressions, each selecting values to REMOVE from every response of this endpoint
+    * before any row, sample or shape is taken from it. Optional, and absent from most
+    * {@code endpoints.json} files.
+    *
+    * <p>For fields the upstream API returns but that must never reach a worksheet: a credential
+    * the endpoint echoes back (the account's own API token), or another secret of the same kind.
+    * Declared here, as data, so a connector hides a field by naming it in {@code endpoints.json}
+    * rather than through code that knows one connector's response.</p>
+    *
+    * <p>A path that matches nothing is not an error, so one path can cover a field that is only
+    * present for some requests (for example a nested object returned only when related data is
+    * asked for). Write the path for the response's top-level shape: {@code $.api_token} for an
+    * object, {@code $[*].api_token} for a bare array of objects.</p>
+    *
+    * <p>Excluded from {@link #equals} and {@link #hashCode()} like the other declarative extras:
+    * it does not change which request is made.</p>
+    */
+   @Override
+   public List<String> getExcludeJsonPaths() {
+      return excludeJsonPaths;
+   }
+
+   public void setExcludeJsonPaths(List<String> excludeJsonPaths) {
+      this.excludeJsonPaths = excludeJsonPaths == null ? Collections.emptyList() : excludeJsonPaths;
+   }
+
+   /**
     * {@code description} and {@code responseSchema} are deliberately excluded here and from
     * {@link #hashCode()}: rewording an endpoint, or declaring what it returns, does not make it a
     * different endpoint, and folding either in would make identity depend on prose or a structure
@@ -131,4 +158,5 @@ public class AbstractEndpoint implements EndpointJsonQuery.Endpoint {
    private boolean paged;
    private List<JsonLookupEndpoint> lookups = Collections.emptyList();
    private Object responseSchema;
+   private List<String> excludeJsonPaths = Collections.emptyList();
 }
