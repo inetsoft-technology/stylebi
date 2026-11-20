@@ -128,4 +128,41 @@ public class PagedIterationIteratorStrategyTest {
 
       assertEquals(3, count);
    }
+
+   @Test
+   public void testHeaderHasNext() throws Exception {
+      final RestJsonQuery query = new RestJsonQuery();
+      final RestJsonDataSource datasource = new RestJsonDataSource();
+      datasource.setURL("http://host");
+      query.setDataSource(datasource);
+      final PaginationSpec spec = query.getPaginationSpec();
+      spec.setType(PaginationType.ITERATION);
+      spec.setHasNextParam(new PaginationParameter("X-Next-Page", PaginationParamType.HEADER));
+      spec.setPageOffsetParamToRead(new PaginationParameter("X-Next-Page", PaginationParamType.HEADER));
+      spec.setPageOffsetParamToWrite(new PaginationParameter("page", PaginationParamType.QUERY));
+
+      final List<RequestResponse> requestResponses = new ArrayList<>();
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query).build(),
+         new TestHttpResponse("{}", Collections.singletonList(new HttpHeader("X-Next-Page", "2")))));
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query)
+         .queryParameters(Collections.singletonMap("page", "2")).build(),
+         new TestHttpResponse("{}", Collections.singletonList(new HttpHeader("X-Next-Page", "3")))));
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query)
+         .queryParameters(Collections.singletonMap("page", "3")).build(),
+         new TestHttpResponse("{}", Collections.singletonList(new HttpHeader("X-Next-Page", "")))));
+
+      final TestHttpHandler httpHandler = new TestHttpHandler(requestResponses);
+      final JsonTransformer transformer = new JsonTransformer();
+
+      final RestDataIteratorStrategy<Object> strategy = new PagedIterationIteratorStrategy<>(
+         query, transformer, httpHandler, new RestErrorHandler(), new HttpResponseParameterParser(transformer));
+      int count = 0;
+
+      while(strategy.hasNext()) {
+         assertNotNull(strategy.next());
+         count++;
+      }
+
+      assertEquals(3, count);
+   }
 }
