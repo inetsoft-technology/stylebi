@@ -17,8 +17,755 @@
  */
 package inetsoft.web.wiz.controller;
 
-/** STUB (J1.0): the logical model validator (design 4.4). Replaced wholesale by lane J2. */
+import inetsoft.uql.DrillPath;
+import inetsoft.uql.XMetaInfo;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.erm.*;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XUtil;
+import inetsoft.util.Tool;
+import inetsoft.web.wiz.controller.WizDataModelWire.Err;
+import inetsoft.web.wiz.controller.WizLogicalModelWire.*;
+
+import java.util.*;
+
+/**
+ * The logical model validator of the data model bridge (design 4.4). The service validates almost
+ * nothing at write time: it does not check that a table or column exists, that an expression
+ * parses, that the folder exists, or that entity and attribute names are unique (a duplicate
+ * attribute followed by another makes {@code LogicalModelService.createModel} throw an
+ * {@code IndexOutOfBoundsException}, and otherwise the second one is silently dropped). So the
+ * bridge checks all of it BEFORE calling the service and reports every problem, field-named, at
+ * once (at most {@link #MAX_ERRORS}).
+ *
+ * <p>The table/column rule re-implements the private {@code LogicalModelService.validateAttribute}
+ * and the expression rule {@code LogicalModelController.checkExpressionSQL}; the parity test
+ * {@code WizLogicalModelValidatorParityTest} pins both to a shared table of cases. Keys are
+ * case-sensitive, as the registry's are.</p>
+ */
 final class WizLogicalModelValidator {
+   static final int MAX_ERRORS = 50;
+
+   static final String NAME_INVALID = "NAME_INVALID";
+   static final String NAME_RESERVED = "NAME_RESERVED";
+   static final String VIEW_NOT_FOUND = "VIEW_NOT_FOUND";
+   static final String FOLDER_NOT_FOUND = "FOLDER_NOT_FOUND";
+   static final String CONNECTION_NOT_FOUND = "CONNECTION_NOT_FOUND";
+   static final String ENTITY_DUPLICATE = "ENTITY_DUPLICATE";
+   static final String ATTRIBUTE_DUPLICATE = "ATTRIBUTE_DUPLICATE";
+   static final String ATTRIBUTE_BINDING_AMBIGUOUS = "ATTRIBUTE_BINDING_AMBIGUOUS";
+   static final String TABLE_NOT_IN_VIEW = "TABLE_NOT_IN_VIEW";
+   static final String COLUMN_NOT_IN_TABLE = "COLUMN_NOT_IN_TABLE";
+   static final String EXPRESSION_INVALID = "EXPRESSION_INVALID";
+   static final String DATATYPE_INVALID = "DATATYPE_INVALID";
+   static final String REFTYPE_INVALID = "REFTYPE_INVALID";
+   static final String OLDNAME_UNKNOWN = "OLDNAME_UNKNOWN";
+   static final String OLDNAME_REQUIRED = "OLDNAME_REQUIRED";
+   static final String METADATA_UNAVAILABLE = "METADATA_UNAVAILABLE";
+   static final String EXTENDED_UNSUPPORTED = "EXTENDED_UNSUPPORTED";
+   static final String DRILL_INVALID = "DRILL_INVALID";
+   /** A stored value the wire cannot carry, so an update would silently delete it. */
+   static final String STORED_UNSUPPORTED = "STORED_UNSUPPORTED";
+
    WizLogicalModelValidator() {
+   }
+
+   /** What the validator needs from the live system; the bridge supplies one, tests fake it. */
+   interface Env {
+      XDataModel dataModel();
+
+      boolean connectionExists(String connection);
+
+      /**
+       * The physical tables and columns of a view as the database reports them, with each column's
+       * data type. Throws when the metadata cannot be read.
+       */
+      Map<String, Map<String, String>> metadata(XPartition view, String connection)
+         throws Exception;
+   }
+
+   enum Mode {
+      CREATE, UPDATE
+   }
+
+   /** Errors (empty means valid), warnings, and the definition with filled data types. */
+   record Result(List<Err> errors, List<String> warnings, Definition normalized) {
+      boolean valid() {
+         return errors.isEmpty();
+      }
+   }
+
+   /**
+    * Validates a definition.
+    *
+    * @param stored the stored model on an update (its entities decide the rename markers),
+    *               {@code null} on a create.
+    */
+   Result validate(Env env, Definition definition, Mode mode, XLogicalModel stored) {
+      Run run = new Run(env, definition, mode, stored);
+      run.validate();
+      return new Result(run.errors, run.warnings, run.normalized());
+   }
+
+   /**
+    * The check of {@code LogicalModelController.checkExpressionSQL}: an expression is invalid when
+    * it does not parse or when any token is left after it. Returns the problem, or {@code null}.
+    */
+   static String expressionProblem(String expression) {
+      inetsoft.uql.util.sqlparser.SQLLexer lexer;
+
+      try {
+         lexer = XUtil.parseSQLExpressionSyntax(expression);
+      }
+      catch(Exception ex) {
+         return ex.toString();
+      }
+
+      String token;
+
+      try {
+         token = lexer.nextToken().toString();
+      }
+      catch(Exception ex) {
+         return null;
+      }
+
+      if(token != null && !token.toLowerCase().contains("null")) {
+         return "unexpected text after the expression: \"" + token + "\"";
+      }
+
+      return null;
+   }
+
+   /** One validation pass; holds the collected errors. */
+   private static final class Run {
+      Run(Env env, Definition definition, Mode mode, XLogicalModel stored) {
+         this.env = env;
+         this.def = definition;
+         this.mode = mode;
+         this.stored = stored;
+      }
+
+      void validate() {
+         checkHeader();
+         List<Entity> entities = def.entities() == null ? List.of() : def.entities();
+         Set<String> entityNames = new HashSet<>();
+         Set<String> storedEntities = stored == null ? Set.of() : storedEntityNames(stored);
+         List<Item> entityItems = new ArrayList<>();
+
+         for(int i = 0; i < entities.size(); i++) {
+            entityItems.add(new Item(i, entities.get(i).name(), entities.get(i).oldName()));
+         }
+
+         Set<String> entityClaims = markers("entity", entityItems, storedEntities,
+            i -> "entities[" + (blank(i.name()) ? i.index() : i.name()) + "]", true);
+         lookAlikeEntities(entities, storedEntities, entityClaims);
+         normalizedEntities = new ArrayList<>();
+
+         for(int i = 0; i < entities.size(); i++) {
+            Entity entity = entities.get(i);
+            String path = "entities[" + (blank(entity.name()) ? i : entity.name()) + "]";
+
+            if(blank(entity.name())) {
+               add(path + ".name", "entity name is empty", NAME_INVALID);
+            }
+            else if(!entityNames.add(entity.name())) {
+               add(path, "duplicate entity name \"" + entity.name() +
+                  "\" (names are case-sensitive)", ENTITY_DUPLICATE);
+            }
+
+            normalizedEntities.add(checkEntity(entity, path));
+         }
+
+         if(mode == Mode.UPDATE && stored != null) {
+            checkStoredRepresentable();
+         }
+      }
+
+      Definition normalized() {
+         return new Definition(def.name(), def.description(), def.view(), def.folder(),
+                               def.connection(), def.parent(), def.extended(),
+                               normalizedEntities == null ? def.entities() : normalizedEntities);
+      }
+
+      // -- header ------------------------------------------------------------------------------
+
+      private void checkHeader() {
+         if(!blank(def.parent())) {
+            add("parent", "parent: extended logical models are not supported in this version",
+                EXTENDED_UNSUPPORTED);
+         }
+
+         try {
+            WizDataModelNames.requireValidModelName(def.name());
+         }
+         catch(IllegalArgumentException e) {
+            add("name", e.getMessage(),
+                WizDataModelNames.isReserved(def.name()) ? NAME_RESERVED : NAME_INVALID);
+         }
+
+         String view = def.view();
+
+         if(blank(view) && mode == Mode.UPDATE && stored != null) {
+            view = stored.getPartition();
+         }
+
+         if(blank(view)) {
+            add("view", "view is required", VIEW_NOT_FOUND);
+         }
+         else {
+            partition = env.dataModel().getPartition(view);
+
+            if(partition == null) {
+               add("view", "no physical view named \"" + view + "\" in the data source",
+                   VIEW_NOT_FOUND);
+            }
+         }
+
+         String folder = def.folder();
+
+         if(!blank(folder) && !Arrays.asList(folders()).contains(folder) &&
+            !(stored != null && Tool.equals(folder, stored.getFolder())))
+         {
+            add("folder", "no data-model folder \"" + folder + "\"", FOLDER_NOT_FOUND);
+         }
+
+         String connection = def.connection();
+
+         if(!blank(connection) && !env.connectionExists(connection)) {
+            add("connection", "no additional connection \"" + connection + "\" on the data source",
+                CONNECTION_NOT_FOUND);
+         }
+      }
+
+      private String[] folders() {
+         String[] folders = env.dataModel().getFolders();
+         return folders == null ? new String[0] : folders;
+      }
+
+      // -- entities and attributes -------------------------------------------------------------
+
+      private Entity checkEntity(Entity entity, String path) {
+         List<Attribute> attributes = entity.attributes() == null ? List.of() :
+            entity.attributes();
+         String storedName = storedEntityName(entity);
+         XEntity storedEntity = stored == null || storedName == null ? null :
+            stored.getEntity(storedName);
+         Set<String> storedAttributes = storedEntity == null ? Set.of() :
+            storedAttributeNames(storedEntity);
+         List<Item> items = new ArrayList<>();
+
+         for(int i = 0; i < attributes.size(); i++) {
+            items.add(new Item(i, attributes.get(i).name(), attributes.get(i).oldName()));
+         }
+
+         Set<String> claims = markers("attribute", items, storedAttributes,
+            i -> path + ".attributes[" + (blank(i.name()) ? i.index() : i.name()) + "]", false);
+         lookAlikeAttributes(path, attributes, storedEntity, storedAttributes, claims);
+         Set<String> names = new HashSet<>();
+         List<Attribute> normalized = new ArrayList<>();
+
+         for(int i = 0; i < attributes.size(); i++) {
+            Attribute attribute = attributes.get(i);
+            String apath = path + ".attributes[" + (blank(attribute.name()) ? i :
+               attribute.name()) + "]";
+
+            if(blank(attribute.name())) {
+               add(apath + ".name", "attribute name is empty", NAME_INVALID);
+            }
+            else if(!names.add(attribute.name())) {
+               add(apath, "duplicate attribute name \"" + attribute.name() +
+                  "\" in entity \"" + entity.name() + "\" (names are case-sensitive)",
+                   ATTRIBUTE_DUPLICATE);
+            }
+
+            normalized.add(checkAttribute(attribute, apath));
+         }
+
+         return new Entity(entity.name(), entity.oldName(), entity.description(),
+                           entity.visible(), entity.baseElement(), entity.errorMessage(),
+                           normalized);
+      }
+
+      private Attribute checkAttribute(Attribute attribute, String path) {
+         boolean hasExpression = !blank(attribute.expression());
+         boolean hasColumn = !blank(attribute.column()) || !blank(attribute.table());
+         String dataType = attribute.dataType();
+
+         if(hasExpression && hasColumn) {
+            add(path, "give either table+column or expression, not both (a column attribute has " +
+               "table and column; an expression attribute has expression)",
+                ATTRIBUTE_BINDING_AMBIGUOUS);
+         }
+         else if(!hasExpression && !hasColumn) {
+            add(path, "an attribute needs table+column or expression",
+                ATTRIBUTE_BINDING_AMBIGUOUS);
+         }
+         else if(attribute.type() != null) {
+            String type = hasExpression ? WizLogicalModelWire.TYPE_EXPRESSION :
+               WizLogicalModelWire.TYPE_COLUMN;
+
+            if(!type.equals(attribute.type())) {
+               add(path + ".type", "type \"" + attribute.type() + "\" conflicts with the " +
+                  (hasExpression ? "expression" : "table and column") + " given (that is a " +
+                  type + " attribute)", ATTRIBUTE_BINDING_AMBIGUOUS);
+            }
+         }
+
+         if(hasExpression && !hasColumn) {
+            String problem = expressionProblem(attribute.expression());
+
+            if(problem != null) {
+               add(path + ".expression", "the expression cannot be parsed: " + problem,
+                   EXPRESSION_INVALID);
+            }
+
+            if(blank(dataType)) {
+               add(path + ".dataType", "dataType is required on an expression attribute",
+                   DATATYPE_INVALID);
+            }
+         }
+         else if(hasColumn && !hasExpression) {
+            if(blank(attribute.table())) {
+               add(path + ".table", "a column attribute needs a table",
+                   ATTRIBUTE_BINDING_AMBIGUOUS);
+            }
+            else if(blank(attribute.column())) {
+               add(path + ".column", "a column attribute needs a column",
+                   ATTRIBUTE_BINDING_AMBIGUOUS);
+            }
+            else {
+               String physical = checkColumn(attribute, path);
+
+               if(blank(dataType) && physical != null) {
+                  dataType = physical;
+                  warnings.add(path + ".dataType: filled from the physical column as \"" +
+                                  physical + "\"");
+               }
+            }
+         }
+
+         if(!blank(dataType) && !XSchema.isPrimitiveType(dataType)) {
+            add(path + ".dataType", "dataType \"" + dataType + "\" is not a data type name",
+                DATATYPE_INVALID);
+         }
+
+         if(attribute.refType() != null &&
+            !WizLogicalModelWire.REF_TYPES.contains(attribute.refType()))
+         {
+            add(path + ".refType", "refType \"" + attribute.refType() + "\" must be one of " +
+               WizLogicalModelWire.REF_TYPES, REFTYPE_INVALID);
+         }
+
+         checkDrill(attribute.drill(), path + ".drill");
+
+         return new Attribute(attribute.name(), attribute.oldName(), attribute.description(),
+                              attribute.visible(), attribute.type(), attribute.table(),
+                              attribute.column(), attribute.expression(), attribute.aggregate(),
+                              attribute.parseable(), dataType, attribute.refType(),
+                              attribute.formula(), attribute.browseData(),
+                              attribute.browseQuery(), attribute.format(), attribute.drill(),
+                              attribute.baseElement(), attribute.errorMessage());
+      }
+
+      /**
+       * The table/column rule of {@code LogicalModelService.validateAttribute}, with a loud
+       * answer where the service only logs. Returns the physical column's data type when found.
+       */
+      private String checkColumn(Attribute attribute, String path) {
+         if(partition == null) {
+            return null;
+         }
+
+         String table = attribute.table();
+         String column = attribute.column();
+         XPartition aliased = partition.applyAutoAliases();
+
+         if(!aliased.containsTable(table)) {
+            add(path + ".table", "table \"" + table + "\" is not in view \"" + partition.getName() +
+               "\"", TABLE_NOT_IN_VIEW);
+            return null;
+         }
+
+         String tableName = table;
+
+         if(aliased.isAlias(tableName)) {
+            tableName = aliased.getAliasTable(tableName);
+         }
+
+         XPartition.PartitionTable xTable = aliased.getPartitionTable(table);
+
+         if(xTable == null) {
+            xTable = aliased.getPartitionTable(aliased.getAutoAliasTable(table));
+         }
+
+         if(xTable != null && xTable.getType() == 1 && xTable.getSql() != null) {
+            for(inetsoft.uql.schema.XTypeNode node : xTable.getColumns()) {
+               if(Tool.equals(node.getName(), column)) {
+                  return node.getType();
+               }
+            }
+
+            add(path + ".column", "column \"" + column + "\" is not in table \"" + tableName +
+               "\"", COLUMN_NOT_IN_TABLE);
+            return null;
+         }
+
+         Map<String, Map<String, String>> tables = metadata();
+
+         if(tables == null) {
+            return null;
+         }
+
+         Map<String, String> columns = tables.get(table);
+
+         if(columns == null) {
+            add(path + ".table", "table \"" + tableName + "\" is not in the database",
+                TABLE_NOT_IN_VIEW);
+            return null;
+         }
+
+         if(!columns.containsKey(column)) {
+            add(path + ".column", "column \"" + column + "\" is not in table \"" + tableName +
+               "\"", COLUMN_NOT_IN_TABLE);
+            return null;
+         }
+
+         return columns.get(column);
+      }
+
+      /** Reads the view's metadata once; one error, not one per attribute, when it fails. */
+      private Map<String, Map<String, String>> metadata() {
+         if(!metadataRead) {
+            metadataRead = true;
+
+            try {
+               metadata = env.metadata(partition, blank(def.connection()) ? null :
+                  def.connection());
+            }
+            catch(Exception e) {
+               add("view", "the database metadata of view \"" + partition.getName() +
+                  "\" could not be read, so the attribute columns cannot be verified: " +
+                  e.getMessage(), METADATA_UNAVAILABLE);
+            }
+         }
+
+         return metadata;
+      }
+
+      private void checkDrill(Drill drill, String path) {
+         if(drill == null || drill.paths() == null) {
+            return;
+         }
+
+         for(int i = 0; i < drill.paths().size(); i++) {
+            WizLogicalModelWire.DrillPath drillPath = drill.paths().get(i);
+            String ppath = path + ".paths[" + (blank(drillPath.name()) ? i : drillPath.name()) +
+               "]";
+
+            if(blank(drillPath.name())) {
+               add(ppath + ".name", "a drill path needs a name", DRILL_INVALID);
+            }
+
+            if(drillPath.linkType() != null &&
+               !WizLogicalModelWire.LINK_WEB.equals(drillPath.linkType()) &&
+               !WizLogicalModelWire.LINK_VIEWSHEET.equals(drillPath.linkType()))
+            {
+               add(ppath + ".linkType", "linkType \"" + drillPath.linkType() +
+                  "\" must be \"web\" or \"viewsheet\"", DRILL_INVALID);
+            }
+
+            if(drillPath.params() != null) {
+               for(DrillParam param : drillPath.params()) {
+                  if(blank(param.name())) {
+                     add(ppath + ".params", "a drill parameter needs a name", DRILL_INVALID);
+                  }
+               }
+            }
+
+            if(drillPath.queryFields() != null && !drillPath.queryFields().isEmpty()) {
+               add(ppath + ".queryFields", "queryFields are not stored by StyleBI; leave empty",
+                   DRILL_INVALID);
+            }
+
+            if(drillPath.query() != null) {
+               AssetEntry entry = null;
+
+               try {
+                  entry = blank(drillPath.query().entry()) ? null :
+                     AssetEntry.createAssetEntry(drillPath.query().entry());
+               }
+               catch(RuntimeException e) {
+                  // reported below
+               }
+
+               if(entry == null) {
+                  add(ppath + ".query.entry", "the worksheet entry identifier cannot be read",
+                      DRILL_INVALID);
+               }
+            }
+         }
+      }
+
+      // -- rename markers ----------------------------------------------------------------------
+
+      private record Item(int index, String name, String raw) {
+      }
+
+      /**
+       * Checks the markers of one level and returns the stored names the submitted elements
+       * claim (by identity or by an explicit marker). The rules: a marker must name a stored
+       * element, claimed once; an element explicitly sent as new must not hide a stored one of
+       * its own name. On a create no marker means anything.
+       */
+      private Set<String> markers(String label, List<Item> items, Set<String> storedNames,
+                                  java.util.function.Function<Item, String> path,
+                                  boolean entityLevel)
+      {
+         Set<String> claims = new HashSet<>();
+         List<Item> explicitNew = new ArrayList<>();
+
+         for(Item item : items) {
+            String raw = item.raw();
+
+            if(mode == Mode.CREATE) {
+               if(raw != null && !raw.isEmpty() && !raw.equals(item.name())) {
+                  add(path.apply(item) + ".oldName", "oldName \"" + raw + "\": a create has no " +
+                     "stored " + label + " to rename", OLDNAME_UNKNOWN);
+               }
+
+               continue;
+            }
+
+            if(raw == null) {
+               if(item.name() != null && storedNames.contains(item.name()) &&
+                  !claims.add(item.name()))
+               {
+                  add(path.apply(item) + ".oldName", label + " \"" + item.name() +
+                     "\" is claimed twice", OLDNAME_UNKNOWN);
+               }
+            }
+            else if(raw.isEmpty()) {
+               explicitNew.add(item);
+            }
+            else if(!storedNames.contains(raw)) {
+               add(path.apply(item) + ".oldName", "no " + label + " \"" + raw +
+                  "\" in the stored model" + (entityLevel ? "" : " entity"), OLDNAME_UNKNOWN);
+            }
+            else if(!claims.add(raw)) {
+               add(path.apply(item) + ".oldName", label + " \"" + raw + "\" is claimed twice",
+                   OLDNAME_UNKNOWN);
+            }
+         }
+
+         for(Item item : explicitNew) {
+            if(item.name() != null && storedNames.contains(item.name()) &&
+               !claims.contains(item.name()))
+            {
+               add(path.apply(item) + ".oldName", label + " \"" + item.name() + "\" exists in " +
+                  "the stored model; send oldName:\"" + item.name() + "\" to keep it (its " +
+                  "dependents migrate), or rename or remove it first", OLDNAME_REQUIRED);
+            }
+         }
+
+         return claims;
+      }
+
+      private void lookAlikeAttributes(String path, List<Attribute> attributes,
+                                       XEntity storedEntity, Set<String> storedNames,
+                                       Set<String> claims)
+      {
+         if(mode != Mode.UPDATE || storedEntity == null) {
+            return;
+         }
+
+         for(Attribute attribute : attributes) {
+            if(attribute.oldName() != null || blank(attribute.name()) ||
+               storedNames.contains(attribute.name()))
+            {
+               continue;
+            }
+
+            for(String removed : storedNames) {
+               if(claims.contains(removed)) {
+                  continue;
+               }
+
+               XAttribute old = storedEntity.getAttribute(removed);
+
+               if(old != null && sameBinding(old, attribute)) {
+                  add(path + ".attributes[" + attribute.name() + "].oldName",
+                      "looks like a rename of \"" + removed + "\"; give oldName:\"" + removed +
+                         "\" to migrate dependents, or send oldName:null to say it is a new " +
+                         "element and \"" + removed + "\" is deleted", OLDNAME_REQUIRED);
+                  break;
+               }
+            }
+         }
+      }
+
+      private boolean sameBinding(XAttribute old, Attribute attribute) {
+         if(old instanceof ExpressionAttribute) {
+            return !blank(attribute.expression()) &&
+               Tool.equals(((ExpressionAttribute) old).getExpression(), attribute.expression());
+         }
+
+         return !blank(attribute.column()) && Tool.equals(old.getTable(), attribute.table()) &&
+            Tool.equals(old.getColumn(), attribute.column());
+      }
+
+      private void lookAlikeEntities(List<Entity> entities, Set<String> storedNames,
+                                     Set<String> claims)
+      {
+         if(mode != Mode.UPDATE || stored == null) {
+            return;
+         }
+
+         for(Entity entity : entities) {
+            if(entity.oldName() != null || blank(entity.name()) ||
+               storedNames.contains(entity.name()))
+            {
+               continue;
+            }
+
+            Set<String> attributeNames = new HashSet<>();
+
+            for(Attribute attribute : entity.attributes() == null ? List.<Attribute>of() :
+               entity.attributes())
+            {
+               attributeNames.add(attribute.name());
+            }
+
+            if(attributeNames.isEmpty()) {
+               continue;
+            }
+
+            for(String removed : storedNames) {
+               if(!claims.contains(removed) &&
+                  attributeNames.equals(storedAttributeNames(stored.getEntity(removed))))
+               {
+                  add("entities[" + entity.name() + "].oldName",
+                      "looks like a rename of entity \"" + removed + "\"; give oldName:\"" +
+                         removed + "\" to migrate dependents, or send oldName:null to say it " +
+                         "is a new element and \"" + removed + "\" is deleted", OLDNAME_REQUIRED);
+                  break;
+               }
+            }
+         }
+      }
+
+      /** The stored entity an update entity refers to: its marker, else its own name. */
+      private String storedEntityName(Entity entity) {
+         if(stored == null || mode != Mode.UPDATE) {
+            return null;
+         }
+
+         String raw = entity.oldName();
+
+         if(raw == null) {
+            return stored.getEntity(entity.name()) == null ? null : entity.name();
+         }
+
+         return raw.isEmpty() || stored.getEntity(raw) == null ? null : raw;
+      }
+
+      // -- stored state the wire cannot carry --------------------------------------------------
+
+      /**
+       * An update rebuilds every attribute from the wire, so a stored value the wire cannot carry
+       * would be deleted without a word. Refuse naming it (an update that left it alone would be
+       * indistinguishable from one that deleted it).
+       */
+      private void checkStoredRepresentable() {
+         Enumeration<XEntity> entities = stored.getEntities();
+
+         while(entities.hasMoreElements()) {
+            XEntity entity = entities.nextElement();
+            Enumeration<XAttribute> attributes = entity.getAttributes();
+
+            while(attributes.hasMoreElements()) {
+               XAttribute attribute = attributes.nextElement();
+               XMetaInfo meta = attribute.getXMetaInfo();
+               String at = "entities[" + entity.getName() + "].attributes[" +
+                  attribute.getName() + "]";
+
+               if(meta == null) {
+                  continue;
+               }
+
+               if(meta.isAsDate() || !Tool.isEmptyString(meta.getDatePattern()) ||
+                  meta.getLocale() != null)
+               {
+                  add(at, "the stored attribute has a date or locale setting (asDate, " +
+                     "datePattern or locale) that this tool cannot carry, so an update would " +
+                     "delete it; edit this model in the Data tab", STORED_UNSUPPORTED);
+               }
+
+               if(meta.getXDrillInfo() != null) {
+                  Enumeration<?> paths = meta.getXDrillInfo().getDrillPaths();
+
+                  while(paths.hasMoreElements()) {
+                     DrillPath path = (DrillPath) paths.nextElement();
+
+                     if(path.getLinkType() != DrillPath.WEB_LINK &&
+                        path.getLinkType() != DrillPath.VIEWSHEET_LINK)
+                     {
+                        add(at + ".drill", "the stored drill path \"" + path.getName() +
+                           "\" is of a link type this tool cannot carry, so an update would " +
+                           "delete it; edit this model in the Data tab", STORED_UNSUPPORTED);
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      // -- helpers -----------------------------------------------------------------------------
+
+      private static Set<String> storedEntityNames(XLogicalModel model) {
+         Set<String> names = new LinkedHashSet<>();
+         Enumeration<XEntity> entities = model.getEntities();
+
+         while(entities.hasMoreElements()) {
+            names.add(entities.nextElement().getName());
+         }
+
+         return names;
+      }
+
+      private static Set<String> storedAttributeNames(XEntity entity) {
+         Set<String> names = new LinkedHashSet<>();
+
+         if(entity != null) {
+            Enumeration<XAttribute> attributes = entity.getAttributes();
+
+            while(attributes.hasMoreElements()) {
+               names.add(attributes.nextElement().getName());
+            }
+         }
+
+         return names;
+      }
+
+      private static boolean blank(String value) {
+         return value == null || value.isBlank();
+      }
+
+      private void add(String field, String message, String code) {
+         if(errors.size() < MAX_ERRORS) {
+            errors.add(new Err(field, message, code));
+         }
+      }
+
+      private final Env env;
+      private final Definition def;
+      private final Mode mode;
+      private final XLogicalModel stored;
+      private XPartition partition;
+      private Map<String, Map<String, String>> metadata;
+      private boolean metadataRead;
+      private List<Entity> normalizedEntities;
+      private final List<Err> errors = new ArrayList<>();
+      private final List<String> warnings = new ArrayList<>();
    }
 }
