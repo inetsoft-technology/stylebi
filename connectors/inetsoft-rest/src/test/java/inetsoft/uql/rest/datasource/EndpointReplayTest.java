@@ -29,8 +29,14 @@ import inetsoft.uql.rest.datasource.airtable.AirtableDataSource;
 import inetsoft.uql.rest.datasource.airtable.AirtableQuery;
 import inetsoft.uql.rest.datasource.clockify.ClockifyDataSource;
 import inetsoft.uql.rest.datasource.clockify.ClockifyQuery;
+import inetsoft.uql.rest.datasource.github.GitHubDataSource;
+import inetsoft.uql.rest.datasource.github.GitHubQuery;
 import inetsoft.uql.rest.datasource.harvest.HarvestDataSource;
 import inetsoft.uql.rest.datasource.harvest.HarvestQuery;
+import inetsoft.uql.rest.datasource.jira.JiraDataSource;
+import inetsoft.uql.rest.datasource.jira.JiraQuery;
+import inetsoft.uql.rest.datasource.toggl.TogglDataSource;
+import inetsoft.uql.rest.datasource.toggl.TogglQuery;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -126,6 +132,67 @@ class EndpointReplayTest {
       assertEquals(List.of(1, 2, 3, 4, 5), ReplaySupport.column(rows, "id"));
       assertEquals(3, http.requests().size(), http.requests().toString());
       assertTrue(http.requests().get(2).contains("page=3"), http.requests().get(2));
+   }
+
+   @Test
+   void jiraPagesAreReadByOffsetUntilTheTotal() throws Exception {
+      // TOTAL_COUNT_AND_OFFSET: the first request has no offset, the next one has startAt set by
+      // the page size, and the total is in the body
+      ScriptedHttpHandler http = new ScriptedHttpHandler()
+         .on(url -> !url.contains("startAt"), "{\"total\":14,\"values\":" + ReplaySupport.array(1, 10) + "}")
+         .on("startAt=10", "{\"total\":14,\"values\":" + ReplaySupport.array(11, 4) + "}");
+      JiraDataSource dataSource = new JiraDataSource();
+      dataSource.setServerType("local");
+      dataSource.setLocalUrl("https://jira.test");
+      dataSource.setApiToken("token");
+
+      List<Map<String, Object>> rows = ReplaySupport.run(
+         ReplaySupport.query(dataSource, new JiraQuery(), "Application Roles", "$.values",
+                             Map.of()), http);
+
+      assertEquals(14, rows.size());
+      assertEquals(2, http.requests().size(), http.requests().toString());
+      assertTrue(http.requests().get(0).contains("maxResults=10") &&
+                 !http.requests().get(0).contains("startAt"), http.requests().get(0));
+      assertTrue(http.requests().get(1).contains("startAt=10"), http.requests().get(1));
+   }
+
+   @Test
+   void togglPagesAreReadUntilTheTotalCount() throws Exception {
+      // TOTAL_COUNT_AND_PAGE: the first request has no page number, the next one asks for page 2
+      // while 50 records per page do not cover the total in the body
+      ScriptedHttpHandler http = new ScriptedHttpHandler()
+         .on(url -> !url.contains("page="), "{\"total_count\":60,\"data\":" + ReplaySupport.array(1, 50) + "}")
+         .on("page=2", "{\"total_count\":60,\"data\":" + ReplaySupport.array(51, 10) + "}");
+      TogglDataSource dataSource = new TogglDataSource();
+      dataSource.setApiToken("token");
+
+      List<Map<String, Object>> rows = ReplaySupport.run(
+         ReplaySupport.query(dataSource, new TogglQuery(), "Workspace Tasks", "$.data",
+                             Map.of("Workspace ID", "w1")), http);
+
+      assertEquals(60, rows.size(), rows.toString());
+      assertEquals(2, http.requests().size(), http.requests().toString());
+      assertTrue(http.requests().get(1).contains("page=2"), http.requests().get(1));
+   }
+
+   @Test
+   void githubPagesFollowTheLinkHeader() throws Exception {
+      // LINK_ITERATION: the next page is the URL of the rel="next" entry of the Link header
+      String next = "https://api.github.com/events?page=2";
+      ScriptedHttpHandler http = new ScriptedHttpHandler()
+         .onReplies(url -> !url.contains("page=2"), ScriptedHttpHandler.reply(
+            ReplaySupport.array(1, 2), "Link", "<" + next + ">; rel=\"next\""))
+         .on("page=2", ReplaySupport.array(3, 1));
+      GitHubDataSource dataSource = new GitHubDataSource();
+      dataSource.setAccessToken("token");
+
+      List<Map<String, Object>> rows = ReplaySupport.run(
+         ReplaySupport.query(dataSource, new GitHubQuery(), "Public Events", "$", Map.of()), http);
+
+      assertEquals(List.of(1, 2, 3), ReplaySupport.column(rows, "id"));
+      assertEquals(next, http.requests().get(1));
+      assertEquals(2, http.requests().size(), http.requests().toString());
    }
 
    private static ClockifyQuery clockifyClients() {

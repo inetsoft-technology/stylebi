@@ -21,6 +21,7 @@ package inetsoft.test;
 import inetsoft.uql.rest.*;
 import inetsoft.uql.rest.json.*;
 import inetsoft.uql.rest.json.lookup.LookupService;
+import inetsoft.uql.rest.pagination.HttpHeader;
 import inetsoft.uql.rest.pagination.HttpResponseParameterParser;
 
 import java.io.IOException;
@@ -42,8 +43,24 @@ public class ScriptedHttpHandler implements IHttpHandler {
 
    /** Answers the requests whose URL the predicate accepts. */
    public ScriptedHttpHandler on(Predicate<String> url, String... bodies) {
-      rules.add(new Rule(url, new ArrayDeque<>(Arrays.asList(bodies))));
+      Reply[] replies = new Reply[bodies.length];
+
+      for(int i = 0; i < bodies.length; i++) {
+         replies[i] = new Reply(bodies[i], List.of());
+      }
+
+      return onReplies(url, replies);
+   }
+
+   /** Answers the requests whose URL the predicate accepts, with replies that carry headers. */
+   public ScriptedHttpHandler onReplies(Predicate<String> url, Reply... replies) {
+      rules.add(new Rule(url, new ArrayDeque<>(Arrays.asList(replies))));
       return this;
+   }
+
+   /** A reply with one header. */
+   public static Reply reply(String body, String header, String value) {
+      return new Reply(body, List.of(new HttpHeader(header, value)));
    }
 
    /** The URLs requested so far, in order. */
@@ -67,8 +84,8 @@ public class ScriptedHttpHandler implements IHttpHandler {
 
       for(Rule rule : rules) {
          if(rule.url.test(text)) {
-            String body = rule.bodies.size() > 1 ? rule.bodies.poll() : rule.bodies.peek();
-            return new TestHttpResponse(body);
+            Reply reply = rule.replies.size() > 1 ? rule.replies.poll() : rule.replies.peek();
+            return new TestHttpResponse(reply.body(), reply.headers());
          }
       }
 
@@ -98,7 +115,11 @@ public class ScriptedHttpHandler implements IHttpHandler {
       private final IHttpHandler handler;
    }
 
-   private record Rule(Predicate<String> url, Deque<String> bodies) {
+   /** A response body and its headers. */
+   public record Reply(String body, List<HttpHeader> headers) {
+   }
+
+   private record Rule(Predicate<String> url, Deque<Reply> replies) {
    }
 
    private static final int MAX_REQUESTS = 50;
