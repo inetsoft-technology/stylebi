@@ -63,6 +63,7 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
         }
 
         table.beginStreamedLoading();
+        warnLookupsBelowExpansion(query);
 
         try(RestDataIteratorStrategy<Object> strategy = factory.createStrategy(query)) {
             strategy.setTouchTimestamp(getTouchTimestamp());
@@ -87,6 +88,120 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
         }
 
         return table;
+    }
+
+    /**
+     * Tell the user, once per run, about lookups whose column cannot appear: a lookup whose path
+     * has more array levels than the table expands is still requested, but its result is nested in
+     * an array that the table writes into a single cell. The rows and columns are not changed.
+     */
+    protected void warnLookupsBelowExpansion(RestJsonQuery query) {
+        final List<JsonLookupQuery> lookups = query.getLookupQueries();
+
+        if(lookups == null || lookups.isEmpty()) {
+            return;
+        }
+
+        // same decision as AbstractQueryRunner.createTable()
+        final boolean endpointLookupExpanded = query instanceof EndpointJsonQuery<?> &&
+            ((EndpointJsonQuery<?>) query).isLookupExpanded();
+
+        if(!query.isExpanded() && !endpointLookupExpanded) {
+            return;
+        }
+
+        final boolean topLevelOnly = !query.isExpanded() || query.isExpandTop();
+        final String expandedPath = query.getExpandedPath();
+
+        if(!topLevelOnly && Tool.isEmptyString(expandedPath)) {
+            // every array is expanded
+            return;
+        }
+
+        final String rowPath = query.getValidJsonPath();
+        // a top level only table expands one array level; an array in the row path counts
+        final int expandedLevels = Math.max(countArrayLevels(rowPath), 1);
+
+        for(JsonLookupQuery lookupQuery : lookups) {
+            final String lookupPath = lookupQuery.getLookupEndpoint().jsonPath();
+            final int lookupLevels = countArrayLevels(lookupPath);
+
+            if(lookupLevels <= expandedLevels) {
+                continue;
+            }
+
+            if(!topLevelOnly) {
+                final String name = relativeArrayName(rowPath, lookupPath);
+
+                if(expandedPath.equals(name) || expandedPath.startsWith(name + ".")) {
+                    continue;
+                }
+            }
+
+            CoreTool.addUserWarning(String.format(ResourceBundle.getBundle(
+               "inetsoft.uql.rest.json.Bundle", ThreadContext.getLocale())
+                  .getString("inetsoft.uql.rest.json.lookupBelowExpansion"), lookupPath));
+            return;
+        }
+    }
+
+    /**
+     * Count the array levels of a JSON path: the bracket groups that are not a plain index or a
+     * quoted name. A recursive descent counts as unknown and is reported as no array levels.
+     */
+    private static int countArrayLevels(String path) {
+        if(path == null || path.contains("..")) {
+            return 0;
+        }
+
+        int count = 0;
+        int i = 0;
+
+        while(i < path.length()) {
+            if(path.charAt(i) == '[') {
+                int depth = 1;
+                int j = i + 1;
+
+                while(j < path.length() && depth > 0) {
+                    final char c = path.charAt(j++);
+                    depth += c == '[' ? 1 : c == ']' ? -1 : 0;
+                }
+
+                final String content = path.substring(i + 1, Math.max(i + 1, j - 1));
+
+                if(!content.matches("\\s*-?\\d+\\s*") && !content.matches("\\s*['\"].*['\"]\\s*")) {
+                    count++;
+                }
+
+                i = j;
+            }
+            else {
+                i++;
+            }
+        }
+
+        return count;
+    }
+
+    /**
+     * The dotted column name of the lookup's last array relative to the row, which is what
+     * Expanded Array Path is matched against.
+     */
+    private static String relativeArrayName(String rowPath, String lookupPath) {
+        final String row = dottedName(rowPath);
+        final String lookup = dottedName(lookupPath.substring(0, lookupPath.lastIndexOf('[')));
+        return !row.isEmpty() && lookup.startsWith(row + ".") ? lookup.substring(row.length() + 1)
+            : lookup;
+    }
+
+    private static String dottedName(String path) {
+        String name = path == null ? "" : path.replaceAll("\\[[^\\]]*\\]", "");
+
+        if(name.startsWith("$")) {
+            name = name.substring(1);
+        }
+
+        return name.startsWith(".") ? name.substring(1) : name;
     }
 
     protected boolean hasNext(RestDataIteratorStrategy<Object> strategy, BaseJsonTable table) throws Exception {
