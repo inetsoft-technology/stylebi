@@ -23,10 +23,13 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Line2D;
+import java.awt.geom.PathIterator;
 import java.awt.geom.Rectangle2D;
+import java.awt.geom.RectangularShape;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * The GTexture class is the base class for all texture aesthetics.
@@ -36,155 +39,150 @@ import java.util.ArrayList;
  */
 @TernClass(url = "#cshid=GTexture")
 public class GTexture implements Cloneable, Serializable {
-   private static final int GAP0 = 3;
-   private static final int GAP1 = 4;
-   private static final int GAP2 = 5;
    private static final int WIDTH0 = 1;
-   private static final int WIDTH1 = 2;
-   private static final double ROTATION0 = Math.PI / 4;
-   private static final double ROTATION1 = 3 * Math.PI / 4;
-   private static final double ROTATION2 = Math.atan(2d);
-   private static final double ROTATION3 = Math.PI - Math.atan(1d / 2d);
-
+   // the white margin, in pixels, between a built-in pattern and the edge of the shape
+   private static final double PATTERN_MARGIN = 2;
+   // a path of one piece with no more segments than this is a simple shape, such as a bar or slice
+   private static final int MAX_SIMPLE_SEGMENTS = 8;
    /**
     * Pattern0.
     */
    @TernField
    public static final GTexture PATTERN_0 =
-      new GTexture(GAP0, WIDTH0, ROTATION0, 1);
+      new GTexture(TexturePattern.values()[0]);
 
    /**
     * Pattern1.
     */
    @TernField
    public static final GTexture PATTERN_1 =
-      new GTexture(GAP0, WIDTH0, ROTATION0, 2);
+      new GTexture(TexturePattern.values()[1]);
 
    /**
     * Pattern2.
     */
    @TernField
    public static final GTexture PATTERN_2 =
-      new GTexture(GAP2, WIDTH0, ROTATION1, 1);
+      new GTexture(TexturePattern.values()[2]);
 
    /**
     * Pattern3.
     */
    @TernField
    public static final GTexture PATTERN_3 =
-      new GTexture(GAP0, WIDTH1, ROTATION1, 1);
+      new GTexture(TexturePattern.values()[3]);
 
    /**
     * Pattern4.
     */
    @TernField
    public static final GTexture PATTERN_4 =
-      new GTexture(GAP2, WIDTH0, ROTATION2, 1);
+      new GTexture(TexturePattern.values()[4]);
 
    /**
     * Pattern5.
     */
    @TernField
    public static final GTexture PATTERN_5 =
-      new GTexture(GAP2, WIDTH1, ROTATION0, 2);
+      new GTexture(TexturePattern.values()[5]);
 
    /**
     * Pattern6.
     */
    @TernField
    public static final GTexture PATTERN_6 =
-      new GTexture(GAP0, WIDTH0, ROTATION2, 1);
+      new GTexture(TexturePattern.values()[6]);
 
    /**
     * Pattern7.
     */
    @TernField
    public static final GTexture PATTERN_7 =
-      new GTexture(GAP2, WIDTH1, ROTATION1, 1);
+      new GTexture(TexturePattern.values()[7]);
 
    /**
     * Pattern8.
     */
    @TernField
    public static final GTexture PATTERN_8 =
-      new GTexture(GAP2, WIDTH0, ROTATION3, 1);
+      new GTexture(TexturePattern.values()[8]);
 
    /**
     * Pattern9.
     */
    @TernField
    public static final GTexture PATTERN_9 =
-      new GTexture(GAP0, WIDTH1, ROTATION0, 1);
+      new GTexture(TexturePattern.values()[9]);
 
    /**
     * Pattern10.
     */
    @TernField
    public static final GTexture PATTERN_10 =
-      new GTexture(GAP2, WIDTH0, ROTATION0, 1);
+      new GTexture(TexturePattern.values()[10]);
 
    /**
     * Pattern11.
     */
    @TernField
    public static final GTexture PATTERN_11 =
-      new GTexture(GAP0, WIDTH1, ROTATION3, 1);
+      new GTexture(TexturePattern.values()[11]);
 
    /**
     * Pattern12.
     */
    @TernField
    public static final GTexture PATTERN_12 =
-      new GTexture(GAP0, WIDTH0, ROTATION1, 1);
+      new GTexture(TexturePattern.values()[12]);
 
    /**
     * Pattern13.
     */
    @TernField
    public static final GTexture PATTERN_13 =
-      new GTexture(GAP0, WIDTH1, ROTATION0, 2);
+      new GTexture(TexturePattern.values()[13]);
 
    /**
     * Pattern14.
     */
    @TernField
    public static final GTexture PATTERN_14 =
-      new GTexture(GAP0, WIDTH1, ROTATION2, 1);
+      new GTexture(TexturePattern.values()[14]);
 
    /**
     * Pattern15.
     */
    @TernField
    public static final GTexture PATTERN_15 =
-      new GTexture(GAP2, WIDTH1, ROTATION2, 1);
+      new GTexture(TexturePattern.values()[15]);
 
    /**
     * Pattern16.
     */
    @TernField
    public static final GTexture PATTERN_16 =
-      new GTexture(GAP2, WIDTH0, ROTATION0, 2);
+      new GTexture(TexturePattern.values()[16]);
 
    /**
     * Pattern17.
     */
    @TernField
    public static final GTexture PATTERN_17 =
-      new GTexture(GAP2, WIDTH1, ROTATION3, 1);
+      new GTexture(TexturePattern.values()[17]);
 
    /**
     * Pattern18.
     */
    @TernField
    public static final GTexture PATTERN_18 =
-      new GTexture(GAP0, WIDTH0, ROTATION3, 1);
+      new GTexture(TexturePattern.values()[18]);
 
    /**
     * Pattern19.
     */
    @TernField
    public static final GTexture PATTERN_19 =
-      new GTexture(GAP2, WIDTH1, ROTATION0, 1);
+      new GTexture(TexturePattern.values()[19]);
 
    /**
     * Create a solid fill.
@@ -193,24 +191,10 @@ public class GTexture implements Cloneable, Serializable {
    }
 
    /**
-    * Create a texture with specified fill pattern.
-    * @param gap the line gap.
-    * @param width the line stroke.
-    * @param rotation the angle to be rotated.
-    * @param size the number of the line.
+    * Create one of the built-in patterns.
     */
-   private GTexture(int gap, int width, double rotation, int size) {
-      for(int i = 0; i < size; i++) {
-         gaps.add(gap);
-         widths.add(width);
-
-         if(i == 1) {
-            rotations.add(Math.PI - rotation);
-         }
-         else {
-            rotations.add(rotation);
-         }
-      }
+   private GTexture(TexturePattern pattern) {
+      this.pattern = pattern;
    }
 
    /**
@@ -275,6 +259,12 @@ public class GTexture implements Cloneable, Serializable {
                           RenderingHints.VALUE_ANTIALIAS_ON);
       g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,
 			  RenderingHints.VALUE_STROKE_PURE);
+
+      if(pattern != null) {
+         paintPattern(g2, clip);
+         g2.dispose();
+         return;
+      }
 
       double lineW = getLineWidth();
       double gap = getLineGap() + lineW;
@@ -391,6 +381,92 @@ public class GTexture implements Cloneable, Serializable {
    }
 
    /**
+    * Fill the shape with the tiles of the built-in pattern, starting from the bottom-left corner
+    * of the shape, less a thin white margin. The margin keeps a bold line or a block of the
+    * pattern from running into the border drawn around the shape. It is drawn as a white stroke
+    * along the outline, so it works the same for a rectangle, a slice or an area, and costs no
+    * more than outlining the shape.
+    */
+   private void paintPattern(Graphics2D g2, Shape clip) {
+      Color color = g2.getColor();
+      g2.clip(clip);
+      g2.setColor(Color.white);
+      g2.fill(clip);
+      g2.setColor(color);
+      g2.setStroke(TexturePattern.LINE);
+
+      Rectangle2D rect = clip.getBounds2D();
+      Rectangle visible = g2.getClipBounds();
+
+      if(visible == null) {
+         return;
+      }
+
+      // a small shape, such as a legend swatch, gets a smaller margin so it still shows the
+      // pattern
+      double margin = Math.min(PATTERN_MARGIN, 0.12 * Math.min(rect.getWidth(), rect.getHeight()));
+      margin = margin < 0.25 || !hasSimpleOutline(clip) ? 0 : margin;
+
+      double tw = pattern.getTileWidth();
+      double th = pattern.getTileHeight();
+      double left = rect.getX() + margin;
+      double bottom = rect.getMaxY() - margin;
+      // only the tiles that reach the visible part of the shape
+      int c0 = (int) Math.max(0, Math.floor((visible.getMinX() - left) / tw));
+      int c1 = (int) Math.ceil((visible.getMaxX() - left) / tw);
+      int r0 = (int) Math.max(0, Math.floor((bottom - visible.getMaxY()) / th));
+      int r1 = (int) Math.ceil((bottom - visible.getMinY()) / th);
+
+      for(int r = r0; r < r1; r++) {
+         double y = bottom - (r + 1) * th;
+
+         for(int c = c0; c < c1; c++) {
+            pattern.paintTile(g2, left + c * tw, y);
+         }
+      }
+
+      if(margin > 0) {
+         // the stroke is centered on the outline; the half outside the shape is clipped away
+         g2.setColor(Color.white);
+         g2.setStroke(new BasicStroke((float) (2 * margin)));
+         g2.draw(clip);
+      }
+   }
+
+   /**
+    * Check if stroking the shape draws only its outline. A rectangle, an ellipse, an arc or a
+    * small polygon does. A large shape built from many pieces, such as an area chart's fill (one
+    * path of appended segments, filled with the non-zero rule), also has the edges between its
+    * pieces, which a stroke would draw across the shape.
+    */
+   private static boolean hasSimpleOutline(Shape shape) {
+      if(shape instanceof RectangularShape) {
+         return true;
+      }
+
+      int moves = 0;
+      int segments = 0;
+
+      for(PathIterator it = shape.getPathIterator(null); !it.isDone(); it.next()) {
+         double[] coords = new double[6];
+         int type = it.currentSegment(coords);
+
+         if(type == PathIterator.SEG_MOVETO) {
+            moves++;
+         }
+         else if(type != PathIterator.SEG_CLOSE) {
+            segments++;
+         }
+
+         if(moves > 1 || segments > MAX_SIMPLE_SEGMENTS) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Create a copy of this object.
     * @return a copy of this object.
     */
@@ -412,22 +488,26 @@ public class GTexture implements Cloneable, Serializable {
          return false;
       }
 
-      return gaps.equals(texture.gaps) && widths.equals(texture.widths) &&
-         rotations.equals(texture.rotations);
+      return pattern == texture.pattern && gaps.equals(texture.gaps) &&
+         widths.equals(texture.widths) && rotations.equals(texture.rotations);
    }
 
    @Override
    public int hashCode() {
-      return gaps.hashCode() + widths.hashCode() + rotations.hashCode();
+      return gaps.hashCode() + widths.hashCode() + rotations.hashCode() +
+         Objects.hashCode(pattern);
    }
 
    public String toString() {
-      return "GTexture[" + gaps + ", " + widths + ", " + rotations + "]";
+      return pattern != null ? "GTexture[" + pattern + "]" :
+         "GTexture[" + gaps + ", " + widths + ", " + rotations + "]";
    }
 
    private final java.util.List<Integer> gaps = new ArrayList<>();
    private final java.util.List<Integer> widths = new ArrayList<>();
    private final java.util.List<Double> rotations = new ArrayList<>();
+   // the built-in pattern, or null for a solid fill or line texture
+   private TexturePattern pattern;
 
    @Serial
    private static final long serialVersionUID = 1L;
