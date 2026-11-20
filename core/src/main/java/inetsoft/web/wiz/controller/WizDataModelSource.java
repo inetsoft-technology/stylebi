@@ -41,9 +41,7 @@ class WizDataModelSource {
       XDataSource source = repository.getDataSource(database);
 
       if(source == null) {
-         throw new WizDataModelErrors.DmFailure(
-            WizDataModelWire.NOT_FOUND, "database", "no data source named \"" + database + "\"",
-            null, null);
+         throw missingSource(database);
       }
 
       if(!(source instanceof JDBCDataSource)) {
@@ -62,6 +60,13 @@ class WizDataModelSource {
       }
 
       return dataModel;
+   }
+
+   /** The answer for a data source that does not exist, or that the caller may not see. */
+   static WizDataModelErrors.DmFailure missingSource(String database) {
+      return new WizDataModelErrors.DmFailure(
+         WizDataModelWire.NOT_FOUND, "database", "no data source named \"" + database + "\"",
+         null, null);
    }
 
    private final XRepository repository;

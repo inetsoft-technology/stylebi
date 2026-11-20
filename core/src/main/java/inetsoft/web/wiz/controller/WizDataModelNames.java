@@ -77,7 +77,25 @@ public final class WizDataModelNames {
     * only the Portal's advisory duplicate check enforces it, and each service checks one kind.
     */
    static void requireUniqueInSource(XDataModel dataModel, String name) {
+      requireUniqueInSource(dataModel, name, (kind, existingName) -> true);
+   }
+
+   /**
+    * As {@link #requireUniqueInSource(XDataModel, String)}, but the refusal names the existing
+    * kind only when {@code mayName} says the caller may see that item; otherwise it is the same
+    * refusal without a kind, so an invisible VPM or view is not revealed by its clash.
+    */
+   static void requireUniqueInSource(XDataModel dataModel, String name,
+                                     java.util.function.BiPredicate<String, String> mayName)
+   {
       String existing = WizDataModelSupport.kindOfName(dataModel, name);
+
+      if(existing != null && !mayName.test(existing, name)) {
+         throw new WizDataModelErrors.DmFailure(
+            WizDataModelWire.DUPLICATE_NAME, "name", "the name \"" + name +
+            "\" is already used in " + dataModel.getDataSource() + "; nothing changed", null,
+            null);
+      }
 
       if(existing != null) {
          throw new WizDataModelErrors.DmFailure(
