@@ -1333,6 +1333,12 @@ public abstract class GraphGenerator {
             }
          }
       }
+      // a Gantt has no measure shelf, its targets are on the time axis
+      else if(getTimeTargetField() != null) {
+         for(int i = 0; i < desc.getTargetCount(); i++) {
+            addTarget(desc.getTarget(i), info.getChartType(), i, plotdesc);
+         }
+      }
 
       if(!isWaterfall && !GraphTypeUtil.isMap(info) && !GraphTypes.isBoxplot(info.getChartType()) &&
          !GraphTypes.isFunnel(info.getChartType()) && !fake)
@@ -6114,6 +6120,14 @@ public abstract class GraphGenerator {
    }
 
    /**
+    * Get the field of the time axis that targets are drawn against, for a chart whose axis is not
+    * a measure on the x/y shelf (a Gantt's). Null if the chart has no such axis.
+    */
+   protected String getTimeTargetField() {
+      return null;
+   }
+
+   /**
     * Create guides to implement target.
     */
    private void addTarget(GraphTarget target, int chartType, int index,
@@ -6131,8 +6145,18 @@ public abstract class GraphGenerator {
          return;
       }
 
-      if(target.getField() != null &&
-         !GraphUtil.getMeasuresName(info, true).contains(target.getField()))
+      // on a time axis the target is not tied to a measure on the shelf
+      String timeField = getTimeTargetField();
+
+      if(timeField != null) {
+         // targets outlive a change of chart type, so only draw the ones made for the time axis;
+         // a measure's target (a value, a statistic) would land on the dates as meaningless numbers
+         if(!GraphTarget.GANTT_TIME_AXIS.equals(target.getField())) {
+            return;
+         }
+      }
+      else if(target.getField() != null &&
+              !GraphUtil.getMeasuresName(info, true).contains(target.getField()))
       {
          return;
       }
@@ -6142,8 +6166,15 @@ public abstract class GraphGenerator {
       // never force the target to be in-plot if zoomed
       gtf.setInPlot(plotdesc.isInPlot() && !isZooming());
       TextFormat defaultFmt = target.getTextFormat().getDefaultFormat();
-      defaultFmt.setFormat(new XFormatInfo(getDefaultFormat(target.getField())));
+      defaultFmt.setFormat(new XFormatInfo(
+         getDefaultFormat(timeField != null ? timeField : target.getField())));
       target.initializeForm(gtf, data);
+
+      if(timeField != null) {
+         // the form finds its scale by field, any of the time axis's fields will do
+         gtf.setField(timeField);
+         gtf.setMeasure(timeField);
+      }
       gtf.setStacked(GraphTypes.isStack(chartType) || GraphTypes.isPareto(chartType));
       gtf.setXFieldTarget(xmeasures.contains(gtf.getField()) && !ymeasures.isEmpty() ||
          xdims.contains(gtf.getField()) || ydims.contains(gtf.getField()));

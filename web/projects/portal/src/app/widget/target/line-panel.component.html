@@ -40,7 +40,7 @@
         }
         @if (isDateField()) {
           <date-input-field #dateField [value]="model.value"
-            [vsId]="vsId" [timeField]="isTimeField()"
+            [vsId]="vsId" [timeField]="isTimeField()" [todaySupported]="isGantt()"
             [variables]="variables" [formulaSupported]="isFormulaSupported()"
             [hideDcombox]="hideDcombox" (valueChange)="onValueChange($event)">
           </date-input-field>

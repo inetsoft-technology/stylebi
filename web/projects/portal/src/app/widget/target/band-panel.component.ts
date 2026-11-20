@@ -85,8 +85,13 @@ export class BandPanel {
       return this.model.measure && this.model.measure.timeField;
    }
 
+   // the dates of a Gantt's time axis only take a fixed date or the current date, no statistics
+   isGantt(): boolean {
+      return this.chartType == GraphTypes.CHART_GANTT;
+   }
+
    isFormulaSupported(): boolean {
-      return !!(this.model.measure && this.model.measure.label);
+      return !!(this.model.measure && this.model.measure.label) && !this.isGantt();
    }
 
    onFromValueChange(value: any) {

@@ -41,7 +41,7 @@
           [availableFields]="availableFields" [vsId]="vsId" [chartType]="chartType"></band-panel>
         </ng-template>
       </ng-container>
-      <ng-container ngbNavItem="tab2" [disabled]="isBoxplot()">
+      <ng-container ngbNavItem="tab2" [disabled]="isBoxplot() || isGantt()">
         <a ngbNavLink>_#(Statistics)</a>
         <ng-template ngbNavContent>
           <stat-panel [variables]="variables" [hideDcombox]="hideDcombox"

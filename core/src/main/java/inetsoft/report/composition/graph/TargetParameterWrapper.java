@@ -202,12 +202,28 @@ public class TargetParameterWrapper implements Cloneable, Serializable {
       if(raw instanceof Date) {
          date = (Date) raw;
       }
+      else if(stringVal != null && TODAY.equalsIgnoreCase(stringVal.trim())) {
+         date = endOfToday();
+      }
       else {
          date = parseDate(stringVal, false, null);
       }
 
       double timeValue = date == null ? 0 : date.getTime();
       return new TargetParameter(formula, timeValue);
+   }
+
+   /**
+    * The last instant of the current day, so a line placed there follows the date each time
+    * the chart is generated and the current day reads as elapsed.
+    */
+   static Date endOfToday() {
+      Calendar cal = new GregorianCalendar();
+      cal.set(Calendar.HOUR_OF_DAY, 23);
+      cal.set(Calendar.MINUTE, 59);
+      cal.set(Calendar.SECOND, 59);
+      cal.set(Calendar.MILLISECOND, 999);
+      return cal.getTime();
    }
 
    /**
@@ -545,6 +561,11 @@ public class TargetParameterWrapper implements Cloneable, Serializable {
    "^(\\d{4})(-(\\d{2})(-(\\d{2})( (\\d{2})(:(\\d{2}))?(:(\\d{2}))?)?)?)?$";
    */
 
+   /**
+    * Value of a date target that stands for the current date, resolved when the chart is
+    * generated.
+    */
+   public static final String TODAY = "TODAY";
    public static final String DATE_FORMAT_STR = "yyyy-MM-dd HH:mm:ss";
    public static final String TIME_FORMAT_STR = "HH:mm:ss";
    private static int[] matcherGroups = {1, 3, 5, 7, 9, 11};

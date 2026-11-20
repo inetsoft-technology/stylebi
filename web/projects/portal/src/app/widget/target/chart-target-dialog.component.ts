@@ -126,7 +126,7 @@ export class ChartTargetDialog implements OnInit {
          }
       }
 
-      this.activeTab = this.chartTarget.tabFlag == 2 && this.isBoxplot() ? null
+      this.activeTab = this.chartTarget.tabFlag == 2 && (this.isBoxplot() || this.isGantt()) ? null
          : `tab${this.chartTarget.tabFlag}`;
    }
 
@@ -165,6 +165,11 @@ export class ChartTargetDialog implements OnInit {
 
    isBoxplot(): boolean {
       return GraphTypes.CHART_BOXPLOT == this.chartType;
+   }
+
+   // a Gantt's targets are on its time axis (dates), where statistics have no meaning
+   isGantt(): boolean {
+      return GraphTypes.CHART_GANTT == this.chartType;
    }
 
    tabChange(event: any) {

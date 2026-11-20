@@ -226,6 +226,12 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
       return super.getDefaultFormat(cols);
    }
 
+   @Override
+   protected String getTimeTargetField() {
+      String[] fields = getGanttFields();
+      return fields.length > 0 ? fields[0] : null;
+   }
+
    // get non-null gantt fields.
    private String[] getGanttFields() {
       return ganttFields.stream().filter(Objects::nonNull).toArray(String[]::new);
