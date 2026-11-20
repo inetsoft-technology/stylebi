@@ -405,7 +405,7 @@ C1 (card), C13 (text sizes and colours) and C15 (density) are already shipped. S
 - **What "crosses zero" means.** The minimum is below zero and the maximum above it. Data that only touches zero stays Teal.
 - **Brushing and tips.**
   - Under brushing, the target's colour scale is built on all data (`GraphGenerator:287`, `fdata = adata`), so brushing never switches the ramp.
-  - A relation chart's node colour is the exception today. Its frame is initialised later, by `Plotter.initFrames`, from the brushed graph data (`Plotter.java:212-236`, `BrushDataSet`). Its decision reads the all-data copy of the column when there is one (`ElementVO.ALL_PREFIX`, as S2b-1's direction frame does), so it does not switch either. Its range stays as it draws today (D159).
+  - A relation chart's node colour is the exception today. Its frame is initialised later, by `Plotter.initFrames`, from the brushed graph data (`Plotter.java:212-236`, `BrushDataSet`). Its decision reads the chart's full data, which the generator hands to the frame under brushing (`GraphGenerator.initRelationElement`). The plot data cannot carry it: a relation chart without a general Size measure draws brushed rows only. Without that hand-over, the decision reads the all-data column when there is one (`ElementVO.ALL_PREFIX`). So it does not switch either. Its range stays as it draws today, centred when it diverges (D159).
   - A data tip or flyover view is re-queried on its own rows. It may switch, just as its ramp already re-ranges today.
 - **Old files.** An old file's unflagged author Teal turns diverging. Teal shipped only on the epic, so no released file has one.
 - **The author flag.** `LinearColorFrameWrapper.authorRamp`, written as an attribute only when true.

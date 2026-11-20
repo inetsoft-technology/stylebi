@@ -23,6 +23,7 @@ import inetsoft.graph.scale.LinearScale;
 import inetsoft.graph.scale.LogScale;
 import inetsoft.graph.scale.Scale;
 import inetsoft.graph.visual.ElementVO;
+import inetsoft.report.composition.graph.BrushDataSet;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -136,13 +137,91 @@ class AutoDivergingColorFrameTest {
 
    @Test
    void theAllDataColumnDecides() {
-      DataSet data = new DefaultDataSet(new Object[][] {
-         { FIELD, ElementVO.ALL_PREFIX + FIELD },
-         { 1.0, -2.0 },
-         { 2.0, 1.0 },
-         { 3.0, 3.0 },
-      });
-      assertTrue(frame(data).isDiverging());
+      BrushDataSet data = brush(false);
+      assertTrue(data.indexOfHeader(ElementVO.ALL_PREFIX + FIELD) >= 0,
+                 "premise: the brushed data carries the all-data column");
+
+      AutoDivergingColorFrame frame = frame(data);
+      assertTrue(frame.isDiverging());
+      assertEquals(-3, frame.getScale().getMin());
+      assertEquals(3, frame.getScale().getMax());
+   }
+
+   @Test
+   void aBrushedOnlySetDecidesOnItsSignData() {
+      BrushDataSet data = brush(true);
+      assertNull(data.getData(ElementVO.ALL_PREFIX + FIELD, 0),
+                 "premise: brushed rows only, so the all-data column holds no value");
+
+      TealColorFrame teal = new TealColorFrame();
+      teal.setField(FIELD);
+      AutoDivergingColorFrame frame = AutoDivergingColorFrame.from(teal);
+      frame.setSignData(states(-2, 1, 3));
+      frame.init(data);
+
+      // decided on all data, centred on the brushed range
+      assertTrue(frame.isDiverging());
+      assertEquals(-3, frame.getScale().getMin());
+      assertEquals(3, frame.getScale().getMax());
+   }
+
+   @Test
+   void signDataDecidesOverThePlottedData() {
+      TealColorFrame teal = new TealColorFrame();
+      teal.setField(FIELD);
+      AutoDivergingColorFrame frame = AutoDivergingColorFrame.from(teal);
+      frame.setSignData(data(-2, 6));
+      frame.init(data(1, 5));
+
+      assertTrue(frame.isDiverging());
+      assertEquals(-5, frame.getScale().getMin());
+      assertEquals(5, frame.getScale().getMax());
+   }
+
+   @Test
+   void signDataWithoutTheFieldIsIgnored() {
+      DataSet other = new DefaultDataSet(new Object[][] { { "Other" }, { -2.0 }, { 6.0 } });
+
+      TealColorFrame teal = new TealColorFrame();
+      teal.setField(FIELD);
+      AutoDivergingColorFrame positive = AutoDivergingColorFrame.from(teal);
+      positive.setSignData(other);
+      positive.init(data(1, 5));
+      assertFalse(positive.isDiverging());
+
+      AutoDivergingColorFrame crossing = AutoDivergingColorFrame.from(teal);
+      crossing.setSignData(other);
+      crossing.init(data(-2, 6));
+      assertTrue(crossing.isDiverging());
+   }
+
+   @Test
+   void signDataIsNotPartOfEquality() {
+      AutoDivergingColorFrame a = frame(data(1, 5));
+      AutoDivergingColorFrame b = frame(data(1, 5));
+      b.setSignData(data(1, 5));
+      assertEquals(a, b);
+      assertEquals(a.hashCode(), b.hashCode());
+   }
+
+   // all data CA -2, NY 1, TX 3; brushed NY 1, TX 3
+   private static BrushDataSet brush(boolean brushedOnly) {
+      BrushDataSet data = new BrushDataSet(states(-2, 1, 3), states(1, 3));
+      data.setBrushedDataOnly(brushedOnly);
+      return data;
+   }
+
+   private static DataSet states(double... values) {
+      String[] all = { "CA", "NY", "TX" };
+      String[] names = values.length == all.length ? all : new String[] { "NY", "TX" };
+      Object[][] rows = new Object[values.length + 1][];
+      rows[0] = new Object[] { "State", FIELD };
+
+      for(int i = 0; i < values.length; i++) {
+         rows[i + 1] = new Object[] { names[i], values[i] };
+      }
+
+      return new DefaultDataSet(rows);
    }
 
    @Test
@@ -201,9 +280,12 @@ class AutoDivergingColorFrameTest {
    void aCloneKeepsItsState() {
       AutoDivergingColorFrame frame = frame(data(-2, 6));
       frame.setLowStop(0.25);
+      DataSet sign = data(-2, 6);
+      frame.setSignData(sign);
       AutoDivergingColorFrame copy = (AutoDivergingColorFrame) frame.clone();
       assertTrue(copy.isDiverging());
       assertEquals(0.25, copy.getLowStop());
+      assertSame(sign, copy.getSignData());
       assertEquals(frame, copy);
       assertEquals(frame.getColor((Object) 1.0), copy.getColor((Object) 1.0));
    }

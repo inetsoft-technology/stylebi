@@ -70,6 +70,21 @@ public class AutoDivergingColorFrame extends TealColorFrame {
       this.lowStop = lowStop;
    }
 
+   /**
+    * Get the data whose field values decide the sign, or null.
+    */
+   public DataSet getSignData() {
+      return signData;
+   }
+
+   /**
+    * Set the data whose field values decide the sign, such as all data under brushing. The
+    * scale keeps the range of the data the frame is initialised with.
+    */
+   public void setSignData(DataSet signData) {
+      this.signData = signData;
+   }
+
    @Override
    public void init(DataSet data) {
       super.init(data);
@@ -118,29 +133,39 @@ public class AutoDivergingColorFrame extends TealColorFrame {
       return Objects.hash(super.hashCode(), diverging, lowStop);
    }
 
-   // the raw range of the all-data column when present, else the scale's range
+   // the raw range of the field in the sign data, else of the all-data column, else the scale's
    private double[] getSignRange(DataSet data, Scale scale) {
-      String col = getField() == null ? null : ElementVO.ALL_PREFIX + getField();
+      String field = getField();
+
+      if(field != null && signData != null && signData.indexOfHeader(field) >= 0) {
+         return getRawRange(signData, field);
+      }
+
+      String col = field == null ? null : ElementVO.ALL_PREFIX + field;
 
       if(data != null && col != null && data.indexOfHeader(col) >= 0) {
-         double min = Double.POSITIVE_INFINITY;
-         double max = Double.NEGATIVE_INFINITY;
-
-         for(int i = 0; i < data.getRowCount(); i++) {
-            Object val = data.getData(col, i);
-
-            if(val instanceof Number && !Double.isNaN(((Number) val).doubleValue())) {
-               min = Math.min(min, ((Number) val).doubleValue());
-               max = Math.max(max, ((Number) val).doubleValue());
-            }
-         }
-
-         return new double[] { min, max };
+         return getRawRange(data, col);
       }
 
       double a = scale.getMin();
       double b = scale.getMax();
       return new double[] { Math.min(a, b), Math.max(a, b) };
+   }
+
+   private static double[] getRawRange(DataSet data, String col) {
+      double min = Double.POSITIVE_INFINITY;
+      double max = Double.NEGATIVE_INFINITY;
+
+      for(int i = 0; i < data.getRowCount(); i++) {
+         Object val = data.getData(col, i);
+
+         if(val instanceof Number && !Double.isNaN(((Number) val).doubleValue())) {
+            min = Math.min(min, ((Number) val).doubleValue());
+            max = Math.max(max, ((Number) val).doubleValue());
+         }
+      }
+
+      return new double[] { min, max };
    }
 
    private static Color[] parse(String s) {
@@ -152,5 +177,6 @@ public class AutoDivergingColorFrame extends TealColorFrame {
    private boolean diverging = false;
    private boolean colorsSet = false;
    private double lowStop = 0;
+   private transient DataSet signData; // render state, not part of equality
    private static final long serialVersionUID = 1L;
 }

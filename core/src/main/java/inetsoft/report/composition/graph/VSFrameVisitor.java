@@ -139,6 +139,13 @@ public class VSFrameVisitor {
    }
 
    /**
+    * Get the data the frames are initialized with, all data when brushing.
+    */
+   DataSet getData() {
+      return data;
+   }
+
+   /**
     * Create legend frame.
     */
    private VisualFrame createFrame() {

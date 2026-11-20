@@ -33,6 +33,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.LinearColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.LinearSizeFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.TealColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.VarianceColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -136,19 +137,7 @@ class DivergingRampRenderTest {
 
    @Test
    void aRelationNodeColourFollowsTheRule() {
-      VSChartDimensionRef parent = dim("Parent");
-      VSChartDimensionRef child = dim("Child");
-      VSAestheticRef color = colorRef(new TealColorFrameWrapper());
-
-      RelationVSChartInfo cinfo = new RelationVSChartInfo();
-      cinfo.setChartType(GraphTypes.CHART_TREE);
-      cinfo.setRTChartType(GraphTypes.CHART_TREE);
-      cinfo.setSourceField(parent);
-      cinfo.setTargetField(child);
-      cinfo.setRTSourceField(parent);
-      cinfo.setRTTargetField(child);
-      cinfo.setNodeColorField(color);
-      cinfo.updateChartType(false);
+      RelationVSChartInfo cinfo = treeChart(false);
 
       Object[][] rows = {
          { "Parent", "Child", COLOR },
@@ -164,6 +153,50 @@ class DivergingRampRenderTest {
       LinearColorFrame frame = find(((RelationElement) graph.getElement(0)).getNodeColorFrame());
       assertInstanceOf(AutoDivergingColorFrame.class, frame);
       assertTrue(((AutoDivergingColorFrame) frame).isDiverging());
+   }
+
+   @Test
+   void aBrushedRelationNodeColourDecidesOnAllData() {
+      assertBrushedNodeColourDecidesOnAllData(treeChart(false));
+   }
+
+   @Test
+   void aBrushedRelationNodeColourWithNodeSizeDecidesOnAllData() {
+      assertBrushedNodeColourDecidesOnAllData(treeChart(true));
+   }
+
+   // all data crosses zero (-2..9); the brushed rows are positive (1..6)
+   private static void assertBrushedNodeColourDecidesOnAllData(RelationVSChartInfo cinfo) {
+      Object[][] all = {
+         { "Parent", "Child", COLOR, SIZE },
+         { "A", "B", -2.0, 10.0 },
+         { "A", "C", 9.0, 20.0 },
+         { "B", "D", 1.0, 30.0 },
+         { "B", "E", 6.0, 40.0 },
+      };
+      Object[][] brushed = {
+         { "Parent", "Child", COLOR, SIZE },
+         { "B", "D", 1.0, 30.0 },
+         { "B", "E", 6.0, 40.0 },
+      };
+      GraphGenerator gen = generator(cinfo, VizMark.MODERN_LIGHT, all, brushed);
+      EGraph graph = gen.createEGraph();
+
+      assertInstanceOf(BrushDataSet.class, gen.getData());
+      assertTrue(((BrushDataSet) gen.getData()).isBrushedDataOnly(),
+                 "premise: a relation chart without a general size measure draws brushed rows only");
+
+      Plotter.getPlotter(graph).plot(gen.getData());
+
+      assertInstanceOf(RelationElement.class, graph.getElement(0));
+      LinearColorFrame frame = find(((RelationElement) graph.getElement(0)).getNodeColorFrame());
+      assertInstanceOf(AutoDivergingColorFrame.class, frame);
+      assertTrue(((AutoDivergingColorFrame) frame).isDiverging());
+
+      // the brushed range, centred
+      Scale scale = frame.getScale();
+      assertEquals(-6, scale.getMin());
+      assertEquals(6, scale.getMax());
    }
 
    @Test
@@ -207,6 +240,33 @@ class DivergingRampRenderTest {
       cinfo.addXField(new VSChartDimensionRef(new BaseField("State")));
       cinfo.addYField(agg("Total"));
       cinfo.setColorField(colorRef(ramp));
+      cinfo.updateChartType(false);
+      return cinfo;
+   }
+
+   // a tree of Parent to Child with a seeded Teal on Sum(Var) as its node colour
+   private static RelationVSChartInfo treeChart(boolean nodeSize) {
+      VSChartDimensionRef parent = dim("Parent");
+      VSChartDimensionRef child = dim("Child");
+
+      RelationVSChartInfo cinfo = new RelationVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_TREE);
+      cinfo.setRTChartType(GraphTypes.CHART_TREE);
+      cinfo.setSourceField(parent);
+      cinfo.setTargetField(child);
+      cinfo.setRTSourceField(parent);
+      cinfo.setRTTargetField(child);
+      cinfo.setNodeColorField(colorRef(new TealColorFrameWrapper()));
+
+      if(nodeSize) {
+         VSChartAggregateRef sz = agg("Sz");
+         VSAestheticRef size = new VSAestheticRef();
+         size.setDataRef(sz);
+         size.setRTDataRef(sz);
+         size.setVisualFrameWrapper(new LinearSizeFrameWrapper());
+         cinfo.setNodeSizeField(size);
+      }
+
       cinfo.updateChartType(false);
       return cinfo;
    }
@@ -284,4 +344,5 @@ class DivergingRampRenderTest {
    }
 
    private static final String COLOR = "Sum(Var)";
+   private static final String SIZE = "Sum(Sz)";
 }

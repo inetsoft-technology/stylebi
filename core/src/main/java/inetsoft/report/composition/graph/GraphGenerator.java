@@ -1523,6 +1523,12 @@ public abstract class GraphGenerator {
          colorFrame = (ColorFrame) DivergingRamps.substitute(
             colorFrame, rinfo.getNodeColorField().getVisualFrameWrapper(), vizContext);
          colorFrame.setField(rinfo.getNodeColorField().getFullName());
+
+         // the plot data may hold brushed rows only, so decide the sign on all data
+         if(adata != null && colorFrame instanceof AutoDivergingColorFrame) {
+            ((AutoDivergingColorFrame) colorFrame).setSignData(cvisitor.getData());
+         }
+
          colorFrame.getLegendSpec().setTitle(GraphUtil.getCaption(rinfo.getRTNodeColorField()));
 
          VSFrameVisitor.setLegendComparator(tref, colorFrame, data);
