@@ -108,14 +108,15 @@ class ModernFunnelWaterfallValuesTest {
    }
 
    @Test
-   void directionFillsTakeWhiteInLightAndBlackInDark() {
+   void directionFillsTakeTheHigherContrastInk() {
       List<VOText> light = shownTexts(render(waterfall(), VizMark.MODERN_LIGHT, a -> { }));
       assertFalse(light.isEmpty(), "premise: a value shows");
       assertColours(light);
       assertTrue(light.stream().anyMatch(t -> UP.equals(fill(t))),
                  "premise: a label on the up fill");
+      // white is just under 4.5:1 on the light up fill, black just over
       light.stream().filter(t -> UP.equals(fill(t)))
-         .forEach(t -> assertEquals(Color.WHITE, t.getColor()));
+         .forEach(t -> assertEquals(Color.BLACK, t.getColor()));
 
       List<VOText> dark = shownTexts(render(waterfall(), VizMark.MODERN_DARK, a -> { }));
       assertColours(dark);
@@ -153,7 +154,7 @@ class ModernFunnelWaterfallValuesTest {
       assertTrue(texts.stream().anyMatch(t -> !HIGHLIGHT.equals(t.getColor())),
                  "an unhighlighted label still follows its fill");
       texts.stream().filter(t -> !HIGHLIGHT.equals(t.getColor()))
-         .forEach(t -> assertEquals(GTool.getTextColor(fill(t)), t.getColor()));
+         .forEach(t -> assertEquals(GTool.getTextColor(fill(t), true), t.getColor()));
    }
 
    @Test
@@ -196,7 +197,8 @@ class ModernFunnelWaterfallValuesTest {
 
    private static void assertColours(List<VOText> texts) {
       for(VOText text : texts) {
-         assertEquals(GTool.getTextColor(fill(text)), text.getColor());
+         // a marked chart takes the ink with the higher contrast
+         assertEquals(GTool.getTextColor(fill(text), true), text.getColor());
       }
    }
 
