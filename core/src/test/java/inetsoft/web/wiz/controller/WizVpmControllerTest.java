@@ -166,6 +166,34 @@ class WizVpmControllerTest {
       assertTrue(failure.message().contains("definition.description"), failure.message());
    }
 
+   @Test
+   void aOneItemGroupIsRefusedByCreateAndUpdateNamingTheTreePath() throws Exception {
+      // P4 D-4: the server refuses it itself, whatever the client did
+      Map<String, Object> one = group("and", clause("ORDERS.REGION", "=", "East"));
+      Map<String, Object> nested = group("or", clause("ORDERS.A", "=", "1"),
+                                         group("and", clause("ORDERS.B", "=", "2")));
+      Map<String, Object> definition = definition("OneItem");
+      definition.put("conditions", List.of(condition("EastOnly", one)));
+
+      WizDataModelWire.Failure failure = failure(create(definition, false));
+      assertEquals("INVALID", failure.reason());
+      assertEquals("conditions[EastOnly].tree.items", failure.field());
+      assertEquals("TREE_SHAPE_INVALID", failure.errors().get(0).code());
+      assertNull(support.fresh().getVirtualPrivateModel("OneItem"));
+
+      definition.put("conditions", List.of(condition("EastOnly", nested)));
+      assertEquals("conditions[EastOnly].tree.items[1].items",
+                   failure(create(definition, false)).field());
+
+      create(definition("Ok"), false);
+      Map<String, Object> change = new LinkedHashMap<>();
+      change.put("conditions", List.of(condition("EastOnly", one)));
+      assertEquals("conditions[EastOnly].tree.items", failure(controller.update(
+         new WizVpmWire.WriteRequest(support.ds, "Ok", change, false), support.bob)).field());
+      assertEquals(0, support.fresh().getVirtualPrivateModel("Ok").getConditions()
+                      .hasMoreElements() ? 1 : 0);
+   }
+
    // -- get ---------------------------------------------------------------------------------
 
    @Test
