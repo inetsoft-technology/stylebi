@@ -30,12 +30,12 @@ import { ShapeItem } from "./shape-item.component";
     imports: [ShapeItem, TextureItem, LineItem, NgTemplateOutlet],
     // The icon font puts the built-in shapes about 1px above the middle of their 20px box (the
     // ink has 0.5px above and 1.5px below), so in the tile they sat high. Move them down 1px. The
-    // static line and texture frames are drawn by the same font and sat 1px high in the same way
-    // (4px above the frame, 6px below, measured in the tile).
+    // static line frame is drawn by the same font and sat 1px high in the same way (4px above the
+    // frame, 6px below, measured in the tile). The texture swatch is an svg, centred as it is.
     styles: [
        ".shape-cell__glyph { display: block; }",
-       ":host ::ng-deep shape-item > i, :host ::ng-deep line-item > i, " +
-          ":host ::ng-deep texture-item > i { position: relative; top: 1px; }"
+       ":host ::ng-deep shape-item > i, :host ::ng-deep line-item > i " +
+          "{ position: relative; top: 1px; }"
     ]
 })
 export class ShapeCell extends AestheticIconCell {
