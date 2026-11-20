@@ -485,14 +485,77 @@ class WizLogicalModelControllerTest extends WizLogicalModelTestBase {
    }
 
    @Test
-   void getNeedsReadOnTheModelAndLearnsNothingWithoutIt() throws Exception {
+   void anUnreadableModelIsAnsweredExactlyLikeAMissingOne() throws Exception {
       create(def("m", entity("Sales", col("Amount", "T1", "AMOUNT"))));
       reset(treeService);
       doThrow(new inetsoft.sree.security.SecurityException("denied")).when(assetRepository)
          .checkAssetPermission(any(), any(AssetEntry.class), eq(ResourceAction.READ));
 
-      assertThrows(inetsoft.sree.security.SecurityException.class, () -> get("m"));
+      Failure hidden = (Failure) controller.get(new GetRequest(ds, "m", null), bob);
+      Failure missing = (Failure) controller.get(new GetRequest(ds, "nothing", null), bob);
+      Failure updated = (Failure) update("m", def("m", entity("Sales", col("Name", "", "T1",
+                                                                        "NAME"))), null);
+
+      assertEquals(WizDataModelWire.NOT_FOUND, hidden.reason());
+      assertEquals(missing.message().replace("nothing", "m"), hidden.message(),
+                   "the same text, nothing about the model");
+      assertNull(hidden.existingKind());
+      assertEquals(WizDataModelWire.NOT_FOUND, updated.reason());
       verifyNoInteractions(treeService);
+      assertNotNull(attribute("m", "Amount"), "nothing changed");
+   }
+
+   @Test
+   void wrongKindNamesTheKindOnlyWhenTheCallerCanSeeThatKind() throws Exception {
+      dataModel.addVirtualPrivateModel(new VirtualPrivateModel("rule"), true);
+
+      Failure seen = (Failure) controller.get(new GetRequest(ds, "rule", null), bob);
+      assertEquals(WizDataModelWire.WRONG_KIND, seen.reason());
+      assertEquals("vpm", seen.existingKind());
+
+      // a VPM is visible only with WRITE on the source
+      when(dataSourceService.checkPermission(eq(ds), eq(ResourceAction.WRITE),
+                                             any(java.security.Principal.class)))
+         .thenReturn(false);
+      Failure hidden = (Failure) controller.get(new GetRequest(ds, "rule", null), bob);
+
+      assertEquals(WizDataModelWire.NOT_FOUND, hidden.reason());
+      assertNull(hidden.existingKind());
+      assertFalse(hidden.message().contains("vpm"), hidden.message());
+   }
+
+   @Test
+   void aNameClashDoesNotRevealAnInvisibleKind() throws Exception {
+      dataModel.addVirtualPrivateModel(new VirtualPrivateModel("secret"), true);
+      when(dataSourceService.checkPermission(eq(ds), eq(ResourceAction.WRITE),
+                                             any(java.security.Principal.class)))
+         .thenReturn(false);
+
+      Failure clash = (Failure) controller.create(new CreateRequest(
+         ds, def("secret", entity("E", col("A", "T1", "ID"))), null), bob);
+
+      assertEquals(WizDataModelWire.DUPLICATE_NAME, clash.reason());
+      assertNull(clash.existingKind(), "the kind of an invisible item is not named");
+      assertFalse(clash.message().contains("vpm"), clash.message());
+   }
+
+   @Test
+   void aSourceTheCallerCannotReadIsAnsweredLikeAMissingOneByEveryRoute() throws Exception {
+      when(dataSourceService.checkPermission(eq(ds), eq(ResourceAction.READ),
+                                             any(java.security.Principal.class)))
+         .thenReturn(false);
+      // even a source that is not a database is not revealed as such
+      when(repository.getDataSource(ds)).thenReturn(mock(XDataSource.class));
+
+      Failure get = (Failure) controller.get(new GetRequest(ds, "m", null), bob);
+      Failure create = (Failure) controller.create(new CreateRequest(
+         ds, def("m", entity("E", col("A", "T1", "ID"))), null), bob);
+      Failure update = (Failure) update("m", def("m"), null);
+
+      for(Failure failure : List.of(get, create, update)) {
+         assertEquals(WizDataModelWire.NOT_FOUND, failure.reason());
+         assertEquals("database", failure.field());
+      }
    }
 
    @Test

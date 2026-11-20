@@ -100,15 +100,12 @@ public class WizLogicalModelController {
    private Object doGet(GetRequest request, Principal principal) throws Exception {
       String database = required(request == null ? null : request.database(), "database");
       String name = required(request.name(), "name");
-      XDataModel dataModel = source.requireJdbcDataModel(database);
-      gates.requireDataSourcePermission(database, ResourceAction.READ, principal);
+      // the READ gate runs first; a model the caller cannot read is answered exactly like a
+      // missing one, before the view is resolved, so the caller learns nothing about it
+      XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
       String parent = blankToNull(request.parent());
-      XLogicalModel model = parent == null ? stored(dataModel, database, name) :
-         extended(dataModel, database, parent, name);
-
-      // READ on the model with its STORED folder, decided before the view is resolved, so a
-      // caller without READ learns nothing about the model
-      modelService.checkModelPermission(database, model, ResourceAction.READ, principal);
+      XLogicalModel model = parent == null ? stored(dataModel, database, name, principal) :
+         extended(dataModel, database, parent, name, principal);
       LogicalModelDefinition dto = modelService.getModel(
          database, model.getPartition(), name, parent, principal);
       boolean isExtended = parent != null;
@@ -127,12 +124,15 @@ public class WizLogicalModelController {
       }
 
       WizDataModelNames.requireValidModelName(definition.name());
-      XDataModel dataModel = source.requireJdbcDataModel(database);
+      XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
       String name = definition.name();
       String folder = blankToNull(definition.folder());
       requireWrite(database, folder, name, blankToNull(definition.connection()), principal);
 
-      WizDataModelNames.requireUniqueInSource(dataModel, name);
+      // a clash names the existing kind only when the caller may see that item
+      WizDataModelNames.requireUniqueInSource(
+         dataModel, name,
+         (kind, existing) -> gates.maySee(dataModel, database, kind, existing, principal));
       requireConnectionRead(database, definition.connection(), principal);
       WizLogicalModelValidator.Result result = validator.validate(
          new WizLogicalModelEnv(database, dataModel, dataSourceService), definition,
@@ -164,8 +164,8 @@ public class WizLogicalModelController {
          throw new IllegalArgumentException("definition is required");
       }
 
-      XDataModel dataModel = source.requireJdbcDataModel(database);
-      XLogicalModel stored = stored(dataModel, database, name);
+      XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
+      XLogicalModel stored = stored(dataModel, database, name, principal);
 
       // the service would answer a body name that differs with a misleading SecurityException
       // (it writes the model named in the body), and renaming has its own route
@@ -251,56 +251,50 @@ public class WizLogicalModelController {
       return stored;
    }
 
-   /** The model stored under this base name, or the failure naming what is there instead. */
-   private XLogicalModel stored(XDataModel dataModel, String database, String name) {
+   /**
+    * The model stored under this base name that the caller may see. A model the caller may not
+    * see is answered exactly like a missing one, and WRONG_KIND names the kind only when the
+    * caller can see an item of that kind with this name.
+    */
+   private XLogicalModel stored(XDataModel dataModel, String database, String name,
+                                Principal principal)
+   {
       XLogicalModel model = dataModel.getLogicalModel(name);
 
       if(model != null) {
-         return model;
+         if(gates.maySee(dataModel, database, WizDataModelWire.KIND_LOGICAL_MODEL, name,
+                         principal))
+         {
+            return model;
+         }
+
+         throw WizDataModelGates.notFound("logicalModel", "name", database, name);
       }
 
-      String existing = existingKind(dataModel, name);
+      String existing = gates.visibleKindOfName(dataModel, database, name, principal);
 
       if(existing == null) {
-         throw fail(WizDataModelWire.NOT_FOUND, "name",
-                             "no logicalModel named \"" + name + "\" in " + database);
+         throw WizDataModelGates.notFound("logicalModel", "name", database, name);
       }
 
-      throw fail(WizDataModelWire.WRONG_KIND, "name",
+      throw new DmFailure(WizDataModelWire.WRONG_KIND, "name",
                           "\"" + name + "\" is a " + existing + ", not a logicalModel", null,
                           existing);
    }
 
    private XLogicalModel extended(XDataModel dataModel, String database, String parent,
-                                  String name)
+                                  String name, Principal principal)
    {
-      XLogicalModel base = stored(dataModel, database, parent);
+      XLogicalModel base = stored(dataModel, database, parent, principal);
       XLogicalModel model = base.getLogicalModel(name);
 
-      if(model == null) {
-         throw fail(WizDataModelWire.NOT_FOUND, "name",
-                             "no extended logicalModel named \"" + name + "\" under \"" + parent +
-                                "\" in " + database);
+      if(model == null || !modelService.checkPermission(
+         database, base.getFolder(), name, model.getConnection(), ResourceAction.READ, principal))
+      {
+         throw WizDataModelGates.notFound("extended logicalModel", "name", database, name);
       }
 
       return model;
-   }
-
-   /** The kind of the model holding this name in the shared per-source namespace, or null. */
-   static String existingKind(XDataModel dataModel, String name) {
-      if(dataModel.getLogicalModel(name) != null) {
-         return WizDataModelWire.KIND_LOGICAL_MODEL;
-      }
-
-      if(dataModel.getPartition(name) != null) {
-         return WizDataModelWire.KIND_PHYSICAL_VIEW;
-      }
-
-      if(dataModel.getVirtualPrivateModel(name) != null) {
-         return WizDataModelWire.KIND_VPM;
-      }
-
-      return null;
    }
 
    private String viewOf(Definition definition, XLogicalModel stored) {

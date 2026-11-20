@@ -202,18 +202,25 @@ class WizDataModelGatesRouteTableTest {
 
       routes.add(route("logical/get", f -> f.logical.get(
             new WizLogicalModelWire.GetRequest(f.db, "lm", null), f.bob),
-         "DS:{db}:READ", "throw", "{db}",
-         "LM:{db}/F/lm:READ", "throw", "{db}/F/lm"));
+         // R1-4: the gate runs first and a source or model the caller cannot read is answered
+         // exactly like a missing one
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "LM:{db}/F/lm:READ", "body", NOT_FOUND));
       routes.add(route("logical/create", f -> f.logical.create(
             new WizLogicalModelWire.CreateRequest(f.db, logicalDefinition("n1", "F"), true), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
          "LM:{db}/F/n1:WRITE", "throw", "{db}/F/n1"));
       routes.add(route("logical/update", f -> f.logical.update(
             new WizLogicalModelWire.UpdateRequest(
                f.db, "lm", logicalDefinition("lm", "F"), true), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "LM:{db}/F/lm:READ", "body", NOT_FOUND,
          "LM:{db}/F/lm:WRITE", "throw", "{db}/F/lm"));
       routes.add(route("logical/update (folder change)", f -> f.logical.update(
             new WizLogicalModelWire.UpdateRequest(
                f.db, "lm", logicalDefinition("lm", "G"), true), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "LM:{db}/F/lm:READ", "body", NOT_FOUND,
          "LM:{db}/F/lm:WRITE", "throw", "{db}/F/lm",
          "LM:{db}/F/lm:DELETE", "throw", "{db}/F/lm",
          "LM:{db}/G/lm:WRITE", "throw", "{db}/G/lm"));
