@@ -25,6 +25,7 @@ import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
+import inetsoft.util.dep.ScheduleTaskAsset;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -177,6 +178,39 @@ class ScheduleTaskMapConcurrentPutTest {
       long folderEntries = Arrays.stream(root.getEntries())
          .filter(AssetEntry::isScheduleTaskFolder).count();
       assertEquals(folders, folderEntries, "every created folder is listed in its parent");
+   }
+
+   // the deploy import adds the folders of an imported task to their parent, a read-modify-write
+   // of the same folder blob as a task create
+   @Test
+   void concurrentImportFoldersAndTaskPuts_areAllListedInTheParent() throws Exception {
+      int folders = 12;
+      int tasks = 36;
+      ScheduleTaskAsset asset = new ScheduleTaskAsset();
+      List<Runnable> work = new ArrayList<>();
+
+      for(int i = 0; i < folders; i++) {
+         AssetEntry folder = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                            AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                                            "StmcpImport" + i, null, ORG);
+         work.add(() -> ReflectionTestUtils.invokeMethod(
+            asset, "importScheduleFolder", folder, indexedStorage, (IdentityID) null));
+      }
+
+      for(int i = 0; i < tasks; i++) {
+         String name = "StmcpImpTask" + i;
+         work.add(() -> taskMap().put(key(name), newTask(name)));
+      }
+
+      runConcurrently(work);
+
+      taskMap().clearCache();
+      assertEquals(names(0, tasks, "StmcpImpTask"), listed(), "every task is listed");
+      AssetFolder root = (AssetFolder) indexedStorage
+         .getXMLSerializable(rootEntry().toIdentifier(), null, ORG);
+      long folderEntries = Arrays.stream(root.getEntries())
+         .filter(AssetEntry::isScheduleTaskFolder).count();
+      assertEquals(folders, folderEntries, "every imported folder is listed in its parent");
    }
 
    /**
