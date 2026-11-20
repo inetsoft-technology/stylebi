@@ -59,6 +59,12 @@ public class ScriptedHttpHandler implements IHttpHandler {
       String text = url.toString();
       requests.add(text);
 
+      if(requests.size() > MAX_REQUESTS) {
+         throw new AssertionError("More than " + MAX_REQUESTS + " requests, the pagination does not " +
+                                  "stop; the last ones: " +
+                                  requests.subList(requests.size() - 3, requests.size()));
+      }
+
       for(Rule rule : rules) {
          if(rule.url.test(text)) {
             String body = rule.bodies.size() > 1 ? rule.bodies.poll() : rule.bodies.peek();
@@ -95,6 +101,7 @@ public class ScriptedHttpHandler implements IHttpHandler {
    private record Rule(Predicate<String> url, Deque<String> bodies) {
    }
 
+   private static final int MAX_REQUESTS = 50;
    private final List<Rule> rules = new ArrayList<>();
    private final List<String> requests = new ArrayList<>();
 }
