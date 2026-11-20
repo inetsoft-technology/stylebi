@@ -742,12 +742,18 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   --bs-dropdown-link-hover-bg: var(--inet-hover-primary-bg-color);
   --bs-list-group-action-hover-bg: var(--inet-ui-neutral-hover-bg-color);
   --bs-list-group-active-bg: var(--inet-shell-selected-bg-color);
+
+  // the scroll bar color is inherited from <html>, computed there from the muted token, so it is
+  // declared again to compute from the content value (same expression as _html-override.scss)
+  scrollbar-color: color-mix(in srgb, var(--inet-text-muted-color) 55%, transparent) transparent;
 }
 
 // The legacy viz state tokens in the same chain (_viz-tokens.scss), declared on :root too. A viz
 // scope on the content root or an ancestor declares its own, so only content outside every viz
-// scope takes these, as in the dark shell's legacy viz rule.
-:where(:root:not(.custom-theme)) :where(#{$dashboard-content}, #{$content-popup}, #{$annotation-tooltip}):where(:not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *)) {
+// scope takes these. The same elements as the dark shell's legacy viz rule: the annotation
+// tooltips are left out, since in a dark shell they would compute these from the restored light
+// tokens where they inherit the dark ones today.
+:where(:root:not(.custom-theme)) :where(#{$dashboard-content}, #{$content-popup}):where(:not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *)) {
   --inet-viz-selected-bg: var(--inet-shell-selected-bg-color);
   --inet-viz-sorted-color: var(--inet-text-muted-color);
 }

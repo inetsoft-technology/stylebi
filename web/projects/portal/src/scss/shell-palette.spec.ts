@@ -109,8 +109,9 @@ const CONTENT_CHAIN = [...PR7_CHAIN, ...BRIDGE_CHAIN];
 const CONTENT_RULE = ":where(:root:not(.custom-theme)) " +
    ":where(#{$dashboard-content}, #{$content-popup}, #{$annotation-tooltip})" +
    ":where(:not(.dropdown-datepicker.viz-dark))";
+// the same elements as the dark shell's legacy viz rule, which leaves the annotation tooltips out
 const VIZ_RULE = ":where(:root:not(.custom-theme)) " +
-   ":where(#{$dashboard-content}, #{$content-popup}, #{$annotation-tooltip})" +
+   ":where(#{$dashboard-content}, #{$content-popup})" +
    ":where(:not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *))";
 
 describe("shell-only state tokens", () => {
@@ -191,6 +192,17 @@ describe("light dashboard content", () => {
       expect(contentRule()).toContain(CONTENT_RULE);
       expect(CONTENT_RULE).toMatch(/^:where\(:root:not\(\.custom-theme\)\) /);
       expect(CONTENT_RULE).toMatch(/:where\(:not\(\.dropdown-datepicker\.viz-dark\)\)$/);
+   });
+
+   it("re-declares the scroll bar color, inherited from <html> where it is computed from the muted token", () => {
+      const scrollbar = /^\s*scrollbar-color:\s*([^;]*?)\s*;/m;
+      const root = block(read("scss/internal/_html-override.scss"), "html").match(scrollbar);
+      const content = contentRule().match(scrollbar);
+
+      expect(root).not.toBeNull();
+      expect(root[1]).toMatch(/var\(--inet-text-muted-color\)/);
+      expect(content, "no scrollbar-color in the content rule").not.toBeNull();
+      expect(content[1]).toBe(root[1]);
    });
 
    it("re-declares the legacy viz state chain outside viz scopes only, which set their own", () => {
