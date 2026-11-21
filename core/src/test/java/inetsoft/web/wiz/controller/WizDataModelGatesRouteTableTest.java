@@ -233,6 +233,12 @@ class WizDataModelGatesRouteTableTest {
             new WizLogicalModelWire.CreateRequest(f.db, logicalDefinition("n1", "F"), true), f.bob),
          "DS:{db}:READ", "body", NOT_FOUND,
          "LM:{db}/F/n1:WRITE", "throw", "{db}/F/n1"));
+      routes.add(route("logical/create (extended)", f -> f.logical.create(
+            new WizLogicalModelWire.CreateRequest(f.db, extendedDefinition("n1", "lm"), true),
+            f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "LM:{db}/F/lm:READ", "body", NOT_FOUND,
+         "LM:{db}/F/n1:WRITE", "throw", "{db}/F/n1"));
       routes.add(route("logical/update", f -> f.logical.update(
             new WizLogicalModelWire.UpdateRequest(
                f.db, "lm", logicalDefinition("lm", "F"), true), f.bob),
@@ -298,6 +304,11 @@ class WizDataModelGatesRouteTableTest {
 
    private static DeleteRequest deleteOf(Fixture f, DeleteItem item) {
       return new DeleteRequest(f.db, List.of(item));
+   }
+
+   private static WizLogicalModelWire.Definition extendedDefinition(String name, String parent) {
+      return new WizLogicalModelWire.Definition(
+         name, null, null, null, null, parent, null, List.of());
    }
 
    private static WizLogicalModelWire.Definition logicalDefinition(String name, String folder) {

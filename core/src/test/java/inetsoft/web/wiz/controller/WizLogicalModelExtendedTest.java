@@ -307,6 +307,45 @@ class WizLogicalModelExtendedTest extends WizLogicalModelTestBase {
       assertEquals("logicalModel", clash.existingKind());
    }
 
+   /** P2R1-1: an extended name is in the same namespace as every top-level name. */
+   @Test
+   void anExtendedNameMayNotShadowATopLevelName() throws Exception {
+      create(def("peer", entity("E", col("A", "T1", "ID"))));
+      dataModel.addVirtualPrivateModel(new inetsoft.uql.erm.vpm.VirtualPrivateModel("RegionVpm"),
+                                       true);
+      when(dataSourceService.checkDataModelFolderPermission(anyString(), any(ResourceAction.class),
+                                                            any(java.security.Principal.class)))
+         .thenReturn(true);
+      String[][] clashes = { { "RegionVpm", "vpm" }, { "peer", "logicalModel" },
+                             { "pv2", "physicalView" }, { "F", "folder" } };
+
+      for(String[] clash : clashes) {
+         Failure failure = (Failure) controller.create(new CreateRequest(
+            ds, child(clash[0], ownMargin()), null), bob);
+
+         assertEquals(WizDataModelWire.DUPLICATE_NAME, failure.reason(), clash[0]);
+         assertEquals(clash[1], failure.existingKind(), clash[0]);
+         assertTrue(failure.message().contains(clash[1]), failure.message());
+         assertNull(fresh().getLogicalModel("base").getLogicalModel(clash[0]), clash[0]);
+      }
+   }
+
+   @Test
+   void theKindOfAShadowedNameIsNotRevealedToACallerWhoCannotSeeIt() throws Exception {
+      dataModel.addVirtualPrivateModel(new inetsoft.uql.erm.vpm.VirtualPrivateModel("RegionVpm"),
+                                       true);
+      when(dataSourceService.checkPermission(eq(ds), eq(ResourceAction.WRITE),
+                                             any(java.security.Principal.class)))
+         .thenReturn(false);
+
+      Failure failure = (Failure) controller.create(new CreateRequest(
+         ds, child("RegionVpm", ownMargin()), null), bob);
+
+      assertEquals(WizDataModelWire.DUPLICATE_NAME, failure.reason());
+      assertNull(failure.existingKind());
+      assertFalse(failure.message().contains("vpm"), failure.message());
+   }
+
    @Test
    void anExtendedModelInheritsItsBaseModelsDescription() throws Exception {
       Definition readBack = createChild("child");
