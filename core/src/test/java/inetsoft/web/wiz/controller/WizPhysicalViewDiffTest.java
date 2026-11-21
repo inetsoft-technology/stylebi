@@ -271,6 +271,113 @@ class WizPhysicalViewDiffTest {
       assertTrue(plan.removeTables.isEmpty() && plan.removeJoins.isEmpty());
    }
 
+   // -- the cap counts own elements and never refuses a view that does not grow -----------------
+
+   private static List<TableDef> own(int count, boolean base) {
+      List<TableDef> tables = new ArrayList<>();
+
+      for(int i = 0; i < count; i++) {
+         tables.add(plain((base ? "B" : "T") + i, base));
+      }
+
+      return tables;
+   }
+
+   private static List<JoinDef> joins(int count, boolean base) {
+      List<JoinDef> joins = new ArrayList<>();
+
+      for(int i = 0; i < count; i++) {
+         joins.add(join("A", "C" + i, "B", "D" + i, "EQUAL", base));
+      }
+
+      return joins;
+   }
+
+   private static List<TableDef> plus(List<TableDef> a, List<TableDef> b) {
+      List<TableDef> all = new ArrayList<>(a);
+      all.addAll(b);
+      return all;
+   }
+
+   @Test
+   void aStoredViewAboveTheCapFedBackUnchangedIsNoChange() {
+      View stored = view(plus(own(250, false), List.of(plain("A", false), plain("B", false))),
+                         joins(1100, false));
+      Plan plan = WizPhysicalViewDiff.plan(stored, desired(stored.tables(), stored.joins()),
+                                           false);
+
+      assertTrue(plan.isEmpty());
+   }
+
+   @Test
+   void aViewAboveTheCapMayNotGrowButMayShrink() {
+      View stored = view(plus(own(250, false), List.of(plain("A", false), plain("B", false))),
+                         joins(1100, false));
+      DmFailure tables = assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         stored, desired(plus(stored.tables(), List.of(plain("EXTRA", false))), stored.joins()),
+         false));
+      assertEquals("tables", tables.toBody().field());
+      assertEquals("LIMIT_EXCEEDED", tables.toBody().errors().get(0).code());
+      assertTrue(tables.getMessage().contains("200"));
+
+      List<JoinDef> more = new ArrayList<>(stored.joins());
+      more.add(join("A", "X", "B", "Y", "EQUAL", false));
+      DmFailure joins = assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         stored, desired(stored.tables(), more), false));
+      assertEquals("joins", joins.toBody().field());
+      assertTrue(joins.getMessage().contains("1000"));
+
+      Plan shrink = WizPhysicalViewDiff.plan(
+         stored, desired(stored.tables().subList(0, 240), List.of()), false);
+      assertFalse(shrink.removeTables.isEmpty());
+   }
+
+   @Test
+   void createIsCappedAtTwoHundredTablesAndAThousandJoins() {
+      View empty = view(List.of(), List.of());
+
+      assertDoesNotThrow(() -> WizPhysicalViewDiff.plan(
+         empty, desired(own(200, false), List.of()), true));
+      DmFailure tables = assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         empty, desired(own(201, false), List.of()), true));
+      assertEquals("tables", tables.toBody().field());
+
+      List<TableDef> two = List.of(plain("A", false), plain("B", false));
+      assertDoesNotThrow(() -> WizPhysicalViewDiff.plan(empty, desired(two, joins(1000, false)),
+                                                        true));
+      DmFailure joins = assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         empty, desired(two, joins(1001, false)), true));
+      assertEquals("joins", joins.toBody().field());
+   }
+
+   @Test
+   void inheritedTablesDoNotCountAgainstTheCap() {
+      // 150 inherited and 60 own: 210 in the get result, 60 own
+      View stored = view(plus(own(150, true), own(60, false)), List.of());
+      Plan same = WizPhysicalViewDiff.plan(stored, desired(stored.tables(), List.of()), false);
+      assertTrue(same.isEmpty());
+
+      // a new extended view over a base of 250 tables declares 200 of its own
+      View start = view(own(250, true), List.of());
+      assertDoesNotThrow(() -> WizPhysicalViewDiff.plan(
+         start, desired(own(200, false), List.of()), true));
+      assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         start, desired(own(201, false), List.of()), true));
+   }
+
+   @Test
+   void aCallerCannotFlagItsOwnTablesAsInheritedToEscapeTheCap() {
+      View stored = view(List.of(plain("T0", false)), List.of());
+      List<TableDef> flagged = new ArrayList<>();
+
+      for(int i = 0; i < 201; i++) {
+         flagged.add(plain("F" + i, true));
+      }
+
+      assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         stored, desired(flagged, List.of()), false));
+   }
+
    // -- read-back ------------------------------------------------------------------------------
 
    @Test

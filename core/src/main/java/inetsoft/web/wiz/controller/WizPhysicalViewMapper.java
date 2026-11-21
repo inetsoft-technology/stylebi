@@ -85,9 +85,16 @@ final class WizPhysicalViewMapper {
    {
    }
 
-   /** The most tables and joins one definition may carry (one write holds the database lock). */
+   /**
+    * The most OWN tables and joins (not inherited from a base view) a definition may carry, one
+    * write holds the database lock. {@link WizPhysicalViewDiff#plan} applies it against the stored
+    * view: an update that does not grow a count is never refused for it.
+    */
    static final int MAX_TABLES = 200;
    static final int MAX_JOINS = 1000;
+   /** Parsing refuses a list this long outright (a stored view above the cap is far below it). */
+   static final int PARSE_CEILING_TABLES = 5000;
+   static final int PARSE_CEILING_JOINS = 20000;
 
    static final Set<String> JOIN_TYPES = Set.of(
       "EQUAL", "LEFT_OUTER", "RIGHT_OUTER", "FULL_OUTER", "GREATER", "LESS", "GREATER_EQUAL",
@@ -152,9 +159,9 @@ final class WizPhysicalViewMapper {
       if(hasTables) {
          Object value = map.get("tables");
 
-         if(value instanceof List<?> list && list.size() > MAX_TABLES) {
+         if(value instanceof List<?> list && list.size() > PARSE_CEILING_TABLES) {
             errors.add(new Err("tables", "a physical view definition takes at most " +
-               MAX_TABLES + " tables, got " + list.size() + "; split the view", "LIMIT_EXCEEDED"));
+               PARSE_CEILING_TABLES + " tables, got " + list.size(), "LIMIT_EXCEEDED"));
          }
          else if(value instanceof List<?> list) {
             for(int i = 0; i < list.size(); i++) {
@@ -173,9 +180,9 @@ final class WizPhysicalViewMapper {
       if(hasJoins) {
          Object value = map.get("joins");
 
-         if(value instanceof List<?> list && list.size() > MAX_JOINS) {
+         if(value instanceof List<?> list && list.size() > PARSE_CEILING_JOINS) {
             errors.add(new Err("joins", "a physical view definition takes at most " +
-               MAX_JOINS + " joins, got " + list.size() + "; split the view", "LIMIT_EXCEEDED"));
+               PARSE_CEILING_JOINS + " joins, got " + list.size(), "LIMIT_EXCEEDED"));
          }
          else if(value instanceof List<?> list) {
             for(int i = 0; i < list.size(); i++) {

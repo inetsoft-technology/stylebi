@@ -148,7 +148,7 @@ public class WizVpmController {
 
             // the edit was planned from a read; if the VPM is no longer what was read, nothing
             // is written (the revision is of the same wire form the get route returns)
-            if(request.baseRevision() != null &&
+            if(request.baseRevision() != null && !request.baseRevision().isEmpty() &&
                !request.baseRevision().equals(WizDataModelRevision.of(current)))
             {
                throw new WizDataModelErrors.DmFailure(

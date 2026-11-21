@@ -101,6 +101,12 @@ public final class WizDataModelRevision {
 
          out.append(']');
       }
+      else if(value instanceof Double d && (d.isNaN() || d.isInfinite()) ||
+         value instanceof Float f && (f.isNaN() || f.isInfinite()))
+      {
+         // not a JSON number: written as the text, never an exception
+         string(out, value.toString());
+      }
       else if(value instanceof Number number) {
          out.append(new BigDecimal(number.toString()).stripTrailingZeros().toPlainString());
       }

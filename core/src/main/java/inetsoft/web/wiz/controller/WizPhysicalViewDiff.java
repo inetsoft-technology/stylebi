@@ -106,6 +106,7 @@ final class WizPhysicalViewDiff {
       Plan plan = new Plan();
       View want = desired.view();
       List<Err> errors = new ArrayList<>();
+      requireWithinCap(stored, desired);
       Map<String, TableDef> storedTables = byName(stored.tables());
       Map<String, TableDef> wantTables = new LinkedHashMap<>();
 
@@ -287,6 +288,46 @@ final class WizPhysicalViewDiff {
       }
 
       return plan;
+   }
+
+   /**
+    * The cap on OWN tables and joins (inherited ones, known from the stored view and not from
+    * what the caller flags, do not count). It stops a write from growing a view over the cap; a
+    * definition that does not exceed the stored view's own count is never refused for it, so a
+    * stored view above the cap can still be fed back unchanged or have its description edited.
+    */
+   private static void requireWithinCap(View stored, Desired desired) {
+      Set<String> baseTables = new HashSet<>();
+      Set<String> baseJoins = new HashSet<>();
+      stored.tables().stream().filter(TableDef::baseElement).forEach(t -> baseTables.add(t.name()));
+      stored.joins().stream().filter(JoinDef::baseElement).forEach(j -> baseJoins.add(j.key()));
+
+      if(desired.hasTables()) {
+         long own = desired.view().tables().stream()
+            .filter(t -> !baseTables.contains(t.name())).count();
+         long before = stored.tables().stream().filter(t -> !t.baseElement()).count();
+
+         if(own > WizPhysicalViewMapper.MAX_TABLES && own > before) {
+            throw capFailure("tables", WizPhysicalViewMapper.MAX_TABLES, own);
+         }
+      }
+
+      if(desired.hasJoins()) {
+         long own = desired.view().joins().stream()
+            .filter(j -> !baseJoins.contains(j.key())).count();
+         long before = stored.joins().stream().filter(j -> !j.baseElement()).count();
+
+         if(own > WizPhysicalViewMapper.MAX_JOINS && own > before) {
+            throw capFailure("joins", WizPhysicalViewMapper.MAX_JOINS, own);
+         }
+      }
+   }
+
+   private static DmFailure capFailure(String field, int max, long got) {
+      return WizPhysicalViewMapper.invalid(List.of(new Err(
+         field, "a physical view takes at most " + max + " own " + field + ", the definition " +
+            "has " + got + "; split the view (a view already above the cap may keep what it " +
+            "has but not grow)", "LIMIT_EXCEEDED")));
    }
 
    private static void planJoins(View stored, View want, boolean creating, Plan plan) {

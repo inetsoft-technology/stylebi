@@ -96,6 +96,20 @@ class WizDataModelRevisionTest {
    }
 
    @Test
+   void nonFiniteNumbersAreWrittenAsTextNotAnException() {
+      Map<String, Object> nan = new HashMap<>(Map.of("n", Double.NaN));
+      Map<String, Object> inf = new HashMap<>(Map.of("n", Double.POSITIVE_INFINITY));
+      Map<String, Object> negInf = new HashMap<>(Map.of("n", Double.NEGATIVE_INFINITY));
+      Map<String, Object> single = new HashMap<>(Map.of("n", Float.NaN));
+
+      String a = WizDataModelRevision.of(nan);
+      assertTrue(a.matches("[0-9a-f]{64}"));
+      assertNotEquals(a, WizDataModelRevision.of(inf));
+      assertNotEquals(WizDataModelRevision.of(inf), WizDataModelRevision.of(negInf));
+      assertEquals(a, WizDataModelRevision.of(single));
+   }
+
+   @Test
    void aValueThatLooksLikeStructureCannotCollideWithStructure() {
       Map<String, Object> text = new HashMap<>(Map.of("a", "b\",\"c\":\"d"));
       Map<String, Object> two = new LinkedHashMap<>();

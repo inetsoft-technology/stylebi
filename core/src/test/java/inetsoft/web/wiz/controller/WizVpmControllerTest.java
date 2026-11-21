@@ -361,6 +361,19 @@ class WizVpmControllerTest {
    }
 
    @Test
+   void anEmptyBaseRevisionIsAbsentLikeForTheOtherKinds() throws Exception {
+      revisionFixture();
+      Map<String, Object> first = new LinkedHashMap<>();
+      first.put("description", "first");
+      update("Rev", first, false, null);
+      Map<String, Object> second = new LinkedHashMap<>();
+      second.put("description", "second");
+
+      assertTrue(update("Rev", second, false, "") instanceof WizVpmWire.WriteResponse);
+      assertEquals("second", support.fresh().getVirtualPrivateModel("Rev").getDescription());
+   }
+
+   @Test
    void theWireKeysArePinned() throws Exception {
       com.fasterxml.jackson.databind.ObjectMapper json =
          new com.fasterxml.jackson.databind.ObjectMapper();

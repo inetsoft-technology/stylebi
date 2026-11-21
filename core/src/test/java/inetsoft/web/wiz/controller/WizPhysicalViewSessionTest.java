@@ -322,6 +322,42 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
    }
 
    @Test
+   void aStoredViewAboveTheCapIsNotLockedOut() throws Exception {
+      XPartition big = new XPartition("big");
+
+      for(int i = 0; i < 250; i++) {
+         big.addTable("BT" + i, null, null);
+      }
+
+      dataModel.addPartition(big);
+      GetResponse got = getView("big");
+      assertEquals(250, ((List<?>) got.definition().get("tables")).size());
+      int puts = runtimePuts.get();
+
+      // fed back unchanged: no change, no runtime
+      WriteResponse same = ok(updateView("big", got.definition(), null));
+      assertEquals(puts, runtimePuts.get());
+      assertEquals(got.revision(), same.revision());
+
+      // a description edit with the whole list applies
+      Map<String, Object> edited = new LinkedHashMap<>(got.definition());
+      edited.put("description", "still editable");
+      ok(updateView("big", edited, null));
+      assertEquals("still editable", storedView("big").getDescription());
+      assertEquals(250, Collections.list(storedView("big").getTables()).size());
+
+      // growing it over the cap is refused
+      Map<String, Object> grown = new LinkedHashMap<>(got.definition());
+      List<Object> list = new ArrayList<>((List<?>) got.definition().get("tables"));
+      list.add(plain("T1"));
+      grown.put("tables", list);
+      Object refused = updateView("big", grown, null);
+      assertEquals("LIMIT_EXCEEDED", ((Failure) refused).errors().get(0).code());
+      assertEquals("tables", ((Failure) refused).field());
+      assertTrue(runtimes.isEmpty());
+   }
+
+   @Test
    void aRuntimeThatExpiresMidRequestIsReportedAndDestroyed() throws Exception {
       doReturn(null).when(manager).addTable(anyString(), anyString(), any(), any(), any(), any(),
                                             any(), any(), anyBoolean(), anyBoolean());
@@ -539,19 +575,19 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
    }
 
    @Test
-   void theTableCapIsExactlyTwoHundred() {
+   void parsingHasAnAbsoluteCeiling() {
       Map<String, Object> map = new LinkedHashMap<>();
       List<Object> tables = new ArrayList<>();
 
-      for(int i = 0; i < WizPhysicalViewMapper.MAX_TABLES; i++) {
+      for(int i = 0; i <= WizPhysicalViewMapper.PARSE_CEILING_TABLES; i++) {
          tables.add(plain("T" + i));
       }
 
       map.put("name", "v");
       map.put("tables", tables);
 
-      assertEquals(WizPhysicalViewMapper.MAX_TABLES,
-                   WizPhysicalViewMapper.parse(map).view().tables().size());
+      assertThrows(inetsoft.web.wiz.controller.WizDataModelErrors.DmFailure.class,
+                   () -> WizPhysicalViewMapper.parse(map));
    }
 
    @Test
