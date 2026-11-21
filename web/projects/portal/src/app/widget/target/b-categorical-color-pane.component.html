@@ -61,7 +61,7 @@
         </div>
         @for (_i of currentViewIndices; track _i) {
           <div class="col-auto p-0 ps-1 pe-1">
-            <color-editor [(color)]="colorModel.colors[_i]" class="color-editor"
+            <color-editor [(color)]="colorModel.colors[_i]" class="color-editor" [palette]="palette"
                           [attr.title]="_i + 1"></color-editor>
           </div>
         }

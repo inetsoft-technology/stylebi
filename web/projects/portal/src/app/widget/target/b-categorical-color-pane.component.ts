@@ -31,6 +31,8 @@ import { createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { CategoricalColorModel } from "../../common/data/visual-frame-model";
 import { GraphPaletteDialog } from "./graph-palette-dialog.component";
 import { ColorEditor } from "../color-picker/color-editor.component";
+import { ChartPaletteService } from "../color-picker/chart-palette.service";
+import { ColorPalette } from "../color-picker/color-classes";
 
 
 @Component({
@@ -51,7 +53,14 @@ export class BCategoricalColorPane implements OnInit {
    currentViewIndices: number[] = this.newView();
    colorPalettes: CategoricalColorModel[] = [];
 
-   constructor(private modalService: NgbModal, private http: HttpClient) {
+   constructor(private modalService: NgbModal, private http: HttpClient,
+               private chartPaletteService: ChartPaletteService)
+   {
+   }
+
+   // these editors hold the target's series-like color list, so they offer the series grid
+   get palette(): ColorPalette {
+      return this.chartPaletteService.chartPalette;
    }
 
    ngOnInit() {
