@@ -50,6 +50,9 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
       boolean cancelled = false;
       XTableNode result = null;
       boolean preview = false;
+      final boolean[] timedOut = { false };
+      final List<UserMessage> userMsgs = Collections.synchronizedList(new ArrayList<>());
+      Exception failure = null;
 
       try {
          preview = params != null && "true".equals(params.get(XQuery.HINT_PREVIEW));
@@ -68,9 +71,7 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
          }
 
          TimedQueue.TimedRunnable timeoutRunnable = null;
-         final boolean[] timedOut = { false };
          final int[] effectiveTimeout = { 0 };
-         final List<UserMessage> userMsgs = new ArrayList<>();
 
          try {
             Future<XTableNode> future = executor.submit(() -> {
@@ -164,10 +165,37 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
       catch(Exception ex) {
          LOG.error("Failed to run query.", ex);
          result = null;
+         failure = ex;
       }
 
       if(cancelled) {
          throw new CancelledException();
+      }
+
+      // A runner reports a failed read as a user message plus an empty (null) result, which is
+      // indistinguishable from a legitimately empty response. Throw so the failure is not cached
+      // as an empty table by the callers (query sandbox, data cache); an empty response that
+      // raised no message, or a run that was marked completed, still returns null.
+      if(result == null && !timedOut[0] && !query.isRunCompleted()) {
+         final String message;
+
+         synchronized(userMsgs) {
+            message = userMsgs.stream()
+               .filter(m -> m != null && m.getMessage() != null && !m.getMessage().isEmpty())
+               .map(UserMessage::getMessage)
+               .findFirst().orElse(null);
+         }
+
+         if(message != null) {
+            throw new RuntimeException(message);
+         }
+
+         if(failure != null && !(failure instanceof InterruptedException) &&
+            !(failure instanceof CancellationException))
+         {
+            throw new RuntimeException(
+               "Error executing Rest query: " + failure.getMessage(), failure);
+         }
       }
 
       return result;
