@@ -261,7 +261,7 @@ export class TableActions extends BaseTableActions<VSTableModel> {
          },
          {
             id: () => "table edit",
-            label: () => "_#(js:Edit)",
+            label: () => "_#(js:Binding)...",
             icon: () => null,
             enabled: () => true,
             visible: () => this.editVisible
@@ -312,7 +312,7 @@ export class TableActions extends BaseTableActions<VSTableModel> {
       };
       const edit = {
          id: () => "table edit",
-         label: () => "_#(js:Edit)",
+         label: () => "_#(js:Binding)...",
          icon: () => "edit-icon",
          visible: () => this.editVisible,
          enabled: () => true

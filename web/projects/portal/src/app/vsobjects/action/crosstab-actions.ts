@@ -308,7 +308,7 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
          },
          {
             id: () => "crosstab edit",
-            label: () => "_#(js:Edit)",
+            label: () => "_#(js:Binding)...",
             icon: () => null,
             enabled: () => true,
             visible: () => this.editVisibility()
@@ -375,7 +375,7 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
       };
       const edit = {
          id: () => "crosstab edit",
-         label: () => "_#(js:Edit)",
+         label: () => "_#(js:Binding)...",
          icon: () => "edit-icon",
          visible: () => this.editVisibility(),
          enabled: () => true
