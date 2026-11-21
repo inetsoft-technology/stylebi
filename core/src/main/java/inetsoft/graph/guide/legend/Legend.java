@@ -684,7 +684,11 @@ public abstract class Legend extends BoundedContainer {
             String str = (String) labels[i];
 
             //fix bug1324325850292
-            if(str.contains("'")) {
+            // The "'" -> "^_^" swap keeps the historical catalog key for apostrophe labels
+            // (e.g. O^_^Brien). The reverse replace can't tell the placeholder from a "^_^"
+            // already in the label, so a label containing "^_^" is localized as is. The check
+            // covers the whole label, so its "/" segments also skip the "^_^" key (Bug #82026).
+            if(str.contains("'") && !str.contains("^_^")) {
                str = Tool.replaceAll(str, "'", "^_^");
                str = Tool.localize(str);
                str = Tool.replaceAll(str, "^_^", "'");
