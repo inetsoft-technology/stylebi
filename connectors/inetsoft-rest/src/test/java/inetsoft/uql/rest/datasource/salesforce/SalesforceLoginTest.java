@@ -55,6 +55,7 @@ import static org.mockito.Mockito.when;
    initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class SalesforceLoginTest {
    @Configuration
    static class CredentialConfig {
@@ -261,7 +262,7 @@ class SalesforceLoginTest {
 
    // Salesforce: the security token is appended to the password only when the org needs one
    @Test
-   @Disabled("Bug #81882: a null security token is sent as the text 'null' in the login password; enable when it is fixed")
+   @Disabled("Bug #81882: a null security token is sent as the text 'null' in the login password; fixed on epic-test-coverage, enable when that branch reaches main")
    void passwordIsSentUnchangedWhenThereIsNoSecurityToken() throws Exception {
       TestSource ds = source("user", "pw", null);
       ds.getURL();

@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @EndpointsSpringContext
 @SreeHome
 @Tag("core")
-class AbstractRestSaveTest {
+class HubSpotKerberosXmlTest {
    @Test
    void kerberosSettingsWithXmlSpecialCharactersSurviveSaving() throws Exception {
       HubSpotDataSource source = new HubSpotDataSource();

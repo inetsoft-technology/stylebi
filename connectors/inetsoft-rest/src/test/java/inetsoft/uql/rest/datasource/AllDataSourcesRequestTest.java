@@ -27,11 +27,11 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AssignableTypeFilter;
 
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.time.Duration;
 import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -43,31 +43,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SreeHome
 @Tag("core")
 class AllDataSourcesRequestTest {
-   private static final Set<String> SKIP = Set.of(
-      "setName", "setURL", "setUrl", "setTokenUri", "setAuthorizationUri", "setScope",
-      "setDescription", "setFolder", "setBody", "setContentType", "setOauthFlags", "setAuthType",
-      "setAuthMethod", "setAuthURL", "setTokenPattern", "setServicePrincipalName", "setFullName",
-      "setAudience", "setClientAuthMethod", "setCredentialId", "setLocale", "setTimeout",
-      "setImpersonatePrincipal", "setConfigurationServiceName", "setServerType");
+   /** The word null on its own (any case), not as part of a longer word such as "nullable". */
+   private static final java.util.regex.Pattern NULL_TEXT =
+      java.util.regex.Pattern.compile("(?<![A-Za-z0-9])null(?![A-Za-z0-9])",
+                                      java.util.regex.Pattern.CASE_INSENSITIVE);
 
-   private static void fill(Object ds) {
-      for(Method m : ds.getClass().getMethods()) {
-         if(m.getName().startsWith("set") && m.getParameterCount() == 1 &&
-            m.getParameterTypes()[0] == String.class && !SKIP.contains(m.getName()))
-         {
-            String n = m.getName().toLowerCase();
-            String value = n.contains("token") || n.contains("key") || n.contains("secret") ||
-               n.contains("password") ? "tok" : "acct1";
+   private static final Set<String> EXTRA_SKIP =
+      Set.of("setImpersonatePrincipal", "setConfigurationServiceName", "setServerType");
 
-            try {
-               m.invoke(ds, value);
-            }
-            catch(Throwable e) {
-               // not settable in this state
-            }
-         }
-      }
-   }
+   /** Setters known to throw when filled with a placeholder; a change here must be looked at. */
+   private static final Set<String> EXPECTED_SKIPPED_SETTERS = Set.of();
 
    @Test
    void everyDataSourceBuildsACleanUrlAndSendsItsCredentials() throws Exception {
@@ -75,6 +60,7 @@ class AllDataSourcesRequestTest {
          new ClassPathScanningCandidateComponentProvider(false);
       scanner.addIncludeFilter(new AssignableTypeFilter(AbstractRestDataSource.class));
       List<String> problems = new ArrayList<>();
+      Set<String> skipped = new TreeSet<>();
       int checked = 0;
 
       for(BeanDefinition definition : scanner.findCandidateComponents("inetsoft.uql.rest")) {
@@ -99,7 +85,7 @@ class AllDataSourcesRequestTest {
          }
 
          ds.setName("req-" + type.getSimpleName());
-         fill(ds);
+         skipped.addAll(DataSourceFiller.fill(ds, EXTRA_SKIP));
          ds.setTokenExpiration(System.currentTimeMillis() + Duration.ofHours(1).toMillis());
          checked++;
          String simple = type.getSimpleName();
@@ -113,7 +99,7 @@ class AllDataSourcesRequestTest {
             }
 
             if(url != null && !url.isEmpty() &&
-               (url.contains("null") || url.contains("{") || !url.startsWith("http") ||
+               (NULL_TEXT.matcher(url).find() || url.contains("{") || !url.startsWith("http") ||
                 url.replaceAll("\\[[^\\]]*\\]", "").contains(" ")))
             {
                problems.add(simple + " URL: " + url);
@@ -130,7 +116,7 @@ class AllDataSourcesRequestTest {
                for(HttpParameter p : params) {
                   String value = p.getValue();
 
-                  if(value != null && value.contains("null")) {
+                  if(value != null && NULL_TEXT.matcher(value).find()) {
                      problems.add(simple + " parameter " + p.getName() + ": " + value);
                   }
                }
@@ -141,6 +127,7 @@ class AllDataSourcesRequestTest {
          }
       }
 
+      assertEquals(EXPECTED_SKIPPED_SETTERS, skipped, "setters that could not be set");
       assertTrue(checked > 40, "only " + checked + " data sources were checked");
       assertTrue(problems.isEmpty(), problems.size() + " problem(s):\n" +
                  String.join("\n", problems));

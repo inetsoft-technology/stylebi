@@ -63,7 +63,7 @@ class TeamDeskPaginationTest {
       return query;
    }
 
-   @Disabled("Bug #81879: an empty last page does not end the query, the same offset is requested forever; enable when it is fixed")
+   @Disabled("Bug #81879: an empty last page does not end the query, the same offset is requested forever; fixed on epic-test-coverage, enable when that branch reaches main")
    @Test
    void selectTableEndsOnAnEmptyPage() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler()
@@ -74,7 +74,7 @@ class TeamDeskPaginationTest {
       assertEquals(2, http.requests().size(), http.requests().toString());
    }
 
-   @Disabled("Bug #81880: the first page is requested with skip=1 and the first record is lost; enable when it is fixed")
+   @Disabled("Bug #81880: the first page is requested with skip=1 and the first record is lost; fixed on epic-test-coverage, enable when that branch reaches main")
    @Test
    void selectTableSkipsNothingOnTheFirstPage() throws Exception {
       // the second request fails, so that the query ends whatever it does at an empty page

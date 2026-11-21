@@ -121,6 +121,8 @@ class AzureBlobSignatureTest {
       base.generateSignature("s");
       String baseStart = base.getSignatureStartTime();
       String baseExpiry = base.getSignatureExpiryTime();
+      String baseKey = base.getStorageAccountKey();
+      String baseToSign = stringToSign(base);
 
       Map<String, java.util.function.Consumer<AzureBlobDataSource>> changes = new LinkedHashMap<>();
       changes.put("permissions", d -> d.setSignaturePermissions("rwl"));
@@ -139,15 +141,19 @@ class AzureBlobSignatureTest {
          AzureBlobDataSource ds = source("myacct", KEY);
          e.getValue().accept(ds);
          ds.generateSignature("s");
-         // start and expiry are derived from the clock; compare only if they did not move
+         // start and expiry always come from the clock, so the signature is checked against the
+         // independent HMAC of the changed data source, and the signed input must differ from
+         // the base one
+         assertEquals(hmac(ds.getStorageAccountKey(), stringToSign(ds)), ds.getSignature(),
+                      e.getKey());
+         assertNotEquals(baseKey + "|" + baseToSign,
+                         ds.getStorageAccountKey() + "|" + stringToSign(ds), e.getKey());
+
+         // when the clock did not tick between the two runs the signatures themselves must differ
          if(baseStart.equals(ds.getSignatureStartTime()) &&
             baseExpiry.equals(ds.getSignatureExpiryTime()))
          {
             assertNotEquals(base.getSignature(), ds.getSignature(), e.getKey());
-         }
-         else {
-            assertEquals(hmac(ds.getStorageAccountKey(), stringToSign(ds)), ds.getSignature(),
-                         e.getKey());
          }
       }
    }
@@ -177,22 +183,35 @@ class AzureBlobSignatureTest {
    }
 
    @Test
-   void signatureWithBase64SpecialCharactersIsEncodedInTheUrl() throws Exception {
-      // sig is base64 and may contain + / =; st and se contain ':'
-      AzureBlobDataSource ds = source("myacct", KEY);
-      ds.generateSignature("s");
-      ds.setSignature("a+b/c=");
-      org.apache.http.client.utils.URIBuilder b =
-         new org.apache.http.client.utils.URIBuilder("https://x.blob.core.windows.net");
+   void generatedSignatureSurvivesUrlEncodingOfTheQuery() throws Exception {
+      // sig is base64 and may contain + / =; st and se contain ':'. Use signatures the product
+      // really generated (the account name varies the HMAC) until one has a special character.
+      String sig = null;
+      String url = null;
 
-      for(HttpParameter p : ds.getQueryHttpParameters()) {
-         if(p.getType() == HttpParameter.ParameterType.QUERY) {
-            b.addParameter(p.getName(), p.getValue());
+      for(int i = 0; i < 200 && sig == null; i++) {
+         AzureBlobDataSource ds = source("myacct" + i, KEY);
+         ds.generateSignature("s");
+
+         if(ds.getSignature().matches(".*[+/=].*")) {
+            org.apache.http.client.utils.URIBuilder b =
+               new org.apache.http.client.utils.URIBuilder("https://x.blob.core.windows.net");
+
+            for(HttpParameter p : ds.getQueryHttpParameters()) {
+               if(p.getType() == HttpParameter.ParameterType.QUERY) {
+                  b.addParameter(p.getName(), p.getValue());
+               }
+            }
+
+            sig = ds.getSignature();
+            url = b.build().toASCIIString();
          }
       }
 
-      String url = b.build().toASCIIString();
-      assertTrue(url.contains("sig=a%2Bb%2Fc%3D"), url);
+      assertNotNull(sig, "no generated signature contained a base64 special character");
+      String rawSig = url.replaceAll(".*[?&]sig=([^&]*).*", "$1");
+      assertFalse(rawSig.matches(".*[+/=].*"), "special characters must be escaped: " + url);
+      assertEquals(sig, java.net.URLDecoder.decode(rawSig, StandardCharsets.UTF_8));
    }
 
    @Test
@@ -208,7 +227,7 @@ class AzureBlobSignatureTest {
     * signedEncryptionScope line after the version.
     */
    @Test
-   @Disabled("Bug #80273: the string-to-sign has no signedEncryptionScope line for sv 2020-12-06 and later; enable when it is fixed")
+   @Disabled("Known gap (feature request #80273, no bug filed): the string-to-sign has no signedEncryptionScope line for sv 2020-12-06 and later; enable when it is implemented")
    void version20201206AddsEncryptionScopeLine() throws Exception {
       AzureBlobDataSource ds = source("myacct", KEY);
       ds.setSignatureServicesVersion("2020-12-06");
