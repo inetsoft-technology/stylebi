@@ -21,9 +21,9 @@ import inetsoft.graph.EGraph;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.test.*;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class LegendQuoteSentinelTest {
    @ParameterizedTest
-   @ValueSource(strings = { "x^_^y'z", "a/b^_^c'd", "O'Brien", "x^_^y" })
+   @ValueSource(strings = { "x^_^y'z", "a/b^_^c'd", "a^_'b", "'^_'", "O'Brien", "x^_^y" })
    void legendLabelKeepsDataValue(String value) {
       CategoricalColorFrame frame = new CategoricalColorFrame();
       frame.init(value);
