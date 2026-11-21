@@ -35,7 +35,7 @@ import { NgClass } from "@angular/common";
 export class ColorPicker {
    @Input() color: string = "#000000";
    @Input() display: boolean = true;
-   @Input() palette: ColorPalette = DefaultPalette.chart;
+   @Input() palette: ColorPalette = DefaultPalette.palette;
    @Input() recent: RecentColorPalette = null;
    @Input() enabled: boolean = true;
    @Input() label: string = null;
