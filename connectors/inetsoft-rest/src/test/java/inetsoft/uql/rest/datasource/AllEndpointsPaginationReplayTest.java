@@ -148,7 +148,9 @@ class AllEndpointsPaginationReplayTest {
       Set<String> failing = new TreeSet<>();
 
       for(String problem : sweep(true, OFFSET_STARTS_AT_ONE)) {
-         failing.add(problem.substring(0, problem.indexOf('/')));
+         int slash = problem.indexOf('/');
+         assertTrue(slash > 0, "unexpected problem format, no 'source/endpoint' prefix: " + problem);
+         failing.add(problem.substring(0, slash));
       }
 
       Set<String> stale = new TreeSet<>(OFFSET_STARTS_AT_ONE);
