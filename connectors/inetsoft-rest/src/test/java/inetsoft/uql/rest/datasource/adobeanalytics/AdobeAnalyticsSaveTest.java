@@ -53,13 +53,11 @@ class AdobeAnalyticsSaveTest {
    }
 
    @Test
-   @Disabled("Bug #81965: a missing global company id is saved as the text 'null'; enable when it is fixed")
    void missingGlobalCompanyIdStaysMissingAfterSaving() throws Exception {
       assertNull(roundTrip(new AdobeAnalyticsDataSource()).getGlobalCompanyId());
    }
 
    @Test
-   @Disabled("Bug #81965: the global company id is written to XML without escaping; enable when it is fixed")
    void globalCompanyIdWithXmlSpecialCharactersSurvivesSaving() throws Exception {
       AdobeAnalyticsDataSource source = new AdobeAnalyticsDataSource();
       source.setGlobalCompanyId("a&b<c");

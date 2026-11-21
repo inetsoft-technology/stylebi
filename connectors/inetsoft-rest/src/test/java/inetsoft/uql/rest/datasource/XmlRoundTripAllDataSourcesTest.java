@@ -50,17 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class XmlRoundTripAllDataSourcesTest {
    private static final String SPECIAL = "a&b<c>\"d'e";
 
-   /**
-    * Known problems: Shopify #81963 (special characters), QuickBooks #81964 (null), Adobe
-    * Analytics #81965 (both).
-    */
-   private static final Set<String> KNOWN = Set.of(
-      "ShopifyDataSource.special", "QuickbooksReportsDataSource.null",
-      "AdobeAnalyticsDataSource.null", "AdobeAnalyticsDataSource.special");
-
-   /** Bug #81966: the Kerberos fields of the base class are written without escaping. */
-   private static final Set<String> KNOWN_BASE_SETTERS = Set.of(
-      "setServicePrincipalName", "setImpersonatePrincipal", "setConfigurationServiceName");
+   /** Known problem: QuickBooks #81964 (a missing value is saved as the text "null"). */
+   private static final Set<String> KNOWN = Set.of("QuickbooksReportsDataSource.null");
 
    /**
     * Properties that are not kept as they are by design: the name belongs to the repository, the
@@ -169,16 +160,12 @@ class XmlRoundTripAllDataSourcesTest {
             }
          }
 
-         if(KNOWN.contains(simple + ".special")) {
-            continue;
-         }
-
          for(Method m : type.getMethods()) {
             String name = m.getName();
 
             if(!name.startsWith("set") || m.getParameterCount() != 1 ||
                m.getParameterTypes()[0] != String.class || !isSavedText(type, name) ||
-               KNOWN_BASE_SETTERS.contains(name) || NOT_KEPT.contains("get" + name.substring(3)))
+               NOT_KEPT.contains("get" + name.substring(3)))
             {
                continue;
             }

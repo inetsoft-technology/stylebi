@@ -107,11 +107,8 @@ class AllDataSourcesRequestTest {
          try {
             String url = ds.getURL();
 
-            // Prometheus is a self-hosted server whose host and port the user gives; Lighthouse
-            // is Bug #81969
-            if(url != null && url.startsWith("http://") && !simple.equals("PrometheusDataSource") &&
-               !simple.equals("LighthouseDataSource"))
-            {
+            // Prometheus is a self-hosted server whose host and port the user gives
+            if(url != null && url.startsWith("http://") && !simple.equals("PrometheusDataSource")) {
                problems.add(simple + " URL is not https: " + url);
             }
 

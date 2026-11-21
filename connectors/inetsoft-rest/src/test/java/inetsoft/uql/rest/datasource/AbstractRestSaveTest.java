@@ -38,7 +38,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag("core")
 class AbstractRestSaveTest {
    @Test
-   @Disabled("Bug #81966: the Kerberos fields are written to XML without escaping; enable when it is fixed")
    void kerberosSettingsWithXmlSpecialCharactersSurviveSaving() throws Exception {
       HubSpotDataSource source = new HubSpotDataSource();
       source.setServicePrincipalName("HTTP/a&b<c");

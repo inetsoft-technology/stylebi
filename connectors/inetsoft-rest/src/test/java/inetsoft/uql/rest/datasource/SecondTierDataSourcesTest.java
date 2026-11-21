@@ -193,7 +193,6 @@ class SecondTierDataSourcesTest {
 
    // XML 1.0: the text of an element may not contain a bare & or <
    @Test
-   @Disabled("Bug #81963: shop, API version and scope are written to XML without escaping; enable when it is fixed")
    void shopifySettingsWithXmlSpecialCharactersStillSaveAsWellFormedXml() throws Exception {
       ShopifyDataSource ds = new ShopifyDataSource();
       ds.setShop("a&b<c");
