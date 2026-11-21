@@ -31,7 +31,6 @@ import { CombinedSizePane } from "./combined-size-pane.component";
 import { BindingSizePane } from "./binding-size-pane.component";
 import { StaticSizePane } from "./static-size-pane.component";
 import { ChartAestheticMc } from "./chart-aesthetic-mc.component";
-import { SizeCell } from "./size-cell.component";
 
 import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
@@ -41,7 +40,7 @@ import { DropHighlightDirective } from "../../../widget/drophighlight.directive"
     selector: "size-field-mc",
     templateUrl: "size-field-mc.component.html",
     styleUrls: ["aesthetic-field-mc.scss"],
-    imports: [DropHighlightDirective, OutOfZoneDirective, FixedDropdownDirective, SizeCell, ChartAestheticMc, StaticSizePane, BindingSizePane, CombinedSizePane]
+    imports: [DropHighlightDirective, OutOfZoneDirective, FixedDropdownDirective, ChartAestheticMc, StaticSizePane, BindingSizePane, CombinedSizePane]
 })
 export class SizeFieldMc extends AestheticFieldMc implements OnChanges {
    chartRefs: ChartRef[];
@@ -121,6 +120,46 @@ export class SizeFieldMc extends AestheticFieldMc implements OnChanges {
       }
 
       return _frames;
+   }
+
+   /**
+    * Which of the Size tile's three rings are drawn dark; the rest are faded. The tile is always
+    * the same concentric circles, so it never changes identity, and the rings say what the size
+    * is: a static size emphasises the one ring its value falls in (size is 1 to 30, so thirds),
+    * while a size driven by a field, or mixed sizes, emphasises all three as a range.
+    * Index 0 is the inner ring, 2 the outer.
+    */
+   get sizeRings(): boolean[] {
+      const frame: any = this.frames && this.frames.length > 0 ? this.frames[0] : null;
+
+      if(!this.isFrameEditEnabled() || !frame || this._isMixed || !this.isStaticSize(frame)) {
+         return [true, true, true];
+      }
+
+      const ring = frame.size <= 10 ? 0 : frame.size <= 20 ? 1 : 2;
+      return [ring == 0, ring == 1, ring == 2];
+   }
+
+   /** What the tile's tooltip says about the current size, beyond "Edit Size". */
+   get sizeTitle(): string {
+      const title = "_#(js:Edit Size)";
+      const frames = this.frames;
+      const frame: any = frames && frames.length > 0 ? frames[0] : null;
+
+      if(!this.isFrameEditEnabled() || !frame) {
+         return title;
+      }
+
+      if(this._isMixed || frames.length > 1) {
+         return title + " (_#(js:Mixed sizes))";
+      }
+
+      return title + (this.isStaticSize(frame) ?
+         " (_#(js:Static size) " + frame.size + ")" : " (_#(js:Size from data))");
+   }
+
+   private isStaticSize(frame: any): boolean {
+      return !!frame.clazz && frame.clazz.indexOf("StaticSizeModel") != -1;
    }
 
    isFrameEditEnabled(): boolean {

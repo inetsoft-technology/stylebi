@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component } from "@angular/core";
+import { NgTemplateOutlet } from "@angular/common";
 import * as V from "../../../../common/data/visual-frame-model";
 import { AestheticIconCell } from "./aesthetic-icon-cell";
 import { LineItem } from "./line-item.component";
@@ -26,7 +27,13 @@ import { ShapeItem } from "./shape-item.component";
 @Component({
     selector: "shape-cell",
     templateUrl: "shape-cell.component.html",
-    imports: [ShapeItem, TextureItem, LineItem]
+    imports: [ShapeItem, TextureItem, LineItem, NgTemplateOutlet],
+    // The icon font puts the built-in shapes about 1px above the middle of their 20px box (the
+    // ink has 0.5px above and 1.5px below), so in the tile they sat high. Move them down 1px.
+    styles: [
+       ".shape-cell__glyph { display: block; }",
+       ":host ::ng-deep shape-item > i { position: relative; top: 1px; }"
+    ]
 })
 export class ShapeCell extends AestheticIconCell {
    get isStaticShape(): boolean {

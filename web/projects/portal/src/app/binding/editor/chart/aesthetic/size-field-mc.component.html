@@ -23,35 +23,23 @@
       <div [fixedDropdown]="dropdownMenu" [autoClose]="false" [zIndex]="10000"
         [disabled]="!isFrameEditEnabled()"
         class="field-icon hover-bg-neutral" (openChange)="openChanged($event)">
-        <!--size cells-->
-        @if (isFrameEditEnabled()) {
-          <div class="visual-cell-container">
-            @for (frame of frames; track $index; let i = $index) {
-              <div class="visual-cell no-caret"
-                [style.margin-left.px]="i > 0 ? 2 : 0"
-                title="_#(Edit Size)">
-                <size-cell [frameModel]="frame" [isMixed]="_isMixed"></size-cell>
-              </div>
-            }
-          </div>
-        }
-
-        <!--pencil edit icon-->
-        @if (!isFrameEditEnabled()) {
-          <div class="visual-edit-icon no-caret">
-            <i class="chart-size-icon btn-icon icon-size-large" aria-hidden="true"
-              [class.icon-disabled]="!isFrameEditEnabled()"
-              title="_#(Edit Size)">
-            </i>
-          </div>
-        }
-
-        <!--fake cell to keep align with textfield-->
-        @if (frames.length == 0 && isFrameEditEnabled()) {
-          <div class="visual-cell">
-            <div class="fake-visual-cell"></div>
-          </div>
-        }
+        <!--Always the same three concentric circles, so the tile never changes identity. The rings
+            carry the state: a static size dark on the ring its value falls in, a field-driven or
+            mixed size dark on all three. The tile used to swap to a painted frame preview as soon
+            as another shelf was in use.-->
+        @let rings = sizeRings;
+        <div class="visual-edit-icon no-caret" [attr.title]="sizeTitle">
+          <svg class="size-glyph" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"
+               fill="none" stroke="currentColor" stroke-width="1.5"
+               [class.icon-disabled]="!isFrameEditEnabled()">
+            <circle class="size-glyph__ring" [class.size-glyph__ring--off]="!rings[2]"
+                    cx="10" cy="10" r="8.5"/>
+            <circle class="size-glyph__ring" [class.size-glyph__ring--off]="!rings[1]"
+                    cx="10" cy="10" r="5.5"/>
+            <circle class="size-glyph__ring" [class.size-glyph__ring--off]="!rings[0]"
+                    cx="10" cy="10" r="2.5"/>
+          </svg>
+        </div>
       </div>
 
       <!--aesthetic field mc-->

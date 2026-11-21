@@ -27,3 +27,20 @@
 .color-cell__surface--empty {
   border: 1px solid var(--inet-default-border-color);
 }
+
+// Modern chart palette head (VSChartPaletteDefaults MODERN_HEAD / DARK_HEAD), first four.
+.color-cell__categorical {
+  display: block;
+
+  &-1 { fill: #0490FF; }
+  &-2 { fill: #FF5A35; }
+  &-3 { fill: #241C4F; }
+  &-4 { fill: #03D9B3; }
+}
+
+:host-context(.shell-dark) .color-cell__categorical {
+  &-1 { fill: #4FA5FF; }
+  &-2 { fill: #FF8367; }
+  &-3 { fill: #49447D; }
+  &-4 { fill: #2DEEC6; }
+}
