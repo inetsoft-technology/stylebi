@@ -34,6 +34,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -76,13 +77,14 @@ class ZohoCRMAuthorizeTest {
       hits.set(0);
       lastRequest = null;
       responseBody = "{}";
+      responseStatus = 200;
       server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
       server.createContext("/oauth/v2/token", exchange -> {
          hits.incrementAndGet();
          lastRequest = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
          byte[] body = responseBody.getBytes(StandardCharsets.UTF_8);
          exchange.getResponseHeaders().add("Content-Type", "application/json");
-         exchange.sendResponseHeaders(200, body.length);
+         exchange.sendResponseHeaders(responseStatus, body.length);
 
          try(OutputStream output = exchange.getResponseBody()) {
             output.write(body);
@@ -209,6 +211,163 @@ class ZohoCRMAuthorizeTest {
       assertEquals(getString("zohocrm.authorize.success"), getMessage());
    }
 
+   // RFC 6749 section 6: a refresh request carries grant_type=refresh_token and the refresh token;
+   // the client authenticates with client_id and client_secret.
+   @Test
+   void refreshSendsTheFieldsOfRfc6749Section6() {
+      responseBody = "{\"access_token\":\"zr-new-access\",\"api_domain\":\"https://api.example\"," +
+         "\"expires_in\":3600}";
+      ZohoCRMDataSource dataSource = createDataSource();
+      dataSource.setTokenExpiration(System.currentTimeMillis() - 60000L);
+      dataSource.refreshTokens();
+
+      assertEquals(1, hits.get());
+      Map<String, String> form = form();
+      assertEquals("refresh_token", form.get("grant_type"));
+      assertEquals("fake-client-id", form.get("client_id"));
+      assertEquals("fake-client-secret", form.get("client_secret"));
+      assertEquals("fake-old-refresh", form.get("refresh_token"));
+      assertFalse(form.containsKey("code"));
+      assertEquals("zr-new-access", dataSource.getAccessToken());
+      assertTrue(dataSource.getTokenExpiration() > System.currentTimeMillis());
+   }
+
+   // RFC 6749 section 6: the server may omit the refresh token, the client keeps the old one
+   @Test
+   void refreshKeepsTheOldRefreshTokenWhenNoneIsReturned() {
+      responseBody = "{\"access_token\":\"zr-new-access\",\"api_domain\":\"https://api.example\"," +
+         "\"expires_in\":3600}";
+      ZohoCRMDataSource dataSource = createDataSource();
+      dataSource.setTokenExpiration(System.currentTimeMillis() - 60000L);
+      dataSource.refreshTokens();
+
+      assertEquals("fake-old-refresh", dataSource.getRefreshToken());
+   }
+
+   // RFC 6749 section 5.2: an error response carries no tokens and must not replace the stored ones
+   @Test
+   void refreshErrorResponseKeepsStoredTokens() {
+      responseBody = "{\"error\":\"invalid_client\"}";
+      ZohoCRMDataSource dataSource = createDataSource();
+      long expired = System.currentTimeMillis() - 60000L;
+      dataSource.setTokenExpiration(expired);
+      dataSource.refreshTokens();
+
+      assertEquals(1, hits.get());
+      assertEquals("fake-old-access", dataSource.getAccessToken());
+      assertEquals("fake-old-refresh", dataSource.getRefreshToken());
+      assertEquals(expired, dataSource.getTokenExpiration());
+      assertEquals(getString("zohocrm.token.invalidClient"), getMessage());
+   }
+
+   @Test
+   void refreshHttpErrorKeepsStoredTokensAndReportsStatus() {
+      responseStatus = 500;
+      responseBody = "{\"access_token\":\"must-not-be-used\",\"api_domain\":\"https://x\"," +
+         "\"expires_in\":1}";
+      ZohoCRMDataSource dataSource = createDataSource();
+      dataSource.setTokenExpiration(System.currentTimeMillis() - 60000L);
+      dataSource.refreshTokens();
+
+      assertEquals("fake-old-access", dataSource.getAccessToken());
+      String message = getMessage();
+      assertNotNull(message);
+      assertTrue(message.contains("500"), message);
+   }
+
+   @Test
+   void unexpiredTokenIsNotRefreshed() {
+      ZohoCRMDataSource dataSource = createDataSource();
+      dataSource.setTokenExpiration(System.currentTimeMillis() + 3600000L);
+      dataSource.refreshTokens();
+      assertEquals(0, hits.get());
+   }
+
+   @Test
+   void tokenWithoutRefreshTokenIsNotRefreshed() {
+      ZohoCRMDataSource dataSource = createDataSource();
+      dataSource.setRefreshToken(null);
+      dataSource.setTokenExpiration(System.currentTimeMillis() - 60000L);
+      dataSource.refreshTokens();
+      assertEquals(0, hits.get());
+      assertEquals("fake-old-access", dataSource.getAccessToken());
+   }
+
+   // Zoho API documentation: the header is "Authorization: Zoho-oauthtoken <access token>"
+   @Test
+   void queryUsesZohoOauthtokenHeaderWithCurrentToken() {
+      ZohoCRMDataSource dataSource = createDataSource();
+      dataSource.setTokenExpiration(System.currentTimeMillis() + 3600000L);
+      HttpParameter[] params = dataSource.getQueryHttpParameters();
+
+      assertEquals(1, params.length);
+      assertEquals(HttpParameter.ParameterType.HEADER, params[0].getType());
+      assertEquals("Authorization", params[0].getName());
+      assertEquals("Zoho-oauthtoken fake-old-access", params[0].getValue());
+      assertEquals(0, hits.get());
+   }
+
+   @Test
+   void queryRefreshesAnExpiredTokenBeforeBuildingTheHeader() {
+      responseBody = "{\"access_token\":\"zr-new-access\",\"api_domain\":\"https://api.example\"," +
+         "\"expires_in\":3600}";
+      ZohoCRMDataSource dataSource = createDataSource();
+      dataSource.setTokenExpiration(System.currentTimeMillis() - 60000L);
+      HttpParameter[] params = dataSource.getQueryHttpParameters();
+
+      assertEquals(1, hits.get());
+      assertEquals("Zoho-oauthtoken zr-new-access", params[0].getValue());
+   }
+
+   // RFC 6749 section 5.1: expires_in is only RECOMMENDED, a response may omit it
+   @Test
+   @Disabled("Bug #81960: a token response without expires_in throws a NullPointerException; enable when it is fixed")
+   void refreshResponseWithoutExpiresInDoesNotFail() {
+      responseBody = "{\"access_token\":\"zr-new-access\",\"api_domain\":\"https://api.example\"}";
+      ZohoCRMDataSource dataSource = createDataSource();
+      dataSource.setTokenExpiration(System.currentTimeMillis() - 60000L);
+      assertDoesNotThrow(dataSource::refreshTokens);
+      assertEquals("zr-new-access", dataSource.getAccessToken());
+   }
+
+   // credentials may contain characters that are special in a form body
+   @Test
+   void specialCharactersInCredentialsSurviveFormEncoding() {
+      String secret = "s&e=c+r%et <x>é z";
+      String code = "1000.a&b=c+d%e f";
+      responseBody = "{\"error\":\"invalid_code\"}";
+      ZohoCRMDataSource dataSource = createDataSource();
+      dataSource.setClientSecret(secret);
+      dataSource.setAuthorizationCode(code);
+      dataSource.authorize("session");
+
+      Map<String, String> form = form();
+      assertEquals(secret, form.get("client_secret"));
+      assertEquals(code, form.get("code"));
+      assertEquals(4, form.size());
+
+      hits.set(0);
+      dataSource.setRefreshToken("r&t=1+2%3");
+      dataSource.setTokenExpiration(System.currentTimeMillis() - 60000L);
+      dataSource.refreshTokens();
+      form = form();
+      assertEquals(secret, form.get("client_secret"));
+      assertEquals("r&t=1+2%3", form.get("refresh_token"));
+      assertEquals(4, form.size());
+   }
+
+   private Map<String, String> form() {
+      Map<String, String> map = new LinkedHashMap<>();
+
+      for(String pair : lastRequest.split("&")) {
+         int i = pair.indexOf('=');
+         map.put(URLDecoder.decode(pair.substring(0, i), StandardCharsets.UTF_8),
+                 URLDecoder.decode(pair.substring(i + 1), StandardCharsets.UTF_8));
+      }
+
+      return map;
+   }
+
    private ZohoCRMDataSource createDataSource() {
       ZohoCRMDataSource dataSource = new ZohoCRMDataSource();
       dataSource.setClientId("fake-client-id");
@@ -262,4 +421,5 @@ class ZohoCRMAuthorizeTest {
    private final AtomicInteger hits = new AtomicInteger();
    private volatile String lastRequest;
    private volatile String responseBody;
+   private volatile int responseStatus = 200;
 }
