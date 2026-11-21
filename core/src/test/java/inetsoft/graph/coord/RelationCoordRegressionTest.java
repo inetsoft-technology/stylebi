@@ -101,6 +101,26 @@ class RelationCoordRegressionTest {
       assertInside(bottom);
    }
 
+   /**
+    * Control: the X centring was already correct for a scaled-down chart. A plot x
+    * offset (e.g. legend at the left), alone or with a y offset, moves the chart by
+    * exactly that offset.
+    */
+   @ParameterizedTest
+   @EnumSource(value = RelationElement.Algorithm.class,
+               names = { "COMPACT_TREE", "CIRCLE" })
+   void scaledChartWithPlotXOffsetIsShiftedByOffset(RelationElement.Algorithm algorithm) {
+      Layout atOrigin = layout(algorithm, -1, 0, 0, 120, 80);
+      Layout atX = layout(algorithm, -1, 50, 0, 120, 80);
+      Layout atXY = layout(algorithm, -1, 50, 50, 120, 80);
+
+      assertTrue(atOrigin.ratio < 1, "chart must be scaled down: " + atOrigin);
+      assertShifted(atOrigin, atX, 50, 0);
+      assertShifted(atOrigin, atXY, 50, 50);
+      assertInside(atX);
+      assertInside(atXY);
+   }
+
    /** Control: an unscaled chart (ratio == 1) was already correct and must stay so. */
    @Test
    void unscaledChartWithPlotYOffsetIsShiftedByOffset() {
