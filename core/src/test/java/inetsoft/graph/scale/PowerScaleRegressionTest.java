@@ -75,6 +75,18 @@ class PowerScaleRegressionTest {
    }
 
    @Test
+   void wideRangeAcrossZeroIsThinned() {
+      PowerScale s = new PowerScale(-1e15, 1e15); // power space -1e30..1e30
+      s.setExponent(2);
+      double[] ticks = assertDoesNotThrow(s::getTicks);
+      assertAscending(ticks, 2, 10);
+      assertEquals(-1e30, ticks[0]);
+      assertEquals(1e30, ticks[ticks.length - 1]);
+      assertTrue(Arrays.stream(ticks).anyMatch(t -> t == 0), Arrays.toString(ticks));
+      assertTimeoutPreemptively(Duration.ofSeconds(5), s::getMinorTicks);
+   }
+
+   @Test
    void infiniteRangeIsStillRejected() {
       PowerScale s = new PowerScale(0, 10);
       s.setExponent(1000);
