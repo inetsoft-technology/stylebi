@@ -701,18 +701,15 @@ class WizDataModelBridgeTest {
       addLogical("outside", "fv", null);
       List<Ref> expected = List.of(new Ref(KIND_PHYSICAL_VIEW, "fv", null));
 
-      DeleteResult refused = only(ok(items.delete(new DeleteRequest(ds, List.of(
-         new DeleteItem(KIND_FOLDER, "F", null, false, expected))), bob),
-                                     DeleteResponse.class).results());
-
-      assertEquals(HAS_DEPENDENCIES, refused.reason());
-      assertNotNull(registry().getPartition("fv"));
-
-      DeleteResult forced = only(ok(items.delete(new DeleteRequest(ds, List.of(
-         new DeleteItem(KIND_FOLDER, "F", null, true, expected))), bob),
-                                    DeleteResponse.class).results());
-      assertTrue(forced.ok(), forced.message());
-      assertNull(registry().getPartition("fv"));
+      // a model outside uses the view: refused with or without force (review r4)
+      for(boolean force : new boolean[] { false, true }) {
+         DeleteResult refused = only(ok(items.delete(new DeleteRequest(ds, List.of(
+            new DeleteItem(KIND_FOLDER, "F", null, force, expected))), bob),
+                                        DeleteResponse.class).results());
+         assertTrue(Set.of(HAS_DEPENDENCIES, VIEW_IN_USE).contains(refused.reason()),
+                    refused.reason());
+         assertNotNull(registry().getPartition("fv"));
+      }
    }
 
    @Test
@@ -1116,6 +1113,99 @@ class WizDataModelBridgeTest {
 
       assertEquals(PERMISSION_DENIED, response.results().get(0).reason());
       verify(repository, never()).updateDataModel(any());
+   }
+
+   // -- review r4 -----------------------------------------------------------------------------
+
+   @Test
+   void aViewIsNeverForcedEvenWhenItsUserCannotBeDeletedInTheSameCall() throws Exception {
+      addView("V", null);
+      addLogical("L", "V", null);
+      WizModelKindOps denyDeleteOfL = new FakeLogicalOps(lms) {
+         @Override
+         public boolean mayDelete(Ctx ctx, ModelRef ref) {
+            return false;
+         }
+      };
+      WizDataModelItemController controller = new WizDataModelItemController(
+         List.of(new WizPhysicalViewOps(dss, lmsPmms()), denyDeleteOfL),
+         mock(DataModelFolderManagerService.class), dss, lms, repository);
+
+      List<DeleteResult> results = ok(controller.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_LOGICAL_MODEL, "L", null, false, null),
+         new DeleteItem(KIND_PHYSICAL_VIEW, "V", null, true, null))), bob),
+                                      DeleteResponse.class).results();
+
+      assertEquals(PERMISSION_DENIED, results.get(0).reason());
+      assertEquals(VIEW_IN_USE, results.get(1).reason(),
+                   "the service refuses the view: it is never forced at apply time");
+      assertNotNull(registry().getPartition("V"));
+      assertNotNull(registry().getLogicalModel("L"));
+   }
+
+   @Test
+   void aViewWithOnlyARecordedSheetDependentIsDeletedWithForce() throws Exception {
+      addView("free", null);
+      seedDependency(AssetEntry.Type.PARTITION, ds + "/free", "wsUses");
+
+      DeleteResult result = only(ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "free", null, true, null))), bob),
+                                    DeleteResponse.class).results());
+
+      assertTrue(result.ok(), result.message());
+      assertNull(registry().getPartition("free"));
+   }
+
+   @Test
+   void aViewWithASheetAndAModelUserIsRefusedWithForce() throws Exception {
+      addView("used", null);
+      addLogical("lm", "used", null);
+      seedDependency(AssetEntry.Type.PARTITION, ds + "/used", "wsUses");
+
+      DeleteResult result = only(ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "used", null, true, null))), bob),
+                                    DeleteResponse.class).results());
+
+      assertEquals(VIEW_IN_USE, result.reason());
+      assertNotNull(registry().getPartition("used"));
+   }
+
+   @Test
+   void aFolderWhoseViewIsUsedByAModelOutsideIsNeverForced() throws Exception {
+      addFolder("F");
+      addView("fv", "F");
+      addLogical("outside", "fv", null);
+      List<Ref> expected = List.of(new Ref(KIND_PHYSICAL_VIEW, "fv", null));
+
+      DeleteResult result = only(ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_FOLDER, "F", null, true, expected))), bob),
+                                    DeleteResponse.class).results());
+
+      assertEquals(VIEW_IN_USE, result.reason());
+      assertTrue(result.message().contains("outside"), result.message());
+      assertNotNull(registry().getPartition("fv"), "nothing was deleted");
+      assertTrue(Arrays.asList(dm.getFolders()).contains("F"));
+   }
+
+   @Test
+   void aFolderWhoseOnlyOutsideDependentsAreNotModelsIsDeletedWithForceAndExpect() throws Exception {
+      addFolder("F");
+      XLogicalModel model = addLogical("lm", "pv", "F");
+      model.addOuterDependency(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, "recorded", null));
+      dm.addLogicalModel(model);
+      List<Ref> expected = List.of(new Ref(KIND_LOGICAL_MODEL, "lm", null));
+
+      DeleteResult plain = only(ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_FOLDER, "F", null, false, expected))), bob),
+                                   DeleteResponse.class).results());
+      assertEquals(HAS_DEPENDENCIES, plain.reason(), "without force the dependents are surfaced");
+
+      DeleteResult forced = only(ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_FOLDER, "F", null, true, expected))), bob),
+                                    DeleteResponse.class).results());
+      assertTrue(forced.ok(), forced.message());
+      assertNull(registry().getLogicalModel("lm"));
    }
 
    // -- a logical-model SPI stand-in (J2 owns the real one) ---------------------------------

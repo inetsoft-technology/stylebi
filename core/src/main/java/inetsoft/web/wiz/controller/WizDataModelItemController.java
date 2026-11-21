@@ -270,15 +270,19 @@ public class WizDataModelItemController {
    }
 
    private static String viewInUseMessage(String view, List<Dependent> shown) {
+      return "the physical view \"" + view + "\" is used by " + usersText(shown) +
+         "; delete or change those first";
+   }
+
+   /** The visible users by name; hidden ones are only a count in the list, never named. */
+   private static String usersText(List<Dependent> shown) {
       StringBuilder names = new StringBuilder();
 
       for(Dependent d : shown) {
          names.append(names.length() == 0 ? "" : ", ").append(d.name());
       }
 
-      return "the physical view \"" + view + "\" is used by " +
-         (names.length() == 0 ? "models that the caller may not see" : names) +
-         "; delete or change those first";
+      return names.length() == 0 ? "models that the caller may not see" : names.toString();
    }
 
    private DepItem folderDepItem(WizModelKindOps.Ctx ctx, Ref ref) throws Exception {
@@ -592,6 +596,31 @@ public class WizDataModelItemController {
             return deleteFailed(item, EXPECT_MISMATCH,
                "the folder's contents changed since the dry run (added: " + added + ", removed: " +
                removed + "); run the dry run again", null);
+         }
+
+         // a view of the folder that a model or VPM outside the folder uses is never deleted by
+         // the cascade, whatever force says (review r4); force only means "the recorded
+         // non-model dependents may go"
+         List<Dependent> outsideUsers = new ArrayList<>();
+
+         for(Ref contained : contains) {
+            if(KIND_PHYSICAL_VIEW.equals(contained.kind())) {
+               for(Dependent user : viewUsers(dataModel, database, contained.name())) {
+                  boolean inside = KIND_LOGICAL_MODEL.equals(user.type()) && Objects.equals(
+                     item.name(), storedFolder(dataModel, KIND_LOGICAL_MODEL, user.name()));
+
+                  if(!inside) {
+                     outsideUsers.add(user);
+                  }
+               }
+            }
+         }
+
+         if(!outsideUsers.isEmpty()) {
+            List<Dependent> shown = visibleOnly(ctx, outsideUsers);
+            return deleteFailed(item, VIEW_IN_USE, "the folder \"" + item.name() +
+               "\" holds physical views used by " + usersText(shown) +
+               "; delete or change those first", shown);
          }
 
          if(!force) {
