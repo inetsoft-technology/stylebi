@@ -282,7 +282,7 @@ public class TimeSeriesRow implements CalcRow {
          Object prev = vals.get(i - 1).value;
          long part2 = getPart(vals.get(i).value, this.dtype);
 
-         // shouldn't compare (part2 >= part + 1) since for week, the
+         // shouldn't compare (part2 >= part + 1) since for month, the
          // next value for 201252 is 201301 instead of 201253
          while(true) {
             prev = add(prev, 1);

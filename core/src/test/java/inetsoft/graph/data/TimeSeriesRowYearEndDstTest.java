@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * puts both occurrences of a repeated local time into the earlier offset.
  */
 @Tag("core")
-class TimeSeriesRowCalendarTest {
+class TimeSeriesRowYearEndDstTest {
    private static final ZoneId NEW_YORK = ZoneId.of("America/New_York");
    private static final Locale EN_GB = Locale.UK;
    private static final Locale DE_DE = Locale.GERMANY;
