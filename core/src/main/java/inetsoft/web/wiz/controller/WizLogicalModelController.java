@@ -109,8 +109,10 @@ public class WizLogicalModelController {
       LogicalModelDefinition dto = modelService.getModel(
          database, model.getPartition(), name, parent, principal);
       boolean isExtended = parent != null;
+      // phase 2: an extended model is editable (its inherited elements carry baseElement:true and
+      // are read-only one by one), so readOnly is false; extended and parent say what it is
       return new GetResponse(true, MAPPER.toWire(dto, isExtended), blankToNull(dto.getFolder()),
-                             isExtended);
+                             false);
    }
 
    // -- create ---------------------------------------------------------------------------------
@@ -126,17 +128,42 @@ public class WizLogicalModelController {
       WizDataModelNames.requireValidModelName(definition.name());
       XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
       String name = definition.name();
-      String folder = blankToNull(definition.folder());
+      String parent = blankToNull(definition.parent());
+      // an extended model lives in its base model's folder; a missing or invisible base model is
+      // answered like a missing one before anything else is said
+      XLogicalModel baseModel = parent == null ? null :
+         stored(dataModel, database, parent, principal);
+      String folder = baseModel != null ? blankToNull(baseModel.getFolder()) :
+         blankToNull(definition.folder());
       requireWrite(database, folder, name, blankToNull(definition.connection()), principal);
 
-      // a clash names the existing kind only when the caller may see that item
-      WizDataModelNames.requireUniqueInSource(
-         dataModel, name,
-         (kind, existing) -> gates.maySee(dataModel, database, kind, existing, principal));
+      if(baseModel == null) {
+         // a clash names the existing kind only when the caller may see that item
+         WizDataModelNames.requireUniqueInSource(
+            dataModel, name,
+            (kind, existing) -> gates.maySee(dataModel, database, kind, existing, principal));
+      }
+      else if(baseModel.getLogicalModel(name) != null) {
+         boolean seen = modelService.checkPermission(
+            database, folder, name, baseModel.getLogicalModel(name).getConnection(),
+            ResourceAction.READ, principal);
+         throw fail(WizDataModelWire.DUPLICATE_NAME, "name",
+                    seen ? "a logicalModel named \"" + name + "\" already exists under \"" +
+                       parent + "\" in " + database + "; nothing changed" :
+                       "the name \"" + name + "\" is already used under \"" + parent + "\" in " +
+                          database + "; nothing changed", null,
+                    seen ? WizDataModelWire.KIND_LOGICAL_MODEL : null);
+      }
+
       requireConnectionRead(database, definition.connection(), principal);
+      Definition baseWire = baseModel == null ? null : MAPPER.toWire(
+         modelService.getModel(database, baseModel.getPartition(), parent, null, principal),
+         false);
       WizLogicalModelValidator.Result result = validator.validate(
          new WizLogicalModelEnv(database, dataModel, dataSourceService), definition,
-         WizLogicalModelValidator.Mode.CREATE, null);
+         WizLogicalModelValidator.Mode.CREATE, null,
+         baseModel == null ? null :
+            new WizLogicalModelValidator.Extended(baseModel, baseWire, false));
       refuse(result);
       boolean dryRun = Boolean.TRUE.equals(request.dryRun());
 
@@ -144,13 +171,82 @@ public class WizLogicalModelController {
          return new CreateResponse(true, name, folder, null, result.warnings());
       }
 
-      Definition normalized = result.normalized();
-      LogicalModelDefinition dto = MAPPER.toDto(normalized, null, viewOf(normalized, null));
-      modelService.createModel(database, folder, dto.getPartition(), dto, null, principal);
+      Definition normalized = baseModel == null ? result.normalized() :
+         inBase(mergeBase(result.normalized(), baseWire), baseModel);
+      String view = baseModel == null ? viewOf(normalized, null) : baseModel.getPartition();
+      LogicalModelDefinition dto = MAPPER.toDto(normalized, null, view);
+
+      if(baseModel != null) {
+         dto.setParent(parent);
+         dto.setFolder(folder);
+      }
+
+      modelService.createModel(database, folder, dto.getPartition(), dto, parent, principal);
       treeService.refreshPartitionMetaData(database, dto);
 
-      Definition readBack = readBack(database, name, normalized, principal);
+      Definition readBack = readBack(database, name, parent, normalized, principal);
       return new CreateResponse(true, name, folder, readBack, result.warnings());
+   }
+
+   /** An extended model has its base model's view and folder, whatever the caller left out. */
+   private static Definition inBase(Definition d, XLogicalModel base) {
+      // the description is the base model's too (the server reads it through the base)
+      return new Definition(d.name(), base.getDescription(), base.getPartition(),
+                            blankToNull(base.getFolder()), d.connection(), d.parent(),
+                            d.extended(), d.entities());
+   }
+
+   /**
+    * The definition an extended model is created with: the base model's entities and attributes
+    * (read-only, flagged) merged with the model's own. The service would add the inherited ones
+    * itself; having them in the written definition keeps the read-back comparison exact.
+    */
+   private static Definition mergeBase(Definition own, Definition baseWire) {
+      List<Entity> merged = new ArrayList<>();
+      Set<String> seen = new HashSet<>();
+
+      for(Entity entity : own.entities() == null ? List.<Entity>of() : own.entities()) {
+         Entity inherited = null;
+
+         for(Entity candidate : baseWire.entities()) {
+            if(candidate.name().equals(entity.name())) {
+               inherited = candidate;
+            }
+         }
+
+         if(inherited == null) {
+            merged.add(entity);
+            continue;
+         }
+
+         seen.add(entity.name());
+         List<Attribute> attributes = new ArrayList<>(inherited.attributes());
+         Set<String> inheritedNames = new HashSet<>();
+
+         for(Attribute attribute : inherited.attributes()) {
+            inheritedNames.add(attribute.name());
+         }
+
+         for(Attribute attribute : entity.attributes() == null ? List.<Attribute>of() :
+            entity.attributes())
+         {
+            if(!inheritedNames.contains(attribute.name())) {
+               attributes.add(attribute);
+            }
+         }
+
+         merged.add(new Entity(inherited.name(), entity.oldName(), inherited.description(),
+                               inherited.visible(), inherited.baseElement(), null, attributes));
+      }
+
+      for(Entity inherited : baseWire.entities()) {
+         if(!seen.contains(inherited.name())) {
+            merged.add(inherited);
+         }
+      }
+
+      return new Definition(own.name(), own.description(), own.view(), own.folder(),
+                            own.connection(), own.parent(), own.extended(), merged);
    }
 
    // -- update ---------------------------------------------------------------------------------
@@ -165,7 +261,11 @@ public class WizLogicalModelController {
       }
 
       XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
-      XLogicalModel stored = stored(dataModel, database, name, principal);
+      // an extended model is addressed by its name plus definition.parent
+      String parent = blankToNull(definition.parent());
+      XLogicalModel stored = parent == null ? stored(dataModel, database, name, principal) :
+         extended(dataModel, database, parent, name, principal);
+      XLogicalModel baseModel = stored.getBaseModel();
 
       // the service would answer a body name that differs with a misleading SecurityException
       // (it writes the model named in the body), and renaming has its own route
@@ -183,15 +283,22 @@ public class WizLogicalModelController {
          name, definition.description(), definition.view(), definition.folder(),
          definition.connection(), definition.parent(), definition.extended(),
          definition.entities());
-      String targetFolder = blankToNull(submitted.folder());
+      String targetFolder = baseModel != null ? blankToNull(baseModel.getFolder()) :
+         blankToNull(submitted.folder());
       requireUpdateAccess(database, stored, targetFolder, principal);
       requireConnectionRead(database, submitted.connection(), principal);
 
+      LogicalModelDefinition current = modelService.getModel(
+         database, stored.getPartition(), name, parent, principal);
+      Definition currentWire = MAPPER.toWire(current, parent != null);
       WizLogicalModelValidator.Result result = validator.validate(
          new WizLogicalModelEnv(database, dataModel, dataSourceService), submitted,
-         WizLogicalModelValidator.Mode.UPDATE, stored);
+         WizLogicalModelValidator.Mode.UPDATE, stored,
+         baseModel == null ? null : new WizLogicalModelValidator.Extended(
+            baseModel, inheritedOnly(currentWire), true));
       refuse(result);
-      Definition normalized = result.normalized();
+      Definition normalized = baseModel == null ? result.normalized() :
+         inBase(result.normalized(), baseModel);
       String view = viewOf(normalized, stored);
       // decided on the full sets, shown filtered to what the caller may see (R3-3): the
       // placeholder carries the hidden count, so the confirm still has something to bind to
@@ -206,20 +313,22 @@ public class WizLogicalModelController {
                                    viewDependents);
       }
 
-      LogicalModelDefinition current = modelService.getModel(
-         database, stored.getPartition(), name, null, principal);
-      Definition currentWire = MAPPER.toWire(current, false);
-
-      if(WizLogicalModelReadBack.diff(normalized, currentWire) == null) {
+      if(WizLogicalModelReadBack.diff(normalized, currentWire, parent != null) == null) {
          // a no-op (a get result fed back): nothing is written, so nothing changes
          return new UpdateResponse(true, currentWire, result.warnings(), List.of(), List.of());
       }
 
       LogicalModelDefinition dto = MAPPER.toDto(normalized, stored, view);
-      modelService.updateModel(database, dto.getFolder(), name, dto, null, principal);
+
+      if(baseModel != null) {
+         dto.setParent(parent);
+         dto.setFolder(targetFolder);
+      }
+
+      modelService.updateModel(database, dto.getFolder(), name, dto, parent, principal);
       assetDataCache.removeCacheDependence(database);
 
-      Definition readBack = readBack(database, name, normalized, principal);
+      Definition readBack = readBack(database, name, parent, normalized, principal);
       return new UpdateResponse(true, readBack, result.warnings(), elementDependents,
                                 viewDependents);
    }
@@ -227,31 +336,58 @@ public class WizLogicalModelController {
    // -- helpers --------------------------------------------------------------------------------
 
    /** Reads the stored model back and fails loud when it is not what was written (C2). */
-   private Definition readBack(String database, String name, Definition written,
-                              Principal principal)
+   private Definition readBack(String database, String name, String parent, Definition written,
+                               Principal principal)
       throws Exception
    {
       XDataModel dataModel = source.requireJdbcDataModel(database);
-      XLogicalModel model = dataModel.getLogicalModel(name);
+      XLogicalModel base = parent == null ? null : dataModel.getLogicalModel(parent);
+      XLogicalModel model = parent == null ? dataModel.getLogicalModel(name) :
+         base == null ? null : base.getLogicalModel(name);
 
       if(model == null) {
          throw fail(WizDataModelWire.READ_BACK_FAILED, "definition",
-                             "the server reported success but \"" + database + "/" + name +
-                                "\" is not there");
+                    "the server reported success but \"" + database + "/" +
+                       (parent == null ? "" : parent + "/") + name + "\" is not there");
       }
 
       LogicalModelDefinition dto = modelService.getModel(
-         database, model.getPartition(), name, null, principal);
-      Definition stored = MAPPER.toWire(dto, false);
-      String problem = WizLogicalModelReadBack.diff(written, stored);
+         database, model.getPartition(), name, parent, principal);
+      Definition stored = MAPPER.toWire(dto, parent != null);
+      // an extended model lists what it inherits wherever the server puts it: compare the set
+      String problem = WizLogicalModelReadBack.diff(written, stored, parent != null);
 
       if(problem != null) {
          throw fail(WizDataModelWire.READ_BACK_FAILED, "definition",
-                             "the server reported success but \"" + database + "/" + name +
-                                "\" is not as written: " + problem);
+                    "the server reported success but \"" + database + "/" + name +
+                       "\" is not as written: " + problem);
       }
 
       return stored;
+   }
+
+   /** The entities and attributes flagged as inherited, with nothing else. */
+   private static Definition inheritedOnly(Definition current) {
+      List<Entity> entities = new ArrayList<>();
+
+      for(Entity entity : current.entities()) {
+         List<Attribute> inherited = new ArrayList<>();
+
+         for(Attribute attribute : entity.attributes()) {
+            if(Boolean.TRUE.equals(attribute.baseElement())) {
+               inherited.add(attribute);
+            }
+         }
+
+         if(Boolean.TRUE.equals(entity.baseElement()) || !inherited.isEmpty()) {
+            entities.add(new Entity(entity.name(), entity.oldName(), entity.description(),
+                                    entity.visible(), entity.baseElement(), null, inherited));
+         }
+      }
+
+      return new Definition(current.name(), current.description(), current.view(),
+                            current.folder(), current.connection(), current.parent(),
+                            current.extended(), entities);
    }
 
    /**
@@ -349,7 +485,9 @@ public class WizLogicalModelController {
    private void requireUpdateAccess(String database, XLogicalModel stored, String targetFolder,
                                     Principal principal)
    {
-      String storedFolder = blankToNull(stored.getFolder());
+      // an extended model's permission path is under its base model's folder
+      String storedFolder = blankToNull(stored.getBaseModel() != null ?
+                                           stored.getBaseModel().getFolder() : stored.getFolder());
 
       if(!modelService.checkPermission(database, storedFolder, stored.getName(),
                                        stored.getConnection(), ResourceAction.WRITE, principal))
