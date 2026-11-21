@@ -263,6 +263,119 @@ class WizVpmControllerTest {
          new WizVpmWire.GetRequest(support.ds, "lm"), support.bob)).reason());
    }
 
+   // -- D-9 revision ------------------------------------------------------------------------
+
+   private void revisionFixture() throws Exception {
+      Map<String, Object> definition = definition("Rev");
+      definition.put("description", "v1");
+      definition.put("conditions", List.of(condition("c", clause("ORDERS.A", "=", "1"))));
+      create(definition, false);
+   }
+
+   private WizVpmWire.GetResponse got(String name) throws Exception {
+      return assertInstanceOf(WizVpmWire.GetResponse.class,
+         controller.get(new WizVpmWire.GetRequest(support.ds, name), support.bob));
+   }
+
+   private Object update(String name, Map<String, Object> change, boolean dryRun, String base)
+      throws Exception
+   {
+      return controller.update(
+         new WizVpmWire.WriteRequest(support.ds, name, change, dryRun, base), support.bob);
+   }
+
+   @Test
+   void revisionStableAcrossGetOfTheSameVpm() throws Exception {
+      revisionFixture();
+      WizVpmWire.GetResponse first = got("Rev");
+      WizVpmWire.GetResponse second = got("Rev");
+
+      assertNotNull(first.revision());
+      assertEquals(64, first.revision().length());
+      assertEquals(first.revision(), second.revision());
+      assertEquals(WizDataModelRevision.of(first.definition()), first.revision());
+
+      // the create's read-back carries the revision a later get shows
+      WizVpmWire.WriteResponse created = assertInstanceOf(WizVpmWire.WriteResponse.class,
+         create(definition("Other"), false));
+      assertEquals(got("Other").revision(), created.revision());
+
+      // a change changes it
+      Map<String, Object> change = new LinkedHashMap<>();
+      change.put("description", "v2");
+      update("Rev", change, false, null);
+      assertNotEquals(first.revision(), got("Rev").revision());
+   }
+
+   @Test
+   void matchingBaseRevisionApplies() throws Exception {
+      revisionFixture();
+      String revision = got("Rev").revision();
+      Map<String, Object> change = new LinkedHashMap<>();
+      change.put("description", "v2");
+
+      WizVpmWire.WriteResponse response = assertInstanceOf(WizVpmWire.WriteResponse.class,
+         update("Rev", change, false, revision));
+
+      assertTrue(response.ok());
+      assertEquals("v2", support.fresh().getVirtualPrivateModel("Rev").getDescription());
+      assertEquals(got("Rev").revision(), response.revision());
+      assertNotEquals(revision, response.revision());
+   }
+
+   @Test
+   void staleBaseRevisionIsRefusedAndNothingIsWritten() throws Exception {
+      revisionFixture();
+      String stale = got("Rev").revision();
+      Map<String, Object> other = new LinkedHashMap<>();
+      other.put("description", "changed by someone else");
+      update("Rev", other, false, null);
+
+      Map<String, Object> mine = new LinkedHashMap<>();
+      mine.put("description", "my edit");
+      mine.put("lookup", "mine();");
+
+      for(boolean dryRun : new boolean[] { false, true }) {
+         WizDataModelWire.Failure failure = failure(update("Rev", mine, dryRun, stale));
+         assertEquals("STALE_MODEL", failure.reason());
+         assertEquals("VPM Rev changed since it was read; read it again and redo the edit; " +
+                         "nothing was written", failure.message());
+      }
+
+      VirtualPrivateModel stored = support.fresh().getVirtualPrivateModel("Rev");
+      assertEquals("changed by someone else", stored.getDescription());
+      assertNull(stored.getScript());
+   }
+
+   @Test
+   void absentBaseRevisionKeepsTheOldBehavior() throws Exception {
+      revisionFixture();
+      Map<String, Object> first = new LinkedHashMap<>();
+      first.put("description", "first");
+      update("Rev", first, false, null);
+      Map<String, Object> second = new LinkedHashMap<>();
+      second.put("description", "second");
+
+      assertTrue(update("Rev", second, false, null) instanceof WizVpmWire.WriteResponse);
+      assertEquals("second", support.fresh().getVirtualPrivateModel("Rev").getDescription());
+   }
+
+   @Test
+   void theWireKeysArePinned() throws Exception {
+      com.fasterxml.jackson.databind.ObjectMapper json =
+         new com.fasterxml.jackson.databind.ObjectMapper();
+      WizVpmWire.WriteRequest request = json.readValue(
+         "{\"database\":\"d\",\"name\":\"n\",\"definition\":{},\"dryRun\":true," +
+            "\"baseRevision\":\"abc\"}", WizVpmWire.WriteRequest.class);
+      assertEquals("abc", request.baseRevision());
+      assertNull(json.readValue("{\"database\":\"d\"}", WizVpmWire.WriteRequest.class)
+                    .baseRevision());
+      assertTrue(json.writeValueAsString(new WizVpmWire.GetResponse(
+         true, Map.of(), null, false, "r")).contains("\"revision\":\"r\""));
+      assertTrue(json.writeValueAsString(new WizVpmWire.WriteResponse(
+         true, "n", null, List.of(), null, "r")).contains("\"revision\":\"r\""));
+   }
+
    // -- get ---------------------------------------------------------------------------------
 
    @Test
