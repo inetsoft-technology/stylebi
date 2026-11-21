@@ -2214,7 +2214,8 @@ public class DefaultAxis extends Axis {
       }
 
       Scale scale = getScale();
-      boolean mmm = ((TimeScale) scale).getType() == TimeScale.MONTH && pattern.endsWith("MMM");
+      boolean mmm = scale instanceof TimeScale &&
+         ((TimeScale) scale).getType() == TimeScale.MONTH && pattern.endsWith("MMM");
       String pstr = formatWithCache(fmt, pattern, prev);
 
       // if two date labels are identical, ignore the subsequent labels
