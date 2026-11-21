@@ -22,6 +22,7 @@ import { NgStyle } from "@angular/common";
 import { BlockMouseDirective } from "../../../widget/mouse-event/block-mouse.directive";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 import { CustomSelectOption, CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
+import { paletteLabel } from "../../../common/util/palette-name";
 
 @Component({
     selector: "palette-dialog",
@@ -49,7 +50,7 @@ export class PaletteDialog {
          .filter(({ palette, index }) => !palette.hidden || index === selected)
          .map(({ palette, index }) => ({
             value: index,
-            label: palette.name
+            label: paletteLabel(palette.name)
          }));
    }
 
