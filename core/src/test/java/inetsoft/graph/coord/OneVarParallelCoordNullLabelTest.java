@@ -20,9 +20,13 @@ package inetsoft.graph.coord;
 import inetsoft.graph.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.graph.guide.VLabel;
+import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.LinearScale;
 import inetsoft.graph.scale.Scale;
+import inetsoft.graph.visual.LineVO;
+import inetsoft.graph.visual.VisualObject;
 import inetsoft.report.composition.graph.GraphGenerator;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.test.*;
@@ -36,7 +40,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -154,6 +161,70 @@ class OneVarParallelCoordNullLabelTest {
       VGraph vg = assertDoesNotThrow(() -> radar(rows(null, null), true));
 
       assertTrue(vg.getVisualCount() > 0, "radar should have a visual");
+   }
+
+   @Test
+   void radarWithIgnoreNullAndOnlyNullGroupsRendersAsWithoutIgnoreNull() {
+      VGraph on = radar(rows(null, null), true);
+      VGraph off = radar(rows(null, null), false);
+      OneVarParallelCoord onCoord = innerCoord(on);
+
+      // one parallel axis and one (null) axis label, as without Ignore Null
+      assertEquals(1, onCoord.getAxes(false).length);
+      assertEquals(innerCoord(off).getAxes(false).length, onCoord.getAxes(false).length);
+      assertEquals(Arrays.asList((Object) null), labelValues(on, onCoord));
+      assertEquals(labelValues(off, innerCoord(off)), labelValues(on, onCoord));
+
+      // the same finite vertices inside the plot as without Ignore Null
+      List<Point2D> onPts = vertices(on);
+      Rectangle2D plot = on.getPlotBounds();
+      assertEquals(2, onPts.size());
+      assertEquals(vertices(off), onPts);
+
+      for(Point2D pt : onPts) {
+         assertTrue(Double.isFinite(pt.getX()) && Double.isFinite(pt.getY()), pt.toString());
+         assertTrue(plot.getX() - 1 <= pt.getX() && pt.getX() <= plot.getMaxX() + 1 &&
+                    plot.getY() - 1 <= pt.getY() && pt.getY() <= plot.getMaxY() + 1,
+                    pt + " outside " + plot);
+      }
+   }
+
+   private static OneVarParallelCoord innerCoord(VGraph vg) {
+      return (OneVarParallelCoord) ((PolarCoord) vg.getCoordinate()).getCoordinate();
+   }
+
+   private static List<Object> labelValues(VGraph vg, OneVarParallelCoord coord) {
+      Scale label = coord.getAxisLabelScale();
+
+      for(int i = 0; i < vg.getAxisCount(); i++) {
+         if(vg.getAxis(i).getScale() == label) {
+            List<Object> list = new ArrayList<>();
+
+            for(VLabel l : vg.getAxis(i).getLabels()) {
+               list.add(l.getValue());
+            }
+
+            return list;
+         }
+      }
+
+      return fail("label axis not found");
+   }
+
+   private static List<Point2D> vertices(VGraph vg) {
+      List<Point2D> list = new ArrayList<>();
+
+      for(VisualObject vo : GTool.getVOs(vg)) {
+         if(vo instanceof LineVO line) {
+            for(Point2D pt : line.getTransformedPoints()) {
+               if(pt != null) {
+                  list.add(pt);
+               }
+            }
+         }
+      }
+
+      return list;
    }
 
    @Test
