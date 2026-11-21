@@ -157,6 +157,34 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
    }
 
    @Test
+   void staleStoredVersionOverwriteIsDetected() throws Exception {
+      createView(definition("v", tables(plain("T1"))));
+      // another writer (the Portal) saves the view while the bridge request is between its read
+      // and its save
+      doAnswer(i -> {
+         Object result = i.callRealMethod();
+         XDataModel model = fresh();
+         XPartition portal = model.getPartition("v");
+         portal.setDescription("written by the Portal");
+         portal.setLastModified(portal.getLastModified() + 5000);
+         model.addPartition(portal, true);
+         return result;
+      }).when(manager).addTable(anyString(), anyString(), any(), any(), any(), any(), any(),
+                                any(), anyBoolean(), anyBoolean());
+
+      Object result = updateView("v", definition("v", tables(plain("T1"), plain("T2"))), null);
+
+      assertEquals(WizDataModelWire.STALE_VIEW, ((Failure) result).reason());
+      assertTrue(((Failure) result).message().contains("nothing was saved"));
+      verify(manager, never()).updateAndSaveModel(any(), any(), any(), any(), any(), any());
+      XPartition stored = storedView("v");
+      assertEquals("written by the Portal", stored.getDescription(),
+                   "the other writer's change was not overwritten");
+      assertFalse(stored.containsTable("T2"));
+      assertTrue(runtimes.isEmpty());
+   }
+
+   @Test
    void aRuntimeThatExpiresMidRequestIsReportedAndDestroyed() throws Exception {
       doReturn(null).when(manager).addTable(anyString(), anyString(), any(), any(), any(), any(),
                                             any(), any(), anyBoolean(), anyBoolean());
