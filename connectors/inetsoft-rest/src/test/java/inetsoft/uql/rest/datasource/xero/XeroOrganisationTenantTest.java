@@ -20,8 +20,11 @@ package inetsoft.uql.rest.datasource.xero;
 import com.sun.net.httpserver.HttpServer;
 import inetsoft.test.EndpointsSpringContext;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.auth.RestAuthenticator;
 import inetsoft.uql.rest.auth.RestAuthenticatorFactory;
+import inetsoft.uql.rest.json.RestJsonDataSource;
+import inetsoft.uql.tabular.HttpParameter;
 import org.apache.http.Header;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.protocol.HttpClientContext;
@@ -146,6 +149,42 @@ class XeroOrganisationTenantTest {
       final IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class, () -> getTenantId("[]"));
       assertTrue(e.getMessage().contains("No Xero organisation is connected"), e.getMessage());
+   }
+
+   @Test
+   void tenantTypeIsMatchedIgnoringCaseAndAnOrganisationWithoutATenantIdIsSkipped()
+      throws Exception
+   {
+      assertEquals("org-3", getTenantId(
+         "[{\"tenantId\":\"practice-1\",\"tenantType\":\"PRACTICE\"}," +
+         "{\"tenantId\":\"\",\"tenantType\":\"ORGANISATION\"}," +
+         "{\"tenantId\":\"org-3\",\"tenantType\":\"Organisation\"}]"));
+   }
+
+   @Test
+   void genericTwoStepSourceStillUsesTheFirstMatchOfItsTokenPattern() throws Exception {
+      connections =
+         "[{\"tenantId\":\"practice-1\",\"tenantType\":\"PRACTICE\"}," +
+         "{\"tenantId\":\"org-2\",\"tenantType\":\"ORGANISATION\"}]";
+      final RestJsonDataSource ds = new RestJsonDataSource();
+      ds.setAuthType(AuthType.TWO_STEP);
+      ds.setAuthURL("http://127.0.0.1:" + server.getAddress().getPort() + "/connections");
+      ds.setTokenPattern("\"tenantId\":\"(.*?)\"");
+      ds.setQueryHttpParameters(new HttpParameter[] {
+         HttpParameter.builder()
+            .type(HttpParameter.ParameterType.HEADER)
+            .name("tenant")
+            .value("{{token}}")
+            .build()
+      });
+
+      final RestAuthenticator authenticator = RestAuthenticatorFactory.createFrom(ds, client);
+      final HttpGet request = new HttpGet("https://example.com/api");
+      authenticator.authenticateRequest(request, HttpClientContext.create());
+
+      final Header header = request.getFirstHeader("tenant");
+      assertNotNull(header);
+      assertEquals("practice-1", header.getValue());
    }
 
    private String getTenantId(String body) throws Exception {
