@@ -30,15 +30,15 @@
 }
 
 .color-picker > span.input-group-btn > button {
-  width: 3.5em;
+  // a square the height of a control, with the swatch centered: there is no caret to make room for
+  width: var(--inet-control-height-md);
   height: var(--inet-control-height-md);
   color: var(--inet-dark-icon-color, #333);
   margin-left: 0px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding-left: 0.5em;
-  padding-right: 0.35em;
+  justify-content: center;
+  padding: 0;
   font-size: inherit;
   border-bottom-left-radius: unset;
   border-top-left-radius: unset;
