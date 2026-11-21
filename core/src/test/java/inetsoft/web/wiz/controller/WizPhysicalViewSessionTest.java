@@ -395,6 +395,31 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
    }
 
    @Test
+   void aJoinWithoutACardinalityGetsOneFromTheServer() throws Exception {
+      Map<String, Object> join = join("T2", "T1_ID", "T1", "ID");
+      join.remove("cardinality");
+      WriteResponse response = createView(definition(
+         "v", tables(plain("T1"), plain("T2")), join));
+      Map<?, ?> stored = (Map<?, ?>) ((List<?>) response.definition().get("joins")).get(0);
+
+      assertNotNull(stored.get("cardinality"), "a cardinality was decided: " + stored);
+      assertTrue(runtimes.isEmpty());
+   }
+
+   @Test
+   void anExtendedViewLivesInTheFolderOfItsBase() throws Exception {
+      createView(definition("base", tables(plain("T1"))));
+      Map<String, Object> ext = definition("ext", tables(plain("T2")));
+      ext.put("parent", "base");
+      ext.put("folder", "F");
+      int puts = runtimePuts.get();
+      Object result = createViewRaw(ext, null);
+
+      assertEquals("definition.folder", ((Failure) result).field());
+      assertEquals(puts, runtimePuts.get());
+   }
+
+   @Test
    void updateOfAMissingViewIsNotFound() throws Exception {
       Object result = updateView("nope", definition("nope", tables(plain("T1"))), null);
 
