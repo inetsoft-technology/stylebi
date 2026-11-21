@@ -40,8 +40,22 @@ final class WizLogicalModelReadBack {
 
    /** Returns the first difference between what was written and what is stored, or null. */
    static String diff(Definition written, Definition stored) {
+      return diff(written, stored, false);
+   }
+
+   /**
+    * As {@link #diff(Definition, Definition)}; {@code unordered} compares entities, and the
+    * attributes of each, by name instead of by position. An extended model lists the entities
+    * and attributes it inherits wherever the server puts them, so only the SET is comparable.
+    */
+   static String diff(Definition written, Definition stored, boolean unordered) {
       Definition w = canon(written);
       Definition s = canon(stored);
+
+      if(unordered) {
+         w = sorted(w);
+         s = sorted(s);
+      }
 
       if(!Objects.equals(w.name(), s.name())) {
          return "name: wrote \"" + w.name() + "\", stored \"" + s.name() + "\"";
@@ -78,6 +92,21 @@ final class WizLogicalModelReadBack {
       }
 
       return null;
+   }
+
+   private static Definition sorted(Definition d) {
+      List<Entity> entities = new ArrayList<>();
+
+      for(Entity e : d.entities()) {
+         List<Attribute> attributes = new ArrayList<>(e.attributes());
+         attributes.sort(java.util.Comparator.comparing(Attribute::name));
+         entities.add(new Entity(e.name(), e.oldName(), e.description(), e.visible(),
+                                 e.baseElement(), e.errorMessage(), attributes));
+      }
+
+      entities.sort(java.util.Comparator.comparing(Entity::name));
+      return new Definition(d.name(), d.description(), d.view(), d.folder(), d.connection(),
+                            d.parent(), d.extended(), entities);
    }
 
    private static String diff(Entity w, Entity s) {
@@ -164,7 +193,7 @@ final class WizLogicalModelReadBack {
                             text(definition.connection()), null, null, entities);
    }
 
-   private static Attribute canon(Attribute a) {
+   static Attribute canon(Attribute a) {
       boolean expression = WizLogicalModelMapper.isExpression(a);
       String format = a.format() == null ? null : text(a.format().format());
       String spec = a.format() == null ? null : text(a.format().formatSpec());

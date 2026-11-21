@@ -53,6 +53,7 @@ public final class WizDataModelWire {
    public static final String PERMISSION_DENIED = "PERMISSION_DENIED";
    public static final String UNJOINED_TABLES_PROHIBITED = "UNJOINED_TABLES_PROHIBITED";
    public static final String STALE_VIEW = "STALE_VIEW";
+   public static final String STALE_MODEL = "STALE_MODEL";
    public static final String EXTENDED_UNSUPPORTED = "EXTENDED_UNSUPPORTED";
    public static final String BASE_ELEMENT_READ_ONLY = "BASE_ELEMENT_READ_ONLY";
    public static final String READ_BACK_FAILED = "READ_BACK_FAILED";

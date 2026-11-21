@@ -50,6 +50,10 @@ class WizDataModelAuditReachabilityTest {
                     ActionRecord.ACTION_NAME_DELETE, ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW);
       assertAudited(PhysicalModelManagerService.class, "renameModel",
                     ActionRecord.ACTION_NAME_RENAME, ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW);
+      assertAudited(PhysicalModelManagerService.class, "createAndSaveModel",
+                    ActionRecord.ACTION_NAME_CREATE, ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW);
+      assertAudited(PhysicalModelManagerService.class, "updateAndSaveModel",
+                    ActionRecord.ACTION_NAME_EDIT, ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW);
       assertAudited(DataModelFolderManagerService.class, "setDataModelFolder",
                     ActionRecord.ACTION_NAME_CREATE, ActionRecord.OBJECT_TYPE_FOLDER);
       assertAudited(DataModelFolderManagerService.class, "deleteDataModelFolder",

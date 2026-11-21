@@ -21,9 +21,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * STUB (J1.0): the VPM wire records. Replaced wholesale by lane J3, which owns this file; nobody
- * else edits it. The envelopes follow design 4.1; {@code definition} is the canonical VPM
- * definition of design 3.4 and section 7 (the condition tree).
+ * The VPM wire records (design 4.1; {@code definition} is the canonical VPM definition of design
+ * 3.4 and section 7, the condition tree). {@code revision} is
+ * {@link WizDataModelRevision#of} of the definition a get returns or a write read back;
+ * {@code baseRevision} on an update is the revision the caller read, and a stored VPM that no
+ * longer has it is refused {@code STALE_MODEL} before anything is written. Absent keeps the
+ * unguarded behavior.
  */
 public final class WizVpmWire {
    private WizVpmWire() {
@@ -33,18 +36,34 @@ public final class WizVpmWire {
    }
 
    public record GetResponse(boolean ok, Map<String, Object> definition, String folder,
-                             boolean readOnly)
+                             boolean readOnly, String revision)
    {
+      public GetResponse(boolean ok, Map<String, Object> definition, String folder,
+                         boolean readOnly)
+      {
+         this(ok, definition, folder, readOnly, null);
+      }
    }
 
    public record WriteRequest(String database, String name, Map<String, Object> definition,
-                              Boolean dryRun)
+                              Boolean dryRun, String baseRevision)
    {
+      public WriteRequest(String database, String name, Map<String, Object> definition,
+                          Boolean dryRun)
+      {
+         this(database, name, definition, dryRun, null);
+      }
    }
 
    public record WriteResponse(boolean ok, String name, Map<String, Object> definition,
-                               List<String> warnings, List<WizDataModelWire.Dependent> dependents)
+                               List<String> warnings, List<WizDataModelWire.Dependent> dependents,
+                               String revision)
    {
+      public WriteResponse(boolean ok, String name, Map<String, Object> definition,
+                           List<String> warnings, List<WizDataModelWire.Dependent> dependents)
+      {
+         this(ok, name, definition, warnings, dependents, null);
+      }
    }
 
    public record TestRequest(String database, String name, Map<String, Object> definition,

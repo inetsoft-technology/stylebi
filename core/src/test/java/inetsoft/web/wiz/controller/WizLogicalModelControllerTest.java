@@ -320,28 +320,15 @@ class WizLogicalModelControllerTest extends WizLogicalModelTestBase {
    // -- DM-A11 extended models --------------------------------------------------------------------
 
    @Test
-   void extendedParentRefusedOnCreatePhase1() throws Exception {
-      create(def("base", entity("E", col("A", "T1", "ID"))));
-      Definition withParent = new Definition("child", null, "pv", null, null, "base", null,
-                                             List.of(entity("E", col("A", "T1", "ID"))));
-
-      Object result = controller.create(new CreateRequest(ds, withParent, null), bob);
-
-      assertEquals(List.of("EXTENDED_UNSUPPORTED"), codes(result));
-      assertEquals("parent", ((Failure) result).errors().get(0).field());
-      assertTrue(((Failure) result).errors().get(0).message().contains("not supported"));
-      assertNull(fresh().getLogicalModel("base").getLogicalModel("child"));
-   }
-
-   @Test
-   void storedExtendedModelReadsReadOnly() throws Exception {
+   void storedExtendedModelReadsAsExtendedWithItsParent() throws Exception {
       create(def("base", entity("E", col("A", "T1", "ID"))));
       fresh().getLogicalModel("base").addLogicalModel(new XLogicalModel("child"), true);
 
       GetResponse fetched = (GetResponse) controller.get(new GetRequest(ds, "child", "base"),
                                                          bob);
 
-      assertTrue(fetched.readOnly());
+      // phase 2: the model's own elements are editable (the inherited ones are flagged)
+      assertFalse(fetched.readOnly());
       assertEquals("base", fetched.definition().parent());
       assertTrue(fetched.definition().extended());
    }

@@ -34,6 +34,7 @@ import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.portal.controller.database.*;
 import inetsoft.web.portal.data.DatasourcesService;
+import inetsoft.web.portal.model.database.PhysicalModelDefinition;
 import inetsoft.web.portal.service.database.PhysicalGraphService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -232,6 +233,12 @@ class WizDataModelGatesRouteTableTest {
             new WizLogicalModelWire.CreateRequest(f.db, logicalDefinition("n1", "F"), true), f.bob),
          "DS:{db}:READ", "body", NOT_FOUND,
          "LM:{db}/F/n1:WRITE", "throw", "{db}/F/n1"));
+      routes.add(route("logical/create (extended)", f -> f.logical.create(
+            new WizLogicalModelWire.CreateRequest(f.db, extendedDefinition("n1", "lm"), true),
+            f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "LM:{db}/F/lm:READ", "body", NOT_FOUND,
+         "LM:{db}/F/n1:WRITE", "throw", "{db}/F/n1"));
       routes.add(route("logical/update", f -> f.logical.update(
             new WizLogicalModelWire.UpdateRequest(
                f.db, "lm", logicalDefinition("lm", "F"), true), f.bob),
@@ -268,11 +275,40 @@ class WizDataModelGatesRouteTableTest {
          "DS:{db}:READ", "body", NOT_FOUND,
          "DS:{db}:WRITE", "throw", "{db}"));
 
+      // phase 2: the physical view session routes (lane J4). A view is visible to a caller with
+      // WRITE on its folder (or the source); an unseen one is answered like a missing one
+      routes.add(route("physical/get", f -> f.physical.get(
+            new WizPhysicalViewWire.GetRequest(f.db, "pv", null), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/F:WRITE", "body", NOT_FOUND));
+      routes.add(route("physical/create", f -> f.physical.create(
+            new WizPhysicalViewWire.WriteRequest(
+               f.db, null, null, new LinkedHashMap<>(Map.of("name", "pn", "folder", "F")), true),
+            f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/F:WRITE", "throw", "{db}/F"));
+      routes.add(route("physical/create (extended)", f -> f.physical.create(
+            new WizPhysicalViewWire.WriteRequest(
+               f.db, null, "pv", new LinkedHashMap<>(Map.of("name", "pe")), true), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/F:WRITE", "body", NOT_FOUND));
+      routes.add(route("physical/update (folder change)", f -> f.physical.update(
+            new WizPhysicalViewWire.WriteRequest(
+               f.db, "pv", null, new LinkedHashMap<>(Map.of("folder", "G")), true), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/F:WRITE", "body", NOT_FOUND,
+         "DMF:{db}/G:WRITE", "throw", "{db}/G"));
+
       return routes;
    }
 
    private static DeleteRequest deleteOf(Fixture f, DeleteItem item) {
       return new DeleteRequest(f.db, List.of(item));
+   }
+
+   private static WizLogicalModelWire.Definition extendedDefinition(String name, String parent) {
+      return new WizLogicalModelWire.Definition(
+         name, null, null, null, null, parent, null, List.of());
    }
 
    private static WizLogicalModelWire.Definition logicalDefinition(String name, String folder) {
@@ -293,7 +329,8 @@ class WizDataModelGatesRouteTableTest {
       assertTrue(covered.containsAll(Set.of(
          "physical/tables", "dependencies", "delete", "rename", "folders/create", "folders/rename",
          "move", "logical/get", "logical/create", "logical/update", "vpm/get", "vpm/create",
-         "vpm/update", "vpm/test")), covered.toString());
+         "vpm/update", "vpm/test", "physical/get", "physical/create",
+         "physical/update")), covered.toString());
       // browse never throws for a missing grant: the services filter, see browseNeverThrows...
    }
 
@@ -389,6 +426,25 @@ class WizDataModelGatesRouteTableTest {
    }
 
    @Test
+   void aViewTheCallerCannotSeeIsAnsweredLikeAMissingOneWithNoKind() throws Exception {
+      // READ on the source only: no WRITE on pv's folder, no READ on the logical model
+      Fixture f = new Fixture(List.of("DS:{db}:READ"));
+      Outcome view = f.run(fx -> fx.physical.get(
+         new WizPhysicalViewWire.GetRequest(fx.db, "pv", null), fx.bob));
+      Outcome missing = f.run(fx -> fx.physical.get(
+         new WizPhysicalViewWire.GetRequest(fx.db, "ghost", null), fx.bob));
+      Outcome asLogical = f.run(fx -> fx.physical.get(
+         new WizPhysicalViewWire.GetRequest(fx.db, "lm", null), fx.bob));
+      Outcome update = f.run(fx -> fx.physical.update(new WizPhysicalViewWire.WriteRequest(
+         fx.db, "pv", null, new LinkedHashMap<>(Map.of("description", "x")), null), fx.bob));
+
+      assertEquals(NOT_FOUND, view.reason());
+      assertEquals(missing.message().replace("ghost", "pv"), view.message());
+      assertEquals(NOT_FOUND, asLogical.reason(), "no WRONG_KIND that names the logical model");
+      assertEquals(view.message(), update.message());
+   }
+
+   @Test
    void browseNeverThrowsForAMissingGrantItFiltersThroughTheServices() throws Exception {
       Fixture f = new Fixture(List.of());
       Outcome outcome = f.run(fx -> fx.browse.browse(new BrowseRequest(fx.db, null, null, null, null),
@@ -423,6 +479,7 @@ class WizDataModelGatesRouteTableTest {
       final WizDataModelItemController items;
       final WizLogicalModelController logical;
       final WizVpmController vpm;
+      final WizPhysicalViewController physical;
 
       Fixture(List<String> templates) {
          for(String template : templates) {
@@ -483,10 +540,49 @@ class WizDataModelGatesRouteTableTest {
             logical = new WizLogicalModelController(
                repository, dss, lms, tree, mock(inetsoft.report.composition.execution.AssetDataCache.class));
             vpm = new WizVpmController(repository, dss, lms, vpmService, dataRefs, security);
+            physical = newPhysical(repository, dss, lms, pmms);
          }
          catch(Exception e) {
             throw new IllegalStateException(e);
          }
+      }
+
+      /** The session routes over mocked runtime plumbing: enough for a dry run to reach its end. */
+      private WizPhysicalViewController newPhysical(XRepository repository, DataSourceService dss,
+                                                    LogicalModelService lms,
+                                                    PhysicalModelManagerService pmms)
+         throws Exception
+      {
+         PhysicalModelService pms = mock(PhysicalModelService.class);
+         when(pms.createModel(anyString(), any(XDataModel.class), any(XPartition.class)))
+            .thenAnswer(i -> {
+               XPartition p = i.getArgument(2);
+               PhysicalModelDefinition d = new PhysicalModelDefinition();
+               d.setName(p.getName());
+               d.setFolder(p.getFolder());
+               d.setTables(new ArrayList<>());
+               return d;
+            });
+         when(pms.createPartition(any())).thenAnswer(
+            i -> new XPartition(((PhysicalModelDefinition) i.getArgument(0)).getName()));
+         RuntimePartitionService rps = mock(RuntimePartitionService.class);
+         java.util.concurrent.atomic.AtomicReference<XPartition> open =
+            new java.util.concurrent.atomic.AtomicReference<>();
+         when(rps.createModel(any(XPartition.class), anyString(), any())).thenAnswer(i -> {
+            open.set(i.getArgument(0));
+            return new RuntimePartitionService.RuntimeXPartition(
+               i.getArgument(0), "rid", i.getArgument(1));
+         });
+         when(rps.openModel(any(), anyString(), any(), any())).thenAnswer(i -> {
+            XPartition copy = (XPartition) dm.getPartition(i.<String>getArgument(1))
+               .deepClone(true);
+            open.set(copy);
+            return new RuntimePartitionService.RuntimeXPartition(copy, "rid", db);
+         });
+         when(rps.getPartition(anyString())).thenAnswer(i -> open.get());
+         return new WizPhysicalViewController(
+            repository, dss, lms, pmms, pms, rps, new PhysicalGraphService(),
+            mock(SecurityEngine.class), new WizPhysicalViewOps(dss, pmms));
       }
 
       private static String folderPart(String folder) {

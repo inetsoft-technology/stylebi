@@ -65,6 +65,9 @@ final class WizLogicalModelValidator {
    static final String OLDNAME_REQUIRED = "OLDNAME_REQUIRED";
    static final String METADATA_UNAVAILABLE = "METADATA_UNAVAILABLE";
    static final String EXTENDED_UNSUPPORTED = "EXTENDED_UNSUPPORTED";
+   static final String EXTENDED_VIEW_MISMATCH = "EXTENDED_VIEW_MISMATCH";
+   static final String EXTENDED_FOLDER_MISMATCH = "EXTENDED_FOLDER_MISMATCH";
+   static final String BASE_ELEMENT_READ_ONLY = "BASE_ELEMENT_READ_ONLY";
    static final String DRILL_INVALID = "DRILL_INVALID";
    /** A stored value the wire cannot carry, so an update would silently delete it. */
    static final String STORED_UNSUPPORTED = "STORED_UNSUPPORTED";
@@ -104,7 +107,24 @@ final class WizLogicalModelValidator {
     *               {@code null} on a create.
     */
    Result validate(Env env, Definition definition, Mode mode, XLogicalModel stored) {
-      Run run = new Run(env, definition, mode, stored);
+      return validate(env, definition, mode, stored, null);
+   }
+
+   /**
+    * What an extended model needs to be validated: its base model and the reference content of
+    * the elements it inherits. On a create the reference is the whole base model (an inherited
+    * element may be left out, the bridge merges it in); on an update it is the stored extended
+    * model's inherited elements, each of which must still be present and unchanged
+    * ({@code requireAll}).
+    */
+   record Extended(XLogicalModel base, Definition reference, boolean requireAll) {
+   }
+
+   /** As above for an extended model ({@code extended} non-null). */
+   Result validate(Env env, Definition definition, Mode mode, XLogicalModel stored,
+                   Extended extended)
+   {
+      Run run = new Run(env, definition, mode, stored, extended);
       run.validate();
       return new Result(run.errors, run.warnings, run.normalized());
    }
@@ -218,7 +238,8 @@ final class WizLogicalModelValidator {
 
    /** One validation pass; holds the collected errors. */
    private static final class Run {
-      Run(Env env, Definition definition, Mode mode, XLogicalModel stored) {
+      Run(Env env, Definition definition, Mode mode, XLogicalModel stored, Extended ext) {
+         this.ext = ext;
          this.env = env;
          this.def = definition;
          this.mode = mode;
@@ -256,9 +277,118 @@ final class WizLogicalModelValidator {
             normalizedEntities.add(checkEntity(entity, path));
          }
 
+         if(ext != null) {
+            checkBaseElements(entities);
+         }
+
          if(mode == Mode.UPDATE && stored != null) {
             checkStoredRepresentable();
          }
+      }
+
+      /**
+       * An inherited entity or attribute is the base model's: it may not be changed, renamed or
+       * (on an update) removed here. The service silently ignores an edit of one, so the bridge
+       * compares each with its reference and names the path.
+       */
+      private void checkBaseElements(List<Entity> submitted) {
+         for(Entity ref : ext.reference().entities()) {
+            Entity own = null;
+
+            for(Entity entity : submitted) {
+               if(ref.name().equals(entity.name())) {
+                  own = entity;
+               }
+            }
+
+            String path = "entities[" + ref.name() + "]";
+
+            if(own == null) {
+               if(ext.requireAll()) {
+                  add(path, "\"" + ref.name() + "\" is inherited from the base model and cannot " +
+                     "be removed here", BASE_ELEMENT_READ_ONLY);
+               }
+
+               continue;
+            }
+
+            if(!java.util.Objects.equals(text(ref.description()), text(own.description())) ||
+               (ref.visible() == null || ref.visible()) != (own.visible() == null || own.visible()))
+            {
+               add(path, "\"" + ref.name() + "\" is inherited from the base model and cannot " +
+                  "be changed here", BASE_ELEMENT_READ_ONLY);
+            }
+
+            List<Attribute> ownAttributes = own.attributes() == null ? List.of() :
+               own.attributes();
+
+            for(Attribute refAttribute : ref.attributes()) {
+               Attribute match = null;
+
+               for(Attribute attribute : ownAttributes) {
+                  if(refAttribute.name().equals(attribute.name())) {
+                     match = attribute;
+                  }
+               }
+
+               String apath = path + ".attributes[" + refAttribute.name() + "]";
+
+               if(match == null) {
+                  if(ext.requireAll()) {
+                     add(apath, "\"" + refAttribute.name() + "\" is inherited from the base " +
+                        "model and cannot be removed here", BASE_ELEMENT_READ_ONLY);
+                  }
+               }
+               else if(!WizLogicalModelReadBack.canon(refAttribute)
+                  .equals(WizLogicalModelReadBack.canon(match)))
+               {
+                  add(apath, "\"" + refAttribute.name() + "\" is inherited from the base model " +
+                     "and cannot be changed here", BASE_ELEMENT_READ_ONLY);
+               }
+            }
+
+            // a renamed inherited element: the new name carries the old one as its marker
+            for(Attribute attribute : ownAttributes) {
+               String old = attribute.oldName();
+
+               if(!blank(old) && !old.equals(attribute.name()) &&
+                  ref.attributes().stream().anyMatch(a -> old.equals(a.name())))
+               {
+                  add(path + ".attributes[" + attribute.name() + "]",
+                      "\"" + old + "\" is inherited from the base model and cannot be renamed " +
+                         "here", BASE_ELEMENT_READ_ONLY);
+               }
+            }
+         }
+
+         for(Entity entity : submitted) {
+            String old = entity.oldName();
+
+            if(!blank(old) && !old.equals(entity.name()) &&
+               ext.reference().entities().stream().anyMatch(e -> old.equals(e.name())))
+            {
+               add("entities[" + entity.name() + "]", "\"" + old + "\" is inherited from the " +
+                  "base model and cannot be renamed here", BASE_ELEMENT_READ_ONLY);
+            }
+         }
+      }
+
+      private boolean isBaseAttribute(String entityName, String attributeName) {
+         if(ext == null) {
+            return false;
+         }
+
+         for(Entity ref : ext.reference().entities()) {
+            if(ref.name().equals(entityName)) {
+               return ref.attributes().stream().anyMatch(a -> a.name().equals(attributeName));
+            }
+         }
+
+         return false;
+      }
+
+      private String text(String value) {
+         return blank(value) ? null : value;
       }
 
       Definition normalized() {
@@ -270,9 +400,13 @@ final class WizLogicalModelValidator {
       // -- header ------------------------------------------------------------------------------
 
       private void checkHeader() {
-         if(!blank(def.parent())) {
+         if(ext == null && !blank(def.parent())) {
             add("parent", "parent: extended logical models are not supported in this version",
                 EXTENDED_UNSUPPORTED);
+         }
+         else if(ext != null && !ext.base().getName().equals(def.parent())) {
+            add("parent", "parent \"" + def.parent() + "\" is not the base model \"" +
+               ext.base().getName() + "\"", EXTENDED_UNSUPPORTED);
          }
 
          try {
@@ -285,7 +419,17 @@ final class WizLogicalModelValidator {
 
          String view = def.view();
 
-         if(blank(view) && mode == Mode.UPDATE && stored != null) {
+         if(ext != null) {
+            String baseView = ext.base().getPartition();
+
+            if(!blank(view) && !view.equals(baseView)) {
+               add("view", "an extended model uses its base model's view \"" + baseView +
+                  "\", not \"" + view + "\"", EXTENDED_VIEW_MISMATCH);
+            }
+
+            view = baseView;
+         }
+         else if(blank(view) && mode == Mode.UPDATE && stored != null) {
             view = stored.getPartition();
          }
 
@@ -299,11 +443,29 @@ final class WizLogicalModelValidator {
                add("view", "no physical view named \"" + view + "\" in the data source",
                    VIEW_NOT_FOUND);
             }
+            else if(ext != null) {
+               partition = variant(partition, def.connection());
+            }
          }
 
          String folder = def.folder();
 
-         if(!blank(folder) && !Arrays.asList(folders()).contains(folder) &&
+         if(ext != null && !blank(def.description()) &&
+            !def.description().equals(ext.reference().description()))
+         {
+            add("description", "the description of an extended model is its base model's " +
+               "and cannot be changed here", BASE_ELEMENT_READ_ONLY);
+         }
+
+         if(ext != null) {
+            if(!blank(folder) && !folder.equals(ext.base().getFolder())) {
+               add("folder", "an extended model is in its base model's folder" +
+                  (blank(ext.base().getFolder()) ? " (the root)" : " \"" +
+                     ext.base().getFolder() + "\"") + ", not \"" + folder + "\"",
+                   EXTENDED_FOLDER_MISMATCH);
+            }
+         }
+         else if(!blank(folder) && !Arrays.asList(folders()).contains(folder) &&
             !(stored != null && Tool.equals(folder, stored.getFolder())))
          {
             add("folder", "no data-model folder \"" + folder + "\"", FOLDER_NOT_FOUND);
@@ -315,6 +477,25 @@ final class WizLogicalModelValidator {
             add("connection", "no additional connection \"" + connection + "\" on the data source",
                 CONNECTION_NOT_FOUND);
          }
+      }
+
+      /**
+       * The partition of an extended model's attributes: the variant of the extended connection
+       * when the view has one, else the first variant with no connection, else the view itself
+       * (as {@code LogicalModelService.validateAttribute} resolves it).
+       */
+      private XPartition variant(XPartition view, String connection) {
+         if(!blank(connection) && view.containPartition(connection)) {
+            return view.getPartition(connection);
+         }
+
+         for(String name : view.getPartitionNames()) {
+            if(view.getPartition(name).getConnection() == null) {
+               return view.getPartition(name);
+            }
+         }
+
+         return view;
       }
 
       private String[] folders() {
@@ -358,7 +539,9 @@ final class WizLogicalModelValidator {
                    ATTRIBUTE_DUPLICATE);
             }
 
-            normalized.add(checkAttribute(attribute, apath));
+            // an inherited attribute is the base model's; it is compared, not re-validated
+            normalized.add(isBaseAttribute(entity.name(), attribute.name()) ? attribute :
+                              checkAttribute(attribute, apath));
          }
 
          return new Entity(entity.name(), entity.oldName(), entity.description(),
@@ -764,6 +947,11 @@ final class WizLogicalModelValidator {
 
             while(attributes.hasMoreElements()) {
                XAttribute attribute = attributes.nextElement();
+
+               if(entity.isBaseAttribute(attribute.getName())) {
+                  continue;
+               }
+
                XMetaInfo meta = attribute.getXMetaInfo();
                String at = "entities[" + entity.getName() + "].attributes[" +
                   attribute.getName() + "]";
@@ -836,6 +1024,7 @@ final class WizLogicalModelValidator {
          }
       }
 
+      private final Extended ext;
       private final Env env;
       private final Definition def;
       private final Mode mode;
