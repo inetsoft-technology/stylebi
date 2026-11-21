@@ -250,23 +250,33 @@ public class PowerScale extends LinearScale {
 
    /**
     * Drop the rounded tick next to a bound end tick when it is closer than half a step to
-    * the bound. Otherwise the two can get the same label, and the minor ticks between two
-    * ticks one ulp apart never end. The end ticks are kept.
+    * the bound, so the two don't get the same label. The end ticks are kept.
     */
    private static double[] mergeBoundTicks(double[] ticks, double inc, boolean clampMin,
                                            boolean clampMax)
    {
       int last = ticks.length - 1;
 
-      if(clampMax && ticks.length > 2 && ticks[last] - ticks[last - 1] < inc / 2) {
+      if(clampMax && ticks.length > 2 &&
+         isCloseTick(ticks[last] - ticks[last - 1], ticks[last - 1], inc))
+      {
          ticks = removeTick(ticks, last - 1);
       }
 
-      if(clampMin && ticks.length > 2 && ticks[1] - ticks[0] < inc / 2) {
+      if(clampMin && ticks.length > 2 && isCloseTick(ticks[1] - ticks[0], ticks[1], inc)) {
          ticks = removeTick(ticks, 1);
       }
 
       return ticks;
+   }
+
+   /**
+    * Check if the tick next to a bound is too close to it to be kept. A 0 tick is kept, as
+    * on LinearScale, unless the bound is 0 within the tolerance of GTool.isInteger.
+    * @param gap the distance from the tick to the bound.
+    */
+   private static boolean isCloseTick(double gap, double tick, double inc) {
+      return gap < inc / 2 && (tick != 0 || gap < inc * 1e-6);
    }
 
    private static double[] removeTick(double[] ticks, int idx) {
@@ -294,7 +304,7 @@ public class PowerScale extends LinearScale {
    }
 
    /**
-    * Minor ticks are not supported by power scale.
+    * Get the minor tick positions. They split the values between two ticks evenly.
     */
    @Override
    @TernMethod

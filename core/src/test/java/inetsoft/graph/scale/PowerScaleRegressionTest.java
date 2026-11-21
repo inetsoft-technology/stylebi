@@ -245,6 +245,64 @@ class PowerScaleRegressionTest {
       });
    }
 
+   @ParameterizedTest
+   @ValueSource(doubles = { 1, 2 })
+   void userBoundsOneUlpApartMinorTicksEnd(double exponent) {
+      PowerScale s = new PowerScale(2, Math.nextUp(2.0));
+      s.setExponent(exponent);
+      // both ticks are the user bounds, so nothing is merged; the minor ticks between two
+      // values one ulp apart looped until the heap ran out
+      assertArrayEquals(new double[] { s.map(2.0), s.map(Math.nextUp(2.0)) }, s.getTicks());
+      assertTimeoutPreemptively(Duration.ofSeconds(5), s::getMinorTicks);
+   }
+
+   @Test
+   void userBoundsFewUlpsApartMinorTicksEnd() {
+      assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+         for(double v : new double[] { 0.3, 0.7, 1, 12.5, 100, 1e6, -2, -1e6 }) {
+            for(double exponent : new double[] { 0.5, 1, 2, 3 }) {
+               double max = v;
+
+               for(int ulps = 1; ulps <= 3; ulps++) {
+                  max = Math.nextUp(max);
+                  PowerScale s = new PowerScale(v, max);
+                  s.setExponent(exponent);
+                  s.getMinorTicks();
+               }
+            }
+         }
+      });
+   }
+
+   @Test
+   void zeroTickNextToUserMinIsKept() {
+      PowerScale s = new PowerScale(-3, 100); // step 17
+      s.setExponent(1);
+      // the 0 tick is 3 above the bound -3, and is kept as on LinearScale
+      assertArrayEquals(new double[] { -3, 0, 17, 34, 51, 68, 85, 100 }, s.getTicks(), DELTA);
+      assertEquals(-3.0, s.getMin());
+      assertEquals(100.0, s.getMax());
+   }
+
+   @Test
+   void zeroTickNextToUserMaxIsKept() {
+      PowerScale s = new PowerScale("v");
+      s.setExponent(1);
+      s.init(column(-100, 50));
+      s.setMax(3);
+      assertArrayEquals(new double[] { -102, -85, -68, -51, -34, -17, 0, 3 }, s.getTicks(),
+                        DELTA);
+      assertEquals(3.0, s.getMax());
+   }
+
+   @Test
+   void zeroTickIsMergedIntoUserMinThatIsZero() {
+      // a bound that is 0 within GTool.isInteger's tolerance of a step: one tick, not two
+      PowerScale s = new PowerScale(-3.86e-13, 60); // step 10
+      s.setExponent(1);
+      assertArrayEquals(new double[] { -3.86e-13, 10, 20, 30, 40, 50, 60 }, s.getTicks());
+   }
+
    // ---- an inverted power-space range (negative exponent) keeps today's output ----
 
    @Test
@@ -286,15 +344,8 @@ class PowerScaleRegressionTest {
    }
 
    private static void checkEndTicks(PowerScale s, String msg) {
-      double[] ticks;
-
-      try {
-         ticks = s.getTicks();
-      }
-      catch(RuntimeException ex) {
-         return; // still rejected, as before (e.g. an overflowing bound)
-      }
-
+      // the swept ranges (max <= 300000, exponent <= 3) are finite in power space
+      double[] ticks = assertDoesNotThrow(s::getTicks, msg);
       assertNoCloseTicks(ticks);
       assertEquals(s.getMax(), ticks[ticks.length - 1], msg);
       assertEquals(s.getMin(), ticks[0], msg);

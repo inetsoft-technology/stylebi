@@ -296,7 +296,12 @@ public class LogScale extends LinearScale {
       for(int i = 0; i < ticks.length - 1; i++) {
          inc = (ticks[i + 1] - ticks[i]) / n;
 
-         for(double v = ticks[i] + inc; v < ticks[i + 1]; v += inc) {
+         // stop when v no longer grows: between two ticks a few ulps apart (e.g. user
+         // bounds that differ by float noise) inc can be too small to move v, and the
+         // loop would add v until the heap runs out
+         for(double v = ticks[i] + inc, prev = ticks[i]; v > prev && v < ticks[i + 1];
+             prev = v, v += inc)
+         {
             mticks.add(v);
          }
       }
