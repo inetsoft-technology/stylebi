@@ -68,19 +68,36 @@
   background: var(--inet-shell-surface-subtle);
 }
 
+// Same bordered 32px button as the Color/Shape/Size/Text tiles (aesthetic-field-mc.scss), so the
+// Text row's trailing button reads as a peer of them rather than a differently sized default button.
 .layout-designer-btn {
-  flex: 0 0 auto;
-  align-self: stretch;
+  box-sizing: border-box;
+  flex: none;
+  align-self: center;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   margin-left: 0.25rem;
-  padding: 4px 6px;
+  padding: 0;
+  border: 1px solid var(--inet-shell-border-strong);
+  border-radius: 3px;
+  background-color: var(--inet-shell-surface-default);
+
+  &:hover:not(:disabled) {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+  }
 }
 
 .ld-icon-wrap {
   position: relative;
   display: inline-flex;
   align-items: center;
+}
+
+.layout-glyph {
+  display: block;
 }
 
 .layout-active-badge {

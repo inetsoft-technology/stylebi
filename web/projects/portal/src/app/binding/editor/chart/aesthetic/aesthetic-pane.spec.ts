@@ -871,6 +871,44 @@ describe("Aesthetic Pane Unit Test", () => {
       expect(btn.nativeElement.getAttribute("aria-label")).toBeTruthy();
    });
 
+   it("draws the Layout Designer button as an inline SVG glyph and names it by what it builds", () => {
+      fixture = TestBed.createComponent(AestheticPane);
+      aestheticPane = <AestheticPane>fixture.componentInstance;
+      aestheticPane.assemblyName = "Chart1";
+      aestheticPane.objectType = "chart";
+      aestheticPane.bindingModel = TestUtils.createMockChartBindingModel();
+      aestheticPane.chartModel = TestUtils.createMockVSChartModel("vsChart1");
+      fixture.detectChanges();
+
+      const btn = fixture.debugElement.query(By.css(".text_field_id .layout-designer-btn"))
+         .nativeElement as HTMLElement;
+      const glyph = btn.querySelector("svg.layout-glyph");
+      expect(glyph).not.toBeNull();
+      expect(glyph.getAttribute("aria-hidden")).toBe("true");
+      expect(btn.querySelector("i.layout-icon")).toBeNull();
+      expect(btn.getAttribute("title")).toContain("multi-field text label");
+      expect(btn.getAttribute("aria-label")).toBe(btn.getAttribute("title"));
+   });
+
+   it("says the Text shelf is set by the layout only while a text layout is active", () => {
+      fixture = TestBed.createComponent(AestheticPane);
+      aestheticPane = <AestheticPane>fixture.componentInstance;
+      aestheticPane.assemblyName = "Chart1";
+      aestheticPane.objectType = "chart";
+      aestheticPane.bindingModel = TestUtils.createMockChartBindingModel();
+      aestheticPane.chartModel = TestUtils.createMockVSChartModel("vsChart1");
+      fixture.detectChanges();
+
+      const hint = () => fixture.debugElement
+         .query(By.css(".text_field_id .field-mc-hint"))?.nativeElement.textContent.trim();
+      expect(hint()).not.toContain("Set by text layout");
+
+      aestheticPane.bindingModel.textLayout = { rows: [] };
+      aestheticPane.bindingModel.textFields = [createMockAestheticInfo("id")];
+      fixture.detectChanges();
+      expect(hint()).toContain("Set by text layout");
+   });
+
    it("clicking the Layout Designer button emits openLayoutDesigner", () => {
       fixture = TestBed.createComponent(AestheticPane);
       aestheticPane = <AestheticPane>fixture.componentInstance;

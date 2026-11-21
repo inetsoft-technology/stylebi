@@ -36,6 +36,7 @@
             [isEnabled]="_isEnabled" [isEditEnabled]="_isEditEnabled"
             [dragComplete]="dragFieldMCComplete" [currentAggr]="aggr"
             [grayedOutValues]="grayedOutValues"
+            [hint]="layoutActive ? '_#(Set by text layout)' : null"
             (onChangeAesthetic)="doSubmit(false)"
             (onConvert)="convert($event)">
           </chart-aesthetic-mc>
