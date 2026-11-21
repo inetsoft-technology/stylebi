@@ -20,10 +20,18 @@ package inetsoft.uql.rest.auth;
 import inetsoft.uql.tabular.HttpParameter;
 
 import java.util.List;
+import java.util.function.Function;
 
+/**
+ * The configuration of a two-step authentication.
+ *
+ * @param tokenExtractor the function that extracts the token from the authentication response
+ *                       body, or {@code null} to match the body against {@code tokenPattern}.
+ */
 public record TwoStepAuthConfig(AuthMethod authMethod, String contentType, String body,
                                 String authURL, String tokenPattern,
                                 List<HttpParameter> authenticationHttpParameters,
-                                List<HttpParameter> queryHttpParameters)
+                                List<HttpParameter> queryHttpParameters,
+                                Function<String, String> tokenExtractor)
 {
 }

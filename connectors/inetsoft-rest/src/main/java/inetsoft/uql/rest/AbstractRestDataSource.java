@@ -39,6 +39,7 @@ import java.io.PrintWriter;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
+import java.util.function.Function;
 
 import static inetsoft.util.AbstractPasswordEncryption.MASTER_PREFIX;
 
@@ -413,6 +414,18 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 
    public void setTokenPattern(String tokenPattern) {
       this.tokenPattern = tokenPattern;
+   }
+
+   /**
+    * Creates the function that extracts the token from the response body of the authentication
+    * request of a two-step authentication. A data source that needs more than the token regex
+    * pattern to find its token overrides this method.
+    *
+    * @return the token extractor, or {@code null} to match the response body against the token
+    *         pattern.
+    */
+   public Function<String, String> createTwoStepTokenExtractor() {
+      return null;
    }
 
    @Property(label="Query HTTP Parameters")
