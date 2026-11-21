@@ -29,6 +29,8 @@ import inetsoft.web.portal.model.database.LogicalModelDefinition;
 import inetsoft.web.wiz.controller.WizDataModelErrors.DmFailure;
 import inetsoft.web.wiz.controller.WizDataModelWire.Err;
 import inetsoft.web.wiz.controller.WizLogicalModelWire.*;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
@@ -111,8 +113,8 @@ public class WizLogicalModelController {
       boolean isExtended = parent != null;
       // phase 2: an extended model is editable (its inherited elements carry baseElement:true and
       // are read-only one by one), so readOnly is false; extended and parent say what it is
-      return new GetResponse(true, MAPPER.toWire(dto, isExtended), blankToNull(dto.getFolder()),
-                             false);
+      Definition wire = MAPPER.toWire(dto, isExtended);
+      return new GetResponse(true, wire, blankToNull(dto.getFolder()), false, revisionOf(wire));
    }
 
    // -- create ---------------------------------------------------------------------------------
@@ -179,7 +181,7 @@ public class WizLogicalModelController {
       boolean dryRun = Boolean.TRUE.equals(request.dryRun());
 
       if(dryRun) {
-         return new CreateResponse(true, name, folder, null, result.warnings());
+         return new CreateResponse(true, name, folder, null, result.warnings(), null);
       }
 
       Definition normalized = baseModel == null ? result.normalized() :
@@ -196,7 +198,8 @@ public class WizLogicalModelController {
       treeService.refreshPartitionMetaData(database, dto);
 
       Definition readBack = readBack(database, name, parent, normalized, principal);
-      return new CreateResponse(true, name, folder, readBack, result.warnings());
+      return new CreateResponse(true, name, folder, readBack, result.warnings(),
+                                revisionOf(readBack));
    }
 
    /** An extended model has its base model's view and folder, whatever the caller left out. */
@@ -302,6 +305,16 @@ public class WizLogicalModelController {
       LogicalModelDefinition current = modelService.getModel(
          database, stored.getPartition(), name, parent, principal);
       Definition currentWire = MAPPER.toWire(current, parent != null);
+
+      // D-9: an edit planned from a read that is no longer current is refused before anything is
+      // checked or written (the revision is that of the definition `get` returns)
+      if(!Tool.isEmptyString(request.baseRevision()) &&
+         !request.baseRevision().equals(revisionOf(currentWire)))
+      {
+         throw fail(WizDataModelWire.STALE_MODEL, "baseRevision",
+                    "model " + name + " changed since it was read; read it again and redo the " +
+                       "edit; nothing was written");
+      }
       WizLogicalModelValidator.Result result = validator.validate(
          new WizLogicalModelEnv(database, dataModel, dataSourceService), submitted,
          WizLogicalModelValidator.Mode.UPDATE, stored,
@@ -321,12 +334,13 @@ public class WizLogicalModelController {
 
       if(Boolean.TRUE.equals(request.dryRun())) {
          return new UpdateResponse(true, null, result.warnings(), elementDependents,
-                                   viewDependents);
+                                   viewDependents, revisionOf(currentWire));
       }
 
       if(WizLogicalModelReadBack.diff(normalized, currentWire, parent != null) == null) {
          // a no-op (a get result fed back): nothing is written, so nothing changes
-         return new UpdateResponse(true, currentWire, result.warnings(), List.of(), List.of());
+         return new UpdateResponse(true, currentWire, result.warnings(), List.of(), List.of(),
+                                   revisionOf(currentWire));
       }
 
       LogicalModelDefinition dto = MAPPER.toDto(normalized, stored, view);
@@ -341,7 +355,7 @@ public class WizLogicalModelController {
 
       Definition readBack = readBack(database, name, parent, normalized, principal);
       return new UpdateResponse(true, readBack, result.warnings(), elementDependents,
-                                viewDependents);
+                                viewDependents, revisionOf(readBack));
    }
 
    // -- helpers --------------------------------------------------------------------------------
@@ -680,6 +694,14 @@ public class WizLogicalModelController {
    {
       return new DmFailure(reason, field, message, errors, existingKind);
    }
+
+   /** The revision of a definition as {@code get} returns it (see WizDataModelRevision). */
+   static String revisionOf(Definition definition) {
+      return WizDataModelRevision.of(
+         REVISION_JSON.convertValue(definition, new TypeReference<Map<String, Object>>() { }));
+   }
+
+   private static final ObjectMapper REVISION_JSON = new ObjectMapper();
 
    private static String required(String value, String field) {
       if(value == null || value.isBlank()) {

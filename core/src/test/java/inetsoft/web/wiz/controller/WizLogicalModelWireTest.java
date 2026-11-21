@@ -57,13 +57,14 @@ class WizLogicalModelWireTest {
                    names(DrillPath.class));
       assertEquals(List.of("database", "name", "parent"), names(GetRequest.class));
       assertEquals(List.of("database", "definition", "dryRun"), names(CreateRequest.class));
-      assertEquals(List.of("database", "name", "definition", "dryRun"),
+      assertEquals(List.of("database", "name", "definition", "dryRun", "baseRevision"),
                    names(UpdateRequest.class));
-      assertEquals(List.of("ok", "definition", "folder", "readOnly"), names(GetResponse.class));
-      assertEquals(List.of("ok", "name", "folder", "definition", "warnings"),
+      assertEquals(List.of("ok", "definition", "folder", "readOnly", "revision"),
+                   names(GetResponse.class));
+      assertEquals(List.of("ok", "name", "folder", "definition", "warnings", "revision"),
                    names(CreateResponse.class));
       assertEquals(List.of("ok", "definition", "warnings", "elementDependents",
-                           "viewDependents"), names(UpdateResponse.class));
+                           "viewDependents", "revision"), names(UpdateResponse.class));
    }
 
    @Test
@@ -97,7 +98,7 @@ class WizLogicalModelWireTest {
 
    @Test
    void aGetResponseKeepsANullFolderExplicit() throws Exception {
-      String json = mapper.writeValueAsString(new GetResponse(true, null, null, false));
+      String json = mapper.writeValueAsString(new GetResponse(true, null, null, false, null));
 
       assertTrue(json.contains("\"folder\":null"), json);
       assertTrue(json.contains("\"readOnly\":false"), json);
