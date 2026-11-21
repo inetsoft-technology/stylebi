@@ -17,13 +17,22 @@
  */
 import { ColorPalette } from "./color-classes";
 
+/**
+ * The grids offered by the foreground and background color pickers. They are static and do not
+ * follow the modern gate: a picked color is stored as a plain hex, so which grid the editor
+ * shows changes what can be clicked, not what an existing dashboard renders.
+ *
+ * Row 1 is a neutral ramp, row 2 the Modern palette's eight colors (VSChartPaletteDefaults
+ * MODERN_HEAD), and rows 3 to 5 are lighter, lightest and darker steps of those eight, mixed in
+ * OKLab toward white (35% and 65%) and toward black (35%).
+ */
 export class DefaultPalette {
    public static palette: ColorPalette = [
-      ["#000000", "#993300", "#333300", "#003300", "#003366", "#000080", "#333399", "#333333"],
-      ["#800000", "#ff6600", "#808000", "#008000", "#008080", "#0000ff", "#666699", "#808080"],
-      ["#ff0000", "#ff9900", "#99cc00", "#339966", "#33cccc", "#3366ff", "#800080", "#969696"],
-      ["#ff00ff", "#ffcc00", "#ffff00", "#00ff00", "#00ffff", "#00ccff", "#993366", "#c0c0c0"],
-      ["#ff99cc", "#ffcc99", "#ffff99", "#ccffcc", "#ccffff", "#99ccff", "#cc99ff", "#ffffff"]];
+      ["#ffffff", "#dddddd", "#bbbbbb", "#999999", "#777777", "#555555", "#333333", "#000000"],
+      ["#0490ff", "#ff5a35", "#241c4f", "#03d9b3", "#9a2ddc", "#ffb020", "#e5197e", "#8ed604"],
+      ["#77b9ff", "#ff9a81", "#67668b", "#8ae7cd", "#bd82ed", "#ffcd85", "#f77fa9", "#b6e681"],
+      ["#b7daff", "#ffcabb", "#aaaac0", "#c4f3e4", "#dbbdf7", "#ffe5bf", "#ffbbd0", "#d7f2be"],
+      ["#014e8f", "#8f2f19", "#0f0b28", "#017963", "#54147b", "#8f610d", "#800944", "#4d7701"]];
 
    public static chart: ColorPalette = [
       ["#518db9", "#b9dbf4", "#62a640", "#ade095", "#fc8f2a", "#fde3a7", "#d64541", "#fda7a5"],
@@ -32,24 +41,14 @@ export class DefaultPalette {
       ["#993300", "#666666", "#663366", "#CCCCCC", "#669999", "#CCCC66", "#CC6600", "#9999FF"],
       ["#0066CC", "#FFCC00", "#009999", "#99CC33", "#FF9900", "#66CCCC", "#339966", "#CCCC33"]];
 
+   // the same grid with a "no color" first cell; the neutral ramp keeps white and black and
+   // drops one grey to make room
    public static fgWithTransparent: ColorPalette = [
-      ["", "#000000", "#993300", "#003300", "#003366", "#000080", "#333399", "#333333"],
-      ["#800000", "#ff6600", "#808000", "#008000", "#008080", "#0000ff", "#666699", "#808080"],
-      ["#ff0000", "#ff9900", "#99cc00", "#339966", "#33cccc", "#3366ff", "#800080", "#969696"],
-      ["#ff00ff", "#ffcc00", "#ffff00", "#00ff00", "#00ffff", "#00ccff", "#993366", "#c0c0c0"],
-      ["#ff99cc", "#ffcc99", "#ffff99", "#ccffcc", "#ccffff", "#99ccff", "#cc99ff", "#ffffff"]];
+      ["", "#ffffff", "#dddddd", "#bbbbbb", "#999999", "#666666", "#333333", "#000000"],
+      DefaultPalette.palette[1], DefaultPalette.palette[2], DefaultPalette.palette[3],
+      DefaultPalette.palette[4]];
 
-   public static bgWithTransparent: ColorPalette = [
-      ["", "#ffffff", "#eeeeee", "#dddddd", "#cccccc", "#bbbbbb", "#aaaaaa", "#999999"],
-      ["#e8efe8", "#ecebe6", "#fff8de", "#fffac3", "#faf1a2", "#f4f3b0", "#fee893", "#ffe19b"],
-      ["#ffe4b7", "#fee4cb", "#fdcda7", "#fdd2c2", "#f9c8cb", "#f8cad7", "#feeae9", "#e9d0e5"],
-      ["#c2a1da", "#ccb2d5", "#b6b2d7", "#aeb0d7", "#8ca4d4", "#d2e3f3", "#bae3f7", "#d6e9f8"],
-      ["#dbf2f8", "#ceecec", "#c1e4dd", "#d0eadd", "#cce6bf", "#c5d9a6", "#dbe9c6", "#f0f6e8"]];
+   public static bgWithTransparent: ColorPalette = DefaultPalette.fgWithTransparent;
 
-   public static bgWithNoTransparent: ColorPalette = [
-      ["#ffffff", "#eeeeee", "#dddddd", "#cccccc", "#bbbbbb", "#aaaaaa", "#999999", "#888888"],
-      ["#e8efe8", "#ecebe6", "#fff8de", "#fffac3", "#faf1a2", "#f4f3b0", "#fee893", "#ffe19b"],
-      ["#ffe4b7", "#fee4cb", "#fdcda7", "#fdd2c2", "#f9c8cb", "#f8cad7", "#feeae9", "#e9d0e5"],
-      ["#c2a1da", "#ccb2d5", "#b6b2d7", "#aeb0d7", "#8ca4d4", "#d2e3f3", "#bae3f7", "#d6e9f8"],
-      ["#dbf2f8", "#ceecec", "#c1e4dd", "#d0eadd", "#cce6bf", "#c5d9a6", "#dbe9c6", "#f0f6e8"]];
+   public static bgWithNoTransparent: ColorPalette = DefaultPalette.palette;
 }
