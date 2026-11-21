@@ -792,7 +792,7 @@ public class AssemblyImageService {
          ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
          ChartVSAssemblyInfo info = chart.getChartInfo();
          Dimension2D size = pair.getRealSizeVGraph().getSize();
-         Insets padding = info.getPadding();
+         Insets padding = info.getLayoutPadding();
          padding = padding == null ? new Insets(0, 0, 0, 0) : padding;
 
          // drag borders and background
@@ -882,7 +882,7 @@ public class AssemblyImageService {
          Viewsheet vs = box.getViewsheet();
          ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
          ChartVSAssemblyInfo info = chart.getChartInfo();
-         Insets padding = info.getPadding();
+         Insets padding = info.getLayoutPadding();
          padding = padding == null ? new Insets(0, 0, 0, 0) : padding;
 
          image = pair.getImage(true, dpi);

@@ -1849,7 +1849,7 @@ public abstract class AbstractVSExporter implements VSExporter {
     * @param graph graph rendering without padding.
     */
    protected BufferedImage getImageWithPadding(ChartVSAssemblyInfo info, BufferedImage graph) {
-      Insets padding = info.getPadding();
+      Insets padding = info.getLayoutPadding();
       // dpi is x2
       BufferedImage outer = new BufferedImage(
          graph.getWidth() + padding.left * 2 + padding.right * 2,
