@@ -131,6 +131,10 @@ public class WizPhysicalViewController {
          XPartition base = stored(dataModel, database, null, parent, principal);
          gates.requireFolderPermission(database, base.getFolder(), ResourceAction.WRITE,
                                        principal);
+         // the kinds, the folders and the views share one name space, an extended view too
+         WizDataModelNames.requireUniqueInSource(
+            dataModel, name,
+            (kind, existing) -> gates.maySee(dataModel, database, kind, existing, principal));
 
          if(base.getPartition(name) != null) {
             throw new DmFailure(

@@ -281,6 +281,11 @@ class WizDataModelGatesRouteTableTest {
             f.bob),
          "DS:{db}:READ", "body", NOT_FOUND,
          "DMF:{db}/F:WRITE", "throw", "{db}/F"));
+      routes.add(route("physical/create (extended)", f -> f.physical.create(
+            new WizPhysicalViewWire.WriteRequest(
+               f.db, null, "pv", new LinkedHashMap<>(Map.of("name", "pe")), true), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/F:WRITE", "body", NOT_FOUND));
       routes.add(route("physical/update (folder change)", f -> f.physical.update(
             new WizPhysicalViewWire.WriteRequest(
                f.db, "pv", null, new LinkedHashMap<>(Map.of("folder", "G")), true), f.bob),

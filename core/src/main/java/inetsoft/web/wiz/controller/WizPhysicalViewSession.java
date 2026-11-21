@@ -604,10 +604,23 @@ final class WizPhysicalViewSession {
             JoinModel model = WizPhysicalViewMapper.toJoinModel(join);
 
             if(model.getCardinality() == null) {
-               detectCardinality(join, model);
+               if(probes < MAX_CARDINALITY_PROBES) {
+                  probes++;
+                  detectCardinality(join, model);
+               }
+               else {
+                  notDetected++;
+               }
             }
 
             manager.addJoin(id, model, join.fromTable());
+         }
+
+         if(notDetected > 0) {
+            warnings.add(new Warning(
+               "CARDINALITY_NOT_DETECTED", notDetected + " join(s) without a cardinality " +
+               "beyond the first " + MAX_CARDINALITY_PROBES + " kept the server default " +
+               "(MANY_TO_MANY); send cardinality to set it", "", ""));
          }
       }
 
@@ -795,6 +808,8 @@ final class WizPhysicalViewSession {
       private final Map<String, String> renamedFrom = new LinkedHashMap<>();
       private final Map<String, List<String>> columns = new HashMap<>();
       private final List<Warning> warnings = new ArrayList<>();
+      private int probes;
+      private int notDetected;
    }
 
    private static DmFailure invalid(String field, String code, String message) {
@@ -809,6 +824,9 @@ final class WizPhysicalViewSession {
    private static String text(Object value) {
       return value == null ? null : value.toString();
    }
+
+   /** The most joins of one request whose cardinality is looked up in the database. */
+   static final int MAX_CARDINALITY_PROBES = 100;
 
    private final PhysicalModelManagerService manager;
    private final PhysicalModelService modelService;

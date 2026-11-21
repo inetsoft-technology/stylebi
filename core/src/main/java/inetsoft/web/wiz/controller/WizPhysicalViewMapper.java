@@ -85,6 +85,10 @@ final class WizPhysicalViewMapper {
    {
    }
 
+   /** The most tables and joins one definition may carry (one write holds the database lock). */
+   static final int MAX_TABLES = 200;
+   static final int MAX_JOINS = 1000;
+
    static final Set<String> JOIN_TYPES = Set.of(
       "EQUAL", "LEFT_OUTER", "RIGHT_OUTER", "FULL_OUTER", "GREATER", "LESS", "GREATER_EQUAL",
       "LESS_EQUAL", "NOT_EQUAL");
@@ -148,7 +152,11 @@ final class WizPhysicalViewMapper {
       if(hasTables) {
          Object value = map.get("tables");
 
-         if(value instanceof List<?> list) {
+         if(value instanceof List<?> list && list.size() > MAX_TABLES) {
+            errors.add(new Err("tables", "a physical view definition takes at most " +
+               MAX_TABLES + " tables, got " + list.size() + "; split the view", "LIMIT_EXCEEDED"));
+         }
+         else if(value instanceof List<?> list) {
             for(int i = 0; i < list.size(); i++) {
                TableDef table = parseTable(list.get(i), i, errors);
 
@@ -165,7 +173,11 @@ final class WizPhysicalViewMapper {
       if(hasJoins) {
          Object value = map.get("joins");
 
-         if(value instanceof List<?> list) {
+         if(value instanceof List<?> list && list.size() > MAX_JOINS) {
+            errors.add(new Err("joins", "a physical view definition takes at most " +
+               MAX_JOINS + " joins, got " + list.size() + "; split the view", "LIMIT_EXCEEDED"));
+         }
+         else if(value instanceof List<?> list) {
             for(int i = 0; i < list.size(); i++) {
                JoinDef join = parseJoin(list.get(i), i, errors);
 

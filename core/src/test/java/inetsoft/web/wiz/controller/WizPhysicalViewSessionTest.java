@@ -321,6 +321,121 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
    }
 
    @Test
+   void anExtendedViewJoinsTheSharedNameSpace() throws Exception {
+      createView(definition("base", tables(plain("T1"))));
+      dataModel.addVirtualPrivateModel(new inetsoft.uql.erm.vpm.VirtualPrivateModel("vp"), true);
+      int puts = runtimePuts.get();
+
+      for(String taken : List.of("pv2", "vp", "base")) {
+         Map<String, Object> ext = definition(taken, tables(plain("T2")));
+         ext.put("parent", "base");
+         Object result = createViewRaw(ext, null);
+
+         assertEquals(WizDataModelWire.DUPLICATE_NAME, ((Failure) result).reason(), taken);
+      }
+
+      assertEquals(puts, runtimePuts.get(), "no runtime was opened for a refused name");
+      // a free name still works, and an extended view twice under one base is refused
+      Map<String, Object> ext = definition("freeExt", tables(plain("T2")));
+      ext.put("parent", "base");
+      ok(createViewRaw(ext, null));
+      assertEquals(WizDataModelWire.DUPLICATE_NAME,
+                   ((Failure) createViewRaw(ext, null)).reason());
+   }
+
+   @Test
+   void aDefinitionIsCappedAtTwoHundredTablesAndAThousandJoins() throws Exception {
+      List<Map<String, Object>> many = new ArrayList<>();
+
+      for(int i = 0; i <= WizPhysicalViewMapper.MAX_TABLES; i++) {
+         many.add(plain("T" + i));
+      }
+
+      int puts = runtimePuts.get();
+      Object tooManyTables = createViewRaw(definition("big", many), null);
+      assertEquals("tables", ((Failure) tooManyTables).field());
+      assertEquals("LIMIT_EXCEEDED", ((Failure) tooManyTables).errors().get(0).code());
+      assertTrue(((Failure) tooManyTables).message().contains("200"));
+
+      Map<String, Object> joins = definition("big", tables(plain("T1")));
+      List<Object> list = new ArrayList<>();
+
+      for(int i = 0; i <= WizPhysicalViewMapper.MAX_JOINS; i++) {
+         list.add(join("T1", "C" + i, "T2", "D" + i));
+      }
+
+      joins.put("joins", list);
+      Object tooManyJoins = createViewRaw(joins, null);
+      assertEquals("joins", ((Failure) tooManyJoins).field());
+      assertTrue(((Failure) tooManyJoins).message().contains("1000"));
+      assertEquals(puts, runtimePuts.get(), "a definition over the cap opens no runtime");
+
+      // an update is capped the same way
+      createView(definition("v", tables(plain("T1"))));
+      Object update = updateView("v", definition("v", many), null);
+      assertEquals("tables", ((Failure) update).field());
+   }
+
+   @Test
+   void cardinalityProbesAreCappedPerRequest() throws Exception {
+      int joinCount = WizPhysicalViewSession.MAX_CARDINALITY_PROBES + 5;
+      Map<String, String> columns1 = new LinkedHashMap<>();
+      Map<String, String> columns2 = new LinkedHashMap<>();
+
+      for(int i = 0; i < joinCount; i++) {
+         columns1.put("C" + i, "integer");
+         columns2.put("D" + i, "integer");
+      }
+
+      physical.put("T1", columns1);
+      physical.put("T2", columns2);
+      List<Object> joins = new ArrayList<>();
+
+      for(int i = 0; i < joinCount; i++) {
+         Map<String, Object> join = join("T2", "D" + i, "T1", "C" + i);
+         join.remove("cardinality");
+         joins.add(join);
+      }
+
+      Map<String, Object> definition = definition("probed", tables(plain("T1"), plain("T2")));
+      definition.put("joins", joins);
+      WriteResponse response = ok(createViewRaw(definition, null));
+
+      verify(physicalService, times(WizPhysicalViewSession.MAX_CARDINALITY_PROBES))
+         .getCardinality(any(), any(), any(), any());
+      assertTrue(response.warnings().stream()
+                    .anyMatch(w -> "CARDINALITY_NOT_DETECTED".equals(w.code())),
+                 response.warnings().toString());
+      assertEquals(joinCount, storedView("probed").getRelationshipCount(),
+                   "every join was written, probed or not");
+
+      // exactly at the cap: no warning
+      reset(physicalService);
+      Map<String, Object> atCap = definition("atcap", tables(plain("T1"), plain("T2")));
+      atCap.put("joins", new ArrayList<>(joins.subList(0, WizPhysicalViewSession.MAX_CARDINALITY_PROBES)));
+      WriteResponse capped = ok(createViewRaw(atCap, null));
+
+      assertTrue(capped.warnings().stream()
+                    .noneMatch(w -> "CARDINALITY_NOT_DETECTED".equals(w.code())));
+   }
+
+   @Test
+   void theTableCapIsExactlyTwoHundred() {
+      Map<String, Object> map = new LinkedHashMap<>();
+      List<Object> tables = new ArrayList<>();
+
+      for(int i = 0; i < WizPhysicalViewMapper.MAX_TABLES; i++) {
+         tables.add(plain("T" + i));
+      }
+
+      map.put("name", "v");
+      map.put("tables", tables);
+
+      assertEquals(WizPhysicalViewMapper.MAX_TABLES,
+                   WizPhysicalViewMapper.parse(map).view().tables().size());
+   }
+
+   @Test
    void newAliasDoesNotRewriteExpressionAttributes() throws Exception {
       createView(definition("v", tables(plain("T1"))));
       XLogicalModel lm = logicalModelOn("lm", "v");
@@ -340,6 +455,19 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
                  "an expression attribute keeps no table");
       assertEquals("T1", after.getEntity("E").getAttribute("a").getTable());
       assertTrue(storedView("v").isAlias("NEWALIAS"));
+
+      // design 8.4: the posted table list carries oldAlias == alias for an alias that is not
+      // renamed, never null (a null would make the save rewrite every table-less attribute)
+      org.mockito.ArgumentCaptor<inetsoft.web.portal.model.database.PhysicalModelDefinition> posted =
+         org.mockito.ArgumentCaptor.forClass(
+            inetsoft.web.portal.model.database.PhysicalModelDefinition.class);
+      verify(manager).updateAndSaveModel(any(), any(), any(), any(), posted.capture(), any());
+      PhysicalTableModel newAlias = posted.getValue().getTables().stream()
+         .filter(t -> "NEWALIAS".equals(t.getAlias())).findFirst().orElseThrow();
+      assertEquals("NEWALIAS", newAlias.getOldAlias());
+      PhysicalTableModel plain = posted.getValue().getTables().stream()
+         .filter(t -> "T1".equals(t.getQualifiedName())).findFirst().orElseThrow();
+      assertNull(plain.getOldAlias());
    }
 
    // -- update ---------------------------------------------------------------------------------
