@@ -83,8 +83,9 @@ public class WizVpmController {
          gates.requireDataSourcePermission(database, ResourceAction.WRITE, principal);
          requireVpm(dataModel, database, name, principal);
          VirtualPrivateModel vpm = vpmService.getStored(database, name, principal);
+         Map<String, Object> wire = mapper.toWire(vpm, dataSource(database));
          return new WizVpmWire.GetResponse(
-            true, mapper.toWire(vpm, dataSource(database)), null, false);
+            true, wire, null, false, WizDataModelRevision.of(wire));
       });
    }
 
@@ -115,7 +116,8 @@ public class WizVpmController {
          VPMDefinition portal = mapper.toDefinition(definition, database, null);
          vpmService.create(database, portal, principal);
          Map<String, Object> readBack = readBack(database, name, definition, principal);
-         return new WizVpmWire.WriteResponse(true, name, readBack, warnings, null);
+         return new WizVpmWire.WriteResponse(true, name, readBack, warnings, null,
+                                             WizDataModelRevision.of(readBack));
       }));
    }
 
@@ -142,10 +144,20 @@ public class WizVpmController {
             gates.requireDataSourcePermission(database, ResourceAction.WRITE, principal);
             requireVpm(dataModel, database, name, principal);
             VirtualPrivateModel stored = vpmService.getStored(database, name, principal);
+            Map<String, Object> current = mapper.toWire(stored, dataSource(database));
+
+            // the edit was planned from a read; if the VPM is no longer what was read, nothing
+            // is written (the revision is of the same wire form the get route returns)
+            if(request.baseRevision() != null &&
+               !request.baseRevision().equals(WizDataModelRevision.of(current)))
+            {
+               throw new WizDataModelErrors.DmFailure(
+                  STALE_MODEL, "baseRevision", "VPM " + name + " changed since it was read; " +
+                  "read it again and redo the edit; nothing was written");
+            }
 
             // an omitted key keeps its stored value (an explicit null clears it)
-            Map<String, Object> merged = new LinkedHashMap<>(
-               mapper.toWire(stored, dataSource(database)));
+            Map<String, Object> merged = new LinkedHashMap<>(current);
             merged.putAll(definition);
             merged.put("name", name);
             List<String> warnings = validate(
@@ -159,7 +171,8 @@ public class WizVpmController {
             VPMDefinition portal = mapper.toDefinition(merged, database, stored);
             vpmService.update(database, name, portal, principal);
             Map<String, Object> readBack = readBack(database, name, merged, principal);
-            return new WizVpmWire.WriteResponse(true, name, readBack, warnings, dependents);
+            return new WizVpmWire.WriteResponse(true, name, readBack, warnings, dependents,
+                                                WizDataModelRevision.of(readBack));
          });
       });
    }
