@@ -218,14 +218,14 @@ class XFragmentSwapFileWriteFailureTest {
       Field arrField = XIntFragment.class.getDeclaredField("arr");
       arrField.setAccessible(true);
 
-      char posBefore = (char) posField.get(fragment);
+      int posBefore = (int) posField.get(fragment);
       int[] arrBefore = (int[]) arrField.get(fragment);
 
       // claims 10 ints follow (a new pos of 10) but only supplies 2, so XSwapUtil.readInt()
       // throws BufferUnderflowException partway through the array-read loop, after the field
       // would previously have already been overwritten with the claimed new pos
       ByteBuffer buf = ByteBuffer.allocate(64);
-      XSwapUtil.writeChar(buf, (char) 10);
+      XSwapUtil.writeInt(buf, 10);
       XSwapUtil.writeInt(buf, 999);
       XSwapUtil.writeInt(buf, 999);
       buf.flip();
@@ -234,7 +234,7 @@ class XFragmentSwapFileWriteFailureTest {
                                                         () -> validate.invoke(fragment, buf));
       assertInstanceOf(java.nio.BufferUnderflowException.class, thrown.getCause());
 
-      assertEquals(posBefore, (char) posField.get(fragment),
+      assertEquals(posBefore, (int) posField.get(fragment),
                    "pos must not be mutated by a read-back that failed partway through");
       assertArrayEquals(arrBefore, (int[]) arrField.get(fragment),
                          "arr must not be mutated by a read-back that failed partway through");
