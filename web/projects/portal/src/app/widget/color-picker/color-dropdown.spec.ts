@@ -18,10 +18,11 @@
 import { ColorDropdown } from "./color-dropdown.component";
 import { DefaultPalette } from "./default-palette";
 
-// The chart branch of getPalette() is only reachable when !isBg && !transEnabled. Several
-// callers rely on that ordering rather than passing [chart] explicitly - notably the Format
-// pane's Value Fill picker (transEnabled) and its border picker (chart default true). Pin the
-// whole truth table so the branch order cannot be changed silently.
+// The chart branch of getPalette() is only reachable when !isBg && !transEnabled and chart is
+// set explicitly. Several callers rely on the defaults rather than passing [chart] - notably the
+// Format pane's Value Fill picker (transEnabled) and its border picker (opaque foreground, which
+// gets the generic grid because chart defaults to false). Pin the whole truth table so the
+// branch order cannot be changed silently.
 describe("ColorDropdown palette resolution", () => {
    function dropdown(isBg: boolean, transEnabled: boolean, chart: boolean): ColorDropdown {
       const cd = new ColorDropdown();
@@ -31,8 +32,11 @@ describe("ColorDropdown palette resolution", () => {
       return cd;
    }
 
-   it("defaults chart to true", () => {
-      expect(new ColorDropdown().chart).toBe(true);
+   it("defaults chart to false, so an opaque foreground picker gets the generic grid", () => {
+      const cd = new ColorDropdown();
+
+      expect(cd.chart).toBe(false);
+      expect(cd.getPalette()).toBe(DefaultPalette.palette);
    });
 
    it("returns fgWithTransparent for foreground with transparency, ignoring chart", () => {

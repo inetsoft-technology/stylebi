@@ -35,7 +35,7 @@ import { NgClass } from "@angular/common";
 })
 export class ColorPane implements OnInit {
    @Input() color: string = "#000000";
-   @Input() palette: ColorPalette = DefaultPalette.chart;
+   @Input() palette: ColorPalette = DefaultPalette.palette;
    @Input() recent: RecentColorPalette = null;
    @Input() showRecentColors: boolean = true;
    @Input() clearEnabled: boolean = false;

@@ -33,7 +33,7 @@ export class ColorDropdown {
    @Input() isBg: boolean = false;
    @Input() enabled: boolean = true;
    @Input() label: string = null;
-   @Input() chart: boolean = true;
+   @Input() chart: boolean = false;
    @Input() isTableStyle: boolean = false;
    @Output() colorChange = new EventEmitter<string>();
    static STATIC: string = "Static";

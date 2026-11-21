@@ -37,7 +37,7 @@ const MAX_LENGTH = 50;
 })
 export class ShadowPropPane implements OnInit {
    @Input() model: ShadowPropPaneModel;
-   shadowColors = DefaultPalette.chart;
+   shadowColors = DefaultPalette.palette;
    alphaInvalid: boolean = false;
 
    readonly directions: {value: string, label: string}[] = [
