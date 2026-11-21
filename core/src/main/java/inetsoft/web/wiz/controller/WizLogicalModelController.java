@@ -137,13 +137,24 @@ public class WizLogicalModelController {
          blankToNull(definition.folder());
       requireWrite(database, folder, name, blankToNull(definition.connection()), principal);
 
-      if(baseModel == null) {
-         // a clash names the existing kind only when the caller may see that item
-         WizDataModelNames.requireUniqueInSource(
-            dataModel, name,
-            (kind, existing) -> gates.maySee(dataModel, database, kind, existing, principal));
+      // one namespace per data source across kinds and folders, for an extended model too (a
+      // top-level name it shadowed would no longer be addressable under the other kind's tools);
+      // a clash names the existing kind only when the caller may see that item
+      WizDataModelNames.requireUniqueInSource(
+         dataModel, name,
+         (kind, existing) -> gates.maySee(dataModel, database, kind, existing, principal));
+
+      if(WizDataModelSupport.hasFolder(dataModel, name)) {
+         boolean seen = gates.maySee(dataModel, database, WizDataModelWire.KIND_FOLDER, name,
+                                     principal);
+         throw fail(WizDataModelWire.DUPLICATE_NAME, "name",
+                    seen ? "a folder named \"" + name + "\" already exists in " + database +
+                       "; nothing changed" : "the name \"" + name + "\" is already used in " +
+                       database + "; nothing changed", null,
+                    seen ? WizDataModelWire.KIND_FOLDER : null);
       }
-      else if(baseModel.getLogicalModel(name) != null) {
+
+      if(baseModel != null && baseModel.getLogicalModel(name) != null) {
          boolean seen = modelService.checkPermission(
             database, folder, name, baseModel.getLogicalModel(name).getConnection(),
             ResourceAction.READ, principal);
