@@ -70,7 +70,8 @@ public class PowerScale extends LinearScale {
     */
    @Override
    protected double mapValue(double val) {
-      return getPowerValue(val, power);
+      // NaN is no value (the row is skipped); getPowerValue turns it into 0 for add()
+      return Double.isNaN(val) ? Double.NaN : getPowerValue(val, power);
    }
 
    /**
@@ -161,40 +162,118 @@ public class PowerScale extends LinearScale {
          setMax0(max, false);
          setMin0(min, false);
 
-         int n = (int) Math.ceil(max - min) + 1;
-         int inc = Math.max(1, (int) Math.round(n / 6.0));
+         // the range is counted in double, so a wide range is thinned to about 7 ticks
+         // instead of rejected. Only a range that cannot be split into ticks is rejected,
+         // as before: a bound that overflowed (e.g. a huge exponent) or a range reversed by
+         // two or more (e.g. a negative exponent)
+         double n = Math.ceil(max - min) + 1;
 
-         if(n < 0 || n > 1000) {
+         if(!Double.isFinite(n) || n < 0) {
             throw new RuntimeException("Exponent is too large, ignored.");
          }
 
-         n = (int) Math.ceil(n / (double) inc);
+         // same as Math.round(n / 6.0), without its overflow at Long.MAX_VALUE
+         double inc = Math.max(1, Math.floor(n / 6.0 + 0.5));
+         // a user bound, or the data range when TICKS is off, is not rounded to inc:
+         // it is the end tick and stays the range of the scale
+         boolean clampMax = getUserMax() != null || !includeTicks;
+         boolean clampMin = getUserMin() != null || !includeTicks;
+         double bmax = max;
+         double bmin = min;
+
          min = Math.floor(min / inc) * inc;
          max = Math.ceil(max / inc) * inc;
-         n = (int) Math.floor(Math.abs(max - min) / inc + 1);
-         ticks = new double[n];
+         // min and max are multiples of inc: rint, not floor, so a wide range does not lose
+         // its last tick to a quotient such as 6.9999999
+         double count = Math.rint(Math.abs(max - min) / inc) + 1;
 
-         if(includeTicks) {
-            setMax0(max, false);
-            setMin0(min, false);
+         // rounding a bound near Double.MAX_VALUE to inc can overflow
+         if(!(count <= 1000)) {
+            throw new RuntimeException("Exponent is too large, ignored.");
          }
 
-         for(int i = 0; i < ticks.length; i++) {
-            ticks[i] = (min > max ? -i : i) * inc + min;
+         ticks = new double[(int) count];
 
-            // enforce user specified max
-	    if(getUserMax() != null || !includeTicks) {
-               ticks[i] = (min > max) ? Math.max(ticks[i], max)
-                  : Math.min(ticks[i], max);
+         if(bmin > bmax) {
+            // a range reversed by less than two (e.g. a negative exponent), at most two
+            // ticks: kept as it was
+            if(includeTicks) {
+               setMax0(max, false);
+               setMin0(min, false);
+            }
+
+            for(int i = 0; i < ticks.length; i++) {
+               ticks[i] = (min > max ? -i : i) * inc + min;
+
+               // enforce user specified max
+               if(clampMax) {
+                  ticks[i] = (min > max) ? Math.max(ticks[i], max)
+                     : Math.min(ticks[i], max);
+               }
+            }
+         }
+         else {
+            // the range rounded to inc is the scale range only on a side with no bound
+            if(!clampMax) {
+               setMax0(max, false);
+            }
+
+            if(!clampMin) {
+               setMin0(min, false);
+            }
+
+            for(int i = 0; i < ticks.length; i++) {
+               ticks[i] = i * inc + min;
+            }
+
+            // only the end ticks can pass a bound, and they are set to the bound itself, the
+            // same double as getMax()/getMin(). Without a bound the last tick is max itself
+            // (+ 0.0 turns -0.0 into 0), as a sum can drift from it on a wide range
+            ticks[ticks.length - 1] = clampMax ? bmax : max + 0.0;
+
+            if(clampMin) {
+               ticks[0] = bmin;
             }
          }
 
          if((getScaleOption() & ZERO) != 0) {
             LogScale.addZero(ticks);
          }
+
+         if(bmin <= bmax) {
+            ticks = mergeBoundTicks(ticks, inc, clampMin, clampMax);
+         }
       }
 
       return getTicks0(ticks);
+   }
+
+   /**
+    * Drop the rounded tick next to a bound end tick when it is closer than half a step to
+    * the bound. Otherwise the two can get the same label, and the minor ticks between two
+    * ticks one ulp apart never end. The end ticks are kept.
+    */
+   private static double[] mergeBoundTicks(double[] ticks, double inc, boolean clampMin,
+                                           boolean clampMax)
+   {
+      int last = ticks.length - 1;
+
+      if(clampMax && ticks.length > 2 && ticks[last] - ticks[last - 1] < inc / 2) {
+         ticks = removeTick(ticks, last - 1);
+      }
+
+      if(clampMin && ticks.length > 2 && ticks[1] - ticks[0] < inc / 2) {
+         ticks = removeTick(ticks, 1);
+      }
+
+      return ticks;
+   }
+
+   private static double[] removeTick(double[] ticks, int idx) {
+      double[] arr = new double[ticks.length - 1];
+      System.arraycopy(ticks, 0, arr, 0, idx);
+      System.arraycopy(ticks, idx + 1, arr, idx, arr.length - idx);
+      return arr;
    }
 
    /**
