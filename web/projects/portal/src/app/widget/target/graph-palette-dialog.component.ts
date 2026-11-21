@@ -23,6 +23,7 @@ import { NgStyle } from "@angular/common";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
+import { paletteLabel } from "../../common/util/palette-name";
 
 @Component({
     selector: "graph-palette-dialog",
@@ -41,7 +42,7 @@ export class GraphPaletteDialog {
 
    get paletteSelectOptions(): CustomSelectOption<number>[] {
       return (this.colorPalettes ?? []).map((palette, index) => ({
-         label: palette.name,
+         label: paletteLabel(palette.name),
          value: index
       }));
    }

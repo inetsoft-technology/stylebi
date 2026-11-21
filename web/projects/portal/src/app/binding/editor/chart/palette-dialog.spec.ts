@@ -101,14 +101,14 @@ describe("PaletteDialog hidden palettes", () => {
 
    it("drops a hidden palette from the dropdown", () => {
       const dialog = dialogWithHidden(palette40(MODERN_HEAD));
-      expect(dialog.paletteSelectOptions.map((o) => o.label)).toEqual(["Default", "Modern"]);
+      expect(dialog.paletteSelectOptions.map((o) => o.label)).toEqual(["_#(js:Legacy)", "Modern"]);
    });
 
    it("keeps a hidden palette in the dropdown when the chart is using it", () => {
       const dialog = dialogWithHidden(palette40(HEAT_HEAD));
       expect(dialog.displayPalette.name).toBe("Heat 8");
       expect(dialog.paletteSelectOptions.map((o) => o.label))
-         .toEqual(["Default", "Modern", "Heat 8"]);
+         .toEqual(["_#(js:Legacy)", "Modern", "Heat 8"]);
    });
 
    // hidden entry is non-terminal: a post-filter renumbering bug would still emit [0, 1]
@@ -139,8 +139,29 @@ describe("PaletteDialog hidden palettes", () => {
 
       // reading the options resolves the match; _reversed is still its initial false until then
       expect(dialog.paletteSelectOptions.map((o) => o.label))
-         .toEqual(["Default", "Modern", "Heat 8"]);
+         .toEqual(["_#(js:Legacy)", "Modern", "Heat 8"]);
       expect(dialog._reversed).toBe(true);
       expect(dialog._selectedIndex).toBe(2);
+   });
+});
+
+describe("PaletteDialog palette names", () => {
+   // the second palette is visible, the third is hidden unless the chart is on it
+   const dialog = (): PaletteDialog => dialogWith(palette40(MODERN_HEAD), [
+      palette("Default", LEGACY_HEAD),
+      palette("Modern", MODERN_HEAD),
+      palette("Soft", HEAT_HEAD)
+   ]);
+
+   it("shows the original palette as Legacy and leaves the name it is stored under", () => {
+      const d = dialog();
+
+      expect(d.colorPalettes[0].name).toBe("Default");
+      expect(d.paletteSelectOptions[0]).toEqual({ value: 0, label: "_#(js:Legacy)" });
+   });
+
+   it("shows every other palette under its own name", () => {
+      expect(dialog().paletteSelectOptions.slice(1).map((o) => o.label))
+         .toEqual(["Modern", "Soft"]);
    });
 });

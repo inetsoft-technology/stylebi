@@ -15,8 +15,8 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<div>
-  <div class="toolbar">
+<div class="color-pane">
+  <div class="color-pane__top">
     @if (!isDC && isVS && !frameModel.colorValueFrame) {
       <label class="share-color-option">
         <input type="checkbox" class="form-check-input" [(ngModel)]="frameModel.shareColors"
@@ -24,48 +24,61 @@
         _#(Share Colors)
       </label>
     }
-    @if (!isDC && isVS && isDimension()) {
-      <div class="ml">
-        <i class="color-fill-icon icon-size-small btn-icon" title="_#(Assign Fixed Mapping)"
-          [class.icon-disabled]="frameModel.colorValueFrame"
-        (click)="clickColorMappingButton()"></i>
-      </div>
-    }
-    <div class="ms-2">
-      <i title="_#(Select Palette)" class="palette-icon icon-size-small btn-icon"
-        [class.icon-disabled]="frameModel.colorValueFrame"
-      (click)="clickPaletteButton()"></i>
-    </div>
-    <div class="ms-2">
-      <i [ngClass]="getResetButtonSrc() + ' icon-size-small btn-icon'"
-        [class.icon-disabled]="frameModel.colorValueFrame"
-      (click)="reset()" title="_#(Reset to Default)"></i>
-    </div>
-    <div class="ms-2">
-      <i class="submit-icon icon-size-small btn-icon" aria-hidden="true" (click)="applyClick()" title="_#(Apply)"></i>
+    <div class="color-pane__buttons">
+      @if (!isDC && isVS && isDimension()) {
+        <button type="button" class="color-pane__icon-button" title="_#(Assign Fixed Mapping)"
+          aria-label="_#(Assign Fixed Mapping)"
+          [disabled]="frameModel.colorValueFrame" (click)="clickColorMappingButton()">
+          <i class="color-fill-icon icon-size-small" aria-hidden="true"></i>
+        </button>
+      }
+      <button type="button" class="color-pane__icon-button" title="_#(Select Palette)"
+        aria-label="_#(Select Palette)"
+        [disabled]="frameModel.colorValueFrame" (click)="clickPaletteButton()">
+        <i class="palette-icon icon-size-small" aria-hidden="true"></i>
+      </button>
     </div>
   </div>
 
   @if (isPaneVisible()) {
-    @let numItems = getNumItems();
-    <div class="content m-1">
-      <i class="chevron-circle-arrow-left-icon icon-size-small btn-icon"
-        [class.fade]="currIndex <= 0"
-      aria-hidden="true" (click)="showPrevious()"></i>
-      <!--display eight color editors-->
-      @for (i of currentViewIndices; track i) {
-        <div class="ms-1 me-1">
+    <p class="color-pane__hint">
+      _#(Colors are assigned to the values in order. More colors follow after the eighth.)
+    </p>
+    <div class="color-pane__swatches">
+      @for (i of baseIndices; track i) {
+        <div class="color-pane__cell">
           <static-color-editor [(color)]="frameModel.colors[i]"
             [isDisabled]="frameModel.colorValueFrame"
             (colorChanged)="changeColor($event, i)" [index]="i"
             [attr.data-test]="'sce' + i">
           </static-color-editor>
+          <span class="color-pane__number" aria-hidden="true">{{i + 1}}</span>
         </div>
       }
-      <i class="chevron-circle-arrow-right-icon icon-size-small btn-icon"
-        [class.fade]="currIndex >= numItems - NUM_EDITORS"
-      aria-hidden="true" (click)="showNext()"></i>
     </div>
+    @if (hasMoreColors) {
+      <button type="button" class="color-pane__more" data-test="more-colors-toggle"
+        [attr.aria-expanded]="moreColorsOpen" (click)="toggleMoreColors()">
+        <span class="color-pane__chevron" [class.color-pane__chevron--open]="moreColorsOpen"
+          aria-hidden="true"></span>
+        _#(More colors)
+        <span class="color-pane__range">{{moreColorsRange}}</span>
+      </button>
+      @if (moreColorsOpen) {
+        <div class="color-pane__swatches color-pane__swatches--more">
+          @for (i of moreIndices; track i) {
+            <div class="color-pane__cell">
+              <static-color-editor [(color)]="frameModel.colors[i]"
+                [isDisabled]="frameModel.colorValueFrame"
+                (colorChanged)="changeColor($event, i)" [index]="i"
+                [attr.data-test]="'sce' + i">
+              </static-color-editor>
+              <span class="color-pane__number" aria-hidden="true">{{i + 1}}</span>
+            </div>
+          }
+        </div>
+      }
+    }
   }
   @if (!isDC && showColorValueFrame()) {
     <label class="color-value-frame">
@@ -73,6 +86,13 @@
       _#(Use Column Values as Colors)
     </label>
   }
+
+  <div class="color-pane__footer">
+    <button type="button" class="btn btn-secondary" title="_#(Reset to Default)"
+      [disabled]="isResetted()" (click)="reset()">_#(Reset to Default)</button>
+    <button type="button" class="btn btn-primary" title="_#(Apply)"
+      (click)="applyClick()">_#(Apply)</button>
+  </div>
 </div>
 <ng-template #paletteDialog let-close="close" let-dismiss="dismiss">
   <palette-dialog (confirm)="close($event)" (cancel)="dismiss($event)"
