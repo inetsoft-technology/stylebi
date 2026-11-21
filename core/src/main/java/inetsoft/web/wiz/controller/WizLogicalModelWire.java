@@ -97,8 +97,12 @@ public final class WizLogicalModelWire {
 
    @JsonIgnoreProperties(ignoreUnknown = false)
    public record UpdateRequest(String database, String name, Definition definition,
-                               Boolean dryRun)
+                               Boolean dryRun, String baseRevision)
    {
+      /** Without a base revision: the write is not checked for a concurrent change. */
+      public UpdateRequest(String database, String name, Definition definition, Boolean dryRun) {
+         this(database, name, definition, dryRun, null);
+      }
    }
 
    @JsonIgnoreProperties(ignoreUnknown = false)
@@ -159,13 +163,13 @@ public final class WizLogicalModelWire {
    }
 
    public record GetResponse(boolean ok, Definition definition, String folder,
-                             boolean readOnly)
+                             boolean readOnly, String revision)
    {
    }
 
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record CreateResponse(boolean ok, String name, String folder, Definition definition,
-                                List<String> warnings)
+                                List<String> warnings, String revision)
    {
    }
 
@@ -178,7 +182,8 @@ public final class WizLogicalModelWire {
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record UpdateResponse(boolean ok, Definition definition, List<String> warnings,
                                 List<ElementDependents> elementDependents,
-                                List<WizDataModelWire.Dependent> viewDependents)
+                                List<WizDataModelWire.Dependent> viewDependents,
+                                String revision)
    {
    }
 }
