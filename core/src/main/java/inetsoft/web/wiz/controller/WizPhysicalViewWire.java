@@ -31,14 +31,34 @@ public final class WizPhysicalViewWire {
    public record GetRequest(String database, String name, String parent) {
    }
 
+   /**
+    * {@code revision} is {@link WizDataModelRevision#of} of the returned definition: a caller
+    * sends it back as {@code baseRevision} of an update to have a stale edit refused.
+    */
    public record GetResponse(boolean ok, Map<String, Object> definition, String folder,
-                             boolean readOnly)
+                             boolean readOnly, String revision)
    {
+      public GetResponse(boolean ok, Map<String, Object> definition, String folder,
+                         boolean readOnly)
+      {
+         this(ok, definition, folder, readOnly, null);
+      }
    }
 
+   /**
+    * {@code baseRevision} (optional) is the revision of the definition the edit was planned from;
+    * an update whose stored view no longer has it is refused {@code STALE_VIEW} before anything
+    * is opened. Absent: last write wins, as before.
+    */
    public record WriteRequest(String database, String name, String parent,
-                              Map<String, Object> definition, Boolean dryRun)
+                              Map<String, Object> definition, Boolean dryRun,
+                              String baseRevision)
    {
+      public WriteRequest(String database, String name, String parent,
+                          Map<String, Object> definition, Boolean dryRun)
+      {
+         this(database, name, parent, definition, dryRun, null);
+      }
    }
 
    public record Warning(String code, String message, String table1, String table2) {
@@ -46,7 +66,12 @@ public final class WizPhysicalViewWire {
 
    public record WriteResponse(boolean ok, String name, String folder,
                                Map<String, Object> definition, List<Warning> warnings,
-                               List<WizDataModelWire.Dependent> dependents)
+                               List<WizDataModelWire.Dependent> dependents, String revision)
    {
+      public WriteResponse(boolean ok, String name, String folder, Map<String, Object> definition,
+                           List<Warning> warnings, List<WizDataModelWire.Dependent> dependents)
+      {
+         this(ok, name, folder, definition, warnings, dependents, null);
+      }
    }
 }

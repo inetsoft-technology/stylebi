@@ -104,7 +104,9 @@ public class WizPhysicalViewController {
       String parent = blankToNull(request.parent());
       stored(dataModel, database, parent, name, principal);
       View view = session.read(database, dataModel, parent, name);
-      return new GetResponse(true, WizPhysicalViewMapper.toWire(view), view.folder(), false);
+      Map<String, Object> definition = WizPhysicalViewMapper.toWire(view);
+      return new GetResponse(true, definition, view.folder(), false,
+                             WizDataModelRevision.of(definition));
    }
 
    // -- create ---------------------------------------------------------------------------------
@@ -154,8 +156,9 @@ public class WizPhysicalViewController {
       Desired desired = withFolder(parsed, folder);
       WizPhysicalViewSession.Outcome outcome = session.create(
          database, dataModel, parent, desired, Boolean.TRUE.equals(request.dryRun()), principal);
-      return new WriteResponse(true, name, outcome.folder(), wire(outcome), outcome.warnings(),
-                               null);
+      Map<String, Object> written = wire(outcome);
+      return new WriteResponse(true, name, outcome.folder(), written, outcome.warnings(), null,
+                               written == null ? null : WizDataModelRevision.of(written));
    }
 
    // -- update ---------------------------------------------------------------------------------
@@ -202,14 +205,30 @@ public class WizPhysicalViewController {
          requireConnection(database, want.connection(), principal);
       }
 
+      // the edit was planned from a read: refuse it before anything is opened when the stored
+      // view is no longer what that read returned (dry runs included)
+      if(request.baseRevision() != null && !request.baseRevision().isEmpty()) {
+         View current = session.read(database, dataModel, parent, name);
+         String revision = WizDataModelRevision.of(WizPhysicalViewMapper.toWire(current));
+
+         if(!revision.equals(request.baseRevision())) {
+            throw new DmFailure(
+               WizDataModelWire.STALE_VIEW, "baseRevision",
+               "view " + name + " changed since it was read; read it again and redo the edit; " +
+                  "nothing was written");
+         }
+      }
+
       boolean dryRun = Boolean.TRUE.equals(request.dryRun());
       List<WizDataModelWire.Dependent> dependents = visibleOnly(
          dataModel, database, principal, dependentsOf(database, dataModel, parent, name,
                                                       principal));
       WizPhysicalViewSession.Outcome outcome = session.update(
          database, dataModel, parent, name, parsed, dryRun, principal);
-      return new WriteResponse(true, name, outcome.folder(), wire(outcome), outcome.warnings(),
-                               dependents);
+      Map<String, Object> written = wire(outcome);
+      return new WriteResponse(true, name, outcome.folder(), written, outcome.warnings(),
+                               dependents,
+                               written == null ? null : WizDataModelRevision.of(written));
    }
 
    // -- helpers --------------------------------------------------------------------------------

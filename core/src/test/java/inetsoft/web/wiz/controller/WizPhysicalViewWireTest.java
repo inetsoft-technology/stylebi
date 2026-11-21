@@ -41,11 +41,13 @@ class WizPhysicalViewWireTest {
    @Test
    void fieldNamesArePinned() {
       assertEquals(List.of("database", "name", "parent"), names(GetRequest.class));
-      assertEquals(List.of("ok", "definition", "folder", "readOnly"), names(GetResponse.class));
-      assertEquals(List.of("database", "name", "parent", "definition", "dryRun"),
+      assertEquals(List.of("ok", "definition", "folder", "readOnly", "revision"), names(GetResponse.class));
+      assertEquals(List.of("database", "name", "parent", "definition", "dryRun",
+                           "baseRevision"),
                    names(WriteRequest.class));
       assertEquals(List.of("code", "message", "table1", "table2"), names(Warning.class));
-      assertEquals(List.of("ok", "name", "folder", "definition", "warnings", "dependents"),
+      assertEquals(List.of("ok", "name", "folder", "definition", "warnings", "dependents",
+                           "revision"),
                    names(WriteResponse.class));
    }
 }

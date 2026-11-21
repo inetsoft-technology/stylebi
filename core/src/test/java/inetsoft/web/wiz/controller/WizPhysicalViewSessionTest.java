@@ -202,6 +202,125 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
       assertTrue(runtimes.isEmpty());
    }
 
+   // -- D-9: an edit planned from a stale read is refused ----------------------------------------
+
+   private Object updateFrom(String name, Map<String, Object> definition, Boolean dryRun,
+                             String baseRevision)
+      throws Exception
+   {
+      return physicalController.update(
+         new WriteRequest(ds, name, null, definition, dryRun, baseRevision), bob);
+   }
+
+   @Test
+   void getReturnsTheRevisionOfTheDefinitionItReturns() throws Exception {
+      createView(definition("v", tables(plain("T1"))));
+      GetResponse got = getView("v");
+
+      assertEquals(WizDataModelRevision.of(got.definition()), got.revision());
+      assertTrue(got.revision().matches("[0-9a-f]{64}"));
+   }
+
+   @Test
+   void staleBaseRevisionIsRefusedAndNothingIsWritten() throws Exception {
+      createView(definition("v", tables(plain("T1"))));
+      String read = getView("v").revision();
+
+      // two callers plan from the same read; the first one applies
+      Object first = updateFrom("v", definition("v", tables(plain("T1"), plain("T2"))), null,
+                                read);
+      assertTrue(first instanceof WriteResponse, String.valueOf(first));
+
+      Object second = updateFrom("v", definition("v", tables(plain("T1"), plain("T3"))), null,
+                                 read);
+
+      assertEquals(WizDataModelWire.STALE_VIEW, ((Failure) second).reason());
+      assertEquals("baseRevision", ((Failure) second).field());
+      assertTrue(((Failure) second).message().contains("read it again"));
+      assertTrue(((Failure) second).message().contains("nothing was written"));
+      XPartition stored = storedView("v");
+      assertTrue(stored.containsTable("T2"), "the first caller's table is still there");
+      assertFalse(stored.containsTable("T3"));
+      assertTrue(stored.containsTable("T1"));
+      assertTrue(runtimes.isEmpty());
+   }
+
+   @Test
+   void matchingBaseRevisionApplies() throws Exception {
+      createView(definition("v", tables(plain("T1"))));
+      String read = getView("v").revision();
+      WriteResponse applied = ok(updateFrom(
+         "v", definition("v", tables(plain("T1"), plain("T2"))), null, read));
+
+      assertTrue(storedView("v").containsTable("T2"));
+      // the response carries the revision of the saved result: the next edit can chain on it
+      assertEquals(getView("v").revision(), applied.revision());
+      assertNotEquals(read, applied.revision());
+      ok(updateFrom("v", definition("v", tables(plain("T1"), plain("T2"), plain("T3"))), null,
+                    applied.revision()));
+      assertTrue(storedView("v").containsTable("T3"));
+   }
+
+   @Test
+   void absentBaseRevisionKeepsOldBehavior() throws Exception {
+      createView(definition("v", tables(plain("T1"))));
+      ok(updateFrom("v", definition("v", tables(plain("T1"), plain("T2"))), null, null));
+      ok(updateFrom("v", definition("v", tables(plain("T1"), plain("T3"))), null, null));
+
+      XPartition stored = storedView("v");
+      assertTrue(stored.containsTable("T3"));
+      assertFalse(stored.containsTable("T2"), "last write wins for a client without a revision");
+   }
+
+   @Test
+   void noRuntimeOpenedOnStale() throws Exception {
+      createView(definition("v", tables(plain("T1"))));
+      String read = getView("v").revision();
+      ok(updateFrom("v", definition("v", tables(plain("T1"), plain("T2"))), null, read));
+      int puts = runtimePuts.get();
+      reset(manager);
+
+      Object stale = updateFrom("v", definition("v", tables(plain("T1"), plain("T3"))), null,
+                                read);
+
+      assertEquals(WizDataModelWire.STALE_VIEW, ((Failure) stale).reason());
+      assertEquals(puts, runtimePuts.get(), "no runtime was opened");
+      verify(manager, never()).updateAndSaveModel(any(), any(), any(), any(), any(), any());
+      verify(manager, never()).addTable(anyString(), anyString(), any(), any(), any(), any(),
+                                        any(), any(), anyBoolean(), anyBoolean());
+   }
+
+   @Test
+   void theDryRunAlsoHonorsBaseRevision() throws Exception {
+      createView(definition("v", tables(plain("T1"))));
+      String read = getView("v").revision();
+      ok(updateFrom("v", definition("v", tables(plain("T1"), plain("T2"))), null, read));
+      int puts = runtimePuts.get();
+
+      Object stale = updateFrom("v", definition("v", tables(plain("T1"), plain("T3"))), true,
+                                read);
+      assertEquals(WizDataModelWire.STALE_VIEW, ((Failure) stale).reason());
+      assertEquals(puts, runtimePuts.get());
+
+      Object fresh = updateFrom("v", definition("v", tables(plain("T1"), plain("T2"),
+                                                            plain("T3"))), true,
+                                getView("v").revision());
+      WriteResponse dry = ok(fresh);
+      assertNull(dry.definition());
+      assertNull(dry.revision(), "a dry run saved nothing, so it has no revision");
+   }
+
+   @Test
+   void aGetResultFedBackWithItsRevisionIsANoOp() throws Exception {
+      createView(definition("v", tables(plain("T1"), plain("T2"))));
+      GetResponse got = getView("v");
+      int puts = runtimePuts.get();
+      WriteResponse result = ok(updateFrom("v", got.definition(), null, got.revision()));
+
+      assertEquals(got.revision(), result.revision());
+      assertEquals(puts, runtimePuts.get());
+   }
+
    @Test
    void aRuntimeThatExpiresMidRequestIsReportedAndDestroyed() throws Exception {
       doReturn(null).when(manager).addTable(anyString(), anyString(), any(), any(), any(), any(),
@@ -242,7 +361,7 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
       responses.add(createViewRaw(definition("x", tables(inline("IV", "select 1"))), null));
 
       assertFalse(ids.isEmpty());
-      Pattern uuid = Pattern.compile("[0-9a-f]{32}");
+      Pattern uuid = Pattern.compile("(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])");
 
       for(Object response : responses) {
          String json = mapper.writeValueAsString(response);
