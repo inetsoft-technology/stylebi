@@ -265,7 +265,7 @@ public class TimeSeriesRow implements CalcRow {
 
       if(missingval != null && max.compareTo(lastval) > 0) {
          Object prev = add(lastval.value, 1);
-         long part0 = getPart(lastval.value, this.dtype);
+         long part0 = getPart(prev, this.dtype);
          long part2 = getPart(max.value, this.dtype);
 
          while(part0 <= part2) {

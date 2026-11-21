@@ -150,6 +150,15 @@ class TimeSeriesRowCalendarTest {
       }
    }
 
+   @Test
+   void trailingFillStaysInsideTheRange() {
+      // A's last value is in the same month as the overall max: no row after that month
+      List<String> filled = fill(TimeScale.MONTH, rows(
+         group("A", local("2023-01-05T00:00")),
+         group("B", local("2023-01-05T00:00"), local("2023-01-25T00:00"))), 0);
+      assertEquals(List.of(), filled);
+   }
+
    // ---------------------------------------------------------------------
    // Bug #82039: sub-day steps on DST transition days (America/New_York)
    // ---------------------------------------------------------------------
