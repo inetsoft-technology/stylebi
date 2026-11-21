@@ -46,13 +46,21 @@ import static org.junit.jupiter.api.Assertions.*;
 class SubDataSetLargeMappingTest {
    @ParameterizedTest
    @ValueSource(ints = { 65536, 70000 })
-   void mappingKeepsEveryRow(int n) {
+   void mappingKeepsEveryRow(int n) throws Exception {
       SubDataSet sub = new SubDataSet(base(n + 1000), range(n));
+      XIntFragment mapping = mapping2(sub);
+      // getConditionKey() reads the mapping without access(), so keep the shared swapper off it
+      XSwapper.getSwapper().deregister(mapping);
 
-      assertEquals(n, sub.getRowCount());
-      assertEquals(n - 1, sub.getBaseRow(n - 1));
-      assertEquals(n - 1, sub.getData("k", n - 1));
-      assertEquals(n + ":0-" + (n - 1), sub.getConditionKey());
+      try {
+         assertEquals(n, sub.getRowCount());
+         assertEquals(n - 1, sub.getBaseRow(n - 1));
+         assertEquals(n - 1, sub.getData("k", n - 1));
+         assertEquals(n + ":0-" + (n - 1), sub.getConditionKey());
+      }
+      finally {
+         mapping.dispose();
+      }
    }
 
    @Test
@@ -61,14 +69,19 @@ class SubDataSetLargeMappingTest {
       XIntFragment mapping = mapping2(sub);
       XSwapper.getSwapper().deregister(mapping);
 
-      assertTrue(mapping.swap(), "mapping was not swapped");
-      assertFalse(mapping.isValid(), "mapping is still in memory");
+      try {
+         assertTrue(mapping.swap(), "mapping was not swapped");
+         assertFalse(mapping.isValid(), "mapping is still in memory");
 
-      assertEquals(5000, sub.getRowFromBase(5000));
-      assertEquals(69999, sub.getRowFromBase(69999));
-      assertEquals(70000, mapping.getArray().length);
-      assertEquals(70000, sub.getRowCount());
-      assertEquals(69999, sub.getBaseRow(69999));
+         assertEquals(5000, sub.getRowFromBase(5000));
+         assertEquals(69999, sub.getRowFromBase(69999));
+         assertEquals(70000, mapping.getArray().length);
+         assertEquals(70000, sub.getRowCount());
+         assertEquals(69999, sub.getBaseRow(69999));
+      }
+      finally {
+         mapping.dispose();
+      }
    }
 
    @Test
