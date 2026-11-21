@@ -64,6 +64,27 @@ const rootTokens = () => new Map([
    ...declarations(block(read("scss/_viz-tokens.scss"), "@mixin inet-viz-legacy-state-tokens")),
 ]);
 
+// global.scss compiled, without comments, once per run. Compiled by the sass command line in a node
+// child process: the project's test environment is jsdom, where sass's JS API refuses to compile (it
+// checks process.release.name on the global), and the global process there has no execPath, so
+// node:process supplies it.
+let compiledCss: string;
+const compiledGlobal = (): string => {
+   if(compiledCss == null) {
+      const web = join(__dirname, "..", "..", "..", "..");
+      compiledCss = execFileSync(execPath, [
+         join(web, "node_modules", "sass", "sass.js"),
+         `--load-path=${web}`,
+         `--load-path=${join(web, "node_modules")}`,
+         "--no-source-map",
+         "--quiet",
+         join(__dirname, "..", "global.scss"),
+      ], { encoding: "utf-8", maxBuffer: 64 * 1024 * 1024 }).replace(/\/\*[\s\S]*?\*\//g, "");
+   }
+
+   return compiledCss;
+};
+
 // the bases and every token in `tokens` whose value reads one of them through var(), transitively
 const chainOf = (tokens: Map<string, string>, bases: string[]): Set<string> => {
    const chain = new Set(bases);
@@ -228,6 +249,95 @@ describe("light dashboard content", () => {
       expect(variables()).toMatch(/^\$viz-scopes:\s*"\.viz-modern, \.viz-dark, \.viz-shell, \.viz-shell-dark, \[data-viz-theme=\\"v2\\"\]";/m);
       expect(read("scss/_shell-dark.scss")).not.toMatch(/^\$viz-scopes:/m);
    });
+});
+
+describe("dark-marked calendar in the light shell", () => {
+   const CAL_RULE = ":where(:root:not(.custom-theme):not(.shell-dark)) .dropdown-datepicker.viz-dark";
+   const SCROLLBAR = /^\s*scrollbar-color:\s*([^;]*?)\s*;/m;
+   // the values :root gave these base tokens before PR7 (284e8fcee4)
+   const PRE_PR7_BASES = {
+      "--inet-focus-ring-color": "rgba(217, 122, 26, 0.28)",
+      "--inet-shell-selected-bg-color": "#E7E2D8",
+      "--inet-text-muted-color": "#6A685F",
+      "--inet-shell-surface-hover": "#ECE9E2",
+   };
+   const calRule = () => block(variables(), CAL_RULE);
+   const calendarBlock = () => block(read("scss/_shell-dark.scss"), ".dropdown-datepicker.viz-dark");
+   // every declaration in a block (custom properties and scrollbar-color), as name -> value
+   const props = (css: string): Map<string, string> => {
+      const result = declarations(css);
+      const scrollbar = css.match(SCROLLBAR);
+
+      if(scrollbar) {
+         result.set("scrollbar-color", scrollbar[1]);
+      }
+
+      return result;
+   };
+   // the content rule's value of `name`, with Sass variables and var() references resolved from the
+   // same rule (the content values are the pre-PR7 ones); the ring width is unchanged by PR7, so it stays
+   const resolved = (name: string): string => {
+      const content = props(block(variables(), CONTENT_RULE));
+      const resolve = (value: string): string => value
+         .replace(/#\{\$([\w-]+)\}/g, (_, v) =>
+            variables().match(new RegExp(`^\\$${v}:\\s*([^;]+);`, "m"))[1])
+         .replace(/var\((--[\w-]+)\)/g, (ref, token) =>
+            token === "--inet-focus-ring-width" ? ref : resolve(content.get(token)));
+
+      return resolve(content.get(name));
+   };
+   // the content rule's properties the calendar block does not declare itself
+   const expectedPins = (): string[] => {
+      const own = props(calendarBlock());
+      return [...props(block(variables(), CONTENT_RULE)).keys()].filter(name => !own.has(name));
+   };
+
+   it("is gated off on themed pages and in the dark shell, where the calendar follows the shell", () => {
+      expect(calRule()).toContain(CAL_RULE);
+      expect(CAL_RULE).toMatch(/^:where\(:root:not\(\.custom-theme\):not\(\.shell-dark\)\) /);
+   });
+
+   it("pins every content-rule property the calendar block does not re-declare, and no other", () => {
+      const pins = expectedPins();
+
+      // the calendar declares its own muted text and button hovers, never the ring, selected or scroll bar
+      expect(pins).toContain("--inet-focus-ring-color");
+      expect(pins).toContain("--inet-shell-selected-bg-color");
+      expect(pins).toContain("--inet-ui-neutral-color");
+      expect(pins).toContain("scrollbar-color");
+      expect(pins).not.toContain("--inet-text-muted-color");
+      expect([...props(calRule()).keys()].sort()).toEqual([...pins].sort());
+   });
+
+   it("pins each to its pre-PR7 value as a literal, since the calendar's own muted token is dark", () => {
+      const pinned = props(calRule());
+
+      for(const [base, value] of Object.entries(PRE_PR7_BASES)) {
+         expect(resolved(base), base).toBe(value);
+      }
+
+      for(const name of expectedPins()) {
+         expect(pinned.get(name), name).not.toMatch(/#\{|var\((?!--inet-focus-ring-width\))/);
+         expect(pinned.get(name), name).toBe(resolved(name));
+      }
+
+      expect(pinned.get("--inet-ui-neutral-color")).toBe("#6A685F");
+      expect(pinned.get("--inet-focus-ring")).toBe("0 0 0 var(--inet-focus-ring-width) rgba(217, 122, 26, 0.28)");
+      expect(pinned.get("scrollbar-color")).toBe("color-mix(in srgb, #6A685F 55%, transparent) transparent");
+   });
+
+   it("is not folded into the content rule, which still leaves the calendar out", () => {
+      expect(CONTENT_RULE).toMatch(/:where\(:not\(\.dropdown-datepicker\.viz-dark\)\)$/);
+      expect(block(variables(), CONTENT_RULE)).not.toContain(".dropdown-datepicker.viz-dark {");
+   });
+
+   it("is in the compiled global.scss with the same declarations", () => {
+      const escaped = CAL_RULE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const m = compiledGlobal().match(new RegExp(`(?:^|\\n)${escaped}\\s*\\{([^{}]*)\\}`));
+
+      expect(m, "no compiled calendar rule").not.toBeNull();
+      expect(props(m[1])).toEqual(props(calRule()));
+   }, 60000);
 });
 
 describe("custom-theme class", () => {
@@ -474,19 +584,8 @@ describe("one hover grey per surface (D7)", () => {
    // the compiled stylesheet's top-level rules, as [selector list, declarations]
    let compiled: [string[], Map<string, string>][];
 
-   // Compiled by the sass command line in a node child process: the project's test environment is
-   // jsdom, where sass's JS API refuses to compile (it checks process.release.name on the global), and
-   // the global process there has no execPath, so node:process supplies it.
    beforeAll(() => {
-      const web = join(__dirname, "..", "..", "..", "..");
-      const css = execFileSync(execPath, [
-         join(web, "node_modules", "sass", "sass.js"),
-         `--load-path=${web}`,
-         `--load-path=${join(web, "node_modules")}`,
-         "--no-source-map",
-         "--quiet",
-         join(__dirname, "..", "global.scss"),
-      ], { encoding: "utf-8", maxBuffer: 64 * 1024 * 1024 }).replace(/\/\*[\s\S]*?\*\//g, "");
+      const css = compiledGlobal();
 
       compiled =[...css.matchAll(/(?:^|\n)([^{}\n@][^{}]*?)\s*\{([^{}]*)\}/g)]
          .map(r => [selectors(r[1]), declarations(r[2])]);
@@ -606,7 +705,8 @@ describe("one hover grey per surface (D7)", () => {
    it("declares the hover nowhere else outside :root and dashboard content", () => {
       const hoverRules = compiled.filter(([, d]) => d.has(HOVER));
       const containerRules = CONTAINERS.length * 2;
-      // :root, the shell-state root, the dark root, the light and dark content rules
+      // :root, the shell-state root, the dark root, the light and dark content rules, and the
+      // dark-marked calendar's light-shell pins
       const others = hoverRules.filter(([sels]) => !sels.some(s => /:where\(:not\(:is\(\.vs-pane/.test(s)));
 
       expect(hoverRules.length - others.length).toBe(containerRules);
@@ -614,6 +714,7 @@ describe("one hover grey per surface (D7)", () => {
          ":root",
          ":root:where(:not(.custom-theme))",
          ":where(:root:not(.custom-theme)) :where(.vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container, .vs-combo-box__list, .dropdown-datepicker, .hidden__annotation-tooltip, .vs-annotation__tooltip):where(:not(.dropdown-datepicker.viz-dark))",
+         ":where(:root:not(.custom-theme):not(.shell-dark)) .dropdown-datepicker.viz-dark",
          ":root.shell-dark",
          ":root.shell-dark :is(.vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container, .hidden__annotation-tooltip, .vs-annotation__tooltip, .vs-combo-box__list, .dropdown-datepicker:not(.viz-dark))",
       ]);

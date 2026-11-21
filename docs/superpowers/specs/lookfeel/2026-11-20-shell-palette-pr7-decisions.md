@@ -255,6 +255,28 @@ keyboard focus still shows the 1.97:1 label. The release note tells them to set
 **Overturning it.** Remove the gate from the selectors, the 6 template classes and the `login.css`
 gate. Themes then lose up to 13 tokens on dashboards and the hover token in shell containers.
 
+### Content parity: named exceptions and edges
+
+- **The dark-marked calendar** (`.dropdown-datepicker.viz-dark`) follows the dark shell by design,
+  as it did before PR7, so the content re-declaration leaves it out. In the dark shell it takes the
+  new dark ring and hover. In the light shell it is pinned to its pre-PR7 values by its own rule
+  (`:where(:root:not(.custom-theme):not(.shell-dark)) .dropdown-datepicker.viz-dark` in
+  `_variables.scss`), as literals, since the calendar's own muted token is dark.
+- **CKEditor** always mounts outside dashboard content: the annotation dialog attaches to `<body>`,
+  the viewer's email dialog next to `.viewer-root`, and the schedule and Enterprise Manager editors
+  are shell pages. Only embed paths mount dialogs inside a content root, and embeds always render
+  light. So CKEditor is shell chrome and follows the shell palette. The editing area stays light
+  (the `ckeditor-wrapper` rule) and rendered annotations are unchanged.
+- **Custom CSS** (`portal.customCss`, `portal.additional.styles`, and `.css` files in the data
+  space `web-assets/`) is outside O3, which covers Enterprise Manager themes only. These sheets load
+  after the app styles without `custom-theme`, so a `:root` override of a PR7 token in them reaches
+  the shell but no longer reaches dashboards. The release note handles it: it lists the
+  re-declared tokens, gives a snippet that also targets dashboard content, and points to themes as
+  the supported way.
+- **Ring gap on the canvas.** No container re-declares the gap on the canvas, so a filled button
+  directly on the canvas gets the default-surface gap (white light, `#252428` dark). No shell
+  screen with that layout was found.
+
 ## Not in this PR
 
 - Bug #81489's other items: rings that are missing on some controls, and keyboard reachability.
@@ -268,6 +290,9 @@ gate. Themes then lose up to 13 tokens on dashboards and the hover token in shel
 - `shell-palette.spec.ts`: source-reading guards for every token, selector and gate above.
 - Content parity: dashboard content computes the same in both shells and against a pre-PR7 build.
 - Light identity: every light-shell difference maps to D1, D2, D6, D7 or O1.
+  Side effects of these: the thin scroll bar thumb follows O1's muted colour, and annotation
+  tooltips inherit `--inet-viz-selected-bg` and `--inet-viz-sorted-color` with the new values,
+  but no rule inside a tooltip reads them.
 - Themed-page check: a test theme's values show unchanged, apart from the keyboard-only ring and
   the gap.
 - Paired light and dark screenshots, and an axe colour-contrast sweep in both shells.

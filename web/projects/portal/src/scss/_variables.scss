@@ -776,6 +776,45 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   scrollbar-color: color-mix(in srgb, var(--inet-text-muted-color) 55%, transparent) transparent;
 }
 
+// The dark-marked calendar keeps today's values in the light shell too. The rule above leaves it out
+// and its own block (_shell-dark.scss) declares only its text, muted text and button tokens, so every
+// other property of the rule above is pinned here to the value :root gave it before. As literals: the
+// calendar declares a dark muted token, which var(--inet-text-muted-color) would resolve from. Off in
+// the dark shell, where the calendar follows the shell's ring and hover, and on themed pages. Same
+// specificity as the calendar block, which declares none of these.
+:where(:root:not(.custom-theme):not(.shell-dark)) .dropdown-datepicker.viz-dark {
+  // focus ring
+  --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
+  --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) rgba(217, 122, 26, 0.28);
+
+  // selected
+  --inet-shell-selected-bg-color: #E7E2D8;
+  --inet-selected-item-bg-color: #E7E2D8;
+  --inet-table-selected-bg-color: #E7E2D8;
+  --inet-list-selected-bg-color: #E7E2D8;
+
+  // muted text
+  --inet-shell-text-muted: #6A685F;
+  --inet-table-heading-text-color: #6A685F;
+  --inet-ui-neutral-color: #6A685F;
+
+  // hover
+  --inet-shell-surface-hover: #ECE9E2;
+  --inet-ui-neutral-hover-bg-color: #ECE9E2;
+  --inet-hover-primary-bg-color: #ECE9E2;
+  --inet-hover-secondary-bg-color: #ECE9E2;
+  --inet-table-hover-bg-color: #ECE9E2;
+  --inet-list-hover-bg-color: #ECE9E2;
+  --inet-button-secondary-hover-bg-color: #ECE9E2;
+
+  // the Bootstrap bridge
+  --bs-dropdown-link-hover-bg: #ECE9E2;
+  --bs-list-group-action-hover-bg: #ECE9E2;
+  --bs-list-group-active-bg: #E7E2D8;
+
+  scrollbar-color: color-mix(in srgb, #6A685F 55%, transparent) transparent;
+}
+
 // The legacy viz state tokens in the same chain (_viz-tokens.scss), declared on :root too. A viz
 // scope on the content root or an ancestor declares its own, so only content outside every viz
 // scope takes these. The same elements as the dark shell's legacy viz rule: the annotation

@@ -58,8 +58,9 @@
 
 /* PR7 shell state colours for pages without a custom theme (O3): a themed login page keeps the
    fallbacks above (.28 ring, #ECE9E2 hover, #6A685F muted) unless its theme sets the --inet token.
-   Dark needs nothing here: this page loads global.css, whose :root.shell-dark block defines the
-   tokens these read. */
+   All five login-family pages (login, restricted, signup, signupDetail, error) load global.css,
+   which defines the tokens these read, its :root.shell-dark block included, so dark needs nothing
+   here; the literals in this block are a fallback for when global.css is missing. */
 :root:not(.custom-theme) {
   --ln-text-muted: var(--inet-text-muted-color, #5F5E56);
   --ln-hover: var(--inet-ui-neutral-hover-bg-color, #E9E5DD);
