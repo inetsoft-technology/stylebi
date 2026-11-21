@@ -1636,7 +1636,8 @@ public abstract class AbstractVSExporter implements VSExporter {
                      // emit before writeChart so per-region links overlay on top
                      if(emptyPlotLink != null) {
                         int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
-                        Insets padding = info.getPadding();
+                        // the plot area, so the same padding the graph is laid out and drawn with
+                        Insets padding = info.getLayoutPadding();
                         Insets2D border = getBorderOffset(info.getFormat());
                         Rectangle2D chartBounds = new Rectangle2D.Double(
                            pos.x + padding.left + border.left,
@@ -1848,7 +1849,7 @@ public abstract class AbstractVSExporter implements VSExporter {
     * @param graph graph rendering without padding.
     */
    protected BufferedImage getImageWithPadding(ChartVSAssemblyInfo info, BufferedImage graph) {
-      Insets padding = info.getPadding();
+      Insets padding = info.getLayoutPadding();
       // dpi is x2
       BufferedImage outer = new BufferedImage(
          graph.getWidth() + padding.left * 2 + padding.right * 2,
@@ -2340,7 +2341,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          double h = Math.min(10000, evgraph.getSize().getHeight());
          int titleHeight = getTitleHeight(info);
          h += titleHeight;
-         Insets padding = info.getPadding();
+         // the graph was laid out with the layout padding, so the page is sized with it too
+         Insets padding = info.getLayoutPadding();
 
          if(padding != null) {
             w += padding.left + padding.right;
@@ -2690,7 +2692,9 @@ public abstract class AbstractVSExporter implements VSExporter {
       final Insets2D border = getBorderOffset(info.getFormat());
       chart.paint(g2);
 
-      g2.translate(info.getPadding().left, info.getPadding().top + titleHeight);
+      // draw at the same offset the graph was laid out with (see ChartVSAssemblyInfo.getLayoutPadding)
+      final Insets layoutPadding = info.getLayoutPadding();
+      g2.translate(layoutPadding.left, layoutPadding.top + titleHeight);
       g2.translate(border.left, border.top);
       g2.setColor(ocolor);
 

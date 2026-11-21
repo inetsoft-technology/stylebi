@@ -1677,7 +1677,8 @@ public class VsToReportConverter {
    {
       ChartVSAssemblyInfo cinfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
       Rectangle cbounds = getPixelBounds(assembly);
-      Insets padding = cinfo.getPadding();
+      // the same padding getVGraph() sizes the graph with, so placement and size agree
+      Insets padding = cinfo.getLayoutPadding();
       VSCompositeFormat format = cinfo.getFormat();
       int corner = format != null ? format.getRoundCorner() : 0;
       Insets borders = format != null && format.getBorders() != null ?
@@ -1783,8 +1784,9 @@ public class VsToReportConverter {
       // Add the padding left and top to the size since they will be subtracted later
       // when calculating the graph dimensions. Since we're moving the chart by the padding left
       // and top there is no need to reduce the graph size by these dimensions too
-      size.width += assembly.getChartInfo().getPadding().left;
-      size.height += assembly.getChartInfo().getPadding().top;
+      Insets layoutPadding = assembly.getChartInfo().getLayoutPadding();
+      size.width += layoutPadding.left;
+      size.height += layoutPadding.top;
       VGraphPair pair = box.getVGraphPair(assembly.getAbsoluteName(), true, size, true,
          scalefont, true);
 

@@ -375,10 +375,11 @@ public class VGraphPair {
       fixChartFormat(ainfo);
       this.vsrc = GraphUtil.getVisualSource(ainfo);
       VariableTable vars = box.getAllVariables();
-      this.topPadding = ainfo.getPadding().top;
-      this.leftPadding = ainfo.getPadding().left;
-      this.bottomPadding = ainfo.getPadding().bottom;
-      this.rightPadding = ainfo.getPadding().right;
+      Insets layoutPadding = ainfo.getLayoutPadding();
+      this.topPadding = layoutPadding.top;
+      this.leftPadding = layoutPadding.left;
+      this.bottomPadding = layoutPadding.bottom;
+      this.rightPadding = layoutPadding.right;
 
       // create vgraph
       cinfo = ainfo.getVSChartInfo();
@@ -2722,7 +2723,8 @@ public class VGraphPair {
       chart.paint(g);
 
       // translate by padding and title height
-      g.translate(info.getPadding().left, info.getPadding().top + titleHeight);
+      Insets layoutPadding = info.getLayoutPadding();
+      g.translate(layoutPadding.left, layoutPadding.top + titleHeight);
 
       // draw the graph
       paint(g, graph, match);

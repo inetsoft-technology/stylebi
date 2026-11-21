@@ -144,8 +144,10 @@ public class SVGVSExporter extends AbstractVSExporter {
 
       if(!isMatchLayout()) {
          Rectangle2D rect = vgraph.getBounds();
-         double w = rect.getWidth() + info.getPadding().left + info.getPadding().right;
-         double h = rect.getHeight() + info.getPadding().top + info.getPadding().bottom;
+         // the graph was laid out with the layout padding, so the exported size uses it too
+         Insets padding = info.getLayoutPadding();
+         double w = rect.getWidth() + padding.left + padding.right;
+         double h = rect.getHeight() + padding.top + padding.bottom;
 
          if(info.isTitleVisible()) {
             h += info.getTitleHeight();

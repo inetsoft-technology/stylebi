@@ -1204,7 +1204,7 @@ public final class AnnotationVSUtil {
       ChartVSAssemblyInfo chartInfo = (ChartVSAssemblyInfo) chart.getInfo();
       VSChartInfo cinfo = chartInfo.getVSChartInfo();
       boolean isMap = GraphTypes.isMap(cinfo.getRTChartType());
-      Insets padding = chartInfo.getPadding();
+      Insets padding = chartInfo.getLayoutPadding();
       EGraph graph = chartArea.getEGraph();
       boolean wordCloud = graph.getElement(0) instanceof PointElement &&
          ((PointElement) graph.getElement(0)).isWordCloud();

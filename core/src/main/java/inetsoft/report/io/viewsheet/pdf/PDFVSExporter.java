@@ -393,7 +393,7 @@ public class PDFVSExporter extends AbstractVSExporter {
       final Insets2D border = getBorderOffset(info.getFormat());
 
       if(genLink) {
-         Insets padding = info.getPadding();
+         Insets padding = info.getLayoutPadding();
          Rectangle2D bounds2 = new Rectangle2D.Double(
             bounds.getX() + padding.left + border.left,
             bounds.getY() + padding.top + border.top + theight,
