@@ -126,6 +126,17 @@ class PowerScaleRegressionTest {
    }
 
    @Test
+   void userMaxSetAfterDataInitIsLastTickAndMax() {
+      PowerScale s = new PowerScale("v");
+      s.setExponent(1);
+      s.init(column(0, 50, 90));
+      s.setMax(100);
+      double[] ticks = s.getTicks();
+      assertEquals(100.0, s.getMax());
+      assertEquals(s.getMax(), ticks[ticks.length - 1]);
+   }
+
+   @Test
    void userMaxIsComparedInPowerSpace() {
       PowerScale s = new PowerScale(0, 50);
       double[] ticks = s.getTicks();
