@@ -41,6 +41,10 @@ export class ChartTypeButton {
    @Input() multiStyles: boolean;
    @Input() stackMeasures: boolean;
    @Input() refName: string;
+   // true in the chart editor toolbar: neutral toolbar-cell look with a chevron instead of the
+   // always-orange primary button used per measure in the field editors
+   @Input() toolbar: boolean = false;
+   menuOpen: boolean = false;
    @Output() onChange = new EventEmitter<any>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
    url: string = "/api/adhoc/chart/changeChartType";
@@ -256,6 +260,8 @@ export class ChartTypeButton {
    }
 
    toggled(open: boolean) {
+      this.menuOpen = open;
+
       if(!open) {
          this.changeChartType();
       }
