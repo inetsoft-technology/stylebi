@@ -29,13 +29,45 @@ import { ShapeItem } from "./shape-item.component";
     templateUrl: "shape-cell.component.html",
     imports: [ShapeItem, TextureItem, LineItem, NgTemplateOutlet],
     // The icon font puts the built-in shapes about 1px above the middle of their 20px box (the
-    // ink has 0.5px above and 1.5px below), so in the tile they sat high. Move them down 1px.
+    // ink has 0.5px above and 1.5px below), so in the tile they sat high. Move them down 1px. The
+    // static line and texture frames are drawn by the same font and sat 1px high in the same way
+    // (4px above the frame, 6px below, measured in the tile).
     styles: [
        ".shape-cell__glyph { display: block; }",
-       ":host ::ng-deep shape-item > i { position: relative; top: 1px; }"
+       ":host ::ng-deep shape-item > i, :host ::ng-deep line-item > i, " +
+          ":host ::ng-deep texture-item > i { position: relative; top: 1px; }"
     ]
 })
 export class ShapeCell extends AestheticIconCell {
+   /**
+    * Names the state the glyph stands for, so a from-data or mixed tile is not just a generic
+    * picture: "Edit Shape (Shape from data)". Null for a frame this tile does not recognise.
+    */
+   get tooltip(): string {
+      let state: string = null;
+
+      if(this.isStaticShape) {
+         state = this.isMixed ? "_#(js:Mixed shapes)" : "_#(js:Static shape)";
+      }
+      else if(this.isLinearShape) {
+         state = "_#(js:Shape from data)";
+      }
+      else if(this.isStaticTexture) {
+         state = this.isMixed ? "_#(js:Mixed textures)" : "_#(js:Static texture)";
+      }
+      else if(this.isLinearTexture) {
+         state = "_#(js:Texture from data)";
+      }
+      else if(this.isStaticLine) {
+         state = this.isMixed ? "_#(js:Mixed lines)" : "_#(js:Static line)";
+      }
+      else if(this.isLinearLine) {
+         state = "_#(js:Line from data)";
+      }
+
+      return state ? "_#(js:Edit Shape) (" + state + ")" : null;
+   }
+
    get isStaticShape(): boolean {
       return this.frameModel ?
          this.frameModel.clazz == (new V.StaticShapeModel()).clazz : false;

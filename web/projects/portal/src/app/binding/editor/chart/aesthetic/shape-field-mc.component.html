@@ -37,9 +37,15 @@
         @if (!_isEditEnabled) {
           <div class="visual-edit-icon no-caret"
             [class.icon-disabled]="!_isEditEnabled">
-            <i class="shapes-overview-icon icon-size-large" aria-hidden="true"
-              title="_#(Edit Shape)">
-            </i>
+            <!-- the same triangle, circle and square as the from-data tile, faded: the tile is
+                 unavailable, not a different kind of thing -->
+            <svg class="shape-glyph shape-glyph--off" width="20" height="20" viewBox="0 0 20 20"
+                 aria-hidden="true" fill="currentColor">
+              <title>_#(Edit Shape)</title>
+              <polygon points="10,0.7 16.2,10 3.8,10"/>
+              <circle cx="5.8" cy="15.3" r="4.5"/>
+              <rect x="11" y="11.3" width="8" height="8" rx="0.5"/>
+            </svg>
           </div>
         }
         <!--fake cell to keep align with textfield-->
