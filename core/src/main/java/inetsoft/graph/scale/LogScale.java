@@ -21,6 +21,7 @@ import com.inetsoft.build.tern.*;
 import inetsoft.graph.internal.GTool;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A log scale maps numeric values on a logarithmic scale.
@@ -276,6 +277,14 @@ public class LogScale extends LinearScale {
     * @param n the number of minor ticks between the major ticks.
     */
    static double[] getMinorTicks(LinearScale scale, double base) {
+      return getMinorTicks(scale, base, new ArrayList<>());
+   }
+
+   /**
+    * Get minor ticks, collecting the unmapped values in the given list.
+    * @param mticks the list the minor tick values are added to.
+    */
+   static double[] getMinorTicks(LinearScale scale, double base, List<Double> mticks) {
       Double[] ticks = (Double[]) scale.getValues();
 
       if(ticks.length < 2) {
@@ -291,19 +300,8 @@ public class LogScale extends LinearScale {
 
       int n = (int) Math.ceil(base / inc);
 
-      ArrayList<Double> mticks = new ArrayList();
-
       for(int i = 0; i < ticks.length - 1; i++) {
-         inc = (ticks[i + 1] - ticks[i]) / n;
-
-         // stop when v no longer grows: between two ticks a few ulps apart (e.g. user
-         // bounds that differ by float noise) inc can be too small to move v, and the
-         // loop would add v until the heap runs out
-         for(double v = ticks[i] + inc, prev = ticks[i]; v > prev && v < ticks[i + 1];
-             prev = v, v += inc)
-         {
-            mticks.add(v);
-         }
+         addMinorTicks(mticks, ticks[i], ticks[i + 1], (ticks[i + 1] - ticks[i]) / n);
       }
 
       double[] arr = new double[mticks.size()];
@@ -313,6 +311,18 @@ public class LogScale extends LinearScale {
       }
 
       return arr;
+   }
+
+   /**
+    * Add the minor ticks between two major ticks, from + inc, from + 2 * inc, ..., below to.
+    */
+   static void addMinorTicks(List<Double> mticks, double from, double to, double inc) {
+      // stop when v no longer grows: between two ticks a few ulps apart (e.g. user
+      // bounds that differ by float noise) inc can be too small to move v, and the
+      // loop would add v until the heap runs out
+      for(double v = from + inc, prev = from; v > prev && v < to; prev = v, v += inc) {
+         mticks.add(v);
+      }
    }
 
    private int base = 10;

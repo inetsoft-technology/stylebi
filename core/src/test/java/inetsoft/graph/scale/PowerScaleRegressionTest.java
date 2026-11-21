@@ -23,8 +23,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -83,7 +84,7 @@ class PowerScaleRegressionTest {
       assertEquals(-1e30, ticks[0]);
       assertEquals(1e30, ticks[ticks.length - 1]);
       assertTrue(Arrays.stream(ticks).anyMatch(t -> t == 0), Arrays.toString(ticks));
-      assertTimeoutPreemptively(Duration.ofSeconds(5), s::getMinorTicks);
+      minorTicks(s);
    }
 
    @Test
@@ -190,7 +191,7 @@ class PowerScaleRegressionTest {
       double[] ticks = assertDoesNotThrow(s::getTicks);
       // getMinorTicks() is on the default axis paint path; a near-zero end gap made it loop
       // until the heap ran out
-      assertTimeoutPreemptively(Duration.ofSeconds(5), s::getMinorTicks);
+      minorTicks(s);
       assertNoCloseTicks(ticks);
       assertEquals(s.getMax(), ticks[ticks.length - 1]);
    }
@@ -229,20 +230,18 @@ class PowerScaleRegressionTest {
    @ParameterizedTest
    @ValueSource(doubles = { 0.5, 1.5, 2, 2.74, 2.93, 3 })
    void boundEndTicksAreNeverTooClose(double exponent) {
-      assertTimeoutPreemptively(Duration.ofSeconds(60), () -> {
-         for(int m = 1; m <= 300000; m += 37) {
-            PowerScale user = new PowerScale(0, m);
-            user.setExponent(exponent);
-            checkEndTicks(user, "user max " + m);
+      for(int m = 1; m <= 300000; m += 37) {
+         PowerScale user = new PowerScale(0, m);
+         user.setExponent(exponent);
+         checkEndTicks(user, "user max " + m);
 
-            // TICKS off: the data range is the bound
-            PowerScale data = new PowerScale("v");
-            data.setExponent(exponent);
-            data.setScaleOption(Scale.ZERO);
-            data.init(column(0, m));
-            checkEndTicks(data, "data max " + m);
-         }
-      });
+         // TICKS off: the data range is the bound
+         PowerScale data = new PowerScale("v");
+         data.setExponent(exponent);
+         data.setScaleOption(Scale.ZERO);
+         data.init(column(0, m));
+         checkEndTicks(data, "data max " + m);
+      }
    }
 
    @ParameterizedTest
@@ -253,25 +252,39 @@ class PowerScaleRegressionTest {
       // both ticks are the user bounds, so nothing is merged; the minor ticks between two
       // values one ulp apart looped until the heap ran out
       assertArrayEquals(new double[] { s.map(2.0), s.map(Math.nextUp(2.0)) }, s.getTicks());
-      assertTimeoutPreemptively(Duration.ofSeconds(5), s::getMinorTicks);
+      assertEquals(0, minorTicks(s).length);
    }
 
    @Test
    void userBoundsFewUlpsApartMinorTicksEnd() {
-      assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
-         for(double v : new double[] { 0.3, 0.7, 1, 12.5, 100, 1e6, -2, -1e6 }) {
-            for(double exponent : new double[] { 0.5, 1, 2, 3 }) {
-               double max = v;
+      for(double v : new double[] { 0.3, 0.7, 1, 12.5, 100, 1e6, -2, -1e6 }) {
+         for(double exponent : new double[] { 0.5, 1, 2, 3 }) {
+            double max = v;
 
-               for(int ulps = 1; ulps <= 3; ulps++) {
-                  max = Math.nextUp(max);
-                  PowerScale s = new PowerScale(v, max);
-                  s.setExponent(exponent);
-                  s.getMinorTicks();
-               }
+            for(int ulps = 1; ulps <= 3; ulps++) {
+               max = Math.nextUp(max);
+               PowerScale s = new PowerScale(v, max);
+               s.setExponent(exponent);
+               minorTicks(s);
             }
          }
-      });
+      }
+   }
+
+   // the per-gap minor tick loop must end even when inc cannot move v; a bounded list turns
+   // a loop that does not end into a failure here instead of a heap that runs out
+   @Test
+   void minorTickLoopEndsWhenIncCannotMoveValue() {
+      double ulp = Math.ulp(2.0);
+      // one ulp apart: 2 + ulp/2 rounds back to 2
+      assertEquals(0, addMinorTicks(2, Math.nextUp(2.0), ulp / 2).size());
+      // a few ulps apart
+      assertEquals(0, addMinorTicks(2, 2 + 3 * ulp, ulp / 2).size());
+      assertEquals(0, addMinorTicks(1e6, 1e6 + 1e-10, 1e-11).size());
+      // a negative inc (negative exponent with a user minor increment) moves v away from to
+      assertEquals(0, addMinorTicks(-1, 1, -0.3).size());
+      // a gap that can be split is unchanged
+      assertEquals(Arrays.asList(2.5, 5.0, 7.5), addMinorTicks(0, 10, 2.5));
    }
 
    @Test
@@ -349,7 +362,34 @@ class PowerScaleRegressionTest {
       assertNoCloseTicks(ticks);
       assertEquals(s.getMax(), ticks[ticks.length - 1], msg);
       assertEquals(s.getMin(), ticks[0], msg);
-      s.getMinorTicks();
+      minorTicks(s);
+   }
+
+   private static List<Double> addMinorTicks(double from, double to, double inc) {
+      BoundedList mticks = new BoundedList();
+      LogScale.addMinorTicks(mticks, from, to, inc);
+      return mticks;
+   }
+
+   // the minor ticks of the scale. They are first computed into a bounded list, so a minor
+   // tick loop that does not end fails the test instead of running the heap out, then they
+   // are compared with getMinorTicks(), which PowerScale wires to the same code
+   private static double[] minorTicks(PowerScale s) {
+      double[] bounded = LogScale.getMinorTicks(s, 1 / s.getExponent(), new BoundedList());
+      double[] minor = s.getMinorTicks();
+      assertArrayEquals(bounded, minor);
+      return minor;
+   }
+
+   private static class BoundedList extends ArrayList<Double> {
+      @Override
+      public boolean add(Double v) {
+         if(size() >= 1000) {
+            throw new AssertionError("more than 1000 minor ticks, the minor tick loop does not end");
+         }
+
+         return super.add(v);
+      }
    }
 
    // no two adjacent ticks closer than half the regular tick step
