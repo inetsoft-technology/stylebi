@@ -59,7 +59,13 @@ public class CSVUtil {
       if(box.isPresent()) {
          vs.updateCSSFormat("xlsx", null, box.get());
 
-         try {
+         // This read runs before the export. A table script that fails must be skipped here as
+         // in the export, or the failed read leaves a cached null table the export then reads
+         // (Bug #81796). The skip is not this export's mark: forget it unless one was already set.
+         ViewsheetSandbox sandbox = box.get();
+         boolean marked = sandbox.getExportSkippedScript() != null;
+
+         try(ViewsheetSandbox.ExportScriptSkip skip = ViewsheetSandbox.skipScriptErrorsForExport()) {
             for(Assembly assembly : vs.getAssemblies()) {
                if(assembly instanceof TableDataVSAssembly) {
                   TableLens lens = box.get().getVSTableLens(assembly.getAbsoluteName(), false);
@@ -72,6 +78,11 @@ public class CSVUtil {
             }
          }
          catch(Exception ignore) {
+         }
+         finally {
+            if(!marked) {
+               sandbox.clearExportSkippedScript();
+            }
          }
       }
 

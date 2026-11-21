@@ -19,8 +19,10 @@ package inetsoft.uql.rest.xml;
 
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.rest.RestRequest;
+import inetsoft.uql.rest.pagination.PaginationType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -34,6 +36,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Bug #81916: an XPath that matches nothing must yield "no data" (null from run()), the same as
  * the JSON runner, instead of a placeholder one-row table with a single null "Column".
+ *
+ * <p>The runner is tested directly and through the real runtime. A page of a paged query that
+ * matches nothing is skipped, so the paging must go on after it.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, CredentialTestConfig.class }, initializers = ConfigurationContextInitializer.class)
@@ -63,6 +68,80 @@ public class RestXMLQueryRunnerNoMatchTest {
       final XNodeTableLens lens = new XNodeTableLens(data);
       lens.moreRows(Integer.MAX_VALUE);
       assertEquals(2, lens.getRowCount());
+   }
+
+   @Test
+   void xpathMatchingNothingIsNoDataThroughTheRuntimeToo() throws Exception {
+      final ScriptedHttpHandler http = new ScriptedHttpHandler()
+         .on("xml.test", "<root><item><id>1</id></item></root>");
+
+      final XTableNode data = new ScriptedHttpHandler.XmlReplayRuntime(http)
+         .runQuery(pagedQuery("/root/missing", PaginationType.NONE), new VariableTable());
+
+      http.assertNoFailures();
+      assertNull(data);
+   }
+
+   @Test
+   void aPageThatMatchesNothingDoesNotEndThePaging() throws Exception {
+      // the second of three pages has the page count but no item: the third is still read
+      final ScriptedHttpHandler http = new ScriptedHttpHandler().on("xml.test",
+         "<root><pages>3</pages><item><id>1</id></item></root>",
+         "<root><pages>3</pages></root>",
+         "<root><pages>3</pages><item><id>3</id></item></root>");
+
+      final XTableNode data = new ScriptedHttpHandler.XmlReplayRuntime(http)
+         .runQuery(pagedQuery("/root/item", PaginationType.PAGE_COUNT), new VariableTable());
+
+      http.assertNoFailures();
+      assertEquals(3, http.requests().size(), http.requests().toString());
+      assertEquals(List.of(1, 3), ids(data));
+   }
+
+   @Test
+   void everyPageMatchingNothingIsNoData() throws Exception {
+      final ScriptedHttpHandler http = new ScriptedHttpHandler().on("xml.test",
+         "<root><pages>2</pages></root>", "<root><pages>2</pages></root>");
+
+      final XTableNode data = new ScriptedHttpHandler.XmlReplayRuntime(http)
+         .runQuery(pagedQuery("/root/item", PaginationType.PAGE_COUNT), new VariableTable());
+
+      http.assertNoFailures();
+      assertEquals(2, http.requests().size(), http.requests().toString());
+      assertNull(data);
+   }
+
+   private static RestXMLQuery pagedQuery(String xpath, PaginationType paging) {
+      final RestXMLDataSource datasource = new RestXMLDataSource();
+      datasource.setURL(paging == PaginationType.NONE ? "https://xml.test/items"
+                                                      : "https://xml.test/items?p={{page}}");
+      final RestXMLQuery query = new RestXMLQuery();
+      query.setDataSource(datasource);
+      query.setXpath(xpath);
+
+      if(paging != PaginationType.NONE) {
+         query.setPaginationType(paging);
+         query.setPageCountXpathValue("/root/pages");
+         query.setPageNumberURLVariableValue("page");
+      }
+
+      return query;
+   }
+
+   /** The values of the id column of the table, in order. */
+   private static List<Object> ids(XTableNode table) {
+      assertNotNull(table);
+      final List<Object> ids = new ArrayList<>();
+
+      while(table.next()) {
+         for(int i = 0; i < table.getColCount(); i++) {
+            if(table.getName(i).endsWith("id")) {
+               ids.add(table.getObject(i));
+            }
+         }
+      }
+
+      return ids;
    }
 
    private XTableNode run(String xpath, String response) throws Exception {

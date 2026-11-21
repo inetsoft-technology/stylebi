@@ -28,7 +28,6 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.rest.json.RestJsonDataSource;
 import inetsoft.uql.rest.json.RestJsonQuery;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -110,7 +109,6 @@ class CustomRestLookupReplayTest {
    }
 
    @Test
-   @Disabled("Bug #81925: a row without the lookup key makes the whole custom REST query fail, while the endpoint query skips the row; enable when it is fixed")
    void aRowWithoutTheKeyIsSkippedAndItsNeighboursAreNot() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler()
          .on("/customers/c2/orders", "[{\"id\":\"o2\"}]")
