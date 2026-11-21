@@ -112,4 +112,28 @@ class GraphElementSubDataSetSortRangeTest {
 
       assertRange(elem.createSortedDataSet(nestedCell(), "k"), 1, 2);
    }
+
+   // element rows [2, 4): exactly the root rows 2, 3 of the nested cell. Mapping the root rows
+   // without going through the parent cell gives [1, 1), an empty range.
+   private static IntervalElement elementOverCellRows() {
+      IntervalElement elem = element();
+      elem.setStartRow(2);
+      elem.setEndRow(4);
+      return elem;
+   }
+
+   @Test
+   void createSortedDataSetOnNestedCellMapsRootRowsThroughTheParent() {
+      assertRange(elementOverCellRows().createSortedDataSet(nestedCell(), "k"), 0, 2);
+   }
+
+   @Test
+   void sortedDataSetInRangeOnNestedCellMapsRootRowsThroughTheParent() {
+      SubDataSet cell = nestedCell();
+      IntervalElement elem = elementOverCellRows();
+      SortedDataSet sorted = (SortedDataSet)
+         elem.getSortedDataSetInRange(cell, new SortedDataSet(cell, "k"));
+
+      assertRange(sorted, 0, 2);
+   }
 }
