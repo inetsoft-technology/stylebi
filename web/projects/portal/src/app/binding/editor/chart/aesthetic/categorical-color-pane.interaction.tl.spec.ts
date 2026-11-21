@@ -271,12 +271,14 @@ describe("CategoricalColorPane — changeColor and reset [Group 5, Risk 2]", () 
       const { fixture, container } = await renderPane();
       fixture.componentInstance.changeColor("#000000", 0);
       fixture.detectChanges();
+      expect(screen.getByTitle(RESET_DEFAULT)).toBeEnabled();
 
       await userEvent.click(screen.getByTitle(RESET_DEFAULT));
       fixture.detectChanges();
 
       expect(swatchColor(container, 0)).toBe("#aa0000");
-      expect(screen.getByTitle(RESET_DEFAULT).className).toContain("icon-disabled");
+      // nothing left to reset: the button is disabled
+      expect(screen.getByTitle(RESET_DEFAULT)).toBeDisabled();
    });
 });
 
