@@ -90,6 +90,37 @@ class ParallelCoordHiddenAxisTest {
    }
 
    /**
+    * A one-measure radar (one group field) uses OneVarParallelCoord, whose per-group scales
+    * share the measure's AxisSpec, so AXIS_NONE hides every axis.
+    */
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void oneVarParallelCoordHiddenAxes(boolean radar) {
+      DefaultDataSet data = new DefaultDataSet(new Object[][] {
+         { "g", "v" }, { "x", 1 }, { "y", 2 }, { "z", 3 }
+      });
+      LinearScale varScale = new LinearScale("v");
+      varScale.getAxisSpec().setAxisStyle(AxisSpec.AXIS_NONE);
+      varScale.getAxisSpec().setGridStyle(GraphConstants.THIN_LINE);
+      OneVarParallelCoord parallel = new OneVarParallelCoord("v", "g", varScale);
+      parallel.init(data);
+
+      LineElement elem = new LineElement();
+      elem.addDim("g");
+      elem.addVar("v");
+      elem.setClosed(radar);
+      EGraph graph = new EGraph();
+      graph.addElement(elem);
+      graph.setCoordinate(radar ? new PolarCoord(parallel) : parallel);
+
+      VGraph vgraph = Plotter.getPlotter(graph).plotAndLayout(data, 0, 0, 600, 400);
+
+      assertNotNull(vgraph);
+      assertEquals(3, parallel.getParallelScales().length);
+      assertEquals(0, parallel.getAxes(false).length);
+   }
+
+   /**
     * Plot and lay out a line element on a parallel coord (wrapped in a PolarCoord for a
     * radar), the way the radar graph generator builds it.
     */
