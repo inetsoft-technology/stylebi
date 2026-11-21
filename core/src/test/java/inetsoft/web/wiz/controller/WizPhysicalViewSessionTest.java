@@ -185,6 +185,24 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
    }
 
    @Test
+   void aServerThatSavesNothingIsReportedNeverSuccess() throws Exception {
+      createView(definition("v", tables(plain("T1"))));
+      doNothing().when(manager).updateAndSaveModel(any(), any(), any(), any(), any(), any());
+      Object updated = updateView("v", definition("v", tables(plain("T1"), plain("T2"))), null);
+
+      assertEquals(WizDataModelWire.READ_BACK_FAILED, ((Failure) updated).reason());
+      assertTrue(((Failure) updated).message().contains("tables[T2]"),
+                 ((Failure) updated).message());
+
+      doNothing().when(manager).createAndSaveModel(any(), any(), any(), any(), any());
+      Object created = createViewRaw(definition("w", tables(plain("T1"))), null);
+
+      assertEquals(WizDataModelWire.READ_BACK_FAILED, ((Failure) created).reason());
+      assertTrue(((Failure) created).message().contains("is not there"));
+      assertTrue(runtimes.isEmpty());
+   }
+
+   @Test
    void aRuntimeThatExpiresMidRequestIsReportedAndDestroyed() throws Exception {
       doReturn(null).when(manager).addTable(anyString(), anyString(), any(), any(), any(), any(),
                                             any(), any(), anyBoolean(), anyBoolean());

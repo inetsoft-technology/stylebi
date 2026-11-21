@@ -279,6 +279,13 @@ final class WizPhysicalViewSession {
       throws Exception
    {
       XDataModel fresh = repository.getDataModel(database);
+
+      if(storedPartition(fresh, parent, name) == null) {
+         throw new DmFailure(
+            WizDataModelWire.READ_BACK_FAILED, "definition",
+            "the server reported success but \"" + database + "/" + name + "\" is not there");
+      }
+
       View stored = read(database, fresh, parent, name);
       String problem = WizPhysicalViewDiff.mismatch(want, desired, stored);
 
