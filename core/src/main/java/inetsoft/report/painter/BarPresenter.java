@@ -21,6 +21,7 @@ import inetsoft.report.Presenter;
 import inetsoft.util.Catalog;
 
 import java.awt.*;
+import java.util.function.DoubleSupplier;
 
 /**
  * The BarPresenter presents a number as a horizontal bar. It only
@@ -31,7 +32,7 @@ import java.awt.*;
  * @version 5.1, 9/20/2003
  * @author InetSoft Technology Corp
  */
-public class BarPresenter implements Presenter {
+public class BarPresenter implements AutoMaximumPresenter {
    /**
     * Create a default counter presenter.
     */
@@ -78,6 +79,57 @@ public class BarPresenter implements Presenter {
    }
 
    /**
+    * Check if the bar is scaled to the maximum of the column data instead of the
+    * configured maximum.
+    */
+   @Override
+   public boolean isAutoMaximum() {
+      return autoMaximum;
+   }
+
+   /**
+    * Set whether the bar is scaled to the maximum of the column data. When no positive
+    * maximum is found in the data, the configured maximum is used.
+    */
+   public void setAutoMaximum(boolean autoMaximum) {
+      this.autoMaximum = autoMaximum;
+   }
+
+   @Override
+   public boolean absoluteMaximum() {
+      return false;
+   }
+
+   @Override
+   public Presenter withMaximumResolver(DoubleSupplier resolver) {
+      BarPresenter copy = new BarPresenter();
+      copy.color = color;
+      copy.psize = psize == null ? null : new Dimension(psize);
+      copy.max = max;
+      copy.fillCell = fillCell;
+      copy.bg = bg;
+      copy.autoMaximum = autoMaximum;
+      copy.maxResolver = resolver;
+      return copy;
+   }
+
+   /**
+    * Get the maximum used for drawing: the data maximum when auto maximum is on and one is
+    * available, otherwise the configured maximum.
+    */
+   private double getDrawingMaximum() {
+      if(autoMaximum && maxResolver != null) {
+         double dataMax = maxResolver.getAsDouble();
+
+         if(dataMax > 0 && !Double.isInfinite(dataMax)) {
+            return dataMax;
+         }
+      }
+
+      return max;
+   }
+
+   /**
     * Paint an object at the specified location.
     * @param g graphical context.
     * @param v object value.
@@ -109,7 +161,7 @@ public class BarPresenter implements Presenter {
             barHeight = thickness;
          }
 
-         g.fillRect(x, barTop, (int) (n * w / max), barHeight);
+         g.fillRect(x, barTop, (int) (n * w / getDrawingMaximum()), barHeight);
          g.setColor(oc);
          g.setClip(clip);
       }
@@ -245,7 +297,8 @@ public class BarPresenter implements Presenter {
          return false;
       }
 
-      return max == bar2.max && fillCell == bar2.fillCell;
+      return max == bar2.max && fillCell == bar2.fillCell &&
+         autoMaximum == bar2.autoMaximum;
    }
 
    /**
@@ -259,6 +312,7 @@ public class BarPresenter implements Presenter {
       hash += psize == null ? 0 : psize.hashCode();
       hash += Math.abs(Math.round(max));
       hash += fillCell ? 0 : 17;
+      hash += autoMaximum ? 31 : 0;
       return hash;
    }
 
@@ -293,4 +347,8 @@ public class BarPresenter implements Presenter {
    private boolean fillCell = true;
    private int thickness = 0;
    private Color bg = null;
+   private boolean autoMaximum = false;
+   // resolves the data maximum at paint time, set by the table lens on a copy of the
+   // presenter; not a bean property, so it is never shown in the dialog or saved
+   private transient DoubleSupplier maxResolver;
 }
