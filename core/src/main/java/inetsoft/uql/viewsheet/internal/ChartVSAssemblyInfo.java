@@ -21,6 +21,7 @@ import inetsoft.graph.GraphConstants;
 import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.aesthetic.CategoricalShapeFrame;
+import inetsoft.graph.aesthetic.ColorValueColorFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
 import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.graph.aesthetic.TealColorFrame;
@@ -418,6 +419,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          // a per-value color outranks the palette, so the ones a render derived from the old
          // palette have to go or they keep rendering for the rest of the session
          ccf.clearDerivedColors();
+      }
+      // "use column values as colors": a value that is not a color falls back to the first slot
+      else if(ref != null && ref.getVisualFrame() instanceof ColorValueColorFrame) {
+         ((ColorValueColorFrame) ref.getVisualFrame()).setDefaultColor(
+            VSChartPaletteDefaults.seedPalette(ctx)[0]);
       }
       // transition only, unlike the categorical branch above: this one replaces the frame
       // outright, and the house ramps are offered to a classic chart too, so on the restore

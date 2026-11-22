@@ -927,12 +927,14 @@ public class ChangeChartProcessor {
          ? (StaticColorFrame) color : null;
       Color ccolor = scolor == null ? null : scolor.getColor();
       Color mapColor = GraphUtil.getMapDefaultColor();
+      // what a chart that stops being a map goes back to. A marked chart is reseeded by the type
+      // change after this, so the classic slot is only ever the final value for a classic chart
       Color chartColor = CategoricalColorFrame.COLOR_PALETTE.get(0);
 
       // if only polygon and color frame is static, fix color to white gray
       if(((ninfo).equals(oinfo) || !containsOnlyPolygon(oinfo)) &&
          containsOnlyPolygon(ninfo) && scolor != null &&
-         (ccolor.equals(chartColor) ||
+         (VSChartPaletteDefaults.isFirstSlotColor(ccolor) ||
             SreeEnv.getProperty("map.default.color") != null))
       {
          GeoRef geo = GraphUtil.getPolygonField((MapInfo) ninfo);

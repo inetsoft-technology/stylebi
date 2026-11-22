@@ -73,6 +73,15 @@ public final class VSChartPaletteDefaults {
    }
 
    /**
+    * True for the first colour of the classic, Modern or Modern Dark palette: the colour a static
+    * colour frame holds until an author picks another.
+    */
+   public static boolean isFirstSlotColor(Color color) {
+      return color != null && (color.equals(CategoricalColorFrame.COLOR_PALETTE.get(0)) ||
+         color.equals(modernPalette()[0]) || color.equals(darkPalette()[0]));
+   }
+
+   /**
     * The colour at the same palette position in the context's static palette. A colour in no
     * known palette, or null, is returned unchanged.
     */
