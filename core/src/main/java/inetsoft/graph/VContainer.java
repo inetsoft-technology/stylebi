@@ -75,7 +75,7 @@ public abstract class VContainer extends Visualizable {
 
       for(int i = 0; i < sorted.size(); i++) {
          Visualizable visual = sorted.get(i);
-         Rectangle2D bounds = visual.getBounds();
+         Rectangle2D bounds = visual.getPaintBounds();
          Rectangle2D visualBounds = visual instanceof VLabel
             // label may be rotated (52259).
             ? ((VLabel) visual).getTransformedBounds().getBounds2D()
