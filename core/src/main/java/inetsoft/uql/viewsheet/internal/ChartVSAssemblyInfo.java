@@ -3369,6 +3369,12 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedPlotAlpha(ctx, type);
       // the legacy branch replaces only a modern value
       seedChartColor(ctx, type);
+      // a measure a conversion made, such as the one that shaded a map, starts on the classic
+      // slot; the same position mapping as Modernize and Revert, so a chosen colour stays
+      if(getVSChartInfo() != null) {
+         seedMeasureColors(getVSChartInfo(), ctx);
+      }
+
       // a position mapping, so a classic value stays on the legacy branch
       seedNodeColor(getVSChartInfo(), ctx);
       // modern only; the classic value stays in legacySmoothLines()
