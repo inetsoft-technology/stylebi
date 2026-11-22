@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.CategoricalColorFrame;
+
 import java.awt.Color;
 
 /**
@@ -62,6 +64,21 @@ public final class VSObjectChromeDefaults {
    public static String cardBackgroundCss(VizContext ctx) {
       Color bg = ctx.dark ? CARD_BG_DARK : CARD_BG;
       return String.format("#%06x", bg.getRGB() & 0xFFFFFF);
+   }
+
+   /**
+    * The default fill of a selection's measure bar. A modern selection takes a tint of the first
+    * palette colour over its card: pale enough that it does not read as a chart series, and
+    * from the palette so it does not look foreign. Any other selection keeps the classic first
+    * colour.
+    */
+   public static Color dataBarColor(VizContext ctx) {
+      if(ctx == null || !ctx.modern) {
+         return CategoricalColorFrame.COLOR_PALETTE.get(0);
+      }
+
+      return blend(VSChartPaletteDefaults.activePalette(ctx)[0], ctx.dark ? 0.7f : 0.55f,
+                   cardBackground(ctx));
    }
 
    /** Opaque object-card color: white in light, the lifted surface in dark. */

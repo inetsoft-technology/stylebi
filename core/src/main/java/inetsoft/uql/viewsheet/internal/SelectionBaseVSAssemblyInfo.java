@@ -1063,6 +1063,18 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
                : VSObjectChromeDefaults.legacyCellForegroundValue());
       }
 
+      // the measure bars' fill: a tint of the first palette colour on a modern selection, the
+      // classic colour otherwise, so Modernize and Revert both land on the right one
+      String barColor = VSObjectChromeDefaults.dataBarColor(ctx).getRGB() + "";
+
+      for(int i = 0; i < 5; i++) {
+         VSCompositeFormat barFormat = getFormatInfo().getFormat(getMeasureBarPath(i), false);
+
+         if(barFormat != null) {
+            barFormat.getDefaultFormat().setForegroundValue(barColor);
+         }
+      }
+
       // the cell's content inset. Seeded rather than resolved at render so it travels in an
       // exported asset. Both branches write: Revert calls this with an unmarked context and needs
       // the legacy absence restored, not the modern value left in place
