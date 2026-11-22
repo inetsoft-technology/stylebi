@@ -230,3 +230,69 @@ describe("PresenterPropertyDialog — cancel", () => {
       expect(emitSpy).toHaveBeenCalledWith("cancel");
    });
 });
+
+// ---------------------------------------------------------------------------
+// Group 5: default color label on a bar presenter
+// ---------------------------------------------------------------------------
+
+function makeColorDescriptor(value: string) {
+   return { name: "color", displayName: "Color", editor: "ColorPropertyEditor", value } as any;
+}
+
+describe("PresenterPropertyDialog — default color label", () => {
+   it.each(["inetsoft.report.painter.BarPresenter", "inetsoft.report.painter.Bar2Presenter"])(
+      "labels the empty color box of %s", async (presenter) => {
+         const { fixture } = await renderComponent({
+            presenter, descriptors: [makeColorDescriptor("")]
+         });
+         expect(fixture.nativeElement.querySelectorAll(".default-color-hint").length).toBe(1);
+      });
+
+   it("does not label a bar that has a color of its own", async () => {
+      const { fixture } = await renderComponent({
+         presenter: "inetsoft.report.painter.BarPresenter",
+         descriptors: [makeColorDescriptor("#ff0000")]
+      });
+      expect(fixture.nativeElement.querySelectorAll(".default-color-hint").length).toBe(0);
+   });
+
+   it("offers a reset on a bar with its own color, and the reset brings the label back", async () => {
+      const { fixture, model } = await renderComponent({
+         presenter: "inetsoft.report.painter.BarPresenter",
+         descriptors: [makeColorDescriptor("#ff0000")]
+      });
+      const root: HTMLElement = fixture.nativeElement;
+      const button = root.querySelector<HTMLButtonElement>(".reset-color-button");
+      expect(button).not.toBeNull();
+
+      button.click();
+      fixture.detectChanges();
+
+      expect((<any> model.descriptors[0]).value).toBe("");
+      expect(root.querySelector(".reset-color-button")).toBeNull();
+      expect(root.querySelectorAll(".default-color-hint").length).toBe(1);
+   });
+
+   it("offers no reset when the bar has no color", async () => {
+      const { fixture } = await renderComponent({
+         presenter: "inetsoft.report.painter.Bar2Presenter", descriptors: [makeColorDescriptor("")]
+      });
+      expect(fixture.nativeElement.querySelector(".reset-color-button")).toBeNull();
+   });
+
+   it("offers no reset on another presenter", async () => {
+      const { fixture } = await renderComponent({
+         presenter: "inetsoft.report.painter.ShadowPresenter",
+         descriptors: [makeColorDescriptor("#ff0000")]
+      });
+      expect(fixture.nativeElement.querySelector(".reset-color-button")).toBeNull();
+   });
+
+   it("leaves the other presenters unlabelled until they are audited", async () => {
+      const { fixture } = await renderComponent({
+         presenter: "inetsoft.report.painter.ShadowPresenter",
+         descriptors: [makeColorDescriptor("")]
+      });
+      expect(fixture.nativeElement.querySelectorAll(".default-color-hint").length).toBe(0);
+   });
+});
