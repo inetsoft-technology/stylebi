@@ -159,7 +159,6 @@ class RelationCoordTest {
    }
 
    @Test
-   @Disabled("Bug #82030: Tree chart with the legend at the bottom: a tree scaled down to fit is pushed out of the plot area")
    @DisplayName("the nodes lie inside a small plot that starts below the origin")
    void containedScaledDownAtOffset() {
       VGraph vg = plot(TREE, 0, 50, 120, 80);

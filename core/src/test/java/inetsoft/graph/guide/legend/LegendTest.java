@@ -254,7 +254,6 @@ class LegendTest {
    }
 
    @Test
-   @Disabled("Bug #82026: Chart legend shows a changed label when a value contains ^_^ and an apostrophe")
    void labelContainingTheQuoteSentinelIsNotCorrupted() {
       Legend legend = legend(color("S", "x^_^y'z", "other"), RIGHT);
 

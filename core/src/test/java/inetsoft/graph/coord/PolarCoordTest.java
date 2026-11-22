@@ -343,7 +343,6 @@ class PolarCoordTest {
    }
 
    @Test
-   @Disabled("Bug #82032: Polar grid lines drawn as shapes have twice the radius of the data")
    @DisplayName("a horizontal line becomes an arc with the radius of its transformed endpoints")
    void horizontalLineArcRadius() {
       PolarCoord c = thetaRho();
@@ -355,7 +354,6 @@ class PolarCoordTest {
    }
 
    @Test
-   @Disabled("Bug #82032: Polar grid lines drawn as shapes have twice the radius of the data")
    @DisplayName("a horizontal line arc joins the transformed endpoints")
    void horizontalLineArcJoinsEndpoints() {
       PolarCoord c = thetaRho();

@@ -141,7 +141,6 @@ class PowerScaleTest {
 
    @Test
    @DisplayName("map(NaN) is NaN like null, LinearScale and LogScale")
-   @Disabled("Bug #82022: PowerScale maps NaN to 0")
    void mapNaN() {
       assertTrue(Double.isNaN(new PowerScale().map(Double.NaN)));
    }
@@ -284,7 +283,6 @@ class PowerScaleTest {
 
    @Test
    @DisplayName("an explicit maximum is not exceeded by any tick")
-   @Disabled("Bug #82021: PowerScale axis ends above the maximum set by the script")
    void userMaxRespected() {
       PowerScale s = new PowerScale(0, 100);
       s.setExponent(1);
@@ -302,7 +300,6 @@ class PowerScaleTest {
 
    @Test
    @DisplayName("large range with the default exponent gives a short tick list")
-   @Disabled("Bug #82020: PowerScale throws Exponent is too large for ordinary data")
    void largeRange() {
       PowerScale s = new PowerScale(0, 4e6);
       double[] ticks = assertDoesNotThrow(s::getTicks);
@@ -317,7 +314,6 @@ class PowerScaleTest {
 
    @Test
    @DisplayName("large data with the default exponent does not throw")
-   @Disabled("Bug #82020: PowerScale throws Exponent is too large for ordinary data")
    void largeData() {
       PowerScale s = new PowerScale("v");
       s.init(column(0, 1e6, 2e6));

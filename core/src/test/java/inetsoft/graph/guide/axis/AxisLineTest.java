@@ -315,7 +315,6 @@ class AxisLineTest {
 
    @Test
    @DisplayName("a hidden max tick leaves no tick pixel at all above the line")
-   @Disabled("Bug #82028: Hiding the maximum tick still leaves a small minor tick mark")
    void hiddenMaxTickLeavesNoStub() {
       DefaultAxis axis = newAxis(lin());
       axis.setMinTickVisible(false);

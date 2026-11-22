@@ -28,7 +28,6 @@ import inetsoft.graph.scale.*;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -463,7 +462,6 @@ class DefaultAxisTicksTest {
       assertTrue(off.isWrapping());
    }
 
-   @Disabled("Bug #82027: Axis abbreviate with a date format throws ClassCastException on a non-time scale")
    @Test
    @DisplayName("abbreviate on a categorical scale of dates still shows the formatted date")
    void abbreviateOnNonTimeScale() {

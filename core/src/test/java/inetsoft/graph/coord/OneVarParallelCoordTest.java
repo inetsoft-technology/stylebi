@@ -197,7 +197,6 @@ class OneVarParallelCoordTest {
 
    @Test
    @DisplayName("NO_NULL with only null groups: one axis per label scale value")
-   @Disabled("Bug #82034: Radar chart with Ignore Null and an all-null group fails")
    void noNullOnlyNullGroups() {
       OneVarParallelCoord coord = coordNoNull(data(null, 10.0, null, 20.0));
 

@@ -205,8 +205,7 @@ class ParallelCoordChartPathTest {
    }
 
    @Test
-   @DisplayName("a hidden axis keeps its slot: null entry, the others stay at slots 0 and 2 of 3")
-   @Disabled("Bug #82035: Hiding one axis of a ParallelCoord with AXIS_NONE throws NullPointerException")
+   @DisplayName("a hidden axis is left out of the axes, the others stay at slots 0 and 2 of 3")
    void hiddenAxisKeepsSlot() {
       Scale[] scales = lin100(3);
       scales[1].getAxisSpec().setAxisStyle(AxisSpec.AXIS_NONE);
@@ -214,10 +213,9 @@ class ParallelCoordChartPathTest {
       List<DefaultAxis> axes = axes(vg);
       Rectangle2D plot = vg.getPlotBounds();
 
-      assertEquals(3, axes.size());
-      assertNull(axes.get(1));
+      assertEquals(2, axes.size());
       assertEquals(plot.getX() + 0.5 * plot.getWidth() / 3, start(axes.get(0)).getX(), PIXEL);
-      assertEquals(plot.getX() + 2.5 * plot.getWidth() / 3, start(axes.get(2)).getX(), PIXEL);
+      assertEquals(plot.getX() + 2.5 * plot.getWidth() / 3, start(axes.get(1)).getX(), PIXEL);
    }
 
    @ParameterizedTest(name = "{0} axes")
@@ -461,7 +459,6 @@ class ParallelCoordChartPathTest {
 
    @Test
    @DisplayName("one variable, NO_NULL and only null groups: no exception and no vertex outside the plot")
-   @Disabled("Bug #82034: Radar chart with Ignore Null and an all-null group fails")
    void oneVarNoNullOnlyNullGroups() {
       VGraph vg = assertDoesNotThrow(() -> plotOneVar(groups(null, 10.0, null, 20.0), true));
       Rectangle2D plot = vg.getPlotBounds();

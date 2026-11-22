@@ -37,7 +37,6 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -578,7 +577,6 @@ class PolarUtilTest {
    // ---- 3D pie
 
    @Test
-   @Disabled("Bug #82033: 3D pie value labels shrink the radius more than needed")
    @DisplayName("3D pie radius at a label angle of -pi/2 gets the full ratio of 2")
    void text3dPieRadiusLabelAngle() {
       Pie pie = new Pie();
