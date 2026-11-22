@@ -21,6 +21,8 @@ import inetsoft.report.*;
 import inetsoft.report.filter.DCMergeDatePartFilter;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.CalcTableLens;
+import inetsoft.report.painter.Bar2Presenter;
+import inetsoft.report.painter.BarPresenter;
 import inetsoft.report.script.formula.CalcRef;
 import inetsoft.report.script.viewsheet.TableDataVSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
@@ -167,6 +169,44 @@ public final class VSFormatTableLens extends FormatTableLens {
       if(descriptor.getType() == TableDataDescriptor.CROSSTAB_TABLE) {
          buildSpanMap();
       }
+   }
+
+   /**
+    * A bar presenter with no colour of its own paints in the cell's text colour, which is
+    * near-black and makes a heavy bar. On a modern table it takes the data bar colour instead; a
+    * colour the author picked is kept, and a classic table is untouched.
+    */
+   @Override
+   public Presenter getPresenter(int r, int c) {
+      Presenter presenter = super.getPresenter(r, c);
+
+      if(presenter instanceof BarPresenter) {
+         BarPresenter bar = (BarPresenter) presenter;
+
+         if(bar.getColor() == null) {
+            bar.setColor(defaultBarColor());
+         }
+      }
+      else if(presenter instanceof Bar2Presenter) {
+         Bar2Presenter bar = (Bar2Presenter) presenter;
+
+         if(bar.getColor() == null) {
+            bar.setColor(defaultBarColor());
+         }
+      }
+
+      return presenter;
+   }
+
+   // null for a classic table, which leaves the bar to the cell's text colour as it always was
+   private Color defaultBarColor() {
+      if(!barColorResolved) {
+         VizContext ctx = assembly == null ? null : VizContext.of(assembly.getVSAssemblyInfo());
+         barColor = ctx != null && ctx.modern ? VSObjectChromeDefaults.dataBarColor(ctx) : null;
+         barColorResolved = true;
+      }
+
+      return barColor;
    }
 
    /**
@@ -881,6 +921,8 @@ public final class VSFormatTableLens extends FormatTableLens {
    private boolean vsFontAsDefault = "true".equalsIgnoreCase(
       SreeEnv.getProperty("vs.font.asDefault", "false"));
    private TableDataVSAssembly assembly;
+   private Color barColor;
+   private boolean barColorResolved;
    private transient ViewsheetSandbox box;
    private Locale loc;
    private Map<TableDataPath, VSCompositeFormat> fmap;
