@@ -21,11 +21,37 @@
     right: 5px;
 }
 
-.format-control {
+// the presenter's property button: a bordered square like the other icon buttons beside a combo,
+// so the bare glyph does not read as a label
+.input-group > button.format-control {
+  box-sizing: border-box;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
+  width: var(--inet-control-height-md);
+  height: var(--inet-control-height-md);
+  margin-left: 0.5em;
+  padding: 0;
+  border: 1px solid var(--inet-shell-border-strong);
+  border-radius: 3px;
+  background-color: var(--inet-shell-surface-default);
   color: var(--inet-text-color);
+
+  &:hover:not(:disabled) {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+  }
+
+  &:focus-visible {
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
 }
 
 .format-css-pane-body {
