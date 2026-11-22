@@ -3,6 +3,13 @@
 Date: 2026-07-30
 Status: approved, ready for implementation planning
 
+> **Superseded in part.** Decision 6 (indices 9-40 stay the legacy tail) no longer holds: commit
+> `f897b90504` derives the tail from each palette's own head, so the shipped modern palettes no
+> longer carry legacy colors. The apply sites named below are also out of date. A modern chart's
+> palette is now written by the seed in `ChartVSAssemblyInfo` (`seedColorFrame`), by
+> `ChartFormatDefaults`, and by `ChangeChartProcessor`; the `CSSProcessor` call passed the legacy
+> context, did nothing, and has been removed.
+
 ## Goal
 
 Declare the modern categorical chart colors as first-class named palettes — `Modern` and
