@@ -362,4 +362,148 @@ class BoxDataSetTest {
       box.addVar("val2");
       assertEquals(2, box.getVars().length);
    }
+
+   // -----------------------------------------------------------------------
+   // Whiskers, precision, missing values, column alignment, quartile method
+   // -----------------------------------------------------------------------
+
+   private static BoxDataSet boxOf(DefaultDataSet base) {
+      return new BoxDataSet(base, new String[] { "grp" }, new String[] { "val" });
+   }
+
+   private static Number stat(BoxDataSet box, String prefix, int row) {
+      return (Number) box.getData(box.indexOfHeader(prefix + "val"), row);
+   }
+
+   private static DefaultDataSet withNulls(Object... values) {
+      Object[][] rows = new Object[values.length + 1][];
+      rows[0] = new Object[] { "grp", "val" };
+
+      for(int i = 0; i < values.length; i++) {
+         rows[i + 1] = new Object[] { "G1", values[i] };
+      }
+
+      return new DefaultDataSet(rows);
+   }
+
+   @Test
+   @Disabled("Bug #82055: BoxDataSet keeps values as float")
+   @DisplayName("values above 2^24 keep their digits: median of 100000001..100000005")
+   void largeValuesKeepPrecision() {
+      BoxDataSet box = boxOf(buildSingleGroupDataset(100000001, 100000002, 100000003, 100000004,
+                                                     100000005));
+
+      assertEquals(100000003.0, stat(box, BoxDataSet.MEDIUM_PREFIX, 0).doubleValue(), 0);
+   }
+
+   @Test
+   @Disabled("Bug #82055: BoxDataSet keeps values as float")
+   @DisplayName("2^24 + 1 is kept exactly")
+   void valueJustAboveTwoToTheTwentyFour() {
+      BoxDataSet box = boxOf(buildSingleGroupDataset(16777217, 16777218, 16777219));
+
+      assertEquals(16777218.0, stat(box, BoxDataSet.MEDIUM_PREFIX, 0).doubleValue(), 0);
+      assertEquals(16777217.0, stat(box, BoxDataSet.MIN_PREFIX, 0).doubleValue(), 0);
+   }
+
+   @Test
+   @DisplayName("a NaN measure value is ignored like a missing value")
+   void nanValueIsIgnored() {
+      BoxDataSet box = boxOf(withNulls(1.0, 2.0, 3.0, 4.0, 5.0, Double.NaN));
+
+      assertEquals(1.0, stat(box, BoxDataSet.MIN_PREFIX, 0).doubleValue(), 1e-6);
+      assertEquals(2.0, stat(box, BoxDataSet.Q25_PREFIX, 0).doubleValue(), 1e-6);
+      assertEquals(3.0, stat(box, BoxDataSet.MEDIUM_PREFIX, 0).doubleValue(), 1e-6);
+      assertEquals(4.0, stat(box, BoxDataSet.Q75_PREFIX, 0).doubleValue(), 1e-6);
+      assertEquals(5.0, stat(box, BoxDataSet.MAX_PREFIX, 0).doubleValue(), 1e-6);
+   }
+
+   @Test
+   @DisplayName("a null measure value gives the same statistics as leaving the row out")
+   void nullValueIsIgnored() {
+      BoxDataSet withNull = boxOf(withNulls(1.0, null, 3.0));
+      BoxDataSet without = boxOf(withNulls(1.0, 3.0));
+
+      assertEquals(without.getRowCount(), withNull.getRowCount());
+
+      for(String prefix : new String[] { BoxDataSet.MIN_PREFIX, BoxDataSet.Q25_PREFIX,
+                                         BoxDataSet.MEDIUM_PREFIX, BoxDataSet.Q75_PREFIX,
+                                         BoxDataSet.MAX_PREFIX })
+      {
+         assertEquals(stat(without, prefix, 0).doubleValue(), stat(withNull, prefix, 0).doubleValue(),
+                      1e-6, prefix);
+      }
+   }
+
+   @Test
+   @DisplayName("a group with only null measures has one row of null statistics and no outlier row")
+   void groupWithoutNumbers() {
+      BoxDataSet box = boxOf(withNulls(null, null));
+
+      assertEquals(1, box.getRowCount());
+
+      for(String prefix : new String[] { BoxDataSet.MIN_PREFIX, BoxDataSet.Q25_PREFIX,
+                                         BoxDataSet.MEDIUM_PREFIX, BoxDataSet.Q75_PREFIX,
+                                         BoxDataSet.MAX_PREFIX })
+      {
+         assertNull(stat(box, prefix, 0), prefix);
+      }
+   }
+
+   @Test
+   @DisplayName("an outlier of the second measure leaves the first measure column of the outlier row empty")
+   void outlierColumnAlignment() {
+      Object[][] rows = new Object[10][];
+      rows[0] = new Object[] { "grp", "m1", "m2" };
+
+      for(int i = 1; i <= 9; i++) {
+         rows[i] = new Object[] { "G1", (double) i, i == 9 ? 100.0 : (double) i };
+      }
+
+      BoxDataSet box = new BoxDataSet(new DefaultDataSet(rows), new String[] { "grp" },
+                                      new String[] { "m1", "m2" });
+
+      assertEquals(2, box.getRowCount());
+      assertNull(box.getData(box.indexOfHeader("m1"), 1));
+      assertEquals(100.0, ((Number) box.getData(box.indexOfHeader("m2"), 1)).doubleValue(), 1e-6);
+   }
+
+   @ParameterizedTest(name = "seed {0}")
+   @ValueSource(longs = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
+   @DisplayName("statistics are ordered and every non-outlier lies between min and max")
+   void statisticsAreOrdered(long seed) {
+      java.util.Random random = new java.util.Random(seed);
+      int n = 3 + random.nextInt(30);
+      double[] values = new double[n];
+
+      for(int i = 0; i < n; i++) {
+         values[i] = random.nextInt(100);
+      }
+
+      if(seed % 2 == 0) {
+         values[0] = 1000 + random.nextInt(100);
+      }
+
+      BoxDataSet box = boxOf(buildSingleGroupDataset(values));
+      double min = stat(box, BoxDataSet.MIN_PREFIX, 0).doubleValue();
+      double q25 = stat(box, BoxDataSet.Q25_PREFIX, 0).doubleValue();
+      double med = stat(box, BoxDataSet.MEDIUM_PREFIX, 0).doubleValue();
+      double q75 = stat(box, BoxDataSet.Q75_PREFIX, 0).doubleValue();
+      double max = stat(box, BoxDataSet.MAX_PREFIX, 0).doubleValue();
+
+      assertTrue(min <= q25 && q25 <= med && med <= q75 && q75 <= max,
+                 min + " " + q25 + " " + med + " " + q75 + " " + max);
+
+      java.util.Set<Double> outliers = new java.util.HashSet<>();
+
+      for(int r = 1; r < box.getRowCount(); r++) {
+         outliers.add(((Number) box.getData(box.indexOfHeader("val"), r)).doubleValue());
+      }
+
+      for(double v : values) {
+         if(!outliers.contains(v)) {
+            assertTrue(v >= min && v <= max, v + " outside " + min + ".." + max);
+         }
+      }
+   }
 }
