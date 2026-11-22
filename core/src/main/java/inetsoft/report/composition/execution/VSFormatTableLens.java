@@ -206,26 +206,22 @@ public final class VSFormatTableLens extends FormatTableLens {
       return presenter;
    }
 
-   // null for a classic table, which leaves the bar to the cell's text colour as it always was
+   // null for a classic table, which leaves the bar to the cell's text colour as it always was.
+   // Not remembered: this runs only for a bar with no colour, and the table's mark can be set
+   // after the lens is built, so an answer taken early would stick as classic.
    private Color defaultBarColor() {
-      resolveBarColors();
-      return barColor;
+      VizContext ctx = barContext();
+      return ctx != null && ctx.modern ? VSObjectChromeDefaults.dataBarColor(ctx) : null;
    }
 
    // null for a classic table, which keeps the presenter's own negative color
    private Color defaultNegativeBarColor() {
-      resolveBarColors();
-      return negativeBarColor;
+      VizContext ctx = barContext();
+      return ctx != null && ctx.modern ? VSObjectChromeDefaults.dataBarNegativeColor(ctx) : null;
    }
 
-   private void resolveBarColors() {
-      if(!barColorResolved) {
-         VizContext ctx = assembly == null ? null : VizContext.of(assembly.getVSAssemblyInfo());
-         boolean modern = ctx != null && ctx.modern;
-         barColor = modern ? VSObjectChromeDefaults.dataBarColor(ctx) : null;
-         negativeBarColor = modern ? VSObjectChromeDefaults.dataBarNegativeColor(ctx) : null;
-         barColorResolved = true;
-      }
+   private VizContext barContext() {
+      return assembly == null ? null : VizContext.of(assembly.getVSAssemblyInfo());
    }
 
    /**
@@ -940,9 +936,6 @@ public final class VSFormatTableLens extends FormatTableLens {
    private boolean vsFontAsDefault = "true".equalsIgnoreCase(
       SreeEnv.getProperty("vs.font.asDefault", "false"));
    private TableDataVSAssembly assembly;
-   private Color barColor;
-   private Color negativeBarColor;
-   private boolean barColorResolved;
    private transient ViewsheetSandbox box;
    private Locale loc;
    private Map<TableDataPath, VSCompositeFormat> fmap;

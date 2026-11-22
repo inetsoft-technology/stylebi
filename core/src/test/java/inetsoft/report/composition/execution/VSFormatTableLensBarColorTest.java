@@ -116,6 +116,28 @@ class VSFormatTableLensBarColorTest {
    }
 
    @Test
+   void aColourTheDialogSavedAsEmptyStillTakesTheDefault() throws Exception {
+      // pressing OK in the presenter dialog with an empty Color stores a null color parameter
+      PresenterRef ref = new PresenterRef(BAR);
+      ref.setParameter("color", null);
+      Presenter presenter = lens(ref, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+
+      assertEquals(VSObjectChromeDefaults.dataBarColor(VizContext.of(VizMark.MODERN_LIGHT)),
+                   ((BarPresenter) presenter).getColor());
+   }
+
+   @Test
+   void aMarkSetAfterTheLensWasBuiltStillTakesTheDefault() throws Exception {
+      VSFormatTableLens lens = lens(BAR, null);
+      assertNull(((BarPresenter) lens.getPresenter(1, 1)).getColor());
+
+      lastAssembly.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+
+      assertEquals(VSObjectChromeDefaults.dataBarColor(VizContext.of(VizMark.MODERN_LIGHT)),
+                   ((BarPresenter) lens.getPresenter(1, 1)).getColor());
+   }
+
+   @Test
    void anAuthorColourIsKept() throws Exception {
       PresenterRef ref = new PresenterRef(BAR);
       ref.setParameter("color", AUTHOR);
@@ -131,6 +153,7 @@ class VSFormatTableLensBarColorTest {
    private VSFormatTableLens lens(PresenterRef ref, VizMark mark) {
       Viewsheet vs = new Viewsheet();
       CalcTableVSAssembly assembly = new CalcTableVSAssembly(vs, "Calc1");
+      lastAssembly = assembly;
       assembly.getVSAssemblyInfo().setVizMark(mark);
       TableLayout layout = assembly.getTableLayout();
       layout.setColCount(2);
@@ -172,4 +195,5 @@ class VSFormatTableLensBarColorTest {
    }
 
    private GraalJavaScriptEnv env;
+   private CalcTableVSAssembly lastAssembly;
 }
