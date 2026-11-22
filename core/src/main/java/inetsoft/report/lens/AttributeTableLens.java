@@ -20,6 +20,8 @@ package inetsoft.report.lens;
 import inetsoft.report.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
+import inetsoft.report.internal.table.CancellableTableLens;
+import inetsoft.report.painter.AutoMaximumPresenter;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
@@ -31,6 +33,8 @@ import java.io.*;
 import java.lang.reflect.Method;
 import java.text.*;
 import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 /**
  * The AttributeTableLens is a decorator table. It can be used with
@@ -137,6 +141,7 @@ public class AttributeTableLens extends AbstractTableLens
    public void invalidate() {
       cache = null;
       cpresenters = null;
+      autoMaxScans = null;
       rcnt = -1;
       ccnt = -1;
       fireChangeEvent();
@@ -407,7 +412,8 @@ public class AttributeTableLens extends AbstractTableLens
          Presenter p = getPresenter(r, c);
 
          if(p != null && p.isPresenterOf(obj)) {
-            return new PresenterPainter((p.isRawDataRequired() ? obj : obj2), p);
+            return new PresenterPainter((p.isRawDataRequired() ? obj : obj2),
+                                        withAutoMaximum(r, c, p));
          }
 
          if(p == null) {
@@ -418,7 +424,8 @@ public class AttributeTableLens extends AbstractTableLens
                setPresenter(r, c, p);
 
                if(p.isPresenterOf(obj)) {
-                  return new PresenterPainter((p.isRawDataRequired() ? obj : obj2), p);
+                  return new PresenterPainter((p.isRawDataRequired() ? obj : obj2),
+                                              withAutoMaximum(r, c, p));
                }
             }
          }
@@ -427,6 +434,155 @@ public class AttributeTableLens extends AbstractTableLens
       }
 
       return obj;
+   }
+
+   /**
+    * Give an auto maximum presenter a copy that resolves the data maximum of the cell's group
+    * at paint time. Nothing is scanned here: getObject() is also called by readers that never
+    * paint (table data loading, column widths, dialogs, CSV). The presenter itself is never
+    * changed, since a script presenter is shared by all cells of a column.
+    */
+   private Presenter withAutoMaximum(int r, int c, Presenter p) {
+      if(!(p instanceof AutoMaximumPresenter ap) || !ap.isAutoMaximum()) {
+         return p;
+      }
+
+      boolean absolute = ap.absoluteMaximum();
+      return ap.withMaximumResolver(() -> getAutoMaximum(r, c, absolute));
+   }
+
+   /**
+    * Get the data maximum of the cells that share the cell's data path (for a plain table,
+    * the cells of the column with that path; for a crosstab or calc table, all cells with
+    * that path). Only numbers count; NaN and infinite values are skipped.
+    * @param absolute true for the largest absolute value, false for the largest positive value.
+    * @return the maximum, or NaN if there is none.
+    */
+   protected double getAutoMaximum(int r, int c, boolean absolute) {
+      TableDataDescriptor desc = getDescriptor();
+      boolean column = desc == null || desc.getType() == TableDataDescriptor.NORMAL_TABLE;
+      Object scope = column ? Integer.valueOf(c) : AUTO_MAX_ALL_CELLS;
+      Map<Object, double[]> maxes = getAutoMaximumScan(scope, column ? c : -1, desc);
+      TableDataPath path = desc == null ? null : desc.getCellDataPath(r, c);
+      double[] max = maxes.get(path != null ? path : Integer.valueOf(c));
+
+      return max == null ? Double.NaN : max[absolute ? 1 : 0];
+   }
+
+   /**
+    * Get the scan result of a scope, scanning it once per lens. Concurrent painters wait for
+    * the scan in progress instead of scanning again. No lock is held while scanning, and
+    * invalidate() only drops the holder, so a stale scan dies with the old holder.
+    */
+   private Map<Object, double[]> getAutoMaximumScan(Object scope, int col,
+                                                    TableDataDescriptor desc)
+   {
+      AutoMaxScans scans = autoMaxScans;
+
+      if(scans == null) {
+         AutoMaxScans created = new AutoMaxScans();
+         scans = AUTO_MAX_SCANS.compareAndSet(this, null, created) ? created : autoMaxScans;
+
+         // invalidated in the meantime: scan without caching
+         if(scans == null) {
+            scans = created;
+         }
+      }
+
+      FutureTask<Map<Object, double[]>> task = scans.scans.computeIfAbsent(
+         scope, k -> new FutureTask<>(() -> scanAutoMaximum(col, desc)));
+      // runs the scan in the first caller only, the others wait in get()
+      task.run();
+
+      try {
+         Map<Object, double[]> maxes = task.get();
+
+         // a partial result of a cancelled query must not be kept for the life of the lens
+         if(isBaseCancelled()) {
+            scans.scans.remove(scope, task);
+         }
+
+         return maxes;
+      }
+      catch(InterruptedException ex) {
+         Thread.currentThread().interrupt();
+      }
+      catch(ExecutionException ex) {
+         scans.scans.remove(scope, task);
+         LOG.debug("Failed to find the data maximum of the table", ex);
+      }
+
+      return Collections.emptyMap();
+   }
+
+   /**
+    * Scan the base table for the maximum per data path.
+    * @param col the column to scan, or -1 to scan all columns.
+    * @return {largest positive value, largest absolute value} per data path (or per column
+    * index when the cell has no data path).
+    */
+   private Map<Object, double[]> scanAutoMaximum(int col, TableDataDescriptor desc) {
+      Map<Object, double[]> maxes = new HashMap<>();
+      TableLens table = this.table;
+
+      if(table == null) {
+         return maxes;
+      }
+
+      // moreRows() waits for a table that is still loading, so the whole column is scanned
+      for(int r = 0; table.moreRows(r); r++) {
+         int ccnt = table.getColCount();
+         int c0 = col >= 0 ? col : 0;
+         int c1 = col >= 0 ? Math.min(col + 1, ccnt) : ccnt;
+
+         for(int c = c0; c < c1; c++) {
+            if(!(table.getObject(r, c) instanceof Number num)) {
+               continue;
+            }
+
+            double val = num.doubleValue();
+
+            if(Double.isNaN(val) || Double.isInfinite(val)) {
+               continue;
+            }
+
+            TableDataPath path = desc == null ? null : desc.getCellDataPath(r, c);
+            double[] max = maxes.computeIfAbsent(path != null ? path : Integer.valueOf(c),
+                                                 k -> new double[] { Double.NaN, Double.NaN });
+            double abs = Math.abs(val);
+
+            if(val > 0 && !(max[0] >= val)) {
+               max[0] = val;
+            }
+
+            if(abs > 0 && !(max[1] >= abs)) {
+               max[1] = abs;
+            }
+         }
+      }
+
+      return maxes;
+   }
+
+   private boolean isBaseCancelled() {
+      TableLens lens = table;
+
+      for(int i = 0; lens != null && i < 100; i++) {
+         if(lens instanceof CancellableTableLens cancellable && cancellable.isCancelled()) {
+            return true;
+         }
+
+         lens = lens instanceof TableFilter filter ? filter.getTable() : null;
+      }
+
+      return false;
+   }
+
+   /**
+    * Drop the cached data maximums of auto maximum presenters.
+    */
+   protected void clearAutoMaximumCache() {
+      autoMaxScans = null;
    }
 
    private Presenter getCachedColPresenter(int c) {
@@ -1853,6 +2009,7 @@ public class AttributeTableLens extends AbstractTableLens
       try {
          AttributeTableLens attr = (AttributeTableLens) super.clone();
          attr.cache = null;
+         attr.autoMaxScans = null;
 
          if(changeListener != null) {
             attr.changeListener = new DefaultTableChangeListener(attr);
@@ -2064,6 +2221,18 @@ public class AttributeTableLens extends AbstractTableLens
    private int ccnt;
    private HashMap<String, Presenter> presenterColMap;
    private volatile Presenter[] cpresenters;
+   // data maximum scans for auto maximum presenters, one per scope (column or whole table)
+   private transient volatile AutoMaxScans autoMaxScans;
+
+   private static final class AutoMaxScans {
+      private final ConcurrentHashMap<Object, FutureTask<Map<Object, double[]>>> scans =
+         new ConcurrentHashMap<>();
+   }
+
+   private static final Object AUTO_MAX_ALL_CELLS = new Object();
+   private static final AtomicReferenceFieldUpdater<AttributeTableLens, AutoMaxScans>
+      AUTO_MAX_SCANS = AtomicReferenceFieldUpdater.newUpdater(
+         AttributeTableLens.class, AutoMaxScans.class, "autoMaxScans");
 
    private static final Logger LOG =
       LoggerFactory.getLogger(AttributeTableLens.class);
