@@ -81,6 +81,20 @@ public final class VSObjectChromeDefaults {
                    cardBackground(ctx));
    }
 
+   /**
+    * The default fill of a data bar below zero. A modern bar takes the palette's down color
+    * softened the same way as the positive bar, so the pair reads as one set; any other bar keeps
+    * the classic red.
+    */
+   public static Color dataBarNegativeColor(VizContext ctx) {
+      if(ctx == null || !ctx.modern) {
+         return CLASSIC_NEGATIVE_BAR;
+      }
+
+      return blend(VSChartPaletteDefaults.directionDown(ctx), ctx.dark ? 0.7f : 0.55f,
+                   cardBackground(ctx));
+   }
+
    /** Opaque object-card color: white in light, the lifted surface in dark. */
    public static Color cardBackground(VizContext ctx) {
       return ctx.dark ? CARD_BG_DARK : CARD_BG;
@@ -168,6 +182,7 @@ public final class VSObjectChromeDefaults {
    private static final int CARD_CORNER_RADIUS = 6;
 
    // modern selection teal, mirroring --inet-viz-selected-border-modern/-dark in _viz-tokens.scss
+   private static final Color CLASSIC_NEGATIVE_BAR = new Color(0xFF4040);
    private static final Color ACTIVE_INDICATOR = new Color(0xBFDDE5);
    private static final Color ACTIVE_INDICATOR_DARK = new Color(0x2DD4BF);
 }

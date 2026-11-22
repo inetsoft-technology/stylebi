@@ -488,7 +488,8 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
 
       if(!objfmt.getUserDefinedFormat().isForegroundValueDefined()) {
          format.getDefaultFormat().setForegroundValue(
-            SOFT_RED.getRGB() + "");
+            VSObjectChromeDefaults.dataBarNegativeColor(
+               VizContext.of(getAssembly().getVSAssemblyInfo())).getRGB() + "");
       }
    }
 
@@ -812,6 +813,5 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
       }
    }
 
-   private static final Color SOFT_RED = new Color(0xFF4040);
    private static final Logger LOG = LoggerFactory.getLogger(AbstractSelectionVSAQuery.class);
 }

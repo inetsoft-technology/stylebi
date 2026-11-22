@@ -296,7 +296,12 @@ public class Bar2Presenter implements Presenter {
       return bg;
    }
 
-   private Color color = null, neg = new Color(128, 0, 0);
+   /**
+    * The negative color a new presenter starts with.
+    */
+   public static final Color DEFAULT_NEGATIVE_COLOR = new Color(128, 0, 0);
+
+   private Color color = null, neg = DEFAULT_NEGATIVE_COLOR;
    private double max = 100;
    private Dimension psize = new Dimension(80, 12);
    private Color bg = null;

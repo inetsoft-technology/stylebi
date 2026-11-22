@@ -193,6 +193,14 @@ public final class VSFormatTableLens extends FormatTableLens {
          if(bar.getColor() == null) {
             bar.setColor(defaultBarColor());
          }
+
+         // the presenter's own default is a real color, not null, so a negative color still equal
+         // to it is taken as not chosen
+         if(defaultNegativeBarColor() != null &&
+            Bar2Presenter.DEFAULT_NEGATIVE_COLOR.equals(bar.getNegativeColor()))
+         {
+            bar.setNegativeColor(defaultNegativeBarColor());
+         }
       }
 
       return presenter;
@@ -200,13 +208,24 @@ public final class VSFormatTableLens extends FormatTableLens {
 
    // null for a classic table, which leaves the bar to the cell's text colour as it always was
    private Color defaultBarColor() {
+      resolveBarColors();
+      return barColor;
+   }
+
+   // null for a classic table, which keeps the presenter's own negative color
+   private Color defaultNegativeBarColor() {
+      resolveBarColors();
+      return negativeBarColor;
+   }
+
+   private void resolveBarColors() {
       if(!barColorResolved) {
          VizContext ctx = assembly == null ? null : VizContext.of(assembly.getVSAssemblyInfo());
-         barColor = ctx != null && ctx.modern ? VSObjectChromeDefaults.dataBarColor(ctx) : null;
+         boolean modern = ctx != null && ctx.modern;
+         barColor = modern ? VSObjectChromeDefaults.dataBarColor(ctx) : null;
+         negativeBarColor = modern ? VSObjectChromeDefaults.dataBarNegativeColor(ctx) : null;
          barColorResolved = true;
       }
-
-      return barColor;
    }
 
    /**
@@ -922,6 +941,7 @@ public final class VSFormatTableLens extends FormatTableLens {
       SreeEnv.getProperty("vs.font.asDefault", "false"));
    private TableDataVSAssembly assembly;
    private Color barColor;
+   private Color negativeBarColor;
    private boolean barColorResolved;
    private transient ViewsheetSandbox box;
    private Locale loc;

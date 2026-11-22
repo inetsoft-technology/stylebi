@@ -83,6 +83,32 @@ class VSFormatTableLensBarColorTest {
    }
 
    @Test
+   void aModernSignedBarTakesTheNegativeColourToo() throws Exception {
+      Presenter presenter = lens(BAR2, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+
+      assertEquals(
+         VSObjectChromeDefaults.dataBarNegativeColor(VizContext.of(VizMark.MODERN_LIGHT)),
+         ((Bar2Presenter) presenter).getNegativeColor());
+   }
+
+   @Test
+   void anAuthorNegativeColourIsKept() throws Exception {
+      PresenterRef ref = new PresenterRef(BAR2);
+      ref.setParameter("negativeColor", AUTHOR);
+      Presenter presenter = lens(ref, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+
+      assertEquals(AUTHOR, ((Bar2Presenter) presenter).getNegativeColor());
+   }
+
+   @Test
+   void aClassicSignedBarKeepsItsOwnNegativeColour() throws Exception {
+      Presenter presenter = lens(BAR2, null).getPresenter(1, 1);
+
+      assertEquals(Bar2Presenter.DEFAULT_NEGATIVE_COLOR,
+                   ((Bar2Presenter) presenter).getNegativeColor());
+   }
+
+   @Test
    void aClassicTableBarStillFollowsTheTextColour() throws Exception {
       Presenter presenter = lens(BAR, null).getPresenter(1, 1);
 

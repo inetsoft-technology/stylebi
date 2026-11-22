@@ -36,8 +36,8 @@ import java.awt.Color;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * A modern selection's measure bar takes a tint of the first palette colour over its card; a
- * classic selection keeps the classic colour, and the negative bar is left alone.
+ * A modern selection's measure bars take a tint of the first palette colour and the softened
+ * down colour over their card; a classic selection keeps the classic colours.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class },
@@ -46,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class DataBarColorTest {
    private static final Color LEGACY_1 = new Color(0x518DB9);
+   private static final Color CLASSIC_RED = new Color(0xFF4040);
 
    @AfterEach
    void reset() {
@@ -94,23 +95,51 @@ class DataBarColorTest {
    }
 
    @Test
-   void theNegativeBarIsNotTouched() {
-      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      SelectionListVSAssemblyInfo info = newSelection();
-      String before = info.getFormatInfo()
-         .getFormat(SelectionBaseVSAssemblyInfo.getMeasureNBarPath(0))
-         .getDefaultFormat().getForegroundValue();
+   void aModernNegativeBarIsTheSoftenedDownColour() {
+      assertEquals(new Color(0xD2A881),
+                   VSObjectChromeDefaults.dataBarNegativeColor(VizContext.of(VizMark.MODERN_LIGHT)));
+      assertEquals(new Color(0xAE7340),
+                   VSObjectChromeDefaults.dataBarNegativeColor(VizContext.of(VizMark.MODERN_DARK)));
+   }
 
+   @Test
+   void aClassicNegativeBarKeepsTheClassicRed() {
+      assertEquals(CLASSIC_RED, VSObjectChromeDefaults.dataBarNegativeColor(VizContext.LEGACY));
+      assertEquals(CLASSIC_RED, VSObjectChromeDefaults.dataBarNegativeColor(null));
+   }
+
+   @Test
+   void modernizingASelectionRepaintsItsNegativeBarsAndRevertingRestoresThem() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      SelectionListVSAssemblyInfo info = newSelection();
+      assertEquals(barValue(CLASSIC_RED), negativeBar(info, 0));
+
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       info.setVizMark(VizMark.MODERN_LIGHT);
       info.seedChromeDefaults(VizContext.of(info));
 
-      assertEquals(before, info.getFormatInfo()
-         .getFormat(SelectionBaseVSAssemblyInfo.getMeasureNBarPath(0))
-         .getDefaultFormat().getForegroundValue());
+      for(int i = 0; i < 5; i++) {
+         assertEquals(barValue(new Color(0xD2A881)), negativeBar(info, i));
+      }
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(barValue(CLASSIC_RED), negativeBar(info, 0));
+   }
+
+   @Test
+   void aSelectionBornModernStartsWithTheSoftenedNegativeBar() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      assertEquals(barValue(new Color(0xD2A881)), negativeBar(newSelection(), 0));
    }
 
    private static String barValue(Color color) {
       return color.getRGB() + "";
+   }
+
+   private static String negativeBar(SelectionListVSAssemblyInfo info, int level) {
+      return info.getFormatInfo().getFormat(SelectionBaseVSAssemblyInfo.getMeasureNBarPath(level))
+         .getDefaultFormat().getForegroundValue();
    }
 
    private static String bar(SelectionListVSAssemblyInfo info, int level) {

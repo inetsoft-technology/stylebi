@@ -1067,11 +1067,20 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       // classic colour otherwise, so Modernize and Revert both land on the right one
       String barColor = VSObjectChromeDefaults.dataBarColor(ctx).getRGB() + "";
 
+      String negativeColor = VSObjectChromeDefaults.dataBarNegativeColor(ctx).getRGB() + "";
+
       for(int i = 0; i < 5; i++) {
          VSCompositeFormat barFormat = getFormatInfo().getFormat(getMeasureBarPath(i), false);
 
          if(barFormat != null) {
             barFormat.getDefaultFormat().setForegroundValue(barColor);
+         }
+
+         VSCompositeFormat negativeFormat =
+            getFormatInfo().getFormat(getMeasureNBarPath(i), false);
+
+         if(negativeFormat != null) {
+            negativeFormat.getDefaultFormat().setForegroundValue(negativeColor);
          }
       }
 
