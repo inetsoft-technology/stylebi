@@ -420,6 +420,12 @@ public class SheetOpenService {
          warnings = previewMirrorUpdate(existingRuntime, browserUser);
       }
 
+      // Checked before the session below binds the runtime to the agent. A runtime an agent
+      // session already holds has no tab of the user's own (a page reload leaves exactly that
+      // behind), so the tab this attach creates for it is the only thing that can end it.
+      boolean attachedToAgentRuntime = existingRuntimeId != null &&
+         !sheetSessions.findAllOnRuntime(existingRuntimeId).isEmpty();
+
       JoinSession session = sheetSessions.open(runtimeId, actingSession.ownerIdentity(), type,
                                                actingSession.socketSessionId(),
                                                actingSession.socketUserName(), null);
@@ -429,9 +435,11 @@ public class SheetOpenService {
          .viewsheet(isViewsheet)
          .runtimeId(runtimeId)
          .agentActive(true)
-         // an attached runtime belongs to the user's tab: closing that tab must not be tied to
-         // the agent pairing, and a runtime this call created is closed with its tab as before
-         .closeRuntimeOnTabClose(existingRuntimeId == null)
+         // A runtime that is the user's own tab keeps that tab's own close behavior, so closing
+         // it is not tied to the agent pairing. A runtime this call created, or one only an agent
+         // session held (Redmine #81753 feedback), is closed with the tab the Composer opens for
+         // it: otherwise closing that tab leaves the runtime alive and later edits go to it unseen.
+         .closeRuntimeOnTabClose(existingRuntimeId == null || attachedToAgentRuntime)
          .agentOwnerLabel(PairingUtil.label(session.ownerIdentity()))
          .build();
 

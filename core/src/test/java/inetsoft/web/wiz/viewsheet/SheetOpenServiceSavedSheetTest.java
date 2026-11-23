@@ -237,6 +237,32 @@ class SheetOpenServiceSavedSheetTest {
    }
 
    @Test
+   void closesTheRuntimeWithItsTabWhenAttachingToARuntimeOnlyAnAgentSessionHeld()
+      throws Exception
+   {
+      // Redmine #81753 feedback: the orphan a page reload leaves behind has no tab of the user's
+      // own, so the tab the attach opens must close the runtime, or later edits go to it unseen.
+      RuntimeViewsheet orphan = openViewsheet("vs-orphan", "Sales/Dashboard", 99L);
+      when(viewsheetService.getRuntimeViewsheets(same(browser)))
+         .thenReturn(new RuntimeViewsheet[] { orphan });
+      JoinSession held = session("tok-old", "vs-orphan", SheetType.VIEWSHEET);
+      when(sheetSessions.findAllOnRuntime("vs-orphan")).thenReturn(List.of(held));
+      JoinSession orphanSession = session("tok-vs-orphan", "vs-orphan", SheetType.VIEWSHEET);
+      when(sheetSessions.open(eq("vs-orphan"), eq(OWNER), eq(SheetType.VIEWSHEET), any(), any(),
+                              isNull()))
+         .thenReturn(orphanSession);
+
+      service.openSavedSheet("tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null,
+                             false);
+
+      ArgumentCaptor<OpenComposerAssetCommand> command =
+         ArgumentCaptor.forClass(OpenComposerAssetCommand.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      assertEquals("vs-orphan", command.getValue().runtimeId());
+      assertTrue(command.getValue().closeRuntimeOnTabClose());
+   }
+
+   @Test
    void opensANewRuntimeWhenTheAssetIsNotOpenForTheUser() throws Exception {
       RuntimeViewsheet other = openViewsheet("vs-other", "Sales/Other", 9L);
       when(viewsheetService.getRuntimeViewsheets(same(browser)))
