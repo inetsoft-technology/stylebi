@@ -27,6 +27,9 @@ import org.slf4j.LoggerFactory;
 
 import javax.json.*;
 import java.text.*;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
 import java.util.*;
 
 /**
@@ -121,7 +124,7 @@ class DatagovTable extends XTableNode {
       {
          return Double.class;
       }
-      else if("calendar_date".equals(jsonType)) {
+      else if("calendar_date".equals(jsonType) || isTimestampType(jsonType)) {
          return Date.class;
       }
       else if("checkbox".equals(jsonType)) {
@@ -180,13 +183,16 @@ class DatagovTable extends XTableNode {
          jsonValue = Boolean.FALSE;
          break;
       default:
-         if(Date.class.isAssignableFrom(javaType)) {
+         if(isTimestampType(dataGovType)) {
+            jsonValue = parseTimestamp(valStr);
+         }
+         else if(Date.class.isAssignableFrom(javaType)) {
             if(valtype == JsonValue.ValueType.NULL) {
                // keep a null date null so the column type still follows the declared type
                return null;
             }
 
-            valStr =valStr.replace("T", " ");
+            valStr = valStr.replace("T", " ");
 
             try {
                synchronized(formatter) { // SimpleDateFormat is not thread-safe
@@ -242,6 +248,38 @@ class DatagovTable extends XTableNode {
       }
 
       return elem.toString();
+   }
+
+   private static boolean isTimestampType(String dataGovType) {
+      return "floating_timestamp".equals(dataGovType) ||
+         "fixed_timestamp".equals(dataGovType);
+   }
+
+   /**
+    * Parses an ISO-8601 timestamp. Text without an offset (floating_timestamp) is read in
+    * the server time zone; text with an offset or "Z" (fixed_timestamp) is an exact instant.
+    *
+    * @return the parsed date, null for a null value, or the original text if unparseable.
+    */
+   private static Object parseTimestamp(String valStr) {
+      if(valStr == null || "null".equals(valStr)) {
+         return null;
+      }
+
+      try {
+         TemporalAccessor parsed = TIMESTAMP_PARSER.parseBest(
+            valStr.trim(), OffsetDateTime::from, LocalDateTime::from);
+
+         if(parsed instanceof OffsetDateTime) {
+            return Date.from(((OffsetDateTime) parsed).toInstant());
+         }
+
+         return Date.from(((LocalDateTime) parsed).atZone(ZoneId.systemDefault()).toInstant());
+      }
+      catch(DateTimeException ex) {
+         LOG.debug("Unparseable Data.gov timestamp: {}", valStr);
+         return valStr;
+      }
    }
 
    private Object transform(DatagovQuery query, String header, Object oldValue) {
@@ -327,5 +365,6 @@ class DatagovTable extends XTableNode {
    private Class[] declaredTypes;
    private int curr = -1;
    private String[] dataGovTypes;
+   private static final DateTimeFormatter TIMESTAMP_PARSER = DateTimeFormatter.ISO_DATE_TIME;
    private static final Logger LOG = LoggerFactory.getLogger(DatagovTable.class.getName());
 }

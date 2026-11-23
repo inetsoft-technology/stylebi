@@ -64,5 +64,8 @@ public class EndpointJsonRuntime extends RestJsonRuntime {
       {
          dataSource.validateTestResponse(response);
       }
+      catch(RestResponseException e) {
+         throw dataSource.translateTestFailure(e);
+      }
    }
 }

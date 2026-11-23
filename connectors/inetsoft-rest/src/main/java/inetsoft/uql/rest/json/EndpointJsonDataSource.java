@@ -19,6 +19,7 @@ package inetsoft.uql.rest.json;
 
 import inetsoft.uql.rest.AbstractRestDataSource;
 import inetsoft.uql.rest.HttpResponse;
+import inetsoft.uql.rest.RestResponseException;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -34,6 +35,19 @@ public abstract class EndpointJsonDataSource<SELF extends EndpointJsonDataSource
 
    protected boolean isIgnoreBaseUrlForTest() {
       return false;
+   }
+
+   /**
+    * Gets the exception to throw when the test request fails with a non-2xx status. The HTTP
+    * handler throws before {@link #validateTestResponse} is reached for such a status. The default
+    * returns the exception unchanged; a data source can override this to add information.
+    *
+    * @param e the exception thrown by the HTTP handler.
+    *
+    * @return the exception to throw from the connection test.
+    */
+   protected Exception translateTestFailure(RestResponseException e) {
+      return e;
    }
 
    protected void validateTestResponse(HttpResponse response) throws Exception {
