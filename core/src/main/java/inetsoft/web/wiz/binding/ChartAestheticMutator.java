@@ -23,6 +23,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.BindingRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.ColorMapModel;
@@ -479,24 +480,126 @@ public final class ChartAestheticMutator {
    static String requireMeasureChannel(String channel,
                                                Collection<String> perMeasureFrameChannels)
    {
+      return requireMeasureChannel(channel, perMeasureFrameChannels, false);
+   }
+
+   /**
+    * @param ordering whether the write is a per-measure sort or ranking ({@code forMeasure})
+    *                 rather than a binding ({@code measure}), which only changes the wording.
+    */
+   private static String requireMeasureChannel(String channel,
+                                               Collection<String> perMeasureFrameChannels,
+                                               boolean ordering)
+   {
       String name = AestheticChannels.requireFieldChannel(channel, true);
 
       if(AestheticChannels.NODE_CHANNELS.contains(name)) {
          throw new IllegalArgumentException(
-            "Channel '" + name + "' has no per-measure field: 'measure' applies to color, shape, " +
-            "size and text only. Omit 'measure' to bind " + name + " on the chart.");
+            ordering
+               ? "Channel '" + name + "' has no per-measure field: 'forMeasure' applies to " +
+                 "color, shape, size and text only."
+               : "Channel '" + name + "' has no per-measure field: 'measure' applies to color, " +
+                 "shape, size and text only. Omit 'measure' to bind " + name + " on the chart.");
       }
 
       if(perMeasureFrameChannels != null && !"text".equals(name) &&
          !perMeasureFrameChannels.contains(name))
       {
          throw new IllegalArgumentException(
-            "This chart type does not render the " + name + " channel per measure, so a " +
-            name + " field bound to one measure would be stored and never drawn. Omit 'measure' " +
-            "to bind " + name + " on the chart instead.");
+            ordering
+               ? "This chart type does not render the " + name + " channel per measure, so a " +
+                 "sort or ranking on one measure's " + name + " field would be stored and " +
+                 "never drawn."
+               : "This chart type does not render the " + name + " channel per measure, so a " +
+                 name + " field bound to one measure would be stored and never drawn. Omit " +
+                 "'measure' to bind " + name + " on the chart instead.");
       }
 
       return name;
+   }
+
+   /**
+    * The dimension a per-measure sort or ranking ({@code forMeasure}) addresses on a multi-style
+    * chart: the dimension bound to {@code channel} on that one measure, which is what that
+    * measure's colour assignment and stacking read. The Composer orders one measure's field at a
+    * time (its measure selector on {@code (all)} offers nothing to edit), so {@code all} is
+    * refused.
+    *
+    * @param column the dimension the caller means; may be blank, otherwise it must be the one the
+    *               measure holds on that channel.
+    */
+   static BDimensionRefModel requireMeasureDimension(ChartBindingModel model, String channel,
+                                                     String measure, String column,
+                                                     Collection<String> perMeasureFrameChannels)
+   {
+      String name = requireMeasureChannel(channel, perMeasureFrameChannels, true);
+
+      if(isAllMeasures(measure)) {
+         throw new IllegalArgumentException(
+            "'forMeasure' names ONE measure: the Composer orders one measure's " + name +
+            " field at a time, and so does this tool. 'all' is not supported; repeat the call " +
+            "for each measure.");
+      }
+
+      List<ChartAggregateRefModel> all = multiAggregates(model);
+
+      if(all.isEmpty()) {
+         throw new IllegalArgumentException(
+            "This chart has no measure whose " + name + " field could be sorted. Bind a measure " +
+            "with set_chart_shelf first.");
+      }
+
+      ChartAggregateRefModel target = requireTargetMeasure(all, name, measure.trim());
+      AestheticInfo info = aggregateFieldOf(target, name);
+
+      if(info == null || info.getDataInfo() == null) {
+         throw new IllegalArgumentException(
+            "Measure '" + measureLabel(target) + "' has no " + name + " field bound, so there " +
+            "is nothing to sort or rank. Bind a dimension with set_aesthetic_field (measure: '" +
+            measureLabel(target) + "') first. Measures with a " + name + " field: " +
+            describeMeasuresWithField(model, name) + ".");
+      }
+
+      if(!(info.getDataInfo() instanceof BDimensionRefModel dimension)) {
+         throw new IllegalArgumentException(
+            "Measure '" + measureLabel(target) + "' holds a measure on its " + name + " channel, " +
+            "not a dimension; only a dimension has a sort order or ranking.");
+      }
+
+      String bound = dimension.getColumnValue() == null
+         ? dimension.getName() : dimension.getColumnValue();
+
+      if(column != null && !column.isBlank() && (bound == null || !bound.equalsIgnoreCase(column))) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is not the field on the " + name + " channel of measure '" +
+            measureLabel(target) + "'. It holds: " + bound + ".");
+      }
+
+      return dimension;
+   }
+
+   /**
+    * The measures of a multi-style chart that carry a field on {@code channel}, keyed by
+    * {@link #measureLabel}, in shelf order -- what a per-measure sort or ranking can address.
+    */
+   static Map<String, AestheticInfo> measureFields(ChartBindingModel model, String channel) {
+      Map<String, AestheticInfo> out = new LinkedHashMap<>();
+
+      for(ChartAggregateRefModel aggregate : multiAggregates(model)) {
+         AestheticInfo field = aggregateFieldOf(aggregate, channel);
+
+         if(field != null && field.getDataInfo() != null) {
+            out.put(measureLabel(aggregate), field);
+         }
+      }
+
+      return out;
+   }
+
+   /** The measures of {@link #measureFields}, for a refusal message. */
+   static String describeMeasuresWithField(ChartBindingModel model, String channel) {
+      Set<String> measures = measureFields(model, channel).keySet();
+      return measures.isEmpty() ? "(none)" : String.join(", ", measures);
    }
 
    private static List<ChartAggregateRefModel> selectMeasures(
@@ -2433,16 +2536,26 @@ public final class ChartAestheticMutator {
          // the calculator it carries. Read-only; set_aesthetic_field stays refused in this mode.
          Map<String, Object> refsByMeasure = new LinkedHashMap<>();
 
+         Map<String, Object> sortsByMeasure = new LinkedHashMap<>();
+
          for(ChartAggregateRefModel aggregate : multiTargets) {
             AestheticInfo field = aggregateFieldFor(aggregate, channel);
 
             if(field != null && field.getDataInfo() != null) {
                refsByMeasure.put(measureLabel(aggregate),
                                  FieldRefFactory.from(field.getDataInfo()));
+
+               if(field.getDataInfo() instanceof BDimensionRefModel dimension) {
+                  sortsByMeasure.put(measureLabel(aggregate),
+                                     DimensionSortRanking.describe(dimension));
+               }
             }
          }
 
          view.put("fieldRefsByMeasure", refsByMeasure);
+         // The order and ranking of each measure's dimension field: what set_chart_field_sort /
+         // set_chart_field_ranking write with forMeasure.
+         view.put("sortsByMeasure", sortsByMeasure);
       }
 
       Map<String, Object> perMeasureFrame =

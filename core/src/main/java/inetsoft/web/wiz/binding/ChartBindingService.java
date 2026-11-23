@@ -1108,13 +1108,26 @@ public class ChartBindingService {
                        String column, Integer index, DimensionSortRanking.Sort sort,
                        String linkUri) throws Exception
    {
+      return setSort(sessionToken, user, assemblyName, shelf, column, index, sort, null, linkUri);
+   }
+
+   /**
+    * @param forMeasure the measure of a multi-style chart whose own colour/shape/size/text field
+    *                   is sorted, or null
+    */
+   public List<String> setSort(String sessionToken, Principal user, String assemblyName,
+                               String shelf, String column, Integer index,
+                               DimensionSortRanking.Sort sort, String forMeasure,
+                               String linkUri) throws Exception
+   {
       List<String> notes = new ArrayList<>();
       List<String> warnings = sessions.mutate(sessionToken, user,
          ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          notes.addAll(ChartBindingMutator.setSort(
-            model, shelf, column, index, sort, isMultiAesthetic(chart)));
+            model, shelf, column, index, sort, isMultiAesthetic(chart), forMeasure,
+            ChartAestheticAgentService.perMeasureFrameChannels(chart)));
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
@@ -1169,13 +1182,24 @@ public class ChartBindingService {
                           String column, Integer index, DimensionSortRanking.Ranking ranking,
                           String linkUri) throws Exception
    {
+      return setRanking(sessionToken, user, assemblyName, shelf, column, index, ranking, null,
+                        linkUri);
+   }
+
+   /** @see #setSort(String, Principal, String, String, String, Integer, DimensionSortRanking.Sort, String, String) */
+   public List<String> setRanking(String sessionToken, Principal user, String assemblyName,
+                                  String shelf, String column, Integer index,
+                                  DimensionSortRanking.Ranking ranking, String forMeasure,
+                                  String linkUri) throws Exception
+   {
       List<String> notes = new ArrayList<>();
       List<String> warnings = sessions.mutate(sessionToken, user,
          ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          notes.addAll(ChartBindingMutator.setRanking(
-            model, shelf, column, index, ranking, isMultiAesthetic(chart)));
+            model, shelf, column, index, ranking, isMultiAesthetic(chart), forMeasure,
+            ChartAestheticAgentService.perMeasureFrameChannels(chart)));
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);

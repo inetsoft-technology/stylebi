@@ -307,10 +307,11 @@ public class BindingAgentController {
    /** @see TableSortRequest — same shape, applied to a chart's x/y/group dimension shelves. */
    public record ChartSortRequest(String assembly, String shelf, String column, Integer index,
                                   String direction, String sortByField,
-                                  List<String> manualOrder) {}
+                                  List<String> manualOrder, String forMeasure) {}
    /** @see TableRankingRequest */
    public record ChartRankingRequest(String assembly, String shelf, String column, Integer index,
-                                     String mode, Object n, String measure, Boolean others) {}
+                                     String mode, Object n, String measure, Boolean others,
+                                     String forMeasure) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/sort")
    public Map<String, Object> setChartSort(@PathVariable String sessionToken,
@@ -326,7 +327,7 @@ public class BindingAgentController {
                            new DimensionSortRanking.Sort(request.direction(),
                                                          request.sortByField(),
                                                          request.manualOrder()),
-                           linkUri));
+                           request.forMeasure(), linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/ranking")
@@ -343,7 +344,7 @@ public class BindingAgentController {
                               new DimensionSortRanking.Ranking(request.mode(), request.n(),
                                                                request.measure(),
                                                                request.others()),
-                              linkUri));
+                              request.forMeasure(), linkUri));
    }
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/type")

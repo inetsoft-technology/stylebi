@@ -39,6 +39,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -1243,6 +1244,21 @@ public final class ChartBindingMutator {
                                       Integer index, DimensionSortRanking.Sort sort,
                                       boolean multiAesthetic)
    {
+      return setSort(model, shelf, column, index, sort, multiAesthetic, null, null);
+   }
+
+   /**
+    * @param forMeasure the measure of a multi-style chart whose own colour/shape/size/text field
+    *                   is sorted, which is what the Composer's Edit Dimension popup does with a
+    *                   measure selected in the Aesthetic pane; blank for every other sort.
+    * @param perMeasureFrameChannels the channels the chart renders per measure
+    *                   ({@code ChartAestheticAgentService.perMeasureFrameChannels}).
+    */
+   public static List<String> setSort(ChartBindingModel model, String shelf, String column,
+                                      Integer index, DimensionSortRanking.Sort sort,
+                                      boolean multiAesthetic, String forMeasure,
+                                      Collection<String> perMeasureFrameChannels)
+   {
       if(shelf != null && "geo".equals(shelf.trim().toLowerCase())) {
          throw new IllegalArgumentException(
             "Sorting the 'geo' shelf is not supported: the Composer does not offer a sort on a " +
@@ -1254,8 +1270,15 @@ public final class ChartBindingMutator {
          requireUnambiguousMeasure(model, sort.sortByField(), "sortByField");
       }
 
-      requireNotMultiAestheticChannel(shelf, multiAesthetic);
-      BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
+      BDimensionRefModel perMeasure = requirePerMeasureDimension(
+         model, shelf, column, multiAesthetic, forMeasure, perMeasureFrameChannels);
+
+      if(perMeasure == null) {
+         requireNotMultiAestheticChannel(model, shelf, multiAesthetic);
+      }
+
+      BDimensionRefModel dimension =
+         perMeasure != null ? perMeasure : requireDimension(model, shelf, column, index);
 
       if(!isAestheticChannel(shelf)) {
          releaseTimeSeriesForSort(model, shelf, dimension, sort);
@@ -1268,6 +1291,11 @@ public final class ChartBindingMutator {
       }
 
       DimensionSortRanking.applySort(dimension, sort);
+
+      if(perMeasure != null) {
+         return new ArrayList<>();
+      }
+
       return mirrorToAesthetics(model, shelf, dimension, multiAesthetic,
                                 target -> DimensionSortRanking.applySort(target, sort), "order",
                                 sort);
@@ -1339,13 +1367,34 @@ public final class ChartBindingMutator {
                                          Integer index, DimensionSortRanking.Ranking ranking,
                                          boolean multiAesthetic)
    {
+      return setRanking(model, shelf, column, index, ranking, multiAesthetic, null, null);
+   }
+
+   /** @see #setSort(ChartBindingModel, String, String, Integer, DimensionSortRanking.Sort, boolean, String, Collection) */
+   public static List<String> setRanking(ChartBindingModel model, String shelf, String column,
+                                         Integer index, DimensionSortRanking.Ranking ranking,
+                                         boolean multiAesthetic, String forMeasure,
+                                         Collection<String> perMeasureFrameChannels)
+   {
       if(ranking != null && ranking.measure() != null && !ranking.measure().isBlank()) {
          requireUnambiguousMeasure(model, ranking.measure(), "measure");
       }
 
-      requireNotMultiAestheticChannel(shelf, multiAesthetic);
-      BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
+      BDimensionRefModel perMeasure = requirePerMeasureDimension(
+         model, shelf, column, multiAesthetic, forMeasure, perMeasureFrameChannels);
+
+      if(perMeasure == null) {
+         requireNotMultiAestheticChannel(model, shelf, multiAesthetic);
+      }
+
+      BDimensionRefModel dimension =
+         perMeasure != null ? perMeasure : requireDimension(model, shelf, column, index);
       DimensionSortRanking.applyRanking(dimension, ranking);
+
+      if(perMeasure != null) {
+         return new ArrayList<>();
+      }
+
       return mirrorToAesthetics(model, shelf, dimension, multiAesthetic,
                                 target -> DimensionSortRanking.applyRanking(target, ranking),
                                 "ranking", null);
@@ -1389,14 +1438,69 @@ public final class ChartBindingMutator {
       return shelf != null && AestheticChannels.FIELD_CHANNELS.contains(shelf.trim().toLowerCase());
    }
 
-   private static void requireNotMultiAestheticChannel(String shelf, boolean multiAesthetic) {
-      if(multiAesthetic && isAestheticChannel(shelf)) {
-         throw new IllegalArgumentException(
-            "This chart renders per-measure aesthetic frames (multi-style), so sort/ranking on " +
-            "the " + shelf.trim().toLowerCase() + " channel is not supported yet: the " +
-            "per-measure bindings are what the legend reads, and a write to the channel-level " +
-            "field would be stored without taking effect.");
+   private static void requireNotMultiAestheticChannel(ChartBindingModel model, String shelf,
+                                                       boolean multiAesthetic)
+   {
+      if(!multiAesthetic || !isAestheticChannel(shelf)) {
+         return;
       }
+
+      String channel = shelf.trim().toLowerCase();
+
+      if(GraphTypes.isGantt(model.getChartType())) {
+         throw new IllegalArgumentException(
+            "A Gantt chart draws the " + channel + " channel from its start and milestone " +
+            "measures, never from the chart as a whole, so sort/ranking on the " + channel +
+            " channel is not supported on a Gantt chart.");
+      }
+
+      throw new IllegalArgumentException(
+         "This chart renders per-measure aesthetic frames (multi-style), so the " + channel +
+         " channel has no chart-level sort/ranking: a write there would be stored without " +
+         "taking effect. Pass 'forMeasure' with the measure whose " + channel + " field to " +
+         "order (as the Composer does with a measure selected in the Aesthetic pane). Measures " +
+         "with a " + channel + " field: " +
+         ChartAestheticMutator.describeMeasuresWithField(model, channel) + ".");
+   }
+
+   /**
+    * The dimension a per-measure sort/ranking ({@code forMeasure}) addresses, or {@code null}
+    * when {@code forMeasure} is blank. The argument is refused by name wherever it would be
+    * ignored: a shelf that is not an aesthetic channel, a chart with chart-level channels, and a
+    * Gantt chart (it is always multi-aesthetic, and its start/milestone measures are not ordered
+    * per measure).
+    */
+   private static BDimensionRefModel requirePerMeasureDimension(
+      ChartBindingModel model, String shelf, String column, boolean multiAesthetic,
+      String forMeasure, Collection<String> perMeasureFrameChannels)
+   {
+      if(forMeasure == null || forMeasure.isBlank()) {
+         return null;
+      }
+
+      if(!isAestheticChannel(shelf)) {
+         throw new IllegalArgumentException(
+            "'forMeasure' applies to the color, shape, size and text channels only, not to the '" +
+            shelf + "' shelf. Omit 'forMeasure'.");
+      }
+
+      String channel = shelf.trim().toLowerCase();
+
+      if(GraphTypes.isGantt(model.getChartType())) {
+         throw new IllegalArgumentException(
+            "'forMeasure' is not supported on a Gantt chart: it draws the " + channel +
+            " channel from its start and milestone measures, and their order is not set per " +
+            "measure.");
+      }
+
+      if(!multiAesthetic) {
+         throw new IllegalArgumentException(
+            "'forMeasure' is for multi-style charts, where each measure has its own " + channel +
+            " field. This chart has one chart-level " + channel + " field: omit 'forMeasure'.");
+      }
+
+      return ChartAestheticMutator.requireMeasureDimension(
+         model, channel, forMeasure, column, perMeasureFrameChannels);
    }
 
    private static BDimensionRefModel requireAestheticDimension(ChartBindingModel model,
@@ -1511,6 +1615,17 @@ public final class ChartBindingMutator {
     * {@code "<column> [<channel>]"} so it never collides with the same column's shelf entry.
     */
    public static Map<String, Object> describeAestheticSorts(ChartBindingModel model) {
+      return describeAestheticSorts(model, false);
+   }
+
+   /**
+    * @param multiAesthetic whether the chart renders per-measure aesthetic frames: each measure's
+    *        own dimension field is then reported too, keyed
+    *        {@code "<column> [<channel>:<measure>]"}.
+    */
+   public static Map<String, Object> describeAestheticSorts(ChartBindingModel model,
+                                                            boolean multiAesthetic)
+   {
       Map<String, Object> out = new LinkedHashMap<>();
 
       for(String channel : AestheticChannels.FIELD_CHANNELS) {
@@ -1519,6 +1634,17 @@ public final class ChartBindingMutator {
          if(info != null && info.getDataInfo() instanceof BDimensionRefModel dimension) {
             out.put(refColumn(dimension) + " [" + channel + "]",
                     DimensionSortRanking.describe(dimension));
+         }
+
+         if(multiAesthetic && !AestheticChannels.NODE_CHANNELS.contains(channel)) {
+            for(Map.Entry<String, AestheticInfo> e :
+               ChartAestheticMutator.measureFields(model, channel).entrySet())
+            {
+               if(e.getValue().getDataInfo() instanceof BDimensionRefModel dimension) {
+                  out.put(refColumn(dimension) + " [" + channel + ":" + e.getKey() + "]",
+                          DimensionSortRanking.describe(dimension));
+               }
+            }
          }
       }
 
