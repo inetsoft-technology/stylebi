@@ -255,6 +255,10 @@ public class TimeSeriesRow implements CalcRow {
          long part2 = getPart(vals.get(0).value, this.dtype);
 
          while(part0 < part2) {
+            if(isMaxRows(rows)) {
+               return false;
+            }
+
             rows.add(createRow(data, vals.get(0).row, prev, min.value));
             prev = add(prev, 1);
             part0 = getPart(prev, this.dtype);
@@ -269,6 +273,10 @@ public class TimeSeriesRow implements CalcRow {
          long part2 = getPart(max.value, this.dtype);
 
          while(part0 <= part2) {
+            if(isMaxRows(rows)) {
+               return false;
+            }
+
             rows.add(createRow(data, vals.get(0).row, prev, lastval.value));
             prev = add(prev, 1);
             part0 = getPart(prev, this.dtype);
@@ -292,24 +300,35 @@ public class TimeSeriesRow implements CalcRow {
                break;
             }
 
-            rows.add(createRow(data, vals.get(i).row, prev, vals.get(i - 1).value));
-
-            if(rows.size() > maxrows) {
-               String msg = GTool.getString("viewer.viewsheet.chart.timeSeriesMax");
-               //Tool.addUserMessage(msg);
-               // showing a warning to end user is more distracting than
-               // helpful. in any case, when the max is reached, the graph
-               // is generally so over crowed that any truncation is
-               // unlikely to be noticeable or significant
-               LOG.warn(msg);
+            if(isMaxRows(rows)) {
                return false;
             }
+
+            rows.add(createRow(data, vals.get(i).row, prev, vals.get(i - 1).value));
          }
 
          part = part2;
       }
 
       return true;
+   }
+
+   /**
+    * Check if the max number of rows is reached, so no more row can be added.
+    */
+   private boolean isMaxRows(List<Object[]> rows) {
+      if(rows.size() >= maxrows) {
+         String msg = GTool.getString("viewer.viewsheet.chart.timeSeriesMax");
+         //Tool.addUserMessage(msg);
+         // showing a warning to end user is more distracting than
+         // helpful. in any case, when the max is reached, the graph
+         // is generally so over crowed that any truncation is
+         // unlikely to be noticeable or significant
+         LOG.warn(msg);
+         return true;
+      }
+
+      return false;
    }
 
    /**
