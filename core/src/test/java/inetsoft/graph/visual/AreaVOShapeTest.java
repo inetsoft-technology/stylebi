@@ -290,6 +290,22 @@ class AreaVOShapeTest {
       }
    }
 
+   /*
+    * KEPT ON PURPOSE, DISABLED FOR NOW (a known limitation, not an unfixed bug, not a pending
+    * Redmine issue; unlike the other @Disabled tests in this class, do not enable it when
+    * a fix lands, there is no bug to wait for).
+    *
+    * Purpose: records that clone() shares the base points array with the original, so
+    * clone.transform(coord) would move the original too.
+    *
+    * Why it is not enabled: no code path does that. Clones only come from
+    * Coordinate.getScaledVGraph() (element bounds during layout) and only get a screen
+    * transform; only VGraph.layout() calls transform(coord), on the originals. Copying the
+    * array in clone() is not a safe fix either: the scaled clone currently relies on sharing
+    * the already transformed points, so a deep copy made before VGraph.layout() transforms
+    * them would give wrong element bounds. Enable it only together with a change that
+    * makes a clone transformable, and re-check facet, GeoCoord and RelationCoord layouts.
+    */
    @Test
    @Disabled("Not filed (latent: only VGraph.layout transforms the points, clones only get a screen transform): expected a clone to own its base points, actual AreaVO shares the base points array with its clone, so transform(coord) on the clone moves the base points of the original")
    @DisplayName("transforming a clone leaves the base points of the original alone")
