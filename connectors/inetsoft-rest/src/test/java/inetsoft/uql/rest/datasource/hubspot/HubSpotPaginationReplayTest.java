@@ -19,7 +19,6 @@ package inetsoft.uql.rest.datasource.hubspot;
 
 import inetsoft.test.*;
 import inetsoft.uql.rest.datasource.PaginationReplay;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,7 +48,6 @@ class HubSpotPaginationReplayTest {
 
    // zero-based offsets: the first record is at offset 0
    @Test
-   @Disabled("Bug #82126: page type 2 endpoints send offset=1 first and skip the first record; already fixed in 13.8 as #81836, not yet in 2.1.0, enable when the fix reaches main")
    void offsetEndpointsStartAtOffsetZero() throws Exception {
       assertNoProblems(true);
    }
