@@ -5104,6 +5104,13 @@ public class WorksheetEditService {
             WSAssembly clone = (WSAssembly) wsa.clone();
             clone.getWSAssemblyInfo().setName(newName);
 
+            // Bug #82155: clone() copies the source's old name, so the next in-place save reads
+            // (oldName -> newName) as a rename of the source and re-points saved dashboards to
+            // the copy. A duplicate is a new assembly; clear it as the native paste path does.
+            if(clone instanceof AbstractWSAssembly abs) {
+               abs.setOldName(null);
+            }
+
             // Offset the clone position slightly so it doesn't overlap
             java.awt.Point pos = clone.getPixelOffset();
 

@@ -108,6 +108,21 @@ class DuplicateOuterCopy79176Test {
       assertInstanceOf(EmbeddedTableAssembly.class, ws.getAssembly("T2"));
    }
 
+   // Bug #82155: the clone must not carry the source's old name, or the next save cascades a
+   // false rename of the source to the copy.
+   @Test
+   void theDuplicateDoesNotKeepTheSourceAsItsOldName() throws Exception {
+      Worksheet ws = new Worksheet();
+      AbstractWSAssembly source = (AbstractWSAssembly) table(ws, "T");
+      source.setOldName("T");
+      ws.addAssembly(source);
+
+      service(ws).apply("TOK", agent, ed -> ed.duplicateAssembly("T", "T2"));
+
+      assertNull(((AbstractWSAssembly) ws.getAssembly("T2")).getOldName());
+      assertEquals("T", source.getOldName());
+   }
+
    private static void assertRefusal(PairingException ex, String sourceName) {
       String msg = ex.getMessage();
       assertTrue(msg.contains(sourceName), msg);
