@@ -213,6 +213,37 @@ public class SetTableHeaderAliasHandler {
    }
 
    /**
+    * The header paths a same-name copy shares with the first copy. When a crosstab has no
+    * separate summary-header row/column (side-by-side measures with no column dimension), every
+    * copy of a measure renders its header under the bare name -- the lens numbers the copies
+    * with a {@code ".N"} suffix only in the body -- so {@link #findHeaderPaths} finds nothing for
+    * occurrence {@code N > 0}. This returns the occurrence-0 paths in exactly that case, and an
+    * empty list otherwise: for the first copy, for a dimension, and whenever any {@code ".N"}
+    * header segment of this name renders (then a missing occurrence genuinely does not render).
+    */
+   public static List<TableDataPath> findSharedCopyHeaderPaths(VSTableLens lens, DataRef dataRef,
+                                                               int occurrence)
+   {
+      if(occurrence <= 0 || !(dataRef instanceof VSAggregateRef aggregate)) {
+         return new ArrayList<>();
+      }
+
+      String fullName = aggregate.getFullName();
+
+      for(HeaderCell cell : headerRegionCells(lens)) {
+         String segment = lastSegment(cell);
+
+         if(ClearTableHeaderAliasHandler.isAggregateSegment(fullName, segment) &&
+            duplicateNumber(fullName, segment) > 0)
+         {
+            return new ArrayList<>();
+         }
+      }
+
+      return findHeaderPaths(lens, dataRef, 0, 0);
+   }
+
+   /**
     * Which of the measures that share one name {@code aggregates[index]} is: the number of
     * earlier entries with the same {@code getFullName()}. Two measures on one column with one
     * formula render under the same name, and the lens tells them apart only by a {@code ".N"}

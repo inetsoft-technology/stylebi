@@ -2162,10 +2162,20 @@ public class TableBindingService {
          // headers are a single positional "Cell [r,c]" path.
          List<TableDataPath> paths;
 
+         boolean sharedHeader = false;
+
          if("aggregates".equals(target.shelf())) {
+            int occurrence = headerOccurrence(crossInfo, target.shelf(), target.index());
             paths = SetTableHeaderAliasHandler.findHeaderPaths(
-               lens, ref, target.index(),
-               headerOccurrence(crossInfo, target.shelf(), target.index()));
+               lens, ref, target.index(), occurrence);
+
+            // No separate summary-header row/column: the copies render one shared header, so a
+            // later copy has no path of its own and resolves to the first copy's.
+            if(paths.isEmpty()) {
+               paths = SetTableHeaderAliasHandler.findSharedCopyHeaderPaths(
+                  lens, ref, occurrence);
+               sharedHeader = !paths.isEmpty();
+            }
 
             if(!paths.isEmpty()) {
                paths = SetTableHeaderAliasHandler.withUnrenderedLevels(
@@ -2186,12 +2196,35 @@ public class TableBindingService {
             continue;
          }
 
+         if(sharedHeader && clearing) {
+            errors.add(
+               "'" + target.shelf() + "[" + target.index() + "]' shares one header with the " +
+               "first copy of " + ((VSAggregateRef) ref).getFullName() + " on '" +
+               crosstab.getAbsoluteName() + "' (this crosstab renders no separate header per " +
+               "copy), so clearing it would clear the label of every copy. Clear it through " +
+               "the first copy's index instead.");
+            continue;
+         }
+
          if(clearing) {
             clearPaths.addAll(paths);
             continue;
          }
 
          for(TableDataPath path : paths) {
+            for(int i = 0; i < setPaths.size(); i++) {
+               if(setPaths.get(i).equals(path) && !setLabels.get(i).equals(target.label())) {
+                  errors.add(
+                     "'" + target.shelf() + "[" + target.index() + "]' cannot get the label '" +
+                     target.label() + "': its copies share one header on '" +
+                     crosstab.getAbsoluteName() + "' and the labels differ ('" +
+                     setLabels.get(i) + "' vs '" + target.label() + "'). Give every copy the " +
+                     "same label, or show the copies under a column dimension or stacked " +
+                     "(summarySideBySide false), where each copy has its own header.");
+                  break;
+               }
+            }
+
             setPaths.add(path);
             setLabels.add(target.label());
          }
@@ -3061,6 +3094,18 @@ public class TableBindingService {
                }
 
                if(cells.isEmpty()) {
+                  // Copies that render one shared header (no separate summary-header row) have
+                  // no cell of their own, but still read the shared label.
+                  List<TableDataPath> shared = aggregate ?
+                     SetTableHeaderAliasHandler.findSharedCopyHeaderPaths(lens, ref, occurrence) :
+                     List.of();
+                  String sharedLabel = shared.isEmpty() ? null :
+                     readAlias(formatInfo, shared.get(0));
+
+                  if(sharedLabel != null) {
+                     fields.set(i, withLabel(fields.get(i), sharedLabel));
+                  }
+
                   continue;
                }
 
