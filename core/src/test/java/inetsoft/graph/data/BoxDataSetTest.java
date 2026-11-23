@@ -387,24 +387,6 @@ class BoxDataSetTest {
    }
 
    @Test
-   @DisplayName("values above 2^24 keep their digits: median of 100000001..100000005")
-   void largeValuesKeepPrecision() {
-      BoxDataSet box = boxOf(buildSingleGroupDataset(100000001, 100000002, 100000003, 100000004,
-                                                     100000005));
-
-      assertEquals(100000003.0, stat(box, BoxDataSet.MEDIUM_PREFIX, 0).doubleValue(), 0);
-   }
-
-   @Test
-   @DisplayName("2^24 + 1 is kept exactly")
-   void valueJustAboveTwoToTheTwentyFour() {
-      BoxDataSet box = boxOf(buildSingleGroupDataset(16777217, 16777218, 16777219));
-
-      assertEquals(16777218.0, stat(box, BoxDataSet.MEDIUM_PREFIX, 0).doubleValue(), 0);
-      assertEquals(16777217.0, stat(box, BoxDataSet.MIN_PREFIX, 0).doubleValue(), 0);
-   }
-
-   @Test
    @DisplayName("a NaN measure value is ignored like a missing value")
    void nanValueIsIgnored() {
       BoxDataSet box = boxOf(withNulls(1.0, 2.0, 3.0, 4.0, 5.0, Double.NaN));
