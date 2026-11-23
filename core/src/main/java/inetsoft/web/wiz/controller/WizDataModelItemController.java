@@ -205,7 +205,10 @@ public class WizDataModelItemController {
       }
 
       // an item the caller may not see is answered like a missing one, naming no kind
-      String existing = gates.visibleKindOfName(dataModel, database, ref.name(), ctx.principal());
+      // the gate knows base models only: an extended logical model is resolved by its parent
+      // through the kind's own lookup below (Bug #82067)
+      String existing = byParent(ref.kind(), ref.parent()) ? ref.kind() :
+         gates.visibleKindOfName(dataModel, database, ref.name(), ctx.principal());
       WizModelKindOps ops = opsFor(ref.kind());
 
       if(existing == null) {
@@ -262,6 +265,11 @@ public class WizDataModelItemController {
       return new DepItem(ref.kind(), ref.name(), info.get().folder(), true,
                          ops.mayDelete(ctx, modelRef), reason, message, dependents,
                          describe(dependents), List.of(), also, dangling);
+   }
+
+   /** An extended logical model carries its base as {@code parent}. */
+   private static boolean byParent(String kind, String parent) {
+      return KIND_LOGICAL_MODEL.equals(kind) && parent != null && !parent.isEmpty();
    }
 
    private static boolean usedByModels(List<Dependent> dependents) {
@@ -636,7 +644,10 @@ public class WizDataModelItemController {
          return null;
       }
 
-      String existing = gates.visibleKindOfName(dataModel, database, item.name(), ctx.principal());
+      // the gate knows base models only: an extended logical model is resolved by its parent
+      // through the kind's own lookup below (Bug #82067)
+      String existing = byParent(item.kind(), item.parent()) ? item.kind() :
+         gates.visibleKindOfName(dataModel, database, item.name(), ctx.principal());
 
       if(existing == null) {
          return deleteFailed(item, NOT_FOUND, "no " + item.kind() + " named \"" + item.name() +
