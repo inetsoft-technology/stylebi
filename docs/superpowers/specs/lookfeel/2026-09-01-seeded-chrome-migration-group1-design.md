@@ -119,7 +119,7 @@ That literal stays where it is. It is an unconditional creation default, which t
 in `setDefaultFormat`, and the seed overwrites it afterwards. This is how the selection title seed already
 relates to the borders `setDefaultFormat` writes at `:894-897`.
 
-**Two simplifications fall out, and neither is a shortcut.** The measure-bar composites live on their own
+**Two simplifications fall out, and neither is a shortcut.** (Bug #82153 amends one rule below: the measure-bar composites still sit outside the cell seed, but their default is no longer a constant. It is resolved at load from the list's own mark: classic blue when unmarked, `directionNeutral(ctx)` when marked.) The measure-bar composites live on their own
 paths (`getMeasureBarPath(i)`, `getMeasureNBarPath(i)`), so seeding the plain DETAIL composite excludes them
 *structurally*; `FormatPainterService.isPlainSelectionCell` (`:942-945`) and the Measure Text / Measure Bar /
 Measure Bar(-) exclusion it exists for are deleted rather than reimplemented. And
@@ -266,7 +266,7 @@ Five existing classes carry the shape: `SeedChromeDefaultsTest`, `VSObjectChrome
 | A USER-tier value survives creation, Modernize and Revert | Held by an explicit guard today and by tier precedence after; the reason it holds changes, so it needs asserting where the guard used to be |
 | A CSS-defined padding survives the seed | Conversion A's new guard, and the regression `2b86a9fa3` hit in its flag-only form |
 | A text assembly created with `border == false` gains no border colour | The bit-for-bit property for unmarked assets |
-| The measure-bar composites keep their own foreground | What `isPlainSelectionCell` used to provide, now structural — asserted directly so a later tidy-up cannot quietly re-widen the seed |
+| The measure-bar composites are not reached by the cell seed; their default is resolved from the list's own mark (Bug #82153) | What `isPlainSelectionCell` used to provide, now structural. The bar default is `VSObjectChromeDefaults.measureBarForegroundValue(VizContext.of(info))`, written at creation and on every data load by `refreshMeasureFormat`; asserted directly so a later tidy-up cannot quietly re-widen the seed |
 | `reseedAfterRestore` resolves each of the four on bookmark restore | The seeded value has to survive a restore by construction; that is the claim §1's precedent rests on |
 | The padding pane's follow-default round-trip stores a resolved inset | `PaddingFollowDefaultTest` covers the old behaviour and must move with the write path |
 

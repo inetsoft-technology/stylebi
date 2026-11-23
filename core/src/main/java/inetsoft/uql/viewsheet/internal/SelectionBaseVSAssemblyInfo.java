@@ -18,7 +18,6 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.GraphConstants;
-import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.uql.CompositeValue;
@@ -1028,7 +1027,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
          path = getMeasureBarPath(i);
          format = new VSCompositeFormat();
          format.getDefaultFormat().setForegroundValue(
-            CategoricalColorFrame.COLOR_PALETTE.get(0).getRGB() + "");
+            VSObjectChromeDefaults.measureBarForegroundValue(VizContext.of(this)));
          format.getDefaultFormat().setFontValue(font);
          format.getCSSFormat().setCSSType("MeasureBar");
          getFormatInfo().setFormat(path, format);
@@ -1053,7 +1052,9 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
 
       // the detail cell's foreground. Seeded rather than substituted at every render so it travels
       // in an exported asset. setDefaultFormat's unconditional near-black stays where it is and
-      // this overwrites it; the measure-bar composites are separate paths and are not reached
+      // this overwrites it; the measure-bar composites are separate paths and are not reached here.
+      // Their default is resolved from the mark at creation (setDefaultFormat) and on every data load
+      // (AbstractSelectionVSAQuery.refreshMeasureFormat)
       VSCompositeFormat cellFormat =
          getFormatInfo().getFormat(new TableDataPath(-1, TableDataPath.DETAIL));
 

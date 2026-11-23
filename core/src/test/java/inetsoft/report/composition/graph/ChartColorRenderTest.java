@@ -20,6 +20,7 @@ package inetsoft.report.composition.graph;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.LegendSpec;
 import inetsoft.graph.aesthetic.SizeFrame;
+import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.element.PolygonElement;
@@ -35,8 +36,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
-import inetsoft.uql.viewsheet.graph.aesthetic.LinearSizeFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.uql.viewsheet.internal.VizModernizeUtil;
@@ -134,6 +134,93 @@ class ChartColorRenderTest {
       LegendSpec spec = sizeLegendSpec(null);
       assertNull(spec.getSymbolFallbackColor());
       assertNull(spec.getSymbolBorderColor());
+   }
+
+   @Test
+   void aModernShapeLineAndTextureLegendNextToAColourFieldUsesTheLabelGrey() {
+      for(Kind kind : Kind.values()) {
+         assertEquals(new Color(0x6A685F), otherFieldLegendSpec(VizMark.MODERN_LIGHT, kind)
+            .getSymbolFallbackColor(), kind + " light");
+         assertEquals(new Color(0xCAC4D0), otherFieldLegendSpec(VizMark.MODERN_DARK, kind)
+            .getSymbolFallbackColor(), kind + " dark");
+      }
+   }
+
+   @Test
+   void aModernShapeLegendLeavesTheBorderUnset() {
+      // those legend items never read the border colour
+      assertNull(otherFieldLegendSpec(VizMark.MODERN_LIGHT, Kind.SHAPE).getSymbolBorderColor());
+   }
+
+   @Test
+   void aClassicShapeLineAndTextureLegendIsUnset() {
+      for(Kind kind : Kind.values()) {
+         assertNull(otherFieldLegendSpec(null, kind).getSymbolFallbackColor(), kind.toString());
+         assertNull(otherFieldLegendSpec(null, kind).getSymbolBorderColor(), kind.toString());
+      }
+   }
+
+   private enum Kind { SHAPE, LINE, TEXTURE }
+
+   // the legend spec of the frame bound to a second field, next to a colour bound to Region
+   private static LegendSpec otherFieldLegendSpec(VizMark mark, Kind kind) {
+      Object[][] rows = {
+         { "State", "Region", "Segment", "Sum(Total)" },
+         { "CA", "West", "A", 100.0 },
+         { "NY", "East", "B", 200.0 },
+         { "TX", "South", "C", 300.0 },
+      };
+
+      VSChartAggregateRef total = new VSChartAggregateRef();
+      total.setDataRef(new BaseField("Total"));
+      total.setFormulaValue("Sum");
+
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(new VSChartDimensionRef(new BaseField("Region")));
+      color.setVisualFrameWrapper(new CategoricalColorFrameWrapper());
+      VSAestheticRef other = new VSAestheticRef();
+      other.setDataRef(new VSChartDimensionRef(new BaseField("Segment")));
+
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      int type = kind == Kind.SHAPE ? GraphTypes.CHART_POINT :
+         kind == Kind.LINE ? GraphTypes.CHART_LINE : GraphTypes.CHART_BAR;
+      cinfo.setChartType(type);
+      cinfo.setRTChartType(type);
+      cinfo.addXField(new VSChartDimensionRef(new BaseField("State")));
+      cinfo.addYField(total);
+      cinfo.setColorField(color);
+
+      switch(kind) {
+      case SHAPE -> {
+         other.setVisualFrameWrapper(new CategoricalShapeFrameWrapper());
+         cinfo.setShapeField(other);
+      }
+      case LINE -> {
+         other.setVisualFrameWrapper(new CategoricalLineFrameWrapper());
+         cinfo.setShapeField(other);
+      }
+      default -> {
+         other.setVisualFrameWrapper(new CategoricalTextureFrameWrapper());
+         cinfo.setShapeField(other);
+      }
+      }
+
+      cinfo.updateChartType(false);
+
+      ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
+      assemblyInfo.setVSChartInfo(cinfo);
+      assemblyInfo.setChartDescriptor(new ChartDescriptor());
+      assemblyInfo.setVizMark(mark);
+      VizModernizeUtil.reseedAfterRestore(assemblyInfo);
+
+      EGraph graph = GraphGenerator.getGenerator(
+         assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
+         XSourceInfo.NONE, null).createEGraph();
+      GraphElement elem = graph.getElement(0);
+      VisualFrame frame = kind == Kind.SHAPE ? elem.getShapeFrame() :
+         kind == Kind.LINE ? elem.getLineFrame() : elem.getTextureFrame();
+      assertNotNull(frame, "premise: the element draws a " + kind + " frame");
+      return frame.getLegendSpec();
    }
 
    // the size frame's legend spec of a point chart with a colour field and a size measure

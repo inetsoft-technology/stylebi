@@ -2996,9 +2996,9 @@ class SeedChromeDefaultsTest {
    }
 
    @Test
-   void aMeasureBarKeepsItsOwnForegroundWhenTheCellIsSeeded() {
-      // the bar's foreground IS the bar colour; the seed must not reach it. Structural now: the
-      // measure composites are separate paths, which is why the old predicate could be deleted
+   void aMeasureBarDefaultIsResolvedFromTheMarkNotTheCellSeed() {
+      // the bar's foreground IS the bar colour; the cell seed must not reach it. The measure
+      // composites are separate paths. Their default comes from the list's own mark (Bug #82153)
       gateOn();
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       SelectionListVSAssemblyInfo info = newSelectionList();
@@ -3006,6 +3006,13 @@ class SeedChromeDefaultsTest {
 
       assertNotEquals(VSObjectChromeDefaults.darkForegroundValue(),
                       bar.getDefaultFormat().getForegroundValue());
+      assertEquals(VSChartPaletteDefaults.directionNeutral(VizContext.of(info)).getRGB() + "",
+                   bar.getDefaultFormat().getForegroundValue() + "");
+
+      // re-seeding the cell for an unmarked context leaves the bar where it was
+      String before = bar.getDefaultFormat().getForegroundValue() + "";
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      assertEquals(before, bar.getDefaultFormat().getForegroundValue() + "");
    }
 
    @Test

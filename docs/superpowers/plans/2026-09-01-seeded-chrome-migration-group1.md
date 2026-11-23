@@ -1086,3 +1086,5 @@ Three things this group establishes that group 2 should not re-derive:
 - **The bypass predicate needs no split.** A subclass `seedChromeDefaults` override runs even for a bypassing type, because the guard is inside the base implementation. Task 4 proves it for the text assembly; checkbox and radio button take the same shape.
 - **Excel's opt-out inverts wherever a cell value is seeded.** Task 2 pays for this once for the selection cell. Any group 2 conversion that seeds a value Excel deliberately declines will need the same inversion.
 - **A test that stamps the mark after `initDefaultFormat` no longer resolves anything.** It must re-run the hook. Task 1's `markedChart()` helper is the pattern.
+
+> Note (Bug #82153): the statement above that the measure-bar composites are not reached still holds for the cell seed, but their default is now resolved from the list's own mark at creation and on every data load (`VSObjectChromeDefaults.measureBarForegroundValue`).

@@ -1933,6 +1933,12 @@ public abstract class GraphGenerator {
             legends.getGap(), legends.hasGapValue(), vizContext, legends.getLayout()));
          legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
             legends.getPadding(), legends.hasPaddingValue(), vizContext));
+
+         // the fallback for an item with no element color; same as the size legend. Classic keeps
+         // the legend item's own default
+         if(vizContext.modern) {
+            legend.setSymbolFallbackColor(VSChartChromeDefaults.labelColor(vizContext));
+         }
       }
    }
 

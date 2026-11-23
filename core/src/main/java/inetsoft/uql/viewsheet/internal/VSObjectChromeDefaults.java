@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.CategoricalColorFrame;
+
 import java.awt.Color;
 
 /**
@@ -126,6 +128,18 @@ public final class VSObjectChromeDefaults {
     */
    public static String legacyCellForegroundValue() {
       return String.format("0x%06x", LEGACY_CELL_FG.getRGB() & 0xFFFFFF);
+   }
+
+   /**
+    * The default-tier foreground of a Selection List measure bar, as the string the format stores.
+    * The classic blue (the head of the classic palette) for an unmarked list, which is also what
+    * Revert yields; the neutral mark grey of the list's own mark otherwise, so a bar that encodes a
+    * measure is never mistaken for a data series. Reads only ctx.modern and ctx.dark.
+    */
+   public static String measureBarForegroundValue(VizContext ctx) {
+      Color color = !ctx.modern ? CategoricalColorFrame.COLOR_PALETTE.get(0) :
+         VSChartPaletteDefaults.directionNeutral(ctx);
+      return color.getRGB() + "";
    }
 
    /** Card tint background RGB, written to the default tier with {@link #CARD_TINT_ALPHA}. */

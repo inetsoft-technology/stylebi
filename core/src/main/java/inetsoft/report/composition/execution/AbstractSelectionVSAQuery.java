@@ -17,7 +17,6 @@
  */
 package inetsoft.report.composition.execution;
 
-import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.mv.MVManager;
 import inetsoft.mv.trans.AbstractTransformer;
 import inetsoft.mv.trans.TransformationDescriptor;
@@ -446,7 +445,8 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
    }
 
    /**
-    * Refresh measure format.
+    * Refresh measure format. The bar default is resolved from the assembly's own mark on every
+    * load, never from the org gate, so an unmarked list stays classic.
     */
    protected void refreshMeasureFormat() {
       VSAssembly assembly = getAssembly();
@@ -474,7 +474,8 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
 
       if(!objfmt.getUserDefinedFormat().isForegroundValueDefined()) {
          format.getDefaultFormat().setForegroundValue(
-            CategoricalColorFrame.COLOR_PALETTE.get(0).getRGB() + "");
+            VSObjectChromeDefaults.measureBarForegroundValue(
+               VizContext.of(getAssembly().getVSAssemblyInfo())));
       }
    }
 
