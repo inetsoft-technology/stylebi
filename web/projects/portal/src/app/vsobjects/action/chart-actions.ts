@@ -379,7 +379,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          },
          {
             id: () => "chart edit",
-            label: () => "_#(js:Edit)",
+            label: () => "_#(js:Binding)...",
             icon: () => null,
             enabled: () => true,
             visible: () => this.editVisible
@@ -579,7 +579,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
       };
       const edit = {
          id: () => "chart edit",
-         label: () => "_#(js:Edit)",
+         label: () => "_#(js:Binding)...",
          icon: () => "edit-icon",
          enabled: () => true,
          visible: () => this.editVisible
