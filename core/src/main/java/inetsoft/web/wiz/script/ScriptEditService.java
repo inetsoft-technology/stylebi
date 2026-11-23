@@ -327,6 +327,54 @@ public class ScriptEditService {
    }
 
    /**
+    * Whether {@code target} is a calculated field the session's "New Calculated Field" dialog is
+    * still creating: a pending grant on a calcField that the runtime does not hold yet. Once the
+    * user clicks OK the field exists (the session stays pending), so the answer flips to false and
+    * a write is an ordinary edit instead of a draft that would land nowhere.
+    */
+   public boolean isPendingCalcFieldDraft(RuntimeViewsheet rvs, JoinSession session,
+                                          ScriptTarget target)
+   {
+      return session != null && session.editorContext() != null &&
+         session.editorContext().pending() &&
+         target.kind() == ScriptTarget.Kind.CALC_FIELD &&
+         !calcFields.exists(rvs == null ? null : rvs.getViewsheet(), target.assemblyName(),
+                            target.name());
+   }
+
+   /**
+    * Pushes {@code text} into the open "New Calculated Field" dialog as a draft. Like every other
+    * draft it never touches the runtime viewsheet (no write, undo checkpoint or write-revision
+    * bump): the field does not exist until the user clicks OK. The text is checked with the
+    * dialog's own SQL/Script switch as last reported by the browser.
+    */
+   public ScriptWriteResult writeCalcFieldDraft(RuntimeViewsheet rvs, Principal agent,
+                                                JoinSession session, ScriptTarget target,
+                                                String text)
+      throws PairingException
+   {
+      if(text == null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT, "text is required.");
+      }
+
+      if(text.isBlank()) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "The expression is empty: a calculated field cannot have a blank formula. Nothing " +
+            "was pushed.");
+      }
+
+      PaneState state = sessions.paneStateOf(session);
+      calcFields.validateDraft(rvs, state.sql(), target.name(), text);
+      push(rvs, agent, target, text);
+
+      return new ScriptWriteResult(true, true,
+         "Pushed into the open New Calculated Field dialog as a draft; the field '" +
+         target.name() + "' is created only when the user clicks OK there (Cancel discards " +
+         "it). If the user had already typed, the draft waits behind the dialog's reload prompt.",
+         null);
+   }
+
+   /**
     * The Hyperlink dialog's editor holds the expression WITH its leading '=' (the dialog re-adds
     * it when missing), so the text is normalized to start with one and parsed without it.
     */

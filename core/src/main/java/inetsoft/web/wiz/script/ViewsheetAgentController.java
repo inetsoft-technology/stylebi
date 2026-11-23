@@ -232,6 +232,18 @@ public class ViewsheetAgentController {
          return editService.writeDraft(draftRvs, user, draftTarget, req.text());
       }
 
+      if(draftTarget.kind() == ScriptTarget.Kind.CALC_FIELD) {
+         requirePaneScope(sessionToken, user, draftTarget);
+         JoinSession session = resolveSession(sessionToken, user);
+
+         // The "New Calculated Field" dialog names its field before the user clicks OK, so the
+         // field does not exist yet: the text is a draft for that dialog, not a runtime write.
+         if(editService.isPendingCalcFieldDraft(draftRvs, session, draftTarget)) {
+            return editService.writeCalcFieldDraft(draftRvs, user, session, draftTarget,
+                                                   req.text());
+         }
+      }
+
       editService.apply(sessionToken, user, rvs -> {
          ScriptTarget t = target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
          requirePaneScope(sessionToken, user, t);
