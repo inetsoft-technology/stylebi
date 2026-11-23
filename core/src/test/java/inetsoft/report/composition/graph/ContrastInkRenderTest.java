@@ -91,17 +91,20 @@ class ContrastInkRenderTest {
       assertEquals(Color.WHITE, label.getColor());
    }
 
+   // a marked tree tints its boxes, and their labels take the title ink, not the contrast ink
    @Test
-   void aMarkedTreeNodeLabelTurnsBlack() {
-      VOText label = label(RelationVO.class, tree(), VizMark.MODERN_LIGHT, TREE_ROWS);
+   void aMarkedTreeNodeLabelTakesTheTitleInk() {
+      VOText label = firstLabel(RelationVO.class,
+                                plot(relation(GraphTypes.CHART_TREE), VizMark.MODERN_LIGHT,
+                                     TREE_ROWS));
 
-      assertTrue(label.isContrastInk());
-      assertEquals(Color.BLACK, label.getColor());
+      assertNull(label.getAutoBackground());
+      assertEquals(TITLE_INK, label.getColor());
    }
 
    @Test
    void aClassicTreeNodeLabelStaysWhite() {
-      VOText label = label(RelationVO.class, tree(), null, TREE_ROWS);
+      VOText label = label(RelationVO.class, relation(GraphTypes.CHART_TREE), null, TREE_ROWS);
 
       assertFalse(label.isContrastInk());
       assertEquals(Color.WHITE, label.getColor());
@@ -111,15 +114,18 @@ class ContrastInkRenderTest {
    private static VOText label(Class<? extends ElementVO> type, VSChartInfo cinfo, VizMark mark,
                                Object[][] rows)
    {
-      VGraph vgraph = plot(cinfo, mark, rows);
+      VOText label = firstLabel(type, plot(cinfo, mark, rows));
+      assertEquals(FILL, label.getAutoBackground(), "premise: the label reads the fill");
+      return label;
+   }
 
+   // the first label a VO of the type draws
+   private static VOText firstLabel(Class<? extends ElementVO> type, VGraph vgraph) {
       for(int i = 0; i < vgraph.getVisualCount(); i++) {
          if(type.isInstance(vgraph.getVisual(i)) &&
             ((ElementVO) vgraph.getVisual(i)).getVOText() != null)
          {
-            VOText label = ((ElementVO) vgraph.getVisual(i)).getVOText();
-            assertEquals(FILL, label.getAutoBackground(), "premise: the label reads the fill");
-            return label;
+            return ((ElementVO) vgraph.getVisual(i)).getVOText();
          }
       }
 
@@ -162,13 +168,13 @@ class ContrastInkRenderTest {
       return cinfo;
    }
 
-   private static VSChartInfo tree() {
+   private static VSChartInfo relation(int type) {
       VSChartDimensionRef parent = dim("Parent");
       VSChartDimensionRef child = dim("Child");
 
       RelationVSChartInfo cinfo = new RelationVSChartInfo();
-      cinfo.setChartType(GraphTypes.CHART_TREE);
-      cinfo.setRTChartType(GraphTypes.CHART_TREE);
+      cinfo.setChartType(type);
+      cinfo.setRTChartType(type);
       cinfo.setSourceField(parent);
       cinfo.setTargetField(child);
       cinfo.setRTSourceField(parent);
@@ -192,6 +198,8 @@ class ContrastInkRenderTest {
 
    // a mid-tone fill: white under the classic rule, black under the contrast rule
    private static final Color FILL = new Color(0xE5197E);
+   // the light chart title colour
+   private static final Color TITLE_INK = new Color(0x35342F);
    private static final Object[][] TREEMAP_ROWS = {
       { "Division", "Department", "Sum(Total)" },
       { "East", "Sales", 100.0 },

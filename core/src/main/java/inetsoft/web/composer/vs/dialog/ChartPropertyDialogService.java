@@ -117,7 +117,8 @@ public class ChartPropertyDialogService {
 
       if(chartLinePaneModel == null && chartDescriptor != null) {
          ChartLinePaneModel linePaneModel =
-            new ChartLinePaneModel(vsChartInfo, chartDescriptor.getPlotDescriptor());
+            new ChartLinePaneModel(vsChartInfo, chartDescriptor.getPlotDescriptor(),
+                                   VizContext.of(chartAssemblyInfo));
 
          if(DateComparisonUtil.appliedDateComparison(chartAssemblyInfo)) {
             linePaneModel.setProjectForwardEnabled(vsChartInfo.canProjectForward(true));

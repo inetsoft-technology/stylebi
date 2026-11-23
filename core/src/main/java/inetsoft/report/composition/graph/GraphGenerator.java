@@ -1274,6 +1274,12 @@ public abstract class GraphGenerator {
             elem.getTextSpec().setFormat(null);
          }
 
+         if(isValueInsideMark(elem)) {
+            elem.setLabelPlacement(GraphConstants.CENTER);
+            elem.setValueFitInside(true);
+            elem.setAutoTextColor(!isTextColorSet(format, elem.getTextSpec()));
+         }
+
          if(format.getUserDefinedFormat().isColorDefined()) {
             elem.setAutoTextColor(false);
          }
@@ -1429,6 +1435,17 @@ public abstract class GraphGenerator {
       }
    }
 
+   // a marked funnel or waterfall without a Text field centres its values inside the marks
+   private boolean isValueInsideMark(GraphElement elem) {
+      if(!vizContext.modern || info.getTextField() != null || !(elem instanceof IntervalElement)) {
+         return false;
+      }
+
+      return ((IntervalElement) elem).isWaterfall() ||
+         GraphTypes.isFunnel(info.getRTChartType()) &&
+            (elem.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0;
+   }
+
    // modern: an author or stylesheet colour turns the automatic one off; classic: any non-default
    private boolean isTextColorSet(CompositeTextFormat fmt, TextSpec spec) {
       if(vizContext.modern) {
@@ -1438,6 +1455,8 @@ public abstract class GraphGenerator {
 
       return !GDefaults.DEFAULT_TEXT_COLOR.equals(spec.getColor());
    }
+
+   private static final double BOX_TINT_ALPHA = 0.15;
 
    private void initRelationElement(PlotDescriptor plotdesc, RelationElement elem) {
       // set source format
@@ -1577,6 +1596,7 @@ public abstract class GraphGenerator {
          */
       }
 
+      boolean measureColor = colorFrame instanceof LinearColorFrame;
       colorFrame = applyHighlight(colorFrame, data);
 
       if(isBrushingSource()) {
@@ -1589,6 +1609,19 @@ public abstract class GraphGenerator {
       }
 
       elem.setNodeColorFrame(colorFrame);
+
+      // marked tree boxes are a tint of their colour; a measure on colour and brushing stay solid
+      if(vizContext.modern && info.getChartType() == CHART_TREE && !measureColor &&
+         !isBrushingSource() && !isBrusingTarget())
+      {
+         elem.setBoxTint(BOX_TINT_ALPHA, VSObjectChromeDefaults.cardComposite(vizContext));
+
+         if(highlight == null && highlight2 == null && !isTextColorSet(sourceFmt, sourceSpec) &&
+            !isTextColorSet(fmt2, textSpec))
+         {
+            elem.setBoxInk(VSChartChromeDefaults.titleColor(vizContext));
+         }
+      }
 
       for(VisualFrame frame : LegendGroup.getLegendFrames(colorFrame)) {
          processColorLegend(desc.getLegendsDescriptor(), elem, frame);
@@ -1933,6 +1966,11 @@ public abstract class GraphGenerator {
             legends.getGap(), legends.hasGapValue(), vizContext, legends.getLayout()));
          legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
             legends.getPadding(), legends.hasPaddingValue(), vizContext));
+
+         // glyphs only; texture and line legends keep their symbols
+         if(vizContext.modern && shpframe instanceof ShapeFrame) {
+            legend.setSymbolFallbackColor(VSChartChromeDefaults.labelColor(vizContext));
+         }
       }
    }
 
@@ -2589,6 +2627,14 @@ public abstract class GraphGenerator {
             AxisDescriptor axisD = getAxisDescriptor(scale, null);
             setupAxisSpec(axis, axisD, scale.getFields(), false, scale instanceof LinearScale);
 
+            if(vizContext.modern) {
+               // the rings take the plot's Y grid, the spokes the gridline neutral
+               axis.setGridStyle(plotdesc.getYGridStyle());
+               axis.setGridColor(plotdesc.getYGridColor());
+               axis.setLineColor(
+                  VSChartChromeDefaults.resolveSpokeColor(axisD.getLineColor(), vizContext));
+            }
+
             if(scale instanceof TimeScale) {
                ((TimeScale) scale).setIncrement(axisD.getIncrement());
                Number min = axisD.getMinimum();
@@ -2980,12 +3026,27 @@ public abstract class GraphGenerator {
       }
 
       setupAxisSpec(spec, xdesc, flds, secondary, scale instanceof LinearScale);
+      ModernZeroLine.apply(spec, zeroLineType(flds), scale, x, secondary, vizContext);
       addHighlightToAxis(spec, flds);
 
       return spec;
    }
 
-   private CompositeTextFormat getAxisLabelFormat(AxisDescriptor desc,
+   // the chart type of the axis's own measure on a multi-style chart, else the chart's type
+   private int zeroLineType(String[] flds) {
+      if(info.isMultiStyles() && flds != null && flds.length > 0) {
+         ChartRef ref = info.getFieldByName(flds[0], true);
+         ref = ref == null ? info.getFieldByName(ElementVO.getBaseName(flds[0]), true) : ref;
+
+         if(ref instanceof ChartAggregateRef agg) {
+            return agg.getRTChartType();
+         }
+      }
+
+      return info.getRTChartType();
+   }
+
+   CompositeTextFormat getAxisLabelFormat(AxisDescriptor desc,
                                                   String[] fields, boolean secondary)
    {
       if(fields == null || fields.length == 0 || secondary) {

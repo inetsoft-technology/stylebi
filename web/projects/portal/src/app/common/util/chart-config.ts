@@ -76,6 +76,22 @@ import { NetTool } from "./net-tool";
    }
 
    /**
+    * Shape styles with the filled markers first, for a marked chart.
+    */
+   static get MODERN_SHAPE_STYLES(): string[] {
+      return [
+               StyleConstants.FILLED_CIRCLE + "", StyleConstants.FILLED_TRIANGLE + "",
+               StyleConstants.FILLED_SQUARE + "", StyleConstants.FILLED_DIAMOND + "",
+               StyleConstants.CIRCLE + "", StyleConstants.TRIANGLE + "",
+               StyleConstants.SQUARE + "", StyleConstants.CROSS + "",
+               StyleConstants.STAR + "", StyleConstants.DIAMOND + "",
+               StyleConstants.X + "", StyleConstants.V_ANGLE + "",
+               StyleConstants.RIGHT_ANGLE + "", StyleConstants.LT_ANGLE + "",
+               StyleConstants.V_LINE + "", StyleConstants.H_LINE + ""
+            ];
+   }
+
+   /**
     * Image shapes.
     */
    static get IMAGE_SHAPES(): string[] {

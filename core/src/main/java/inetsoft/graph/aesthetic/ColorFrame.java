@@ -49,6 +49,13 @@ public abstract class ColorFrame extends VisualFrame {
    public abstract Color getColor(Object val);
 
    /**
+    * Check if the colors of this frame come from a highlight.
+    */
+   public boolean isHighlightFrame() {
+      return false;
+   }
+
+   /**
     * Set the brightness. The return color is adjusted by multiplying the
     * brightness value. A value of one (1) doesn't change the color.
     */

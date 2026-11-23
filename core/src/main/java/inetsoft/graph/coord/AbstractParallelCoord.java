@@ -96,6 +96,8 @@ public abstract class AbstractParallelCoord extends Coordinate {
          }
       }
 
+      double[] even = evenRings && !sameScales() ? EVEN_RINGS : null;
+
       // create grid lines so it's there if fit is not called (polar)
       for(int i = 0; i < axes.size(); i++) {
          DefaultAxis axis = axes.get(i);
@@ -115,11 +117,23 @@ public abstract class AbstractParallelCoord extends Coordinate {
             // right, so when it's transformed in polar, it connects to the
             // first axis directly instead of go through the other axes.
             axis0.getScreenTransform().translate(0, -aw * scales.length);
-            axis.createGridLines(axis0, true);
+
+            if(even != null) {
+               axis.createGridLinesAt(axis0, even);
+            }
+            else {
+               axis.createGridLines(axis0, true);
+            }
+
             axis0.getScreenTransform().translate(0, aw * scales.length);
          }
          else {
-            axis.createGridLines(axes.get(i + 1), true);
+            if(even != null) {
+               axis.createGridLinesAt(axes.get(i + 1), even);
+            }
+            else {
+               axis.createGridLines(axes.get(i + 1), true);
+            }
          }
       }
 
@@ -127,6 +141,41 @@ public abstract class AbstractParallelCoord extends Coordinate {
       paxis.setLength(GWIDTH);
       paxis.getScreenTransform().translate(0, GHEIGHT);
       vgraph.addAxis(paxis);
+   }
+
+   /**
+    * Set whether the rings sit at even steps when the spokes have different scales.
+    * @hidden
+    */
+   public void setEvenRings(boolean evenRings) {
+      this.evenRings = evenRings;
+   }
+
+   /**
+    * @hidden
+    */
+   public boolean isEvenRings() {
+      return evenRings;
+   }
+
+   // check whether every pair of spokes has the same scale
+   private boolean sameScales() {
+      DefaultAxis first = null;
+
+      for(DefaultAxis axis : axes) {
+         if(axis == null) {
+            continue;
+         }
+
+         if(first == null) {
+            first = axis;
+         }
+         else if(!PolarCoord.isSameScale(first, axis)) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
@@ -372,6 +421,8 @@ public abstract class AbstractParallelCoord extends Coordinate {
       return coord;
    }
 
+   private static final double[] EVEN_RINGS = { 0.25, 0.5, 0.75, 1.0 };
+   private boolean evenRings = false;
    private transient List<DefaultAxis> axes = new ArrayList<>();
    private transient DefaultAxis paxis; // axis for axes labels
 }

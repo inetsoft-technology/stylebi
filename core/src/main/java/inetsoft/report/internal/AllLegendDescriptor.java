@@ -83,6 +83,27 @@ public class AllLegendDescriptor extends LegendDescriptor {
    }
 
    @Override
+   public void setAuthorVisible(boolean visible) {
+      applySet("setAuthorVisible", new Object[] {visible}, new Class[] {boolean.class});
+   }
+
+   @Override
+   public void setAuthorMaxModeVisible(boolean maxModeVisible) {
+      applySet("setAuthorMaxModeVisible", new Object[] {maxModeVisible},
+               new Class[] {boolean.class});
+   }
+
+   @Override
+   public boolean isUserVisible() {
+      return (Boolean) applyGet("isUserVisible");
+   }
+
+   @Override
+   public void setUserVisible(boolean userVisible) {
+      applySet("setUserVisible", new Object[] {userVisible}, new Class[] {boolean.class});
+   }
+
+   @Override
    public boolean isTitleVisible() {
       return (Boolean) applyGet("isTitleVisible");
    }

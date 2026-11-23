@@ -137,7 +137,7 @@ public class ChartProcessor {
       scriptable.addProperty("valueFormat", "getFormat", "setFormat",
          XFormatInfo.class, CompositeTextFormat.class, valuefmt);
       scriptable.addProperty("valueVisible", "isValuesVisible",
-         "setValuesVisible", boolean.class, PlotDescriptor.class, plot);
+         "setAuthorValuesVisible", boolean.class, PlotDescriptor.class, plot);
       scriptable.addProperty("pieExploded", "isExploded", "setExploded",
          boolean.class, PlotDescriptor.class, plot);
       scriptable.addProperty("plotAlpha", "getAlpha", "setAlpha", double.class,
@@ -418,7 +418,7 @@ public class ChartProcessor {
       scriptable.addProperty("value.format", "getFormat", "setFormat",
          XFormatInfo.class, CompositeTextFormat.class, valuefmt);
       scriptable.addProperty("value.visible", "isValuesVisible",
-         "setValuesVisible", boolean.class, PlotDescriptor.class, plot);
+         "setAuthorValuesVisible", boolean.class, PlotDescriptor.class, plot);
 
       scriptable.addProperty("legend.borderColor", "getBorderColor",
          "setBorderColor", Color.class, LegendsDescriptor.class, legends);

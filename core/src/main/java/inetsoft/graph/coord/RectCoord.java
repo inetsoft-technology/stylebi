@@ -239,6 +239,8 @@ public class RectCoord extends Coordinate {
          // we need to create grid line here so the grid lines exist to be
          // transformed (e.g. by PolarCoord) when fit is not called
          // facet grid created by FacetCoord.
+         boolean xdrawn = createZeroLine(xaxis1, xaxis2, xaxis2, yscale);
+
          if(facet == null) {
             xaxis2.createGridLines(xaxis1, true);
          }
@@ -247,7 +249,8 @@ public class RectCoord extends Coordinate {
             xaxis2.setZIndex(-1);
          }
 
-         if(xaxis2.getZIndex() < 0 && xaxis2.getGridLineCount() == 0) {
+         // keep the axes so fit() recreates the zero line at its final position
+         if(xaxis2.getZIndex() < 0 && xaxis2.getGridLineCount() == 0 && !xdrawn) {
             xaxis2 = null;
          }
          else {
@@ -316,9 +319,12 @@ public class RectCoord extends Coordinate {
          yaxis2.getScreenTransform().preConcatenate(getCoordTransform());
 
          // facet grid created by FacetCoord.
+         boolean ydrawn = createZeroLine(yaxis1, yaxis2, yaxis2, xscale);
+
          if(facet == null) {
             // if grid line is not enabled on 2nd y, check primary y
             if(!yaxis2.createGridLines(yaxis1, true) && yscale2 != null) {
+               yaxis1.setZeroGridLineHidden(ydrawn);
                yaxis1.createGridLines(yaxis2, true);
             }
          }
@@ -337,7 +343,7 @@ public class RectCoord extends Coordinate {
             yaxis2.setZIndex(-1);
          }
 
-         if(yaxis2.getZIndex() < 0 && yaxis2.getGridLineCount() == 0) {
+         if(yaxis2.getZIndex() < 0 && yaxis2.getGridLineCount() == 0 && !ydrawn) {
             yaxis2 = null;
          }
          else {
@@ -560,6 +566,8 @@ public class RectCoord extends Coordinate {
          // than the plot box due to vo out of bounds condition. It's easier
          // to just create the lines again without transformation.
          // facet grid created by FacetCoord.
+         createZeroLine(xaxis1, xaxis2, xaxis2, yscale);
+
          if(facet == null) {
             xaxis2.createGridLines(xaxis1, true);
          }
@@ -617,8 +625,11 @@ public class RectCoord extends Coordinate {
          yaxis2.setScreenTransform(ytrans);
 
          // facet grid created by FacetCoord.
+         boolean ydrawn = createZeroLine(yaxis1, yaxis2, yaxis2, xscale);
+
          if(facet == null) {
             if(!yaxis2.createGridLines(yaxis1, true) && yscale2 != null) {
+               yaxis1.setZeroGridLineHidden(ydrawn);
                yaxis1.createGridLines(yaxis2, true);
             }
          }
@@ -1760,6 +1771,22 @@ public class RectCoord extends Coordinate {
       }
 
       return coord;
+   }
+
+   /**
+    * Draw the zero line of the primary axis and leave the zero grid line out of the grid axis
+    * when the line replaces it.
+    */
+   private boolean createZeroLine(DefaultAxis primary, DefaultAxis other, DefaultAxis gridAxis,
+                                  Scale cross)
+   {
+      if(primary == null || other == null) {
+         return false;
+      }
+
+      boolean drawn = primary.createZeroLine(other, cross);
+      gridAxis.setZeroGridLineHidden(drawn && gridAxis.getScale() == primary.getScale());
+      return drawn;
    }
 
    /**

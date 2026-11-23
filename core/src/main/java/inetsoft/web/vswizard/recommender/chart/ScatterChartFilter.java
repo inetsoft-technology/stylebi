@@ -94,7 +94,8 @@ public class ScatterChartFilter extends ChartTypeFilter {
 
          if(info.getShapeField() == null) {
             StaticShapeFrameWrapper shape = new StaticShapeFrameWrapper();
-            shape.setShape(StaticShapeFrameWrapper.getID(GShape.CIRCLE));
+            shape.setShape(StaticShapeFrameWrapper.getID(
+               vizContext.modern ? GShape.FILLED_CIRCLE : GShape.CIRCLE));
 
             // use unfilled circle which is better for overlapped points
             Arrays.stream(info.getYFields())
