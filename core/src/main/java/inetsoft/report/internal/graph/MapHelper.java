@@ -525,41 +525,39 @@ public class MapHelper {
    }
 
    /**
-    * Get parent layer geo ref.
+    * Get parent layer geo ref. Only the geographic fields bound to the map are
+    * candidates, and the lowest layer one wins, the same parent the renderer
+    * (MapGenerator.getMappedDataSet) uses. A column only marked as geographic in
+    * the data tree but not bound must not act as parent, or the mapping dialog
+    * and mapping status disagree with what the chart draws.
     */
    private static GeoRef getParentRef(ChartInfo info, int layer, DataSet source,
       int index)
    {
-      if(info instanceof VSChartInfo) {
-         ColumnSelection rcols = ((VSChartInfo) info).getRTGeoColumns();
-
-         for(int i = 0; i < rcols.getAttributeCount(); i++) {
-            DataRef ref = rcols.getAttribute(i);
-
-            if(GraphUtil.indexOfHeader(source, ref.getName()) == index) {
-               continue;
-            }
-
-            if(isParentLayer(ref, layer)) {
-               return (GeoRef) ref;
-            }
-         }
+      if(!(info instanceof MapInfo)) {
+         return null;
       }
-      else if(info instanceof MapInfo) {
-         ChartRef[] refs = ((MapInfo) info).getRTGeoFields();
 
-         for(int i = 0; i < refs.length; i++) {
-            if(GraphUtil.indexOfHeader(source, refs[i].getName()) == index) {
-               continue;
-            }
+      ChartRef[] refs = ((MapInfo) info).getRTGeoFields();
+      GeoRef pref = null;
 
-            if(isParentLayer(refs[i], layer)) {
-               return (GeoRef) refs[i];
-            }
+      for(int i = 0; refs != null && i < refs.length; i++) {
+         int col = GraphUtil.indexOfHeader(source, refs[i].getName());
+
+         if(col < 0 || col == index || !isParentLayer(refs[i], layer)) {
+            continue;
+         }
+
+         GeoRef gref = (GeoRef) refs[i];
+
+         if(pref == null || gref.getGeographicOption().getLayer() <
+            pref.getGeographicOption().getLayer())
+         {
+            pref = gref;
          }
       }
 
-      return null;
+      return pref;
    }
 
    /**
