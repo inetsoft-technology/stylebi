@@ -28,6 +28,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 
+import static inetsoft.graph.data.CalcTestFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
@@ -41,14 +42,9 @@ import static org.mockito.Mockito.mock;
 @SreeHome
 @Tag("core")
 class AbstractDataSetFilterTest {
-   private static final Comparator<Object> NAT = (a, b) -> ((Comparable) a).compareTo(b);
+   private static final Comparator<Object> NAT = CalcTestFixtures.nat();
 
    // ---------------------------------------------------------------- helpers
-
-   private static DefaultDataSet k5() {
-      return new DefaultDataSet(new Object[][]{
-         {"k", "v"}, {"b", 2.0}, {"a", 1.0}, {"c", 3.0}, {"a", 5.0}, {"b", 4.0}});
-   }
 
    /** Dimension n (Integer 1,2,3, not a measure) and measure m. */
    private static DefaultDataSet pn() {
@@ -177,25 +173,6 @@ class AbstractDataSetFilterTest {
       public String getField() {
          return "rt";
       }
-   }
-
-   /** Calc row that appends fixed rows. */
-   private static class AddRow implements CalcRow {
-      AddRow(Object[]... rows) {
-         this.rows = Arrays.asList(rows);
-      }
-
-      @Override
-      public List<Object[]> calculate(DataSet data) {
-         return new ArrayList<>(rows);
-      }
-
-      @Override
-      public Comparator getComparator(String col) {
-         return null;
-      }
-
-      private final List<Object[]> rows;
    }
 
    /** Comparator on whole rows that remembers the data set it is bound to. */
@@ -356,8 +333,8 @@ class AbstractDataSetFilterTest {
    @Test
    @DisplayName("pinned: calc rows are merged own first, base rows added when not yet listed")
    void calcRowsAreMergedOwnFirst() {
-      CalcRow a = new AddRow(new Object[]{"x", 1.0});
-      CalcRow b = new AddRow(new Object[]{"y", 2.0});
+      CalcRow a = new AddRows(false, new Object[]{"x", 1.0});
+      CalcRow b = new AddRows(false, new Object[]{"y", 2.0});
       DefaultDataSet base = k5();
       base.addCalcRow(a);
       AbstractDataSetFilter filter = idf(base);
@@ -395,7 +372,7 @@ class AbstractDataSetFilterTest {
    private static DefaultDataSet preparedBase() {
       DefaultDataSet base = k5();
       base.addCalcColumn(new RT());
-      base.addCalcRow(new AddRow(new Object[]{"z", 9.0}));
+      base.addCalcRow(new AddRows(false, new Object[]{"z", 9.0}));
       base.prepareCalc(null, null, true);
       return base;
    }
@@ -541,7 +518,7 @@ class AbstractDataSetFilterTest {
    @Test
    void rowCountIncludesBaseCalcRows() {
       DefaultDataSet base = k5();
-      base.addCalcRow(new AddRow(new Object[]{"z", 9.0}));
+      base.addCalcRow(new AddRows(false, new Object[]{"z", 9.0}));
       base.prepareCalc(null, null, true);
       AbstractDataSetFilter filter = idf(base);
 
@@ -613,7 +590,7 @@ class AbstractDataSetFilterTest {
    void filterOwnCalcRowIsReadThroughTheFilter() {
       DefaultDataSet base = k5();
       AbstractDataSetFilter filter = idf(base);
-      filter.addCalcRow(new AddRow(new Object[]{"z", 9.0}));
+      filter.addCalcRow(new AddRows(false, new Object[]{"z", 9.0}));
       filter.prepareCalc(null, null, true);
 
       assertEquals(6, filter.getRowCount());

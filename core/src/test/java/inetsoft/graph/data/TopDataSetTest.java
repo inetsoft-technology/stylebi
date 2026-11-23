@@ -23,6 +23,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.*;
 
+import static inetsoft.graph.data.CalcTestFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -31,11 +32,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class TopDataSetTest {
    // ---------------------------------------------------------------- helpers
-
-   private static DefaultDataSet k5() {
-      return new DefaultDataSet(new Object[][]{
-         {"k", "v"}, {"b", 2.0}, {"a", 1.0}, {"c", 3.0}, {"a", 5.0}, {"b", 4.0}});
-   }
 
    /**
     * Top data set whose wrap returns another instance and records the prototypes it was given
@@ -87,18 +83,6 @@ class TopDataSetTest {
       @Override
       public String getField() {
          return "v";
-      }
-   }
-
-   private static class AddRow implements CalcRow {
-      @Override
-      public List<Object[]> calculate(DataSet data) {
-         return Collections.singletonList(new Object[]{"z", 9.0});
-      }
-
-      @Override
-      public Comparator getComparator(String col) {
-         return null;
       }
    }
 
@@ -177,7 +161,7 @@ class TopDataSetTest {
    @ValueSource(booleans = {false, true})
    void calcRowsAlwaysStayOnTheWrapper(boolean calcInSub) {
       TW top = new TW(k5(), calcInSub, new ArrayList<>());
-      CalcRow row = new AddRow();
+      CalcRow row = new AddRows(false, new Object[]{"z", 9.0});
       top.addCalcRow(row);
 
       TopDataSet wrapper = (TopDataSet) subOfA(top);

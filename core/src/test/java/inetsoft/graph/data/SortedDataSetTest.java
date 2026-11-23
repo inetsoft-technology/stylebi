@@ -28,6 +28,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.*;
 
+import static inetsoft.graph.data.CalcTestFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -39,21 +40,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class SortedDataSetTest {
-   private static final Comparator<Object> NAT = (a, b) -> ((Comparable) a).compareTo(b);
+   private static final Comparator<Object> NAT = CalcTestFixtures.nat();
    private static final Comparator<Object> DESC = NAT.reversed();
 
    // ---------------------------------------------------------------- helpers
-
-   private static DefaultDataSet k5() {
-      return new DefaultDataSet(new Object[][]{
-         {"k", "v"}, {"b", 2.0}, {"a", 1.0}, {"c", 3.0}, {"a", 5.0}, {"b", 4.0}});
-   }
-
-   private static DefaultDataSet g6() {
-      return new DefaultDataSet(new Object[][]{
-         {"g", "t", "v"}, {"A", "c", 1.0}, {"A", "a", 2.0}, {"A", "b", 4.0},
-         {"B", "b", 8.0}, {"B", "a", 16.0}, {"B", "c", 32.0}});
-   }
 
    private static int[] mapping(DataSet ds) {
       int[] res = new int[ds.getRowCount()];
@@ -105,25 +95,6 @@ class SortedDataSetTest {
       private double sum;
    }
 
-   /** Calc row that appends fixed rows after the real rows. */
-   private static class AddRow implements CalcRow {
-      AddRow(Object[]... rows) {
-         this.rows = Arrays.asList(rows);
-      }
-
-      @Override
-      public List<Object[]> calculate(DataSet data) {
-         return new ArrayList<>(rows);
-      }
-
-      @Override
-      public Comparator getComparator(String col) {
-         return null;
-      }
-
-      private final List<Object[]> rows;
-   }
-
    /** Comparator that compares whole rows by column v. */
    private static class RowCmp implements DataSetComparator {
       @Override
@@ -158,7 +129,7 @@ class SortedDataSetTest {
    private static DefaultDataSet k5WithCalcRows(Object[]... rows) {
       DefaultDataSet base = k5();
       base.setComparator("k", NAT);
-      base.addCalcRow(new AddRow(rows));
+      base.addCalcRow(new AddRows(false, rows));
       base.prepareCalc(null, null, true);
       return base;
    }
@@ -297,7 +268,7 @@ class SortedDataSetTest {
       DefaultDataSet base = g6();
       base.setComparator("t", NAT);
       base.addCalcColumn(new RT());
-      base.addCalcRow(new AddRow(new Object[]{"Z", "z", 9.0}));
+      base.addCalcRow(new AddRows(false, new Object[]{"Z", "z", 9.0}));
       base.prepareCalc(null, null, true);
       SortedDataSet sorted = new SortedDataSet(base, "t");
 

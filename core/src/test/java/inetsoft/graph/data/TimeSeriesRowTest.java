@@ -19,6 +19,8 @@ package inetsoft.graph.data;
 
 import inetsoft.graph.scale.TimeScale;
 import inetsoft.test.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
@@ -28,7 +30,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -46,10 +47,26 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 class TimeSeriesRowTest {
+   private TimeZone savedZone;
+   private Locale savedLocale;
+
+   @BeforeEach
+   void pinDefaults() {
+      savedZone = TimeZone.getDefault();
+      savedLocale = Locale.getDefault();
+      TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+      Locale.setDefault(Locale.US);
+   }
+
+   @AfterEach
+   void restoreDefaults() {
+      TimeZone.setDefault(savedZone);
+      Locale.setDefault(savedLocale);
+   }
+
    private static final String DT = "yyyy-MM-dd HH:mm";
    private static final String DTS = "yyyy-MM-dd HH:mm:ss";
 

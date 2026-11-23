@@ -323,7 +323,7 @@ class AbstractDataSetTest {
 
    @Test
    @Disabled("Bug #82095 (dead code): setComparator on an "
-      + "unknown column throws NullPointerException (DefaultDataSet.java:161-164), expected to be "
+      + "unknown column throws NullPointerException (DefaultDataSet.java:165-168), expected to be "
       + "ignored like setOrder does")
    @DisplayName("setComparator on an unknown column is ignored")
    void setComparatorUnknownColumnIsIgnored() {

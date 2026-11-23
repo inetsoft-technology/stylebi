@@ -29,6 +29,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 
+import static inetsoft.graph.data.CalcTestFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -41,17 +42,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class SubDataSetTest {
    // ---------------------------------------------------------------- helpers
-
-   private static DefaultDataSet k5() {
-      return new DefaultDataSet(new Object[][]{
-         {"k", "v"}, {"b", 2.0}, {"a", 1.0}, {"c", 3.0}, {"a", 5.0}, {"b", 4.0}});
-   }
-
-   private static DefaultDataSet g6() {
-      return new DefaultDataSet(new Object[][]{
-         {"g", "t", "v"}, {"A", "c", 1.0}, {"A", "a", 2.0}, {"A", "b", 4.0},
-         {"B", "b", 8.0}, {"B", "a", 16.0}, {"B", "c", 32.0}});
-   }
 
    private static DefaultDataSet big(int rows, boolean alternating) {
       Object[][] data = new Object[rows + 1][];
@@ -83,25 +73,6 @@ class SubDataSetTest {
       }
 
       return res;
-   }
-
-   /** Calc row that appends fixed rows after the real rows. */
-   private static class AddRow implements CalcRow {
-      AddRow(Object[]... rows) {
-         this.rows = Arrays.asList(rows);
-      }
-
-      @Override
-      public List<Object[]> calculate(DataSet data) {
-         return new ArrayList<>(rows);
-      }
-
-      @Override
-      public Comparator getComparator(String col) {
-         return null;
-      }
-
-      private final List<Object[]> rows;
    }
 
    // ------------------------------------------------------------ construction
@@ -287,7 +258,7 @@ class SubDataSetTest {
    @Test
    void calcRowsAreMatchedByConditions() {
       DefaultDataSet base = k5();
-      base.addCalcRow(new AddRow(new Object[]{"b", 7.0}));
+      base.addCalcRow(new AddRows(false, new Object[]{"b", 7.0}));
       base.prepareCalc(null, null, true);
       SubDataSet sub = new SubDataSet(base, cond("k", "b"));
 

@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Tag("core")
 class AttributeDataSetTest {
-   private static final Comparator<Object> NAT = (a, b) -> ((Comparable) a).compareTo(b);
+   private static final Comparator<Object> NAT = CalcTestFixtures.nat();
 
    // ---------------------------------------------------------------- helpers
 
