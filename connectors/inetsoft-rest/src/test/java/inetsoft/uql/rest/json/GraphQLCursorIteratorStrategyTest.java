@@ -48,7 +48,7 @@ public class GraphQLCursorIteratorStrategyTest {
     */
    @Test
    public void distinctCursorsPaginateUntilCursorIsNull() throws Exception {
-      assertEquals(2, countPages(page("c1"), page("c2"), page(null)));
+      assertEquals(3, countPages(page("c1"), page("c2"), page(null)));
    }
 
    /**
@@ -57,17 +57,67 @@ public class GraphQLCursorIteratorStrategyTest {
     */
    @Test
    public void echoedCursorEndsPagination() throws Exception {
-      assertEquals(1, countPages(page("c1"), page("c1")));
+      assertEquals(2, countPages(page("c1"), page("c1")));
    }
 
    @Test
    public void blankCursorEndsPagination() throws Exception {
-      assertEquals(0, countPages(page("")));
+      assertEquals(1, countPages(page("")));
    }
 
    @Test
    public void missingCursorEndsPagination() throws Exception {
-      assertEquals(0, countPages("{\"data\":{\"items\":{\"pageInfo\":{}}}}"));
+      assertEquals(1, countPages("{\"data\":{\"items\":{\"pageInfo\":{}}}}"));
+   }
+
+   /**
+    * The last page, whose cursor is null, still carries records that must be returned.
+    */
+   @Test
+   public void lastPageWithNullCursorKeepsItsRecords() throws Exception {
+      final List<Object> pages = readPages(
+         pageWithRecords("c1", 1), pageWithRecords(null, 2, 3));
+      assertEquals(2, pages.size());
+      assertTrue(pages.get(1).toString().contains("2"));
+   }
+
+   @Test
+   public void firstPageWithNullCursorKeepsItsRecords() throws Exception {
+      assertEquals(1, countPages(pageWithRecords(null, 1)));
+   }
+
+   /**
+    * An unchanged cursor stops paging without a further request (the handler fails on an
+    * unexpected request) and keeps the page that carried it.
+    */
+   @Test
+   public void unchangedCursorStopsWithoutDroppingPage() throws Exception {
+      assertEquals(2, countPages(pageWithRecords("c1", 1), pageWithRecords("c1", 2)));
+   }
+
+   private String pageWithRecords(String cursor, int... ids) {
+      final String value = cursor == null ? "null" : "\"" + cursor + "\"";
+      final StringBuilder nodes = new StringBuilder();
+
+      for(int id : ids) {
+         nodes.append(nodes.length() > 0 ? "," : "").append("{\"id\":").append(id).append("}");
+      }
+
+      return "{\"data\":{\"items\":{\"nodes\":[" + nodes + "],\"pageInfo\":{\"endCursor\":" +
+         value + "}}}}";
+   }
+
+   private List<Object> readPages(String... responseBodies) throws Exception {
+      final GraphQLCursorIteratorStrategy strategy = new GraphQLCursorIteratorStrategy(
+         createQuery(), new JsonTransformer(), new SequencedHttpHandler(responseBodies),
+         new RestErrorHandler());
+      final List<Object> pages = new ArrayList<>();
+
+      while(strategy.hasNext()) {
+         pages.add(strategy.next());
+      }
+
+      return pages;
    }
 
    /**
