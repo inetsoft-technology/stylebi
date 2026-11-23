@@ -22,7 +22,6 @@ import inetsoft.test.EndpointsSpringContext;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.rest.datasource.clockify.ClockifyDataSource;
 import inetsoft.uql.rest.datasource.sfreports.SalesforceReportsDataSource;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -172,9 +171,6 @@ class RestQuotaManagerTest {
    }
 
    @Test
-   @Disabled("Bug #81934: the quota is cached by the name of the data source only, so a data " +
-             "source given other limits under the same name keeps the old ones; enable when it " +
-             "is fixed")
    void aDataSourceWithNewLimitsGetsThem() throws Exception {
       assertEquals(1, peakConcurrency(limited("quota-changed", -1, 1), 4, 1));
 
@@ -183,9 +179,6 @@ class RestQuotaManagerTest {
    }
 
    @Test
-   @Disabled("Bug #81934: the quota is cached by the name of the data source only, so a " +
-             "Salesforce account whose type is changed keeps the limits of the old type; enable " +
-             "when it is fixed")
    void aSalesforceAccountThatChangesTypeGetsTheLimitsOfTheNewType() throws Exception {
       // a developer account is allowed one request a second, a sandbox almost six
       SalesforceReportsDataSource developer = new SalesforceReportsDataSource();
@@ -207,7 +200,40 @@ class RestQuotaManagerTest {
       assertTrue(elapsed < 2500, "six calls took " + elapsed + " ms, with the rate of the old type");
    }
 
-   /** Runs the calls on separate threads and returns the most that were inside at once. */
+   @Test
+   void theRateLimitFlagDoesNotLeakIntoTheQuotaOfAnotherSetting() throws Exception {
+      String previous = System.getProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY);
+
+      try {
+         // a quota created while the limit is disabled must not be reused once it is enabled again
+         System.setProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY, "true");
+         long start = System.nanoTime();
+
+         for(int i = 0; i < 6; i++) {
+            RestQuotaManager.withQuota(limited("quota-flag", 10, -1), () -> "ok");
+         }
+
+         assertTrue(millisSince(start) < 400, "the rate limit was not disabled by the flag");
+
+         System.clearProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY);
+         start = System.nanoTime();
+
+         for(int i = 0; i < 6; i++) {
+            RestQuotaManager.withQuota(limited("quota-flag", 10, -1), () -> "ok");
+         }
+
+         assertTrue(millisSince(start) >= 400, "the rate limit stayed disabled after the flag was cleared");
+      }
+      finally {
+         if(previous == null) {
+            System.clearProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY);
+         }
+         else {
+            System.setProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY, previous);
+         }
+      }
+   }
+
    /**
     * Runs {@code calls} calls at once and returns the most that were inside together. Each call
     * stays inside until {@code expected} calls are inside (or three seconds pass), so the peak does

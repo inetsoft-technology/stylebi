@@ -156,12 +156,14 @@ public class RestQuotaManager {
          if(this == o) return true;
          if(!(o instanceof RestQuotaKey)) return false;
          RestQuotaKey that = (RestQuotaKey) o;
-         return Objects.equals(dataSource, that.dataSource);
+         return Objects.equals(dataSource, that.dataSource) &&
+            Double.compare(requestsPerSecond, that.requestsPerSecond) == 0 &&
+            maxConnections == that.maxConnections;
       }
 
       @Override
       public int hashCode() {
-         return Objects.hash(dataSource);
+         return Objects.hash(dataSource, requestsPerSecond, maxConnections);
       }
 
       private final String dataSource;
