@@ -34,8 +34,8 @@ import {
    ViewChildren,
 } from "@angular/core";
 import { NgbDropdown, NgbModal, NgbTooltipConfig, NgbDropdownToggle, NgbTooltip, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
-import { Observable, of as observableOf, Subject, Subscription } from "rxjs";
-import { takeUntil } from "rxjs/operators";
+import { interval, Observable, of as observableOf, Subject, Subscription } from "rxjs";
+import { take, takeUntil } from "rxjs/operators";
 import { AiAssistantDialogService } from "../../../common/services/ai-assistant-dialog.service";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import {
@@ -161,6 +161,10 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    @Input() showHelpButton = false;
    @Input() wsWizard: boolean;
    @Input() focusedTab: ComposerTabModel;
+   /** Number of open sheets (any tab, not just the focused one) with a connected AI agent. */
+   @Input() agentConnectedCount: number = 0;
+   /** The AI connect icon was clicked with no worksheet/viewsheet focused; the host opens a blank viewsheet. */
+   @Output() onConnectWithoutSheet = new EventEmitter<void>();
    @Output() onCopy: EventEmitter<Sheet> = new EventEmitter<Sheet>();
    @Output() onCut: EventEmitter<Sheet> = new EventEmitter<Sheet>();
    @Output() onPaste: EventEmitter<Sheet> = new EventEmitter<Sheet>();
@@ -206,6 +210,9 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    @ViewChild("vpmPrincipalDialog") vpmPrincipalDialog: TemplateRef<any>;
    @ViewChild("newWSDialog") newWSDialog: TemplateRef<any>;
    @ViewChildren(NgbDropdown) dropdowns: QueryList<NgbDropdown>;
+   @ViewChild("wizConnectDropdown") wizConnectDropdown: NgbDropdown;
+   @ViewChild(ConnectToClaudeComponent) connectToClaude: ConnectToClaudeComponent;
+   private pendingConnect: Subscription = null;
    scriptTreeModel: ScriptPaneTreeModel;
    variableInputDialogModel: VariableInputDialogModel;
    tabularDataSourceTypes: TabularDataSourceTypeModel[];
@@ -352,7 +359,108 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
       });
    }
 
+   get connectedTooltipText(): string {
+      return `_#(js:AI agent connected) (${this.agentConnectedCount})`;
+   }
+
+   /** The no-sheet connect needs to open a viewsheet, so it follows the New Viewsheet action's gates. */
+   get connectAriaLabel(): string {
+      if(!this.isWorksheet && !this.isViewsheet && !this.connectWithoutSheetAllowed) {
+         return this.connectTooltipDisabledText;
+      }
+
+      return this.agentConnectedCount > 0 ? this.connectedTooltipText : "_#(js:Connect Agent)";
+   }
+
+   get connectWithoutSheetAllowed(): boolean {
+      return !!this.viewsheetPermission && !this.deployed;
+   }
+
+   get connectTooltipDisabledText(): string {
+      return "_#(js:Connecting an agent without an open sheet requires permission to create a viewsheet)";
+   }
+
+   /**
+    * Pairing needs a runtime to anchor on, so with no worksheet/viewsheet focused the host opens
+    * a blank viewsheet (not a worksheet: only one worksheet session per identity is allowed, so
+    * the agent's first worksheet open would otherwise close the session it acts through) and
+    * hands it back through {@link beginAutoConnect}.
+    */
+   connectWithoutSheet(): void {
+      if(!this.connectWithoutSheetAllowed) {
+         return;
+      }
+
+      if(this.pendingConnect) {
+         this.notify({ type: "info",
+            message: "_#(js:The AI agent connection is still starting, please wait a moment)" } as Notification);
+         return;
+      }
+
+      this.onConnectWithoutSheet.emit();
+   }
+
+   /**
+    * Once {@code target} (the viewsheet opened for this click) has its runtimeId and socket and is
+    * the focused sheet, runs the normal mint flow against it and nothing else. If it is closed
+    * first, or never gets a runtime within 30s, the wait is abandoned with a notice.
+    */
+   beginAutoConnect(target: Sheet, isOpen: () => boolean): void {
+      this.clearPendingConnect();
+      let targetSeen = false;
+      this.pendingConnect = interval(200).pipe(take(150)).subscribe({
+         next: () => {
+            if(!isOpen()) {
+               this.clearPendingConnect();
+               this.notify({ type: "warning",
+                  message: "_#(js:The AI agent connection was cancelled because the new viewsheet was closed)" } as Notification);
+            }
+            else if(this.sheet === target) {
+               targetSeen = true;
+            }
+
+            if(this.pendingConnect && this.tryAutoConnect(target)) {
+               this.clearPendingConnect();
+            }
+         },
+         complete: () => {
+            if(this.pendingConnect) {
+               this.pendingConnect = null;
+               this.notify({ type: "warning",
+                  message: targetSeen
+                     ? "_#(js:The new viewsheet did not open in time, so the AI agent was not connected. Click the icon to try again)"
+                     : "_#(js:The AI agent was not connected because the new viewsheet was not in focus. Click the icon to try again)" } as Notification);
+            }
+         }
+      });
+   }
+
+   private clearPendingConnect(): void {
+      if(this.pendingConnect) {
+         const sub = this.pendingConnect;
+         this.pendingConnect = null;
+         sub.unsubscribe();
+      }
+   }
+
+   private tryAutoConnect(target: Sheet): boolean {
+      const sheet = this.sheet;
+      const connect = this.connectToClaude;
+
+      if(sheet !== target || !this.isViewsheet || !sheet.runtimeId || !sheet.socketConnection ||
+         !connect || connect.runtimeId !== sheet.runtimeId ||
+         connect.socketConnection !== sheet.socketConnection)
+      {
+         return false;
+      }
+
+      this.wizConnectDropdown?.open();
+      connect.requestCode();
+      return true;
+   }
+
    ngOnDestroy(): void {
+      this.clearPendingConnect();
       this.subscriptions.unsubscribe();
       this.dropdownSubject.next();
       this.dropdownSubject.unsubscribe();

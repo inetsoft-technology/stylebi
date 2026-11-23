@@ -427,6 +427,17 @@ public class ViewsheetSessionService {
    }
 
    /**
+    * Pushes a fully-populated {@code SetViewsheetInfoCommand} to the browser holding {@code rvs}'s
+    * paired session (Bug #81549). The dispatcher handed to a {@link #mutate} lambda only captures
+    * commands for the agent's response, so a command sent through it never reaches the Composer;
+    * this pass-through uses the paired socket, like {@code broadcastRefresh} does, so the Layout
+    * dropdown learns the layouts the agent just wrote.
+    */
+   public void broadcastViewsheetInfo(RuntimeViewsheet rvs, String runtimeId, Principal agent) {
+      broadcast.broadcastViewsheetInfoRefresh(rvs, runtimeId, agent);
+   }
+
+   /**
     * Adds the messages {@link #mutate} returned to a response under {@code "warnings"}, the
     * field every warning-relaying wiz endpoint uses. Leaves the response untouched when there
     * are none, so an unwarned call reads exactly as it did before.

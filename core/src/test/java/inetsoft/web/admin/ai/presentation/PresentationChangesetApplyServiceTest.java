@@ -1005,11 +1005,11 @@ class PresentationChangesetApplyServiceTest {
    }
 
    @Test
-   void applyReportsRollbackFailedWhenALookAndFeelEntrysOwnVerificationFails() throws Exception {
-      // Defect 2, independent of Defect 1: access.write "succeeds" (no exception) but the storage
-      // layer silently keeps the old value, as a genuine persistence failure would -- this must
-      // surface as an unconditional RollbackFailure (rollback-failed), never rolled-back, since the
-      // write attempt happened and lookAndFeel has no live rollback (01-spec.md section 4/6).
+   void applyReportsRolledBackWhenAStorageWriteLeavesTheStoredValueUnchanged() throws Exception {
+      // access.write "succeeds" (no exception) but the storage layer keeps the old value (the
+      // BUG-59 shape, e.g. welcomePage type NONE dropping its source). The re-read equals `before`
+      // and no file bytes were sent, so nothing was written: there is nothing to restore from the
+      // backup and the status must not be rollback-failed.
       seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
 
       doAnswer(inv -> null)
@@ -1020,13 +1020,82 @@ class PresentationChangesetApplyServiceTest {
 
       var result = service.apply(req, user);
 
-      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
-      assertEquals("failed", result.results().get(0).status());
-      assertNotNull(result.rollbackFailures());
-      assertTrue(result.rollbackFailures().stream()
-                    .anyMatch(f -> f.property().startsWith("lookAndFeel:")));
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      PresentationApplyOutcome outcome = result.results().get(0);
+      assertEquals("failed", outcome.status());
+      assertEquals(outcome.before(), outcome.after());
+      assertTrue(outcome.error().contains("nothing was written"));
       assertFalse(((LookAndFeelSettingsModel)
          state.get(stateKey(PresentationSubModel.LOOK_AND_FEEL, true))).expand());
+   }
+
+   @Test
+   void applyReportsRollbackFailedWhenAStorageWriteChangedStateButDidNotReadBackAsWritten()
+      throws Exception
+   {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+
+      // the write lands expand=true but also flips ascending, which the spec never asked for
+      doAnswer(inv -> {
+         state.put(stateKey(PresentationSubModel.LOOK_AND_FEEL, true),
+                   cleanLookAndFeel().expand(true).ascending(false).build());
+         return null;
+      }).when(access).write(eq(PresentationSubModel.LOOK_AND_FEEL), any(), any(), anyBoolean());
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", obj().put("expand", true)));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals("failed", result.results().get(0).status());
+      assertFalse(result.results().get(0).error().contains("nothing was written"));
+      assertTrue(result.rollbackFailures().stream()
+                    .anyMatch(f -> f.property().startsWith("lookAndFeel:")));
+   }
+
+   @Test
+   void applyReportsRollbackFailedWhenAFileUploadFailsVerificationEvenIfTheProjectionIsUnchanged()
+      throws Exception
+   {
+      // The projection never shows file bytes, so an unchanged projection cannot prove an upload
+      // wrote nothing.
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+
+      doAnswer(inv -> null)
+         .when(access).write(eq(PresentationSubModel.LOOK_AND_FEEL), any(), any(), anyBoolean());
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", logoSpec("uploaded-bytes")));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      PresentationApplyOutcome outcome = result.results().get(0);
+      assertEquals("failed", outcome.status());
+      assertFalse(outcome.error().contains("nothing was written"));
+      assertTrue(result.rollbackFailures().stream()
+                    .anyMatch(f -> f.property().startsWith("lookAndFeel:")));
+   }
+
+   @Test
+   void anUnchangedFailingStorageEntryDoesNotHideAnEarlierVerifiedStorageEntry() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, lookAndFeel(false));
+      seed(PresentationSubModel.FORMATS, true, formats("MM/dd/yyyy"));
+
+      doAnswer(inv -> null)
+         .when(access).write(eq(PresentationSubModel.FORMATS), any(), any(), anyBoolean());
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", obj().put("expand", true)),
+         change("formats", "global", obj().put("dateFormat", "yyyy-MM-dd")));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(1, result.rollbackFailures().size());
+      assertTrue(result.rollbackFailures().get(0).property().startsWith("lookAndFeel:"));
    }
 
    // ---------------------------------------------------------------- rollback: value-scope

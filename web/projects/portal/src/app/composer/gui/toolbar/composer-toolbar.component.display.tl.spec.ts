@@ -414,3 +414,208 @@ describe("ComposerToolbarComponent — snappingOperations: visible and enabled g
       expect(comp.snappingOperations.enabled!()).toBe(false);
    });
 });
+
+// ---------------------------------------------------------------------------
+// Group 8: AI connect icon without a focused sheet + composer-level connected state (bug #81980)
+// ---------------------------------------------------------------------------
+
+describe("ComposerToolbarComponent — AI connect icon (bug #81980)", () => {
+   const allowed = { viewsheetPermission: true, deployed: false };
+
+   async function renderWithPairing(enabled: boolean, props: Record<string, any> = {}) {
+      const r = await renderComponent(props);
+      (r.comp as any).wizService.sheetAgentPairingEnabled = enabled;
+      r.fixture.detectChanges();
+      return r;
+   }
+
+   const toggle = (fixture: any) =>
+      fixture.nativeElement.querySelector("button.wiz-connect-toggle") as HTMLButtonElement;
+
+   function connectStub(vs: Viewsheet) {
+      return { runtimeId: vs.runtimeId, socketConnection: vs.socketConnection, requestCode: vi.fn() };
+   }
+
+   function newSheet(id: number, runtimeId?: string): Viewsheet {
+      const vs = new Viewsheet();
+      vs.localId = id;
+      vs.socketConnection = {} as any;
+      vs.runtimeId = runtimeId;
+      return vs;
+   }
+
+   it("renders the icon with no sheet focused when pairing is enabled", async () => {
+      const { fixture } = await renderWithPairing(true, { sheet: null, ...allowed });
+      expect(toggle(fixture)).not.toBeNull();
+   });
+
+   it("hides the icon when pairing is disabled", async () => {
+      const { fixture } = await renderWithPairing(false, { sheet: null, ...allowed });
+      expect(toggle(fixture)).toBeNull();
+   });
+
+   // The dropdown branch cannot be rendered in this harness: with a sheet set, the toolbar's
+   // snapping dropdown (ngbDropdown stubbed under NO_ERRORS_SCHEMA) throws during change detection
+   // (see the zone.js trap in the header). The branch is selected by isWorksheet/isViewsheet.
+   it("selects the dropdown branch (sheet type) for a focused worksheet or viewsheet", async () => {
+      const { comp } = await renderComponent();
+      expect(comp.isWorksheet || comp.isViewsheet).toBeFalsy();
+      comp.sheet = new Viewsheet();
+      expect(comp.isViewsheet).toBe(true);
+      expect(comp.isWorksheet).toBe(false);
+      comp.sheet = new Worksheet();
+      expect(comp.isWorksheet).toBe(true);
+      expect(comp.isViewsheet).toBe(false);
+   });
+
+   it("clicking with no sheet asks the host to open a viewsheet", async () => {
+      const { fixture, comp } = await renderWithPairing(true, { sheet: null, ...allowed });
+      const emitted = vi.fn();
+      comp.onConnectWithoutSheet.subscribe(emitted);
+      toggle(fixture).click();
+      expect(emitted).toHaveBeenCalledTimes(1);
+   });
+
+   it("is disabled with an explanatory tooltip and does nothing without viewsheet permission", async () => {
+      const { fixture, comp } = await renderWithPairing(
+         true, { sheet: null, viewsheetPermission: false, deployed: false });
+      const emitted = vi.fn();
+      comp.onConnectWithoutSheet.subscribe(emitted);
+      const btn = toggle(fixture);
+      expect(btn.getAttribute("aria-disabled")).toBe("true");
+      // Bootstrap's .btn.disabled sets pointer-events:none, which would suppress the hover tooltip
+      expect(btn.classList.contains("disabled")).toBe(false);
+      expect(btn.disabled).toBe(false);
+      expect(btn.classList.contains("connect-blocked")).toBe(true);
+      expect(btn.getAttribute("aria-label")).toBe(comp.connectTooltipDisabledText);
+      expect(comp.connectWithoutSheetAllowed).toBe(false);
+      expect(comp.connectTooltipDisabledText).toContain("permission");
+      toggle(fixture).click();
+      expect(emitted).not.toHaveBeenCalled();
+   });
+
+   it("gives feedback instead of re-emitting on a click while a connect is pending", async () => {
+      vi.useFakeTimers();
+
+      try {
+         const { fixture, comp } = await renderWithPairing(true, { sheet: null, ...allowed });
+         const emitted = vi.fn();
+         const notified = vi.fn();
+         comp.onConnectWithoutSheet.subscribe(emitted);
+         comp.onNotification.subscribe(notified);
+         toggle(fixture).click();
+         comp.beginAutoConnect(newSheet(7), () => true);
+         toggle(fixture).click();
+         expect(emitted).toHaveBeenCalledTimes(1);
+         expect(notified).toHaveBeenCalledTimes(1);
+         expect(notified.mock.calls[0][0].type).toBe("info");
+      }
+      finally {
+         vi.useRealTimers();
+      }
+   });
+
+   it("is disabled in a deployed composer", async () => {
+      const { comp } = await renderWithPairing(true, { sheet: null, viewsheetPermission: true, deployed: true });
+      expect(comp.connectWithoutSheetAllowed).toBe(false);
+   });
+
+   describe("auto-connect pinned to the opened viewsheet", () => {
+      beforeEach(() => vi.useFakeTimers());
+      afterEach(() => vi.useRealTimers());
+
+      it("mints once the target has a runtimeId and is focused", async () => {
+         const { comp } = await renderWithPairing(true, { sheet: null, ...allowed });
+         const target = newSheet(7);
+         (comp as any)._sheet = target;
+         const connect = connectStub(target);
+         (comp as any).connectToClaude = connect;
+
+         comp.beginAutoConnect(target, () => true);
+         vi.advanceTimersByTime(400);
+         expect(connect.requestCode).not.toHaveBeenCalled();
+
+         target.runtimeId = "rt-1";
+         connect.runtimeId = "rt-1";
+         vi.advanceTimersByTime(400);
+         expect(connect.requestCode).toHaveBeenCalledTimes(1);
+         vi.advanceTimersByTime(2000);
+         expect(connect.requestCode).toHaveBeenCalledTimes(1);
+      });
+
+      it("never mints against another viewsheet that takes focus during the wait", async () => {
+         const { comp } = await renderWithPairing(true, { sheet: null, ...allowed });
+         const target = newSheet(7);
+         const other = newSheet(8, "rt-other");
+         (comp as any)._sheet = other;
+         const connect = connectStub(other);
+         (comp as any).connectToClaude = connect;
+
+         comp.beginAutoConnect(target, () => true);
+         vi.advanceTimersByTime(3000);
+         expect(connect.requestCode).not.toHaveBeenCalled();
+
+         target.runtimeId = "rt-1";
+         (comp as any)._sheet = target;
+         connect.runtimeId = "rt-1";
+         connect.socketConnection = target.socketConnection;
+         vi.advanceTimersByTime(400);
+         expect(connect.requestCode).toHaveBeenCalledTimes(1);
+      });
+
+      it("abandons with a notice when the target is closed", async () => {
+         const { comp } = await renderWithPairing(true, { sheet: null, ...allowed });
+         const target = newSheet(7);
+         const other = newSheet(8, "rt-other");
+         (comp as any)._sheet = other;
+         const connect = connectStub(other);
+         (comp as any).connectToClaude = connect;
+         const notified = vi.fn();
+         comp.onNotification.subscribe(notified);
+         let open = true;
+
+         comp.beginAutoConnect(target, () => open);
+         open = false;
+         vi.advanceTimersByTime(400);
+         expect(notified).toHaveBeenCalledTimes(1);
+         expect(connect.requestCode).not.toHaveBeenCalled();
+         expect((comp as any).pendingConnect).toBeNull();
+         vi.advanceTimersByTime(40000);
+         expect(notified).toHaveBeenCalledTimes(1);
+      });
+
+      it("uses a focus-specific notice when the target opened but was never focused", async () => {
+         const { comp } = await renderWithPairing(true, { sheet: null, ...allowed });
+         const other = newSheet(8, "rt-other");
+         (comp as any)._sheet = other;
+         const notified = vi.fn();
+         comp.onNotification.subscribe(notified);
+         comp.beginAutoConnect(newSheet(7), () => true);
+         vi.advanceTimersByTime(31000);
+         expect(notified).toHaveBeenCalledTimes(1);
+         expect(notified.mock.calls[0][0].message).toContain("not in focus");
+      });
+
+      it("tells the user when the target never gets a runtime", async () => {
+         const { comp } = await renderWithPairing(true, { sheet: null, ...allowed });
+         const notified = vi.fn();
+         comp.onNotification.subscribe(notified);
+         comp.beginAutoConnect(newSheet(7), () => true);
+         vi.advanceTimersByTime(31000);
+         expect(notified).toHaveBeenCalledTimes(1);
+         expect((comp as any).pendingConnect).toBeNull();
+      });
+   });
+
+   it("shows the connected class and count in tooltip and aria-label when open sheets are connected", async () => {
+      const { fixture, comp } = await renderWithPairing(true, { sheet: null, agentConnectedCount: 2, ...allowed });
+      expect(toggle(fixture).classList.contains("agent-connected")).toBe(true);
+      expect(comp.connectedTooltipText).toContain("(2)");
+      expect(toggle(fixture).getAttribute("aria-label")).toContain("(2)");
+   });
+
+   it("has no connected class when no open sheet is connected", async () => {
+      const { fixture } = await renderWithPairing(true, { sheet: null, agentConnectedCount: 0, ...allowed });
+      expect(toggle(fixture).classList.contains("agent-connected")).toBe(false);
+   });
+});

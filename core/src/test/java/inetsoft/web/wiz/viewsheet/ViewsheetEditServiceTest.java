@@ -377,23 +377,25 @@ class ViewsheetEditServiceTest {
    }
 
    /**
-    * Bug #81549: the Layout dropdown only learns the layout list from SetViewsheetInfoCommand,
-    * so refresh_viewsheet must resend it after the sheet refresh (fails without the
-    * setViewsheetInfo call in refreshWholeSheet).
+    * Bug #81549: the Layout dropdown only learns the layout list from SetViewsheetInfoCommand, so
+    * refresh_viewsheet must push it to the paired browser after the sheet refresh. Sending it
+    * through the mutation dispatcher only captured it (it never reached the Composer), so the push
+    * must go through the session service's broadcast.
     */
    @Test
-   void refreshViewsheetResendsTheViewsheetInfoSoNewLayoutsAreListed() throws Exception {
+   void refreshViewsheetPushesTheViewsheetInfoToThePairedBrowser() throws Exception {
       VSRefreshService refreshService = mock(VSRefreshService.class);
-      CoreLifecycleService lifecycle = mock(CoreLifecycleService.class);
-      ViewsheetEditService service = serviceWithRefresh(mock(ViewsheetReadService.class),
-                                                        refreshService, lifecycle);
+      ViewsheetSessionService sessions = mutatingSessions();
+      ViewsheetEditService service = serviceWithRefresh(sessions, mock(ViewsheetReadService.class),
+                                                        refreshService);
 
       service.apply("tok", principal(), request("refresh_viewsheet", null), "linkUri1");
 
-      InOrder order = inOrder(refreshService, lifecycle);
+      InOrder order = inOrder(refreshService, sessions);
       order.verify(refreshService).refreshViewsheet(eq("rt1"), any(VSRefreshEvent.class),
                                                     any(Principal.class), any(), eq("linkUri1"));
-      order.verify(lifecycle).setViewsheetInfo(any(RuntimeViewsheet.class), eq("linkUri1"), any());
+      order.verify(sessions).broadcastViewsheetInfo(any(RuntimeViewsheet.class), eq("rt1"),
+                                                    any(Principal.class));
    }
 
    @Test
@@ -2749,13 +2751,10 @@ class ViewsheetEditServiceTest {
    private static ViewsheetEditService serviceWithRefresh(ViewsheetReadService reader,
                                                           VSRefreshService refreshService)
    {
-      return serviceWithRefresh(reader, refreshService, mock(CoreLifecycleService.class));
+      return serviceWithRefresh(mutatingSessions(), reader, refreshService);
    }
 
-   private static ViewsheetEditService serviceWithRefresh(ViewsheetReadService reader,
-                                                          VSRefreshService refreshService,
-                                                          CoreLifecycleService lifecycle)
-   {
+   private static ViewsheetSessionService mutatingSessions() {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
       try {
@@ -2769,12 +2768,19 @@ class ViewsheetEditServiceTest {
          throw new IllegalStateException(e);
       }
 
+      return sessions;
+   }
+
+   private static ViewsheetEditService serviceWithRefresh(ViewsheetSessionService sessions,
+                                                          ViewsheetReadService reader,
+                                                          VSRefreshService refreshService)
+   {
       return new ViewsheetEditService(sessions, mock(ComposerObjectService.class),
                                       mock(ClipboardControllerService.class),
                                       mock(VSObjectPropertyService.class), reader,
                                       mock(ComposerGroupService.class),
                                       mock(GroupingService.class), refreshService,
-                                      lifecycle);
+                                      mock(CoreLifecycleService.class));
    }
 
    /** Runs the mutation against a supplied runtime, for the guards that inspect the assembly. */

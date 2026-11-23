@@ -176,6 +176,13 @@ public class PresentationChangesetApplyService {
                   problem = verified ? null : "value did not read back as written";
                }
 
+               boolean nothingWritten = !verified && !entry.reset() &&
+                  provablyUnchanged(entry, before, actualAfter);
+
+               if(nothingWritten) {
+                  problem += " (the stored value is unchanged, nothing was written)";
+               }
+
                String status = verified
                   ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
                results.add(new PresentationApplyOutcome(key, before, actualAfter, status,
@@ -183,12 +190,14 @@ public class PresentationChangesetApplyService {
                writeAudit(txId, reviewedTask, key, entry, AdminChangeRecord.ACTION_APPLY, before, actualAfter, status,
                          backupRef, reviewOutcome, user);
 
-               // Classify unconditionally once access.write has succeeded (regardless of `verified`)
-               // -- the write already happened above, so an entry whose own read-back verification
-               // fails still needs to be reported as an unconditional RollbackFailure (storage-scope)
-               // or attempted for rollback (value-scope), not silently excluded from both lists as if
-               // nothing had been written (bug #76729's "rolled-back" mislabel).
-               if(entry.subModel().isStorageScope()) {
+               // access.write has returned, so the entry is classified for rollback unless the
+               // read-back proves nothing was written (an update only: a reset always removed or
+               // rewrote keys). Otherwise a storage-scope entry is reported as an unconditional
+               // RollbackFailure and a value-scope one is attempted for rollback (bug #76729).
+               if(nothingWritten) {
+                  // proven unchanged: nothing to roll back or to restore from the backup
+               }
+               else if(entry.subModel().isStorageScope()) {
                   appliedStorage.add(entry);
                }
                else {
@@ -235,7 +244,7 @@ public class PresentationChangesetApplyService {
                   readFailed = true;
                }
 
-               boolean moved = !readFailed && !Objects.equals(before, actualAfter);
+               boolean moved = !readFailed && !provablyUnchanged(entry, before, actualAfter);
 
                results.add(new PresentationApplyOutcome(key, before, readFailed ? null : actualAfter,
                   AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
@@ -303,6 +312,16 @@ public class PresentationChangesetApplyService {
       finally {
          APPLY_LOCK.unlock();
       }
+   }
+
+   /** True only when a re-read proves the write changed nothing: the projected value is unchanged
+    * and an update sent no content (file bytes) that the projection cannot show. A reset's hidden
+    * input is the org-state digest, not content. */
+   private static boolean provablyUnchanged(PresentationChangePlanService.ResolvedChange entry,
+                                            String before, String actualAfter)
+   {
+      return (entry.reset() || entry.hidden().isEmpty()) &&
+         PresentationJson.sameTree(before, actualAfter);
    }
 
    /** Undoes verified value-scope changes newest-first, attempting all of them and collecting any
