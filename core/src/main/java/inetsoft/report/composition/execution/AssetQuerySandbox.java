@@ -1727,6 +1727,12 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          obj = null;
       }
 
+      // a cancelled lens is cut short; serving it again would return incomplete rows
+      if(obj != null && AssetDataCache.isCancelled(obj)) {
+         tmap.remove(entry, obj);
+         obj = null;
+      }
+
       // remove cached data
       if(obj == null && chash != 0) {
          tmap.remove(new TableEntry(table, mode, aggregate, 0));

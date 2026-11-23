@@ -854,4 +854,110 @@ class WorksheetPreviewServiceTest {
          RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
       }
    }
+
+   // ---------------------------------------------------------------------------
+   // Bug #82071: bounded, cancellable preview
+   // ---------------------------------------------------------------------------
+
+   /** A lens whose rows never arrive until it is cancelled. */
+   private static class BlockingLens extends inetsoft.report.lens.DefaultTableLens
+      implements inetsoft.report.internal.table.CancellableTableLens
+   {
+      final CountDownLatch released = new CountDownLatch(1);
+      final java.util.concurrent.atomic.AtomicInteger cancels =
+         new java.util.concurrent.atomic.AtomicInteger();
+      volatile boolean cancelled;
+      final boolean block;
+
+      BlockingLens(boolean block) {
+         super(new Object[][]{{"x"}, {"r1"}});
+         this.block = block;
+      }
+
+      @Override
+      public boolean moreRows(int row) {
+         if(row == 1 && block) {
+            try {
+               released.await(30, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException e) {
+               Thread.currentThread().interrupt();
+            }
+
+            return false;
+         }
+
+         return super.moreRows(row);
+      }
+
+      @Override
+      public void cancel() {
+         cancels.incrementAndGet();
+         cancelled = true;
+         released.countDown();
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return cancelled;
+      }
+   }
+
+   private RuntimeWorksheet rwsFor(TableLens lens) throws Exception {
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(lens);
+      RuntimeWorksheet rws = rws(box);
+      when(rws.getWorksheet()).thenReturn(ws);
+      return rws;
+   }
+
+   @Test
+   void neverCompletingLensTimesOutAndIsCancelledOnce() throws Exception {
+      BlockingLens lens = new BlockingLens(true);
+      RuntimeWorksheet rws = rwsFor(lens);
+      service.setTimeoutMillis(500);
+      long start = System.currentTimeMillis();
+
+      PairingException e = assertThrows(PairingException.class,
+                                        () -> service.preview(rws, "T", 0, 10));
+
+      assertTrue(System.currentTimeMillis() - start < 10_000);
+      assertTrue(e.getMessage().contains("timed out"), e.getMessage());
+      assertTrue(e.getMessage().contains("0.5 s"), e.getMessage());
+      assertEquals(1, lens.cancels.get());
+   }
+
+   @Test
+   void externallyCancelledLensThrowsInsteadOfReturningPartialRows() throws Exception {
+      BlockingLens lens = new BlockingLens(false) {
+         @Override
+         public boolean moreRows(int row) {
+            // someone else (close, Cancel button, another preview) cancels mid-read
+            cancel();
+            return false;
+         }
+      };
+      RuntimeWorksheet rws = rwsFor(lens);
+      service.setTimeoutMillis(0);
+
+      PairingException e = assertThrows(PairingException.class,
+                                        () -> service.preview(rws, "T", 0, 10));
+
+      assertTrue(e.getMessage().contains("cancelled"), e.getMessage());
+   }
+
+   @Test
+   void fastPreviewIsUnchangedAndNotCancelled() throws Exception {
+      BlockingLens lens = new BlockingLens(false);
+      RuntimeWorksheet rws = rwsFor(lens);
+      service.setTimeoutMillis(60_000);
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws, "T", 0, 10);
+
+      assertEquals(1, result.rows().size());
+      assertEquals("r1", result.rows().get(0).get("x"));
+      assertEquals(0, lens.cancels.get());
+   }
 }
