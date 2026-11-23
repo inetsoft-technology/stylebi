@@ -18,7 +18,10 @@
 
 
 import { readFileSync } from "fs";
-import { resolve } from "path";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Bug #82156: EM navbar icons must stay light on the dark navbar, and the dark text token must
 // be a valid rgba() color.
