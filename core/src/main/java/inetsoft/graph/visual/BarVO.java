@@ -753,8 +753,8 @@ public class BarVO extends ElementVO {
          return;
       }
 
-      boolean fits = !centered || prefw + 2 * VALUE_FIT_INSET <= box.getWidth() &&
-         prefh + 2 * VALUE_FIT_INSET <= box.getHeight();
+      boolean fits = !centered || prefw + 2 * VALUE_FIT_INSET_X <= box.getWidth() &&
+         prefh + 2 * VALUE_FIT_INSET_Y <= box.getHeight();
 
       if(!fits) {
          text.setZIndex(-1);
@@ -2062,7 +2062,9 @@ public class BarVO extends ElementVO {
    private boolean negative = false;
    private VOText vtext;
    private boolean fitHidden;
-   private static final double VALUE_FIT_INSET = 3;
+   private static final double VALUE_FIT_INSET_Y = 3;
+   // negative: the label box may pass each side of the bar by 1px
+   private static final double VALUE_FIT_INSET_X = -1;
    private VOText stackText;
    private Coordinate coord;
    private boolean has_border = false;
