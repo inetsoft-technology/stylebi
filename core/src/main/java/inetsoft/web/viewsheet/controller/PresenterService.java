@@ -28,8 +28,11 @@ import inetsoft.report.internal.Common;
 import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.report.painter.CCWRotatePresenter;
 import inetsoft.report.painter.PresenterPainter;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.ObjectWrapper;
 import inetsoft.util.cachefs.BinaryTransfer;
@@ -142,6 +145,12 @@ public class PresenterService {
                alpha = lens.getTable().getAlpha(row, column);
             }
 
+            Assembly tableAssembly = vs.getAssembly(assembly);
+            VSAssemblyInfo tableInfo = tableAssembly instanceof VSAssembly ?
+               ((VSAssembly) tableAssembly).getVSAssemblyInfo() : null;
+            alpha = presenterAlpha(alpha, lens.getBackground(row, column),
+                                   tableInfo != null && VizContext.of(tableInfo).modern);
+
             if(alpha != 100) {
                g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha / 100f));
             }
@@ -168,6 +177,22 @@ public class PresenterService {
       ImageIO.write(image, "png", out);  // "jpeg" is also fine
       binaryTransferService.closeOutputStream(data, out);
       return data;
+   }
+
+   /**
+    * The alpha a presenter is painted with. A modern table's cell takes its alpha from the
+    * translucent card tint of its background, which the background fill already carries, so the
+    * presenter itself is painted opaque. A classic table keeps the alpha as it is.
+    */
+   static int presenterAlpha(int alpha, Color background, boolean modern) {
+      // the alpha getAlpha derives from the background color's own alpha, not one the author set
+      if(modern && alpha != 100 && background != null &&
+         alpha == (int) ((background.getAlpha() / 255.0) * 100))
+      {
+         return 100;
+      }
+
+      return alpha;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
