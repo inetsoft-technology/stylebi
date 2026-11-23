@@ -84,7 +84,8 @@ danger colour shaded 15%). Material 3 pairs its error colour with an on-error la
   gated off on themed pages; the shape is behaviour and applies on them too. The ring is drawn on
   the tile (the `li`, which carries the hover fill) through `:has()`, because the link inside is
   narrower than the tile and growing it would widen its click target. Where `:has()` is not
-  supported the link keeps its old outer ring.
+  supported the link draws its own ring, in the navbar text colour in the light shell (9.11:1),
+  flush around the link rather than the full tile.
 - **Dark:** solid `#F0A75A`, 7.62:1 on `#252428` and 4.50:1 on the dark selected fill. The ring and
   the hover borders are now one orange; primary buttons still rest at `#D97A1A`.
 - **Behaviour:**
@@ -115,8 +116,9 @@ danger colour shaded 15%). Material 3 pairs its error colour with an on-error la
 **Overturning it.** Each ring is one token value in `inet-shell-state-tokens` (light) or the dark
 `:root` block. The `:focus-visible` selector, the press rule and the gap are separate; reverting
 the selector brings back the ring on every mouse click. The navbar's shape and its light colour
-are three rules in `_themeable.scss` (the link's own ring suppressed, the tile ring, and the
-light-only colour rule); the login gap is one rule in `login.css`.
+are four rules in `_themeable.scss` (the link's own ring suppressed, the tile ring, the
+light-only colour rule, and the light-only link ring for browsers without `:has()`); the login
+gap is one rule in `login.css`.
 
 ### Considered and not changed
 

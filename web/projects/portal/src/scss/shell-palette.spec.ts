@@ -839,6 +839,7 @@ describe("navbar ring: inset and tile-sized; the light shell's in the navbar tex
    const LINK_RULE = ".portal-navbar .portal-nav-item > .nav-link:focus-visible";
    const TILE_RULE = ".portal-navbar .portal-nav-item:has(> .nav-link:focus-visible)";
    const LIGHT_GATE = ":where(:root:not(.custom-theme):not(.shell-dark))";
+   const FALLBACK_RULE = `${LIGHT_GATE} ${LINK_RULE}`;
    const compiledRule = (selector: string) => {
       const found = rulesOf(compiledGlobal())
          .filter(r => r.selectors.length === 1 && r.selectors[0] === selector);
@@ -856,8 +857,11 @@ describe("navbar ring: inset and tile-sized; the light shell's in the navbar tex
       const link = compiledRule(LINK_RULE);
       const others = rulesOf(compiledGlobal()).flatMap(r =>
          valueOf(r.body, "box-shadow") == null ? [] :
-            r.selectors.filter(s => s !== LINK_RULE && /\.nav-link:focus-visible(:where\(.*\))?$/.test(s)));
+            r.selectors.filter(s => s !== LINK_RULE && s !== FALLBACK_RULE &&
+               /\.nav-link:focus-visible(:where\(.*\))?$/.test(s)));
 
+      // the light fallback for browsers without :has() is the one rule at the suppression's own
+      // specificity; it yields by coming first (the next test)
       expect(valueOf(link.body, "box-shadow")).toBe("none");
       // Bootstrap's light rule and the dark shell's rule
       expect(others).toContain(".nav-link:focus-visible");
@@ -875,6 +879,37 @@ describe("navbar ring: inset and tile-sized; the light shell's in the navbar tex
       expect(supports, "no @supports selector(:has(*)) block").not.toBeNull();
       expect(supports[1]).toContain(`${LINK_RULE} {`);
       expect(supports[1]).toContain(`${TILE_RULE} {`);
+   }, 60000);
+
+   it("draws the light shell's link ring in the navbar text colour where :has() is not supported", () => {
+      expect(valueOf(compiledRule(FALLBACK_RULE).body, "box-shadow"))
+         .toBe("0 0 0 var(--inet-focus-ring-width) var(--inet-portal-navbar-text-color)");
+      // the suppression and this fallback are the only rules on the navbar link itself
+      expect(rulesOf(compiledGlobal()).flatMap(r => r.selectors.filter(s => s.endsWith(LINK_RULE))).sort())
+         .toEqual([LINK_RULE, FALLBACK_RULE].sort());
+   }, 60000);
+
+   it("yields the fallback to the tile ring where :has() is supported, and outranks Bootstrap's ring", () => {
+      const css = compiledGlobal().replace(/\s+/g, " ");
+      const supports = css.match(/@supports selector\(:has\(\*\)\) \{((?:[^{}]*\{[^{}]*\})*) \}/);
+      const fallbackAt = css.indexOf(`${FALLBACK_RULE} {`);
+      const order = compareSpecificity(specificity(FALLBACK_RULE), specificity(LINK_RULE));
+
+      expect(supports, "no @supports selector(:has(*)) block").not.toBeNull();
+      expect(fallbackAt, "fallback rule in the compiled CSS").toBeGreaterThanOrEqual(0);
+      expect(css.indexOf(`${FALLBACK_RULE} {`, fallbackAt + 1), "one fallback rule").toBe(-1);
+      // outside the @supports block, so it applies where :has() is not supported
+      expect(supports[1]).not.toContain(FALLBACK_RULE);
+      // where :has() is supported the suppression wins: lower specificity, or equal and earlier
+      expect(order).toBeLessThanOrEqual(0);
+
+      if(order === 0) {
+         expect(fallbackAt).toBeLessThan(supports.index);
+      }
+
+      // and where it is not, the fallback beats Bootstrap's light ring on the link
+      expect(compareSpecificity(specificity(FALLBACK_RULE), specificity(".nav-link:focus-visible")))
+         .toBeGreaterThan(0);
    }, 60000);
 
    it("colours the ring with the navbar text in the light shell only, gated off on themed pages", () => {

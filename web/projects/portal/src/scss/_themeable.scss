@@ -1607,6 +1607,12 @@ wizard-binding-tree .bg-node-selected {
     }
   }
 
+  // Fallback for browsers without :has(): the light shell's link draws its own ring in the navbar
+  // text colour (D2). It comes before the @supports block so the tile ring replaces it where :has() works.
+  :where(:root:not(.custom-theme):not(.shell-dark)) & .portal-nav-item > .nav-link:focus-visible {
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-portal-navbar-text-color);
+  }
+
   // Keyboard focus draws an inset ring the size of the tile (the li, which carries the hover fill)
   // in place of the link's outer ring, which is narrower than the tile. The link wraps only its
   // icon, and growing it to fill the tile would widen its click target, so the tile draws the ring
