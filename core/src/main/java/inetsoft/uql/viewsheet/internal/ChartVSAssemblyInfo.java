@@ -1783,6 +1783,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          cinfo.setUnitHeightRatio(1);
          cinfo.setWidthResized(false);
          cinfo.setHeightResized(false);
+         cinfo.setUnitWidthRatioPercent(0);
+         cinfo.setUnitHeightRatioPercent(0);
       }
 
       if(!Tool.equals(drillFilter, ninfo.getDrillFilterInfo())) {

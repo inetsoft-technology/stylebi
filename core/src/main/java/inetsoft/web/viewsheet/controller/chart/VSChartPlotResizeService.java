@@ -49,38 +49,44 @@ public class VSChartPlotResizeService extends VSChartControllerService<VSChartPl
                             String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
    {
       processEvent(runtimeId, event, principal, linkUri, dispatcher, chartState -> {
-         final boolean heightResized = event.isHeightResized();
-         final double sizeRatio = event.getSizeRatio();
-         final VSChartInfo chartInfo = chartState.getChartInfo();
-         final boolean reset = event.isReset();
-
-         if(reset) {
-            chartInfo.setUnitWidthRatio(1);
-            chartInfo.setUnitHeightRatio(1);
-            chartInfo.setWidthResized(false);
-            chartInfo.setHeightResized(false);
-         }
-         else {
-            // for wordcloud/circular-network, the ratio is equally applied to both width/height.
-            boolean square = GraphTypeUtil.isWordCloud(chartInfo) ||
-               chartInfo.getChartType() == GraphTypes.CHART_CIRCULAR;
-
-            if(!heightResized || square) {
-               chartInfo.setUnitWidthRatio(sizeRatio);
-               chartInfo.setUnitWidthRatioPercent(sizeRatio / chartInfo.getInitialWidthRatio());
-               chartInfo.setWidthResized(true);
-            }
-
-            if(heightResized || square) {
-               chartInfo.setUnitHeightRatio(sizeRatio);
-               chartInfo.setUnitWidthRatioPercent(sizeRatio / chartInfo.getInitialHeightRatio());
-               chartInfo.setHeightResized(true);
-            }
-         }
-
+         resizePlot(chartState.getChartInfo(), event.isReset(), event.getSizeRatio(),
+                    event.isHeightResized());
          return VSAssembly.VIEW_CHANGED;
       });
 
       return null;
+   }
+
+   /**
+    * Apply an author's plot resize, or Reset Size, to the chart info.
+    */
+   static void resizePlot(VSChartInfo chartInfo, boolean reset, double sizeRatio,
+                          boolean heightResized)
+   {
+      if(reset) {
+         chartInfo.setUnitWidthRatio(1);
+         chartInfo.setUnitHeightRatio(1);
+         chartInfo.setWidthResized(false);
+         chartInfo.setHeightResized(false);
+         chartInfo.setUnitWidthRatioPercent(0);
+         chartInfo.setUnitHeightRatioPercent(0);
+      }
+      else {
+         // for wordcloud/circular-network, the ratio is equally applied to both width/height.
+         boolean square = GraphTypeUtil.isWordCloud(chartInfo) ||
+            chartInfo.getChartType() == GraphTypes.CHART_CIRCULAR;
+
+         if(!heightResized || square) {
+            chartInfo.setUnitWidthRatio(sizeRatio);
+            chartInfo.setUnitWidthRatioPercent(sizeRatio / chartInfo.getInitialWidthRatio());
+            chartInfo.setWidthResized(true);
+         }
+
+         if(heightResized || square) {
+            chartInfo.setUnitHeightRatio(sizeRatio);
+            chartInfo.setUnitHeightRatioPercent(sizeRatio / chartInfo.getInitialHeightRatio());
+            chartInfo.setHeightResized(true);
+         }
+      }
    }
 }
