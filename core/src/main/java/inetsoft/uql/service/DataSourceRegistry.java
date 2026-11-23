@@ -1266,6 +1266,11 @@ public class DataSourceRegistry implements MessageListener {
       // may be that data source's is lost, and a delete of both sides at its path removes it
       AssetEntry[] children = getDataSourceEntries(dxname, dxname + "/", null, true, false);
 
+      // Bug #82097, read before the data source is removed
+      XDataSource removed = getDataSource(dxname);
+      boolean pooled = removed instanceof JDBCDataSource ||
+         removed instanceof AdditionalConnectionDataSource;
+
       try {
          // read before the data source and its additional connections are removed. The test
          // query of a removed additional connection is kept under its name alone
@@ -1293,6 +1298,12 @@ public class DataSourceRegistry implements MessageListener {
          removeConnectionTestQueries(dxname, additionalNames);
          removeDataSourcePermissions(resources);
          removeDataModelPermissions(modelResources);
+
+         // Bug #82097, the connection pools of the removed data source are otherwise kept open
+         // on every node until restart
+         if(pooled) {
+            fireConnectionChangeEvent();
+         }
       }
       catch(Exception e) {
          LOG.error(
