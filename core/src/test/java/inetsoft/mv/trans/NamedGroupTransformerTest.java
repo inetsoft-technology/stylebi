@@ -110,7 +110,11 @@ class NamedGroupTransformerTest {
       assertInstanceOf(NamedRangeRef.class,
                        ((ColumnRef) above.getGroup(0).getDataRef()).getDataRef());
       assertEquals(1, above.getAggregateCount());
-      assertInstanceOf(CompositeAggregateRef.class, above.getAggregate(0));
+      CompositeAggregateRef sum =
+         assertInstanceOf(CompositeAggregateRef.class, above.getAggregate(0));
+      assertEquals(AggregateFormula.SUM, sum.getFormula());
+      // re-aggregating the sum column of the MV table
+      assertEquals(aggregates(fx.table("T1")), names(sum.getChildAggregates()));
    }
 
    @Test
@@ -125,9 +129,12 @@ class NamedGroupTransformerTest {
       // an average of averages would be wrong: the MV table keeps the parts of the average
       TableAssembly child = fx.table("T1");
       assertEquals(List.of("Region"), groups(child));
-      assertTrue(child.getAggregateInfo().getAggregateCount() >= 2, aggregates(child).toString());
-      assertInstanceOf(CompositeAggregateRef.class,
-                       fx.table("M1").getAggregateInfo().getAggregate(0));
+      assertEquals(List.of("Sum(Sum_T1_Amount)", "Count(Count_T1_Amount)"), aggregates(child));
+      // the mirror computes the average from the parts in the MV table
+      CompositeAggregateRef avg = assertInstanceOf(
+         CompositeAggregateRef.class, fx.table("M1").getAggregateInfo().getAggregate(0));
+      assertEquals(AggregateFormula.AVG, avg.getFormula());
+      assertEquals(aggregates(child), names(avg.getChildAggregates()));
    }
 
    @Test
@@ -234,9 +241,14 @@ class NamedGroupTransformerTest {
    }
 
    private static List<String> aggregates(TableAssembly table) {
+      return names(Arrays.asList(table.getAggregateInfo().getAggregates()));
+   }
+
+   /** Each aggregate as Formula(column). */
+   private static List<String> names(List<AggregateRef> aggregates) {
       List<String> names = new ArrayList<>();
 
-      for(AggregateRef aggregate : table.getAggregateInfo().getAggregates()) {
+      for(AggregateRef aggregate : aggregates) {
          names.add(aggregate.getFormula().getFormulaName() + "(" +
                       aggregate.getDataRef().getAttribute() + ")");
       }
