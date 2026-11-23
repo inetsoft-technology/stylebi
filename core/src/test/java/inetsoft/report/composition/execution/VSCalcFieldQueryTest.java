@@ -22,6 +22,9 @@ import inetsoft.report.*;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
@@ -644,6 +647,33 @@ class VSCalcFieldQueryTest {
       List<List<Object>> rows = body(lens, 2);
       assertEquals(Arrays.asList("Ax", "Bx"), column(rows, 0));
       assertEquals(Arrays.asList(18.0, 2.0), numbers(column(rows, 1)));
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
+   @DisplayName("Bug #81627: a detail calc field used only by the table condition is kept " +
+      "next to an unused failing one, so the filter still applies")
+   void calcUsedOnlyByConditionIsKept() throws Exception {
+      initCityAb();
+      addCalc("d1", true, "field['a'] * 2", XSchema.INTEGER);
+      addCalc("bad", true, "field['city'].foo()", XSchema.INTEGER);
+      AssetCondition condition = new AssetCondition();
+      condition.setOperation(XCondition.EQUAL_TO);
+      condition.setType(XSchema.INTEGER);
+      condition.addValue(2);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(new ColumnRef(new AttributeRef(null, "d1")), condition, 0));
+      CalcTableVSAssembly calc = new CalcTableVSAssembly(vs, "Calc1");
+      calc.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "D"));
+      calc.setPreConditionList(list);
+      calc.getTableLayout().setCellBinding(1, 0, detailCell("city"));
+      vs.addAssembly(calc);
+      start();
+      Tool.clearUserMessage();
+      TableLens lens = new CalcTableVSAQuery(box, "Calc1", false).getTableLens();
+      lens.moreRows(TableLens.EOT);
+      List<List<Object>> rows = body(lens, 1);
+      assertEquals(1, rows.size(), String.valueOf(rows));
       assertNull(Tool.getUserMessage());
    }
 
