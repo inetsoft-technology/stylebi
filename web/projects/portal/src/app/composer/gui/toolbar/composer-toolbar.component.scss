@@ -84,6 +84,11 @@
     align-items: center;
     justify-content: center;
 
+    &.connect-blocked {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     &.agent-connected {
       color: #2e9e50;
       background-color: rgba(46, 158, 80, 0.15);

@@ -440,7 +440,7 @@ _#(fl.action.newGroupDes)</div>
   }
   @else {
     <button type="button" class="btn-toolbar btn composer-btn wiz-connect-toggle"
-            [class.agent-connected]="agentConnectedCount > 0" [class.disabled]="!connectWithoutSheetAllowed"
+            [class.agent-connected]="agentConnectedCount > 0" [class.connect-blocked]="!connectWithoutSheetAllowed"
             [attr.aria-disabled]="!connectWithoutSheetAllowed" [ngbTooltip]="WizConnect"
             [attr.aria-label]="connectAriaLabel" triggers="hover" container="body"
             (click)="connectWithoutSheet()">

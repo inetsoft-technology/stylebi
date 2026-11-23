@@ -481,11 +481,38 @@ describe("ComposerToolbarComponent — AI connect icon (bug #81980)", () => {
          true, { sheet: null, viewsheetPermission: false, deployed: false });
       const emitted = vi.fn();
       comp.onConnectWithoutSheet.subscribe(emitted);
-      expect(toggle(fixture).getAttribute("aria-disabled")).toBe("true");
+      const btn = toggle(fixture);
+      expect(btn.getAttribute("aria-disabled")).toBe("true");
+      // Bootstrap's .btn.disabled sets pointer-events:none, which would suppress the hover tooltip
+      expect(btn.classList.contains("disabled")).toBe(false);
+      expect(btn.disabled).toBe(false);
+      expect(btn.classList.contains("connect-blocked")).toBe(true);
+      expect(btn.getAttribute("aria-label")).toBe(comp.connectTooltipDisabledText);
       expect(comp.connectWithoutSheetAllowed).toBe(false);
       expect(comp.connectTooltipDisabledText).toContain("permission");
       toggle(fixture).click();
       expect(emitted).not.toHaveBeenCalled();
+   });
+
+   it("gives feedback instead of re-emitting on a click while a connect is pending", async () => {
+      vi.useFakeTimers();
+
+      try {
+         const { fixture, comp } = await renderWithPairing(true, { sheet: null, ...allowed });
+         const emitted = vi.fn();
+         const notified = vi.fn();
+         comp.onConnectWithoutSheet.subscribe(emitted);
+         comp.onNotification.subscribe(notified);
+         toggle(fixture).click();
+         comp.beginAutoConnect(newSheet(7), () => true);
+         toggle(fixture).click();
+         expect(emitted).toHaveBeenCalledTimes(1);
+         expect(notified).toHaveBeenCalledTimes(1);
+         expect(notified.mock.calls[0][0].type).toBe("info");
+      }
+      finally {
+         vi.useRealTimers();
+      }
    });
 
    it("is disabled in a deployed composer", async () => {
@@ -555,6 +582,18 @@ describe("ComposerToolbarComponent — AI connect icon (bug #81980)", () => {
          expect((comp as any).pendingConnect).toBeNull();
          vi.advanceTimersByTime(40000);
          expect(notified).toHaveBeenCalledTimes(1);
+      });
+
+      it("uses a focus-specific notice when the target opened but was never focused", async () => {
+         const { comp } = await renderWithPairing(true, { sheet: null, ...allowed });
+         const other = newSheet(8, "rt-other");
+         (comp as any)._sheet = other;
+         const notified = vi.fn();
+         comp.onNotification.subscribe(notified);
+         comp.beginAutoConnect(newSheet(7), () => true);
+         vi.advanceTimersByTime(31000);
+         expect(notified).toHaveBeenCalledTimes(1);
+         expect(notified.mock.calls[0][0].message).toContain("not in focus");
       });
 
       it("tells the user when the target never gets a runtime", async () => {

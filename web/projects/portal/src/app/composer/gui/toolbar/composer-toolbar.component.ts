@@ -365,6 +365,10 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
 
    /** The no-sheet connect needs to open a viewsheet, so it follows the New Viewsheet action's gates. */
    get connectAriaLabel(): string {
+      if(!this.isWorksheet && !this.isViewsheet && !this.connectWithoutSheetAllowed) {
+         return this.connectTooltipDisabledText;
+      }
+
       return this.agentConnectedCount > 0 ? this.connectedTooltipText : "_#(js:Connect Agent)";
    }
 
@@ -383,7 +387,13 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
     * hands it back through {@link beginAutoConnect}.
     */
    connectWithoutSheet(): void {
-      if(this.pendingConnect || !this.connectWithoutSheetAllowed) {
+      if(!this.connectWithoutSheetAllowed) {
+         return;
+      }
+
+      if(this.pendingConnect) {
+         this.notify({ type: "info",
+            message: "_#(js:The AI agent connection is still starting, please wait a moment)" } as Notification);
          return;
       }
 
@@ -397,6 +407,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
     */
    beginAutoConnect(target: Sheet, isOpen: () => boolean): void {
       this.clearPendingConnect();
+      let targetSeen = false;
       this.pendingConnect = interval(200).pipe(take(150)).subscribe({
          next: () => {
             if(!isOpen()) {
@@ -404,7 +415,11 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
                this.notify({ type: "warning",
                   message: "_#(js:The AI agent connection was cancelled because the new viewsheet was closed)" } as Notification);
             }
-            else if(this.tryAutoConnect(target)) {
+            else if(this.sheet === target) {
+               targetSeen = true;
+            }
+
+            if(this.pendingConnect && this.tryAutoConnect(target)) {
                this.clearPendingConnect();
             }
          },
@@ -412,7 +427,9 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
             if(this.pendingConnect) {
                this.pendingConnect = null;
                this.notify({ type: "warning",
-                  message: "_#(js:The new viewsheet did not open in time, so the AI agent was not connected. Click the icon to try again)" } as Notification);
+                  message: targetSeen
+                     ? "_#(js:The new viewsheet did not open in time, so the AI agent was not connected. Click the icon to try again)"
+                     : "_#(js:The AI agent was not connected because the new viewsheet was not in focus. Click the icon to try again)" } as Notification);
             }
          }
       });
