@@ -71,6 +71,46 @@ public class GraphQLCursorIteratorStrategyTest {
    }
 
    /**
+    * Bug #81771: an empty first page ends the iteration, but the run still completed, so the
+    * refusal must not blame credentials.
+    */
+   @Test
+   public void emptyFirstPageMarksTheRunCompleted() throws Exception {
+      final GraphQLQuery query = createQuery();
+      final GraphQLCursorIteratorStrategy strategy = new GraphQLCursorIteratorStrategy(
+         query, new JsonTransformer(), new SequencedHttpHandler(page(null)), new RestErrorHandler());
+
+      assertNull(strategy.next());
+      assertTrue(query.isRunCompleted());
+   }
+
+   @Test
+   public void failedRequestDoesNotMarkTheRunCompleted() throws Exception {
+      final GraphQLQuery query = createQuery();
+      final GraphQLCursorIteratorStrategy strategy = new GraphQLCursorIteratorStrategy(
+         query, new JsonTransformer(), new IHttpHandler() {
+            @Override
+            public HttpResponse executeRequest(RestRequest request) {
+               throw new IllegalStateException("HTTP 401");
+            }
+
+            @Override
+            public void close() {
+            }
+         },
+         new RestErrorHandler());
+
+      try {
+         strategy.next();
+      }
+      catch(Exception ignore) {
+         // expected: the failure propagates
+      }
+
+      assertFalse(query.isRunCompleted());
+   }
+
+   /**
     * Iterates the strategy over the given response bodies and returns the number of pages
     * that were consumed.
     */
