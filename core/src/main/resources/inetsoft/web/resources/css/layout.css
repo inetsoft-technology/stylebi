@@ -20,7 +20,7 @@
   --inet-font-size-base: 13px;
   --inet-text-color: #35342F;
   --inet-text-strong-color: #1F1F1B;
-  --inet-text-muted-color: #6A685F;
+  --inet-text-muted-color: #5F5E56;
   --inet-text-subtle-color: #99958C;
   --inet-primary-color: #ED711C;
   --inet-primary-color-dark: #D25F11;
@@ -30,17 +30,18 @@
   --inet-toolbar-bg-color: #F1EFEA;
   --inet-default-border-color: #D9D5CC;
   --inet-card-bg-color: #FFFFFF;
-  --inet-hover-primary-bg-color: #ECE9E2;
+  --inet-hover-primary-bg-color: #E9E5DD;
   --inet-ui-neutral-color: var(--inet-text-muted-color);
   --inet-ui-neutral-border-color: var(--inet-default-border-color);
-  --inet-ui-neutral-hover-bg-color: #ECE9E2;
+  --inet-ui-neutral-hover-bg-color: #E9E5DD;
   --inet-ui-neutral-hover-color: var(--inet-text-color);
-  --inet-shell-selected-bg-color: #E7E2D8;
+  --inet-shell-selected-bg-color: #DFD9CC;
   --inet-shadow-low: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
   --inet-shadow-medium: 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 6px rgba(0, 0, 0, 0.05);
   --inet-radius-lg: 4px;
   --inet-radius-xl: 6px;
-  --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
+  /* a solid ring, as the portal's light shell state (D2) */
+  --inet-focus-ring-color: #B4610F;
   /* clickable cards take the portal's primary (#D97A1A), not this page's --inet-primary-color */
   --inet-card-hover-border-color: #D97A1A;
 }
@@ -62,13 +63,13 @@
   --inet-toolbar-bg-color: #2D2B30;
   --inet-default-border-color: #49454F;
   --inet-card-bg-color: #252428;
-  --inet-hover-primary-bg-color: #37353B;
-  --inet-ui-neutral-hover-bg-color: #37353B;
-  --inet-shell-selected-bg-color: #45424B;
+  --inet-hover-primary-bg-color: #36343A;
+  --inet-ui-neutral-hover-bg-color: #36343A;
+  --inet-shell-selected-bg-color: #4A4750;
   --inet-shadow-low: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
   --inet-shadow-medium: 0 2px 4px rgba(0, 0, 0, 0.45), 0 1px 6px rgba(0, 0, 0, 0.35);
-  /* the portal's dark focus ring strength, as on the home card */
-  --inet-focus-ring-color: rgba(217, 122, 26, 0.75);
+  /* a solid ring, as the portal's dark shell state (D3) */
+  --inet-focus-ring-color: #F0A75A;
 }
 
 html,

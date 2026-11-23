@@ -17,6 +17,8 @@
  */
 @use 'sass:meta';
 @use 'sass:color';
+@use 'sass:list';
+@use 'sass:map';
 
 /***
  * Theming override section begin
@@ -60,6 +62,12 @@ $shell-surface-canvas: #F8F7F4;
 $shell-surface-default: #FFFFFF;
 $shell-surface-subtle: #F1EFEA;
 $shell-surface-hover: #ECE9E2;
+// the shell's own hover (D7), one fixed grey per surface: #E9E5DD on white (1.26:1) and the canvas
+// (1.17:1), #E8E4DB on beige (1.10:1, and 1.11:1 from the selected fill). Dashboards and the
+// build-time aliases ($inet-offwhite4, $table-hover-bg, $dropdown-link-hover-bg) keep
+// $shell-surface-hover.
+$shell-hover-default: #E9E5DD;
+$shell-hover-subtle: #E8E4DB;
 $shell-border-default: #D9D5CC;
 $shell-border-strong: #C8C2B7;
 $shell-chrome-dark: #4A4845;
@@ -68,6 +76,9 @@ $shell-text-default: #35342F;
 $shell-text-muted: #6A685F;
 $shell-text-subtle: #99958C;
 $shell-selected-bg: #E7E2D8;
+// the shell's own selected fill (D6): 1.11:1 from hover, where #E7E2D8 is 1.06:1. Dashboards keep
+// $shell-selected-bg, which the build-time aliases ($inet-blue, $table-active-bg) read.
+$shell-selected-bg-strong: #DFD9CC;
 
 // Primary family
 $shell-primary: #D97A1A;
@@ -244,7 +255,8 @@ $input-btn-focus-width: 1px;
 $input-btn-focus-color: $primary;
 // nav links (navbar tabs, tree toolbar icons, dialog tabs) take the shell's 2px focus ring
 // (shell-design-spec.md "Focus") instead of Bootstrap's 0.25rem ring. Only this variable: the
-// shared $focus-ring-width also feeds form checks, which dashboard content uses.
+// shared $focus-ring-width also feeds form checks, which dashboard content uses. The portal navbar's
+// tiles draw an inset ring in its place (_themeable.scss).
 $nav-link-focus-box-shadow: var(--inet-focus-ring);
 $input-disabled-bg: $inet-gray1;
 $input-border-color: $inet-gray1;
@@ -289,6 +301,15 @@ $dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly
 // (the .dropdown-datepicker.viz-dark block at the end of _shell-dark.scss). The combo box list stays
 // light when marked.
 $content-popup: ".vs-combo-box__list, .dropdown-datepicker";
+// The hidden-annotation tooltip and the visible annotation's overflow tooltip. Other tooltips are
+// body-attached shell chrome and go dark, but these show the annotation's own rich text on the
+// annotation's own fill (white by default; Bug #81352), whose text colors were picked against it
+// (a new annotation's text is written inline black). So they compute exactly as in a light shell,
+// with the light tokens, in either shell and for any assembly mark.
+$annotation-tooltip: ".hidden__annotation-tooltip, .vs-annotation__tooltip";
+// The viz scopes, each declaring its own legacy viz state tokens (_viz-tokens.scss): .viz-shell /
+// .viz-shell-dark on body for the org, .viz-modern / .viz-dark on a marked assembly.
+$viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-theme=\"v2\"]";
 // Matches an element outside dashboard content without adding specificity, for shell rules that
 // would otherwise also reach the content.
 $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))";
@@ -665,6 +686,8 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
   --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
   --inet-focus-ring-outline: none;
+  // the surface a filled button's ring is set off from it by; a surface container re-declares it
+  --inet-focus-ring-gap-color: var(--inet-shell-surface-default);
 
   // transient surfaces
   --inet-splash-bg: var(--inet-dialog-bg-color);
@@ -673,8 +696,201 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   --inet-float-label-bg-color: var(--inet-main-panel-bg-color);
 }
 
+// The shell's own state values (Feature #80673). Only the base tokens are set here: their derived
+// tokens are declared on the same :root by inet-runtime-tokens, so they resolve with the shell
+// value. The runtime tokens keep the content values, which dashboard content re-declares below.
+@mixin inet-shell-state-tokens {
+  // a solid keyboard-focus ring: 3:1 or better on the shell's content surfaces (white 4.51, beige
+  // 3.92, selected 3.21) (D2). Not on the navbar (2.02 on $shell-chrome-dark), whose ring takes the
+  // navbar text colour (_themeable.scss). Dashboard content re-declares the .28 ring below.
+  --inet-focus-ring-color: #B4610F;
+
+  // white label on this fill is 5.98:1 (D1)
+  --inet-danger-hover-bg-color: #B03A3A;
+
+  // a stronger selected fill (D6), and muted text darkened to stay 4.64:1 on it (O1). Dashboard
+  // content re-declares both below with the old values.
+  --inet-shell-selected-bg-color: #{$shell-selected-bg-strong};
+  --inet-text-muted-color: #5F5E56;
+
+  // the hover on white and the canvas (D7); beige containers declare their own below. Dashboard
+  // content re-declares the old value below.
+  --inet-shell-surface-hover: #{$shell-hover-default};
+}
+
 :root {
   @include inet-runtime-tokens;
+}
+
+// Custom themes keep today's colours: a theme is one `:root { ... }` block, and the shell values
+// would otherwise replace the defaults it leaves alone. :where() keeps :root's own specificity, so
+// this wins over the block above by coming later and still loses to :root.shell-dark.
+:root:where(:not(.custom-theme)) {
+  @include inet-shell-state-tokens;
+}
+
+// Dashboard content keeps today's values in the light shell: the shell state tokens and every
+// token derived from them are declared again with the runtime tokens' own expressions, so the
+// derived tokens resolve on the content element from the content values. Only this chain, never
+// the whole runtime set, which would cut a custom theme's tokens off from dashboards (and the rule
+// is gated off on themed pages anyway, since a theme's values must reach dashboards). The dark
+// shell's content rule re-includes the whole light set and outranks this one. The dark-marked
+// calendar is left out: it follows its mark (the .dropdown-datepicker.viz-dark block in
+// _shell-dark.scss), and in a dark shell these light values would replace the shell values it
+// inherits.
+:where(:root:not(.custom-theme)) :where(#{$dashboard-content}, #{$content-popup}, #{$annotation-tooltip}):where(:not(.dropdown-datepicker.viz-dark)) {
+  // focus ring
+  --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
+  --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+
+  // selected
+  --inet-shell-selected-bg-color: #{$shell-selected-bg};
+  --inet-selected-item-bg-color: var(--inet-shell-selected-bg-color);
+  --inet-table-selected-bg-color: var(--inet-shell-selected-bg-color);
+  --inet-list-selected-bg-color: var(--inet-shell-selected-bg-color);
+
+  // muted text
+  --inet-text-muted-color: #{$shell-text-muted};
+  --inet-shell-text-muted: var(--inet-text-muted-color);
+  --inet-table-heading-text-color: var(--inet-text-muted-color);
+  --inet-ui-neutral-color: var(--inet-text-muted-color);
+  --inet-button-default-text-color: var(--inet-ui-neutral-color);
+
+  // hover
+  --inet-shell-surface-hover: #{$shell-surface-hover};
+  --inet-ui-neutral-hover-bg-color: var(--inet-shell-surface-hover);
+  --inet-hover-primary-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-hover-secondary-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-table-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-list-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-secondary-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-default-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-light-hover-bg-color: var(--inet-shell-surface-hover);
+
+  // the Bootstrap bridge, also declared on :root (_bootstrap-override.scss)
+  --bs-secondary-color: var(--inet-text-muted-color);
+  --bs-dropdown-link-hover-bg: var(--inet-hover-primary-bg-color);
+  --bs-list-group-action-hover-bg: var(--inet-ui-neutral-hover-bg-color);
+  --bs-list-group-active-bg: var(--inet-shell-selected-bg-color);
+
+  // the scroll bar color is inherited from <html>, computed there from the muted token, so it is
+  // declared again to compute from the content value (same expression as _html-override.scss)
+  scrollbar-color: color-mix(in srgb, var(--inet-text-muted-color) 55%, transparent) transparent;
+}
+
+// The dark-marked calendar keeps today's values in the light shell too. The rule above leaves it out
+// and of that rule's properties its own block (_shell-dark.scss) re-declares only its muted text, its
+// secondary text (--bs-secondary-color) and the default button text, default button hover and light
+// button hover tokens, so every other property of the rule above is pinned here to the value :root
+// gave it before. As literals: the calendar declares a dark muted token, which
+// var(--inet-text-muted-color) would resolve from. Off in the dark shell, where the calendar follows
+// the shell's ring and hover, and on themed pages. Same specificity as the calendar block, which
+// declares none of these.
+:where(:root:not(.custom-theme):not(.shell-dark)) .dropdown-datepicker.viz-dark {
+  // focus ring
+  --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
+  --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) rgba(217, 122, 26, 0.28);
+
+  // selected
+  --inet-shell-selected-bg-color: #E7E2D8;
+  --inet-selected-item-bg-color: #E7E2D8;
+  --inet-table-selected-bg-color: #E7E2D8;
+  --inet-list-selected-bg-color: #E7E2D8;
+
+  // muted text
+  --inet-shell-text-muted: #6A685F;
+  --inet-table-heading-text-color: #6A685F;
+  --inet-ui-neutral-color: #6A685F;
+
+  // hover
+  --inet-shell-surface-hover: #ECE9E2;
+  --inet-ui-neutral-hover-bg-color: #ECE9E2;
+  --inet-hover-primary-bg-color: #ECE9E2;
+  --inet-hover-secondary-bg-color: #ECE9E2;
+  --inet-table-hover-bg-color: #ECE9E2;
+  --inet-list-hover-bg-color: #ECE9E2;
+  --inet-button-secondary-hover-bg-color: #ECE9E2;
+
+  // the Bootstrap bridge
+  --bs-dropdown-link-hover-bg: #ECE9E2;
+  --bs-list-group-action-hover-bg: #ECE9E2;
+  --bs-list-group-active-bg: #E7E2D8;
+
+  scrollbar-color: color-mix(in srgb, #6A685F 55%, transparent) transparent;
+}
+
+// The legacy viz state tokens in the same chain (_viz-tokens.scss), declared on :root too. A viz
+// scope on the content root or an ancestor declares its own, so only content outside every viz
+// scope takes these. The same elements as the dark shell's legacy viz rule: the annotation
+// tooltips are left out, since in a dark shell they would compute these from the restored light
+// tokens where they inherit the dark ones today.
+:where(:root:not(.custom-theme)) :where(#{$dashboard-content}, #{$content-popup}):where(:not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *)) {
+  --inet-viz-selected-bg: var(--inet-shell-selected-bg-color);
+  --inet-viz-sorted-color: var(--inet-text-muted-color);
+}
+
+// Hover is one fixed grey per surface (D7; Carbon sets an opaque hover token per layer). A token
+// that uses var() is resolved where it is declared, so a surface container declares the base hover
+// token and every token derived from it again, with :root's own expressions. The dark shell adds its
+// own readers (inet-dark-surface-hover-tokens in _shell-dark.scss).
+@mixin inet-surface-hover-tokens($hover) {
+  --inet-shell-surface-hover: #{$hover};
+  --inet-ui-neutral-hover-bg-color: var(--inet-shell-surface-hover);
+  --inet-hover-primary-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-hover-secondary-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-table-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-list-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-secondary-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-default-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-light-hover-bg-color: var(--inet-shell-surface-hover);
+
+  // the Bootstrap bridge, also declared on :root (_bootstrap-override.scss)
+  --bs-dropdown-link-hover-bg: var(--inet-hover-primary-bg-color);
+  --bs-list-group-action-hover-bg: var(--inet-ui-neutral-hover-bg-color);
+}
+
+// the light shell's hover on each surface
+$shell-surface-hovers: (
+  canvas: $shell-hover-default,
+  default: $shell-hover-default,
+  subtle: $shell-hover-subtle,
+);
+
+// The surface containers (D7): content-free shell containers, never dashboard content or an ancestor
+// of it, each with the token that paints it and the surface that token is in each shell. A container
+// whose surface is the :root one (white, or the dark default) needs no entry, unless the shells differ.
+// Menus attached to body are outside every container and take the :root hover.
+$surface-hover-containers: (
+  ".repository-tree-pane, .tab-body .data-tree-pane": (light: "--inet-portal-side-panel-bg-color" subtle, dark: "--inet-portal-side-panel-bg-color" subtle),
+  ".portal-task-list-items .data-tree-pane": (light: "--inet-shell-surface-subtle" subtle, dark: "--inet-shell-surface-subtle" subtle),
+  ".data-model-left-top-pane": (light: "--inet-portal-side-panel-bg-color" subtle, dark: "--inet-portal-side-panel-bg-color" subtle),
+  "logical-model-property-pane .data-model-left-top-pane": (light: "--inet-shell-surface-subtle" subtle, dark: "--inet-shell-surface-subtle" subtle),
+  ".viewer-toolbar": (light: "--inet-vs-toolbar-bg-color" subtle, dark: "--inet-vs-toolbar-bg-color" subtle),
+  ".data-model-header-pane, .physical-graph-toolbar, .ws-composite-table-breadcrumb-container, .slide-out-toggle-container, .chart-style-container": (light: "--inet-toolbar-bg-color" subtle, dark: "--inet-toolbar-bg-color" subtle),
+  ".ws-table-bar": (light: "--inet-toolbar-bg-color" subtle, dark: "--inet-shell-surface-default" default),
+  ".composer-bottom-tabs": (light: "--inet-nav-tabs-bg-color" subtle, dark: "--inet-nav-tabs-bg-color" subtle),
+  ".binding-editor .left-container:not(.modal *), .object-wizard-pane .left-container:not(.modal *)": (light: "--inet-composer-side-panel-bg-color" subtle, dark: "--inet-composer-side-panel-bg-color" subtle),
+);
+
+@each $container, $container-surfaces in $surface-hover-containers {
+  $container-light: map.get($container-surfaces, light);
+
+  // the hover, off custom-themed pages (O3)
+  :where(:root:not(.custom-theme)) {
+    #{$container} {
+      &#{$outside-content} {
+        @include inet-surface-hover-tokens(map.get($shell-surface-hovers, list.nth($container-light, 2)));
+      }
+    }
+  }
+
+  // a filled button's ring is set off from the surface behind it, on every page (D2); a theme's own
+  // surface color reaches it through the token
+  #{$container} {
+    &#{$outside-content} {
+      --inet-focus-ring-gap-color: var(#{list.nth($container-light, 1)});
+    }
+  }
 }
 
 // Adaptive label colour: only where relative color syntax is supported (Chrome 119+, Safari 16.4+,

@@ -16,9 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 @use 'sass:color';
+@use 'sass:list';
+@use 'sass:map';
 
-// $dashboard-content, $content-popup and $outside-content (the content boundary) live in
-// _variables.scss, so light-shell rules can stay out of dashboard content too.
+// $dashboard-content, $content-popup, $annotation-tooltip and $outside-content (the content
+// boundary), and $viz-scopes, live in _variables.scss, so light-shell rules can stay out of
+// dashboard content too.
 
 // The popups the shell resets to light: a dark-marked calendar is left out, it follows its mark (see
 // the .dropdown-datepicker.viz-dark block at the end of this file). Same specificity as the others.
@@ -42,9 +45,13 @@ $content-popup-light: ".vs-combo-box__list, .dropdown-datepicker:not(.viz-dark)"
 $dark-surface-canvas: #1C1B1F;
 $dark-surface-default: #252428;
 $dark-surface-subtle: #2D2B30;
-$dark-surface-hover: #37353B;
+// the hover, one fixed grey per surface (D7): on the default surface (1.26:1), the canvas (1.21:1)
+// and the subtle surface (1.27:1)
+$dark-surface-hover: #36343A;
+$dark-surface-hover-canvas: #2C2A30;
+$dark-surface-hover-subtle: #3E3B42;
 $dark-surface-raised: #3A383D;
-$dark-selected-bg: #45424B;
+$dark-selected-bg: #4A4750;
 $dark-border-default: #49454F;
 $dark-border-strong: #5E5A66;
 $dark-chrome: #141316;
@@ -195,8 +202,9 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-overlay-subtle-bg-color: rgba(255, 255, 255, 0.03);
   --inet-overlay-hover-bg-color: rgba(255, 255, 255, 0.08);
   --inet-collapse-handle-hover-bg-color: var(--inet-overlay-hover-bg-color);
-  // focus indicators need 3:1 against the dark surfaces they sit on
-  --inet-focus-ring-color: rgba(217, 122, 26, 0.75);
+  // focus indicators need 3:1 against the dark surfaces they sit on: the solid link orange, 7.62:1 on
+  // the canvas, and the one orange the hover borders use (D3)
+  --inet-focus-ring-color: #{$dark-link};
 
   // Dark-only roles. Components write var(--inet-dark-<role>, <light literal>), so the light
   // shell keeps its literal and only a dark shell supplies a value. See $dark-only-tokens.
@@ -556,10 +564,44 @@ $dark-ws-row-hover-bg: #302D27;
     background-color: rgba(255, 255, 255, 0.08);
   }
 
-  // Bootstrap bakes the light focus ring into .nav-link (navbar, tree toolbars). Dashboard content
-  // keeps the light ring.
+  // Bootstrap bakes the light focus ring into .nav-link (tree toolbars, dialog tabs). Dashboard
+  // content keeps the light ring. The portal navbar's tiles draw their own inset ring instead
+  // (_themeable.scss), in this shell's ring colour.
   .nav-link:focus-visible#{$outside-content} {
     box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+  }
+}
+
+// the dark shell's hover on each surface (D7)
+$dark-surface-hovers: (
+  canvas: $dark-surface-hover-canvas,
+  default: $dark-surface-hover,
+  subtle: $dark-surface-hover-subtle,
+);
+
+// inet-surface-hover-tokens (_variables.scss) plus the dark shell's own readers of the hover token,
+// declared on :root.shell-dark above
+@mixin inet-dark-surface-hover-tokens($hover) {
+  @include inet-surface-hover-tokens($hover);
+  --inet-dark-surface-hover-color: var(--inet-shell-surface-hover);
+  --inet-hover-bg-color: var(--inet-shell-surface-hover);
+  --ck-color-button-default-hover-background: var(--inet-shell-surface-hover);
+  --ck-color-button-on-hover-background: var(--inet-shell-surface-hover);
+  --ck-color-list-button-hover-background: var(--inet-shell-surface-hover);
+}
+
+// The surface containers ($surface-hover-containers in _variables.scss) with their dark surface's
+// hover and ring gap. Themed pages are never dark (ShellDarkMode.isDark), so no custom-theme gate.
+@each $container, $container-surfaces in $surface-hover-containers {
+  $container-dark: map.get($container-surfaces, dark);
+
+  :root.shell-dark {
+    #{$container} {
+      &#{$outside-content} {
+        @include inet-dark-surface-hover-tokens(map.get($dark-surface-hovers, list.nth($container-dark, 2)));
+        --inet-focus-ring-gap-color: var(#{list.nth($container-dark, 1)});
+      }
+    }
   }
 }
 
@@ -582,13 +624,6 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
   on-primary-text-color, danger-text-color, warning-soft-color, info-soft-color, check-halo-color,
   selected-tint-color, neutral-chip-color, neutral-chip-border-color,
   disabled-primary-bg, disabled-primary-text, disabled-selected-color, disabled-selected-mark-color;
-
-// The hidden-annotation tooltip and the visible annotation's overflow tooltip. Other tooltips are
-// body-attached shell chrome and go dark, but these show the annotation's own rich text on the
-// annotation's own fill (white by default; Bug #81352), whose text colors were picked against it
-// (a new annotation's text is written inline black). So they compute exactly as in a light shell,
-// with the light tokens below, in either shell and for any assembly mark.
-$annotation-tooltip: ".hidden__annotation-tooltip, .vs-annotation__tooltip";
 
 :root.shell-dark :is(#{$dashboard-content}, #{$annotation-tooltip}, #{$content-popup-light}) {
   color-scheme: light;
@@ -651,7 +686,7 @@ $annotation-tooltip: ".hidden__annotation-tooltip, .vs-annotation__tooltip";
 // resolves them dark. Content re-derives them from its restored light tokens, unless a viz scope on
 // the content root or any ancestor already declares its own (.viz-shell / .viz-shell-dark on body
 // for the org, .viz-modern / .viz-dark on a marked assembly such as the chart editor preview).
-$viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-theme=\"v2\"]";
+// $viz-scopes lives in _variables.scss.
 :root.shell-dark :is(#{$dashboard-content}, #{$content-popup-light}):not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *) {
   @include inet-viz-legacy-state-tokens;
 }

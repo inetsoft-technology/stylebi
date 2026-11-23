@@ -56,6 +56,18 @@
   --ln-nav-h: 56px;
 }
 
+/* PR7 shell state colours for pages without a custom theme (O3): a themed login page keeps the
+   fallbacks above (.28 ring, #ECE9E2 hover, #6A685F muted) unless its theme sets the --inet token.
+   The four pages that load login.css (login, restricted, signup, signupDetail) load global.css
+   first; it defines the tokens these read, its :root.shell-dark block included, so dark needs
+   nothing here, and the literals in this block are a fallback for when global.css is missing. (The
+   error page loads error.css at runtime, not this file.) */
+:root:not(.custom-theme) {
+  --ln-text-muted: var(--inet-text-muted-color, #5F5E56);
+  --ln-hover: var(--inet-ui-neutral-hover-bg-color, #E9E5DD);
+  --ln-focus: var(--inet-focus-ring-color, #B4610F);
+}
+
 /* Label colour on the primary fill (Bug #81490): dark by default, or, where relative color syntax is
    supported, picked from the fill so a dark theme primary gets a light label even when the portal
    stylesheet that defines --inet-button-primary-text-color is not loaded. */
@@ -381,12 +393,16 @@ body {
   border-color: var(--ln-primary-hover);
 }
 
+/* The filled buttons leave a 2px gap, in the surface behind them, between the fill and the ring, as
+   the portal's filled buttons do: flush, the ring is too close to the orange fill to read. The gap
+   is the card by default; a container on another surface sets --ln-focus-gap (the active-session
+   dialog below). Behaviour, so a themed page gets it too. */
 #loginButton.btn-primary:focus-visible,
 .login-left .btn-primary:focus-visible,
 .restricted-action-btn--primary:focus-visible,
 #activeSession .modal-footer .btn-primary:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ln-focus);
+  box-shadow: 0 0 0 2px var(--ln-focus-gap, var(--ln-card)), 0 0 0 4px var(--ln-focus);
 }
 
 /* the restricted page's primary action is a link drawn as a button: without this the global
@@ -496,6 +512,7 @@ pre.loginBanner {
 }
 
 #activeSession .modal-content {
+  --ln-focus-gap: var(--ln-dialog-bg);
   background: var(--ln-dialog-bg);
   color: var(--ln-text);
   border: 1px solid var(--ln-border);

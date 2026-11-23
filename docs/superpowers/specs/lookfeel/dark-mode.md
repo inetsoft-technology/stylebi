@@ -142,7 +142,7 @@ How it works (Feature #80673):
   not cover, from `visualization-palette-swatches.html`: canvas `#1C1B1F`, surface `#252428`, subtle
   `#2D2B30`, border `#49454F`. Component literals take dark-only roles,
   `var(--inet-dark-<role>, <light literal>)`, which only the dark block defines. The values are
-  pending design sign-off (palette follow-up).
+  final (D4, PR7).
 - **Dashboard content keeps the light look:** inside the canvas (`$dashboard-content`; the boundary
   variables `$dashboard-content`, `$content-popup` and `$outside-content` are in `_variables.scss`,
   because light-and-dark shell rules use them too) the light tokens are restored and the dark-only
@@ -183,6 +183,19 @@ light-bleed sweep over the portal, content parity, and a pixel diff of the light
 build without the feature; the results are summarized in the descriptions of #8420 and the hover
 consistency PR. The composer's own surfaces (phase 2) have not started: the composer already gets
 the class, and the dialogs and widgets it shares with the portal are converted.
+
+**PR7 palette** (Feature #80673; decisions and reasoning in
+[2026-11-20-shell-palette-pr7-decisions.md](2026-11-20-shell-palette-pr7-decisions.md)):
+
+- D1: danger button hover, focus and press is a white label on `#B03A3A` (shell only).
+- D2: light focus ring is solid `#B4610F`, keyboard only (`:focus-visible`), with a 2px gap on filled buttons.
+- D3: dark focus ring is solid `#F0A75A`.
+- D4: the dark neutrals are final, no change.
+- D5: the Text layout designer Text chip is unchanged.
+- D6: selected fill is `#DFD9CC` light and `#4A4750` dark.
+- D7: hover is one fixed grey per surface, with the beige midpoint `#E8E4DB`.
+- O1: grey text on selected rows is `#5F5E56` in the light shell; dark is accepted and tracked (Bug #81984).
+- O3: custom-themed pages keep today's colours, including D1.
 
 ### Rollout
 
