@@ -1391,7 +1391,14 @@ public class ViewsheetFormatService {
          column = pickAxisRef(tool, r.assembly(), axis, refs).getFullName();
       }
       else {
-         checkAxisSide(tool, axis, column, axisRefs(chart, axis));
+         ChartRef[] refs = axisRefs(chart, axis);
+
+         if(refs == null || refs.length == 0) {
+            refs = ChartRegionResolver.engineAxisRefs(chart.getVSChartInfo(), axis);
+         }
+
+         requireFieldOnAxis(tool, r.assembly(), axis, column, refs);
+         checkAxisSide(tool, axis, column, refs);
       }
 
       return new ChartRegion(painterRegion, column, index);
@@ -1452,6 +1459,30 @@ public class ViewsheetFormatService {
          tool + ": chart '" + assembly + "' renders no " + axis + " axis" +
          (secondary ? " (no measure is on the secondary axis)" : " (every measure is on the " +
           "secondary axis; use axis '" + axis + "2')") + ".");
+   }
+
+   /**
+    * Bug #82138: a field that is not on the named axis was stored under that name and never drawn,
+    * while the read-back by the same name reported it applied. Refuse it, naming the axis fields.
+    */
+   private static void requireFieldOnAxis(String tool, String assembly, String axis, String field,
+                                          ChartRef[] refs)
+   {
+      if(refs == null) {
+         return;
+      }
+
+      if(Arrays.stream(refs).anyMatch(ref -> field.equals(ref.getFullName()))) {
+         return;
+      }
+
+      String fields = Arrays.stream(refs).map(ChartRef::getFullName)
+         .collect(java.util.stream.Collectors.joining(", "));
+      throw new IllegalArgumentException(
+         tool + ": field '" + field + "' is not on the " + axis + " axis of chart '" + assembly +
+         "'" + (fields.isEmpty() ? "" : " (its fields: " + fields + ")") +
+         ", so it has no " + axis + " axis labels to format. Name one of the axis fields, or " +
+         "omit 'field' for the first one.");
    }
 
    private static void checkAxisSide(String tool, String axis, String field, ChartRef[] refs)
