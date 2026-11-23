@@ -95,6 +95,28 @@ class MapHelperParentRefTest {
       assertEquals(Set.of("London", "Xyzzyville"), unmatched(data, "PLACE_NAME", info));
    }
 
+   /**
+    * City, State and Country are all bound, State listed before Country. The renderer
+    * (MapGenerator.getMappedDataSet) uses the lowest layer bound field, Country, as the
+    * parent. The State values do not pair with the cities but the Country values do,
+    * so only the genuinely unknown city is unmatched. Picking the first lower-layer
+    * bound field (State) would list every city as unmatched.
+    */
+   @Test
+   void lowestLayerBoundFieldIsParent() {
+      DataSet data = new DefaultDataSet(new Object[][] {
+         { "PLACE_NAME", "STATE_NAME", "COUNTRY" },
+         { "Atlanta", "England", "USA" },
+         { "Chicago", "England", "USA" },
+         { "Xyzzyville", "England", "USA" },
+      });
+      VSMapInfo info = createMapInfo(
+         new String[] { "PLACE_NAME", "STATE_NAME", "COUNTRY" },
+         new int[] { CITY, STATE, COUNTRY }, new boolean[] { true, true, true });
+
+      assertEquals(Set.of("Xyzzyville"), unmatched(data, "PLACE_NAME", info));
+   }
+
    private static Set<String> unmatched(DataSet data, String col, VSMapInfo info) {
       FeatureMapping mapping = new FeatureMapping();
       mapping.setType("U.S.");
