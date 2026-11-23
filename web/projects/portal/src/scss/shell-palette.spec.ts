@@ -293,9 +293,9 @@ describe("dark-marked calendar in the light shell", () => {
    };
 
    it("is gated off on themed pages and in the dark shell, where the calendar follows the shell", () => {
-      expect(calRule()).toContain(CAL_RULE);
-      // the selector in the source, ahead of the pin rule's brace, is exactly the gated one
-      const selectors = [...variables().matchAll(/^(:where\(:root[^\r\n{]*\.dropdown-datepicker\.viz-dark)\s*\{/gm)]
+      // every rule in _variables.scss whose selector ends in the dark calendar's class, whatever its
+      // gate: exactly one, and its selector is exactly the gated one
+      const selectors = [...variables().matchAll(/^([^\r\n{]*\.dropdown-datepicker\.viz-dark)\s*\{/gm)]
          .map(m => m[1]);
       expect(selectors).toEqual([CAL_RULE]);
    });
