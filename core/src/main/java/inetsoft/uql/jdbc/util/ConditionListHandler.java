@@ -26,6 +26,8 @@ import inetsoft.util.Queue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Time;
 import java.sql.Types;
 import java.util.*;
@@ -475,6 +477,18 @@ public class ConditionListHandler {
          break;
       default: // EQUAL_TO
          Object condValue = cond.getValue(0);
+
+         // a number that is not exactly an int (out of the int range, or fractional) can
+         // never equal an INTEGER column value. It can't be bound as is (the database may
+         // reject it, e.g. Derby 22003), nor narrowed (4294967297 would become 1 and match
+         // the wrong row, bug #82099), nor bound as null (a condition with a null parameter
+         // is dropped). Compare the column with itself instead: "col <> col" matches no row,
+         // and its negation matches every non-null row, like "<>" with any other value.
+         if(isInexactIntegerValue(field, condValue)) {
+            condnode = new XBinaryCondition(field, field, "<>");
+            break;
+         }
+
          condValue = fixConditionValue(field, condValue);
          condnode = new XBinaryCondition(field, getExpression(cond, condValue, vars, true), "=");
          break;
@@ -592,12 +606,70 @@ public class ConditionListHandler {
          return condValue;
       }
 
+      // don't narrow a number with Number.intValue(), which truncates it to its low 32 bits
+      // (4294967297 -> 1). An inexact number is handled by the caller (bug #82099).
+      if(sql_type == Types.INTEGER && condValue instanceof Number) {
+         Integer ival = toExactInteger((Number) condValue);
+         return ival != null ? ival : condValue;
+      }
+
       if(sql_type == Types.BOOLEAN || sql_type == Types.VARCHAR || sql_type == Types.INTEGER) {
          String sqlType = SQLTypes.getSQLTypes(null).convertToXType(sql_type);
          return CoreTool.getData(sqlType, condValue);
       }
 
       return condValue;
+   }
+
+   /**
+    * Check if the condition value is a number that no value of the INTEGER field can equal.
+    */
+   private static boolean isInexactIntegerValue(XExpression field, Object condValue) {
+      return field != null && field.isSqlTypeSet() && field.getSqlType() == Types.INTEGER &&
+         condValue instanceof Number && toExactInteger((Number) condValue) == null;
+   }
+
+   /**
+    * Convert a number to an Integer only if the conversion is exact.
+    *
+    * @return the Integer with the same numeric value, or null if the number is fractional,
+    *         not finite or outside the int range.
+    */
+   private static Integer toExactInteger(Number value) {
+      if(value instanceof Integer) {
+         return (Integer) value;
+      }
+
+      if(value instanceof Short || value instanceof Byte) {
+         return value.intValue();
+      }
+
+      try {
+         if(value instanceof Long) {
+            return Math.toIntExact(value.longValue());
+         }
+
+         if(value instanceof BigInteger) {
+            return ((BigInteger) value).intValueExact();
+         }
+
+         if(value instanceof BigDecimal) {
+            return ((BigDecimal) value).intValueExact();
+         }
+
+         double dval = value.doubleValue();
+
+         if(Double.isFinite(dval) && dval == Math.rint(dval) &&
+            dval >= Integer.MIN_VALUE && dval <= Integer.MAX_VALUE)
+         {
+            return (int) dval;
+         }
+      }
+      catch(ArithmeticException ignore) {
+         // fractional or out of range, no exact int
+      }
+
+      return null;
    }
 
    /**

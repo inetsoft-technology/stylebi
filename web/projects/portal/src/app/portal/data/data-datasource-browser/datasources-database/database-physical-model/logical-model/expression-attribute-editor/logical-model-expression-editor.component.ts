@@ -46,8 +46,9 @@ export class LogicalModelExpressionEditor implements OnInit {
    @Input() existNames: string[] = [];
    @Input() logicalModelName: string;
    @Input() logicalModelParent: string;
+   // The logical model's form, so the name validation reaches its Save button.
+   @Input() form: UntypedFormGroup = new UntypedFormGroup({});
    _attribute: AttributeModel;
-   form: UntypedFormGroup = new UntypedFormGroup({});
    invalidSQL: boolean = false;
    columnTreeRoot: TreeNodeModel;
    operatorTreeRoot: TreeNodeModel;

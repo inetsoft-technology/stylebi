@@ -47,6 +47,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * DataSourceService provides methods for portal data model.
@@ -797,21 +798,33 @@ public class DataSourceService {
    }
 
    /**
-    * Remove the DefaultMetaDataProvider from cache.
+    * Remove every cached DefaultMetaDataProvider of the data source, matched by its full name.
     * @param ds data source.
-    * @return
     * @throws Exception
     */
-   public DefaultMetaDataProvider removeDefaultMetaDataProviderCache(XDataSource ds)
-      throws Exception
-   {
-      for(int i = 0; i < metaDataProviders.size(); i++) {
-         if(metaDataProviders.get(i) != null && Tool.equals(ds, metaDataProviders.get(i).getDataSource())) {
-            return metaDataProviders.remove(i);
-         }
+   public void removeDefaultMetaDataProviderCache(XDataSource ds) throws Exception {
+      if(ds != null) {
+         removeDefaultMetaDataProviderCache(ds.getFullName());
+      }
+   }
+
+   /**
+    * Remove every cached DefaultMetaDataProvider whose data source has the given full name.
+    * Matching by name, not by connection settings, so a data source on the same connection keeps
+    * its provider, and every provider of this data source goes, including one created before
+    * its connection settings were edited.
+    *
+    * @param fullName the data source full name.
+    */
+   public void removeDefaultMetaDataProviderCache(String fullName) {
+      if(fullName == null) {
+         return;
       }
 
-      return null;
+      synchronized(providerLock) {
+         metaDataProviders.removeIf(p -> p != null && p.getDataSource() != null &&
+            fullName.equals(p.getDataSource().getFullName()));
+      }
    }
 
    /**
@@ -833,42 +846,29 @@ public class DataSourceService {
    }
 
    /**
-    * Clear all cached partition metadata for the specified datasource.
-    * This should be called when a datasource's metadata needs to be completely refreshed.
-    *
-    * @param dsName the datasource name.
-    */
-   public void clearAllPartitionMetaDataCache(String dsName) {
-      for(DefaultMetaDataProvider provider : metaDataProviders) {
-         if(provider != null && provider.getDataSource() != null &&
-            Tool.equals(dsName, provider.getDataSource().getFullName()))
-         {
-            provider.clearAllPartitionMetaDataCache();
-         }
-      }
-   }
-
-   /**
     * Reuse DefaultMetaDataProvider for same datasource to share the meta data.
     * @throws Exception
     */
    public DefaultMetaDataProvider getDefaultMetaDataProvider(XDataSource ds, XDataModel dm)
       throws Exception
    {
-      DefaultMetaDataProvider meta = metaDataProviders.stream()
-         .filter(p -> Tool.equals(ds, p.getDataSource()) && ds != null &&
-            Tool.equals(ds.getFullName(), p.getDataSource().getFullName()))
-         .findFirst().orElse(null);
+      // find-or-create atomically, so concurrent first reads don't append duplicates
+      synchronized(providerLock) {
+         DefaultMetaDataProvider meta = metaDataProviders.stream()
+            .filter(p -> Tool.equals(ds, p.getDataSource()) && ds != null &&
+               Tool.equals(ds.getFullName(), p.getDataSource().getFullName()))
+            .findFirst().orElse(null);
 
-      if(meta == null) {
-         meta = new DefaultMetaDataProvider(repository);
-         meta.setDataSource(ds);
-         meta.setDataModel(dm);
-         meta.setPortalData(true);
-         metaDataProviders.add(meta);
+         if(meta == null) {
+            meta = new DefaultMetaDataProvider(repository);
+            meta.setDataSource(ds);
+            meta.setDataModel(dm);
+            meta.setPortalData(true);
+            metaDataProviders.add(meta);
+         }
+
+         return meta;
       }
-
-      return meta;
    }
 
    /**
@@ -918,7 +918,9 @@ public class DataSourceService {
       return SQLHelper.getSQLHelper(dx, additional, null);
    }
 
-   private List<DefaultMetaDataProvider> metaDataProviders = new ArrayList<>();
+   // also changed from cluster message threads, so iteration must not throw CME
+   private final List<DefaultMetaDataProvider> metaDataProviders = new CopyOnWriteArrayList<>();
+   private final Object providerLock = new Object();
    private final AssetRepository assetRepository;
    private final SecurityEngine securityEngine;
    private final XRepository repository;

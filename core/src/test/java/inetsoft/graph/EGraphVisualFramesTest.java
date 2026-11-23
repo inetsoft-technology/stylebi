@@ -19,6 +19,7 @@ package inetsoft.graph;
 
 import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.data.*;
+import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.element.PointElement;
 import inetsoft.report.composition.graph.GraphGenerator;
 import inetsoft.report.internal.binding.BaseField;
@@ -27,6 +28,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticTextureFrameWrapper;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -123,6 +125,203 @@ class EGraphVisualFramesTest {
                     "shared color frame must not be its own legend");
          assertSame(frames[0], color.getLegendFrame(),
                     "shared color frame should delegate to the shape legend");
+      }
+   }
+
+   // ---------------------------------------------------------------- merging
+
+   private static CategoricalColorFrame cat(String field, Object... vals) {
+      CategoricalColorFrame frame = new CategoricalColorFrame(field);
+      frame.init(vals);
+      return frame;
+   }
+
+   private static PointElement element() {
+      PointElement elem = new PointElement();
+      elem.addDim("State");
+      elem.addVar("Total");
+      return elem;
+   }
+
+   private static EGraph graphOf(GraphElement... elems) {
+      EGraph graph = new EGraph();
+
+      for(GraphElement elem : elems) {
+         graph.addElement(elem);
+      }
+
+      return graph;
+   }
+
+   private static PointElement withColor(ColorFrame color) {
+      PointElement elem = element();
+      elem.setColorFrame(color);
+      return elem;
+   }
+
+   @Test
+   void equalColorFramesOfTwoElementsMergeIntoTheFirst() {
+      CategoricalColorFrame first = cat("State", "CA", "NY");
+      CategoricalColorFrame second = cat("State", "CA", "NY");
+      VisualFrame[] frames = graphOf(withColor(first), withColor(second)).getVisualFrames();
+
+      assertEquals(1, frames.length, describe(frames));
+      assertSame(first, frames[0]);
+      assertSame(first, second.getLegendFrame());
+      assertNull(first.getLegendFrame());
+   }
+
+   @Test
+   void framesOfDifferentFieldsAreOrderedByTitleWhicheverElementComesFirst() {
+      for(boolean regionFirst : new boolean[] { false, true }) {
+         CategoricalColorFrame state = cat("State", "CA", "NY");
+         CategoricalColorFrame region = cat("Region", "East", "West");
+         VisualFrame[] frames = (regionFirst ? graphOf(withColor(region), withColor(state))
+            : graphOf(withColor(state), withColor(region))).getVisualFrames();
+
+         assertEquals(2, frames.length, describe(frames));
+         assertSame(region, frames[0], "regionFirst=" + regionFirst);
+         assertSame(state, frames[1], "regionFirst=" + regionFirst);
+      }
+   }
+
+   @Test
+   void frameTypesAreOrderedColorSizeShapeTextureLine() {
+      PointElement elem = element();
+      CategoricalColorFrame color = cat("c", "A", "B");
+      CategoricalSizeFrame size = new CategoricalSizeFrame("s");
+      size.init("A", "B");
+      CategoricalShapeFrame shape = new CategoricalShapeFrame("h");
+      shape.init("A", "B");
+      CategoricalTextureFrame texture = new CategoricalTextureFrame("t");
+      texture.init("A", "B");
+      CategoricalLineFrame line = new CategoricalLineFrame("l");
+      line.init("A", "B");
+
+      // set in reverse order
+      elem.setLineFrame(line);
+      elem.setTextureFrame(texture);
+      elem.setShapeFrame(shape);
+      elem.setSizeFrame(size);
+      elem.setColorFrame(color);
+      VisualFrame[] frames = graphOf(elem).getVisualFrames();
+
+      assertArrayEquals(new VisualFrame[] { color, size, shape, texture, line }, frames,
+                        describe(frames));
+   }
+
+   @Test
+   void unequalFramesWithTheSameTitleFollowTheElementOrder() {
+      for(boolean swap : new boolean[] { false, true }) {
+         CategoricalColorFrame a = cat("a", "A", "B");
+         CategoricalColorFrame b = cat("b", "A", "B");
+         a.getLegendSpec().setTitle("T");
+         b.getLegendSpec().setTitle("T");
+         VisualFrame[] frames = (swap ? graphOf(withColor(b), withColor(a))
+            : graphOf(withColor(a), withColor(b))).getVisualFrames();
+
+         assertEquals(2, frames.length, describe(frames));
+         assertSame(swap ? b : a, frames[0], "swap=" + swap);
+         assertSame(swap ? a : b, frames[1], "swap=" + swap);
+      }
+   }
+
+   @Test
+   void hiddenFramesAreLeftOut() {
+      CategoricalColorFrame color = cat("c", "A", "B");
+      CategoricalShapeFrame shape = new CategoricalShapeFrame("h");
+      shape.init("A", "B");
+      PointElement elem = withColor(color);
+      elem.setShapeFrame(shape);
+
+      color.getLegendSpec().setVisible(false);
+      VisualFrame[] frames = graphOf(elem).getVisualFrames();
+      assertEquals(1, frames.length, describe(frames));
+      assertSame(shape, frames[0]);
+
+      shape.getLegendSpec().setVisible(false);
+      assertEquals(0, graphOf(elem).getVisualFrames().length);
+   }
+
+   @Test
+   void singleValueFrameNeedsAFieldToHaveALegend() {
+      assertEquals(0, graphOf(withColor(cat(null, "A"))).getVisualFrames().length);
+      assertEquals(1, graphOf(withColor(cat("State", "A"))).getVisualFrames().length);
+   }
+
+   @Test
+   void staticAndTextFramesHaveNoLegend() {
+      PointElement elem = element();
+      CategoricalShapeFrame shape = new CategoricalShapeFrame("h");
+      shape.init("A", "B");
+      elem.setColorFrame(new StaticColorFrame());
+      elem.setTextFrame(new DefaultTextFrame());
+      elem.setShapeFrame(shape);
+      VisualFrame[] frames = graphOf(elem).getVisualFrames();
+
+      assertEquals(1, frames.length, describe(frames));
+      assertSame(shape, frames[0]);
+   }
+
+   @Test
+   void frameSharedByTwoElementsHasOneLegendAndNoLinkToItself() {
+      CategoricalShapeFrame shape = new CategoricalShapeFrame("h");
+      shape.init("A", "B");
+      PointElement first = element();
+      PointElement second = element();
+      first.setShapeFrame(shape);
+      second.setShapeFrame(shape);
+      VisualFrame[] frames = graphOf(first, second).getVisualFrames();
+
+      assertEquals(1, frames.length, describe(frames));
+      assertSame(shape, frames[0]);
+      assertNull(shape.getLegendFrame());
+   }
+
+   @Test
+   void repeatedCallsGiveTheSameFramesAndLinks() {
+      CategoricalColorFrame first = cat("State", "CA", "NY");
+      CategoricalColorFrame second = cat("State", "CA", "NY");
+      EGraph graph = graphOf(withColor(first), withColor(second));
+      VisualFrame[] once = graph.getVisualFrames();
+      VisualFrame[] twice = graph.getVisualFrames();
+
+      assertEquals(once.length, twice.length);
+
+      for(int i = 0; i < once.length; i++) {
+         assertSame(once[i], twice[i]);
+      }
+
+      assertSame(first, second.getLegendFrame());
+      assertNull(first.getLegendFrame());
+   }
+
+   @Test
+   void linkToAMergedFrameIsDroppedWhenTheFramesStopBeingEqual() {
+      CategoricalColorFrame first = cat("State", "CA", "NY");
+      CategoricalColorFrame second = cat("State", "CA", "NY");
+      EGraph graph = graphOf(withColor(first), withColor(second));
+      assertEquals(1, graph.getVisualFrames().length);
+      assertSame(first, second.getLegendFrame());
+
+      second.setField("Region");
+      VisualFrame[] frames = graph.getVisualFrames();
+
+      assertEquals(2, frames.length, describe(frames));
+      assertNull(second.getLegendFrame());
+   }
+
+   @Test
+   void stackedMeasuresFrameAndItsEqualDefaultFrameGiveOneLegendInEitherElementOrder() {
+      for(boolean stackedFirst : new boolean[] { true, false }) {
+         CategoricalColorFrame deflt = cat("S", "A", "B");
+         PointElement stackedElem = withColor(new StackedMeasuresColorFrame(deflt));
+         PointElement plainElem = withColor(deflt);
+         VisualFrame[] frames = (stackedFirst ? graphOf(stackedElem, plainElem)
+            : graphOf(plainElem, stackedElem)).getVisualFrames();
+
+         assertEquals(1, frames.length, "stackedFirst=" + stackedFirst + " " + describe(frames));
+         assertInstanceOf(StackedMeasuresColorFrame.class, frames[0]);
       }
    }
 

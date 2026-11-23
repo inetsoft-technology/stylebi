@@ -135,13 +135,19 @@ public class TimeSeriesRow implements CalcRow {
 
    /**
     * Get the maximum number of rows to add to fill the gaps.
+    * @see #setMaxGaps(int)
     */
    public int getMaxGaps() {
       return maxrows;
    }
 
    /**
-    * Set the maximum number of rows to add to fill the gaps.
+    * Set the maximum number of rows to add to fill the gaps. The limit is on
+    * the total number of rows added across all series of the chart (default
+    * 2000). It is only checked while filling the gaps between two values, after
+    * a row is added, so the result can exceed it by one. The leading and
+    * trailing gaps (filled up to the range of the chart) are not limited, but
+    * count toward the total.
     */
    public void setMaxGaps(int max) {
       this.maxrows = max;

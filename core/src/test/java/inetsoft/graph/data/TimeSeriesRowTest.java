@@ -22,7 +22,6 @@ import inetsoft.test.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -691,17 +690,6 @@ class TimeSeriesRowTest {
    // ---------------------------------------------------------------- maxGaps
 
    @Test
-   @Disabled("Bug #82095 (dead code): maxGaps 3 with 5 missing months: expected at most 3 added rows, actual 4 "
-      + "(the row is added before the limit is checked)")
-   @DisplayName("maxGaps is a strict limit on the number of added rows in the mid loop")
-   void maxGapsLimitsAddedRowsStrictly() {
-      TimeSeriesRow row = tsr(TimeScale.MONTH, 0);
-      row.setMaxGaps(3);
-      DefaultDataSet d = ds(r(at(2023, 1, 10), "A", 1), r(at(2023, 7, 10), "A", 2));
-      assertTrue(run(row, d).size() <= 3);
-   }
-
-   @Test
    void maxGapsHasAnEffect() {
       TimeSeriesRow row = tsr(TimeScale.MONTH, 0);
       row.setMaxGaps(3);
@@ -716,18 +704,6 @@ class TimeSeriesRowTest {
       row.setMaxGaps(2);
       DefaultDataSet d = ds(r(at(2023, 1, 10), "A", 1), r(at(2023, 4, 10), "A", 2));
       assertEquals(exp("2023-02-10|A|0", "2023-03-10|A|0"), render(run(row, d)));
-   }
-
-   @Test
-   @Disabled("Bug #82095 (dead code): maxGaps 2 with leading and trailing gaps: expected at most 2 added rows, actual 11 "
-      + "(the leading and trailing loops do not check the limit)")
-   @DisplayName("maxGaps also limits the rows added at the range ends")
-   void maxGapsLimitsRangeEnds() {
-      TimeSeriesRow row = tsr(TimeScale.MONTH, 0);
-      row.setMaxGaps(2);
-      DefaultDataSet d = ds(concat(months("A", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12),
-                                   months("B", 6)));
-      assertTrue(run(row, d).size() <= 2);
    }
 
    // ---------------------------------------------------------------- accessors

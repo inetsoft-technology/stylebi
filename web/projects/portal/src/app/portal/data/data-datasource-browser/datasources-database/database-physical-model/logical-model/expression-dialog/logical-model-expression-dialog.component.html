@@ -32,6 +32,11 @@
               _#(data.logicalmodel.expressionNameRequired)
             </span>
           }
+          @if (nameControl.hasError('illegalStr')) {
+            <span class="invalid-feedback">
+              _#(data.logicalmodel.attributeNamePeriod)
+            </span>
+          }
         </div>
         <div class="ps-0 pe-1 col-6 form-floating">
           <select class="form-control" formControlName="parent" [class.is-invalid]="!parentControl.valid">
