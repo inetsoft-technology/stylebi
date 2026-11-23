@@ -31,6 +31,13 @@ import java.util.concurrent.*;
  */
 public class RestQuotaManager {
    /**
+    * System property that turns off the requests-per-second limit when set to {@code true}. For
+    * tests that send many requests to a local fake server, where there is no service quota to
+    * protect. The maximum-connections limit stays in force.
+    */
+   public static final String DISABLE_RATE_LIMIT_PROPERTY = "inetsoft.rest.quota.rateLimit.disabled";
+
+   /**
     * Executes a method with a quota.
     *
     * @param dataSource the data source defining the quota.
@@ -97,7 +104,8 @@ public class RestQuotaManager {
 
       if(dataSource instanceof EndpointJsonDataSource) {
          EndpointJsonDataSource ds = (EndpointJsonDataSource) dataSource;
-         requestsPerSecond = ds.getRequestsPerSecond();
+         requestsPerSecond = Boolean.getBoolean(DISABLE_RATE_LIMIT_PROPERTY) ?
+            -1D : ds.getRequestsPerSecond();
          maxConnections = ds.getMaxConnections();
       }
       else {

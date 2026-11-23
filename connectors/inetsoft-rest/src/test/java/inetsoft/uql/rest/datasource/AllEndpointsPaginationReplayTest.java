@@ -20,6 +20,7 @@ package inetsoft.uql.rest.datasource;
 import inetsoft.test.*;
 import inetsoft.uql.rest.AbstractRestDataSource;
 import inetsoft.uql.rest.json.EndpointJsonQuery;
+import inetsoft.uql.rest.json.RestQuotaManager;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -75,6 +76,29 @@ class AllEndpointsPaginationReplayTest {
    /** What a sweep found, besides the problems themselves. */
    private record Sweep(List<String> problems, Set<String> neverEndsHit, Set<String> skipped) {
    }
+
+   /**
+    * The sweep sends thousands of requests to a local fake server. Without this, the vendors'
+    * requests-per-second limits (Xero 1, Asana 2.5, ...) make it run for over five minutes, and
+    * the CI monitor kills the fork when no test class has finished for that long.
+    */
+   @BeforeAll
+   static void disableRateLimit() {
+      previousRateLimitFlag = System.getProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY);
+      System.setProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY, "true");
+   }
+
+   @AfterAll
+   static void restoreRateLimit() {
+      if(previousRateLimitFlag == null) {
+         System.clearProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY);
+      }
+      else {
+         System.setProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY, previousRateLimitFlag);
+      }
+   }
+
+   private static String previousRateLimitFlag;
 
    private static List<String> sweep(boolean offsetValues, Set<String> only) throws Exception {
       return sweepAll(offsetValues, only).problems();
