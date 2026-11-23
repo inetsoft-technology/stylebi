@@ -859,9 +859,19 @@ public final class ScriptHostAccess {
                   //
                   // Accepted consequence, same as the Number -> Boolean mapping
                   // above: a numeric-looking string argument to a type declaring
-                  // both a boolean and an int/long overload of the same arity now
-                  // reports "Multiple applicable overloads" instead of binding the
-                  // boolean one, because both land on this final tier.
+                  // both a boolean and an int/long (or a whole-number float)
+                  // overload of the same arity now reports "Multiple applicable
+                  // overloads" instead of binding the boolean one, because both
+                  // land on this final tier.
+                  //
+                  // #82093: Short, Byte and a fractional float string sit one tier
+                  // higher (LOW) so they still beat the Boolean mappings above, as
+                  // Rhino did (it never converted a string to boolean when another
+                  // overload applied): m(boolean|short)('5') binds short and
+                  // m(boolean|float)('1.5') binds float. A whole-number float
+                  // string stays LOWEST, level with int/long, so
+                  // Color('255','0','0') still binds the int constructor; for it the
+                  // boolean collision above applies.
                   .targetTypeMapping(String.class, Double.class,
                                      str -> str != null
                                         && JavaClassProxy.toNumber(str) != null,
@@ -883,19 +893,31 @@ public final class ScriptHostAccess {
                                         && integralString(str, Short.MIN_VALUE,
                                                           Short.MAX_VALUE),
                                      str -> JavaClassProxy.toNumber(str).shortValue(),
-                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                                     HostAccess.TargetMappingPrecedence.LOW)
                   .targetTypeMapping(String.class, Byte.class,
                                      str -> str != null
                                         && integralString(str, Byte.MIN_VALUE,
                                                           Byte.MAX_VALUE),
                                      str -> JavaClassProxy.toNumber(str).byteValue(),
-                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                                     HostAccess.TargetMappingPrecedence.LOW)
+                  // a whole-number float string: LOWEST, level with int/long
                   .targetTypeMapping(String.class, Float.class,
-                                     str -> str != null && exactFloatString(str),
+                                     str -> str != null && exactFloatString(str, true),
                                      str -> JavaClassProxy.toNumber(str).floatValue(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
+                  // a fractional float string: LOW, like the double -> float mapping
+                  .targetTypeMapping(String.class, Float.class,
+                                     str -> str != null && exactFloatString(str, false),
+                                     str -> JavaClassProxy.toNumber(str).floatValue(),
+                                     HostAccess.TargetMappingPrecedence.LOW)
                   // a JS or host Date has the JS toString text (Rhino did the same);
-                  // only a String parameter, Object/Date/Instant overloads still win
+                  // only a String parameter, Object/Date/Instant overloads still win.
+                  // LOWEST, not LOW: the Date -> Instant conversion sits on the LOW
+                  // tier, so at LOW a (String|Instant) pair would turn ambiguous.
+                  // The cost is the boolean collision above: a Date given to a
+                  // (boolean|String) pair, e.g. Boolean.valueOf(new Date(0)), now
+                  // reports "Multiple applicable overloads" (main bound the boolean
+                  // one, Rhino the String one).
                   .targetTypeMapping(Value.class, String.class,
                                      v -> v != null && v.isDate()
                                         && v.hasMember("toString"),
@@ -1506,8 +1528,11 @@ public final class ScriptHostAccess {
          && d >= min && d <= max;
    }
 
-   /** Whether a numeric string is finite and exactly representable as a float. */
-   private static boolean exactFloatString(String str) {
+   /**
+    * Whether a numeric string parses (as a double) to a finite value that a float
+    * holds unchanged, and is whole ({@code whole}) or fractional.
+    */
+   private static boolean exactFloatString(String str, boolean whole) {
       Number n = JavaClassProxy.toNumber(str);
 
       if(n == null) {
@@ -1515,7 +1540,8 @@ public final class ScriptHostAccess {
       }
 
       double d = n.doubleValue();
-      return !Double.isNaN(d) && !Double.isInfinite(d) && d == (double) (float) d;
+      return !Double.isNaN(d) && !Double.isInfinite(d) && d == (double) (float) d
+         && (d == Math.rint(d)) == whole;
    }
 
    /**

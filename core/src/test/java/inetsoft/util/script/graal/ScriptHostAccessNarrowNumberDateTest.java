@@ -45,6 +45,18 @@ class ScriptHostAccessNarrowNumberDateTest {
       public String onlyCs(CharSequence s) { return "CS"; }
       public String onlyF(float f) { return "F:" + f; }
       public String onlyS(String s) { return "S:" + s; }
+      public String bs(boolean b) { return "B"; }
+      public String bs(String s) { return "S"; }
+      public String bf(boolean b) { return "B"; }
+      public String bf(float f) { return "F"; }
+      public String bsh(boolean b) { return "B"; }
+      public String bsh(short s) { return "SH"; }
+      public String bby(boolean b) { return "B"; }
+      public String bby(byte s) { return "BY"; }
+      public String bi(boolean b) { return "B"; }
+      public String bi(int s) { return "I"; }
+      public String sd(String s) { return "S"; }
+      public String sd(double s) { return "D"; }
    }
 
    private String str(String js) {
@@ -139,5 +151,45 @@ class ScriptHostAccessNarrowNumberDateTest {
       assertEquals("O", str("d.d(new Date(0))"));
       assertEquals("D", str("d.e(new Date(0))"));
       assertEquals("O", str("d.f(new Date(0))"));
+   }
+
+   @Test
+   void booleanOverloadCollisions() {
+      // Rhino never converted a string or a Date to boolean when another overload
+      // applied, so these bind the non-boolean overload (main bound boolean)
+      // a Date with a (boolean|String) pair is the one documented regression:
+      // Date -> String stays LOWEST (a LOW one would make String|Instant ambiguous)
+      refused("Java.type('java.lang.Boolean').valueOf(new Date(0))");
+      refused("d.bs(new Date(0))");
+      assertEquals("F", str("d.bf('1.5')"));
+      assertEquals("SH", str("d.bsh('5')"));
+      assertEquals("BY", str("d.bby('5')"));
+      // a whole-number float string stays level with int/long and the boolean
+      // mapping, the same documented #8515 ambiguity as boolean|int
+      refused("d.bi('5')");
+      assertEquals("B", str("d.bf('abc')"));
+   }
+
+   @Test
+   void dateWithStringAndDoubleOverloads() {
+      // #75423: the Instant -> double mapping still wins over Date -> String
+      assertEquals("D", str("d.sd(new Date(0))"));
+   }
+
+   @Test
+   void nextUpPinned() {
+      assertEquals(str(MATH + ".nextUp(1.5)"), str(MATH + ".nextUp('1.5')"));
+   }
+
+   @Test
+   void boundaries() {
+      String s = "Java.type('java.lang.Short').reverseBytes";
+      String b = "Java.type('java.lang.Byte').toUnsignedInt";
+      assertEquals("128", str(s + "('-32768')"));
+      refused(s + "('-32769')");
+      assertEquals("127", str(b + "('127')"));
+      refused(b + "('128')");
+      assertEquals("255", str(b + "('-1')"));
+      assertEquals("0x1.9p6", str("Java.type('java.lang.Float').toHexString('1e2')"));
    }
 }
