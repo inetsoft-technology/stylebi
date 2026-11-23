@@ -18,10 +18,12 @@
 package inetsoft.web.admin.ai.identities;
 
 import inetsoft.sree.PropertiesEngine;
+import inetsoft.uql.util.Identity;
 import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.AuthenticationProvider;
 import inetsoft.sree.security.Group;
 import inetsoft.sree.security.ResourceAction;
@@ -60,10 +62,12 @@ import java.util.*;
 public class IdentityChangePlanService {
    @Autowired
    public IdentityChangePlanService(SecurityService securityService,
-                                    SecurityEngine securityEngine)
+                                    SecurityEngine securityEngine,
+                                    IdentityService identityService)
    {
       this.securityService = securityService;
       this.securityEngine = securityEngine;
+      this.identityService = identityService;
    }
 
    /**
@@ -94,6 +98,8 @@ public class IdentityChangePlanService {
       String currentOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenKeys = new HashSet<>();
+      // Bug #82074: the grantees earlier deletes of this plan remove, by identity type
+      Map<Integer, Set<Permission.PermissionIdentity>> deletedSoFar = new HashMap<>();
       // Bug #79016: hidden per-change hash input for a supplied user password (see hash()).
       Map<String, String> hiddenInputs = new LinkedHashMap<>();
       MemberState members = new MemberState(plannedCreates(req, currentOrgId));
@@ -102,7 +108,7 @@ public class IdentityChangePlanService {
       for(IdentityChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
          PlanChange resolved =
-            resolveOne(label, change, user, currentOrgId, seenKeys, hiddenInputs);
+            resolveOne(label, change, user, currentOrgId, seenKeys, hiddenInputs, deletedSoFar);
          requireMembersResolvable(label, change, resolved, user, members);
          changes.add(resolved);
       }
@@ -115,7 +121,8 @@ public class IdentityChangePlanService {
 
    private PlanChange resolveOne(String label, IdentityChangeRequest change, Principal user,
                                  String currentOrgId, Set<String> seenKeys,
-                                 Map<String, String> hiddenInputs)
+                                 Map<String, String> hiddenInputs,
+                                 Map<Integer, Set<Permission.PermissionIdentity>> deletedSoFar)
       throws Exception
    {
       if(change == null) {
@@ -154,7 +161,7 @@ public class IdentityChangePlanService {
       }
 
       String id = requireNonBlank(label + ".id", change.getId());
-      return resolveDelete(label, unitType, id, user, currentOrgId, seenKeys);
+      return resolveDelete(label, unitType, id, user, currentOrgId, seenKeys, deletedSoFar);
    }
 
    // ---------------------------------------------------------------- create
@@ -282,7 +289,8 @@ public class IdentityChangePlanService {
    // ---------------------------------------------------------------- delete
 
    private PlanChange resolveDelete(String label, IdentityUnitType unitType, String rawId,
-                                    Principal user, String currentOrgId, Set<String> seenKeys)
+                                    Principal user, String currentOrgId, Set<String> seenKeys,
+                                    Map<Integer, Set<Permission.PermissionIdentity>> deletedSoFar)
       throws Exception
    {
       switch(unitType) {
@@ -293,7 +301,8 @@ public class IdentityChangePlanService {
          SecurityUser existing = requireGet(label, () -> securityService.getUser(id, user), key);
          String before = IdentityProjection.projectUser(existing);
          return new PlanChange(key, id.getOrgID(), before, null, AdminChangeRecord.RISK_HIGH,
-                               AdminChangeRecord.SCOPE_STORAGE, true, "delete user " + id.getLabel());
+                               AdminChangeRecord.SCOPE_STORAGE, true,
+                               deleteDescription("delete user " + id.getLabel(), Identity.USER, id, deletedSoFar));
       }
       case GROUP: {
          IdentityID id = parseIdentityId(label, rawId, currentOrgId, unitType, directory());
@@ -302,7 +311,8 @@ public class IdentityChangePlanService {
          SecurityGroup existing = requireGet(label, () -> securityService.getGroup(id, user), key);
          String before = IdentityProjection.projectGroup(existing, id);
          return new PlanChange(key, id.getOrgID(), before, null, AdminChangeRecord.RISK_HIGH,
-                               AdminChangeRecord.SCOPE_STORAGE, true, "delete group " + id.getLabel());
+                               AdminChangeRecord.SCOPE_STORAGE, true,
+                               deleteDescription("delete group " + id.getLabel(), Identity.GROUP, id, deletedSoFar));
       }
       case ROLE: {
          IdentityID id = parseIdentityId(label, rawId, currentOrgId, unitType, directory());
@@ -311,7 +321,8 @@ public class IdentityChangePlanService {
          SecurityRole existing = requireGet(label, () -> securityService.getRole(id, user), key);
          String before = IdentityProjection.projectRole(existing, id);
          return new PlanChange(key, id.getOrgID(), before, null, AdminChangeRecord.RISK_HIGH,
-                               AdminChangeRecord.SCOPE_STORAGE, true, "delete role " + id.getLabel());
+                               AdminChangeRecord.SCOPE_STORAGE, true,
+                               deleteDescription("delete role " + id.getLabel(), Identity.ROLE, id, deletedSoFar));
       }
       default: {
          String organizationId = requireNonBlank(label + ".id", rawId);
@@ -325,6 +336,22 @@ public class IdentityChangePlanService {
                                AdminChangeRecord.SCOPE_STORAGE, true, "delete organization " + organizationId);
       }
       }
+   }
+
+   /**
+    * Bug #82074, appends the resources the delete leaves with an empty explicit permission set,
+    * the same advisory apply returns, so the reviewer sees it before signing off. The description
+    * is not part of the plan hash.
+    */
+   private String deleteDescription(String description, int type, IdentityID id,
+                                    Map<Integer, Set<Permission.PermissionIdentity>> deletedSoFar)
+   {
+      String advisory = IdentityChangesetApplyService.describeEmptiedPermissions(
+         identityService.findEmptiedPermissions(type, id, deletedSoFar));
+      deletedSoFar.computeIfAbsent(type, t -> new HashSet<>())
+         .add(new Permission.PermissionIdentity(id));
+
+      return advisory == null ? description : description + "; " + advisory;
    }
 
    // ---------------------------------------------------------------- update
@@ -1483,4 +1510,5 @@ public class IdentityChangePlanService {
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    private final SecurityService securityService;
    private final SecurityEngine securityEngine;
+   private final IdentityService identityService;
 }

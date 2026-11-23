@@ -477,7 +477,9 @@ public class IdentityChangesetApplyService {
       // Authoritative before-state, captured DURING apply, per spec section 2.5 of the guide.
       SecurityUser before = securityService.getUser(id, user);
       String beforeProjection = IdentityProjection.projectUser(before);
-      String advisory = describeDeleteTaskImpacts(providerName, id, Identity.USER, user);
+      String advisory = mergeAdvisories(
+         describeDeleteTaskImpacts(providerName, id, Identity.USER, user),
+         describeEmptiedPermissions(identityService.findEmptiedPermissions(Identity.USER, id, Map.of())));
 
       try {
          securityService.deleteUser(id, user);
@@ -521,7 +523,9 @@ public class IdentityChangesetApplyService {
          "change", rawId, currentOrgId, IdentityUnitType.GROUP, planService.directory());
       SecurityGroup before = securityService.getGroup(id, user);
       String beforeProjection = IdentityProjection.projectGroup(before, id);
-      String advisory = describeDeleteTaskImpacts(providerName, id, Identity.GROUP, user);
+      String advisory = mergeAdvisories(
+         describeDeleteTaskImpacts(providerName, id, Identity.GROUP, user),
+         describeEmptiedPermissions(identityService.findEmptiedPermissions(Identity.GROUP, id, Map.of())));
 
       try {
          securityService.deleteGroup(id, user);
@@ -566,7 +570,9 @@ public class IdentityChangesetApplyService {
       SecurityRole before = securityService.getRole(id, user);
       String beforeProjection = IdentityProjection.projectRole(before, id);
       // getDeleteTaskImpacts only covers USER/GROUP (community IdentityService's own type filter,
-      // spec section 6) -- no advisory for role.
+      // spec section 6), so a role's advisory is only the emptied permission sets.
+      String advisory = describeEmptiedPermissions(
+         identityService.findEmptiedPermissions(Identity.ROLE, id, Map.of()));
 
       try {
          securityService.deleteRole(id, user);
@@ -577,7 +583,7 @@ public class IdentityChangesetApplyService {
                              r -> IdentityProjection.projectRole(r, id)))
          {
             results.add(new IdentityApplyOutcome(key, beforeProjection, null,
-               AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
+               AdminChangeRecord.STATUS_FAILED, messageOf(e), advisory));
             writeAudit(txId, task, key, ActionRecord.ACTION_NAME_DELETE, AdminChangeRecord.ACTION_APPLY,
                       beforeProjection, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome,
                       user);
@@ -590,7 +596,7 @@ public class IdentityChangesetApplyService {
       boolean verified = tryGet(() -> securityService.getRole(id, user)) == null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new IdentityApplyOutcome(key, beforeProjection, null, status,
-                                           verified ? null : "role still present after delete", null));
+                                           verified ? null : "role still present after delete", advisory));
       writeAudit(txId, task, key, ActionRecord.ACTION_NAME_DELETE, AdminChangeRecord.ACTION_APPLY,
                 beforeProjection, null, status, backupRef, reviewOutcome, user);
 
@@ -633,6 +639,35 @@ public class IdentityChangesetApplyService {
                    beforeProjection, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome,
                    user);
       }
+   }
+
+   /**
+    * Bug #82074, the advisory naming the resources a delete leaves with an empty explicit
+    * permission set, shared with the preview so the reviewer sees it before signing off.
+    *
+    * @return the advisory, or {@code null} if no resource is left empty.
+    */
+   static String describeEmptiedPermissions(List<String> emptied) {
+      if(emptied == null || emptied.isEmpty()) {
+         return null;
+      }
+
+      int shown = Math.min(emptied.size(), 20);
+      StringBuilder sb = new StringBuilder("permission impact: ").append(emptied.size())
+         .append(" resource(s) would be left with an empty explicit permission set, so they no ")
+         .append("longer inherit from their parent and nobody is granted access (")
+         .append(String.join(", ", emptied.subList(0, shown)));
+
+      if(emptied.size() > shown) {
+         sb.append(", and ").append(emptied.size() - shown).append(" more");
+      }
+
+      return sb.append("); grant someone access with apply_permission_changes, and removing that ")
+         .append("sole grant afterwards derives the resource from its parent again").toString();
+   }
+
+   private static String mergeAdvisories(String first, String second) {
+      return first == null ? second : second == null ? first : first + "; " + second;
    }
 
    private String describeDeleteTaskImpacts(String providerName, IdentityID id, int type,

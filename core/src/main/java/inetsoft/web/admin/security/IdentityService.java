@@ -5094,6 +5094,108 @@ public class IdentityService {
    }
 
    /**
+    * Bug #82074, finds the resources that deleting a user, group or role leaves with an empty
+    * explicit permission set. The delete strips the identity from every grant but keeps the
+    * organization's edited flag, so a resource whose only grantee it was no longer derives its
+    * permissions from its parent and nobody is granted, which is the "nobody" state of the
+    * Enterprise Manager editor. The identity's own key is not counted, as the delete removes it.
+    * A global role is checked in every organization.
+    *
+    * @return the resources, each as {@code TYPE path (org id)}, or an empty list if there is none
+    *         or the permissions cannot be read. It never throws.
+    */
+   public List<String> findEmptiedPermissions(int type, IdentityID id) {
+      return findEmptiedPermissions(type, id, Map.of());
+   }
+
+   /**
+    * Same as {@link #findEmptiedPermissions(int, IdentityID)}, treating the identities that
+    * earlier changes of the same changeset delete as already removed, so a preview of a changeset
+    * that deletes every grantee of a resource names it as the apply does.
+    *
+    * @param alsoDeleted the grantees deleted before this one, by identity type.
+    */
+   public List<String> findEmptiedPermissions(
+      int type, IdentityID id, Map<Integer, Set<Permission.PermissionIdentity>> alsoDeleted)
+   {
+      List<String> emptied = new ArrayList<>();
+
+      if(id == null || type != Identity.USER && type != Identity.GROUP && type != Identity.ROLE) {
+         return emptied;
+      }
+
+      try {
+         Optional<AuthorizationChain> chain = securityEngine.getAuthorizationChain();
+
+         if(chain.isEmpty()) {
+            return emptied;
+         }
+
+         Permission.PermissionIdentity grantee = new Permission.PermissionIdentity(id);
+         int[] identityTypes = { Identity.USER, Identity.GROUP, Identity.ROLE,
+                                 Identity.ORGANIZATION };
+
+         for(AuthorizationProvider aprovider : chain.get().getProviders()) {
+            List<Tuple4<ResourceType, String, String, Permission>> permissionSetList;
+
+            try {
+               permissionSetList = aprovider.getPermissions();
+            }
+            catch(UnsupportedOperationException e) {
+               continue;
+            }
+
+            if(permissionSetList == null) {
+               continue;
+            }
+
+            for(Tuple4<ResourceType, String, String, Permission> permissionSet : permissionSetList) {
+               ResourceType resourceType = permissionSet.getFirst();
+               String orgID = permissionSet.getSecond();
+               String path = permissionSet.getThird();
+               Permission permission = permissionSet.getForth();
+
+               if(permission == null || orgID == null || !permission.hasOrgEditedGrantAll(orgID) ||
+                  isOwnPermissionKey(type, resourceType, path, id))
+               {
+                  continue;
+               }
+
+               boolean granted = false;
+               boolean othersRemain = false;
+
+               for(ResourceAction action : ResourceAction.values()) {
+                  for(int identityType : identityTypes) {
+                     for(Permission.PermissionIdentity g :
+                        permission.getGrants(action, identityType, orgID))
+                     {
+                        if(identityType == type && grantee.equals(g)) {
+                           granted = true;
+                        }
+                        else if(alsoDeleted.getOrDefault(identityType, Set.of()).contains(g)) {
+                           continue;
+                        }
+                        else {
+                           othersRemain = true;
+                        }
+                     }
+                  }
+               }
+
+               if(granted && !othersRemain) {
+                  emptied.add(resourceType + " " + path + " (org " + orgID + ")");
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to check the permissions emptied by deleting {}", id, e);
+      }
+
+      return emptied;
+   }
+
+   /**
     * Gets the message reporting that some permissions of a deleted identity may remain, or
     * {@code null} if none is left. It never throws, because the identity is already deleted.
     */

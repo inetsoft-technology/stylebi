@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.identities;
 
 import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.*;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -66,7 +67,8 @@ class IdentityChangePlanServiceTest {
    private MockedStatic<Tool> tool;
 
    @BeforeEach void setUp() {
-      service = new IdentityChangePlanService(securityService, securityEngine);
+      service = new IdentityChangePlanService(securityService, securityEngine,
+                                              mock(IdentityService.class));
 
       // resolve() refuses outright without a writable provider. Built before the stub because the
       // constructor registers a listener on the mock, which Mockito rejects mid-stubbing.
@@ -1101,6 +1103,108 @@ class IdentityChangePlanServiceTest {
       assertEquals("USER|bob~;~host-org", update.changes().get(0).property());
    }
 
+   @Test void resolveDeleteDisclosesTheResourcesLeftWithAnEmptyPermissionSet() throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      IdentityService identityService = mock(IdentityService.class);
+      service = new IdentityChangePlanService(securityService, securityEngine, identityService);
+      when(securityService.getUser(eq(id), eq(user))).thenReturn(existingUser(id));
+      when(identityService.findEmptiedPermissions(eq(Identity.USER), eq(id), any()))
+         .thenReturn(List.of("DASHBOARD / (org host-org)"));
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(deleteUser("bob"))), user);
+
+      String description = plan.changes().get(0).description();
+      assertTrue(description.contains("DASHBOARD / (org host-org)"), description);
+      assertTrue(description.startsWith("delete user "), description);
+   }
+
+   /**
+    * A resource granted only to {@code grantees}: a delete names it when every other grantee is
+    * already deleted by an earlier change of the plan.
+    */
+   private IdentityService coGranteeScan(int[] types, IdentityID[] grantees) {
+      IdentityService identityService = mock(IdentityService.class);
+      service = new IdentityChangePlanService(securityService, securityEngine, identityService);
+      when(identityService.findEmptiedPermissions(anyInt(), any(), any())).thenAnswer(inv -> {
+         int type = inv.getArgument(0);
+         IdentityID id = inv.getArgument(1);
+         java.util.Map<Integer, java.util.Set<Permission.PermissionIdentity>> gone = inv.getArgument(2);
+
+         for(int i = 0; i < grantees.length; i++) {
+            boolean self = types[i] == type && grantees[i].equals(id);
+
+            if(!self && !gone.getOrDefault(types[i], java.util.Set.of())
+               .contains(new Permission.PermissionIdentity(grantees[i])))
+            {
+               return List.<String>of();
+            }
+         }
+
+         return List.of("VIEWSHEET a/b (org host-org)");
+      });
+      return identityService;
+   }
+
+   @Test void resolveDeleteOfTwoCoGranteeUsersNamesTheResourceOnTheLastDelete() throws Exception {
+      IdentityID a = new IdentityID("a", "host-org");
+      IdentityID b = new IdentityID("b", "host-org");
+      coGranteeScan(new int[] { Identity.USER, Identity.USER }, new IdentityID[] { a, b });
+      when(securityService.getUser(eq(a), eq(user))).thenReturn(existingUser(a));
+      when(securityService.getUser(eq(b), eq(user))).thenReturn(existingUser(b));
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(deleteUser("a"), deleteUser("b"))), user);
+
+      assertFalse(plan.changes().get(0).description().contains("VIEWSHEET a/b"));
+      assertTrue(plan.changes().get(1).description().contains("VIEWSHEET a/b (org host-org)"));
+   }
+
+   @Test void resolveDeleteOfUserAndGroupCoGranteesNamesTheResourceOnTheLastDelete()
+      throws Exception
+   {
+      IdentityID a = new IdentityID("a", "host-org");
+      IdentityID g = new IdentityID("g", "host-org");
+      coGranteeScan(new int[] { Identity.USER, Identity.GROUP }, new IdentityID[] { a, g });
+      when(securityService.getUser(eq(a), eq(user))).thenReturn(existingUser(a));
+      when(securityService.getGroup(eq(g), eq(user))).thenReturn(existingGroup(g));
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(deleteUser("a"), deleteGroup("g"))), user);
+
+      assertFalse(plan.changes().get(0).description().contains("VIEWSHEET a/b"));
+      assertTrue(plan.changes().get(1).description().contains("VIEWSHEET a/b (org host-org)"));
+   }
+
+   @Test void resolveDeleteGroupAndRoleDiscloseTheEmptiedResources() throws Exception {
+      IdentityID g = new IdentityID("g", "host-org");
+      IdentityID r = new IdentityID("r", "host-org");
+      IdentityService identityService = mock(IdentityService.class);
+      service = new IdentityChangePlanService(securityService, securityEngine, identityService);
+      when(securityService.getGroup(eq(g), eq(user))).thenReturn(existingGroup(g));
+      when(securityService.getRole(eq(r), eq(user))).thenReturn(existingRole(r));
+      when(identityService.findEmptiedPermissions(eq(Identity.GROUP), eq(g), any()))
+         .thenReturn(List.of("VIEWSHEET g/1 (org host-org)"));
+      when(identityService.findEmptiedPermissions(eq(Identity.ROLE), eq(r), any()))
+         .thenReturn(List.of("VIEWSHEET r/1 (org host-org)"));
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(deleteGroup("g"), deleteRole("r"))), user);
+
+      assertTrue(plan.changes().get(0).description().contains("VIEWSHEET g/1 (org host-org)"));
+      assertTrue(plan.changes().get(1).description().contains("VIEWSHEET r/1 (org host-org)"));
+   }
+
+   @Test void resolveDeleteHasNoPermissionImpactWhenNothingIsLeftEmpty() throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      service = new IdentityChangePlanService(securityService, securityEngine,
+                                              mock(IdentityService.class));
+      when(securityService.getUser(eq(id), eq(user))).thenReturn(existingUser(id));
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(deleteUser("bob"))), user);
+
+      assertFalse(plan.changes().get(0).description().contains("permission impact"));
+   }
+
    @Test void resolveAcceptsAnotherExistingOrgAndRefusesAnUnknownOne() throws Exception {
       IdentityID id = new IdentityID("bob", "other-org");
       when(editableAuthentication.getOrganization("other-org")).thenReturn(mock(Organization.class));
@@ -1228,6 +1332,18 @@ class IdentityChangePlanServiceTest {
       change.setVerb("delete");
       change.setUnitType("user");
       change.setId(id);
+      return change;
+   }
+
+   private static IdentityChangeRequest deleteGroup(String id) {
+      IdentityChangeRequest change = deleteUser(id);
+      change.setUnitType("group");
+      return change;
+   }
+
+   private static IdentityChangeRequest deleteRole(String id) {
+      IdentityChangeRequest change = deleteUser(id);
+      change.setUnitType("role");
       return change;
    }
 
