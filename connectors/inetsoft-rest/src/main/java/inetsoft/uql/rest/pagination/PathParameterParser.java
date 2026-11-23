@@ -44,6 +44,14 @@ class PathParameterParser extends AbstractParameterParser {
    @Override
    public boolean parseBoolean(String jsonPath) {
       final Object value = transform(json, jsonPath);
+
+      // an empty string (e.g. "cursor": "") or a "false" string means there is no next
+      // page, numbers and other values are not interpreted
+      if(value instanceof String) {
+         final String str = (String) value;
+         return !str.isEmpty() && !"false".equalsIgnoreCase(str);
+      }
+
       return value != null && !Boolean.FALSE.equals(value);
    }
 
