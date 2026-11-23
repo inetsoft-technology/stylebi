@@ -1,4 +1,4 @@
-/**
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -34,7 +34,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/*
+/**
  * Tests for {@link StackedMeasuresColorFrame} (and the shared {@link StackedMeasuresFrame}
  * defaults): the frame keeps a map measure name to frame plus a default frame, and decides which
  * frames form the legend and which field the legend is bound to.
