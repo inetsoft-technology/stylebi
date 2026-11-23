@@ -227,9 +227,11 @@
 
       // the edit-measure and value-type buttons are bordered squares at the field box height
       // (30px) elsewhere; here they match the 22px value trigger, or the chip grows taller than
-      // the Text and Spacer chips
+      // the Text and Spacer chips. The toggle is named with its element so this outranks the
+      // combo box's own .dynamic-combo-box-body .type-toggle rule whichever stylesheet Angular
+      // adds last; the two otherwise tie
       button.fieldEditIcon,
-      .dynamic-combo-box-body .type-toggle {
+      .dynamic-combo-box-body button.type-toggle {
          width: 22px;
          height: 22px;
          min-height: 22px;

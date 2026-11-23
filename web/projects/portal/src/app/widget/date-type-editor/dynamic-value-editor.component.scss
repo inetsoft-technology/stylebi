@@ -44,7 +44,9 @@
 
 .datemc {
   &.calendar-button-visible {
-    ::ng-deep .type-toggle {
+    // named with the combo box body so it outranks the toggle's own rounded corners, which
+    // otherwise tie with it whichever stylesheet Angular adds last
+    ::ng-deep .dynamic-combo-box-body .type-toggle {
       border-radius: 0;
     }
   }
