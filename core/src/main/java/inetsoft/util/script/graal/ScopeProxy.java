@@ -90,7 +90,11 @@ public class ScopeProxy implements ProxyObject {
 
    @Override
    public boolean hasMember(String key) {
-      return scope.hasMember(key) || "toString".equals(key);
+      // Bug #81929: an opted-in scope reads an absent member as null (see
+      // ScriptScope.isMissingMemberNull). "valueOf" is left to the prototype so
+      // string coercion keeps a callable valueOf; "toString" is already true.
+      return scope.hasMember(key) || "toString".equals(key) ||
+         scope.isMissingMemberNull() && !"valueOf".equals(key);
    }
 
    @Override

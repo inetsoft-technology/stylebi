@@ -69,6 +69,33 @@ class ScopeProxyTest {
       assertArrayEquals(new Object[]{"a", "b"}, (Object[]) keys);
    }
 
+   /** A scope that reads an absent member as null (Bug #81929). */
+   static class NullMissingScope extends MapScope {
+      @Override public boolean isMissingMemberNull() { return true; }
+   }
+
+   /** Bug #81929: an opted-in scope reads an absent member as JS null. */
+   @Test void optedInScopeReadsMissingMemberAsNull() {
+      NullMissingScope s = new NullMissingScope();
+      s.putMember("present", 1);
+      ctx.getBindings("js").putMember("obj", new ScopeProxy(s));
+
+      assertTrue(ctx.eval("js", "obj.absent === null").asBoolean());
+      assertEquals("object", ctx.eval("js", "typeof obj['absent']").asString());
+      assertEquals(1, ctx.eval("js", "obj.present").asInt());
+      assertEquals("function", ctx.eval("js", "typeof obj.valueOf").asString());
+      assertEquals("[object NullMissingScope]", ctx.eval("js", "'' + obj").asString());
+      assertFalse(new ScopeProxy(s).hasMember("valueOf"));
+   }
+
+   /** Any other scope still reads an absent member as undefined (Bug #81786). */
+   @Test void defaultScopeReadsMissingMemberAsUndefined() {
+      ctx.getBindings("js").putMember("obj", new ScopeProxy(new MapScope()));
+
+      assertTrue(ctx.eval("js", "obj.absent === undefined").asBoolean());
+      assertFalse(ctx.eval("js", "'absent' in obj").asBoolean());
+   }
+
    /** A scope that says something meaningful about itself. */
    static class DescribedScope extends MapScope {
       @Override public String toString() { return "described"; }
