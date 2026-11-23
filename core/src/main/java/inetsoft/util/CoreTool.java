@@ -265,6 +265,11 @@ public class CoreTool {
          }
          // is not array?
          else if(obj instanceof Number && obj2 instanceof Number) {
+            // integral values above 2^53 are not exactly representable as double
+            if(isIntegral(obj) && isIntegral(obj2)) {
+               return ((Number) obj).longValue() == ((Number) obj2).longValue();
+            }
+
             return ((Number) obj).doubleValue() == ((Number) obj2).doubleValue();
          }
          else if(obj instanceof Date && obj2 instanceof Date) {
