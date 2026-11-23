@@ -1242,14 +1242,10 @@ public class DataSourceRegistry implements MessageListener {
             "Permission denied to overwrite datasource folder"));
       }
 
-      try {
-         AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-                                           AssetEntry.Type.DATA_SOURCE_FOLDER, name, null);
-         setObject(entry, folder);
-      }
-      catch(Exception e) {
-         LOG.error("Failed to set datasource folder: " + folder.getFullName(), e);
-      }
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                        AssetEntry.Type.DATA_SOURCE_FOLDER, name, null);
+      // Bug #82094, a failed save is thrown to the caller
+      setObject(entry, folder);
    }
 
    /**
@@ -3146,51 +3142,96 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void setObject(AssetEntry entry, XMLSerializable obj, boolean fireEvent) {
       try {
+         // Bug #82094, a failed write is thrown to the caller, not just logged
+         entry = writeObject(entry, obj);
+
+         try {
+            clearCache2();
+            sendClearDataSourceCacheEvent();
+
+            if(fireEvent) {
+               fireModifiedEvent(entry.getOrgID());
+            }
+            else {
+               // update the last modified timestamp to prevent firing of the storage refresh event
+               String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+               if(orgId != null) {
+                  this.ts.put(orgId, System.currentTimeMillis());
+               }
+            }
+         }
+         catch(Exception e) {
+            // the object and the index are already saved
+            LOG.error("Failed to set object: " + entry.getPath(), e);
+         }
+      }
+      finally {
+         indexedStorage.close();
+      }
+   }
+
+   /**
+    * Saves an object and then the index entry that lists it. If either write fails, the cached
+    * index is left as it was, a new object is removed again, and the failure is thrown.
+    *
+    * @return the entry that the index lists.
+    */
+   private AssetEntry writeObject(AssetEntry entry, XMLSerializable obj) {
+      String path = entry.getPath();
+
+      try {
          // Bug #81435, the root is read, changed and written back under the cluster lock
          Lock lock = lockRoot();
 
          try {
             AssetFolder root = getRoot(entry.getOrgID());
+            AssetEntry previous = root == null ? null : root.getEntry(entry);
 
-            if(root != null && root.containsEntry(entry)) {
-               entry = root.getEntry(entry);
-               root.removeEntry(entry);
+            if(previous != null) {
+               // change a copy, the cached index keeps the old entry until the index is saved
+               entry = (AssetEntry) previous.clone();
             }
 
             AssetUtil.updateMetaData(
                entry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
 
+            // Bug #82094, write the object first, the index is the commit point (as #77704)
+            indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
+
             if(root != null) {
+               root.removeEntry(entry);
                root.addEntry(entry);
-               setRoot(root);
+
+               try {
+                  setRoot(root);
+               }
+               catch(Exception e) {
+                  root.removeEntry(entry);
+
+                  if(previous != null) {
+                     root.addEntry(previous);
+                  }
+                  else {
+                     // an unlisted object would block its name, see isDataSourcePathInUse
+                     removeStoredObject(entry);
+                  }
+
+                  throw e;
+               }
             }
 
-            indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
+            return entry;
          }
          finally {
             unlockRoot(lock);
          }
-
-         clearCache2();
-         sendClearDataSourceCacheEvent();
-
-         if(fireEvent) {
-            fireModifiedEvent(entry.getOrgID());
-         }
-         else {
-            // update the last modified timestamp to prevent firing of the storage refresh event
-            String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-
-            if(orgId != null) {
-               this.ts.put(orgId, System.currentTimeMillis());
-            }
-         }
+      }
+      catch(RuntimeException e) {
+         throw e;
       }
       catch(Exception e) {
-         LOG.error("Failed to set object: " + entry.getPath(), e);
-      }
-      finally {
-         indexedStorage.close();
+         throw new RuntimeException("Failed to set object: " + path, e);
       }
    }
 
