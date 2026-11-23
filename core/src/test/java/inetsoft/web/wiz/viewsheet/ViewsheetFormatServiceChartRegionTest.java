@@ -265,6 +265,32 @@ class ViewsheetFormatServiceChartRegionTest {
       assertTrue(e.getMessage().contains("Sum(Total)"), e.getMessage());
    }
 
+   /** Bug #82138: a field that is not on the named axis is refused, naming the axis fields. */
+   @Test
+   void refusesAnAxisLabelFieldThatIsNotOnTheAxis() {
+      ChartRef[] x = { namedRef("Category"), namedRef("Region") };
+      RuntimeViewsheet rvs = rvs(0, x, new ChartRef[]{ measure("Sum(Total)", false) });
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> write(request("axis_labels", "x", "Categroy", null), rvs));
+      assertTrue(e.getMessage().contains("'Categroy'") && e.getMessage().contains("Category") &&
+                 e.getMessage().contains("Region"), e.getMessage());
+   }
+
+   @Test
+   void acceptsAnAxisLabelFieldThatIsOnTheAxis() throws Exception {
+      ChartRef[] x = { namedRef("Category"), namedRef("Region") };
+      RuntimeViewsheet rvs = rvs(0, x, new ChartRef[]{ measure("Sum(Total)", false) });
+      assertEquals("Region", write(request("axis_labels", "x", "Region", null), rvs)
+                      .getColumnNames()[0][0]);
+   }
+
+   private static ChartRef namedRef(String name) {
+      ChartRef ref = mock(ChartRef.class);
+      when(ref.getFullName()).thenReturn(name);
+      return ref;
+   }
+
    @Test
    void legendRegionsMapToPainterRegions() throws Exception {
       assertArrayEquals(new String[]{ ChartFormatConstants.LEGEND_TITLE },
