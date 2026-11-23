@@ -251,11 +251,37 @@ class PropertyAliasesTest {
                    () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "localizationPane"));
    }
 
-   /** Excluded with the layout/{@code refLayoutName} path -- its own capability, not v1's. */
+   /** Device layouts, print layout and the device catalogue stay their own tools' business. */
    @Test
-   void refusesToWriteScreensPaneEvenAsARawPath() {
-      assertThrows(IllegalArgumentException.class,
-                   () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "screensPane.targetScreen"));
+   void refusesToWriteScreensPaneLayoutListsInEverySpelling() {
+      for(String path : new String[] {
+         "screensPane.deviceLayouts", "ScreensPane.DeviceLayouts", "screensPane.printLayout",
+         "screensPane.printLayout.marginTop", "ScreensPane.PrintLayout", "screensPane.devices",
+         "screensPane.editDevicesAllowed", "screensPane.refLayoutName", "screensPane",
+         "screensPane.scaleToScreen.x", "screensPane0.x" })
+      {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, path), path);
+         assertTrue(e.getMessage().contains("'screensPane' is not settable"), path + ": " + e);
+      }
+   }
+
+   @Test
+   void screenSizingScalarsResolveAsAliasesAndRawPathsInAnyInitialCase() {
+      String[] names = { "targetScreen", "templateWidth", "templateHeight", "scaleToScreen",
+                         "fitToWidth", "balancePadding" };
+
+      for(String name : names) {
+         String path = "screensPane." + name;
+         String capital = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+         assertEquals(path, PropertyAliases.resolveForWrite(PropertyAliases.SHEET, name));
+         assertEquals(path, PropertyAliases.resolveForWrite(PropertyAliases.SHEET, path));
+         assertEquals(path, PropertyAliases.resolveForWrite(
+            PropertyAliases.SHEET, "ScreensPane." + capital));
+         assertEquals(path, PropertyAliases.resolveForWrite(
+            PropertyAliases.SHEET, "screensPane." + capital));
+         assertTrue(PropertyAliases.forType(PropertyAliases.SHEET).aliases().containsKey(name));
+      }
    }
 
    @Test

@@ -22,6 +22,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.web.composer.model.vs.ConvertToWorksheetResponseModel;
 import inetsoft.web.composer.model.vs.SelectDataSourceDialogModel;
 import inetsoft.web.composer.model.vs.ViewsheetParametersDialogModel;
+import inetsoft.web.composer.model.vs.ScreensPaneModel;
 import inetsoft.web.composer.model.vs.ViewsheetPropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.ViewsheetSettingsService;
@@ -140,6 +141,7 @@ public class SheetPropertyService {
                PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
+         requireScreenCouplings(model, resolved);
          baseEntry.reattach(model);
          reconcileParameterLists(model, resolved);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
@@ -162,8 +164,10 @@ public class SheetPropertyService {
          String path = entry.getValue();
          boolean touch = "vsOptionsPane.touchInterval".equals(path);
          boolean rows = "vsOptionsPane.maxRows".equals(path);
+         boolean size = "screensPane.templateWidth".equals(path) ||
+            "screensPane.templateHeight".equals(path);
 
-         if(!touch && !rows) {
+         if(!touch && !rows && !size) {
             continue;
          }
 
@@ -188,6 +192,49 @@ public class SheetPropertyService {
             throw new IllegalArgumentException(
                "'maxRows' must be 0 or greater; " + value + " is not.");
          }
+
+         if(size && number < 0) {
+            throw new IllegalArgumentException(
+               "'" + path.substring(path.indexOf('.') + 1) + "' must be 0 or greater; " + value +
+               " is not.");
+         }
+      }
+   }
+
+   /**
+    * The two couplings the Layout tab of the Composer dialog enforces by disabling inputs, checked
+    * on the model AFTER the patch is applied (a patch may carry only {@code fitToWidth}, so the
+    * patch alone cannot tell). Runs before anything is submitted, so a refusal writes nothing.
+    *
+    * <p>Fit to Width needs Scale to Screen: the dialog disables the box otherwise. A stored
+    * {@code fitToWidth} left behind when a later patch turns Scale to Screen off is NOT cleared
+    * or refused, as the dialog leaves it too. Template Width/Height are only read while Target
+    * Screen is on; the dialog merely disables the inputs, but a patch setting a size on a sheet
+    * with Target Screen off would write a value nothing reads, so it is refused (stricter than
+    * the dialog) unless the same patch, or the sheet, has {@code targetScreen} on.
+    */
+   private static void requireScreenCouplings(ViewsheetPropertyDialogModel model,
+                                              Map<String, String> resolved)
+   {
+      ScreensPaneModel screens = model.screensPane();
+
+      if(resolved.containsValue("screensPane.fitToWidth") && screens.isFitToWidth() &&
+         !screens.isScaleToScreen())
+      {
+         throw new IllegalArgumentException(
+            "'fitToWidth' can only be on while 'scaleToScreen' is on (the Composer dialog disables " +
+            "Fit to Width otherwise). Set scaleToScreen: true in the same patch. Nothing was " +
+            "changed.");
+      }
+
+      if((resolved.containsValue("screensPane.templateWidth") ||
+          resolved.containsValue("screensPane.templateHeight")) && !screens.isTargetScreen())
+      {
+         throw new IllegalArgumentException(
+            "'templateWidth'/'templateHeight' only take effect while 'targetScreen' is on, and " +
+            "it is off. Set targetScreen: true in the same patch (the Composer dialog only " +
+            "disables the size inputs here; this tool refuses so the write is not a silent " +
+            "no-op). Nothing was changed.");
       }
    }
 
