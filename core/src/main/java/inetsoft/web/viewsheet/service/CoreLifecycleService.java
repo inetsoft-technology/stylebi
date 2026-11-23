@@ -591,6 +591,10 @@ public class CoreLifecycleService {
                            throw ex;
                         }
                      }
+                     catch(ScriptException ex) {
+                        // a failing component script must not abort the refresh (82107)
+                        VSEventUtil.tolerateScriptError(ex);
+                     }
                   }
                }
 
@@ -1472,8 +1476,14 @@ public class CoreLifecycleService {
       }
 
       if(assembly instanceof SelectionTreeVSAssembly) {
-         VSAQuery query = VSAQuery.createVSAQuery(getSandbox(box, name), assembly, DataMap.NORMAL);
-         ((SelectionVSAQuery) query).refreshViewSelectionValue();
+         try {
+            VSAQuery query = VSAQuery.createVSAQuery(getSandbox(box, name), assembly, DataMap.NORMAL);
+            ((SelectionVSAQuery) query).refreshViewSelectionValue();
+         }
+         catch(ScriptException ex) {
+            // a failing component script must not abort the refresh (82107)
+            VSEventUtil.tolerateScriptError(ex);
+         }
       }
 
       // VSEventUtil.getAssemblyInfo returns a cloned info. Since we create the object model
