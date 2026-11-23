@@ -98,4 +98,22 @@ class TargetUtilTest {
          });
       }
    }
+
+   @Test
+   void nonPositivePercentileIsClampedToMinimum() {
+      double[] values = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+      for(double arg : new double[] { 0, -5 }) {
+         double[] result = assertDoesNotThrow(
+            () -> TargetUtil.getPercentiles(values, new double[] { arg }));
+         assertEquals(1, result.length);
+         assertEquals(1.0, result[0], 1e-9);
+      }
+   }
+
+   @Test
+   void percentileAboveHundredIsClampedToMaximum() {
+      double[] values = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+      assertEquals(10.0, TargetUtil.getPercentiles(values, new double[] { 150 })[0], 1e-9);
+   }
 }
