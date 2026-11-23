@@ -614,12 +614,20 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       }
 
       public static CubeRefreshResult ok(String url, int cubeCount) {
-         return new CubeRefreshResult(OK, url, cubeCount, null);
+         return new CubeRefreshResult(OK, maskUserInfo(url), cubeCount, null);
       }
 
       public static CubeRefreshResult failed(String status, String url, String message) {
-         return new CubeRefreshResult(status, url, 0, message);
+         return new CubeRefreshResult(status, maskUserInfo(url), 0, maskUserInfo(message));
       }
+
+      /** Replaces the user:password part of any URL in the text, which would otherwise be leaked. */
+      static String maskUserInfo(String text) {
+         return text == null ? null : USER_INFO.matcher(text).replaceAll("$1***@");
+      }
+
+      private static final java.util.regex.Pattern USER_INFO =
+         java.util.regex.Pattern.compile("(?i)(\\b[a-z][a-z0-9+.-]*://)[^/@\\s?#]+@");
 
       public static final String OK = "OK";
       public static final String CONNECTION_FAILED = "CONNECTION_FAILED";

@@ -238,6 +238,20 @@ class XmlaDatasourceServiceRefreshCubesTest {
    }
 
    @Test
+   void urlCredentialsAreMaskedInTheResultUrlAndMessage() throws Exception {
+      Fixture f = new Fixture();
+      f.source.setURL("http://analyst:S3cret@olap.example/xmla");
+      f.failure = new RuntimeException("Unable to reach http://analyst:S3cret@olap.example/xmla");
+
+      CubeRefreshResult result = f.service.refreshStoredCubes("olap/sales");
+
+      assertEquals(CubeRefreshResult.CONNECTION_FAILED, result.status());
+      assertEquals("http://***@olap.example/xmla", result.url());
+      assertEquals("Unable to reach http://***@olap.example/xmla", result.message());
+      assertFalse(result.toString().contains("S3cret"));
+   }
+
+   @Test
    void anEndpointWithNoCubesIsAFailureAndLeavesTheStoredDomainAlone() throws Exception {
       Fixture f = new Fixture();
       f.cubes = List.of();
