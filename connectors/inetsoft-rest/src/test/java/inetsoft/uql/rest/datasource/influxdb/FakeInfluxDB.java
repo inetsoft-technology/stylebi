@@ -211,6 +211,11 @@ final class FakeInfluxDB implements AutoCloseable {
             "{\"results\":[{\"statement_id\":0,\"series\":[{\"name\":\"cpu\",\"tags\":" +
             "{\"host\":\"web-2\"},\"columns\":[\"time\",\"usage_user\"],\"values\":[" +
             rows(2, 4) + "]}]}]}\n";
+      case "chunkederror":
+         // the statement fails after its first chunk: the last document carries only the error
+         return "{\"results\":[{\"statement_id\":0,\"series\":[{\"name\":\"cpu\",\"columns\":" +
+            "[\"time\",\"usage_user\"],\"values\":[" + rows(0, 2) + "]}],\"partial\":true}]}\n" +
+            "{\"results\":[{\"statement_id\":0,\"error\":\"max-row-limit exceeded\"}]}\n";
       case "nosuchdb":
          return "{\"error\":\"database not found\"}";
       default:

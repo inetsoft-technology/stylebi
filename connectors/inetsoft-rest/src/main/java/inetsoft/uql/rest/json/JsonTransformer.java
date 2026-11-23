@@ -147,7 +147,9 @@ public class JsonTransformer implements InputTransformer {
 
    /**
     * Appends the series of each statement result of a later chunk to the statement result at the
-    * same position in the first chunk.
+    * same position in the first chunk. A statement that fails after its first chunk ends the
+    * stream with a chunk holding only an {@code error}; that error is kept on the merged
+    * statement, which stays flagged partial because it is not complete.
     */
    @SuppressWarnings("unchecked")
    private static void mergeResults(List<Object> target, List<Object> chunk) {
@@ -181,7 +183,13 @@ public class JsonTransformer implements InputTransformer {
          // Every chunk but the last of a statement is flagged "partial":true. The merged
          // statement is as complete as the chunk read last, so it takes that chunk's flag: a
          // stream that ends on a chunk still flagged partial was cut short and stays flagged.
-         if(Boolean.TRUE.equals(((Map<String, Object>) c).get("partial"))) {
+         final Object error = ((Map<String, Object>) c).get("error");
+
+         if(error != null && tmap.get("error") == null) {
+            tmap.put("error", error);
+         }
+
+         if(Boolean.TRUE.equals(((Map<String, Object>) c).get("partial")) || error != null) {
             tmap.put("partial", Boolean.TRUE);
          }
          else {

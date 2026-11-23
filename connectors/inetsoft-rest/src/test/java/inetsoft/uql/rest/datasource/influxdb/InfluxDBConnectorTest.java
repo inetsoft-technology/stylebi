@@ -278,6 +278,16 @@ class InfluxDBConnectorTest {
    }
 
    @Test
+   void influxQLChunkedStatementThatFailsInALaterChunkIsRefused() {
+      CoreTool.clearUserMessage();
+
+      run(v1Query("chunkederror", null));
+
+      String message = userMessage();
+      assertTrue(message.contains("max-row-limit exceeded"), message);
+   }
+
+   @Test
    void influxQLChunkedResponseIsRefusedNotSilentlyCutShort() {
       CoreTool.clearUserMessage();
 
