@@ -22,6 +22,7 @@ package inetsoft.web.wiz.controller;
 import inetsoft.report.internal.Util;
 import inetsoft.web.admin.content.database.*;
 import inetsoft.web.admin.content.database.types.*;
+import inetsoft.web.admin.content.database.types.AccessDatabaseType.AccessDatabaseInfo;
 import inetsoft.web.wiz.model.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -67,6 +68,52 @@ class WizDatabaseMapper {
       if(!callerChoseCredential && !callerChosePassword) {
          updatedAuth.setUseCredentialId(currentAuth.isUseCredentialId());
          updatedAuth.setCredentialId(currentAuth.getCredentialId());
+      }
+   }
+
+   /**
+    * Carries the unedited settings from the stored definition onto the rebuilt one: {@code unasgn},
+    * the credential reference and the connection-info settings the wiz contract does not
+    * round-trip. Shared by the base-source and additional-connection update paths.
+    */
+   static void carryOverUneditedSettings(DatabaseDefinition current, DatabaseDefinition updated) {
+      if(current == null || updated == null) {
+         return;
+      }
+
+      updated.setUnasgn(current.isUnasgn());
+      carryOverCredentialReference(current, updated);
+      carryOverUneditedInfo(current, updated);
+   }
+
+   /**
+    * Keeps the URL properties (and the Access data source name) of the stored info when the
+    * database type is unchanged. The wiz contract does not expose them, so the rebuilt info has
+    * them null and the formatted URL would silently lose them. Nothing is carried on a type
+    * switch, since properties are driver specific.
+    */
+   static void carryOverUneditedInfo(DatabaseDefinition current, DatabaseDefinition updated) {
+      DatabaseInfo currentInfo = current == null ? null : current.getInfo();
+      DatabaseInfo updatedInfo = updated == null ? null : updated.getInfo();
+      String currentType = current == null ? null : current.getType();
+      String updatedType = updated == null ? null : updated.getType();
+
+      if(currentInfo == null || updatedInfo == null || currentType == null ||
+         updatedType == null || !currentType.equalsIgnoreCase(updatedType))
+      {
+         return;
+      }
+
+      if(updatedInfo.getProperties() == null) {
+         updatedInfo.setProperties(currentInfo.getProperties());
+      }
+
+      if(currentInfo instanceof AccessDatabaseInfo && updatedInfo instanceof AccessDatabaseInfo) {
+         AccessDatabaseInfo updatedAccess = (AccessDatabaseInfo) updatedInfo;
+
+         if(updatedAccess.getDataSourceName() == null) {
+            updatedAccess.setDataSourceName(((AccessDatabaseInfo) currentInfo).getDataSourceName());
+         }
       }
    }
 

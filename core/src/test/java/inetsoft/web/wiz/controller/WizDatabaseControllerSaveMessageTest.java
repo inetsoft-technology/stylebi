@@ -29,6 +29,7 @@ import inetsoft.util.MessageException;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.content.database.AuthenticationDetails;
 import inetsoft.web.admin.content.database.DatabaseDefinition;
+import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.admin.content.database.DatabaseTypeService;
 import inetsoft.web.admin.content.database.NetworkLocation;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
@@ -115,6 +116,23 @@ class WizDatabaseControllerSaveMessageTest {
    }
 
    @Test
+   void testRunsWithTheStoredUrlPropertiesOfAnExistingDatabase() throws Exception {
+      Fixture f = new Fixture();
+      f.existing("db/orders").getInfo().setProperties("useSSL=true");
+      when(f.service.testDataSourceConnection(any(), any(DatabaseDefinition.class), any(),
+                                              anyBoolean()))
+         .thenReturn(new ConnectionStatus("ok", true));
+
+      f.controller.testDatabaseConnection(
+         new WizDatabaseTestRequest("db/orders", wiz("orders", null)), f.principal);
+
+      ArgumentCaptor<DatabaseDefinition> definition = ArgumentCaptor.forClass(DatabaseDefinition.class);
+      verify(f.service).testDataSourceConnection(
+         eq("db/orders"), definition.capture(), eq(f.principal), eq(false));
+      assertEquals("useSSL=true", definition.getValue().getInfo().getProperties());
+   }
+
+   @Test
    void folderCreateAndRenameReturnTheRefusalText() throws Exception {
       Fixture f = new Fixture();
       doThrow(new MessageException("path clash")).when(f.browser)
@@ -172,6 +190,20 @@ class WizDatabaseControllerSaveMessageTest {
       AuthenticationDetails auth = f.savedDefinition(ActionRecord.ACTION_NAME_EDIT, "db/orders");
       assertTrue(auth.isUseCredentialId(), "the stored reference must survive an unrelated edit");
       assertEquals("stored-id", auth.getCredentialId());
+   }
+
+   @Test
+   void updateKeepsTheStoredUrlPropertiesWhenTheCallerDoesNotEditThem() throws Exception {
+      Fixture f = new Fixture();
+      f.existing("db/orders").getInfo().setProperties("useSSL=true");
+
+      f.controller.updateDatabase("db/orders", wiz("orders", null), f.principal);
+
+      ArgumentCaptor<DataSourceSettingsModel> model =
+         ArgumentCaptor.forClass(DataSourceSettingsModel.class);
+      verify(f.service).saveDatabase(eq("db/orders"), model.capture(),
+                                     eq(ActionRecord.ACTION_NAME_EDIT), eq(f.principal));
+      assertEquals("useSSL=true", model.getValue().dataSource().getInfo().getProperties());
    }
 
    @Test

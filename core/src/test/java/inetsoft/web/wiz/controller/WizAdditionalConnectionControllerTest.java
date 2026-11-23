@@ -324,6 +324,20 @@ class WizAdditionalConnectionControllerTest {
       assertEquals("stored-id", auth.getCredentialId());
    }
 
+   @Test
+   void updateKeepsTheStoredUrlPropertiesWhenTheCallerDoesNotEditThem() throws Exception {
+      Fixture f = new Fixture();
+      f.allowAll();
+      f.stored("reports");
+      f.additionals.get(0).getInfo().setProperties("useSSL=true");
+
+      f.controller.updateAdditionalConnection(
+         BASE, "reports", new WizAdditionalDefinitionRequest(wiz("reports")), f.principal);
+
+      assertEquals("useSSL=true", f.savedModel(ActionRecord.ACTION_NAME_EDIT)
+         .additionalDataSources()[0].getInfo().getProperties());
+   }
+
    // ---- remove -----------------------------------------------------------------------------
 
    @Test
@@ -408,6 +422,25 @@ class WizAdditionalConnectionControllerTest {
       verify(f.service).testDataSourceConnection(
          eq(BASE), definition.capture(), eq(f.principal), eq(true));
       assertEquals("reports", definition.getValue().getOldName());
+   }
+
+   @Test
+   void testRunsWithTheStoredUrlPropertiesOfTheNamedConnection() throws Exception {
+      Fixture f = new Fixture();
+      f.allowAll();
+      f.stored("reports");
+      f.additionals.get(0).getInfo().setProperties("useSSL=true");
+      when(f.service.testDataSourceConnection(anyString(), any(DatabaseDefinition.class), any(),
+                                              anyBoolean()))
+         .thenReturn(new ConnectionStatus("ok", true));
+
+      f.controller.testAdditionalConnection(
+         BASE, new WizAdditionalTestRequest(wiz("reports"), "reports"), f.principal);
+
+      ArgumentCaptor<DatabaseDefinition> definition = ArgumentCaptor.forClass(DatabaseDefinition.class);
+      verify(f.service).testDataSourceConnection(
+         eq(BASE), definition.capture(), eq(f.principal), eq(true));
+      assertEquals("useSSL=true", definition.getValue().getInfo().getProperties());
    }
 
    @Test
