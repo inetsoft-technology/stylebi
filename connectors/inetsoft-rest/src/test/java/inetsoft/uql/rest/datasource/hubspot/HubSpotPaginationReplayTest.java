@@ -49,7 +49,7 @@ class HubSpotPaginationReplayTest {
 
    // zero-based offsets: the first record is at offset 0
    @Test
-   @Disabled("Bug #81836: page type 2 endpoints send offset=1 first and skip the first record; already fixed in 13.8, not yet in 2.1.0, enable when the fix reaches main")
+   @Disabled("Bug #82126: page type 2 endpoints send offset=1 first and skip the first record; already fixed in 13.8 as #81836, not yet in 2.1.0, enable when the fix reaches main")
    void offsetEndpointsStartAtOffsetZero() throws Exception {
       assertNoProblems(true);
    }

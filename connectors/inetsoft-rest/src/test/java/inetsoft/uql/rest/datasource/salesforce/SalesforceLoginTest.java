@@ -261,7 +261,7 @@ class SalesforceLoginTest {
 
    // Salesforce: the security token is appended to the password only when the org needs one
    @Test
-   @Disabled("Bug #81882: a null security token is sent as the text 'null' in the login password; already fixed in 13.8, not yet in 2.1.0, enable when the fix reaches main")
+   @Disabled("Bug #82125: a null security token is sent as the text 'null' in the login password; already fixed in 13.8 as #81882, not yet in 2.1.0, enable when the fix reaches main")
    void passwordIsSentUnchangedWhenThereIsNoSecurityToken() throws Exception {
       TestSource ds = source("user", "pw", null);
       ds.getURL();
