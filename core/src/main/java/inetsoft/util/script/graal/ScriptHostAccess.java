@@ -864,14 +864,12 @@ public final class ScriptHostAccess {
                   // overloads" instead of binding the boolean one, because both
                   // land on this final tier.
                   //
-                  // #82093: Short, Byte and a fractional float string sit one tier
-                  // higher (LOW) so they still beat the Boolean mappings above, as
-                  // Rhino did (it never converted a string to boolean when another
-                  // overload applied): m(boolean|short)('5') binds short and
-                  // m(boolean|float)('1.5') binds float. A whole-number float
-                  // string stays LOWEST, level with int/long, so
-                  // Color('255','0','0') still binds the int constructor; for it the
-                  // boolean collision above applies.
+                  // #82093: Short, Byte and Float strings stay LOWEST too. A higher
+                  // tier would let them beat an Object overload (String.valueOf('1.50')
+                  // would bind valueOf(float) and return "1.5"). Consequence, the same
+                  // as boolean|int above: m(boolean|short)('5') and
+                  // m(boolean|float)('1.5') report "Multiple applicable overloads"
+                  // (Rhino bound short / float, main bound boolean).
                   .targetTypeMapping(String.class, Double.class,
                                      str -> str != null
                                         && JavaClassProxy.toNumber(str) != null,
@@ -893,24 +891,18 @@ public final class ScriptHostAccess {
                                         && integralString(str, Short.MIN_VALUE,
                                                           Short.MAX_VALUE),
                                      str -> JavaClassProxy.toNumber(str).shortValue(),
-                                     HostAccess.TargetMappingPrecedence.LOW)
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
                   .targetTypeMapping(String.class, Byte.class,
                                      str -> str != null
                                         && integralString(str, Byte.MIN_VALUE,
                                                           Byte.MAX_VALUE),
                                      str -> JavaClassProxy.toNumber(str).byteValue(),
-                                     HostAccess.TargetMappingPrecedence.LOW)
-                  // a whole-number float string: LOWEST, level with int/long
-                  .targetTypeMapping(String.class, Float.class,
-                                     str -> str != null && exactFloatString(str, true),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                                    .targetTypeMapping(String.class, Float.class,
+                                     str -> str != null && exactFloatString(str),
                                      str -> JavaClassProxy.toNumber(str).floatValue(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
-                  // a fractional float string: LOW, like the double -> float mapping
-                  .targetTypeMapping(String.class, Float.class,
-                                     str -> str != null && exactFloatString(str, false),
-                                     str -> JavaClassProxy.toNumber(str).floatValue(),
-                                     HostAccess.TargetMappingPrecedence.LOW)
-                  // a JS or host Date has the JS toString text (Rhino did the same);
+// a JS or host Date has the JS toString text (Rhino did the same);
                   // only a String parameter, Object/Date/Instant overloads still win.
                   // LOWEST, not LOW: the Date -> Instant conversion sits on the LOW
                   // tier, so at LOW a (String|Instant) pair would turn ambiguous.
@@ -1528,11 +1520,8 @@ public final class ScriptHostAccess {
          && d >= min && d <= max;
    }
 
-   /**
-    * Whether a numeric string parses (as a double) to a finite value that a float
-    * holds unchanged, and is whole ({@code whole}) or fractional.
-    */
-   private static boolean exactFloatString(String str, boolean whole) {
+   /** Whether a numeric string parses to a finite double that a float holds unchanged. */
+   private static boolean exactFloatString(String str) {
       Number n = JavaClassProxy.toNumber(str);
 
       if(n == null) {
@@ -1540,8 +1529,7 @@ public final class ScriptHostAccess {
       }
 
       double d = n.doubleValue();
-      return !Double.isNaN(d) && !Double.isInfinite(d) && d == (double) (float) d
-         && (d == Math.rint(d)) == whole;
+      return !Double.isNaN(d) && !Double.isInfinite(d) && d == (double) (float) d;
    }
 
    /**

@@ -55,6 +55,10 @@ class ScriptHostAccessNarrowNumberDateTest {
       public String bby(byte s) { return "BY"; }
       public String bi(boolean b) { return "B"; }
       public String bi(int s) { return "I"; }
+      public String os(Object o) { return "O"; }
+      public String os(short s) { return "SH"; }
+      public String of(Object o) { return "O"; }
+      public String of(float f) { return "F"; }
       public String sd(String s) { return "S"; }
       public String sd(double s) { return "D"; }
    }
@@ -161,11 +165,11 @@ class ScriptHostAccessNarrowNumberDateTest {
       // Date -> String stays LOWEST (a LOW one would make String|Instant ambiguous)
       refused("Java.type('java.lang.Boolean').valueOf(new Date(0))");
       refused("d.bs(new Date(0))");
-      assertEquals("F", str("d.bf('1.5')"));
-      assertEquals("SH", str("d.bsh('5')"));
-      assertEquals("BY", str("d.bby('5')"));
-      // a whole-number float string stays level with int/long and the boolean
-      // mapping, the same documented #8515 ambiguity as boolean|int
+      // numeric strings with a boolean overload: documented ambiguity, as
+      // boolean|int (#8515); Rhino bound short/float, main bound boolean
+      refused("d.bf('1.5')");
+      refused("d.bsh('5')");
+      refused("d.bby('5')");
       refused("d.bi('5')");
       assertEquals("B", str("d.bf('abc')"));
    }
@@ -195,5 +199,12 @@ class ScriptHostAccessNarrowNumberDateTest {
       refused(b + "('128')");
       assertEquals("255", str(b + "('-1')"));
       assertEquals("0x1.9p6", str("Java.type('java.lang.Float').toHexString('1e2')"));
+   }
+
+   @Test
+   void objectOverloadStillWins() {
+      assertEquals("1.50", str("Java.type('java.lang.String').valueOf('1.50')"));
+      assertEquals("O", str("d.os('5')"));
+      assertEquals("O", str("d.of('1.5')"));
    }
 }
