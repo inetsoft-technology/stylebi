@@ -105,6 +105,66 @@ class AreaVOBaselineBoundsTest {
                  " (bounds must reach the fill baseline)");
    }
 
+   @Test
+   void boundsReachBaselineForNegativeValues() {
+      // all values below 0: the fill still spans from the curve to the baseline
+      AreaVO area = plotArea(new Object[][]{
+         { "x", "y" }, { "A", -50.0 }, { "B", -70.0 }, { "C", -55.0 }, { "D", -65.0 } });
+      Rectangle2D dataBounds = pointBounds(area.getTransformedPoints());
+      Rectangle2D areaBounds = area.getBounds();
+
+      assertTrue(areaBounds.getHeight() > dataBounds.getHeight() * 2.0);
+   }
+
+   @Test
+   void nullValueDoesNotHideTheBaseline() {
+      // a null value gives a NaN point, which must neither throw nor shrink the bounds
+      AreaVO area = plotArea(new Object[][]{
+         { "x", "y" }, { "A", 50.0 }, { "B", null }, { "C", 55.0 }, { "D", 65.0 } });
+      Rectangle2D dataBounds = pointBounds(area.getTransformedPoints());
+      Rectangle2D areaBounds = area.getBounds();
+
+      assertNotNull(areaBounds);
+      assertTrue(areaBounds.getHeight() > dataBounds.getHeight() * 2.0,
+                 "area bounds " + areaBounds + " must reach the baseline, data " + dataBounds);
+   }
+
+   @Test
+   void boundsFollowTheScreenTransform() {
+      AreaVO area = plotArea(new Object[][]{
+         { "x", "y" }, { "A", 50.0 }, { "B", 70.0 }, { "C", 55.0 }, { "D", 65.0 } });
+      Rectangle2D before = area.getBounds();
+
+      // keep the transform set by the layout and move everything 100 down
+      AffineTransform trans = new AffineTransform(area.getScreenTransform());
+      trans.preConcatenate(AffineTransform.getTranslateInstance(0, 100));
+      area.setScreenTransform(trans);
+      Rectangle2D after = area.getBounds();
+
+      // the base points are transformed like the data points, so the box moves as a whole
+      assertEquals(before.getMinY() + 100, after.getMinY(), 1e-6);
+      assertEquals(before.getHeight(), after.getHeight(), 1e-6);
+      assertEquals(before.getMinX(), after.getMinX(), 1e-6);
+   }
+
+   private static AreaVO plotArea(Object[][] rows) {
+      DefaultDataSet data = new DefaultDataSet(rows);
+      CategoricalScale xScale = new CategoricalScale("x");
+      xScale.init(data);
+      LinearScale yScale = new LinearScale("y");
+      yScale.init(data);
+      AreaElement element = new AreaElement();
+      element.addDim("x");
+      element.addVar("y");
+      EGraph egraph = new EGraph();
+      egraph.addElement(element);
+      egraph.setCoordinate(new RectCoord(xScale, yScale));
+      VGraph vgraph = Plotter.getPlotter(egraph).plotAndLayout(data, 0, 0, 400, 400);
+      AreaVO area = findAreaVO(vgraph);
+      assertNotNull(area, "an AreaVO must be produced for the area element");
+      return area;
+   }
+
    private static AreaVO findAreaVO(VGraph vgraph) {
       for(int i = 0; i < vgraph.getVisualCount(); i++) {
          Visualizable v = vgraph.getVisual(i);

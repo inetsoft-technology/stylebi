@@ -75,17 +75,32 @@ public class AreaVO extends LineVO {
    @Override
    public Rectangle2D getBounds() {
       Rectangle2D bounds = super.getBounds();
+      AffineTransform trans = getScreenTransform();
+      Point2D pt = new Point2D.Double();
+      double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY;
+      double maxX = Double.NEGATIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
 
-      for(Point2D pt : getTransformedBasePoints()) {
-         if(pt == null || Double.isNaN(pt.getX()) || Double.isNaN(pt.getY())) {
+      // accumulate the extent of the valid base points without allocating a point or a
+      // rectangle per base point, getBounds() is called for every tile and layout pass
+      for(Point2D base : basepts) {
+         trans.transform(base, pt);
+
+         if(Double.isNaN(pt.getX()) || Double.isNaN(pt.getY())) {
             continue;
          }
 
-         Rectangle2D r = new Rectangle2D.Double(pt.getX(), pt.getY(), 0, 0);
-         bounds = bounds == null ? r : bounds.createUnion(r);
+         minX = Math.min(minX, pt.getX());
+         maxX = Math.max(maxX, pt.getX());
+         minY = Math.min(minY, pt.getY());
+         maxY = Math.max(maxY, pt.getY());
       }
 
-      return bounds;
+      if(minX > maxX) {
+         return bounds;
+      }
+
+      Rectangle2D baseBounds = new Rectangle2D.Double(minX, minY, maxX - minX, maxY - minY);
+      return bounds == null ? baseBounds : bounds.createUnion(baseBounds);
    }
 
    /**
