@@ -771,3 +771,161 @@ describe("static pages (Task 6)", () => {
       expect(base.get("--ln-text-muted")).toBe("var(--inet-text-muted-color, #6A685F)");
    });
 });
+
+// a selector list split on its top-level commas (not those inside :where(), :is() and the like)
+const selectorList = (list: string): string[] => {
+   const result = [""];
+   let depth = 0;
+
+   for(const c of list) {
+      depth += c === "(" ? 1 : c === ")" ? -1 : 0;
+
+      if(c === "," && depth === 0) {
+         result.push("");
+      }
+      else {
+         result[result.length - 1] += c;
+      }
+   }
+
+   return result.map(s => s.replace(/\s+/g, " ").trim());
+};
+
+// every plain rule in a stylesheet (comments removed), at any nesting depth, as its selector list and
+// its declarations; a rule inside an at-rule is found the same as a top-level one
+const rulesOf = (css: string): { selectors: string[], body: string }[] =>
+   [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({
+      selectors: selectorList(m[1]),
+      body: m[2],
+   }));
+
+// a declaration's value in a rule body
+const valueOf = (body: string, property: string): string | undefined =>
+   body.match(new RegExp(`(?:^|[;{\\s])${property}\\s*:\\s*([^;]*?)\\s*(?:;|$)`))?.[1]
+      ?.replace(/\s+/g, " ");
+
+// a selector's specificity as [ids, classes/attributes/pseudo-classes, elements]; :where() counts zero,
+// and :has()/:is()/:not() count their argument (their only use here is a single-selector argument)
+const specificity = (selector: string): number[] => {
+   let s = selector;
+
+   for(let i = s.indexOf(":where("); i >= 0; i = s.indexOf(":where(")) {
+      let depth = 0;
+      let j = i + ":where".length;
+
+      for(; j < s.length; j++) {
+         depth += s[j] === "(" ? 1 : s[j] === ")" ? -1 : 0;
+
+         if(depth === 0) {
+            break;
+         }
+      }
+
+      s = s.slice(0, i) + s.slice(j + 1);
+   }
+
+   s = s.replace(/:(has|is|not)\(/g, " (");
+
+   return [
+      (s.match(/#[\w-]+/g) ?? []).length,
+      (s.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) ?? []).length,
+      (s.replace(/#[\w-]+|\.[\w-]+|\[[^\]]*\]|::?[\w-]+/g, " ").match(/(?:^|[\s>+~(])[a-z][\w-]*/gi) ?? [])
+         .length,
+   ];
+};
+const compareSpecificity = (a: number[], b: number[]) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+
+describe("navbar ring: inset and tile-sized; the light shell's in the navbar text colour", () => {
+   const LINK_RULE = ".portal-navbar .portal-nav-item > .nav-link:focus-visible";
+   const TILE_RULE = ".portal-navbar .portal-nav-item:has(> .nav-link:focus-visible)";
+   const LIGHT_GATE = ":where(:root:not(.custom-theme):not(.shell-dark))";
+   const compiledRule = (selector: string) => {
+      const found = rulesOf(compiledGlobal())
+         .filter(r => r.selectors.length === 1 && r.selectors[0] === selector);
+
+      expect(found.length, `compiled rules for ${selector}`).toBe(1);
+      return found[0];
+   };
+
+   it("draws the ring inset on the tile, ungated, on keyboard focus only", () => {
+      expect(valueOf(compiledRule(TILE_RULE).body, "box-shadow"))
+         .toBe("inset 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color)");
+   }, 60000);
+
+   it("takes the link's own ring off, over every other nav-link ring, light and dark", () => {
+      const link = compiledRule(LINK_RULE);
+      const others = rulesOf(compiledGlobal()).flatMap(r =>
+         valueOf(r.body, "box-shadow") == null ? [] :
+            r.selectors.filter(s => s !== LINK_RULE && /\.nav-link:focus-visible(:where\(.*\))?$/.test(s)));
+
+      expect(valueOf(link.body, "box-shadow")).toBe("none");
+      // Bootstrap's light rule and the dark shell's rule
+      expect(others).toContain(".nav-link:focus-visible");
+      expect(others.some(s => s.startsWith(":where(.shell-dark) .nav-link:focus-visible"))).toBe(true);
+
+      for(const other of others) {
+         expect(compareSpecificity(specificity(LINK_RULE), specificity(other)), other).toBeGreaterThan(0);
+      }
+   }, 60000);
+
+   it("keeps the link's ring where :has() is not supported", () => {
+      const css = compiledGlobal().replace(/\s+/g, " ");
+      const supports = css.match(/@supports selector\(:has\(\*\)\) \{((?:[^{}]*\{[^{}]*\})*) \}/);
+
+      expect(supports, "no @supports selector(:has(*)) block").not.toBeNull();
+      expect(supports[1]).toContain(`${LINK_RULE} {`);
+      expect(supports[1]).toContain(`${TILE_RULE} {`);
+   }, 60000);
+
+   it("colours the ring with the navbar text in the light shell only, gated off on themed pages", () => {
+      expect(valueOf(compiledRule(`${LIGHT_GATE} ${TILE_RULE}`).body, "--inet-focus-ring-color"))
+         .toBe("var(--inet-portal-navbar-text-color)");
+      expect(rulesOf(compiledGlobal()).filter(r => r.selectors.some(s => s.endsWith(TILE_RULE)))
+         .map(r => r.selectors.join(", ")).sort())
+         .toEqual([TILE_RULE, `${LIGHT_GATE} ${TILE_RULE}`].sort());
+   }, 60000);
+
+   it("covers every portal navbar link: each is the direct child of its tile", () => {
+      const html = read("app/portal/app.component.html");
+      const links = html.match(/<a\b[^>]*class="nav-link\b/g) ?? [];
+      const tileLinks = html.match(
+         /<li\b[^>]*class="nav-item portal-nav-item\b[^"]*"[^>]*>\s*<a\b[^>]*class="nav-link\b/g) ?? [];
+
+      expect(links.length).toBeGreaterThan(0);
+      expect(tileLinks.length).toBe(links.length);
+   });
+});
+
+describe("login page filled-button ring gap", () => {
+   const login = () => readRepo("core/src/main/resources/inetsoft/web/resources/css/login.css");
+   const PRIMARY = [
+      "#loginButton.btn-primary",
+      ".login-left .btn-primary",
+      ".restricted-action-btn--primary",
+      "#activeSession .modal-footer .btn-primary",
+   ];
+   const GAP_RING = "0 0 0 2px var(--ln-focus-gap, var(--ln-card)), 0 0 0 4px var(--ln-focus)";
+
+   it("draws the gap on the filled primary buttons' keyboard focus, ungated", () => {
+      const focus = rulesOf(login()).filter(r =>
+         r.selectors.join(", ") === PRIMARY.map(s => `${s}:focus-visible`).join(", "));
+
+      expect(focus.length).toBe(1);
+      expect(valueOf(focus[0].body, "box-shadow")).toBe(GAP_RING);
+   });
+
+   it("gives the gap to no other rule; the default button stays flush", () => {
+      const gapRules = rulesOf(login()).filter(r => r.body.includes("var(--ln-focus-gap"));
+      const defaultFocus = rulesOf(login()).find(r => r.selectors.includes(".btn-default:focus-visible"));
+
+      expect(gapRules.map(r => r.selectors[0])).toEqual(["#loginButton.btn-primary:focus-visible"]);
+      expect(valueOf(defaultFocus.body, "box-shadow")).toBe("0 0 0 2px var(--ln-focus)");
+   });
+
+   it("gives the gap the dialog's surface in the active-session dialog", () => {
+      const dialog = rulesOf(login()).find(r => r.selectors.join(", ") === "#activeSession .modal-content");
+
+      expect(valueOf(dialog.body, "background")).toBe("var(--ln-dialog-bg)");
+      expect(valueOf(dialog.body, "--ln-focus-gap")).toBe("var(--ln-dialog-bg)");
+   });
+});

@@ -1606,6 +1606,29 @@ wizard-binding-tree .bg-node-selected {
       background-color: var(--inet-portal-navbar-hover-bg-color);
     }
   }
+
+  // Keyboard focus draws an inset ring the size of the tile (the li, which carries the hover fill)
+  // in place of the link's outer ring, which is narrower than the tile. The link wraps only its
+  // icon, and growing it to fill the tile would widen its click target, so the tile draws the ring
+  // through :has(). Behaviour: both shells and themed pages; where :has() is unsupported the link
+  // keeps its own ring. The light shell's ring colour is set below.
+  @supports selector(:has(*)) {
+    .portal-nav-item > .nav-link:focus-visible {
+      box-shadow: none;
+    }
+
+    .portal-nav-item:has(> .nav-link:focus-visible) {
+      box-shadow: inset 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+    }
+  }
+}
+
+// The light shell's navbar ring takes the navbar text colour, as the composer navbar's does: the
+// shell's orange ring is 2.02:1 on the navbar and 1.15:1 on its hover tile, the text colour 9.11:1
+// and 5.17:1 (D2). The dark shell keeps its ring colour (9.15:1 on its navbar), and themed pages
+// keep theirs.
+:where(:root:not(.custom-theme):not(.shell-dark)) .portal-navbar .portal-nav-item:has(> .nav-link:focus-visible) {
+  --inet-focus-ring-color: var(--inet-portal-navbar-text-color);
 }
 
 .portal-sub-navbar, .composer-bottom-tabs, .schedule-navbar, .vpm-navbar, .viewer-bottom-tabs {

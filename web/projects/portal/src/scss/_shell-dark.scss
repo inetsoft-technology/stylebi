@@ -564,8 +564,9 @@ $dark-ws-row-hover-bg: #302D27;
     background-color: rgba(255, 255, 255, 0.08);
   }
 
-  // Bootstrap bakes the light focus ring into .nav-link (navbar, tree toolbars). Dashboard content
-  // keeps the light ring.
+  // Bootstrap bakes the light focus ring into .nav-link (tree toolbars, dialog tabs). Dashboard
+  // content keeps the light ring. The portal navbar's tiles draw their own inset ring instead
+  // (_themeable.scss), in this shell's ring colour.
   .nav-link:focus-visible#{$outside-content} {
     box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
   }

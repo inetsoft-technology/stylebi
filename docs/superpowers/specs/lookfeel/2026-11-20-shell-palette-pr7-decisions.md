@@ -22,7 +22,7 @@ are WCAG relative-luminance ratios, worked out from the hex values given. Vendor
 | # | Decision | Taken by | Overturn cost |
 |---|---|---|---|
 | D1 | Danger button hover, focus and press: white label on `#B03A3A`, shell only | Vendor rule | One token, one rule |
-| D2 | Light focus ring: solid `#B4610F`, keyboard only (`:focus-visible`), with a 2px gap on filled buttons | Vendor rule | One token value; the selector change is separate |
+| D2 | Light focus ring: solid `#B4610F`, keyboard only (`:focus-visible`), with a 2px gap on filled buttons; the navbar's ring is inset and tile-sized, in the navbar text colour in light | Vendor rule | One token value; the selector change, the gap and the navbar rule are separate |
 | D3 | Dark focus ring: solid `#F0A75A` | Vendor rule | One token value |
 | D4 | Dark neutrals: final, no change | Vendor rule | n/a |
 | D5 | Text layout designer Text chip: unchanged | Vendor rule | n/a |
@@ -73,6 +73,18 @@ danger colour shaded 15%). Material 3 pairs its error colour with an on-error la
   - the selected fill (D6) 3.21.
 
   Plain `#D97A1A` would be only 2.71 on beige.
+
+  Correction: these are the content surfaces, not every shell surface (as the code comment on the
+  token claimed). The list never included the navbar: there `#B4610F` is only 2.02:1 on the
+  navbar `#4A4845` and 1.15:1 on its hover tile (`#6E6D6A`). Before PR7 the navbar ring was the
+  faint 28% orange, also below 3:1.
+- **Navbar:** in the light shell the navbar draws the ring inset and tile-sized, in the navbar
+  text colour: white is 9.11:1 on the navbar and 5.17:1 on the hover tile. The dark navbar keeps
+  `#F0A75A` (9.15:1 on `#141316`) and takes the same inset, tile-sized shape. The colour is
+  gated off on themed pages; the shape is behaviour and applies on them too. The ring is drawn on
+  the tile (the `li`, which carries the hover fill) through `:has()`, because the link inside is
+  narrower than the tile and growing it would widen its click target. Where `:has()` is not
+  supported the link keeps its old outer ring.
 - **Dark:** solid `#F0A75A`, 7.62:1 on `#252428` and 4.50:1 on the dark selected fill. The ring and
   the hover borders are now one orange; primary buttons still rest at `#D97A1A`.
 - **Behaviour:**
@@ -81,6 +93,10 @@ danger colour shaded 15%). Material 3 pairs its error colour with an on-error la
   - Filled buttons draw a 2px gap, in the surface colour, between the button and the ring. In
     dark, a focused primary button fills with `#F0A75A`, so without the gap the ring would merge
     into the button.
+  - The login page's filled primary buttons (sign in, the restricted page's primary action, the
+    signup buttons and the active-session dialog's Yes) take the same 2px gap: flush, the ring was
+    1.45:1 (light) and 1.54:1 (dark) against the orange fill. The gap is the card's colour, and the
+    dialog's colour in the active-session dialog. The default button stays flush.
 
 **Basis.**
 - Solid rings: Carbon's `$focus` is an opaque focus-border colour, and Atlassian sizes "the focus
@@ -92,10 +108,24 @@ danger colour shaded 15%). Material 3 pairs its error colour with an on-error la
   ring uses the secondary colour (uncited).
 - Keyboard-only rings: browsers don't show a focus ring when a button is clicked with a pointer,
   and `:focus-visible` lets a page restyle the ring without changing when it appears (MDN).
+- Inset navbar ring: WCAG 2.4.13 (Focus Appearance) counts a solid line inside the component,
+  against its outer edge, as the perimeter. Carbon's header ring covers the whole tile. The
+  composer navbar already draws an inset outline in its text colour.
 
 **Overturning it.** Each ring is one token value in `inet-shell-state-tokens` (light) or the dark
 `:root` block. The `:focus-visible` selector, the press rule and the gap are separate; reverting
-the selector brings back the ring on every mouse click.
+the selector brings back the ring on every mouse click. The navbar's shape and its light colour
+are two rules in `_themeable.scss`; the login gap is one rule in `login.css`.
+
+### Considered and not changed
+
+- **Hovering a selected row shows no extra step.** Deferred to a follow-up with Bug #81984: in
+  light, any visible step takes grey text below 4.5:1 (4.20) and the ring below 3:1 (2.91).
+  Carbon's tree defines a selected-hover state; Primer's does not.
+- **The orange ring on the danger button is kept.** With the gap it never touches the red fill;
+  its neighbours are white (4.51:1) and the dark surface (7.62:1). Carbon, Primer and Polaris keep
+  their normal focus colour on destructive buttons.
+- **The tree-toolbar icon button stays flush:** 3.72:1 on its chip and 4.51:1 on the surface.
 
 ## D4 and D5. Kept as they are
 
@@ -309,4 +339,6 @@ gate. Themes then lose up to 13 tokens on dashboards and the hover token in shel
   https://atlassian.design/components/tokens/all-tokens
 - Red Hat focus indicators: https://ux.redhat.com/foundations/interactions/focus-indicators/
 - WCAG 2.2 SC 1.4.11, Non-text Contrast: https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast
+- WCAG 2.2 SC 2.4.13, Focus Appearance: https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance
+- Carbon UI shell header: https://carbondesignsystem.com/components/UI-shell-header/usage/
 - WCAG 2.2 SC 1.4.3, Contrast (Minimum): https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum

@@ -393,12 +393,16 @@ body {
   border-color: var(--ln-primary-hover);
 }
 
+/* The filled buttons leave a 2px gap, in the surface behind them, between the fill and the ring, as
+   the portal's filled buttons do: flush, the ring is too close to the orange fill to read. The gap
+   is the card by default; a container on another surface sets --ln-focus-gap (the active-session
+   dialog below). Behaviour, so a themed page gets it too. */
 #loginButton.btn-primary:focus-visible,
 .login-left .btn-primary:focus-visible,
 .restricted-action-btn--primary:focus-visible,
 #activeSession .modal-footer .btn-primary:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ln-focus);
+  box-shadow: 0 0 0 2px var(--ln-focus-gap, var(--ln-card)), 0 0 0 4px var(--ln-focus);
 }
 
 /* the restricted page's primary action is a link drawn as a button: without this the global
@@ -508,6 +512,7 @@ pre.loginBanner {
 }
 
 #activeSession .modal-content {
+  --ln-focus-gap: var(--ln-dialog-bg);
   background: var(--ln-dialog-bg);
   color: var(--ln-text);
   border: 1px solid var(--ln-border);

@@ -255,7 +255,8 @@ $input-btn-focus-width: 1px;
 $input-btn-focus-color: $primary;
 // nav links (navbar tabs, tree toolbar icons, dialog tabs) take the shell's 2px focus ring
 // (shell-design-spec.md "Focus") instead of Bootstrap's 0.25rem ring. Only this variable: the
-// shared $focus-ring-width also feeds form checks, which dashboard content uses.
+// shared $focus-ring-width also feeds form checks, which dashboard content uses. The portal navbar's
+// tiles draw an inset ring in its place (_themeable.scss).
 $nav-link-focus-box-shadow: var(--inet-focus-ring);
 $input-disabled-bg: $inet-gray1;
 $input-border-color: $inet-gray1;
@@ -699,8 +700,9 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
 // tokens are declared on the same :root by inet-runtime-tokens, so they resolve with the shell
 // value. The runtime tokens keep the content values, which dashboard content re-declares below.
 @mixin inet-shell-state-tokens {
-  // a solid keyboard-focus ring: 3:1 or better on every shell surface (white 4.51, beige 3.92,
-  // selected 3.21) (D2). Dashboard content re-declares the .28 ring below.
+  // a solid keyboard-focus ring: 3:1 or better on the shell's content surfaces (white 4.51, beige
+  // 3.92, selected 3.21) (D2). Not on the navbar (2.02 on $shell-chrome-dark), whose ring takes the
+  // navbar text colour (_themeable.scss). Dashboard content re-declares the .28 ring below.
   --inet-focus-ring-color: #B4610F;
 
   // white label on this fill is 5.98:1 (D1)
