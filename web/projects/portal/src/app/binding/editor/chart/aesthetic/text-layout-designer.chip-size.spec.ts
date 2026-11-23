@@ -34,7 +34,7 @@ describe("text layout designer Field chip", () => {
    const chip = scss.slice(scss.indexOf(".field-chip-wrap {"));
 
    it("sizes the edit-measure and value-type buttons to the 22px value trigger", () => {
-      const rule = chip.match(/button\.fieldEditIcon,\s*\.dynamic-combo-box-body \.type-toggle\s*\{([^}]*)\}/);
+      const rule = chip.match(/button\.fieldEditIcon,\s*\.dynamic-combo-box-body button\.type-toggle\s*\{([^}]*)\}/);
 
       expect(rule, "no compact size rule for the field icon buttons").not.toBeNull();
       expect(rule[1]).toMatch(/width:\s*22px/);

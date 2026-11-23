@@ -59,10 +59,11 @@
   margin-left: -1px; /* overlap border with outer border */
 }
 
-// The icon buttons beside a field (value type f(x), and the dimension/measure or field option
-// settings) were bare glyphs, so nothing said they could be clicked. They now have the shelf
-// tiles' bordered look, at the height of the field box beside them (the control height, 30px; the
-// shelf tiles themselves are 32px). The text layout designer's compact chip sets its own size.
+// The icon buttons beside a field (the dimension/measure or field option settings) were bare
+// glyphs, so nothing said they could be clicked. They now have the shelf tiles' bordered look, at
+// the height of the field box beside them (the control height, 30px; the shelf tiles themselves
+// are 32px). The text layout designer's compact chip sets its own size. The value type f(x) toggle
+// gets the same look from the dynamic combo box itself.
 @mixin field-icon-button {
   box-sizing: border-box;
   flex: none;
@@ -90,11 +91,6 @@
   }
 }
 
-// dynamic-combo-box is a child component, so its toggle needs ::ng-deep
-.fieldmc ::ng-deep .type-toggle {
-  @include field-icon-button;
-}
-
 // The 3px radius of the mixin beats the larger one of the .fieldEditIcon rule below by specificity
 // (an element and a class against a class), so the buttons stay square-cornered like the tiles.
 button.fieldEditIcon {
@@ -106,6 +102,13 @@ button.fieldEditIcon {
     border-color: var(--inet-shell-border-strong);
     box-shadow: none;
     outline: none;
+  }
+
+  // The icon font draws the dimension setting glyph about 1px above the middle of its box, as it
+  // does the f(x) glyph. The measure setting glyph is within half a pixel of the middle.
+  > i.dimension-setting-icon {
+    position: relative;
+    top: 1px;
   }
 }
 

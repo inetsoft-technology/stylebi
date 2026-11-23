@@ -93,12 +93,38 @@ button.form-control {
     text-align: left;
   }
 
+  // The value type (f(x)) toggle is a bordered square the height of the input beside it, like
+  // the shelf tiles and the field icon buttons, so it reads as a button wherever the combo box is
+  // used. The body's own gap separates it from the input.
   .type-toggle {
-    padding: 0 3px;
-    padding-top: 0.1em;
-    flex: 0 0 auto;
-    // a borderless toggle stays borderless on hover: the neutral fill is the hover
-    --bs-btn-hover-border-color: transparent;
+    box-sizing: border-box;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    width: var(--inet-control-height-md);
+    height: var(--inet-control-height-md);
+    padding: 0;
+    border: 1px solid var(--inet-shell-border-strong);
+    border-radius: 3px;
+    background-color: var(--inet-shell-surface-default);
+    color: inherit;
+    line-height: 1;
+    // the border stays the same colour on hover (the shell's hover is the neutral fill), so the
+    // Bootstrap hover border colour is set to it
+    --bs-btn-hover-border-color: var(--inet-shell-border-strong);
+
+    &:hover:not(:disabled):not(.disabled):not(.disable-actions) {
+      background-color: var(--inet-ui-neutral-hover-bg-color);
+    }
+
+    // The icon font sits the f(x) glyph high in its box. The old padding-top: 0.1em hid that;
+    // with the padding gone, move the glyph down to the middle.
+    > i {
+      position: relative;
+      top: 1px;
+    }
   }
 
   .no-select-input-text {
