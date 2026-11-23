@@ -20,7 +20,6 @@ package inetsoft.uql.rest.datasource.teamdesk;
 import inetsoft.test.*;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.RestParameters;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,7 +72,6 @@ class TeamDeskPaginationTest {
       assertEquals(2, http.requests().size(), http.requests().toString());
    }
 
-   @Disabled("Bug #82124: the first page is requested with skip=1 and the first record is lost; already fixed in 13.8 as #81880, not yet in 2.1.0, enable when the fix reaches main")
    @Test
    void selectTableSkipsNothingOnTheFirstPage() throws Exception {
       // the second request fails, so that the query ends whatever it does at an empty page
