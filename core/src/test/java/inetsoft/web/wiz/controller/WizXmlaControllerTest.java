@@ -32,6 +32,7 @@ import inetsoft.web.security.PermissionPath;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import inetsoft.web.wiz.model.*;
+import inetsoft.web.wiz.request.WizMetadataRefreshRequest;
 import inetsoft.web.wiz.request.WizXmlaCreateRequest;
 import inetsoft.web.wiz.request.WizXmlaDraftRequest;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
@@ -81,7 +82,8 @@ class WizXmlaControllerTest {
       }
 
       assertEquals(Set.of("/api/wiz/xmla/definition", "/api/wiz/xmla/create",
-                          "/api/wiz/xmla/update", "/api/wiz/xmla/catalogs", "/api/wiz/xmla/test"),
+                          "/api/wiz/xmla/update", "/api/wiz/xmla/catalogs", "/api/wiz/xmla/test",
+                          "/api/wiz/xmla/refresh-cubes"),
                    paths);
    }
 
@@ -91,6 +93,86 @@ class WizXmlaControllerTest {
          "getXmlaDefinition", String.class, Principal.class));
       assertWriteGate(WizXmlaController.class.getDeclaredMethod(
          "updateXmla", String.class, WizXmlaDefinition.class, Principal.class));
+   }
+
+   // ---- refresh-cubes ----------------------------------------------------------------------
+
+   @Test
+   void refreshCubes_isDeniedWithoutWriteAndNeverLoads() throws Exception {
+      Fixture f = new Fixture();
+      when(f.security.checkPermission(f.principal, ResourceType.DATA_SOURCE, "olap/sales",
+                                      ResourceAction.WRITE)).thenReturn(false);
+
+      assertThrows(SecurityException.class, () -> f.controller.refreshCubes(
+         new WizMetadataRefreshRequest("olap/sales"), f.principal));
+
+      verifyNoInteractions(f.service);
+   }
+
+   @Test
+   void refreshCubes_refusesANonXmlaPathWith422() throws Exception {
+      Fixture f = new Fixture();
+      f.allowAll();
+      f.stored("db/orders", mock(JDBCDataSource.class));
+
+      assertThrows(UnsupportedDatasourceException.class, () -> f.controller.refreshCubes(
+         new WizMetadataRefreshRequest("db/orders"), f.principal));
+
+      verifyNoInteractions(f.service);
+   }
+
+   @Test
+   void refreshCubes_reportsTheCubeCountOnSuccess() throws Exception {
+      Fixture f = new Fixture();
+      f.allowAll();
+      f.stored("olap/sales", f.xmla("secret"));
+      when(f.service.refreshStoredCubes("olap/sales")).thenReturn(
+         XmlaDatasourceService.CubeRefreshResult.ok("http://olap.example/xmla", 3));
+
+      WizXmlaRefreshResult result = f.controller.refreshCubes(
+         new WizMetadataRefreshRequest("olap/sales"), f.principal);
+
+      assertTrue(result.ok());
+      assertNull(result.reason());
+      assertEquals(3, result.cubeCount());
+   }
+
+   @Test
+   void refreshCubes_namesTheEndpointWhenTheConnectionFails() throws Exception {
+      Fixture f = new Fixture();
+      f.allowAll();
+      f.stored("olap/sales", f.xmla("secret"));
+      when(f.service.refreshStoredCubes("olap/sales")).thenReturn(
+         XmlaDatasourceService.CubeRefreshResult.failed(
+            XmlaDatasourceService.CubeRefreshResult.CONNECTION_FAILED,
+            "http://olap.example/xmla", "refused"));
+
+      WizXmlaRefreshResult result = f.controller.refreshCubes(
+         new WizMetadataRefreshRequest("olap/sales"), f.principal);
+
+      assertFalse(result.ok());
+      assertEquals("CONNECTION_FAILED", result.reason());
+      assertEquals("http://olap.example/xmla", result.url());
+      assertNull(result.cubeCount());
+   }
+
+   @Test
+   void refreshCubes_passesThroughNoCubesAndPersistFailed() throws Exception {
+      Fixture f = new Fixture();
+      f.allowAll();
+      f.stored("olap/sales", f.xmla("secret"));
+
+      for(String status : List.of("NO_CUBES", "PERSIST_FAILED", "CATALOG_REQUIRED")) {
+         when(f.service.refreshStoredCubes("olap/sales")).thenReturn(
+            XmlaDatasourceService.CubeRefreshResult.failed(status, "http://olap.example/xmla",
+                                                           null));
+
+         WizXmlaRefreshResult result = f.controller.refreshCubes(
+            new WizMetadataRefreshRequest("olap/sales"), f.principal);
+
+         assertFalse(result.ok());
+         assertEquals(status, result.reason());
+      }
    }
 
    // ---- definition -------------------------------------------------------------------------

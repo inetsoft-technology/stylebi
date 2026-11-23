@@ -382,6 +382,239 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       return null;
    }
 
+   /**
+    * Loads the cube metadata of a stored XMLA data source from its endpoint and saves it as the
+    * data source's domain, the way the Portal's Load Metadata plus Save does, but in one step.
+    *
+    * <p>Unlike {@link #refreshCubes}, a connection problem is reported (naming the endpoint)
+    * instead of being swallowed. Per-dimension {@code originalOrder} and per-member metadata that
+    * were edited on the stored domain are carried onto the fresh one, see
+    * {@link #mergeDomainMetadata}. The write is read back because the registry logs and ignores
+    * storage errors.</p>
+    *
+    * @param path the full path of an existing XMLA data source.
+    *
+    * @throws FileNotFoundException if there is no XMLA data source at the path.
+    */
+   public CubeRefreshResult refreshStoredCubes(String path) throws Exception {
+      XDataSource stored = getRepository().getDataSource(path);
+
+      if(!(stored instanceof XMLADataSource)) {
+         throw new FileNotFoundException("Data source not found: " + path);
+      }
+
+      // The credentials are resolved onto a copy, never onto the registry's own object.
+      XMLADataSource dataSource = (XMLADataSource) stored.clone();
+      String url = dataSource.getURL();
+
+      if(Tool.isEmptyString(url)) {
+         return CubeRefreshResult.failed(CubeRefreshResult.CONNECTION_FAILED, url,
+                                         "The data source has no URL.");
+      }
+
+      if(Tool.isEmptyString(dataSource.getCatalogName())) {
+         return CubeRefreshResult.failed(CubeRefreshResult.CATALOG_REQUIRED, url,
+                                         "The data source has no catalog name.");
+      }
+
+      Collection<?> cubes;
+
+      try {
+         Tool.refreshDatabaseCredentials(dataSource);
+         cubes = loadCubes(dataSource);
+      }
+      catch(Exception ex) {
+         LOG.info("Failed to load the XMLA cube metadata of {} from {}: {}", path, url,
+                  ex.getMessage());
+
+         return CubeRefreshResult.failed(
+            CubeRefreshResult.CONNECTION_FAILED, url,
+            ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
+      }
+
+      if(cubes == null || cubes.isEmpty()) {
+         return CubeRefreshResult.failed(CubeRefreshResult.NO_CUBES, url, null);
+      }
+
+      String name = stored.getFullName();
+      Domain domain = new Domain();
+      domain.setDataSource(name);
+      domain.setCubes(cubes);
+      domain.clearCache();
+
+      XDomain odomain = getRepository().getDomain(name);
+
+      if(odomain != null) {
+         mergeDomainMetadata(domain, odomain);
+      }
+
+      try {
+         getRepository().updateDomain(domain, odomain != null);
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to save the XMLA cube metadata of {}: {}", path, ex.getMessage());
+      }
+
+      // updateDomain logs and ignores a storage failure, so only a read-back proves it was saved
+      XDomain saved = getRepository().getDomain(name);
+      int count = saved == null ? 0 : Collections.list(saved.getCubes()).size();
+
+      if(count != cubes.size()) {
+         return CubeRefreshResult.failed(
+            CubeRefreshResult.PERSIST_FAILED, url,
+            "Loaded " + cubes.size() + " cube(s) but the saved metadata has " + count + ".");
+      }
+
+      try {
+         dependencyHandler.updateCubeDomainDependencies(odomain, false);
+         dependencyHandler.updateCubeDomainDependencies(domain, true);
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to update the cube dependencies of {}: {}", path, ex.getMessage());
+      }
+
+      return CubeRefreshResult.ok(url, count);
+   }
+
+   /** Reads the cubes from the endpoint. Throws on any connection or discovery failure. */
+   protected Collection<?> loadCubes(XMLADataSource dataSource) throws Exception {
+      XMLAHandler handler = new XMLAHandler();
+      handler.connect(dataSource, null);
+      XNode node = handler.getMetaData(null);
+
+      return node == null ? null : (Collection<?>) node.getValue();
+   }
+
+   /**
+    * Carries the edits kept on {@code old} onto a freshly loaded {@code fresh}: each dimension's
+    * {@code originalOrder} and each level's and measure's meta info, matched by the same keys the
+    * Portal's metadata editor uses.
+    */
+   static void mergeDomainMetadata(Domain fresh, XDomain old) {
+      Set<String> keepOrder = new HashSet<>();
+      Map<String, XMetaInfo> metas = new HashMap<>();
+
+      for(Enumeration<?> cubes = old.getCubes(); cubes.hasMoreElements();) {
+         XCube cube = (XCube) cubes.nextElement();
+
+         if(cube == null) {
+            continue;
+         }
+
+         for(Enumeration<?> dims = cube.getDimensions(); dims.hasMoreElements();) {
+            XDimension dim = (XDimension) dims.nextElement();
+
+            if(dim instanceof Dimension && ((Dimension) dim).isOriginalOrder()) {
+               keepOrder.add(dimensionKey(cube, dim));
+            }
+
+            for(int i = 0; i < dim.getLevelCount(); i++) {
+               XCubeMember level = dim.getLevelAt(i);
+
+               if(level.getXMetaInfo() != null) {
+                  metas.put(memberKey(cube, level), level.getXMetaInfo());
+               }
+            }
+         }
+
+         for(Enumeration<?> ms = cube.getMeasures(); ms.hasMoreElements();) {
+            XCubeMember measure = (XCubeMember) ms.nextElement();
+
+            if(measure.getXMetaInfo() != null) {
+               metas.put(memberKey(cube, measure), measure.getXMetaInfo());
+            }
+         }
+      }
+
+      for(Enumeration<?> cubes = fresh.getCubes(); cubes.hasMoreElements();) {
+         XCube cube = (XCube) cubes.nextElement();
+
+         for(Enumeration<?> dims = cube.getDimensions(); dims.hasMoreElements();) {
+            XDimension dim = (XDimension) dims.nextElement();
+
+            if(dim instanceof Dimension && keepOrder.contains(dimensionKey(cube, dim))) {
+               ((Dimension) dim).setOriginalOrder(true);
+            }
+
+            for(int i = 0; i < dim.getLevelCount(); i++) {
+               XCubeMember level = dim.getLevelAt(i);
+               XMetaInfo meta = metas.get(memberKey(cube, level));
+
+               if(meta != null) {
+                  setMetaInfo(level, meta);
+               }
+            }
+         }
+
+         for(Enumeration<?> ms = cube.getMeasures(); ms.hasMoreElements();) {
+            XCubeMember measure = (XCubeMember) ms.nextElement();
+            XMetaInfo meta = metas.get(memberKey(cube, measure));
+
+            if(meta != null) {
+               setMetaInfo(measure, meta);
+            }
+         }
+      }
+   }
+
+   private static void setMetaInfo(XCubeMember member, XMetaInfo meta) {
+      if(member instanceof DimMember) {
+         ((DimMember) member).setXMetaInfo(meta);
+      }
+      else if(member instanceof Measure) {
+         ((Measure) member).setXMetaInfo(meta);
+      }
+   }
+
+   private static String cubeKey(XCube cube) {
+      String caption = cube instanceof Cube ? ((Cube) cube).getCaption() : null;
+
+      return Tool.isEmptyString(caption) ? cube.getName() : caption;
+   }
+
+   private static String dimensionKey(XCube cube, XDimension dim) {
+      String name = dim instanceof HierDimension ?
+         ((HierDimension) dim).getHierarchyUniqueName() :
+         dim instanceof Dimension ? ((Dimension) dim).getDimensionName() : dim.getName();
+
+      return cubeKey(cube) + ":" + name;
+   }
+
+   private static String memberKey(XCube cube, XCubeMember member) {
+      String name = member instanceof DimMember ? ((DimMember) member).getUniqueName() :
+         member.getName();
+
+      return cubeKey(cube) + ":" + name;
+   }
+
+   /**
+    * The outcome of {@link #refreshStoredCubes}.
+    *
+    * @param status    {@code OK} or the reason it failed.
+    * @param url       the endpoint that was contacted.
+    * @param cubeCount the number of cubes saved, 0 unless OK.
+    * @param message   the cause when it failed.
+    */
+   public record CubeRefreshResult(String status, String url, int cubeCount, String message) {
+      public boolean ok() {
+         return OK.equals(status);
+      }
+
+      public static CubeRefreshResult ok(String url, int cubeCount) {
+         return new CubeRefreshResult(OK, url, cubeCount, null);
+      }
+
+      public static CubeRefreshResult failed(String status, String url, String message) {
+         return new CubeRefreshResult(status, url, 0, message);
+      }
+
+      public static final String OK = "OK";
+      public static final String CONNECTION_FAILED = "CONNECTION_FAILED";
+      public static final String NO_CUBES = "NO_CUBES";
+      public static final String CATALOG_REQUIRED = "CATALOG_REQUIRED";
+      public static final String PERSIST_FAILED = "PERSIST_FAILED";
+   }
+
    public TreeNodeModel getCubeMetaTree(String path) throws Exception {
       Domain domain = getDomain(path);
 
