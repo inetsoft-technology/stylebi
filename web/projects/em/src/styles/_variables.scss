@@ -21,7 +21,7 @@
 
   // light/dark
   --inet-em-light-primary-text: #fff;
-  --inet-em-dark-primary-text: rgba(0,0,0.87);
+  --inet-em-dark-primary-text: rgba(0,0,0,.87);
 
   // primary
   --inet-em-primary-50: #e0e0e0;
@@ -73,11 +73,11 @@
   --inet-em-accent-contrast-200: var(--inet-em-dark-primary-text);
   --inet-em-accent-contrast-300: var(--inet-em-dark-primary-text);
   --inet-em-accent-contrast-400: var(--inet-em-dark-primary-text);
-  --inet-em-accent-contrast-500: var(--inet-em-dark-primary-text);
-  --inet-em-accent-contrast-600: var(--inet-em-dark-primary-text);
-  --inet-em-accent-contrast-700: var(--inet-em-dark-primary-text);
-  --inet-em-accent-contrast-800: var(--inet-em-dark-primary-text);
-  --inet-em-accent-contrast-900: var(--inet-em-dark-primary-text);
+  --inet-em-accent-contrast-500: var(--inet-em-light-primary-text);
+  --inet-em-accent-contrast-600: var(--inet-em-light-primary-text);
+  --inet-em-accent-contrast-700: var(--inet-em-light-primary-text);
+  --inet-em-accent-contrast-800: var(--inet-em-light-primary-text);
+  --inet-em-accent-contrast-900: var(--inet-em-light-primary-text);
   --inet-em-accent-contrast-A100: var(--inet-em-dark-primary-text);
   --inet-em-accent-contrast-A200: var(--inet-em-dark-primary-text);
   --inet-em-accent-contrast-A400: var(--inet-em-light-primary-text);
