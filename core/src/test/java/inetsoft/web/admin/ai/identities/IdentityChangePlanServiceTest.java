@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.identities;
 
 import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.*;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -1099,6 +1100,32 @@ class IdentityChangePlanServiceTest {
 
       assertEquals("USER|bob~;~host-org", delete.changes().get(0).property());
       assertEquals("USER|bob~;~host-org", update.changes().get(0).property());
+   }
+
+   @Test void resolveDeleteDisclosesTheResourcesLeftWithAnEmptyPermissionSet() throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      IdentityService identityService = mock(IdentityService.class);
+      service = new IdentityChangePlanService(securityService, securityEngine, identityService);
+      when(securityService.getUser(eq(id), eq(user))).thenReturn(existingUser(id));
+      when(identityService.findEmptiedPermissions(Identity.USER, id))
+         .thenReturn(List.of("DASHBOARD / (org host-org)"));
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(deleteUser("bob"))), user);
+
+      String description = plan.changes().get(0).description();
+      assertTrue(description.contains("DASHBOARD / (org host-org)"), description);
+      assertTrue(description.startsWith("delete user "), description);
+   }
+
+   @Test void resolveDeleteHasNoPermissionImpactWhenNothingIsLeftEmpty() throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      service = new IdentityChangePlanService(securityService, securityEngine,
+                                              mock(IdentityService.class));
+      when(securityService.getUser(eq(id), eq(user))).thenReturn(existingUser(id));
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(deleteUser("bob"))), user);
+
+      assertFalse(plan.changes().get(0).description().contains("permission impact"));
    }
 
    @Test void resolveAcceptsAnotherExistingOrgAndRefusesAnUnknownOne() throws Exception {

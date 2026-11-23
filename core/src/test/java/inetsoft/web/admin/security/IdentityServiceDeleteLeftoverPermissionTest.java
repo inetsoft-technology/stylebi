@@ -813,4 +813,139 @@ class IdentityServiceDeleteLeftoverPermissionTest {
       f.setAccessible(true);
       f.set(authz, storage);
    }
+
+   // ---- Bug #82074: resources left with an empty explicit permission set ---------------------
+
+   private static final String SOLO = "r82074/solo";
+
+   private void putEdited(String path, String org, int type, ResourceAction action,
+                          IdentityID... grantees) {
+      Permission perm = new Permission();
+      Set<Permission.PermissionIdentity> set = new HashSet<>();
+
+      for(IdentityID g : grantees) {
+         set.add(new Permission.PermissionIdentity(g));
+      }
+
+      perm.setGrants(action, type, set);
+      perm.updateGrantAllByOrg(org, true);
+      authz.setPermission(ResourceType.VIEWSHEET, path, perm, org);
+   }
+
+   @Test
+   void findEmptied_userHoldingTheLastGrant_namesTheResource() {
+      putEdited(SOLO, ORG, Identity.USER, ResourceAction.READ, ALICE);
+
+      try {
+         List<String> emptied = service.findEmptiedPermissions(Identity.USER, ALICE);
+
+         assertEquals(List.of("VIEWSHEET " + SOLO + " (org " + ORG + ")"), emptied);
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, SOLO, ORG);
+      }
+   }
+
+   @Test
+   void findEmptied_userWithGrantsAlongsideOthers_namesNothing() {
+      // VS also grants carol, a group and a role
+      assertEquals(List.of(), service.findEmptiedPermissions(Identity.USER, ALICE));
+   }
+
+   @Test
+   void findEmptied_isOnlyTheIdentitysOwnTypeAndOrganization() {
+      putEdited(SOLO, ORG, Identity.USER, ResourceAction.READ, ALICE);
+
+      try {
+         // the group "alice" and the same-named user of another organization are other identities
+         assertEquals(List.of(),
+                      service.findEmptiedPermissions(Identity.GROUP, new IdentityID("alice", ORG)));
+         assertEquals(List.of(), service.findEmptiedPermissions(
+            Identity.USER, new IdentityID("alice", OTHER_ORG)));
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, SOLO, ORG);
+      }
+   }
+
+   @Test
+   void findEmptied_resourceWithoutTheEditedFlag_namesNothing() {
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.USER,
+                     new HashSet<>(Set.of(new Permission.PermissionIdentity(ALICE))));
+      authz.setPermission(ResourceType.VIEWSHEET, SOLO, perm, ORG);
+
+      try {
+         assertEquals(List.of(), service.findEmptiedPermissions(Identity.USER, ALICE));
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, SOLO, ORG);
+      }
+   }
+
+   @Test
+   void findEmptied_ownKeyIsExcluded() {
+      Permission own = new Permission();
+      own.setGrants(ResourceAction.ADMIN, Identity.USER,
+                    new HashSet<>(Set.of(new Permission.PermissionIdentity(ALICE))));
+      own.updateGrantAllByOrg(ORG, true);
+      authz.setPermission(ResourceType.SECURITY_USER, ALICE.convertToKey(), own, ORG);
+
+      // the delete removes alice's own key, it is not left empty
+      assertEquals(List.of(), service.findEmptiedPermissions(Identity.USER, ALICE));
+   }
+
+   @Test
+   void findEmptied_groupAndRole() {
+      putEdited(SOLO, ORG, Identity.GROUP, ResourceAction.READ, SALES);
+      putEdited(SOLO + "2", ORG, Identity.ROLE, ResourceAction.READ, VIEWER);
+
+      try {
+         assertEquals(List.of("VIEWSHEET " + SOLO + " (org " + ORG + ")"),
+                      service.findEmptiedPermissions(Identity.GROUP, SALES));
+         assertEquals(List.of("VIEWSHEET " + SOLO + "2 (org " + ORG + ")"),
+                      service.findEmptiedPermissions(Identity.ROLE, VIEWER));
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, SOLO, ORG);
+         authz.removePermission(ResourceType.VIEWSHEET, SOLO + "2", ORG);
+      }
+   }
+
+   @Test
+   void findEmptied_globalRoleIsScannedInEveryOrganization() {
+      putEdited(SOLO, ORG, Identity.ROLE, ResourceAction.READ, GVIEWER);
+      putEdited(SOLO, OTHER_ORG, Identity.ROLE, ResourceAction.READ, GVIEWER);
+
+      try {
+         List<String> emptied = service.findEmptiedPermissions(Identity.ROLE, GVIEWER);
+
+         assertEquals(2, emptied.size(), String.valueOf(emptied));
+         assertTrue(emptied.contains("VIEWSHEET " + SOLO + " (org " + ORG + ")"));
+         assertTrue(emptied.contains("VIEWSHEET " + SOLO + " (org " + OTHER_ORG + ")"));
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, SOLO, ORG);
+         authz.removePermission(ResourceType.VIEWSHEET, SOLO, OTHER_ORG);
+      }
+   }
+
+   @Test
+   void deleteUser_afterTheScan_theResourceReallyIsEditedAndEmpty() throws Exception {
+      putEdited(SOLO, ORG, Identity.USER, ResourceAction.READ, ALICE);
+
+      try {
+         assertEquals(1, service.findEmptiedPermissions(Identity.USER, ALICE).size());
+
+         delete(ALICE, Identity.USER);
+
+         Permission after = authz.getPermission(ResourceType.VIEWSHEET, SOLO, ORG);
+         assertNotNull(after);
+         assertTrue(after.isBlank(ORG));
+         assertTrue(after.hasOrgEditedGrantAll(ORG));
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, SOLO, ORG);
+      }
+   }
 }
