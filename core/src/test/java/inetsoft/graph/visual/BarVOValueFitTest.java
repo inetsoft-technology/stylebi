@@ -147,9 +147,13 @@ class BarVOValueFitTest {
 
    @Test
    void withoutTheFlagNothingIsHidden() {
-      Laid laid = lay(24, 30, "-1,250", false, 400, 240);
+      // few enough categories that the labels do not overlap each other; overlapping labels are
+      // thinned out with a random jitter, which would hide one at random
+      Laid laid = lay(10, 30, "-1,250", false, 400, 240);
 
-      assertBar(laid, 60, 8);
+      assertBar(laid, 60, 18);
+      assertTrue(hidden(lay(10, 30, "-1,250", true, 400, 240).text),
+                 "premise: the same narrow bar hides its value when the flag is on");
       assertTrue(shown(laid.text));
    }
 
