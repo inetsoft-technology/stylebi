@@ -382,4 +382,124 @@ class ScriptEditServiceTest {
       assertTrue(ex.getMessage().contains("enable flag"),
                  "must explain there is nothing to enable, not just refuse: " + ex.getMessage());
    }
+
+   // ---- Bug #81783: a pending "New Calculated Field" dialog session writes a draft ----
+
+   private static final String CALC_TABLE = "Query1";
+   private static final String CALC_NAME = "CalcField1";
+
+   private static JoinSession calcSession(boolean pending) {
+      return new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org", SheetType.VIEWSHEET,
+                             0L, Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED, "sock", "alice",
+                             new EditorContext("calcField", CALC_TABLE, CALC_NAME, null, pending));
+   }
+
+   private static ScriptTarget calcTarget() throws PairingException {
+      return ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, CALC_TABLE, CALC_NAME);
+   }
+
+   @Test
+   void pendingCalcFieldDraftIsPushedWithoutTouchingTheRuntime() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("Viewsheet/foo-7");
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      when(sessions.paneStateOf(any())).thenReturn(new PaneState(true));
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      when(broadcast.pushScriptRefresh(any(), any(), any(), any(), any(), any(), any()))
+         .thenReturn(true);
+      CalcFieldService calcFields = mock(CalcFieldService.class);
+      ScriptEditService svc = new ScriptEditService(sessions, mock(SheetRuntimeAccess.class),
+                                                    broadcast, calcFields);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession session = calcSession(true);
+      ScriptTarget target = calcTarget();
+
+      assertTrue(svc.isPendingCalcFieldDraft(rvs, session, target));
+      var result = svc.writeCalcFieldDraft(rvs, agent, session, target, "price - cost");
+
+      assertTrue(result.ok());
+      assertEquals(Boolean.TRUE, result.pending());
+      assertNotNull(result.note());
+      verify(calcFields).validateDraft(rvs, true, CALC_NAME, "price - cost");
+      verify(broadcast).pushScriptRefresh(rvs, "Viewsheet/foo-7", agent, "calcField", CALC_TABLE,
+                                          CALC_NAME, "price - cost");
+      verify(rvs, never()).bumpWriteRevision();
+      verify(rvs, never()).addCheckpoint(any());
+      verify(calcFields, never()).write(any(), any(), any(), any());
+      verify(broadcast, never()).broadcastRefresh(any(), any(), any(), any());
+   }
+
+   @Test
+   void pendingGrantOnAnExistingCalcFieldTakesTheNormalPath() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = new Viewsheet();
+      when(rvs.getViewsheet()).thenReturn(vs);
+      CalcFieldService calcFields = mock(CalcFieldService.class);
+      when(calcFields.exists(vs, CALC_TABLE, CALC_NAME)).thenReturn(true);
+      ScriptEditService svc = new ScriptEditService(mock(SheetSessionService.class),
+         mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class), calcFields);
+
+      assertFalse(svc.isPendingCalcFieldDraft(rvs, calcSession(true), calcTarget()),
+                  "the user already clicked OK: a draft would land nowhere");
+   }
+
+   @Test
+   void nonPendingAndWholeSheetSessionsAreNeverCalcFieldDrafts() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ScriptEditService svc = new ScriptEditService(mock(SheetSessionService.class),
+         mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class),
+         mock(CalcFieldService.class));
+      JoinSession wholeSheet = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+         SheetType.VIEWSHEET, 0L, Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED, null, null,
+         null);
+
+      assertFalse(svc.isPendingCalcFieldDraft(rvs, calcSession(false), calcTarget()));
+      assertFalse(svc.isPendingCalcFieldDraft(rvs, wholeSheet, calcTarget()));
+      assertFalse(svc.isPendingCalcFieldDraft(rvs, calcSession(true),
+         ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_INIT, null)));
+   }
+
+   @Test
+   void pendingCalcFieldDraftRefusesBlankText() throws Exception {
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      ScriptEditService svc = new ScriptEditService(mock(SheetSessionService.class),
+         mock(SheetRuntimeAccess.class), broadcast, mock(CalcFieldService.class));
+
+      assertThrows(PairingException.class, () -> svc.writeCalcFieldDraft(
+         mock(RuntimeViewsheet.class), null, calcSession(true), calcTarget(), "  "));
+      assertThrows(PairingException.class, () -> svc.writeCalcFieldDraft(
+         mock(RuntimeViewsheet.class), null, calcSession(true), calcTarget(), null));
+      verifyNoInteractions(broadcast);
+   }
+
+   @Test
+   void pendingCalcFieldDraftFailsLoudWhenTheDialogIsNotReachable() throws Exception {
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      when(sessions.paneStateOf(any())).thenReturn(PaneState.DEFAULT);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      when(broadcast.pushScriptRefresh(any(), any(), any(), any(), any(), any(), any()))
+         .thenReturn(false);
+      ScriptEditService svc = new ScriptEditService(sessions, mock(SheetRuntimeAccess.class),
+                                                    broadcast, mock(CalcFieldService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.writeCalcFieldDraft(
+         mock(RuntimeViewsheet.class), null, calcSession(true), calcTarget(), "1 + 1"));
+      assertTrue(ex.getMessage().contains("not reachable"), ex.getMessage());
+   }
+
+   @Test
+   void pendingCalcFieldDraftRefusesTextTheValidatorRejects() throws Exception {
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      when(sessions.paneStateOf(any())).thenReturn(PaneState.DEFAULT);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      CalcFieldService calcFields = mock(CalcFieldService.class);
+      doThrow(new PairingException("Script error")).when(calcFields)
+         .validateDraft(any(), eq(false), any(), any());
+      ScriptEditService svc = new ScriptEditService(sessions, mock(SheetRuntimeAccess.class),
+                                                    broadcast, calcFields);
+
+      assertThrows(PairingException.class, () -> svc.writeCalcFieldDraft(
+         mock(RuntimeViewsheet.class), null, calcSession(true), calcTarget(), "a +"));
+      verify(broadcast, never()).pushScriptRefresh(any(), any(), any(), any(), any(), any(), any());
+   }
 }

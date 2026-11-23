@@ -24,6 +24,7 @@ import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.script.model.FunctionSignature;
 import inetsoft.web.wiz.script.model.ScriptError;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
+import inetsoft.web.wiz.script.model.ScriptWriteResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.springframework.web.server.ResponseStatusException;
@@ -575,5 +576,74 @@ class ViewsheetAgentControllerTest {
 
       assertTrue(ex.getMessage().contains("Write access denied: D"), ex.getMessage());
       verify(vsService, never()).setViewsheet(any(), any(), any(), anyBoolean(), anyBoolean());
+   }
+
+   // ---- Bug #81783: pending "New Calculated Field" session -> draft, never a runtime write ----
+
+   private static JoinSession calcPaneSession(String field, boolean pending) {
+      return new JoinSession(PANE_TOKEN, PANE_RUNTIME_ID, "admin", SheetType.VIEWSHEET, 0L,
+         Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED, null, null,
+         new EditorContext("calcField", "Query1", field, null, pending));
+   }
+
+   private static ViewsheetAgentController calcController(JoinSession session,
+                                                          ScriptEditService editService)
+      throws PairingException
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(eq(PANE_TOKEN), eq("admin"))).thenReturn(session);
+      when(editService.resolve(eq(PANE_TOKEN), any())).thenReturn(mock(RuntimeViewsheet.class));
+
+      return new ViewsheetAgentController(feature, mock(SheetJoinService.class), sessionService,
+         editService, mock(ScriptReadService.class), mock(ScriptExecuteService.class),
+         mock(ScriptStateRefreshService.class), mock(ScriptContextService.class),
+         mock(ScriptApiService.class), mock(ScriptImageService.class),
+         mock(ViewsheetService.class), mock(SheetAgentBroadcastService.class));
+   }
+
+   @Test
+   void writeScriptPushesADraftForAPendingCalcFieldThatDoesNotExistYet() throws Exception {
+      ScriptEditService editService = mock(ScriptEditService.class);
+      var expected = new ScriptWriteResult(true, true, "pushed", null);
+      when(editService.isPendingCalcFieldDraft(any(), any(), any())).thenReturn(true);
+      when(editService.writeCalcFieldDraft(any(), any(), any(), any(), eq("price - cost")))
+         .thenReturn(expected);
+      ViewsheetAgentController controller =
+         calcController(calcPaneSession("CalcField1", true), editService);
+      var req = new ViewsheetAgentController.WriteScriptRequest(
+         null, null, "calcField", "Query1", "CalcField1", "price - cost");
+
+      assertSame(expected, controller.writeScript(PANE_TOKEN, req, principal()));
+      verify(editService, never()).apply(anyString(), any(), any());
+   }
+
+   @Test
+   void writeScriptTakesTheNormalPathWhenThePendingCalcFieldAlreadyExists() throws Exception {
+      ScriptEditService editService = mock(ScriptEditService.class);
+      when(editService.isPendingCalcFieldDraft(any(), any(), any())).thenReturn(false);
+      ViewsheetAgentController controller =
+         calcController(calcPaneSession("CalcField1", true), editService);
+      var req = new ViewsheetAgentController.WriteScriptRequest(
+         null, null, "calcField", "Query1", "CalcField1", "price - cost");
+
+      assertNull(controller.writeScript(PANE_TOKEN, req, principal()));
+      verify(editService).apply(eq(PANE_TOKEN), any(), any());
+      verify(editService, never()).writeCalcFieldDraft(any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void writeScriptRefusesAPendingSessionWritingADifferentCalcField() throws Exception {
+      ScriptEditService editService = mock(ScriptEditService.class);
+      ViewsheetAgentController controller =
+         calcController(calcPaneSession("CalcField1", true), editService);
+      var req = new ViewsheetAgentController.WriteScriptRequest(
+         null, null, "calcField", "Query1", "Other", "price - cost");
+
+      assertThrows(PairingException.class,
+                   () -> controller.writeScript(PANE_TOKEN, req, principal()));
+      verify(editService, never()).writeCalcFieldDraft(any(), any(), any(), any(), any());
+      verify(editService, never()).apply(anyString(), any(), any());
    }
 }

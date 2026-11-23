@@ -185,13 +185,29 @@ public class CalcFieldService {
    private void validateExpression(RuntimeViewsheet rvs, CalculateRef cref, String expression)
       throws PairingException
    {
-      boolean issql = cref.isSQL();
+      validateDraft(rvs, cref.isSQL(), cref.getName(), expression);
+   }
+
+   /** Whether {@code table} already holds a user-created calculated field called {@code name}. */
+   public boolean exists(Viewsheet vs, String table, String name) {
+      return vs != null && vs.getCalcField(table, name) != null;
+   }
+
+   /**
+    * The syntax check shared by {@link #write} and a draft pushed into the open "New Calculated
+    * Field" dialog, where no {@link CalculateRef} exists yet and the dialog's own SQL/Script
+    * switch ({@code sql}) says how to read the text.
+    */
+   public void validateDraft(RuntimeViewsheet rvs, boolean issql, String fieldName,
+                             String expression)
+      throws PairingException
+   {
       String str = ExpressionRef.getSQLExpression(issql, expression);
 
       if(issql) {
          if(!XUtil.isSQLExpressionValid(str)) {
             throw new PairingException(
-               "Invalid SQL expression for calculated field '" + cref.getName() + "'.");
+               "Invalid SQL expression for calculated field '" + fieldName + "'.");
          }
 
          return;
@@ -207,12 +223,12 @@ public class CalcFieldService {
       }
 
       try {
-         env.checkFunction(cref.getName(), str);
+         env.checkFunction(fieldName, str);
       }
       catch(Exception ex) {
          String suggestion = env.getSuggestion(ex, null);
          throw new PairingException(
-            "Script error in calculated field '" + cref.getName() + "': " + ex.getMessage() +
+            "Script error in calculated field '" + fieldName + "': " + ex.getMessage() +
             (suggestion != null ? "\nTo fix: " + suggestion : ""));
       }
    }
