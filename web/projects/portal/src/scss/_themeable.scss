@@ -1070,6 +1070,111 @@ schema-column, edit-join-table-column {
   outline-offset: -2px;
 }
 
+/**************************** Toolbar button group ************************************/
+// A joined strip of icon buttons (the chart editor's chart type / separate graphs / swap XY).
+// Neutral at rest so each reads as a button, not a state: white cell, hairline dividers, hover fill.
+// Selected or open uses the primary soft tint with its own text colour (about 11:1) instead of the
+// solid primary fill, which keeps the glyph legible without a per-state glyph colour.
+.chart-toolbar-group {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--inet-shell-border-strong);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-shell-surface-default);
+  overflow: hidden;
+
+  // the host element must not become a layout box around its button
+  > chart-type-button {
+    display: contents;
+  }
+}
+
+.chart-toolbar-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  // one width for every cell, so the strip reads as equal buttons whatever the glyph is; wide
+  // enough for the chart type glyph and its menu chevron side by side
+  column-gap: 3px;
+  width: 44px;
+  min-width: 44px;
+  height: var(--inet-control-height-md);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--inet-text-color);
+  cursor: pointer;
+
+  // chart-type-button hosts its button, so the divider is drawn on the host, not on a sibling
+  + .chart-toolbar-btn,
+  chart-type-button + & {
+    border-left: 1px solid var(--inet-shell-border-strong);
+  }
+
+  &:hover:not([aria-disabled="true"]) {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+  }
+
+  // The chart-type glyphs are drawn smaller in the icon font than the layout glyphs beside them;
+  // 22px against 20px makes them read as the same size.
+  chart-type-button > & > span:first-child {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+
+  // the menu chevron sits beside the glyph; its line-height must equal its size like the other
+  // icons, or the inherited 16px line box draws the glyph about 3px low
+  .chevron-down-icon {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    font-size: 10px;
+    line-height: 10px;
+  }
+
+  // The icon font draws every glyph about 1px above the middle of its box, so nudge them down to
+  // centre.
+  > span {
+    position: relative;
+    top: 1px;
+  }
+
+  // Tint marks a cell as active or open. A toggle that is on also gets a 1px primary outline
+  // (3.1:1 on white): the soft tint alone is only ~1.3:1 against a resting cell, so the outline
+  // keeps the state readable without telling two pale fills apart. An open menu is already shown
+  // by its chevron, so it takes the tint only.
+  &[aria-pressed="true"],
+  &[aria-expanded="true"] {
+    background-color: var(--inet-primary-soft-color);
+    color: var(--inet-primary-text-color);
+  }
+
+  &[aria-pressed="true"] {
+    box-shadow: inset 0 0 0 1px var(--inet-primary-color);
+  }
+
+  &[aria-disabled="true"] {
+    opacity: var(--inet-input-disabled-opacity);
+    cursor: not-allowed;
+  }
+
+  // the default focus ring is a 28% orange halo, well under 3:1; same outline as the tree nodes
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--inet-text-color) 70%, white);
+    outline-offset: -2px;
+  }
+}
+
+@media (pointer: coarse) {
+  .chart-toolbar-btn {
+    min-width: var(--inet-control-height-touch);
+    height: var(--inet-control-height-touch);
+  }
+}
+
 /********************************** Others *********************************************/
 .th-cell-border {
   background-color: var(--inet-table-heading-bg-color);
