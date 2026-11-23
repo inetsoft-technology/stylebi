@@ -296,6 +296,18 @@ public class WizAdditionalConnectionController {
       }
 
       DatabaseDefinition database = mapper.toDatabaseDefinition(definition, name);
+
+      // Test with the stored URL properties too, or a green test would not prove the saved
+      // connection connects.
+      if(name != null) {
+         List<DatabaseDefinition> stored = storedAdditionals(base, principal);
+         int index = indexOf(stored, name);
+
+         if(index >= 0) {
+            WizDatabaseMapper.carryOverUneditedInfo(stored.get(index), database);
+         }
+      }
+
       ConnectionStatus status;
 
       try {

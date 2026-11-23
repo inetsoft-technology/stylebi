@@ -648,6 +648,20 @@ public class WizDatabaseController {
       // Same reason as on update: without oldName the stored password cannot be recovered, so a
       // test of an otherwise-unchanged connection would connect with an empty password and fail.
       DatabaseDefinition database = toDatabaseDefinition(definition, lastSegment(path));
+
+      // Test with the stored URL properties too, or a green test would not prove the saved source
+      // connects.
+      if(path != null) {
+         try {
+            WizDatabaseMapper.carryOverUneditedInfo(
+               databaseDatasourcesService.getDatabaseDefinition(path, principal), database);
+         }
+         catch(RuntimeException ex) {
+            LOG.debug("No stored definition to carry settings from for {}: {}", path,
+                      ex.getMessage());
+         }
+      }
+
       ConnectionStatus status;
 
       try {
@@ -1540,9 +1554,11 @@ public class WizDatabaseController {
     *
     * <p>Every field of the stored definition that the wire contract omits would otherwise be reset
     * to its default by an update, since the definition handed to the save path is built from
-    * scratch. Three are worth preserving: {@code unasgn} governs whether users with no explicit grant
-    * are denied data, and the cloud-secret credential reference replaces the user name and password
-    * entirely — clearing either through a connection edit would be a silent security change. The third is the URL properties (and the Access data source name), which the formatted URL would otherwise lose; they are carried only when the type is unchanged. A credential
+    * scratch. Three are worth preserving. {@code unasgn} governs whether users with no explicit
+    * grant are denied data. The cloud-secret credential reference replaces the user name and
+    * password entirely. Clearing either through a connection edit would be a silent security
+    * change. The URL properties (and the Access data source name) are the third: the formatted
+    * URL would otherwise lose them. They are carried only when the type is unchanged. A credential
     * reference the caller did set is kept as sent, see
     * {@link WizDatabaseMapper#carryOverCredentialReference}.</p>
     */

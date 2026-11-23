@@ -108,6 +108,43 @@ class WizDatabaseMapperCarryOverTest {
    }
 
    @Test
+   void aChangedHostAndDatabaseOfTheSameTypeStillCarryTheProperties() {
+      PostgreSQLDatabaseType type = new PostgreSQLDatabaseType();
+      PostgreSQLDatabaseInfo storedInfo = type.createDatabaseInfo();
+      type.parse(null, "jdbc:postgresql://h1:5432/d1?ssl=true", storedInfo);
+
+      PostgreSQLDatabaseInfo info = type.createDatabaseInfo();
+      info.setDatabaseName("d2");
+      WizDatabaseMapper.carryOverUneditedSettings(
+         stored(PostgreSQLDatabaseType.TYPE, storedInfo), stored(PostgreSQLDatabaseType.TYPE, info));
+
+      NetworkLocation network = new NetworkLocation();
+      network.setHostName("h2");
+      network.setPortNumber(5433);
+      assertEquals("jdbc:postgresql://h2:5433/d2?ssl=true", type.formatUrl(network, info));
+   }
+
+   @Test
+   void customUrlModeIsLeftAloneAndNothingIsAppendedToTheCustomUrl() {
+      MySQLDatabaseType type = new MySQLDatabaseType();
+      MySQLDatabaseInfo storedInfo = type.createDatabaseInfo();
+      storedInfo.setProperties("useSSL=true");
+      MySQLDatabaseInfo info = type.createDatabaseInfo();
+      info.setCustomEditMode(true);
+      info.setCustomUrl("jdbc:mysql://x:3306/y?a=b");
+      DatabaseDefinition current = stored(MySQLDatabaseType.TYPE, storedInfo);
+      DatabaseDefinition updated = stored(MySQLDatabaseType.TYPE, info);
+
+      WizDatabaseMapper.carryOverUneditedSettings(current, updated);
+      WizDatabaseMapper.carryOverUneditedSettings(current, updated);
+
+      assertTrue(info.isCustomEditMode());
+      assertEquals("jdbc:mysql://x:3306/y?a=b", info.getCustomUrl(),
+                   "the custom URL is used as typed, with no properties appended");
+      assertEquals("useSSL=true", info.getProperties());
+   }
+
+   @Test
    void aTypeSwitchCarriesNothing() {
       PostgreSQLDatabaseInfo storedInfo = new PostgreSQLDatabaseType().createDatabaseInfo();
       storedInfo.setProperties("ssl=true");

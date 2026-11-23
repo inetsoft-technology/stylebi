@@ -425,6 +425,25 @@ class WizAdditionalConnectionControllerTest {
    }
 
    @Test
+   void testRunsWithTheStoredUrlPropertiesOfTheNamedConnection() throws Exception {
+      Fixture f = new Fixture();
+      f.allowAll();
+      f.stored("reports");
+      f.additionals.get(0).getInfo().setProperties("useSSL=true");
+      when(f.service.testDataSourceConnection(anyString(), any(DatabaseDefinition.class), any(),
+                                              anyBoolean()))
+         .thenReturn(new ConnectionStatus("ok", true));
+
+      f.controller.testAdditionalConnection(
+         BASE, new WizAdditionalTestRequest(wiz("reports"), "reports"), f.principal);
+
+      ArgumentCaptor<DatabaseDefinition> definition = ArgumentCaptor.forClass(DatabaseDefinition.class);
+      verify(f.service).testDataSourceConnection(
+         eq(BASE), definition.capture(), eq(f.principal), eq(true));
+      assertEquals("useSSL=true", definition.getValue().getInfo().getProperties());
+   }
+
+   @Test
    void testReportsAServerRefusalAsAFailedTestWithItsText() throws Exception {
       Fixture f = new Fixture();
       f.allowAll();
