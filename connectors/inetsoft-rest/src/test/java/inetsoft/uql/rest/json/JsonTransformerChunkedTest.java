@@ -138,4 +138,17 @@ class JsonTransformerChunkedTest {
       assertThrows(RuntimeException.class,
                    () -> new JsonTransformer().transform(stream(body), PATH));
    }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void chunkedResponseKeepsErrorOfALaterChunk() {
+      final String body = partialSeries("db-1", true, 1, 2) + "\n" +
+         "{\"results\":[{\"statement_id\":0,\"error\":\"max-row-limit exceeded\"}]}\n";
+      final java.util.Map<String, Object> json =
+         (java.util.Map<String, Object>) new JsonTransformer().transform(stream(body));
+      final java.util.Map<String, Object> statement =
+         (java.util.Map<String, Object>) ((List<?>) json.get("results")).get(0);
+      assertEquals("max-row-limit exceeded", statement.get("error"));
+      assertEquals(Boolean.TRUE, statement.get("partial"));
+   }
 }
