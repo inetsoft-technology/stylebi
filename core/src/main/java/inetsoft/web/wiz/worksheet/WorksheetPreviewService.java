@@ -21,10 +21,13 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.report.internal.table.CancellableTableLens;
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.CoreTool;
 import inetsoft.util.TimedQueue;
 import inetsoft.uql.asset.TableAssembly;
@@ -38,6 +41,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Returns a sample of data rows from a live {@link RuntimeWorksheet} table without
@@ -55,6 +60,148 @@ import java.util.*;
 @Service
 public class WorksheetPreviewService {
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetPreviewService.class);
+
+   /**
+    * Server-side limit, in seconds, for one whole preview (query execution, row read and row-limit
+    * check). Default 110: it must stay below the plugin's 120 s fetch timeout so the server
+    * answers first and the abandoned query stops, but above the roughly 105 s a paginated REST
+    * tabular table legitimately needs (#79074). 0 disables the limit.
+    */
+   public static final String TIMEOUT_PROPERTY = "wiz.preview.timeout";
+   private static final long DEFAULT_TIMEOUT_MILLIS = 110_000L;
+   private static final long MAX_TIMEOUT_MILLIS = 24L * 60 * 60 * 1000;
+
+   // test hook; negative means read TIMEOUT_PROPERTY
+   private long timeoutMillis = -1L;
+
+   void setTimeoutMillis(long timeoutMillis) {
+      this.timeoutMillis = timeoutMillis;
+   }
+
+   long getTimeoutMillis() {
+      if(timeoutMillis >= 0) {
+         return timeoutMillis;
+      }
+
+      return parseTimeoutMillis(SreeEnv.getProperty(TIMEOUT_PROPERTY));
+   }
+
+   /**
+    * Converts the {@link #TIMEOUT_PROPERTY} value (seconds) to milliseconds. Blank or invalid
+    * values (including NaN, Infinity and negatives) give the default; zero disables the limit
+    * (returns 0); huge values are
+    * clamped so the scheduled time cannot overflow.
+    */
+   static long parseTimeoutMillis(String value) {
+      if(value == null || value.isBlank()) {
+         return DEFAULT_TIMEOUT_MILLIS;
+      }
+
+      double seconds;
+
+      try {
+         seconds = Double.parseDouble(value.trim());
+      }
+      catch(NumberFormatException e) {
+         seconds = Double.NaN;
+      }
+
+      // non-finite or negative values are mistakes, not a request to disable the limit
+      if(Double.isNaN(seconds) || Double.isInfinite(seconds) || seconds < 0) {
+         LOG.warn("Invalid value '{}' for {}, using the default", value, TIMEOUT_PROPERTY);
+         return DEFAULT_TIMEOUT_MILLIS;
+      }
+
+      // 0 means no limit, the same convention as query.runtime.timeout
+      if(seconds == 0) {
+         return 0L;
+      }
+
+      // a positive sub-millisecond value must not truncate to 0, which disables the limit
+      return Math.max(1L, (long) Math.min(seconds * 1000, MAX_TIMEOUT_MILLIS));
+   }
+
+   /**
+    * Bounds one preview. On expiry it flags the preview and cancels the table lens (if it
+    * exists yet), which releases a reader blocked in {@code moreRows} and stops the summary
+    * worker. It bounds the row read: a query still being built inside {@code getTableLens}
+    * (a non-lazy join/sort or a tabular fetch) is cancelled as soon as its lens exists, so the
+    * request returns only after that build finishes. The cancel runs on the shared
+    * {@link TimedQueue} thread, so it must stay non-blocking.
+    */
+   private static final class Watchdog {
+      private final long millis;
+      private final AtomicBoolean timedOut = new AtomicBoolean();
+      private final AtomicReference<TableLens> lens = new AtomicReference<>();
+      private TimedQueue.TimedRunnable task;
+
+      Watchdog(long millis) {
+         this.millis = millis;
+      }
+
+      void start() {
+         if(millis <= 0) {
+            return;
+         }
+
+         task = TimedQueue.add(new TimedQueue.TimedRunnable(millis) {
+            @Override
+            public void run() {
+               timedOut.set(true);
+               cancelLens();
+            }
+         });
+      }
+
+      void stop() {
+         if(task != null) {
+            TimedQueue.remove(task);
+         }
+      }
+
+      void setLens(TableLens l) {
+         lens.set(l);
+
+         // the limit may have expired while the lens was still being built
+         if(timedOut.get()) {
+            cancelLens();
+         }
+      }
+
+      private void cancelLens() {
+         TableLens l = lens.get();
+         TableLens nested = l == null ? null : Util.getNestedTable(l, CancellableTableLens.class);
+
+         if(nested != null) {
+            ((CancellableTableLens) nested).cancel();
+         }
+      }
+
+      private static String formatSeconds(long millis) {
+         return String.valueOf((millis + 999) / 1000);
+      }
+
+      /**
+       * Never let a cut-short read pass as a complete result, whatever cancelled it.
+       */
+      void check(String tableName) throws PairingException {
+         if(timedOut.get()) {
+            throw new PairingException("Preview of worksheet table '" + tableName
+               + "' timed out after " + formatSeconds(millis) + " s and was cancelled. Add a filter or"
+               + " an aggregation to reduce the data, or preview a smaller table.");
+         }
+
+         // deep check: a cancelled shared base under a non-cancelled outer lens also cuts the
+         // rows short while the outer lens completes normally
+         TableLens l = lens.get();
+
+         if(l != null && AssetDataCache.isCancelled(l)) {
+            throw new PairingException("Preview of worksheet table '" + tableName
+               + "' was cancelled before it finished (the query was stopped, e.g. the worksheet"
+               + " was closed or loading was cancelled), so the rows are incomplete. Retry.");
+         }
+      }
+   }
 
    /**
     * Query up to {@code limit} rows from the named table in the live worksheet, starting
@@ -85,15 +232,20 @@ public class WorksheetPreviewService {
       // call's cause, and this call's own must not leak into the next one.
       XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
 
+      Watchdog watchdog = new Watchdog(getTimeoutMillis());
+      watchdog.start();
+
       try {
-         return preview0(rws, tableName, offset, limit);
+         return preview0(rws, tableName, offset, limit, watchdog);
       }
       finally {
+         watchdog.stop();
          XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
       }
    }
 
-   private PreviewResult preview0(RuntimeWorksheet rws, String tableName, int offset, int limit)
+   private PreviewResult preview0(RuntimeWorksheet rws, String tableName, int offset, int limit,
+                                  Watchdog watchdog)
       throws PairingException
    {
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
@@ -127,6 +279,7 @@ public class WorksheetPreviewService {
 
       try {
          lens = box.getTableLens(tableName, AssetQuerySandbox.RUNTIME_MODE);
+         watchdog.setLens(lens);
 
          if(lens != null) {
             upstreamLoss = WorksheetColumnLoss.missingUpstreamInputs(
@@ -134,6 +287,7 @@ public class WorksheetPreviewService {
          }
       }
       catch(Exception e) {
+         watchdog.check(tableName);
          String cause = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
 
          if(cause != null && !cause.isBlank()) {
@@ -261,11 +415,15 @@ public class WorksheetPreviewService {
          // a message raised lazily while reading rows (e.g. a sort script error) is still reported
          warnings.addAll(captureWarnings());
 
+         RowLimit rowLimit = detectRowLimit(rws.getWorksheet(), tableName, lens);
+         watchdog.check(tableName);
+
          return new PreviewResult(rows, warnings,
                                   limited ? new ColumnLimit(true, maxCols, total) : null,
-                                  detectRowLimit(rws.getWorksheet(), tableName, lens));
+                                  rowLimit);
       }
       catch(RuntimeException e) {
+         watchdog.check(tableName);
          throw new PairingException("Failed to read result columns for '"
                                     + tableName + "': " + e.getMessage(), e);
       }

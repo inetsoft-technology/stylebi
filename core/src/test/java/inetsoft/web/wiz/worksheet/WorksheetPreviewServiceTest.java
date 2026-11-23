@@ -854,4 +854,238 @@ class WorksheetPreviewServiceTest {
          RuntimeHeartbeatKeepAlive.INTERVAL_MS = saved;
       }
    }
+
+   // ---------------------------------------------------------------------------
+   // Bug #82071: bounded, cancellable preview
+   // ---------------------------------------------------------------------------
+
+   /** A lens whose rows never arrive until it is cancelled. */
+   private static class BlockingLens extends inetsoft.report.lens.DefaultTableLens
+      implements inetsoft.report.internal.table.CancellableTableLens
+   {
+      final CountDownLatch released = new CountDownLatch(1);
+      final java.util.concurrent.atomic.AtomicInteger cancels =
+         new java.util.concurrent.atomic.AtomicInteger();
+      volatile boolean cancelled;
+      final boolean block;
+
+      BlockingLens(boolean block) {
+         super(new Object[][]{{"x"}, {"r1"}});
+         this.block = block;
+      }
+
+      @Override
+      public boolean moreRows(int row) {
+         if(row == 1 && block) {
+            try {
+               released.await(30, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException e) {
+               Thread.currentThread().interrupt();
+            }
+
+            return false;
+         }
+
+         return super.moreRows(row);
+      }
+
+      @Override
+      public void cancel() {
+         cancels.incrementAndGet();
+         cancelled = true;
+         released.countDown();
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return cancelled;
+      }
+   }
+
+   private RuntimeWorksheet rwsFor(TableLens lens) throws Exception {
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(lens);
+      RuntimeWorksheet rws = rws(box);
+      when(rws.getWorksheet()).thenReturn(ws);
+      return rws;
+   }
+
+   @Test
+   void neverCompletingLensTimesOutAndIsCancelledOnce() throws Exception {
+      BlockingLens lens = new BlockingLens(true);
+      RuntimeWorksheet rws = rwsFor(lens);
+      service.setTimeoutMillis(500);
+      long start = System.currentTimeMillis();
+
+      PairingException e = assertThrows(PairingException.class,
+                                        () -> service.preview(rws, "T", 0, 10));
+
+      assertTrue(System.currentTimeMillis() - start < 10_000);
+      assertTrue(e.getMessage().contains("timed out"), e.getMessage());
+      assertTrue(e.getMessage().contains("timed out after 1 s and"), e.getMessage());
+      assertEquals(1, lens.cancels.get());
+   }
+
+   @Test
+   void externallyCancelledLensThrowsInsteadOfReturningPartialRows() throws Exception {
+      BlockingLens lens = new BlockingLens(false) {
+         @Override
+         public boolean moreRows(int row) {
+            // someone else (close, Cancel button, another preview) cancels mid-read
+            cancel();
+            return false;
+         }
+      };
+      RuntimeWorksheet rws = rwsFor(lens);
+      service.setTimeoutMillis(0);
+
+      PairingException e = assertThrows(PairingException.class,
+                                        () -> service.preview(rws, "T", 0, 10));
+
+      assertTrue(e.getMessage().contains("cancelled"), e.getMessage());
+   }
+
+   @Test
+   void fastPreviewIsUnchangedAndNotCancelled() throws Exception {
+      BlockingLens lens = new BlockingLens(false);
+      RuntimeWorksheet rws = rwsFor(lens);
+      service.setTimeoutMillis(60_000);
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws, "T", 0, 10);
+
+      assertEquals(1, result.rows().size());
+      assertEquals("r1", result.rows().get(0).get("x"));
+      assertEquals(0, lens.cancels.get());
+   }
+
+   /** A cancellable TableFilter whose own flag stays false, like a SummaryFilter whose pass completed. */
+   private static class HealthyOuterFilter extends inetsoft.report.filter.DefaultTableFilter
+      implements inetsoft.report.internal.table.CancellableTableLens
+   {
+      HealthyOuterFilter(TableLens base) {
+         super(base);
+      }
+
+      @Override
+      public void cancel() {
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return false;
+      }
+   }
+
+   @Test
+   void cancelledBaseUnderHealthyCancellableOuterLensThrows() throws Exception {
+      BlockingLens base = new BlockingLens(false);
+      base.cancel();
+      TableLens outer = new HealthyOuterFilter(base);
+      assertFalse(((inetsoft.report.internal.table.CancellableTableLens) outer).isCancelled());
+      RuntimeWorksheet rws = rwsFor(outer);
+      service.setTimeoutMillis(0);
+
+      PairingException e = assertThrows(PairingException.class,
+                                        () -> service.preview(rws, "T", 0, 10));
+
+      assertTrue(e.getMessage().contains("cancelled"), e.getMessage());
+   }
+
+   @Test
+   void watchdogCoversSlowLensBuild() throws Exception {
+      BlockingLens lens = new BlockingLens(false);
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(inv -> {
+         Thread.sleep(1500);
+         return lens;
+      });
+      RuntimeWorksheet rws = rws(box);
+      when(rws.getWorksheet()).thenReturn(ws);
+      service.setTimeoutMillis(300);
+
+      PairingException e = assertThrows(PairingException.class,
+                                        () -> service.preview(rws, "T", 0, 10));
+
+      assertTrue(e.getMessage().contains("timed out"), e.getMessage());
+      assertEquals(1, lens.cancels.get());
+   }
+
+   @Test
+   void watchdogCoversRowLimitCheck() throws Exception {
+      // the row loop reads once; the row-limit check then reads again and blocks
+      java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+      BlockingLens lens = new BlockingLens(false) {
+         @Override
+         public boolean moreRows(int row) {
+            if(calls.incrementAndGet() >= 2) {
+               try {
+                  released.await(30, TimeUnit.SECONDS);
+               }
+               catch(InterruptedException ex) {
+                  Thread.currentThread().interrupt();
+               }
+
+               return false;
+            }
+
+            return super.moreRows(row);
+         }
+      };
+      Worksheet ws = mock(Worksheet.class);
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getMaxRows()).thenReturn(1);
+      when(table.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("T")).thenReturn(table);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(lens);
+      RuntimeWorksheet rws = rws(box);
+      when(rws.getWorksheet()).thenReturn(ws);
+      service.setTimeoutMillis(500);
+
+      PairingException e = assertThrows(PairingException.class,
+                                        () -> service.preview(rws, "T", 0, 1));
+
+      assertTrue(e.getMessage().contains("timed out"), e.getMessage());
+      assertEquals(1, lens.cancels.get());
+   }
+
+   @Test
+   void timeoutPropertyParsing() {
+      assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis(null));
+      assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("  "));
+      assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("abc"));
+      assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("NaN"));
+      assertEquals(45_000L, WorksheetPreviewService.parseTimeoutMillis("45"));
+      assertEquals(1_500L, WorksheetPreviewService.parseTimeoutMillis(" 1.5 "));
+      assertEquals(0L, WorksheetPreviewService.parseTimeoutMillis("0"));
+      assertEquals(1L, WorksheetPreviewService.parseTimeoutMillis("0.0001"));
+      assertEquals(1L, WorksheetPreviewService.parseTimeoutMillis("1e-9"));
+      assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("-5"));
+      assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("-Infinity"));
+      assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("Infinity"));
+      assertEquals(24L * 60 * 60 * 1000,
+                   WorksheetPreviewService.parseTimeoutMillis("1e30"));
+   }
+
+   @Test
+   void timeoutPropertyIsReadFromSreeEnv() {
+      String old = inetsoft.sree.SreeEnv.getProperty(WorksheetPreviewService.TIMEOUT_PROPERTY);
+
+      try {
+         inetsoft.sree.SreeEnv.setProperty(WorksheetPreviewService.TIMEOUT_PROPERTY, "42");
+         assertEquals(42_000L, service.getTimeoutMillis());
+         inetsoft.sree.SreeEnv.setProperty(WorksheetPreviewService.TIMEOUT_PROPERTY, "0");
+         assertEquals(0L, service.getTimeoutMillis());
+      }
+      finally {
+         inetsoft.sree.SreeEnv.setProperty(WorksheetPreviewService.TIMEOUT_PROPERTY,
+                                           old == null ? "" : old);
+      }
+   }
 }
