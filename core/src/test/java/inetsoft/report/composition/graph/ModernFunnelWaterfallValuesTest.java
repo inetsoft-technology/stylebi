@@ -26,6 +26,7 @@ import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.geometry.ElementGeometry;
 import inetsoft.graph.internal.GTool;
+import inetsoft.graph.visual.BarVO;
 import inetsoft.graph.visual.VOText;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.filter.TextHighlight;
@@ -57,6 +58,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
+import java.awt.geom.Dimension2D;
+import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -78,6 +81,14 @@ class ModernFunnelWaterfallValuesTest {
    private static final Color UP_DARK = new Color(0x3FBFB2);
    private static final Color AUTHOR = new Color(0x00AA00);
    private static final Color HIGHLIGHT = new Color(0xFF00FF);
+   private static final Object[][] WF8 = {
+      { "Gross sales", 1520.0 }, { "Less COGS", -410.0 }, { "Less returns", -180.0 },
+      { "Misc adjust", 60.0 }, { "Payroll", -260.0 }, { "Promotion", -45.0 },
+      { "Rebates", 230.0 }, { "Tax", -190.0 } };
+   private static final Object[][] FN8 = {
+      { "1 Visit", 12000.0 }, { "2 Signup", 8000.0 }, { "3 Activate", 5200.0 },
+      { "4 Trial", 3400.0 }, { "5 Quote", 2100.0 }, { "6 Purchase", 1300.0 },
+      { "7 Renewal", 800.0 }, { "8 Referral", 450.0 } };
 
    @AfterEach
    void reset() {
@@ -105,6 +116,38 @@ class ModernFunnelWaterfallValuesTest {
       assertEquals(GraphConstants.CENTER, elem.getLabelPlacement());
       assertTrue(elem.isValueFitInside());
       assertTrue(elem.isAutoTextColor());
+   }
+
+   @Test
+   void theDefaultCardShowsEachWaterfallValueThatFitsItsBar() {
+      List<VOText> texts = valueTexts(render(waterfall(), VizMark.MODERN_LIGHT, a -> { }, WF8),
+                                      400, 240);
+
+      assertEquals(9, texts.size(), "premise: a value on each bar and the Total");
+      texts.forEach(ModernFunnelWaterfallValuesTest::assertShownWhereItFits);
+      // a 3-digit Total fits its tall bar in any font
+      assertTrue(texts.stream().anyMatch(t -> t.getZIndex() >= 0),
+                 "a value shows on the default card");
+   }
+
+   @Test
+   void theDefaultCardShowsEachFunnelValueThatFitsItsStage() {
+      List<VOText> texts = valueTexts(render(funnel(), VizMark.MODERN_LIGHT, a -> { }, FN8),
+                                      400, 240);
+
+      assertEquals(8, texts.size(), "premise: a value on each stage");
+      texts.forEach(ModernFunnelWaterfallValuesTest::assertShownWhereItFits);
+      assertTrue(texts.stream().anyMatch(t -> t.getZIndex() >= 0),
+                 "a value shows on the default card");
+   }
+
+   @Test
+   void aClassicWaterfallHidesNoValueOnTheDefaultCard() {
+      List<VOText> texts = valueTexts(render(waterfall(), null, a -> { }, WF8), 400, 240);
+
+      assertEquals(9, texts.size(), "premise: a value on each bar and the Total");
+      texts.forEach(t -> assertTrue(t.getZIndex() >= 0, t.getText()));
+      texts.forEach(t -> assertNotEquals(GraphConstants.CENTER, t.getPlacement(), t.getText()));
    }
 
    @Test
@@ -202,6 +245,34 @@ class ModernFunnelWaterfallValuesTest {
       }
    }
 
+   // shown iff the box passes each side by at most 1px and clears 3px above and below
+   private static void assertShownWhereItFits(VOText text) {
+      Rectangle2D mark = ((BarVO) text.getElementVO()).getShapes()[0].getBounds2D();
+      Dimension2D label = text.getSize();
+      assertTrue(label.getHeight() > 0, "premise: the label was laid out");
+      boolean fits = label.getWidth() - 2 <= mark.getWidth() &&
+         label.getHeight() + 6 <= mark.getHeight();
+
+      assertEquals(fits, text.getZIndex() >= 0,
+                   text.getText() + " " + label.getWidth() + "x" + label.getHeight() + " on " +
+                   mark.getWidth() + "x" + mark.getHeight());
+   }
+
+   // every value label after layout at the given size, shown or hidden
+   private static List<VOText> valueTexts(Render r, int width, int height) {
+      VGraph vgraph = Plotter.getPlotter(r.graph)
+         .plotAndLayout(r.gen.getData(), 0, 0, width, height);
+      List<VOText> texts = new ArrayList<>();
+
+      for(int i = 0; i < vgraph.getVisualCount(); i++) {
+         if(vgraph.getVisual(i) instanceof VOText text && text.getElementVO() instanceof BarVO) {
+            texts.add(text);
+         }
+      }
+
+      return texts;
+   }
+
    private static Color fill(VOText text) {
       return ((ElementGeometry) text.getElementVO().getGeometry()).getColor(0);
    }
@@ -245,8 +316,15 @@ class ModernFunnelWaterfallValuesTest {
       return chart(GraphTypes.CHART_WATERFALL);
    }
 
+   // stages on Y and the measure on X, as a change to a funnel leaves them
    private static VSChartInfo funnel() {
-      return chart(GraphTypes.CHART_FUNNEL);
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.addYField(dim("State"));
+      info.addXField(agg("V"));
+      info.setChartType(GraphTypes.CHART_FUNNEL);
+      info.setRTChartType(GraphTypes.CHART_FUNNEL);
+      info.updateChartType(false);
+      return info;
    }
 
    private static VSChartInfo chart(int type) {
@@ -262,6 +340,13 @@ class ModernFunnelWaterfallValuesTest {
    private static Render render(VSChartInfo cinfo, VizMark mark,
                                 Consumer<ChartVSAssemblyInfo> setup)
    {
+      return render(cinfo, mark, setup, new Object[][] { { "A", 500.0 }, { "B", -300.0 },
+                                                         { "C", 400.0 } });
+   }
+
+   private static Render render(VSChartInfo cinfo, VizMark mark,
+                                Consumer<ChartVSAssemblyInfo> setup, Object[][] data)
+   {
       ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
       assemblyInfo.setVSChartInfo(cinfo);
       assemblyInfo.setChartDescriptor(new ChartDescriptor());
@@ -270,7 +355,9 @@ class ModernFunnelWaterfallValuesTest {
       assemblyInfo.getChartDescriptor().getPlotDescriptor().setValuesVisible(true);
       setup.accept(assemblyInfo);
       String value = GraphUtil.getName(cinfo.getAggregateRefs()[0]);
-      Object[][] rows = { { "State", value }, { "A", 500.0 }, { "B", -300.0 }, { "C", 400.0 } };
+      Object[][] rows = new Object[data.length + 1][];
+      rows[0] = new Object[] { "State", value };
+      System.arraycopy(data, 0, rows, 1, data.length);
       GraphGenerator gen = GraphGenerator.getGenerator(
          assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
          XSourceInfo.NONE, null);

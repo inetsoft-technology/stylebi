@@ -36,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.geom.Dimension2D;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +44,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * A value centred in a bar shows only where its box and a 3px margin fit inside the bar.
+ * A value centred in a bar shows only where its box fits the bar with 3px above and below it and
+ * runs at most 1px past each side.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -104,7 +106,31 @@ class BarVOValueFitTest {
    }
 
    @Test
-   void theMarginIsThreePixelsOnEachSide() {
+   void aLabelMayRunOnePixelPastEachSide() {
+      Laid laid = lay(5, 50, "520", true, 400, 240);
+      VOText own = own(laid);
+      Dimension2D label = labelSize(laid, own);
+
+      assertTrue(fits(laid, own, label.getWidth() - 2, label.getHeight() + 20),
+                 "label " + label + " on a bar 2px narrower");
+      assertFalse(fits(laid, own, label.getWidth() - 2.1, label.getHeight() + 20),
+                  "label " + label + " on a bar 2.1px narrower");
+   }
+
+   @Test
+   void aLabelNeedsThreePixelsAboveAndBelow() {
+      Laid laid = lay(5, 50, "520", true, 400, 240);
+      VOText own = own(laid);
+      Dimension2D label = labelSize(laid, own);
+
+      assertTrue(fits(laid, own, label.getWidth(), label.getHeight() + 6),
+                 "label " + label + " on a bar 6px taller");
+      assertFalse(fits(laid, own, label.getWidth(), label.getHeight() + 5.9),
+                  "label " + label + " on a bar 5.9px taller");
+   }
+
+   @Test
+   void aLaidOutBarNeedsThreePixelsAboveAndBelow() {
       double perUnit = lay(5, 50, "520", true, 400, 240).bar.getBounds().getHeight() / 50;
       Laid probe = lay(5, 50, "520", true, 400, 240);
       double label = probe.text.stream().filter(t -> t.getElementVO() == probe.bar).findFirst()
@@ -125,6 +151,24 @@ class BarVOValueFitTest {
 
       assertBar(laid, 60, 8);
       assertTrue(shown(laid.text));
+   }
+
+   private static VOText own(Laid laid) {
+      return laid.text.stream().filter(t -> t.getElementVO() == laid.bar).findFirst()
+         .orElseThrow();
+   }
+
+   // the label size the fit test measures
+   private static Dimension2D labelSize(Laid laid, VOText text) {
+      fits(laid, text, 1000, 1000);
+      return text.getSize();
+   }
+
+   // centre the label on a bar box of the given size and report whether it shows
+   private static boolean fits(Laid laid, VOText text, double width, double height) {
+      laid.bar.layoutText0(laid.vgraph, GraphConstants.CENTER,
+                           new Rectangle2D.Double(20, 20, width, height), false, text);
+      return text.getZIndex() >= 0;
    }
 
    // the bar box is near the expected size, so each case tests what its name says
