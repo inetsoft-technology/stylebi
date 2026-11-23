@@ -228,17 +228,6 @@ class MarchingSquaresContourTest {
    }
 
    @Test
-   @DisplayName("the shape of a level does not depend on the other levels requested")
-   @Disabled("Not filed, not Bug #82018/#82019 (only a developer can decide the intent, almost invisible (outermost half cell)): the pad is min(levels) - 1, so level 8 in [5, 8] (pad 4) has area 2/9 but level 8 alone (pad 7) has area 8/9")
-   void levelShapeIndependentOfOtherLevels() {
-      double[][] data = {{ 10 }};
-      GeneralPath alone = shape(data, 8, 2, 2);
-      GeneralPath together = shapes(data, new double[] { 5, 8 }, 2, 2)[1];
-      assertEquals(2.0 / 9, area(together), DELTA);
-      assertEquals(area(together), area(alone), DELTA);
-   }
-
-   @Test
    @DisplayName("empty level array returns an empty array")
    void emptyLevels() {
       assertEquals(0, shapes(new double[][] {{ 10 }}, new double[0], 2, 2).length);
@@ -297,17 +286,6 @@ class MarchingSquaresContourTest {
       GeneralPath path = assertTimeoutPreemptively(Duration.ofSeconds(10),
          () -> shape(new double[][] {{ 10, Double.NaN }}, 5, 3, 2));
       assertAllFinite(path);
-   }
-
-   @Test
-   @DisplayName("huge and infinite cell values give finite coordinates and area about 2")
-   @Disabled("Not Bug #82018/#82019: an infinite value gives NaN crossings in interpolateCrossing ((L - inf) / (pad - inf)); DensityFormVO clamps values to the data range, so it can't pass Infinity. The 1e300 case is covered by hugeValue")
-   void hugeAndInfiniteValues() {
-      for(double v : new double[] { 1e300, Double.POSITIVE_INFINITY }) {
-         GeneralPath path = shape(new double[][] {{ v }}, 5, 2, 2);
-         assertAllFinite(path);
-         assertEquals(2.0, area(path), DELTA, "value " + v);
-      }
    }
 
    @Test
@@ -374,22 +352,6 @@ class MarchingSquaresContourTest {
       GeneralPath path = shape(data, 5, 4, 4);
       assertEquals(217.0 / 18, area(path), DELTA);
       assertBounds(path, 1.0 / 6, 1.0 / 6, 23.0 / 6, 23.0 / 6);
-   }
-
-   @Test
-   @DisplayName("hole inside a plateau gives a second subpath that is outside the filled region")
-   @Disabled("Not Bug #82018/#82019: wrong expectation. 217/18 is the octagon area for value 10; for value 9 (pad 4, f = 1/5) the octagon area is 11.68")
-   void plateauWithHole() {
-      GeneralPath path = shape(new double[][] {{ 9, 9, 9 }, { 9, 0, 9 }, { 9, 9, 9 }},
-                               5, 4, 4);
-      List<Double> areas = subpathAreas(path);
-      assertEquals(2, areas.size());
-      double big = Math.max(Math.abs(areas.get(0)), Math.abs(areas.get(1)));
-      double small = Math.min(Math.abs(areas.get(0)), Math.abs(areas.get(1)));
-      assertEquals(217.0 / 18, big, DELTA);
-      assertEquals(50.0 / 81, small, DELTA);
-      assertTrue(path.contains(1, 1));
-      assertFalse(path.contains(2, 2));
    }
 
    @Test
