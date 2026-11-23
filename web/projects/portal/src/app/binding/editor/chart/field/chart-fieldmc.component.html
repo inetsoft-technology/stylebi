@@ -32,17 +32,19 @@
         (valueChange)="changeColumnValue($event)" [tooltip]="cellLabel">
       </dynamic-combo-box>
       @if (isEditMeasure()) {
-        <div class="fieldEditIcon"
+        <button type="button" class="fieldEditIcon"
           (openChange)="openChange($event)" [fixedDropdown]="dropdownMenu"
           [disabled]="!isEnabled" [autoClose]="false" [zIndex]="10000"
           [closeOnOutsideClick]="!dialogOpened"
+          [attr.aria-label]="titleText"
+          [attr.aria-disabled]="!isEnabled || null"
           [attr.data-test]="cellLabel + ' measure dropdown'">
-          <i class="icon-size-small btn-icon no-caret"
+          <i class="icon-size-small btn-icon no-caret" aria-hidden="true"
             [class.icon-disabled]="!isEnabled || !isEditMeasure()"
             [class.dimension-setting-icon]="fieldClassType === 'Dimension'"
             [class.measure-setting-icon]="fieldClassType === 'Measure'"
           title="{{titleText}}"></i>
-        </div>
+        </button>
       }
       @if (isVisibleChartTypeButton()) {
         <chart-type-button class="fieldEditIcon" [chartType]="aggregateField.chartType"

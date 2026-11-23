@@ -126,10 +126,19 @@
 <ng-template #layoutDesignerBtn>
   <button class="btn btn-default layout-designer-btn"
           (click)="openLayoutDesigner()"
-          [title]="'_#(Open Layout Designer)'"
-          [attr.aria-label]="'_#(Open Layout Designer)'">
+          [title]="'_#(Build a multi-field text label (layout designer))'"
+          [attr.aria-label]="'_#(Build a multi-field text label (layout designer))'">
     <span class="ld-icon-wrap">
-      <i class="layout-icon icon-size-small" aria-hidden="true"></i>
+      <!-- A framed block of rows, so it reads as an arrangement of text, drawn inline so it
+           centres exactly in the button and follows the text colour -->
+      <svg class="layout-glyph" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"
+           fill="currentColor">
+        <rect x="2.5" y="3.5" width="19" height="17" rx="2" fill="none" stroke="currentColor"
+              stroke-width="1.8"/>
+        <rect x="6" y="7.5" width="7" height="2.4" rx="1.2"/>
+        <rect x="6" y="11.4" width="12" height="2.4" rx="1.2"/>
+        <rect x="6" y="15.2" width="9" height="2.4" rx="1.2"/>
+      </svg>
       @if(isLayoutDesignerActive) {
         <span class="layout-active-badge" aria-hidden="true"></span>
       }
