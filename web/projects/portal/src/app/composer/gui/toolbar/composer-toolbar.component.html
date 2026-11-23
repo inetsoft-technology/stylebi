@@ -425,7 +425,7 @@ _#(fl.action.newGroupDes)</div>
     <div ngbDropdown #wizConnectDropdown="ngbDropdown" placement="bottom-end" container="body">
       <button type="button" class="btn-toolbar btn composer-btn wiz-connect-toggle"
               [class.agent-connected]="agentConnectedCount > 0" [ngbTooltip]="WizConnect"
-              triggers="hover" container="body" ngbDropdownToggle>
+              [attr.aria-label]="connectAriaLabel" triggers="hover" container="body" ngbDropdownToggle>
         <i class="share-link-icon icon-size-medium"></i>
       </button>
       <div ngbDropdownMenu class="wiz-connect-dropdown p-2">
@@ -440,8 +440,10 @@ _#(fl.action.newGroupDes)</div>
   }
   @else {
     <button type="button" class="btn-toolbar btn composer-btn wiz-connect-toggle"
-            [class.agent-connected]="agentConnectedCount > 0" [ngbTooltip]="WizConnect"
-            triggers="hover" container="body" (click)="connectWithoutSheet()">
+            [class.agent-connected]="agentConnectedCount > 0" [class.disabled]="!connectWithoutSheetAllowed"
+            [attr.aria-disabled]="!connectWithoutSheetAllowed" [ngbTooltip]="WizConnect"
+            [attr.aria-label]="connectAriaLabel" triggers="hover" container="body"
+            (click)="connectWithoutSheet()">
       <i class="share-link-icon icon-size-medium"></i>
     </button>
   }
@@ -451,7 +453,7 @@ _#(fl.action.newGroupDes)</div>
   <div class="composer-tooltip"><b>_#(Assistant)</b></div>
 </ng-template>
 <ng-template #WizConnect>
-  <div class="composer-tooltip"><b>@if (agentConnectedCount > 0) { {{connectedTooltipText}} } @else { _#(Connect Agent) }</b></div>
+  <div class="composer-tooltip"><b>@if (!isWorksheet && !isViewsheet && !connectWithoutSheetAllowed) { {{connectTooltipDisabledText}} } @else if (agentConnectedCount > 0) { {{connectedTooltipText}} } @else { _#(Connect Agent) }</b></div>
 </ng-template>
 
 <ng-template #importCsvDialog let-close="close" let-dismiss="dismiss">

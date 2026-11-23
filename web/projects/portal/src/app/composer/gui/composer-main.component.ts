@@ -1781,6 +1781,15 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
    }
 
+   /** Opens a blank viewsheet to anchor an AI agent connection started with no sheet focused. */
+   openNewViewsheetForAgent(): void {
+      this.scriptDisabled = true;
+      this.regionsDisabled = true;
+      this.openNewViewsheet(null);
+      const vs = this.sheets[this.sheets.length - 1];
+      this.toolbar.beginAutoConnect(vs, () => this.sheets.indexOf(vs) >= 0);
+   }
+
    openNewViewsheet(baseEntry: AssetEntry, gettingStarted?: boolean, isWiz?: boolean): void {
       if(baseEntry && baseEntry.folder && baseEntry.type === AssetType.FOLDER) {
          baseEntry = null;

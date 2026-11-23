@@ -363,46 +363,76 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
       return `_#(js:AI agent connected) (${this.agentConnectedCount})`;
    }
 
+   /** The no-sheet connect needs to open a viewsheet, so it follows the New Viewsheet action's gates. */
+   get connectAriaLabel(): string {
+      return this.agentConnectedCount > 0 ? this.connectedTooltipText : "_#(js:Connect Agent)";
+   }
+
+   get connectWithoutSheetAllowed(): boolean {
+      return !!this.viewsheetPermission && !this.deployed;
+   }
+
+   get connectTooltipDisabledText(): string {
+      return "_#(js:Connecting an agent without an open sheet requires permission to create a viewsheet)";
+   }
+
    /**
     * Pairing needs a runtime to anchor on, so with no worksheet/viewsheet focused the host opens
     * a blank viewsheet (not a worksheet: only one worksheet session per identity is allowed, so
-    * the agent's first worksheet open would otherwise close the session it acts through). Once
-    * that sheet has its runtimeId and socket, the normal mint flow runs against it. Gives up
-    * quietly after 30s if the sheet never gets a runtime.
+    * the agent's first worksheet open would otherwise close the session it acts through) and
+    * hands it back through {@link beginAutoConnect}.
     */
    connectWithoutSheet(): void {
-      if(this.pendingConnect) {
+      if(this.pendingConnect || !this.connectWithoutSheetAllowed) {
          return;
       }
 
       this.onConnectWithoutSheet.emit();
-      const sub = interval(200).pipe(take(150)).subscribe({
+   }
+
+   /**
+    * Once {@code target} (the viewsheet opened for this click) has its runtimeId and socket and is
+    * the focused sheet, runs the normal mint flow against it and nothing else. If it is closed
+    * first, or never gets a runtime within 30s, the wait is abandoned with a notice.
+    */
+   beginAutoConnect(target: Sheet, isOpen: () => boolean): void {
+      this.clearPendingConnect();
+      this.pendingConnect = interval(200).pipe(take(150)).subscribe({
          next: () => {
-            if(this.tryAutoConnect()) {
+            if(!isOpen()) {
+               this.clearPendingConnect();
+               this.notify({ type: "warning",
+                  message: "_#(js:The AI agent connection was cancelled because the new viewsheet was closed)" } as Notification);
+            }
+            else if(this.tryAutoConnect(target)) {
                this.clearPendingConnect();
             }
          },
-         complete: () => this.clearPendingConnect()
+         complete: () => {
+            if(this.pendingConnect) {
+               this.pendingConnect = null;
+               this.notify({ type: "warning",
+                  message: "_#(js:The new viewsheet did not open in time, so the AI agent was not connected. Click the icon to try again)" } as Notification);
+            }
+         }
       });
-
-      if(!sub.closed) {
-         this.pendingConnect = sub;
-      }
    }
 
    private clearPendingConnect(): void {
       if(this.pendingConnect) {
-         this.pendingConnect.unsubscribe();
+         const sub = this.pendingConnect;
          this.pendingConnect = null;
+         sub.unsubscribe();
       }
    }
 
-   private tryAutoConnect(): boolean {
+   private tryAutoConnect(target: Sheet): boolean {
       const sheet = this.sheet;
       const connect = this.connectToClaude;
 
-      if(!this.isViewsheet || !sheet.runtimeId || !sheet.socketConnection || !connect ||
-         connect.runtimeId !== sheet.runtimeId || connect.socketConnection !== sheet.socketConnection)
+      if(sheet !== target || !this.isViewsheet || !sheet.runtimeId || !sheet.socketConnection ||
+         !connect || connect.runtimeId !== sheet.runtimeId ||
+         connect.socketConnection !== sheet.socketConnection)
       {
          return false;
       }
