@@ -1355,6 +1355,11 @@ public class DatabaseDatasourcesService {
                XPartition par = model.getPartition(name);
                XPartition extend = par.getPartition(ds.getFullName());
 
+               // Bug #82119, a physical view bound to the additional connection itself
+               if(Tool.equals(par.getConnection(), additional)) {
+                  return true;
+               }
+
                if(extend != null && extend.getConnection() != null) {
                   return true;
                }
@@ -1363,6 +1368,12 @@ public class DatabaseDatasourcesService {
             for(String name : model.getLogicalModelNames()) {
                XLogicalModel lm = model.getLogicalModel(name);
                XLogicalModel extend = lm.getLogicalModel(ds.getFullName());
+
+               // Bug #82119, a logical model bound to the additional connection itself
+               if(Tool.equals(lm.getConnection(), additional)) {
+                  return true;
+               }
+
 
                if(extend != null && extend.getConnection() != null) {
                   return true;
