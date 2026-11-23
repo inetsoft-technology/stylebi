@@ -1208,6 +1208,122 @@ class WizDataModelBridgeTest {
       assertNull(registry().getLogicalModel("lm"));
    }
 
+   // -- Bug #82067: an extended logical model is resolved by its parent -------------------------
+
+   private WizDataModelItemController withParentAwareOps() {
+      return new WizDataModelItemController(
+         List.of(new WizPhysicalViewOps(dss, mock(PhysicalModelManagerService.class)), new ParentAwareOps(lms)),
+         mock(DataModelFolderManagerService.class), dss, lms, repository);
+   }
+
+   private void addExtended(String base, String child) {
+      XLogicalModel baseModel = addLogical(base, "pv", null);
+      baseModel.addLogicalModel(new XLogicalModel(child), true);
+   }
+
+   @Test
+   void dependenciesOfAnExtendedLogicalModelWithParentAreFoundNotMissing() throws Exception {
+      addExtended("base", "kid");
+      WizDataModelItemController controller = withParentAwareOps();
+
+      DepItem item = only(ok(controller.dependencies(new DependenciesRequest(ds, List.of(
+         new Ref(KIND_LOGICAL_MODEL, "kid", "base"))), bob), DependenciesResponse.class).items());
+
+      assertTrue(item.exists(), "an extended model that the lookup finds exists");
+      assertNull(item.reason());
+      assertTrue(item.deletable());
+      assertTrue(item.alsoDeleted().isEmpty(), "an extended model has no children");
+   }
+
+   @Test
+   void dependenciesOfAnExtendedLogicalModelWithoutParentOrWithAWrongParentStayNotFound()
+      throws Exception
+   {
+      addExtended("base", "kid");
+      addLogical("other", "pv", null);
+      WizDataModelItemController controller = withParentAwareOps();
+
+      DependenciesResponse response = ok(controller.dependencies(new DependenciesRequest(ds,
+         List.of(new Ref(KIND_LOGICAL_MODEL, "kid", null),
+                 new Ref(KIND_LOGICAL_MODEL, "kid", "other"),
+                 new Ref(KIND_LOGICAL_MODEL, "kid", "nobase"))), bob), DependenciesResponse.class);
+
+      for(DepItem item : response.items()) {
+         assertFalse(item.exists(), item.name());
+         assertEquals(NOT_FOUND, item.reason());
+      }
+   }
+
+   @Test
+   void dependenciesOfABaseModelAreUnchangedAndListItsExtendedChildren() throws Exception {
+      addExtended("base", "kid");
+
+      DepItem item = only(ok(withParentAwareOps().dependencies(new DependenciesRequest(ds,
+         List.of(new Ref(KIND_LOGICAL_MODEL, "base", null))), bob),
+                             DependenciesResponse.class).items());
+
+      assertTrue(item.exists());
+      assertEquals(List.of("kid"), item.alsoDeleted().stream().map(AlsoDeleted::name).toList());
+   }
+
+   @Test
+   void deleteOfAnExtendedLogicalModelWithParentReachesExtendedUnsupported() throws Exception {
+      addExtended("base", "kid");
+
+      DeleteResult result = only(ok(withParentAwareOps().delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_LOGICAL_MODEL, "kid", "base", false, null))), bob),
+                                    DeleteResponse.class).results());
+
+      assertFalse(result.ok());
+      assertEquals(WizDataModelWire.EXTENDED_UNSUPPORTED, result.reason());
+      assertNotNull(registry().getLogicalModel("base"), "nothing was deleted");
+      assertNotNull(registry().getLogicalModel("base").getLogicalModel("kid"),
+                    "the extended model is still under its base");
+   }
+
+   @Test
+   void deleteOfAnExtendedLogicalModelWithoutParentIsStillNotFound() throws Exception {
+      addExtended("base", "kid");
+
+      DeleteResult result = only(ok(withParentAwareOps().delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_LOGICAL_MODEL, "kid", null, false, null))), bob),
+                                    DeleteResponse.class).results());
+
+      assertFalse(result.ok());
+      assertEquals(NOT_FOUND, result.reason());
+   }
+
+   @Test
+   void deleteOfABaseModelStillWorks() throws Exception {
+      addLogical("plain", "pv", null);
+
+      DeleteResult result = only(ok(withParentAwareOps().delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_LOGICAL_MODEL, "plain", null, false, null))), bob),
+                                    DeleteResponse.class).results());
+
+      assertTrue(result.ok(), result.message());
+      assertNull(registry().getLogicalModel("plain"));
+   }
+
+   @Test
+   void anExtendedPhysicalViewIsStillResolvedByTheBaseOnlyGate() throws Exception {
+      // a REAL extended view under pv: a parent-aware lookup would find it, so only the base-only
+      // gate can answer NOT_FOUND here
+      registry().getPartition("pv").addPartition(new XPartition("viewKid"), false);
+      assertNotNull(registry().getPartition("pv").getPartition("viewKid"));
+      assertNull(registry().getPartition("viewKid"), "an extended view is not in the base registry");
+      DepItem item = only(ok(items.dependencies(new DependenciesRequest(ds, List.of(
+         new Ref(KIND_PHYSICAL_VIEW, "viewKid", "pv"))), bob), DependenciesResponse.class).items());
+      assertFalse(item.exists());
+      assertEquals(NOT_FOUND, item.reason());
+
+      DeleteResult result = only(ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "viewKid", "pv", false, null))), bob),
+                                    DeleteResponse.class).results());
+      assertFalse(result.ok());
+      assertEquals(NOT_FOUND, result.reason());
+   }
+
    // -- a logical-model SPI stand-in (J2 owns the real one) ---------------------------------
 
    private static class FakeLogicalOps implements WizModelKindOps {
@@ -1261,5 +1377,31 @@ class WizDataModelBridgeTest {
       }
 
       private final LogicalModelService service;
+   }
+
+   /** The real logical ops look an extended model up through its parent and refuse its delete. */
+   private static class ParentAwareOps extends FakeLogicalOps {
+      ParentAwareOps(LogicalModelService service) {
+         super(service);
+      }
+
+      @Override
+      public Optional<ModelInfo> find(Ctx ctx, ModelRef ref) {
+         XLogicalModel model = WizLogicalModelOps.lookup(ctx.dataModel(), ref);
+         return model == null ? Optional.empty() : Optional.of(new ModelInfo(
+            Kind.LOGICAL_MODEL, ref.name(), model.getFolder(), ref.parent(),
+            ref.parent() != null && !ref.parent().isEmpty(), model.getDescription()));
+      }
+
+      @Override
+      public OpResult delete(Ctx ctx, ModelRef ref, boolean force) throws Exception {
+         if(ref.parent() != null && !ref.parent().isEmpty()) {
+            return new OpResult(false, WizDataModelWire.EXTENDED_UNSUPPORTED,
+                                "extended models are not supported by this tool in this version",
+                                List.of());
+         }
+
+         return super.delete(ctx, ref, force);
+      }
    }
 }
