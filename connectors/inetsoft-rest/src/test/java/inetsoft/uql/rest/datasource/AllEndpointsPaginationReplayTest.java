@@ -47,10 +47,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AllEndpointsPaginationReplayTest {
    /**
-    * OFFSET paging that starts at offset 1 instead of 0: HubSpot #81836, ServiceNow #80276.
+    * OFFSET paging that starts at offset 1 instead of 0: ServiceNow #80276.
     */
-   private static final Set<String> OFFSET_STARTS_AT_ONE =
-      Set.of("HubSpotQuery", "ServiceNowQuery");
+   private static final Set<String> OFFSET_STARTS_AT_ONE = Set.of("ServiceNowQuery");
 
    /** OFFSET paging that never ends at an empty page; none since Bug #81958 and #81879. */
    private static final Set<String> NEVER_ENDS = Set.of();
