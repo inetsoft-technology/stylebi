@@ -36,9 +36,13 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
+import java.util.function.Function;
 
 import static inetsoft.util.AbstractPasswordEncryption.MASTER_PREFIX;
 
@@ -305,6 +309,107 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       return value == null ? "-1|" : value.length() + "|" + value;
    }
 
+   /**
+    * Get the identity of the credentials that the authenticator of this data source applies
+    * to a request. It is part of the key of the cached responses, so that a response fetched
+    * with one set of credentials is not returned for a request made with another (Bug #81931).
+    *
+    * The identity is a hash of the authentication configuration, never a raw secret. It does
+    * not include a token that is fetched when the request is sent (two step) or cached
+    * separately (client credentials), because it is not known when the key is created. The
+    * OAuth tokens only change when they are refreshed, which costs a single cache miss.
+    *
+    * The key is created outside of the error handling of the request, so this only reads the
+    * properties of the data source and does not throw.
+    *
+    * @return the hex encoded SHA-256 hash of the authentication configuration.
+    */
+   public String getResponseCacheIdentity() {
+      try {
+         final AuthType type = getAuthType() == null ? AuthType.NONE : getAuthType();
+
+         // no default, so that an authentication type that is added fails to compile until
+         // its credentials are part of the identity
+         final String[] parts = switch(type) {
+            case NONE -> new String[0];
+            case BASIC -> new String[] { getUser(), getPassword() };
+            case TWO_STEP -> new String[] {
+               getAuthURL(), Objects.toString(getAuthMethod(), null), getContentType(),
+               getBody(), getTokenPattern(),
+               encodeHttpParameters(getAuthenticationHttpParameters()) };
+            case OAUTH -> new String[] {
+               getClientId(), getTokenUri(), getAccessToken(), getRefreshToken() };
+            case OAUTH_CLIENT_CREDENTIALS -> new String[] {
+               getTokenUri(), getClientId(), getClientSecret(), getScope(), getAudience(),
+               Objects.toString(getClientAuthMethod(), null) };
+            case KERBEROS -> new String[] {
+               getServicePrincipalName(), getConfigurationServiceName(),
+               Boolean.toString(isConstrainedDelegation()),
+               Objects.toString(getImpersonationType(), null),
+               isConstrainedDelegation() ? getImpersonatedIdentity() : null };
+         };
+
+         final String[] identity = new String[parts.length + 1];
+         identity[0] = type.name();
+         System.arraycopy(parts, 0, identity, 1, parts.length);
+         return hashCacheKeyParts(identity);
+      }
+      catch(RuntimeException e) {
+         // a key that matches no other request, the response is not shared
+         LOG.warn("Failed to get the credential identity of data source: {}", getFullName(), e);
+         return UUID.randomUUID().toString();
+      }
+   }
+
+   /**
+    * Encode the type, name and value of HTTP parameters for a cache key, see
+    * {@link #hashCacheKeyParts(String...)}.
+    */
+   static String encodeHttpParameters(HttpParameter[] parameters) {
+      if(parameters == null) {
+         return null;
+      }
+
+      final StringBuilder encoded = new StringBuilder().append(parameters.length).append('|');
+
+      for(HttpParameter parameter : parameters) {
+         if(parameter == null) {
+            encoded.append("-1|");
+         }
+         else {
+            encoded.append("p")
+               .append(encodeDiscriminator(Objects.toString(parameter.getType(), null)))
+               .append(encodeDiscriminator(parameter.getName()))
+               .append(encodeDiscriminator(parameter.getValue()));
+         }
+      }
+
+      return encoded.toString();
+   }
+
+   /**
+    * Hash the parts of a cache key that may hold secrets, so that the key, which is also the
+    * name of the cache file, never contains them in clear.
+    *
+    * @return the hex encoded SHA-256 hash of the length prefixed parts.
+    */
+   static String hashCacheKeyParts(String... parts) {
+      final StringBuilder value = new StringBuilder();
+
+      for(String part : parts) {
+         value.append(encodeDiscriminator(part));
+      }
+
+      try {
+         final byte[] digest = MessageDigest.getInstance("SHA-256")
+            .digest(value.toString().getBytes(StandardCharsets.UTF_8));
+         return HexFormat.of().formatHex(digest);
+      }
+      catch(NoSuchAlgorithmException e) {
+         throw new IllegalStateException("SHA-256 is not available", e);
+      }
+   }
+
    @Property(label="User", required = true)
    @PropertyEditor(dependsOn="authType")
    public String getUser() {
@@ -413,6 +518,18 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 
    public void setTokenPattern(String tokenPattern) {
       this.tokenPattern = tokenPattern;
+   }
+
+   /**
+    * Creates the function that extracts the token from the response body of the authentication
+    * request of a two-step authentication. A data source that needs more than the token regex
+    * pattern to find its token overrides this method.
+    *
+    * @return the token extractor, or {@code null} to match the response body against the token
+    *         pattern.
+    */
+   public Function<String, String> createTwoStepTokenExtractor() {
+      return null;
    }
 
    @Property(label="Query HTTP Parameters")

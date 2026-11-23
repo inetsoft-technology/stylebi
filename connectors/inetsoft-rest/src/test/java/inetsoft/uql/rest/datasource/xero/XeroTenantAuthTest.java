@@ -133,14 +133,13 @@ class XeroTenantAuthTest {
    }
 
    @Test
-   void responseWithoutATenantIdIsReportedWithTheBody() {
+   void responseWithoutATenantIdIsReported() {
       body = "[]";
       IllegalArgumentException e = assertThrows(IllegalArgumentException.class, this::authenticated);
-      assertTrue(e.getMessage().contains("[]"), e.getMessage());
+      assertTrue(e.getMessage().contains("No Xero organisation is connected"), e.getMessage());
    }
 
    @Test
-   @Disabled("Bug #82011: the first tenant id is used whatever its type; enable when it is fixed")
    void firstConnectionThatIsNotAnOrganisationIsSkipped() throws Exception {
       body = "[{\"tenantId\":\"practice-1\",\"tenantType\":\"PRACTICE\"}," +
          "{\"tenantId\":\"org-2\",\"tenantType\":\"ORGANISATION\"}]";

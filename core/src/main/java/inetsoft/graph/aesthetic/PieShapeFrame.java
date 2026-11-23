@@ -81,7 +81,16 @@ public class PieShapeFrame extends MultiShapeFrame {
       }
 
       PieShapeFrame frame = (PieShapeFrame) obj;
-      return CoreTool.equals(colors, frame.colors);
+      return CoreTool.equals(colors, frame.colors) && donut == frame.donut;
+   }
+
+   /**
+    * Get an unique id that identifies the legend of this frame.
+    */
+   @Override
+   @TernMethod
+   public String getUniqueId() {
+      return super.getUniqueId() + (donut ? ":donut" : "");
    }
 
    /**

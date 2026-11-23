@@ -63,7 +63,6 @@ class TeamDeskPaginationTest {
       return query;
    }
 
-   @Disabled("Bug #81879: an empty last page does not end the query, the same offset is requested forever; fixed on epic-test-coverage, enable when that branch reaches main")
    @Test
    void selectTableEndsOnAnEmptyPage() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler()

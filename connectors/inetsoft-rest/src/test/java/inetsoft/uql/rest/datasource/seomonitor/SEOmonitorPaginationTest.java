@@ -18,7 +18,7 @@
 package inetsoft.uql.rest.datasource.seomonitor;
 
 import inetsoft.test.*;
-import org.junit.jupiter.api.Disabled;
+
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * OFFSET paging of the SEOmonitor endpoints (page types 2 and 3): the offset starts at 0 and
  * advances by the number of records read, and the query ends on a page without records. Every
- * test here needs the end of the query, so they all wait for Bug #81958.
+ * test here needs the end of the query (Bug #81958).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(
@@ -59,7 +59,6 @@ class SEOmonitorPaginationTest {
                                         "End Date", "2024-01-31"));
    }
 
-   @Disabled("Bug #81958: an empty last page does not end the query, the same offset is requested forever; enable when it is fixed")
    @Test
    void keywordDataEndsOnAnEmptyPage() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler()
@@ -70,7 +69,6 @@ class SEOmonitorPaginationTest {
       assertEquals(2, http.requests().size(), http.requests().toString());
    }
 
-   @Disabled("Bug #81958: an empty last page does not end the query, the same offset is requested forever; enable when it is fixed")
    @Test
    void keywordDataWithNoRecordsMakesOneRequest() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler().on("keyword_data", "[]");
@@ -79,7 +77,6 @@ class SEOmonitorPaginationTest {
       assertEquals(1, http.requests().size(), http.requests().toString());
    }
 
-   @Disabled("Bug #81958: an empty last page does not end the query, the same offset is requested forever; enable when it is fixed")
    @Test
    void ranksEndOnAnEmptyPage() throws Exception {
       // the records of a page are the first element of the array

@@ -321,7 +321,6 @@ class ZohoCRMAuthorizeTest {
 
    // RFC 6749 section 5.1: expires_in is only RECOMMENDED, a response may omit it
    @Test
-   @Disabled("Bug #81960: a token response without expires_in throws a NullPointerException; enable when it is fixed")
    void refreshResponseWithoutExpiresInDoesNotFail() {
       responseBody = "{\"access_token\":\"zr-new-access\",\"api_domain\":\"https://api.example\"}";
       ZohoCRMDataSource dataSource = createDataSource();

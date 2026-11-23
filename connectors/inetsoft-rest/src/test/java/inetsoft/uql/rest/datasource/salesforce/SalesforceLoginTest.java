@@ -235,7 +235,6 @@ class SalesforceLoginTest {
 
    // the fault text tells the user why the login failed (bad password, locked out, ...)
    @Test
-   @Disabled("Bug #81959: the login error drops the Salesforce fault text; enable when it is fixed")
    void failedLoginErrorCarriesTheSalesforceFaultText() {
       status = 500;
       body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><soapenv:Envelope " +

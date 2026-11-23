@@ -985,7 +985,8 @@ public abstract class GraphElement extends Graphable {
             end = ((SubDataSet) data).getRowFromBase(end);
          }
 
-         start = (start < 0) ? -start + 1 : start;
+         // a negative row is -(insertion point) - 1
+         start = (start < 0) ? -start - 1 : start;
          end = (end < 0) ? -end - 1 : end;
 
          sorted.setStartRow(start);

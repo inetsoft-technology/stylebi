@@ -213,6 +213,17 @@ public abstract class Visualizable implements ILayout, Comparable {
    }
 
    /**
+    * Get the area this object paints into, in the same coordinates as getBounds(). It is only
+    * used to skip objects that fall outside of the clip when painting (for example a chart
+    * tile), so it must cover every pixel paint() draws when isPaintInBounds() is true. It
+    * defaults to getBounds(); override it when paint() draws outside of the layout bounds
+    * (for example the side faces of a 3D bar) and getBounds() must stay the layout box.
+    */
+   public Rectangle2D getPaintBounds() {
+      return getBounds();
+   }
+
+   /**
     * This method is called after all layout/transformation has been completed. Implementation
     * can cleanup storage used for layout at this point.
     */

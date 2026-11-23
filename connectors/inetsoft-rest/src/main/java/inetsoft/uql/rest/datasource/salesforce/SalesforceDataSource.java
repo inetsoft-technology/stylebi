@@ -307,7 +307,11 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
          return SessionCache.INSTANCE.cache.get(this);
       }
       catch(Exception e) {
-         throw new RuntimeException("Failed to log into Salesforce.com", e);
+         // the data source status shows only this message, so carry the reason up to it
+         String reason = e.getCause() == null ? e.getMessage() : e.getCause().getMessage();
+         throw new RuntimeException(
+            reason == null || reason.isEmpty() ? "Failed to log into Salesforce.com" :
+               "Failed to log into Salesforce.com: " + reason, e);
       }
    }
 
@@ -357,9 +361,10 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
 
          try(CloseableHttpResponse response = client.execute(post)) {
             if(response.getStatusLine().getStatusCode() < 200 || response.getStatusLine().getStatusCode() >= 300) {
+               String fault = readFaultText(response);
                throw new Exception(
                   "Login failed [" + response.getStatusLine() + "]: " +
-                     response.getStatusLine().getStatusCode());
+                     (fault == null ? response.getStatusLine().getStatusCode() : fault));
             }
 
             try(InputStream input = response.getEntity().getContent()) {
@@ -391,6 +396,49 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to parse login response", e);
+      }
+   }
+
+   /**
+    * Extracts the reason from the SOAP fault in the body of a failed login response, for example
+    * "INVALID_LOGIN: Invalid username, password, security token; or user locked out.".
+    *
+    * @return the bounded fault text, or {@code null} if the body is missing or not a SOAP fault.
+    */
+   private static String readFaultText(CloseableHttpResponse response) {
+      try {
+         if(response.getEntity() == null) {
+            return null;
+         }
+
+         byte[] bytes;
+
+         try(InputStream input = response.getEntity().getContent()) {
+            bytes = input.readNBytes(MAX_FAULT_BODY);
+         }
+
+         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+         factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+         Document fault = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
+         XPath xpath = XPathFactory.newInstance().newXPath();
+         String text = (String) xpath.evaluate(
+            "normalize-space(//*[local-name()='faultstring'])", fault, XPathConstants.STRING);
+
+         if(text.isEmpty()) {
+            text = (String) xpath.evaluate(
+               "normalize-space(//*[local-name()='exceptionMessage'])", fault,
+               XPathConstants.STRING);
+         }
+
+         if(text.isEmpty()) {
+            return null;
+         }
+
+         return text.length() > MAX_FAULT_TEXT ? text.substring(0, MAX_FAULT_TEXT) + "..." : text;
+      }
+      catch(Exception ignore) {
+         // the body is not a parseable SOAP fault; fall back to the HTTP status alone
+         return null;
       }
    }
 
@@ -442,6 +490,9 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
          .maximumSize(20)
          .build(SalesforceDataSource::createSession);
    }
+
+   private static final int MAX_FAULT_BODY = 16 * 1024;
+   private static final int MAX_FAULT_TEXT = 500;
 
    private String instanceUrl;
    private String securityToken;

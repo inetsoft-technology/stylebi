@@ -45,12 +45,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("core")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AllEndpointsPaginationReplayTest {
-   /** OFFSET paging that starts at offset 1 instead of 0: HubSpot #81836, ServiceNow #80276. */
+   /**
+    * OFFSET paging that starts at offset 1 instead of 0: HubSpot #81836, ServiceNow #80276,
+    * TeamDesk #81880.
+    */
    private static final Set<String> OFFSET_STARTS_AT_ONE =
-      Set.of("HubSpotQuery", "ServiceNowQuery");
+      Set.of("HubSpotQuery", "ServiceNowQuery", "TeamDeskQuery");
 
-   /** OFFSET paging that never ends at an empty page: TeamDesk #81879, SEOmonitor #81958. */
-   private static final Set<String> NEVER_ENDS = Set.of("TeamDeskQuery", "SEOmonitorQuery");
+   /** OFFSET paging that never ends at an empty page; none since Bug #81958 and #81879. */
+   private static final Set<String> NEVER_ENDS = Set.of();
+
+   /**
+    * Endpoints whose records are the first element of the response array, so the sweep's flat
+    * pages give no table; SEOmonitorPaginationTest covers their paging.
+    */
+   private static final Set<String> NESTED_RECORDS =
+      Set.of("SEOmonitorQuery/Ranks", "SEOmonitorQuery/Group Ranks");
 
    /**
     * YouTube Analytics has its own test; the Salesforce ones log in to the real service to build
@@ -114,6 +124,10 @@ class AllEndpointsPaginationReplayTest {
                   continue;
                }
 
+               if(NESTED_RECORDS.contains(where) && message.contains("returned no table")) {
+                  continue;
+               }
+
                problems.add(where + ": " + message.substring(0, Math.min(250, message.length())));
             }
          }
@@ -161,7 +175,7 @@ class AllEndpointsPaginationReplayTest {
 
    // OFFSET paging is zero-based here: the first record is at offset 0
    @Test
-   @Disabled("Bug #81836 (HubSpot), #80276 (ServiceNow): OFFSET paging starts at offset 1 and skips the first record; fixed on epic-test-coverage, enable when that branch reaches main")
+   @Disabled("Bug #81836 (HubSpot), #80276 (ServiceNow), #81880 (TeamDesk): OFFSET paging starts at offset 1 and skips the first record; fixed on epic-test-coverage, enable when that branch reaches main")
    void offsetPagingStartsAtZero() throws Exception {
       List<String> problems = sweep(true, OFFSET_STARTS_AT_ONE);
       assertTrue(problems.isEmpty(), problems.size() + " problem(s):\n" +

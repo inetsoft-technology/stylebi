@@ -67,7 +67,7 @@ public class LinearSizeFrame extends SizeFrame {
 
       double min = scale.getMin();
       double max = scale.getMax();
-      return getSize(Math.min(1, (v - min) / (max - min)));
+      return getSize(Math.max(0, Math.min(1, (v - min) / (max - min))));
    }
 
    /**

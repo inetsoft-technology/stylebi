@@ -86,7 +86,7 @@ class XmlRoundTripAllDataSourcesTest {
 
          if(m.getParameterCount() == 0 && m.getReturnType() == String.class &&
             n.startsWith("get") && !n.equals("getClass") && !n.startsWith("getFull") &&
-            !n.equals("getType") && !n.equals("getURL") && !n.equals("getAuthorizationUri") &&
+            !n.equals("getType") && !n.equals("getResponseCacheIdentity") && !n.equals("getURL") && !n.equals("getAuthorizationUri") &&
             !n.equals("getTokenUri") && !n.equals("getCreatedBy") &&
             !n.equals("getLastModifiedBy"))
          {

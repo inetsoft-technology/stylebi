@@ -1831,19 +1831,32 @@ public abstract class VSAQuery {
          allCols += ";" + getCalcTableUsedText((CalcTableVSAssembly) getAssembly(), table);
       }
 
-      ConditionListWrapper conds = table.getPreRuntimeConditionList();
+      // the conditions of the table, and the ones of the assembly that are applied to the
+      // table after this pruning
+      List<ConditionListWrapper> condLists = new ArrayList<>();
+      condLists.add(table.getPreRuntimeConditionList());
 
-      if(conds != null) {
+      if(getAssembly() instanceof DynamicBindableVSAssembly) {
+         condLists.add(((DynamicBindableVSAssembly) getAssembly()).getPreConditionList());
+      }
+
+      for(ConditionListWrapper conds : condLists) {
+         if(conds == null) {
+            continue;
+         }
+
          for(int i = 0; i < conds.getConditionSize(); i += 2) {
             ConditionItem item = conds.getConditionItem(i);
             DataRef ref = AssetUtil.getBaseAttribute(item.getAttribute());
 
             if(ref instanceof DateRangeRef) {
                ref = ((DateRangeRef) ref).getDataRef();
+            }
 
-               if(ref != null) {
-                  allCols += ";" + ref.getAttribute();
-               }
+            // a calc field read only by an ordinary condition must stay, or the filter
+            // silently disappears (bug #81627)
+            if(ref != null) {
+               allCols += ";" + ref.getAttribute();
             }
          }
       }
