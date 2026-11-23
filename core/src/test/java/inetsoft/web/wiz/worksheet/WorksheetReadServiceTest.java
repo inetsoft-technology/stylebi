@@ -262,6 +262,37 @@ class WorksheetReadServiceTest {
       assertEquals(5, agg.n());
    }
 
+   // Bug #81983 (BUG-53): the By column of Last and the With column of Correlation read back, so a
+   // caller can see which column a two-column aggregate uses; a one-column formula reports none.
+   @Test
+   void readsSecondaryColumnForTwoColumnFormulas() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val", "when");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("cat", null)),
+         List.of(new WorksheetMutationSupport.AggregateSpec("val", "Last", "LastVal", null, "when", null),
+                 new WorksheetMutationSupport.AggregateSpec("val", "Correlation", "Corr", null, "when", null),
+                 new WorksheetMutationSupport.AggregateSpec("when", "Count", "Cnt", null, null, null)));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      List<WorksheetModel.AggregateModel.AggregateRefModel> aggs =
+         new WorksheetReadService().read(rws).tables().get(0).aggregates().aggregates();
+      assertEquals(3, aggs.size());
+
+      for(WorksheetModel.AggregateModel.AggregateRefModel agg : aggs) {
+         if(agg.formula().toUpperCase().startsWith("COUNT")) {
+            assertNull(agg.secondaryColumn());
+         }
+         else {
+            assertEquals("when", agg.secondaryColumn(), agg.formula());
+         }
+      }
+   }
+
    // N must not be surfaced for a formula that doesn't use it, even if the underlying
    // AggregateRef.num happens to be nonzero from a prior formula switch.
    @Test
