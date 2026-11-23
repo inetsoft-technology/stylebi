@@ -338,7 +338,9 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
          writer.writeCharacters(dataSource.getUser());
          writer.writeEndElement(); // username
          writer.writeStartElement("", "password", "urn:partner.soap.sforce.com");
-         writer.writeCharacters(dataSource.getPassword() + dataSource.getSecurityToken());
+         String password = dataSource.getPassword();
+         String token = dataSource.getSecurityToken();
+         writer.writeCharacters((password == null ? "" : password) + (token == null ? "" : token));
          writer.writeEndElement(); // password
          writer.writeEndElement(); // login
          writer.writeEndElement(); // Body
