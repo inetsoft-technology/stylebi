@@ -1277,6 +1277,8 @@ class WizDataModelBridgeTest {
       assertFalse(result.ok());
       assertEquals(WizDataModelWire.EXTENDED_UNSUPPORTED, result.reason());
       assertNotNull(registry().getLogicalModel("base"), "nothing was deleted");
+      assertNotNull(registry().getLogicalModel("base").getLogicalModel("kid"),
+                    "the extended model is still under its base");
    }
 
    @Test
@@ -1305,6 +1307,11 @@ class WizDataModelBridgeTest {
 
    @Test
    void anExtendedPhysicalViewIsStillResolvedByTheBaseOnlyGate() throws Exception {
+      // a REAL extended view under pv: a parent-aware lookup would find it, so only the base-only
+      // gate can answer NOT_FOUND here
+      registry().getPartition("pv").addPartition(new XPartition("viewKid"), false);
+      assertNotNull(registry().getPartition("pv").getPartition("viewKid"));
+      assertNull(registry().getPartition("viewKid"), "an extended view is not in the base registry");
       DepItem item = only(ok(items.dependencies(new DependenciesRequest(ds, List.of(
          new Ref(KIND_PHYSICAL_VIEW, "viewKid", "pv"))), bob), DependenciesResponse.class).items());
       assertFalse(item.exists());

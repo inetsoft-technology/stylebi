@@ -206,7 +206,8 @@ public class WizDataModelItemController {
 
       // an item the caller may not see is answered like a missing one, naming no kind
       // the gate knows base models only: an extended logical model is resolved by its parent
-      // through the kind's own lookup below (Bug #82067)
+      // through the kind's own lookup below (Bug #82067). A name that is really another kind then
+      // answers NOT_FOUND instead of WRONG_KIND, as no gate saw it.
       String existing = byParent(ref.kind(), ref.parent()) ? ref.kind() :
          gates.visibleKindOfName(dataModel, database, ref.name(), ctx.principal());
       WizModelKindOps ops = opsFor(ref.kind());
