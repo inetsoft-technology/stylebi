@@ -424,8 +424,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
          cubes = loadCubes(dataSource);
       }
       catch(Exception ex) {
-         LOG.info("Failed to load the XMLA cube metadata of {} from {}: {}", path, url,
-                  ex.getMessage());
+         LOG.info("Failed to load the XMLA cube metadata of {}: {}", path, ex.getMessage());
 
          return CubeRefreshResult.failed(
             CubeRefreshResult.CONNECTION_FAILED, url,
@@ -457,12 +456,16 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
 
       // updateDomain logs and ignores a storage failure, so only a read-back proves it was saved
       XDomain saved = getRepository().getDomain(name);
-      int count = saved == null ? 0 : Collections.list(saved.getCubes()).size();
+      Set<String> loadedNames = cubeNames(Collections.enumeration(cubes));
+      Set<String> savedNames = saved == null ? Set.of() : cubeNames(saved.getCubes());
+      int count = savedNames.size();
 
-      if(count != cubes.size()) {
+      // Names, not just the count: a failed write leaves the old domain, which can have as many
+      // cubes as the new load (a changed catalog) and would otherwise read back as saved.
+      if(!savedNames.equals(loadedNames) || count != cubes.size()) {
          return CubeRefreshResult.failed(
             CubeRefreshResult.PERSIST_FAILED, url,
-            "Loaded " + cubes.size() + " cube(s) but the saved metadata has " + count + ".");
+            "Loaded cube(s) " + loadedNames + " but the saved metadata has " + savedNames + ".");
       }
 
       try {
@@ -474,6 +477,16 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       }
 
       return CubeRefreshResult.ok(url, count);
+   }
+
+   private static Set<String> cubeNames(Enumeration<?> cubes) {
+      Set<String> names = new TreeSet<>();
+
+      while(cubes.hasMoreElements()) {
+         names.add(((XCube) cubes.nextElement()).getName());
+      }
+
+      return names;
    }
 
    /** Reads the cubes from the endpoint. Throws on any connection or discovery failure. */

@@ -107,6 +107,123 @@ class XmlaDatasourceServiceRefreshCubesTest {
    }
 
    @Test
+   void aSwallowedWriteIsCaughtEvenWhenTheOldDomainHasTheSameNumberOfCubes() throws Exception {
+      Fixture f = new Fixture();
+      Domain old = new Domain();
+      old.setDataSource("olap/sales");
+      old.setCubes(List.of(cube("OldA", false, null), cube("OldB", false, null)));
+      f.saved = old;
+      f.cubes = List.of(cube("NewA", false, null), cube("NewB", false, null));
+      f.dropWrites = true;
+
+      CubeRefreshResult result = f.service.refreshStoredCubes("olap/sales");
+
+      assertFalse(result.ok());
+      assertEquals(CubeRefreshResult.PERSIST_FAILED, result.status());
+   }
+
+   @Test
+   void hierarchyDimensionIsMatchedByHierarchyUniqueName() throws Exception {
+      Fixture f = new Fixture();
+      Cube oldCube = new Cube();
+      oldCube.setName("Sales");
+      oldCube.setDimensions(List.of(hier("Time", "[Time].[Fiscal]", true),
+                                    hier("Time", "[Time].[Calendar]", false)));
+      oldCube.setMeasures(List.of());
+      Domain old = new Domain();
+      old.setDataSource("olap/sales");
+      old.setCubes(List.of(oldCube));
+      f.saved = old;
+      Cube freshCube = new Cube();
+      freshCube.setName("Sales");
+      freshCube.setDimensions(List.of(hier("Time", "[Time].[Calendar]", false),
+                                      hier("Time", "[Time].[Fiscal]", false),
+                                      hier("Time", "[Time].[Other]", false)));
+      freshCube.setMeasures(List.of());
+      f.cubes = List.of(freshCube);
+
+      assertTrue(f.service.refreshStoredCubes("olap/sales").ok());
+
+      Map<String, Boolean> order = new HashMap<>();
+
+      for(Enumeration<?> e = ((Cube) f.saved.getCube("Sales")).getDimensions();
+          e.hasMoreElements();)
+      {
+         HierDimension d = (HierDimension) e.nextElement();
+         order.put(d.getHierarchyUniqueName(), d.isOriginalOrder());
+      }
+
+      assertEquals(Map.of("[Time].[Fiscal]", true, "[Time].[Calendar]", false,
+                          "[Time].[Other]", false), order);
+   }
+
+   @Test
+   void cubesAreMatchedByCaptionWhenTheyHaveOne() throws Exception {
+      Fixture f = new Fixture();
+      XMetaInfo meta = new XMetaInfo();
+      meta.setProperty("edited", "yes");
+      Cube oldCube = cube("Sales_v1", false, meta);
+      oldCube.setCaption("Sales");
+      Domain old = new Domain();
+      old.setDataSource("olap/sales");
+      old.setCubes(List.of(oldCube));
+      f.saved = old;
+      Cube same = cube("Sales_v2", false, null);
+      same.setCaption("Sales");
+      Cube other = cube("Sales_v1", false, null);
+      other.setCaption("Budget");
+      f.cubes = List.of(same, other);
+
+      assertTrue(f.service.refreshStoredCubes("olap/sales").ok());
+
+      Measure kept = (Measure) ((Cube) f.saved.getCube("Sales_v2")).getMeasures().nextElement();
+      Measure none = (Measure) ((Cube) f.saved.getCube("Sales_v1")).getMeasures().nextElement();
+      assertSame(meta, kept.getXMetaInfo(), "same caption: the edit is carried over");
+      assertNull(none.getXMetaInfo(), "same name but another caption is another cube");
+   }
+
+   @Test
+   void aNewMemberGetsNothingAndALevelWithAnotherUniqueNameDoesNotInherit() throws Exception {
+      Fixture f = new Fixture();
+      XMetaInfo meta = new XMetaInfo();
+      meta.setProperty("edited", "yes");
+      Domain old = new Domain();
+      old.setDataSource("olap/sales");
+      old.setCubes(List.of(cube("Sales", true, meta)));
+      f.saved = old;
+
+      DimMember sameName = new DimMember();
+      sameName.setName("Region");
+      sameName.setUniqueName("[Other].[Region]");
+      DimMember brandNew = new DimMember();
+      brandNew.setName("City");
+      brandNew.setUniqueName("[Geo].[City]");
+      Dimension dim = new Dimension();
+      dim.setDimensionName("Region");
+      dim.setLevels(List.of(sameName, brandNew));
+      Dimension newDim = new Dimension();
+      newDim.setDimensionName("Product");
+      newDim.setLevels(List.of());
+      Measure newMeasure = new Measure();
+      newMeasure.setName("Cost");
+      Cube fresh = new Cube();
+      fresh.setName("Sales");
+      fresh.setDimensions(List.of(dim, newDim));
+      fresh.setMeasures(List.of(newMeasure));
+      f.cubes = List.of(fresh);
+
+      assertTrue(f.service.refreshStoredCubes("olap/sales").ok());
+
+      Cube saved = (Cube) f.saved.getCube("Sales");
+      Dimension d = (Dimension) saved.getDimension("Region");
+      assertNull(d.getLevelAt(0).getXMetaInfo(), "same name, different uniqueName: no carry-over");
+      assertNull(d.getLevelAt(1).getXMetaInfo(), "a new member has nothing to inherit");
+      assertTrue(d.isOriginalOrder(), "the matching dimension still keeps its order");
+      assertFalse(((Dimension) saved.getDimension("Product")).isOriginalOrder());
+      assertNull(((Measure) saved.getMeasure("Cost")).getXMetaInfo());
+   }
+
+   @Test
    void namesTheEndpointWhenTheConnectionFails() throws Exception {
       Fixture f = new Fixture();
       f.failure = new RuntimeException("Connection refused");
@@ -161,6 +278,16 @@ class XmlaDatasourceServiceRefreshCubesTest {
       when(f.repository.getDataSource("db/orders")).thenReturn(null);
 
       assertThrows(FileNotFoundException.class, () -> f.service.refreshStoredCubes("db/orders"));
+   }
+
+   private static HierDimension hier(String dimName, String uniqueName, boolean originalOrder) {
+      HierDimension dim = new HierDimension();
+      dim.setDimensionName(dimName);
+      dim.setHierarchyUniqueName(uniqueName);
+      dim.setLevels(List.of());
+      dim.setOriginalOrder(originalOrder);
+
+      return dim;
    }
 
    private static Cube cube(String name, boolean originalOrder, XMetaInfo meta) {
