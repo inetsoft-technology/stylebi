@@ -1617,7 +1617,8 @@ wizard-binding-tree .bg-node-selected {
   // in place of the link's outer ring, which is narrower than the tile. The link wraps only its
   // icon, and growing it to fill the tile would widen its click target, so the tile draws the ring
   // through :has(). Behaviour: both shells and themed pages; where :has() is unsupported the link
-  // keeps its own ring. The light shell's ring colour is set below.
+  // keeps its own ring (in the light shell, the fallback rule above). The light shell's ring colour
+  // is set below.
   @supports selector(:has(*)) {
     .portal-nav-item > .nav-link:focus-visible {
       box-shadow: none;
