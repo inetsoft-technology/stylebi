@@ -744,6 +744,15 @@ public abstract class EndpointJsonQuery<T extends EndpointJsonQuery.Endpoint>
    }
 
    /**
+    * Whether a response read with the whole-response path is an envelope around a record array
+    * that holds no records, so that page should contribute nothing instead of a row of envelope
+    * scalars. Default: never.
+    */
+   public boolean isEmptyRecordEnvelope(Object json) {
+      return false;
+   }
+
+   /**
     * Gets the resource bundle that provides localized strings for this type of
     * data source.
     *

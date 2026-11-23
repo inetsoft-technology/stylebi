@@ -97,6 +97,12 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
                shapeResponse(json);
             }
 
+            if("$".equals(query.getValidJsonPath()) &&
+               ((EndpointJsonQuery<?>) query).isEmptyRecordEnvelope(json))
+            {
+               continue;
+            }
+
             doLookups(query, json);
 
             final Object selectedData = selectData(json, query.getValidJsonPath(), transformer);
@@ -132,6 +138,13 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
    @Override
    protected void removeExcludedFields(Object json) {
       transformer.deletePaths(json, ((EndpointJsonQuery<?>) query).resolveExcludedJsonPaths());
+   }
+
+   @Override
+   protected void removeExcludedFields(RestJsonQuery lookupQuery, Object json) {
+      if(lookupQuery instanceof EndpointJsonQuery<?>) {
+         transformer.deletePaths(json, ((EndpointJsonQuery<?>) lookupQuery).resolveExcludedJsonPaths());
+      }
    }
 
    /**
