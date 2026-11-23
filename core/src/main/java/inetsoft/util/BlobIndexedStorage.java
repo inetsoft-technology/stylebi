@@ -567,6 +567,13 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             }
             else {
                XMLSerializable data = getXMLSerializable(key, null, orgID);
+
+               // Bug #82141, the index can list a key whose content is gone, nothing to move
+               if(data == null) {
+                  LOG.warn("Skip migrating the missing storage data of {}", key);
+                  continue;
+               }
+
                AssetEntry nentry = entry.cloneAssetEntry(entry.getOrgID(), nname);
                fixRightUser(oname, nname, nentry);
                String identifier = nentry.toIdentifier();
@@ -596,6 +603,11 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          }
          else if((entry.getType().id() & AssetEntry.Type.FOLDER.id()) == AssetEntry.Type.FOLDER.id()) {
             XMLSerializable data = getXMLSerializable(key, null, orgID);
+
+            if(data == null) {
+               LOG.warn("Skip migrating the missing storage data of {}", key);
+               continue;
+            }
 
             if(entry.isFolder() && data instanceof AssetFolder folder) {
                for(AssetEntry folderEntry : folder.getEntries()) {
