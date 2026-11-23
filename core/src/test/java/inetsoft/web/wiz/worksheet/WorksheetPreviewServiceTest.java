@@ -925,7 +925,7 @@ class WorksheetPreviewServiceTest {
 
       assertTrue(System.currentTimeMillis() - start < 10_000);
       assertTrue(e.getMessage().contains("timed out"), e.getMessage());
-      assertTrue(e.getMessage().contains("1 s"), e.getMessage());
+      assertTrue(e.getMessage().contains("timed out after 1 s and"), e.getMessage());
       assertEquals(1, lens.cancels.get());
    }
 
@@ -961,12 +961,30 @@ class WorksheetPreviewServiceTest {
       assertEquals(0, lens.cancels.get());
    }
 
+   /** A cancellable TableFilter whose own flag stays false, like a SummaryFilter whose pass completed. */
+   private static class HealthyOuterFilter extends inetsoft.report.filter.DefaultTableFilter
+      implements inetsoft.report.internal.table.CancellableTableLens
+   {
+      HealthyOuterFilter(TableLens base) {
+         super(base);
+      }
+
+      @Override
+      public void cancel() {
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return false;
+      }
+   }
+
    @Test
-   void cancelledBaseUnderHealthyOuterLensThrows() throws Exception {
+   void cancelledBaseUnderHealthyCancellableOuterLensThrows() throws Exception {
       BlockingLens base = new BlockingLens(false);
       base.cancel();
-      TableLens outer = new inetsoft.report.filter.DefaultTableFilter(base);
-      assertFalse(outer instanceof inetsoft.report.internal.table.CancellableTableLens);
+      TableLens outer = new HealthyOuterFilter(base);
+      assertFalse(((inetsoft.report.internal.table.CancellableTableLens) outer).isCancelled());
       RuntimeWorksheet rws = rwsFor(outer);
       service.setTimeoutMillis(0);
 
@@ -1059,11 +1077,13 @@ class WorksheetPreviewServiceTest {
 
       try {
          inetsoft.sree.SreeEnv.setProperty(WorksheetPreviewService.TIMEOUT_PROPERTY, "42");
-         assertEquals(42_000L, WorksheetPreviewService.parseTimeoutMillis(
-            inetsoft.sree.SreeEnv.getProperty(WorksheetPreviewService.TIMEOUT_PROPERTY)));
+         assertEquals(42_000L, service.getTimeoutMillis());
+         inetsoft.sree.SreeEnv.setProperty(WorksheetPreviewService.TIMEOUT_PROPERTY, "0");
+         assertEquals(0L, service.getTimeoutMillis());
       }
       finally {
-         inetsoft.sree.SreeEnv.setProperty(WorksheetPreviewService.TIMEOUT_PROPERTY, old);
+         inetsoft.sree.SreeEnv.setProperty(WorksheetPreviewService.TIMEOUT_PROPERTY,
+                                           old == null ? "" : old);
       }
    }
 }

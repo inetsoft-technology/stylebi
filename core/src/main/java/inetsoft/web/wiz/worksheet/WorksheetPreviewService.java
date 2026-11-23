@@ -78,7 +78,7 @@ public class WorksheetPreviewService {
       this.timeoutMillis = timeoutMillis;
    }
 
-   private long getTimeoutMillis() {
+   long getTimeoutMillis() {
       if(timeoutMillis >= 0) {
          return timeoutMillis;
       }
