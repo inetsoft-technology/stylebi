@@ -846,14 +846,30 @@ public final class ScriptHostAccess {
                   // also a finite integral value in range, so a
                   // fractional or non-numeric string still prefers a double overload
                   // and otherwise stays refused rather than truncating or clamping.
-                  // Float and Short are omitted: Float would be ambiguous with
-                  // double on the same tier.
+                  // Short and Byte follow the int/long rule (whole number in range).
+                  // Float converts only a string whose parsed double value a float
+                  // holds unchanged: any string would make the float overload the more
+                  // specific one and hijack Math.abs('-3.7') and the
+                  // Color(int,int,int) vs Color(float,float,float) choice. Even so,
+                  // for an exactly representable string such as '1.5' the float
+                  // overload of a float/double pair wins (Math.ulp('1.5') equals
+                  // Math.ulp(1.5), the same as the number path); an inexact string
+                  // ('0.1') stays refused for a float-only parameter, which Rhino
+                  // rounded.
                   //
                   // Accepted consequence, same as the Number -> Boolean mapping
                   // above: a numeric-looking string argument to a type declaring
-                  // both a boolean and an int/long overload of the same arity now
-                  // reports "Multiple applicable overloads" instead of binding the
-                  // boolean one, because both land on this final tier.
+                  // both a boolean and an int/long (or a whole-number float)
+                  // overload of the same arity now reports "Multiple applicable
+                  // overloads" instead of binding the boolean one, because both
+                  // land on this final tier.
+                  //
+                  // #82093: Short, Byte and Float strings stay LOWEST too. A higher
+                  // tier would let them beat an Object overload (String.valueOf('1.50')
+                  // would bind valueOf(float) and return "1.5"). Consequence, the same
+                  // as boolean|int above: m(boolean|short)('5') and
+                  // m(boolean|float)('1.5') report "Multiple applicable overloads"
+                  // (Rhino bound short / float, main bound boolean).
                   .targetTypeMapping(String.class, Double.class,
                                      str -> str != null
                                         && JavaClassProxy.toNumber(str) != null,
@@ -869,6 +885,35 @@ public final class ScriptHostAccess {
                                      str -> str != null
                                         && integralString(str, -0x1p53, 0x1p53),
                                      str -> JavaClassProxy.toNumber(str).longValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Short.class,
+                                     str -> str != null
+                                        && integralString(str, Short.MIN_VALUE,
+                                                          Short.MAX_VALUE),
+                                     str -> JavaClassProxy.toNumber(str).shortValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Byte.class,
+                                     str -> str != null
+                                        && integralString(str, Byte.MIN_VALUE,
+                                                          Byte.MAX_VALUE),
+                                     str -> JavaClassProxy.toNumber(str).byteValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                                    .targetTypeMapping(String.class, Float.class,
+                                     str -> str != null && exactFloatString(str),
+                                     str -> JavaClassProxy.toNumber(str).floatValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+// a JS or host Date has the JS toString text (Rhino did the same);
+                  // only a String parameter, Object/Date/Instant overloads still win.
+                  // LOWEST, not LOW: the Date -> Instant conversion sits on the LOW
+                  // tier, so at LOW a (String|Instant) pair would turn ambiguous.
+                  // The cost is the boolean collision above: a Date given to a
+                  // (boolean|String) pair, e.g. Boolean.valueOf(new Date(0)), now
+                  // reports "Multiple applicable overloads" (main bound the boolean
+                  // one, Rhino the String one).
+                  .targetTypeMapping(Value.class, String.class,
+                                     v -> v != null && v.isDate()
+                                        && v.hasMember("toString"),
+                                     v -> v.getMember("toString").execute().asString(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
                   .targetTypeMapping(Value.class, String.class,
                                      v -> v != null && v.hasArrayElements() && !v.isHostObject(),
@@ -1473,6 +1518,18 @@ public final class ScriptHostAccess {
       double d = n.doubleValue();
       return !Double.isNaN(d) && !Double.isInfinite(d) && d == Math.rint(d)
          && d >= min && d <= max;
+   }
+
+   /** Whether a numeric string parses to a finite double that a float holds unchanged. */
+   private static boolean exactFloatString(String str) {
+      Number n = JavaClassProxy.toNumber(str);
+
+      if(n == null) {
+         return false;
+      }
+
+      double d = n.doubleValue();
+      return !Double.isNaN(d) && !Double.isInfinite(d) && d == (double) (float) d;
    }
 
    /**
