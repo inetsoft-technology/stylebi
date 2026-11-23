@@ -376,7 +376,10 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
       }
 
       ZohoCRMDataSource that = (ZohoCRMDataSource) o;
-      return tokenExpiration == that.tokenExpiration;
+      // Bug #81962, the account domain selects the Zoho data center the tokens belong to, and
+      // the credential's equals does not compare it
+      return tokenExpiration == that.tokenExpiration &&
+         Objects.equals(getAccountDomain(), that.getAccountDomain());
    }
 
    @Override

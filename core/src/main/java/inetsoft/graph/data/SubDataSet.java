@@ -232,36 +232,47 @@ public class SubDataSet extends AbstractDataSetFilter {
     * Get the row index corresponding to the base row. This does a reverse
     * lookup of the base row index in the mapping, and return a position
     * by binarySearch().
+    * @param baserow a row of the root dataset (below all nested sub datasets).
+    * @return the row of this dataset, or (-(insertion point) - 1) if the root row
+    * is not in this dataset.
     */
    public int getRowFromBase(int baserow) {
       init();
 
-      int row = baserow;
-
-      if(mapping != null) {
-         row = Arrays.binarySearch(mapping, baserow);
-      }
-      else if(mapping2 != null) {
-         row = Arrays.binarySearch(mapping2.getArray(), baserow);
-      }
-      // if this is passing through, make sure we don't count the calc rows since they
-      // are added back in SortedDataSet.sort(). (60820)
-      else {
-         row = Math.min(row, getRowCount0());
-      }
-
       DataSet dset = getDataSet();
 
-      // since the baserow is from the root dataset, need to deal with nested subset. (50276)
-      if(row < 0 && dset instanceof SubDataSet) {
-         int row2 = ((SubDataSet) dset).getRowFromBase(baserow);
+      // since the baserow is from the root dataset, need to deal with nested subset.
+      // map it to the row of the parent subset first, then find that row in this
+      // subset's mapping. (50276, 82041)
+      if(dset instanceof SubDataSet) {
+         int prow = ((SubDataSet) dset).getRowFromBase(baserow);
 
-         if(row2 >= 0 && row2 != baserow) {
-            return getRowFromBase(row2);
+         // not in the parent, find where the parent's insertion point falls in this subset
+         if(prow < 0) {
+            int row = getRowFromMapping(-prow - 1);
+            return -(row >= 0 ? row : -row - 1) - 1;
          }
+
+         return getRowFromMapping(prow);
       }
 
-      return row;
+      return getRowFromMapping(baserow);
+   }
+
+   /**
+    * Find a row of the immediate base dataset in the mapping of this dataset.
+    */
+   private int getRowFromMapping(int baserow) {
+      if(mapping != null) {
+         return Arrays.binarySearch(mapping, baserow);
+      }
+      else if(mapping2 != null) {
+         return Arrays.binarySearch(mapping2.getArray(), 0, mapping2cnt, baserow);
+      }
+
+      // if this is passing through, make sure we don't count the calc rows since they
+      // are added back in SortedDataSet.sort(). (60820)
+      return Math.min(baserow, getRowCount0());
    }
 
    @Override

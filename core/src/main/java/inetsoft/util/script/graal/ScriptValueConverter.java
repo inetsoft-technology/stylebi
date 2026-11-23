@@ -64,6 +64,12 @@ public final class ScriptValueConverter {
          return new ScopeProxy((ScriptScope) value);
       }
 
+      // a Java array of scopes (e.g. a form table's getFormRows()) would otherwise reach
+      // script as a host array of raw host objects, whose script members are hidden (#81904)
+      if(value instanceof ScriptScope[] scopes) {
+         return new ScopeArrayProxy(scopes);
+      }
+
       // Restore Rhino-style bean-property access for graph objects that chart
       // scripts manipulate directly (EGraph/GraphElement); GraalJS's HostAccess
       // exposes only the raw getX/isX/setX accessor methods. (#75577)
@@ -161,6 +167,11 @@ public final class ScriptValueConverter {
 
          if(proxy instanceof ArrayProxy arrayProxy) {
             return arrayProxy.getScope();
+         }
+
+         // the original Java array, as GraalJS gave back for the host array before (#81904)
+         if(proxy instanceof ScopeArrayProxy scopeArray) {
+            return scopeArray.getArray();
          }
 
          // unwrap the graph bean proxy back to its host object (#75577)

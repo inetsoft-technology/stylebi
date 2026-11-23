@@ -105,7 +105,8 @@ public class RestErrorHandler {
 
    /**
     * Common method of handling 429 errors. Response must contain a Retry-After header.
-    * If the Retry-After timeout is too long, it will be ignored.
+    * If the Retry-After timeout is too long, it will be ignored. The request is retried at most
+    * MAX_RETRY_ATTEMPTS times, waiting at least MIN_RETRY_WAIT_MILLIS before each retry.
     * @param ex Exception to handle
     * @param fn Method to retry
     * @param <T> Method's return type
@@ -124,11 +125,19 @@ public class RestErrorHandler {
       }
 
       int retryAfter = parseRetryAfter(httpResponse.getResponseHeaderValue("Retry-After"));
+      int retries = 0;
 
       //Do not retry if the timeout is too long
       while(!handlerResponse.shouldContinue() && retryAfter < RETRY_AFTER_TIMEOUT) {
+         if(retries >= MAX_RETRY_ATTEMPTS) {
+            LOG.warn("Giving up on a rate-limited (429) Rest request after {} retries", retries);
+            break;
+         }
+
+         retries++;
+
          try {
-            Thread.sleep(retryAfter * 1000L);
+            Thread.sleep(Math.max(retryAfter * 1000L, MIN_RETRY_WAIT_MILLIS));
             T returnValue = fn.call();
             handlerResponse = new RestErrorResponse<>(true, returnValue);
          }
@@ -153,7 +162,8 @@ public class RestErrorHandler {
       int retryAfter = RETRY_AFTER_TIMEOUT; //retry will fail if value is not changed
 
       try {
-         retryAfter = Integer.parseInt(response);
+         // a negative value means no wait
+         retryAfter = Math.max(0, Integer.parseInt(response));
       }
       catch(NumberFormatException e) {
          Date retryDate = DateUtils.parseDate(response);
@@ -163,7 +173,8 @@ public class RestErrorHandler {
             long timeDiff = (retryDate.getTime() - currentDate.getTime()) / 1000;
 
             if(timeDiff < RETRY_AFTER_TIMEOUT) {
-               retryAfter = (int) timeDiff;
+               // a date in the past means no wait
+               retryAfter = (int) Math.max(0, timeDiff);
             }
          }
 
@@ -179,4 +190,6 @@ public class RestErrorHandler {
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    protected final int RETRY_AFTER_TIMEOUT = 30;
+   protected final int MAX_RETRY_ATTEMPTS = 3;
+   protected final long MIN_RETRY_WAIT_MILLIS = 1000L;
 }

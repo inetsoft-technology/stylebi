@@ -177,6 +177,19 @@ public class VsToReportConverter {
          }
       }
 
+      // a component script the export skipped while reading the data above (Bug #81796)
+      if(box.getExportSkippedScript() != null) {
+         if(warningText == null) {
+            warningText = vs0.getWarningTextAssembly();
+         }
+
+         if(warningText != null) {
+            AbstractVSExporter.addWarningMessage(
+               warningText, inetsoft.util.Catalog.getCatalog().getString(
+                  "vs.export.componentScriptFailed"));
+         }
+      }
+
       if(warningText != null) {
          VSUtil.setAutoSizeTextHeight(warningText.getInfo(), vs0);
 

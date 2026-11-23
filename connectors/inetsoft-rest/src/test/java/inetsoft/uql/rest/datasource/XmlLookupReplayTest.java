@@ -28,7 +28,6 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.rest.datasource.azureblob.AzureBlobDataSource;
 import inetsoft.uql.rest.datasource.azureblob.AzureBlobQuery;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -67,7 +66,6 @@ class XmlLookupReplayTest {
    }
 
    @Test
-   @Disabled("Bug #81925: an entity without the lookup key makes the whole XML query fail, while the endpoint query skips the row; enable when it is fixed")
    void aContainerWithoutANameIsSkippedAndItsNeighboursAreNot() throws Exception {
       // the JSON runner skips a row whose key is missing; the XML one has to as well
       ScriptedHttpHandler http = new ScriptedHttpHandler()
@@ -97,26 +95,32 @@ class XmlLookupReplayTest {
    }
 
    @Test
-   @Disabled("Bug #81926: the XML runner looks up every entity of a page, ignoring the row limit; enable when it is fixed")
-   void theRowLimitStopsTheLookupsToo() throws Exception {
+   void theRowLimitStopsTheLookupsWhenEachContainerIsARow() throws Exception {
+      // with expandTop off each container is its own row, so only the first container's blobs are
+      // needed for a row limit of 1. In the default shape (expandTop on) the whole page is one row
+      // and every container's lookup feeds that row, so all of them are made.
       ScriptedHttpHandler http = new ScriptedHttpHandler()
          .on("/c1?restype=container", blobs("b1"))
          .on("/c2?restype=container", blobs("b2"))
          .on("/c3?restype=container", blobs("b3"))
          .on("?comp=list", containers("<Name>c1</Name>", "<Name>c2</Name>", "<Name>c3</Name>"));
       AzureBlobQuery query = containersWithBlobs();
+      query.setExpandTop(false);
       query.setMaxRows(1);
 
-      run(query, http);
+      String dump = dump(run(query, http));
 
       long blobRequests = http.requests().stream().filter(u -> u.contains("restype=container"))
          .count();
       assertEquals(1, blobRequests, "looked up the blobs of containers beyond the row limit: " +
                    http.requests());
+      assertNotNull(dump);
+      String firstRow = dump.substring(0, dump.indexOf('}') + 1);
+      assertTrue(firstRow.contains("Container.Name=c1") && firstRow.contains("b1"),
+                 "the kept row lost the blobs of c1: " + dump);
    }
 
    @Test
-   @Disabled("Bug #81927: a lookup result replaces an element of the parent with the same name; enable when it is fixed")
    void aLookupDoesNotOverwriteAnElementOfTheParentThatHasTheSameName() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler()
          .on("/c1?restype=container", blobs("b1"))
