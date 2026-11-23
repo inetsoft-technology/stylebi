@@ -18,10 +18,12 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.graph.GraphTarget;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.adhoc.model.property.ColorInfo;
@@ -477,6 +479,103 @@ class ChartTargetLineServiceTest {
       assertEquals(0, targets.get(0).get("index"));
       assertEquals("band", targets.get(1).get("kind"));
       assertEquals(false, targets.get(1).get("editable"));
+   }
+
+   // ---------------------------------------------------------------------------------------------
+   // Bug #82075: an orphaned target (stale stored measure) reads "all" like an unbound one.
+   // ---------------------------------------------------------------------------------------------
+
+   private static GraphTarget storedTarget(String field) {
+      GraphTarget target = mock(GraphTarget.class);
+      when(target.getField()).thenReturn(field);
+      return target;
+   }
+
+   private static ChartVSAssembly chartWithStored(GraphTarget... stored) {
+      ChartVSAssembly assembly = chart(GraphTypes.CHART_BAR);
+      ChartDescriptor descriptor = mock(ChartDescriptor.class);
+      when(descriptor.getTargetCount()).thenReturn(stored.length);
+
+      for(int i = 0; i < stored.length; i++) {
+         when(descriptor.getTarget(i)).thenReturn(stored[i]);
+      }
+
+      when(assembly.getChartDescriptor()).thenReturn(descriptor);
+      return assembly;
+   }
+
+   @SuppressWarnings("unchecked")
+   private static List<Map<String, Object>> targetsOf(Map<String, Object> out) {
+      return (List<Map<String, Object>>) out.get("targets");
+   }
+
+   /** Bound, unbound and orphaned targets are three different things, though two read "all". */
+   @Test
+   void listSeparatesOrphanedFromUnboundAndBound() throws Exception {
+      TargetInfo bound = existingLineTarget(0, "10");
+      bound.setMeasure(new MeasureInfo("Sum(Total)", "Sum(Total)", false));
+      TargetInfo unbound = existingLineTarget(1, "20");
+      TargetInfo orphan = existingLineTarget(2, "30");
+      Harness h = harness(
+         chartWithStored(storedTarget("Sum(Total)"), storedTarget(null),
+                         storedTarget("Sum(Product:Quantity)")),
+         paneWith(bound, unbound, orphan));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+      List<Map<String, Object>> targets = targetsOf(out);
+
+      assertEquals("Sum(Total)", targets.get(0).get("measure"));
+      assertEquals(false, targets.get(0).get("orphaned"));
+      assertEquals("Sum(Total)", targets.get(0).get("storedMeasure"));
+
+      assertEquals("all", targets.get(1).get("measure"));
+      assertEquals(false, targets.get(1).get("orphaned"));
+      assertNull(targets.get(1).get("storedMeasure"));
+
+      assertEquals("all", targets.get(2).get("measure"));
+      assertEquals(true, targets.get(2).get("orphaned"));
+      assertEquals("Sum(Product:Quantity)", targets.get(2).get("storedMeasure"));
+      assertTrue(String.valueOf(out.get("note")).contains("Sum(Product:Quantity)"));
+   }
+
+   /** A formula line cannot be unbound, so a stale formula line is orphaned too. */
+   @Test
+   void listFlagsAnOrphanedFormulaTarget() throws Exception {
+      TargetInfo formula = existingLineTarget(0, "=Average");
+      Harness h = harness(chartWithStored(storedTarget("Average(Product:Total)")),
+                          paneWith(formula));
+
+      Map<String, Object> target = targetsOf(h.service.list("tok", principal(), "Chart1")).get(0);
+
+      assertEquals(true, target.get("orphaned"));
+      assertEquals("Average(Product:Total)", target.get("storedMeasure"));
+   }
+
+   /** The pane and the descriptor disagree on how many targets there are: do not guess a pairing. */
+   @Test
+   void listWithMismatchedTargetCountOmitsOrphanFields() throws Exception {
+      Harness h = harness(chartWithStored(storedTarget("Sum(Total)"), storedTarget(null)),
+                          paneWith(existingLineTarget(0, "10")));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+      Map<String, Object> target = targetsOf(out).get(0);
+
+      assertFalse(target.containsKey("orphaned"));
+      assertFalse(target.containsKey("storedMeasure"));
+      assertNull(out.get("note"));
+   }
+
+   /** No orphan, no note; and a missing descriptor omits the new keys instead of failing. */
+   @Test
+   void listWithoutDescriptorOmitsOrphanFields() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(existingLineTarget(0, "10")));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+      Map<String, Object> target = targetsOf(out).get(0);
+
+      assertFalse(target.containsKey("orphaned"));
+      assertFalse(target.containsKey("storedMeasure"));
+      assertNull(out.get("note"));
    }
 
    // ---------------------------------------------------------------------------------------------
