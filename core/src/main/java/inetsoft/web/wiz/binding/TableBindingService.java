@@ -1124,7 +1124,7 @@ public class TableBindingService {
                // Bug #78850: hiding is per rendered lens column, but an aggregate renders in
                // several (one per cols value, plus grand totals/subtotals) when side by side, and
                // all measures share ONE column when stacked.
-               if(aggregate && isStackedMeasures(crossInfo)) {
+               if(aggregate && isStackedMeasures(crosstab)) {
                   errors.add(
                      "'" + requestedNames.get(i) + "' cannot be hidden on its own: this " +
                      "crosstab stacks its measures as rows (summarySideBySide is false), so " +
@@ -2228,8 +2228,16 @@ public class TableBindingService {
     * {@code true} when this crosstab lays several measures out as rows ({@code
     * summarySideBySide} off, more than one aggregate), so they share one measure-name column
     * rather than each owning rendered columns.
+    *
+    * <p>With neither a row nor a column dimension the measures are drawn as separate columns
+    * whatever {@code summarySideBySide} says, so that layout is not stacked. The exception is a
+    * crosstab a period calendar is bound to: the engine adds a row dimension for the duration of
+    * the render and removes it afterwards, so no header list shows it by the time this runs and
+    * it is treated as stacked.
     */
-   private static boolean isStackedMeasures(VSCrosstabInfo crossInfo) {
+   static boolean isStackedMeasures(CrosstabVSAssembly crosstab) {
+      VSCrosstabInfo crossInfo = crosstab.getVSCrosstabInfo();
+
       if(crossInfo.isSummarySideBySide()) {
          return false;
       }
@@ -2242,7 +2250,17 @@ public class TableBindingService {
          }
       }
 
-      return count > 1;
+      if(count <= 1) {
+         return false;
+      }
+
+      return !isEmpty(crossInfo.getRowHeaders()) || !isEmpty(crossInfo.getColHeaders()) ||
+         crosstab.supportPeriod() &&
+            VSUtil.getPeriodCalendar(crosstab.getViewsheet(), crosstab.getTableName()) != null;
+   }
+
+   private static boolean isEmpty(DataRef[] refs) {
+      return refs == null || refs.length == 0;
    }
 
    private static DataRef liveCrosstabRef(VSCrosstabInfo crossInfo, String shelf, int index) {
@@ -3066,7 +3084,7 @@ public class TableBindingService {
 
                // Bug #78850: stacked measures share one column, so no single measure has a
                // visibility of its own -- leave it unreported rather than read all-hidden.
-               if(aggregate && isStackedMeasures(crossInfo)) {
+               if(aggregate && isStackedMeasures(crosstab)) {
                   fields.set(i, field);
                   continue;
                }

@@ -28,12 +28,14 @@ import inetsoft.test.SreeHome;
 import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.FormatInfo;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSBindingModelService;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -104,8 +106,22 @@ class TableBindingCrosstabAggregateVisibilityTest {
     * </pre>
     */
    private static Fixture sideBySide(boolean sideBySide) throws Exception {
+      return fixture(sideBySide, true);
+   }
+
+   /**
+    * rows=[], cols=[], aggregates=[Sum(T), Average(T)]: one header row, one column per measure.
+    */
+   private static Fixture noDimensions(boolean sideBySide) throws Exception {
+      return fixture(sideBySide, false);
+   }
+
+   private static Fixture fixture(boolean sideBySide, boolean withRows) throws Exception {
       CrosstabBindingModel model = new CrosstabBindingModel();
-      TableBindingMutator.setShelf(model, "rows", List.of(field("Region", "dimension", null)));
+      if(withRows) {
+         TableBindingMutator.setShelf(model, "rows", List.of(field("Region", "dimension", null)));
+      }
+
       TableBindingMutator.setShelf(model, "aggregates", List.of(
          field("T", "measure", "Sum"), field("T", "measure", "Average")));
 
@@ -117,7 +133,7 @@ class TableBindingCrosstabAggregateVisibilityTest {
       when(liveAvg.getFullName()).thenReturn(AVG);
 
       VSCrosstabInfo crossInfo = new VSCrosstabInfo();
-      crossInfo.setDesignRowHeaders(new DataRef[]{ liveRegion });
+      crossInfo.setDesignRowHeaders(withRows ? new DataRef[]{ liveRegion } : new DataRef[0]);
       crossInfo.setDesignAggregates(new DataRef[]{ liveSum, liveAvg });
       crossInfo.setSummarySideBySide(sideBySide);
 
@@ -133,7 +149,18 @@ class TableBindingCrosstabAggregateVisibilityTest {
       when(lens.getDescriptor()).thenReturn(descriptor);
       when(lens.getHeaderRowCount()).thenReturn(1);
 
-      if(sideBySide) {
+      if(!withRows) {
+         when(lens.getHeaderColCount()).thenReturn(0);
+         when(lens.getColCount()).thenReturn(2);
+         when(lens.getRowCount()).thenReturn(2);
+         TableDataPath sum = path(SUM);
+         TableDataPath avg = path(AVG);
+         when(lens.getTableDataPath(0, 0)).thenReturn(sum);
+         when(lens.getTableDataPath(0, 1)).thenReturn(avg);
+         when(descriptor.getColDataPath(0)).thenReturn(sum);
+         when(descriptor.getColDataPath(1)).thenReturn(avg);
+      }
+      else if(sideBySide) {
          when(lens.getHeaderColCount()).thenReturn(1);
          when(lens.getColCount()).thenReturn(7);
          when(lens.getRowCount()).thenReturn(3);
@@ -322,5 +349,110 @@ class TableBindingCrosstabAggregateVisibilityTest {
 
       assertNull(f.service().read("tok", principal(), "Crosstab1").get("visibilityNote"),
                  "a label on every rendered path needs no note");
+   }
+
+   /** Redmine #81983 BUG-49: with no row or column dimension the measures sit side by side. */
+   @Test
+   void hidingAMeasureOfADimensionlessCrosstabIsAcceptedWhateverSummarySideBySideSays()
+      throws Exception
+   {
+      Fixture f = noDimensions(false);
+
+      List<String> applied = f.service().setCrosstabColumnVisibility(
+         "tok", principal(), "Crosstab1", null,
+         List.of(new ColumnVisibilityEntry("aggregates", "T", 1)),
+         false).applied();
+
+      assertTrue(f.info().isColumnHidden(1, f.lens()), "Average hidden");
+      assertFalse(f.info().isColumnHidden(0, f.lens()), "Sum must stay");
+      assertEquals(List.of("T -> hidden"), applied);
+   }
+
+   @Test
+   void readReportsEachMeasureOfADimensionlessCrosstabEvenWhenSummarySideBySideIsOff()
+      throws Exception
+   {
+      Fixture f = noDimensions(false);
+      f.info().addHiddenColumn(1, f.lens());
+
+      Map<String, Object> read = f.service().read("tok", principal(), "Crosstab1");
+
+      assertEquals(Boolean.TRUE, aggregates(read).get(0).visible());
+      assertEquals(Boolean.FALSE, aggregates(read).get(1).visible());
+   }
+
+   private static CrosstabVSAssembly crosstab(boolean sideBySide, int rows, int cols,
+                                              int aggregates, boolean period)
+   {
+      VSCrosstabInfo crossInfo = new VSCrosstabInfo();
+      crossInfo.setSummarySideBySide(sideBySide);
+      crossInfo.setDesignRowHeaders(dimensions(rows));
+      crossInfo.setDesignColHeaders(dimensions(cols));
+      DataRef[] aggs = new DataRef[aggregates];
+
+      for(int i = 0; i < aggregates; i++) {
+         aggs[i] = new VSAggregateRef();
+      }
+
+      crossInfo.setDesignAggregates(aggs);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getViewsheet()).thenReturn(vs);
+      when(assembly.getTableName()).thenReturn("T");
+      when(assembly.supportPeriod()).thenReturn(true);
+
+      if(period) {
+         CalendarVSAssembly calendar = mock(CalendarVSAssembly.class);
+         when(calendar.getTableName()).thenReturn("T");
+         when(calendar.getDataRef()).thenReturn(new VSDimensionRef());
+         when(calendar.isPeriod()).thenReturn(true);
+         when(calendar.getDates()).thenReturn(new String[]{ "2025-01-01", "2025-12-31" });
+         when(vs.getAssemblies()).thenReturn(new Assembly[]{ calendar });
+      }
+      else {
+         when(vs.getAssemblies()).thenReturn(new Assembly[0]);
+      }
+
+      return assembly;
+   }
+
+   private static DataRef[] dimensions(int count) {
+      DataRef[] refs = new DataRef[count];
+
+      for(int i = 0; i < count; i++) {
+         refs[i] = new VSDimensionRef();
+      }
+
+      return refs;
+   }
+
+   @Test
+   void stackedMeasuresDependOnTheLayout() {
+      assertFalse(TableBindingService.isStackedMeasures(crosstab(false, 0, 0, 3, false)),
+                  "no dimensions: separate columns");
+      assertTrue(TableBindingService.isStackedMeasures(crosstab(false, 1, 0, 3, false)),
+                 "rows only");
+      assertTrue(TableBindingService.isStackedMeasures(crosstab(false, 0, 1, 3, false)),
+                 "cols only");
+      assertTrue(TableBindingService.isStackedMeasures(crosstab(false, 1, 1, 3, false)),
+                 "rows and cols");
+      assertTrue(TableBindingService.isStackedMeasures(crosstab(false, 2, 2, 3, false)),
+                 "several dimensions");
+   }
+
+   @Test
+   void stackedMeasuresNeedSummarySideBySideOffAndSeveralMeasures() {
+      assertFalse(TableBindingService.isStackedMeasures(crosstab(true, 1, 1, 3, false)));
+      assertFalse(TableBindingService.isStackedMeasures(crosstab(false, 1, 1, 1, false)));
+      assertFalse(TableBindingService.isStackedMeasures(crosstab(false, 1, 1, 0, false)));
+   }
+
+   /** A bound period calendar gives the render a row dimension no header list shows afterwards. */
+   @Test
+   void aDimensionlessCrosstabWithAPeriodCalendarIsStillTreatedAsStacked() {
+      assertTrue(TableBindingService.isStackedMeasures(crosstab(false, 0, 0, 3, true)));
+      assertFalse(TableBindingService.isStackedMeasures(crosstab(true, 0, 0, 3, true)));
    }
 }
