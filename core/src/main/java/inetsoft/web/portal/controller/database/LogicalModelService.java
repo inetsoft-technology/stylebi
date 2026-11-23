@@ -29,6 +29,7 @@ import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.ExtendedDecimalFormat;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.security.auth.MissingResourceException;
@@ -252,6 +253,8 @@ public class LogicalModelService {
 
       validateModelParameters(dataSource, physicalModel, model, parent, principal, dataModel,
          path);
+      validateAttributeNames(model, null,
+         isExtended ? dataModel.getLogicalModel(parent) : null);
 
       if(isExtended) {
          XLogicalModel pLogicalModel = dataModel.getLogicalModel(parent);
@@ -364,6 +367,9 @@ public class LogicalModelService {
          validatePermission(dataSource, targetFolder, null, model.getName(),
             model.getConnection(), ResourceAction.WRITE, principal);
       }
+
+      validateAttributeNames(model, storedModel,
+         isExtended ? dataModel.getLogicalModel(parent) : null);
       String path = isExtended ? dataSource + "/" + parent + "/" + name :
          dataSource + "/" + name;
       AssetEntry entry = getModelEntry(path, isExtended);
@@ -1036,6 +1042,63 @@ public class LogicalModelService {
                parent + "/" + model.getName());
          }
       }
+   }
+
+   /**
+    * Checks that no attribute is given a new name that contains a period, which the
+    * documentation does not allow. A name that is already an attribute of the stored model, or of
+    * the base model of an extended model, is accepted, so that existing models with such names
+    * still load and save. The stored models are used for this, not the oldName or baseElement
+    * values sent by the client.
+    *
+    * @param model       the logical model definition to save.
+    * @param storedModel the stored model being updated, or {@code null} for a new model.
+    * @param parentModel the base model of an extended model, or {@code null} if none.
+    */
+   private void validateAttributeNames(LogicalModelDefinition model, XLogicalModel storedModel,
+                                       XLogicalModel parentModel)
+   {
+      if(model.getEntities() == null) {
+         return;
+      }
+
+      for(EntityModel entity : model.getEntities()) {
+         if(entity == null || entity.getAttributes() == null) {
+            continue;
+         }
+
+         for(XAttributeModel attribute : entity.getAttributes()) {
+            String name = attribute == null ? null : attribute.getName();
+
+            if(name != null && name.contains(".") && !containsAttribute(storedModel, name) &&
+               !containsAttribute(parentModel, name))
+            {
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "data.logicalmodel.attributeNameInvalid", name));
+            }
+         }
+      }
+   }
+
+   /**
+    * Determines if any entity of a logical model has an attribute with exactly this name.
+    */
+   private static boolean containsAttribute(XLogicalModel model, String name) {
+      if(model == null) {
+         return false;
+      }
+
+      Enumeration<XEntity> entities = model.getEntities();
+
+      while(entities.hasMoreElements()) {
+         XEntity entity = entities.nextElement();
+
+         if(entity != null && entity.getAttribute(name) != null) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private AssetEntry getModelEntry(String path, boolean isExtended) {

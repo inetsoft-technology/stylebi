@@ -659,6 +659,19 @@ describe("LogicalModelPropertyPane — addAttributes()", () => {
       expect(added.name).toBe("colA1"); // suffix added to avoid collision
    });
 
+   // Bug #82096: an attribute name cannot contain a period, the column mapping keeps the real name
+   it("should replace a period in a name taken from a column and keep the column name", async () => {
+      const entity = makeEntity("E1", [makeAttribute("a_b")]);
+      const { comp } = await renderComp({ logicalModel: makeModel([entity]) });
+      const dotted = { name: "a.b", table: "TABLE1" } as AttributeModel;
+
+      (comp as any).addAttributes(entity, [dotted]);
+
+      const added = comp.logicalModel.entities[0].attributes[1];
+      expect(added.name).toBe("a_b1"); // sanitized, then de-duplicated
+      expect(added.column).toBe("a.b");
+   });
+
    it("should return false when the entity is not found in the model", async () => {
       const entity = makeEntity("E1");
       const unknownEntity = makeEntity("Unknown");

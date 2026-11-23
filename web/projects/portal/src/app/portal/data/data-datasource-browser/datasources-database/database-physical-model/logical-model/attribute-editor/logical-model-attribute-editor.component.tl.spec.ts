@@ -537,3 +537,51 @@ describe("Group 10 — onAttributeChanged emission via form valueChanges", () =>
       }
    });
 });
+
+// ===========================================================================
+// Group 11 — Bug #82096: a new attribute name cannot contain a period
+// ===========================================================================
+
+describe("Group 11 — period in attribute name (Bug #82096)", () => {
+   it("should reject a new name that contains a period", async () => {
+      const { comp } = await renderEditor({ name: "testAttr", oldName: "testAttr" });
+
+      comp.nameControl.setValue("a.b");
+
+      expect(comp.nameControl.hasError("periodInName")).toBe(true);
+      expect(comp.form.invalid).toBe(true);
+   });
+
+   it("should reject a period in a name that has no stored name", async () => {
+      const { comp } = await renderEditor({ name: "col", oldName: undefined });
+
+      comp.nameControl.setValue("a.b");
+
+      expect(comp.nameControl.hasError("periodInName")).toBe(true);
+   });
+
+   it("should accept the stored dotted name of an existing attribute", async () => {
+      const { comp } = await renderEditor({ name: "a.b", oldName: "a.b" });
+
+      expect(comp.nameControl.hasError("periodInName")).toBe(false);
+      expect(comp.form.valid).toBe(true);
+
+      // renaming it and changing it back to the stored name is accepted too
+      comp.nameControl.setValue("x.y");
+      expect(comp.nameControl.hasError("periodInName")).toBe(true);
+      comp.nameControl.setValue("a.b");
+      expect(comp.nameControl.hasError("periodInName")).toBe(false);
+   });
+
+   it("should show the period message under the name field", async () => {
+      const { comp, fixture } = await renderEditor();
+
+      comp.nameControl.setValue("a.b");
+      fixture.detectChanges();
+
+      const feedback = Array.from(
+         (fixture.nativeElement as HTMLElement).querySelectorAll(".invalid-feedback"))
+         .map(e => e.textContent.trim());
+      expect(feedback).toContain("_#(data.logicalmodel.attributeNamePeriod)");
+   });
+});
