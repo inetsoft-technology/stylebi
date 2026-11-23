@@ -117,7 +117,8 @@ public class WorksheetPreviewService {
          return 0L;
       }
 
-      return (long) Math.min(seconds * 1000, MAX_TIMEOUT_MILLIS);
+      // a positive sub-millisecond value must not truncate to 0, which disables the limit
+      return Math.max(1L, (long) Math.min(seconds * 1000, MAX_TIMEOUT_MILLIS));
    }
 
    /**

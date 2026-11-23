@@ -1064,6 +1064,8 @@ class WorksheetPreviewServiceTest {
       assertEquals(45_000L, WorksheetPreviewService.parseTimeoutMillis("45"));
       assertEquals(1_500L, WorksheetPreviewService.parseTimeoutMillis(" 1.5 "));
       assertEquals(0L, WorksheetPreviewService.parseTimeoutMillis("0"));
+      assertEquals(1L, WorksheetPreviewService.parseTimeoutMillis("0.0001"));
+      assertEquals(1L, WorksheetPreviewService.parseTimeoutMillis("1e-9"));
       assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("-5"));
       assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("-Infinity"));
       assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("Infinity"));
