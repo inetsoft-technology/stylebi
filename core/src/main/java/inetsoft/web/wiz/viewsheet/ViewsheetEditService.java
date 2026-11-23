@@ -1296,8 +1296,9 @@ public class ViewsheetEditService {
 
                // Bug #81549: the Composer's Layout dropdown is filled only from
                // SetViewsheetInfoCommand.layouts, which the sheet refresh does not resend, so a
-               // print/device layout written by the agent stayed unlisted until a save.
-               coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
+               // print/device layout written by the agent stayed unlisted until a save. The
+               // mutation dispatcher only captures commands, so push through the paired socket.
+               sessions.broadcastViewsheetInfo(rvs, runtimeId, user);
             }
             finally {
                if(box != null) {
