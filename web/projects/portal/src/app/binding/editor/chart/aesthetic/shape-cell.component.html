@@ -24,13 +24,13 @@
 
   @if (isStaticShape && isMixed) {
     <div>
-      <i class="shapes-points-icon align-middle"></i>
+      <ng-container *ngTemplateOutlet="pointsGlyph"></ng-container>
     </div>
   }
 
   @if (isLinearShape) {
     <div>
-      <i class="shapes-points-icon align-middle"></i>
+      <ng-container *ngTemplateOutlet="pointsGlyph"></ng-container>
     </div>
   }
 
@@ -43,13 +43,13 @@
 
   @if (isStaticTexture && isMixed) {
     <div>
-      <i class="shapes-patterns-icon algn-middle"></i>
+      <ng-container *ngTemplateOutlet="patternsGlyph"></ng-container>
     </div>
   }
 
   @if (isLinearTexture) {
     <div>
-      <i class="shapes-patterns-icon align-middle"></i>
+      <ng-container *ngTemplateOutlet="patternsGlyph"></ng-container>
     </div>
   }
 
@@ -61,13 +61,64 @@
 
   @if (isStaticLine && isMixed) {
     <div>
-      <i class="shapes-lines-icon align-middle"></i>
+      <ng-container *ngTemplateOutlet="linesGlyph"></ng-container>
     </div>
   }
 
   @if (isLinearLine) {
     <div>
-      <i class="shapes-lines-icon align-middle"></i>
+      <ng-container *ngTemplateOutlet="linesGlyph"></ng-container>
     </div>
   }
 </div>
+
+<!--
+  The three "mixed or linear" glyphs, drawn at 20px on a 20-unit grid with the same 3-unit margin on
+  every side, so the art is centred in its box. They replace the icon-font glyphs of the same names,
+  which are inline text and so are placed by font metrics and line boxes. Block-level svgs have
+  neither.
+-->
+<ng-template #pointsGlyph>
+  <svg class="shape-cell__glyph" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"
+       fill="currentColor">
+    <rect x="0.5" y="0.5" width="19" height="19" fill="none" stroke="currentColor"/>
+    <circle cx="7.2" cy="7.2" r="4.2"/>
+    <rect x="9.5" y="9.5" width="7.5" height="7.5"/>
+  </svg>
+</ng-template>
+<ng-template #patternsGlyph>
+  <svg class="shape-cell__glyph" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"
+       fill="currentColor">
+    <rect x="0.5" y="0.5" width="19" height="19" fill="none" stroke="currentColor"/>
+    <rect x="2.5" y="2.5" width="3.5" height="3.5"/>
+    <rect x="8.25" y="2.5" width="3.5" height="3.5"/>
+    <rect x="14" y="2.5" width="3.5" height="3.5"/>
+    <rect x="2.5" y="8.25" width="3.5" height="3.5"/>
+    <rect x="8.25" y="8.25" width="3.5" height="3.5"/>
+    <rect x="14" y="8.25" width="3.5" height="3.5"/>
+    <rect x="2.5" y="14" width="3.5" height="3.5"/>
+    <rect x="8.25" y="14" width="3.5" height="3.5"/>
+    <rect x="14" y="14" width="3.5" height="3.5"/>
+  </svg>
+</ng-template>
+<ng-template #linesGlyph>
+  <svg class="shape-cell__glyph" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"
+       fill="currentColor">
+    <rect x="0.5" y="0.5" width="19" height="19" fill="none" stroke="currentColor"/>
+    <rect x="3" y="3.5" width="14" height="1.5"/>
+    <rect x="3" y="6.375" width="6" height="1.5"/>
+    <rect x="11" y="6.375" width="6" height="1.5"/>
+    <rect x="3" y="9.25" width="3.5" height="1.5"/>
+    <rect x="8.25" y="9.25" width="3.5" height="1.5"/>
+    <rect x="13.5" y="9.25" width="3.5" height="1.5"/>
+    <rect x="3" y="12.125" width="2" height="1.5"/>
+    <rect x="7" y="12.125" width="2" height="1.5"/>
+    <rect x="11" y="12.125" width="2" height="1.5"/>
+    <rect x="15" y="12.125" width="2" height="1.5"/>
+    <rect x="3" y="15" width="1.5" height="1.5"/>
+    <rect x="6.125" y="15" width="1.5" height="1.5"/>
+    <rect x="9.25" y="15" width="1.5" height="1.5"/>
+    <rect x="12.375" y="15" width="1.5" height="1.5"/>
+    <rect x="15.5" y="15" width="1.5" height="1.5"/>
+  </svg>
+</ng-template>

@@ -25,7 +25,6 @@ import { LinearSizeModel, StaticSizeModel } from "../../../../common/data/visual
 import { ChartBindingModel } from "../../../data/chart/chart-binding-model";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { FIELD_MC_PROVIDERS } from "./field-mc-test-helpers";
-import { SizeCell } from "./size-cell.component";
 import { SizeFieldMc } from "./size-field-mc.component";
 
 // Host that replaces the whole binding model, the way vs-binding-pane handles
@@ -38,17 +37,6 @@ import { SizeFieldMc } from "./size-field-mc.component";
 class SizeFieldMcHost {
    bindingModel: ChartBindingModel;
    @ViewChild(SizeFieldMc) mc: SizeFieldMc;
-}
-
-// Records every Image the size cell creates so a test can fire its load.
-class FakeImage {
-   static created: FakeImage[] = [];
-   src: string = "";
-   onload: (e?: any) => void;
-
-   constructor() {
-      FakeImage.created.push(this);
-   }
 }
 
 /**
@@ -75,19 +63,11 @@ function serverBinding(sizeBound: boolean): ChartBindingModel {
    return JSON.parse(JSON.stringify(model));
 }
 
-describe("SizeFieldMc size icon refresh (Bug #77017)", () => {
+describe("SizeFieldMc size tile icon", () => {
    let fixture: ComponentFixture<SizeFieldMcHost>;
    let host: SizeFieldMcHost;
-   let ctx: any;
-   let originalImage: any;
 
    beforeEach(() => {
-      ctx = { clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), fillStyle: "" };
-      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx);
-      FakeImage.created = [];
-      originalImage = (window as any).Image;
-      (window as any).Image = FakeImage;
-
       TestBed.configureTestingModule({
          imports: [SizeFieldMcHost],
          providers: [
@@ -112,70 +92,74 @@ describe("SizeFieldMc size icon refresh (Bug #77017)", () => {
       fixture.detectChanges();
    });
 
-   afterEach(() => {
-      (window as any).Image = originalImage;
-      vi.restoreAllMocks();
-   });
+   function circles(): Element[] {
+      return Array.from(
+         fixture.nativeElement.querySelectorAll(".visual-edit-icon svg.size-glyph"));
+   }
 
-   function sizeCell(): SizeCell {
-      const cells = fixture.debugElement.queryAll(By.directive(SizeCell));
-      expect(cells.length).toBe(1);
-      return cells[0].componentInstance;
+   // which rings are drawn dark, inner ring first
+   function darkRings(): boolean[] {
+      const rings = Array.from(
+         fixture.nativeElement.querySelectorAll("svg.size-glyph circle.size-glyph__ring"));
+      return rings.reverse().map((r: Element) =>
+         !r.classList.contains("size-glyph__ring--off"));
+   }
+
+   function tooltip(): string {
+      return fixture.nativeElement.querySelector(".visual-edit-icon").getAttribute("title");
    }
 
    function replaceBinding(sizeBound: boolean): void {
-      ctx.clearRect.mockClear();
-      ctx.fillRect.mockClear();
-      ctx.drawImage.mockClear();
-      FakeImage.created = [];
       host.bindingModel = serverBinding(sizeBound);
       fixture.detectChanges();
    }
 
-   it("shows the static size bar when no field is bound", () => {
+   it("shows the circles glyph when no field is bound", () => {
       expect(host.mc.frames[0].clazz).toContain("StaticSizeModel");
-      // 20px cell, size 15 -> ceil(20 * 15 / 30) = 10px wide bar
-      expect(ctx.fillRect).toHaveBeenCalledWith(5, 0, 10, 20);
-      expect(FakeImage.created.length).toBe(0);
+      expect(circles().length).toBe(1);
+      expect(fixture.debugElement.queryAll(By.css("size-cell")).length).toBe(0);
    });
 
-   it("repaints the reused cell as the linear icon after a field is bound (Error 1)", () => {
-      const cell = sizeCell();
-
+   it("keeps the circles glyph, not a frame preview, after a field is bound", () => {
       replaceBinding(true);
 
-      expect(sizeCell()).toBe(cell);
       expect(host.mc.frames[0].clazz).toContain("LinearSizeModel");
-      expect(ctx.clearRect).toHaveBeenCalled();
-      expect(ctx.fillRect).not.toHaveBeenCalled();
-      expect(FakeImage.created.length).toBe(1);
-      expect(FakeImage.created[0].src).toBe("assets/size_linear.png");
-
-      FakeImage.created[0].onload();
-      expect(ctx.drawImage).toHaveBeenCalledTimes(1);
+      expect(circles().length).toBe(1);
+      expect(fixture.debugElement.queryAll(By.css("size-cell")).length).toBe(0);
    });
 
-   it("repaints the reused cell as the static bar after the field is removed (Error 2)", () => {
+   it("keeps the circles glyph after the field is removed again", () => {
       replaceBinding(true);
-      const cell = sizeCell();
-      const linearImage = FakeImage.created[0];
-
       replaceBinding(false);
 
-      expect(sizeCell()).toBe(cell);
-      expect(ctx.clearRect).toHaveBeenCalled();
-      expect(ctx.fillRect).toHaveBeenCalledWith(5, 0, 10, 20);
-      expect(FakeImage.created.length).toBe(0);
-
-      // a late load of the superseded linear image must not draw over the static bar
-      linearImage.onload();
-      expect(ctx.drawImage).not.toHaveBeenCalled();
+      expect(circles().length).toBe(1);
+      expect(fixture.debugElement.queryAll(By.css("size-cell")).length).toBe(0);
    });
 
-   it("does not repaint when an unrelated binding refresh delivers an equal size frame", () => {
-      replaceBinding(false);
+   it("enables the glyph once the frame is editable", () => {
+      expect(host.mc.isFrameEditEnabled()).toBe(true);
+      expect(circles()[0].classList.contains("icon-disabled")).toBe(false);
+   });
 
-      expect(ctx.clearRect).not.toHaveBeenCalled();
-      expect(ctx.fillRect).not.toHaveBeenCalled();
+   // serverBinding gives a static size of 15, so the middle ring
+   it("emphasises the ring a static size falls in", () => {
+      expect(darkRings()).toEqual([false, true, false]);
+      expect(tooltip()).toContain("(_#(js:Static size) 15)");
+
+      for(const [size, rings] of [[1, [true, false, false]], [10, [true, false, false]],
+         [11, [false, true, false]], [20, [false, true, false]], [21, [false, false, true]],
+         [30, [false, false, true]]] as [number, boolean[]][])
+      {
+         (host.mc.frames[0] as any).size = size;
+         fixture.detectChanges();
+         expect(darkRings()).toEqual(rings);
+      }
+   });
+
+   it("emphasises all three rings for a size driven by a field", () => {
+      replaceBinding(true);
+
+      expect(darkRings()).toEqual([true, true, true]);
+      expect(tooltip()).toContain("(_#(js:Size from data))");
    });
 });

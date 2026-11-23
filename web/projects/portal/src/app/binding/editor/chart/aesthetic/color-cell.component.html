@@ -71,7 +71,18 @@
     }
     @default {
       <div>
-        @if (imageSrc) {
+        @if (frameType === 'CategoricalColorModel') {
+          <!-- The first four colours of the modern palette, in legend order, instead of the
+               pastel raster this used to be, so the tile matches the shell around it. -->
+          <svg class="color-cell__categorical" width="20" height="20" viewBox="0 0 20 20"
+               aria-hidden="true">
+            <rect class="color-cell__categorical-1" x="0" y="0" width="9.25" height="9.25" rx="1.5"/>
+            <rect class="color-cell__categorical-2" x="10.75" y="0" width="9.25" height="9.25" rx="1.5"/>
+            <rect class="color-cell__categorical-3" x="0" y="10.75" width="9.25" height="9.25" rx="1.5"/>
+            <rect class="color-cell__categorical-4" x="10.75" y="10.75" width="9.25" height="9.25" rx="1.5"/>
+          </svg>
+        }
+        @else if (imageSrc) {
           <img [src]="imageSrc">
         }
       </div>
