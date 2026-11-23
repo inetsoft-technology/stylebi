@@ -925,7 +925,7 @@ class WorksheetPreviewServiceTest {
 
       assertTrue(System.currentTimeMillis() - start < 10_000);
       assertTrue(e.getMessage().contains("timed out"), e.getMessage());
-      assertTrue(e.getMessage().contains("0.5 s"), e.getMessage());
+      assertTrue(e.getMessage().contains("1 s"), e.getMessage());
       assertEquals(1, lens.cancels.get());
    }
 
@@ -1046,9 +1046,9 @@ class WorksheetPreviewServiceTest {
       assertEquals(45_000L, WorksheetPreviewService.parseTimeoutMillis("45"));
       assertEquals(1_500L, WorksheetPreviewService.parseTimeoutMillis(" 1.5 "));
       assertEquals(0L, WorksheetPreviewService.parseTimeoutMillis("0"));
-      assertEquals(0L, WorksheetPreviewService.parseTimeoutMillis("-5"));
-      assertEquals(24L * 60 * 60 * 1000,
-                   WorksheetPreviewService.parseTimeoutMillis("Infinity"));
+      assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("-5"));
+      assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("-Infinity"));
+      assertEquals(110_000L, WorksheetPreviewService.parseTimeoutMillis("Infinity"));
       assertEquals(24L * 60 * 60 * 1000,
                    WorksheetPreviewService.parseTimeoutMillis("1e30"));
    }

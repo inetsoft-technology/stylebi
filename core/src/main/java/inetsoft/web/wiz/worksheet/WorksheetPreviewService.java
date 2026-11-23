@@ -65,7 +65,7 @@ public class WorksheetPreviewService {
     * Server-side limit, in seconds, for one whole preview (query execution, row read and row-limit
     * check). Default 110: it must stay below the plugin's 120 s fetch timeout so the server
     * answers first and the abandoned query stops, but above the roughly 105 s a paginated REST
-    * tabular table legitimately needs (#79074). 0 or negative disables the limit.
+    * tabular table legitimately needs (#79074). 0 disables the limit.
     */
    public static final String TIMEOUT_PROPERTY = "wiz.preview.timeout";
    private static final long DEFAULT_TIMEOUT_MILLIS = 110_000L;
@@ -88,7 +88,8 @@ public class WorksheetPreviewService {
 
    /**
     * Converts the {@link #TIMEOUT_PROPERTY} value (seconds) to milliseconds. Blank or invalid
-    * values give the default; zero or negative disables the limit (returns 0); huge values are
+    * values (including NaN, Infinity and negatives) give the default; zero disables the limit
+    * (returns 0); huge values are
     * clamped so the scheduled time cannot overflow.
     */
    static long parseTimeoutMillis(String value) {
@@ -105,12 +106,14 @@ public class WorksheetPreviewService {
          seconds = Double.NaN;
       }
 
-      if(Double.isNaN(seconds)) {
+      // non-finite or negative values are mistakes, not a request to disable the limit
+      if(Double.isNaN(seconds) || Double.isInfinite(seconds) || seconds < 0) {
          LOG.warn("Invalid value '{}' for {}, using the default", value, TIMEOUT_PROPERTY);
          return DEFAULT_TIMEOUT_MILLIS;
       }
 
-      if(seconds <= 0) {
+      // 0 means no limit, the same convention as query.runtime.timeout
+      if(seconds == 0) {
          return 0L;
       }
 
@@ -174,7 +177,7 @@ public class WorksheetPreviewService {
       }
 
       private static String formatSeconds(long millis) {
-         return millis % 1000 == 0 ? String.valueOf(millis / 1000) : String.valueOf(millis / 1000.0);
+         return String.valueOf((millis + 999) / 1000);
       }
 
       /**
@@ -183,7 +186,7 @@ public class WorksheetPreviewService {
       void check(String tableName) throws PairingException {
          if(timedOut.get()) {
             throw new PairingException("Preview of worksheet table '" + tableName
-               + "' timed out after " + millis / 1000.0 + " s and was cancelled. Add a filter or"
+               + "' timed out after " + formatSeconds(millis) + " s and was cancelled. Add a filter or"
                + " an aggregation to reduce the data, or preview a smaller table.");
          }
 
