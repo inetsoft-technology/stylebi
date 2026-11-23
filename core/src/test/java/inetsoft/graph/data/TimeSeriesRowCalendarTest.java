@@ -92,54 +92,12 @@ class TimeSeriesRowCalendarTest {
 
    @ParameterizedTest(name = "{0}")
    @MethodSource("locales")
-   @Disabled("Bug #82038: Week level time series misses weeks next to the first week of a year")
-   @DisplayName("a missing week before week 1 of the next year is filled")
-   void weekBeforeWeekOneIsFilled(Locale locale) {
-      use(locale, "UTC");
-      DefaultDataSet d = ds(r(at(2012, 12, 17), "A", 1), r(at(2012, 12, 31), "A", 2));
-      assertEquals(exp("2012-12-24|A|0"), render(weekly(d)));
-   }
-
-   @Test
-   @Disabled("Bug #82038: Week level time series misses weeks next to the first week of a year")
-   @DisplayName("a missing week between two Sundays at the year end is filled in en_US")
-   void sundayWeekBeforeYearEndIsFilled() {
-      use(EN_US, "UTC");
-      DefaultDataSet d = ds(r(at(2012, 12, 16), "A", 1), r(at(2012, 12, 30), "A", 2));
-      assertEquals(exp("2012-12-23|A|0"), render(weekly(d)));
-   }
-
-   @ParameterizedTest(name = "{0}")
-   @MethodSource("locales")
    @DisplayName("a long span over the year end fills every week")
    void longSpanOverTheYearEndIsFilled(Locale locale) {
       use(locale, "UTC");
       DefaultDataSet d = ds(r(at(2012, 12, 10), "A", 1), r(at(2013, 1, 14), "A", 2));
       assertEquals(exp("2012-12-17|A|0", "2012-12-24|A|0", "2012-12-31|A|0", "2013-01-07|A|0"),
                    render(weekly(d)));
-   }
-
-   @ParameterizedTest(name = "{0}")
-   @MethodSource("locales")
-   @Disabled("Bug #82038: Week level time series misses weeks next to the first week of a year")
-   @DisplayName("leading weeks of a group that starts at the year end are filled")
-   void leadingWeeksAcrossTheYearEndAreFilled(Locale locale) {
-      use(locale, "UTC");
-      DefaultDataSet d = ds(r(at(2012, 12, 17), "A", 1), r(at(2012, 12, 31), "B", 2),
-                            r(at(2013, 1, 7), "B", 3));
-      assertEquals(exp("2012-12-17|B|0", "2012-12-24|B|0", "2012-12-24|A|0", "2012-12-31|A|0",
-                       "2013-01-07|A|0"),
-                   render(weekly(d)));
-   }
-
-   @ParameterizedTest(name = "{0}")
-   @MethodSource("locales")
-   @Disabled("Bug #82038: Week level time series misses weeks next to the first week of a year")
-   @DisplayName("a missing week after new year between two Sundays is filled")
-   void sundayWeekAfterNewYearIsFilled(Locale locale) {
-      use(locale, "UTC");
-      DefaultDataSet d = ds(r(at(2011, 12, 25), "A", 1), r(at(2012, 1, 8), "A", 2));
-      assertEquals(exp("2012-01-01|A|0"), render(weekly(d)));
    }
 
    @Test
@@ -183,33 +141,6 @@ class TimeSeriesRowCalendarTest {
       DefaultDataSet d = ds(r(at(2023, 3, 12, 0, 0), "A", 1), r(at(2023, 3, 12, 4, 0), "A", 2));
       assertEquals(exp("2023-03-12 01:00|A|0", "2023-03-12 03:00|A|0"),
                    render(tsr(TimeScale.HOUR, 0).calculate(d), DT));
-   }
-
-   @Test
-   @Disabled("Bug #82039: Hour level time series adds a filler row at the repeated DST hour")
-   @DisplayName("the repeated hour of the fall back day is one period")
-   void repeatedHourIsOnePeriod() {
-      use(EN_US, NY);
-      ZonedDateTime start = ZonedDateTime.of(2023, 11, 5, 0, 0, 0, 0, ZoneId.of(NY));
-      DefaultDataSet d = ds(r(Date.from(start.toInstant()), "A", 1),
-                            r(Date.from(start.plusHours(3).toInstant()), "A", 2));
-      assertEquals(exp("2023-11-05 01:00|A|0", "2023-11-05 02:00|A|0"),
-                   render(tsr(TimeScale.HOUR, 0).calculate(d), DT));
-   }
-
-   @Test
-   @Disabled("Bug #82039: Hour level time series adds a filler row at the repeated DST hour")
-   @DisplayName("hours 00:00 to 03:00 of the fall back day without a gap add nothing")
-   void hoursOfTheFallBackDayWithoutAGapAddNothing() {
-      use(EN_US, NY);
-      // wall hours 00:00 and 01:00 are EDT, 02:00 and 03:00 are EST (the 01:00 EST hour is
-      // not in the data, so no hour is missing in wall-clock buckets)
-      ZonedDateTime start = ZonedDateTime.of(2023, 11, 5, 0, 0, 0, 0, ZoneId.of(NY));
-      DefaultDataSet d = ds(r(Date.from(start.toInstant()), "A", 1),
-                            r(Date.from(start.plusHours(1).toInstant()), "A", 2),
-                            r(Date.from(start.plusHours(3).toInstant()), "A", 3),
-                            r(Date.from(start.plusHours(4).toInstant()), "A", 4));
-      assertEquals(List.of(), tsr(TimeScale.HOUR, 0).calculate(d));
    }
 
    @Test

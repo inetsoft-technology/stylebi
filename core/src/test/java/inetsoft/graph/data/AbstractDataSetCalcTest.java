@@ -229,23 +229,6 @@ class AbstractDataSetCalcTest {
    }
 
    @Test
-   @Disabled("Not filed (not reachable: the engine never builds a three-level calc chain): a post calc "
-      + "registered before the post calc it depends on reads null: c (field b) registered before b "
-      + "(field a) is null for every row, expected 2 * a + 1 = 63, 5, 45, 61, 37, 127 "
-      + "(post calcs run in registration order, AbstractDataSet.java:193-211)")
-   @DisplayName("a post calc chain gives the same result whatever the registration order")
-   void postCalcChainIgnoresRegistrationOrder() {
-      DefaultDataSet g6 = sortedByT();
-      g6.addCalcColumn(new RunningSum("a", "v"));
-      g6.addCalcColumn(new Derived("c", "b", 1, 1));
-      g6.addCalcColumn(new Derived("b", "a", 2, 0));
-      g6.prepareCalc("t", null, true);
-
-      // a = 31, 2, 22, 30, 18, 63 by base row, c = 2 * a + 1
-      assertEquals(doubles(63, 5, 45, 61, 37, 127), column(g6, "c"));
-   }
-
-   @Test
    @DisplayName("post calc with a rows subset is calculated for those rows only")
    void postCalcWithRowsSubset() {
       DefaultDataSet g6 = g6();
@@ -312,20 +295,6 @@ class AbstractDataSetCalcTest {
       g6.removeCalcValues();
       g6.prepareCalc(null, null, true);
       assertEquals(12, rec.calls.size());
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable: LineElement's BitSet is never empty): prepareCalc(null, "
-      + "new int[0], true) with no values yet throws ArrayIndexOutOfBoundsException at rows[0] "
-      + "(AbstractDataSet.java:111); expected no exception and null calc cells")
-   @DisplayName("empty rows array on the first call is harmless and leaves the calc cells null")
-   void emptyRowsArrayOnFirstCall() {
-      DefaultDataSet g6 = g6();
-      g6.addCalcColumn(new RunningSum("rt", "v"));
-
-      assertDoesNotThrow(() -> g6.prepareCalc(null, new int[0], true));
-
-      assertEquals(Collections.nCopies(6, null), column(g6, "rt"));
    }
 
    @Test

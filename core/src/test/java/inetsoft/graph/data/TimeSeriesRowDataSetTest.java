@@ -264,26 +264,6 @@ class TimeSeriesRowDataSetTest {
    }
 
    @Test
-   @Disabled("Not filed (not reachable: the group column always precedes the measure column): running total carry returns null when the measure column comes before the date: "
-      + "expected filler v = 10, actual null (groups list is empty when v is reached)")
-   @DisplayName("running total carry does not depend on the column order")
-   void runningTotalCarryWorksWhenTheMeasureColumnComesFirst() {
-      DefaultDataSet d = build(new Object[]{ "v", "d", "g" },
-                               new Object[]{ 10, at(2023, 1, 10), "A" },
-                               new Object[]{ 30, at(2023, 3, 10), "A" });
-      TimeSeriesRow t = new TimeSeriesRow("d", TimeScale.MONTH, 0) {
-         @Override
-         protected boolean isRunningTotal(String dim) {
-            return "v".equals(dim);
-         }
-      };
-      t.setGroupFields("g");
-      d.addCalcRow(t);
-      prepare(d, null);
-      assertEquals(exp("10|2023-02-10|A"), renderFrom(d, 2, "yyyy-MM-dd"));
-   }
-
-   @Test
    @DisplayName("pinned: a running total before the first value of a group is null")
    void runningTotalBeforeTheFirstValueIsNull() {
       DefaultDataSet d = ds(r(at(2023, 2, 10), "A", 20), r(at(2023, 3, 10), "A", 30),

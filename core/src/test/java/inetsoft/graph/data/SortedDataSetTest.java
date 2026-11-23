@@ -392,13 +392,6 @@ class SortedDataSetTest {
    }
 
    @Test
-   @Disabled("Not filed (not reachable): endRow comes from getEndRow/rowRange; setEndRow(99) over 5 rows throws ArrayIndexOutOfBoundsException (index 5, length 5) in mergeSort, expected mapping 1,3,0,4,2")
-   @DisplayName("end row beyond the row count is clamped to all rows")
-   void endBeyondRowsIsClamped() {
-      assertArrayEquals(new int[]{1, 3, 0, 4, 2}, mapping(sortedK(0, 99)));
-   }
-
-   @Test
    void emptyRangeKeepsIdentityMapping() {
       assertArrayEquals(new int[]{0, 1, 2, 3, 4}, mapping(sortedK(3, 3)));
    }
@@ -475,31 +468,6 @@ class SortedDataSetTest {
    }
 
    // ----------------------------------------------------- changes after access
-
-   @Test
-   @Disabled("Not filed (not reachable): every caller sets the comparator and sort columns before the first read; after setComparator following a first read the mapping is identity but marked sorted, expected 2,0,4,1,3 actual 0,1,2,3,4")
-   void comparatorChangedAfterFirstAccessIsApplied() {
-      DefaultDataSet base = k5();
-      base.setComparator("k", NAT);
-      SortedDataSet sorted = new SortedDataSet(base, "k");
-      sorted.getBaseRow(0);
-      sorted.setComparator("k", DESC);
-
-      assertArrayEquals(new int[]{2, 0, 4, 1, 3}, mapping(sorted));
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable): every caller sets the comparator and sort columns before the first read; addSortColumn after a first read leaves the identity mapping marked sorted, expected 3,1,4,0,2 actual starts with row 0")
-   void sortColumnAddedAfterFirstAccessIsApplied() {
-      DefaultDataSet base = k5();
-      base.setComparator("k", NAT);
-      base.setComparator("v", DESC);
-      SortedDataSet sorted = new SortedDataSet(base, "k");
-      sorted.getBaseRow(0);
-      sorted.addSortColumn("v", false);
-
-      assertArrayEquals(new int[]{3, 1, 4, 0, 2}, mapping(sorted));
-   }
 
    // ------------------------------------------------------------ comparators
 
@@ -590,21 +558,6 @@ class SortedDataSetTest {
    }
 
    // --------------------------------------------------------------- no columns
-
-   @Test
-   @Disabled("Not filed (not reachable): a treemap always has a tree dimension; without sort columns mapping is null and getBaseRow/getRowCount throw NullPointerException, expected identity mapping and 5 rows")
-   void noSortColumnsLeavesRowsUntouched() {
-      DefaultDataSet base = k5();
-      SortedDataSet sorted = new SortedDataSet(base);
-
-      assertEquals(5, sorted.getRowCount());
-
-      for(int r = 0; r < 5; r++) {
-         assertEquals(r, sorted.getBaseRow(r));
-         assertEquals(base.getData(0, r), sorted.getData(0, r));
-         assertEquals(base.getData(1, r), sorted.getData(1, r));
-      }
-   }
 
    @Test
    void accessorDefaultsAndSetters() {

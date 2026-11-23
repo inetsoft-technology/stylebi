@@ -286,7 +286,7 @@ class AttributeDataSetTest {
    }
 
    @Test
-   @Disabled("Not filed (dead code): AttributeDataSet.setHyperlink has no caller; clone(false) shares the links matrix with the original, so setHyperlink on the clone replaces the original link, expected the original link kept")
+   @Disabled("Bug #82095 (dead code): AttributeDataSet.setHyperlink has no caller; clone(false) shares the links matrix with the original, so setHyperlink on the clone replaces the original link, expected the original link kept")
    @DisplayName("a deep clone keeps its own hyperlinks")
    void cloneDoesNotShareLinks() {
       AB base = new AB();

@@ -131,13 +131,6 @@ class SubDataSetTest {
    }
 
    @Test
-   @Disabled("Not filed (not reachable): callers pass an ascending range; new SubDataSet(base, 3, 1) throws NegativeArraySizeException (-2), expected 0 rows")
-   @DisplayName("range constructor with end before start is an empty data set")
-   void rangeConstructorWithEndBeforeStartIsEmpty() {
-      assertEquals(0, new SubDataSet(k5(), 3, 1).getRowCount());
-   }
-
-   @Test
    void singleConditionSelectsMatchingRows() {
       SubDataSet sub = new SubDataSet(k5(), cond("k", "a"));
 
@@ -178,12 +171,12 @@ class SubDataSetTest {
    }
 
    @Test
-   @DisplayName("pinned: long ids above 2^53 are compared as double, so neighbours both match")
-   void largeLongValuesAreNotDistinguished() {
+   @DisplayName("long ids above 2^53 are compared exactly, so neighbours do not match")
+   void largeLongValuesAreDistinguished() {
       DefaultDataSet base = new DefaultDataSet(new Object[][]{
          {"id"}, {9007199254740992L}, {9007199254740993L}});
 
-      assertArrayEquals(new int[]{0, 1},
+      assertArrayEquals(new int[]{1},
                         baseRows(new SubDataSet(base, cond("id", 9007199254740993L))));
    }
 
@@ -208,27 +201,6 @@ class SubDataSetTest {
       assertArrayEquals(new int[]{0, 1, 2, 3, 4}, baseRows(empty));
    }
 
-   @Test
-   @Disabled("Not filed (not reachable): condition columns come from the chart's own dimensions; an unknown column throws ArrayIndexOutOfBoundsException, expected ColumnNotFoundException")
-   @DisplayName("condition on an unknown column is reported as a column-not-found error")
-   void conditionOnUnknownColumnThrowsColumnNotFound() {
-      SubDataSet sub = new SubDataSet(k5(), cond("zz", "a"));
-      assertThrows(ColumnNotFoundException.class, sub::getRowCount);
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable): setConditions is called right after construction; after the first read it is ignored, rows stay 1,3, expected 0,4")
-   @DisplayName("conditions changed after the first read are applied")
-   void conditionsChangedAfterFirstUseAreApplied() {
-      SubDataSet sub = new SubDataSet(k5(), cond("k", "a"));
-      assertEquals(2, sub.getRowCount());
-
-      sub.setConditions(cond("k", "b"));
-
-      assertEquals(2, sub.getRowCount());
-      assertArrayEquals(new int[]{0, 4}, baseRows(sub));
-   }
-
    // ------------------------------------------------------------ reverse lookup
 
    @Test
@@ -250,20 +222,6 @@ class SubDataSetTest {
 
       assertEquals(3, sub.getRowFromBase(3));
       assertEquals(5, sub.getRowFromBase(10));
-   }
-
-   @Test
-   @Disabled("Bug #82041: Nested SubDataSet getRowFromBase answers with the wrong row")
-   @DisplayName("getRowFromBase on a nested sub data set takes a root row")
-   void getRowFromBaseOnNestedSubDataSet() {
-      SubDataSet sub1 = new SubDataSet(k5(), new int[]{1, 2, 3, 4});
-      SubDataSet sub2 = new SubDataSet(sub1, new int[]{1, 2});
-
-      // sub2 rows 0 and 1 are root rows 2 and 3
-      assertEquals(1, sub2.getRowFromBase(3));
-      assertEquals(0, sub2.getRowFromBase(2));
-      assertTrue(sub2.getRowFromBase(1) < 0);
-      assertTrue(sub2.getRowFromBase(4) < 0);
    }
 
    // ---------------------------------------------------------------- large
@@ -294,32 +252,8 @@ class SubDataSetTest {
    }
 
    @Test
-   @Disabled("Bug #82040: SubDataSet with more than 65535 mapped rows is cut to rows mod 65536")
-   @DisplayName("mapping with more than 65535 rows keeps every row")
-   void mappingBeyond65535Rows() {
-      DefaultDataSet base = big(140000, false);
-      int[] mapping = new int[70000];
-
-      for(int i = 0; i < mapping.length; i++) {
-         mapping[i] = 2 * i;
-      }
-
-      SubDataSet sub = new SubDataSet(base, mapping);
-
-      assertEquals(70000, sub.getRowCount());
-      assertEquals(139998, sub.getBaseRow(69999));
-      assertEquals(69999, sub.getRowFromBase(139998));
-   }
-
-   @Test
    void mappingWith65535RowsKeepsEveryRow() {
       checkIdentityMapping(65535);
-   }
-
-   @Test
-   @Disabled("Bug #82040: SubDataSet with more than 65535 mapped rows is cut to rows mod 65536")
-   void mappingWith65536RowsKeepsEveryRow() {
-      checkIdentityMapping(65536);
    }
 
    private static void checkIdentityMapping(int n) {
@@ -372,16 +306,6 @@ class SubDataSetTest {
    @Test
    void emptyMappingHasNoConditionKey() {
       assertNull(new SubDataSet(k5(), new int[0]).getConditionKey());
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable): the condition key is only used for conds-type facet subsets; mappings {3,1,4} and {3,2,4} both give 3:3-4, expected different keys")
-   @DisplayName("different mappings give different condition keys")
-   void differentMappingsGiveDifferentConditionKeys() {
-      Object key1 = new SubDataSet(k5(), new int[]{3, 1, 4}).getConditionKey();
-      Object key2 = new SubDataSet(k5(), new int[]{3, 2, 4}).getConditionKey();
-
-      assertNotEquals(key1, key2);
    }
 
    // ----------------------------------------------------------------- misc

@@ -240,46 +240,11 @@ class HRefTest {
    }
 
    @Test
-   @Disabled("Not filed (not reachable: production never sets a parameter and then sets it to null, and nobody compares HRefs): a ref whose parameters were emptied by setParameter(name, null) is not equal to a fresh ref: "
-      + "expected equal in both directions, actual fresh.equals(viaNull) false (empty Hashtable against null)")
-   @DisplayName("refs without parameters are equal whichever way the parameters were emptied")
-   void emptiedRefsAreEqualWhicheverRoute() {
-      HRef fresh = ref("u");
-      HRef viaNull = ref("u");
-      viaNull.setParameter("a", 1);
-      viaNull.setParameter("a", null);
-      HRef viaRemove = ref("u");
-      viaRemove.setParameter("a", 1);
-      viaRemove.removeParameter("a");
-      assertEqualBothWays(fresh, viaNull);
-      assertEqualBothWays(fresh, viaRemove);
-      assertEqualBothWays(viaNull, viaRemove);
-   }
-
-   @Test
    @DisplayName("pinned: a null target frame is different from the empty default")
    void nullFrameIsDifferentFromEmpty() {
       HRef nullFrame = ref("u");
       nullFrame.setTargetFrame(null);
       assertDifferentBothWays(nullFrame, ref("u"));
-   }
-
-   @Test
-   @Disabled("Not filed (not safe to fix alone: PDF3Generator.java:629 keys a LinkedHashMap by Hyperlink.Ref, a content hashCode would merge link areas): HRef overrides equals without hashCode: expected equal hash codes for equal refs, "
-      + "actual different identity hash codes")
-   @DisplayName("equal refs have equal hash codes and collapse in a hash set")
-   void equalRefsHaveEqualHashCodes() {
-      HRef a = ref("u");
-      a.setToolTip("t");
-      a.setTargetFrame("f");
-      a.setParameter("a", 1);
-      HRef b = ref("u");
-      b.setToolTip("t");
-      b.setTargetFrame("f");
-      b.setParameter("a", 1);
-      assertEquals(a, b);
-      assertEquals(a.hashCode(), b.hashCode());
-      assertEquals(1, new HashSet<>(List.of(a, b)).size());
    }
 
    @Test
@@ -315,16 +280,6 @@ class HRefTest {
    @Test
    void getParameterWithNullNameWithoutParametersIsNull() {
       assertNull(ref("u").getParameter(null));
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable: parameter names are never null): getParameter(null) throws NullPointerException when the ref has parameters "
-      + "(Hashtable.get(null)); expected null")
-   @DisplayName("getParameter with a null name is null when the ref has parameters too")
-   void getParameterWithNullNameWithParametersIsNull() {
-      HRef ref = ref("u");
-      ref.setParameter("a", 1);
-      assertNull(ref.getParameter(null));
    }
 
    @Test

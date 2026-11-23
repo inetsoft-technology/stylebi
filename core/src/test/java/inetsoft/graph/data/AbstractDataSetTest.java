@@ -103,13 +103,6 @@ class AbstractDataSetTest {
    }
 
    @Test
-   @Disabled("Bug #82042: DefaultDataSet numeric column with a null first value is not a measure")
-   @DisplayName("a numeric column with a leading null is still a measure")
-   void numericColumnWithLeadingNullIsMeasure() {
-      assertTrue(single(null, 1.0, 2.0).isMeasure("c"));
-   }
-
-   @Test
    @DisplayName("calc column before prepareCalc is listed by header but has no index, values or rows")
    void calcColumnBeforePrepare() {
       DefaultDataSet k5 = k5();
@@ -329,7 +322,7 @@ class AbstractDataSetTest {
    }
 
    @Test
-   @Disabled("Not filed (dead code: DefaultDataSet.setComparator has no caller): setComparator on an "
+   @Disabled("Bug #82095 (dead code): setComparator on an "
       + "unknown column throws NullPointerException (DefaultDataSet.java:161-164), expected to be "
       + "ignored like setOrder does")
    @DisplayName("setComparator on an unknown column is ignored")

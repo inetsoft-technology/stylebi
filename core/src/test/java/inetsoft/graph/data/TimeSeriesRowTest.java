@@ -350,30 +350,11 @@ class TimeSeriesRowTest {
    }
 
    @Test
-   @Disabled("Not filed (not reachable: needs two different instants inside one period, date grouping never produces them): trailing fill adds a row beyond the global range: expected no added rows, "
-      + "actual one row (2023-02-05 for group A), getPart is called on a TVal not a Date")
-   @DisplayName("a group ending in the period of the global maximum gets no row beyond the range")
-   void trailingFillStopsAtTheGlobalRange() {
-      DefaultDataSet d = ds(r(at(2023, 1, 5), "A", 1), r(at(2023, 1, 5), "B", 2),
-                            r(at(2023, 1, 25), "B", 3));
-      assertEquals(List.of(), run(tsr(TimeScale.MONTH, 0), d));
-   }
-
-   @Test
    void trailingFillCoversSeveralPeriods() {
       DefaultDataSet d = ds(r(at(2023, 1, 5), "A", 1), r(at(2023, 1, 5), "B", 2),
                             r(at(2023, 3, 5), "B", 3));
       assertEquals(exp("2023-02-05|A|0", "2023-03-05|A|0", "2023-02-05|B|0"),
                    render(run(tsr(TimeScale.MONTH, 0), d)));
-   }
-
-   @Test
-   @Disabled("Not filed (only a developer can decide: needs a live date comparison repro (Month with a Week interval and Change) before it is a defect): unmapped time type -1: expected calculate does not throw, actual "
-      + "IllegalArgumentException from Calendar.add(-1, 1)")
-   @DisplayName("an unmapped time type does not make calculate fail")
-   void unmappedTimeTypeDoesNotThrow() {
-      DefaultDataSet d = ds(r(at(2023, 1, 10), "A", 1), r(at(2023, 3, 10), "A", 2));
-      assertDoesNotThrow(() -> run(tsr(-1, 0), d));
    }
 
    // ---------------------------------------------------------------- groups
@@ -631,18 +612,6 @@ class TimeSeriesRowTest {
       assertEquals(v != null, row.isNoNull());
    }
 
-   @ParameterizedTest
-   @Disabled("Not filed (not reachable: only Integer 0, 1 and null are passed in production): isNoNull and the bar flag disagree for 1L and 1.0: expected isNoNull() == (gap v != null), "
-      + "actual isNoNull() true while the gap v is null")
-   @ValueSource(strings = { "long", "double" })
-   @DisplayName("isNoNull agrees with the value of a filled row for 1L and 1.0")
-   void isNoNullMatchesTheFilledValueForOtherOnes(String kind) {
-      TimeSeriesRow row = tsr(TimeScale.MONTH, kind.equals("long") ? (Object) 1L : (Object) 1.0);
-      DefaultDataSet d = ds(r(at(2023, 1, 10), "A", 1), r(at(2023, 3, 10), "A", 2));
-      Object v = run(row, d).get(0)[2];
-      assertEquals(v != null, row.isNoNull());
-   }
-
    // ---------------------------------------------------------------- measure checker
 
    private static DefaultDataSet ds2NullLater() {
@@ -705,7 +674,7 @@ class TimeSeriesRowTest {
    // ---------------------------------------------------------------- maxGaps
 
    @Test
-   @Disabled("Not filed (only a developer can decide: setMaxGaps has no caller, the cap semantics are a developer decision): maxGaps 3 with 5 missing months: expected at most 3 added rows, actual 4 "
+   @Disabled("Bug #82095 (dead code): maxGaps 3 with 5 missing months: expected at most 3 added rows, actual 4 "
       + "(the row is added before the limit is checked)")
    @DisplayName("maxGaps is a strict limit on the number of added rows in the mid loop")
    void maxGapsLimitsAddedRowsStrictly() {
@@ -733,7 +702,7 @@ class TimeSeriesRowTest {
    }
 
    @Test
-   @Disabled("Not filed (only a developer can decide: setMaxGaps has no caller, the cap semantics are a developer decision): maxGaps 2 with leading and trailing gaps: expected at most 2 added rows, actual 11 "
+   @Disabled("Bug #82095 (dead code): maxGaps 2 with leading and trailing gaps: expected at most 2 added rows, actual 11 "
       + "(the leading and trailing loops do not check the limit)")
    @DisplayName("maxGaps also limits the rows added at the range ends")
    void maxGapsLimitsRangeEnds() {

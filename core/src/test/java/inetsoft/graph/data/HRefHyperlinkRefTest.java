@@ -38,29 +38,4 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class HRefHyperlinkRefTest {
-   @Test
-   @Disabled("Not filed (not reachable: nothing creates `new HRef(`, only Hyperlink.Ref instances exist): HRef.equals(Hyperlink.Ref) is true but Hyperlink.Ref.equals(HRef) is false: "
-      + "expected the same answer both ways")
-   void equalsIsSymmetricBetweenARefAndItsSubclass() {
-      HRef h = new HRef("u");
-      Hyperlink.Ref r = new Hyperlink.Ref();
-      r.setLink("u");
-      assertEquals(h.equals(r), r.equals(h));
-   }
-
-   @Test
-   @Disabled("Not filed (not safe to fix alone: PDF3Generator.java:629 keys a LinkedHashMap by Hyperlink.Ref, a content hashCode would merge link areas): Hyperlink.Ref overrides equals without hashCode: expected equal hash codes for equal refs, "
-      + "actual different identity hash codes")
-   void equalHyperlinkRefsHaveEqualHashCodes() {
-      Hyperlink.Ref a = new Hyperlink.Ref();
-      a.setLink("u");
-      a.setName("n");
-      a.setParameter("p", 1);
-      Hyperlink.Ref b = new Hyperlink.Ref();
-      b.setLink("u");
-      b.setName("n");
-      b.setParameter("p", 1);
-      assertEquals(a, b);
-      assertEquals(a.hashCode(), b.hashCode());
-   }
 }
