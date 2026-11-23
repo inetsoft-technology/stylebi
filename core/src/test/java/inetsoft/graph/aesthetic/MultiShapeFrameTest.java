@@ -466,7 +466,6 @@ class MultiShapeFrameTest {
 
    @Test
    @DisplayName("pie frame: frames that differ in donut are not equal")
-   @Disabled("Bug #82049: CategoricalLineFrame.equals ignores assignments and PieShapeFrame.equals ignores donut")
    void pieEqualsSeesDonut() {
       PieShapeFrame a = new PieShapeFrame("a", "b");
       PieShapeFrame b = new PieShapeFrame("a", "b");

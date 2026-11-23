@@ -222,7 +222,6 @@ class TextureFramesTest {
    @ParameterizedTest(name = "{0}")
    @MethodSource("linearFrames")
    @DisplayName("linear texture frames: a value below the minimum is clamped to ratio 0")
-   @Disabled("Bug #82046: Linear frames do not clamp a value below the scale minimum")
    void belowMin(Linear linear) {
       LinearTextureFrame frame = scaled(linear.make());
 

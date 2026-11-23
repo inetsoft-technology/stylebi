@@ -312,7 +312,6 @@ class CategoricalShapeFrameTest {
 
    @Test
    @DisplayName("assignments of CIRCLE and FILLED_CIRCLE differ in equals and in unique id")
-   @Disabled("Bug #82048: Shape legend id ignores the fill of a shape")
    void uniqueIdOfSameClassShapes() {
       CategoricalShapeFrame outline = new CategoricalShapeFrame("g");
       CategoricalShapeFrame filled = new CategoricalShapeFrame("g");

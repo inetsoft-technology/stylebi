@@ -56,7 +56,6 @@ class ColorFrameProcessTest {
       assertArgb(100, 50, 20, 128, translucent.getColor((Object) null));
    }
 
-   @Disabled("Bug #82045: Colour frame brightness above 1 or below 0 throws IllegalArgumentException")
    @Test
    void brightnessAboveOneClampsChannels() {
       StaticColorFrame frame = new StaticColorFrame(new Color(200, 100, 40));

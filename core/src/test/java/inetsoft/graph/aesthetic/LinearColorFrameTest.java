@@ -158,15 +158,17 @@ class LinearColorFrameTest {
    }
 
    /**
-    * Pinned current behavior: a scale with min equal to max gives a NaN ratio. The gradient
-    * answers opaque black, the heat frame transparent black. LinearScale.init never produces
+    * Pinned current behavior: a scale with min equal to max gives a NaN ratio. Both the gradient
+    * and the heat frame answer transparent black (the gradient was opaque before Bug #82044 was fixed). LinearScale.init never produces
     * such a scale, so only a script-built scale reaches it.
     */
    @Test
    void pinnedZeroRangeScaleGivesBlack() {
       GradientColorFrame gradient = new GradientColorFrame();
       gradient.setScale(new LinearScale(5, 5));
-      assertEquals(new Color(0, 0, 0, 255), gradient.getColor((Object) 5.0));
+      Color g = gradient.getColor((Object) 5.0);
+      assertRgb(0, 0, 0, g);
+      assertEquals(0, g.getAlpha());
 
       HeatColorFrame heat = new HeatColorFrame();
       heat.setScale(new LinearScale(5, 5));

@@ -126,7 +126,6 @@ class LineFramesTest {
 
    @Test
    @DisplayName("linear line frame: a value below the minimum is clamped to dash 3, never negative")
-   @Disabled("Bug #82046: Linear frames do not clamp a value below the scale minimum")
    void belowMinIsClamped() {
       assertEquals(3, byValue(scaled(), -100).getDash());
    }
@@ -158,7 +157,6 @@ class LineFramesTest {
 
    @Test
    @DisplayName("default palette is a cycle of thin, dot, dash, medium and large dash")
-   @Disabled("Bug #82047: Default line style palette has LARGE_DASH twice")
    void paletteIsFiveCycle() {
       CategoricalLineFrame frame = new CategoricalLineFrame();
       GLine[] cycle = cycle();
@@ -170,7 +168,6 @@ class LineFramesTest {
 
    @Test
    @DisplayName("neighbouring categories never get the same line style")
-   @Disabled("Bug #82047: Default line style palette has LARGE_DASH twice")
    void adjacentCategoriesDiffer() {
       CategoricalLineFrame frame = new CategoricalLineFrame();
 
@@ -180,7 +177,7 @@ class LineFramesTest {
    }
 
    @Test
-   @DisplayName("palette constants: dash 0, 1, 3, 6, 9 with width 1, 31 entries")
+   @DisplayName("palette constants: dash 0, 1, 3, 6, 9 with width 1, 30 entries")
    void paletteConstants() {
       CategoricalLineFrame frame = new CategoricalLineFrame();
       GLine[] cycle = cycle();
@@ -192,7 +189,7 @@ class LineFramesTest {
          assertEquals(1, frame.getLine(i).getLineWidth(), "width " + i);
       }
 
-      assertEquals(31, frame.getLineCount());
+      assertEquals(30, frame.getLineCount());
    }
 
    @Test
@@ -208,8 +205,8 @@ class LineFramesTest {
 
       assertEquals(GLine.THIN_LINE, byValue(frame, "v0"));
       assertEquals(GLine.DOT_LINE, byValue(frame, "v1"));
-      assertEquals(frame.getLine(0), byValue(frame, "v31"));
-      assertEquals(frame.getLine(1), byValue(frame, "v32"));
+      assertEquals(frame.getLine(0), byValue(frame, "v30"));
+      assertEquals(frame.getLine(1), byValue(frame, "v31"));
    }
 
    @Test
@@ -240,7 +237,6 @@ class LineFramesTest {
 
    @Test
    @DisplayName("equals sees line assignments like the shape, texture and size frames do")
-   @Disabled("Bug #82049: CategoricalLineFrame.equals ignores assignments and PieShapeFrame.equals ignores donut")
    void equalsSeesAssignments() {
       CategoricalLineFrame a = new CategoricalLineFrame("g");
       CategoricalLineFrame b = new CategoricalLineFrame("g");

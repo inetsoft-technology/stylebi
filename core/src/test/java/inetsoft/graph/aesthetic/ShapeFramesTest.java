@@ -384,7 +384,6 @@ class ShapeFramesTest {
    @ParameterizedTest(name = "{0}")
    @MethodSource("linearFrames")
    @DisplayName("linear shape frames: a value below the minimum is clamped to ratio 0")
-   @Disabled("Bug #82046: Linear frames do not clamp a value below the scale minimum")
    void belowMinIsClamped(Linear linear) {
       LinearShapeFrame frame = scaled(linear.make());
 
@@ -393,7 +392,6 @@ class ShapeFramesTest {
 
    @Test
    @DisplayName("polygon frame: a value far below the minimum still yields a drawable polygon")
-   @Disabled("Bug #82046: Linear frames do not clamp a value below the scale minimum")
    void polygonFarBelowMin() {
       PolygonShapeFrame frame = new PolygonShapeFrame();
       frame.setScale(new LinearScale(0, 100));
@@ -522,7 +520,6 @@ class ShapeFramesTest {
 
    @Test
    @DisplayName("static shape frame: frames of CIRCLE and FILLED_CIRCLE differ in equals and in unique id")
-   @Disabled("Bug #82048: Shape legend id ignores the fill of a shape")
    void staticLegendIdentity() {
       StaticShapeFrame outline = new StaticShapeFrame(GShape.CIRCLE);
       StaticShapeFrame filled = new StaticShapeFrame(GShape.FILLED_CIRCLE);

@@ -181,7 +181,6 @@ class GradientColorFrameTest {
       assertEquals(Color.GREEN, frame.getDefaultFromColor());
    }
 
-   @Disabled("Bug #82044: Contour chart: a Gradient colour ignores the plot alpha")
    @Test
    void alphaRangeIsApplied() {
       GradientColorFrame frame = grx();
@@ -192,7 +191,6 @@ class GradientColorFrameTest {
       assertEquals(255, frame.getColor(1).getAlpha());
    }
 
-   @Disabled("Bug #82044: Contour chart: a Gradient colour ignores the plot alpha")
    @Test
    void alphaOfTheTwoColorsIsInterpolated() {
       GradientColorFrame frame = new GradientColorFrame();

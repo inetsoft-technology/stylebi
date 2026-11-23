@@ -129,7 +129,6 @@ class SizeFramesTest {
    }
 
    @Test
-   @Disabled("Bug #82046: Linear frames do not clamp a value below the scale minimum")
    void linearSizeBelowTheMinimumNeverGoesBelowTheSmallest() {
       LinearSizeFrame frame = linear();
 
