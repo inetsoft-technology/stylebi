@@ -660,6 +660,12 @@ public final class ChartDndHandler {
    public void dropToGantt(ChartRef ref, ChartInfo cinfo, ChartTransfer transfer,
                              BindingDropTarget target)
    {
+      dropToGantt(ref, cinfo, transfer, target, VizContext.LEGACY);
+   }
+
+   public void dropToGantt(ChartRef ref, ChartInfo cinfo, ChartTransfer transfer,
+                           BindingDropTarget target, VizContext ctx)
+   {
       if(ref == null || !ref.isMeasure()) {
          return;
       }
@@ -671,6 +677,11 @@ public final class ChartDndHandler {
          }
 
          ((ChartAggregateRef) ref).setFormula(AggregateFormula.NONE);
+
+         // classic Gantt drops never re-picked
+         if(ctx.modern) {
+            GraphUtil.fixStaticColorFrame(ref, cinfo, null, ctx);
+         }
       }
 
       int dropType = Integer.parseInt(target.getDropType());
