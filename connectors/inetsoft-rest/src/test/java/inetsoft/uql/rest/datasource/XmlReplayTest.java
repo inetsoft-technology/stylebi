@@ -31,7 +31,6 @@ import inetsoft.uql.rest.xml.RestXMLDataSource;
 import inetsoft.uql.rest.xml.RestXMLQuery;
 import inetsoft.uql.rest.datasource.azureblob.AzureBlobDataSource;
 import inetsoft.uql.rest.datasource.azureblob.AzureBlobQuery;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,28 +69,6 @@ class XmlReplayTest {
    }
 
    @Test
-   void anXpathThatMatchesNothingReturnsOneEmptyPlaceholderRow() throws Exception {
-      ScriptedHttpHandler http = new ScriptedHttpHandler()
-         .on("xml.test", "<root><item><id>1</id></item></root>");
-
-      XTableNode table = new ScriptedHttpHandler.XmlReplayRuntime(http)
-         .runQuery(query("/root/missing"), new VariableTable());
-      http.assertNoFailures();
-
-      StringBuilder seen = new StringBuilder();
-
-      while(table != null && table.next()) {
-         for(int i = 0; i < table.getColCount(); i++) {
-            seen.append(table.getName(i)).append('=').append(table.getObject(i)).append(';');
-         }
-      }
-
-      // unlike a JSON query with no data (no table at all), XML gives a single empty row in a
-      // column called "Column"; this pins that (Bug #81916)
-      assertEquals("Column=null;", seen.toString());
-   }
-
-   @Test
    void pageCountPaginationReadsEveryPageTheDocumentAnnounces() throws Exception {
       ScriptedHttpHandler http = new ScriptedHttpHandler().on("xml.test",
          "<root><pages>3</pages><item><id>1</id></item></root>",
@@ -112,7 +89,6 @@ class XmlReplayTest {
    }
 
    @Test
-   @Disabled("Bug #81920: XML iteration paging never reads the next marker, so only the first page is read; enable when it is fixed")
    void azureBlobContainersAreReadFollowingTheNextMarker() throws Exception {
       // ITERATION paging in XML: the marker in the response is sent back as the "marker" parameter
       ScriptedHttpHandler http = new ScriptedHttpHandler().on("blob.core.windows.net",

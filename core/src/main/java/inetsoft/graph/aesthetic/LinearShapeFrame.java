@@ -57,7 +57,7 @@ public abstract class LinearShapeFrame extends ShapeFrame {
       double min = scale.getMin();
       double max = scale.getMax();
 
-      return getShape(Math.min(1, (v - min) / (max - min)));
+      return getShape(Math.max(0, Math.min(1, (v - min) / (max - min))));
    }
 
    /**

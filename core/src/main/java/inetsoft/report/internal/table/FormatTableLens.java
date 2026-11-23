@@ -586,6 +586,7 @@ public abstract class FormatTableLens extends AttributeTableLens
       colcache = null;
       rowcache = null;
       cellcache = null;
+      clearAutoMaximumCache();
    }
 
    /*

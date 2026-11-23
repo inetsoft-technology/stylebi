@@ -27,6 +27,7 @@ import java.io.InputStream;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -164,6 +165,13 @@ class EndpointSuffixTemplatesTest {
    void twilioAlertsUsesTheRealEndDateKey() throws Exception {
       String raw = suffix("twilio", "Alerts");
       assertTrue(raw.contains("&EndDate={"), raw);
+   }
+
+   @Test
+   void asanaTagsRequiresTheWorkspace() throws Exception {
+      String raw = suffix("asana", "Tags");
+      assertTrue(raw.contains("workspace={Workspace}"), raw);
+      assertFalse(raw.contains("{Workspace?}"), raw);
    }
 
    @Test

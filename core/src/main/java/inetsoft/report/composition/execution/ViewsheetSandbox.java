@@ -2665,6 +2665,84 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Start an export on the current thread in which a component script that fails is skipped
+    * instead of failing the export, like the viewer's refresh does ({@code executeView}). The
+    * failure is logged and recorded for {@link #getExportSkippedScript()}, so the exporter can
+    * say so on the document. Every script run through {@link #executeScript(VSAssembly, boolean)}
+    * on this thread while the returned scope is open is covered, including the re-runs of a
+    * table's, time slider's or selection's script from its data read. Other threads, and the
+    * viewer, are not affected. Scopes nest.
+    */
+   public static ExportScriptSkip skipScriptErrorsForExport() {
+      exportScriptSkipDepth.set(exportScriptSkipDepth.get() + 1);
+      return new ExportScriptSkip();
+   }
+
+   /**
+    * Scope of {@link #skipScriptErrorsForExport()}; close it when the export ends.
+    */
+   public static final class ExportScriptSkip implements AutoCloseable {
+      private boolean closed;
+
+      @Override
+      public void close() {
+         if(!closed) {
+            closed = true;
+            int depth = exportScriptSkipDepth.get() - 1;
+
+            if(depth <= 0) {
+               exportScriptSkipDepth.remove();
+            }
+            else {
+               exportScriptSkipDepth.set(depth);
+            }
+         }
+      }
+   }
+
+   /**
+    * Skip a component script failure if this thread is exporting. A stop (timeout or cancel)
+    * and a failed table load are never skipped: they fail the export, as everywhere else an
+    * ordinary script error is tolerated. (#81796)
+    *
+    * @return true if the failure was skipped, false if the caller must rethrow it.
+    */
+   private boolean skipExportScriptError(VSAssembly assembly, ScriptException ex) {
+      if(exportScriptSkipDepth.get() <= 0) {
+         return false;
+      }
+
+      ScriptTimeoutGuard.rethrowStop(ex);
+      TableLoadException.rethrow(ex);
+
+      if(root.exportSkippedScript == null) {
+         root.exportSkippedScript = ex;
+      }
+
+      Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+      LOG.warn("Skipped the failing script of \"{}\" in the export of \"{}\": {}",
+               assembly.getAbsoluteName(), getSheetName(), cause.getMessage());
+      LOG.debug("Script failure skipped in export", ex);
+      return true;
+   }
+
+   /**
+    * The first component script failure that an export skipped, or {@code null} if none was.
+    * Unlike {@link #getExportScriptError()} it is not reset by {@link #prepareForExport()}
+    * (a preview export runs scripts before that), but by {@link #clearExportSkippedScript()}.
+    */
+   public Exception getExportSkippedScript() {
+      return root.exportSkippedScript;
+   }
+
+   /**
+    * Forget the skipped script failure, when the export that skipped it has ended.
+    */
+   public void clearExportSkippedScript() {
+      root.exportSkippedScript = null;
+   }
+
+   /**
     * Records this export's script error (first one wins, so a later, unrelated
     * failure can't overwrite it) and logs it at ERROR -- the export is wrong, not
     * merely suspect. Called both when the onLoad script's own exception is
@@ -6090,6 +6168,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          //getScope().execute(script, vinfo.getName());
       }
+      catch(ScriptException ex) {
+         // only inside an export (see skipScriptErrorsForExport()); anywhere else rethrown as is
+         if(!skipExportScriptError(assembly, ex)) {
+            throw ex;
+         }
+      }
       finally {
          execAssemblies.remove(assembly.getAbsoluteName());
       }
@@ -9370,6 +9454,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private static final String NULL = "__null__";
    private static final ThreadLocal<Boolean> schanged = new ThreadLocal<>();
    private static final ThreadLocal<Boolean> execDValues = new ThreadLocal<>();
+   private static final ThreadLocal<Integer> exportScriptSkipDepth =
+      ThreadLocal.withInitial(() -> 0);
    private static final ThreadLocal<Set<String>> execAssemblies =
            ThreadLocal.withInitial(HashSet::new);
    private static final Logger LOG = LoggerFactory.getLogger(ViewsheetSandbox.class);
@@ -9463,6 +9549,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
    private Exception exportScriptError; // onLoad failure from prepareForExport()
+   private volatile Exception exportSkippedScript; // component script failure an export skipped
    private TableLoadException exportLoadFailure; // onLoad load failure from prepareForExport()
    private boolean parametersApplied = false;
    // Accessed only while the write lock is held (resetRuntime → reset → applyParameterToInput),

@@ -17,6 +17,7 @@
  */
 package inetsoft.report.script.viewsheet;
 
+import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -24,6 +25,7 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.ScriptValueConverter;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
@@ -126,6 +128,76 @@ class TableFormRowScriptableTest {
       assertTrue(eval("fr[-1] === undefined").asBoolean());
       assertFalse(eval("'nope' in fr").asBoolean());
       assertTrue(eval("fr.nope === undefined").asBoolean());
+   }
+
+   /**
+    * The rows that a script gets from {@code Table1.getFormRows()} and
+    * {@code Table1.getFormRows(state)} must be script rows like the one getFormRow(i) returns:
+    * rowState, rowIndex, length and the column names are readable, not the raw Java object's
+    * methods. The call goes through the table's script function, as in a viewsheet script.
+    */
+   @Test
+   void getFormRowsElementsAreScriptRows() throws Exception {
+      DefaultTableLens table = new DefaultTableLens(new Object[][] {
+         { "name", "qty", "note" },
+         { "a", 1, "x" },
+         { "b", 2, "y" }
+      });
+      FormTableLens ftable = new FormTableLens(table);
+      ftable.rows()[2].setRowState(FormTableRow.CHANGED);
+
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      TableVSAssembly assembly = new TableVSAssembly();
+      assembly.getVSAssemblyInfo().setName("Table1");
+      vs.addAssembly(assembly);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getID()).thenReturn("vs1");
+      when(box.getViewsheet()).thenReturn(vs);
+      when(box.getVSTableLens("Table1", false)).thenReturn(new VSTableLens(table));
+      when(box.getFormTableLens("Table1")).thenReturn(ftable);
+
+      TableVSAScriptable scriptable = new TableVSAScriptable(box);
+      scriptable.setAssembly("Table1");
+      // the script engine a viewsheet script runs in, with its host access policy
+      GraalJavaScriptEngine engine = new GraalJavaScriptEngine();
+      engine.init(new HashMap<>());
+
+      try {
+         engine.put("Table1", scriptable);
+         assertEquals(3.0, run(engine, "Table1.getFormRows().length"));
+         assertEquals(true, run(engine, "'rowState' in Table1.getFormRows()[1]"));
+         assertEquals(true, run(engine, "'rowIndex' in Table1.getFormRows()[1]"));
+         assertEquals((double) FormTableRow.OLD, run(engine, "Table1.getFormRows()[1].rowState"));
+         assertEquals(1.0, run(engine, "Table1.getFormRows()[1].rowIndex"));
+         assertEquals((double) FormTableRow.CHANGED, run(engine, "Table1.getFormRows()[2].rowState"));
+         assertEquals(2.0, run(engine, "Table1.getFormRows()[2].rowIndex"));
+         assertEquals(3.0, run(engine, "Table1.getFormRows()[1].length"));
+         assertEquals("a", run(engine, "Table1.getFormRows()[1].name"));
+         assertEquals(2.0, run(engine, "Table1.getFormRows()[2].qty"));
+         assertEquals("y", run(engine, "Table1.getFormRows()[2][2]"));
+
+         // getFormRows(state), by number and by name
+         assertEquals(1.0, run(engine, "Table1.getFormRows(2).length"));
+         assertEquals((double) FormTableRow.CHANGED, run(engine, "Table1.getFormRows(2)[0].rowState"));
+         assertEquals(2.0, run(engine, "Table1.getFormRows(2)[0].rowIndex"));
+         assertEquals("b", run(engine, "Table1.getFormRows(2)[0].name"));
+         assertEquals(true, run(engine, "'rowState' in Table1.getFormRows(2)[0]"));
+         assertEquals(2.0, run(engine, "Table1.getFormRows('old').length"));
+         assertEquals((double) FormTableRow.OLD, run(engine, "Table1.getFormRows('old')[0].rowState"));
+         assertEquals(0.0, run(engine, "Table1.getFormRows(3).length"));
+      }
+      finally {
+         engine.close();
+      }
+
+      // the Java caller still gets the typed array
+      Object javaRows = scriptable.getFormRows(null);
+      assertEquals(3, ((Object[]) javaRows).length);
+   }
+
+   private static Object run(GraalJavaScriptEngine engine, String script) throws Exception {
+      return engine.exec(engine.compile(script), null, null);
    }
 
    private Context ctx;
