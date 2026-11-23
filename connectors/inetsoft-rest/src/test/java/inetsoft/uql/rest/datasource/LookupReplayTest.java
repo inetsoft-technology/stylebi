@@ -105,8 +105,6 @@ class LookupReplayTest {
    }
 
    @Test
-   @Disabled("Bug #81927: a lookup result replaces a field of the parent with the same name; " +
-             "enable when it is fixed")
    void aLookupDoesNotOverwriteAFieldOfTheParentThatHasTheSameName() throws Exception {
       // the workspace already has a field called "Users"
       ScriptedHttpHandler http = new ScriptedHttpHandler()

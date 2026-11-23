@@ -118,7 +118,8 @@ public abstract class AbstractParallelCoord extends Coordinate {
             axis.createGridLines(axis0, true);
             axis0.getScreenTransform().translate(0, aw * scales.length);
          }
-         else {
+         // skip if the next axis is hidden (AXIS_NONE), same as axis0 above
+         else if(axes.get(i + 1) != null) {
             axis.createGridLines(axes.get(i + 1), true);
          }
       }
@@ -297,12 +298,14 @@ public abstract class AbstractParallelCoord extends Coordinate {
    public abstract Scale getAxisLabelScale();
 
    /**
-    * Get all axes in this coordinate.
+    * Get all axes in this coordinate. The axes of hidden scales (AXIS_NONE) are
+    * not included.
     */
    @Override
    @TernMethod
    public Axis[] getAxes(boolean recursive) {
-      return axes.toArray(new Axis[axes.size()]);
+      // axes holds null place holders for hidden scales to keep the axis slots
+      return axes.stream().filter(Objects::nonNull).toArray(Axis[]::new);
    }
 
    /**

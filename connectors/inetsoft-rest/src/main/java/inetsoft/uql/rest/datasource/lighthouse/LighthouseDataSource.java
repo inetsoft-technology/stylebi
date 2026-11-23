@@ -70,7 +70,7 @@ public class LighthouseDataSource extends EndpointJsonDataSource<LighthouseDataS
    @PropertyEditor(enabled = false, dependsOn = "domain")
    @Override
    public String getURL() {
-      StringBuilder url = new StringBuilder("http://");
+      StringBuilder url = new StringBuilder("https://");
 
       if(domain == null) {
          url.append("[domain]");

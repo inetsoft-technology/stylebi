@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Timestamp;
+import java.time.*;
 import java.util.*;
 
 /**
@@ -264,7 +265,7 @@ public class TimeSeriesRow implements CalcRow {
 
       if(missingval != null && max.compareTo(lastval) > 0) {
          Object prev = add(lastval.value, 1);
-         long part0 = getPart(lastval, this.dtype);
+         long part0 = getPart(prev, this.dtype);
          long part2 = getPart(max.value, this.dtype);
 
          while(part0 <= part2) {
@@ -281,8 +282,8 @@ public class TimeSeriesRow implements CalcRow {
          Object prev = vals.get(i - 1).value;
          long part2 = getPart(vals.get(i).value, this.dtype);
 
-         // shouldn't compare (part2 >= part + 1) since for week, the
-         // next value for 201252 is 201301 instead of 201253
+         // shouldn't compare (part2 >= part + 1) since for month, the
+         // next value for 201211 is 201300 instead of 201212 (MONTH is 0-based)
          while(true) {
             prev = add(prev, 1);
             part = getPart(prev, this.dtype);
@@ -433,7 +434,14 @@ public class TimeSeriesRow implements CalcRow {
           case TimeScale.DAY:
              return cal.get(Calendar.YEAR) * 1000L + cal.get(Calendar.DAY_OF_YEAR);
           case TimeScale.WEEK:
-             return cal.get(Calendar.YEAR) * 100L + cal.get(Calendar.WEEK_OF_YEAR);
+             // a continuous week number from the local date. YEAR * 100 + WEEK_OF_YEAR is not
+             // in order around the year end, since WEEK_OF_YEAR belongs to the week year
+             // (e.g. en_US 2012-12-30 is week 1). Weeks are aligned to Sunday (1970-01-01 is a
+             // Thursday); any fixed alignment gives consecutive numbers to week buckets that
+             // are 7 days apart. (82038)
+             long epochDay = Instant.ofEpochMilli(((Date) obj).getTime())
+                .atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay();
+             return Math.floorDiv(epochDay + 4, 7);
           case TimeScale.MONTH:
              return cal.get(Calendar.YEAR) * 100L + cal.get(Calendar.MONTH);
           case TimeScale.QUARTER:
@@ -452,26 +460,53 @@ public class TimeSeriesRow implements CalcRow {
     */
    private Object add(Object obj, long n) {
       if(obj instanceof Date) {
-         GregorianCalendar cal = new GregorianCalendar();
-         cal.setTime((Date) obj);
+         long millis;
 
-         if(dtype == TimeScale.QUARTER) {
-            n *= 3;
-         }
+         if(dtype == TimeScale.HOUR || dtype == TimeScale.MINUTE || dtype == TimeScale.SECOND) {
+            // Calendar.add() adds elapsed time for these fields, which on a DST fall-back day
+            // steps into the repeated hour (e.g. 01:00 EST after 01:00 EDT). getPart() keys by
+            // wall-clock fields and the buckets hold the repeated hour once, so step in
+            // wall-clock time, keeping the current offset when the local time is ambiguous.
+            // The local time always increases, so the key always advances. (82039)
+            ZoneId zone = ZoneId.systemDefault();
+            ZonedDateTime time = Instant.ofEpochMilli(((Date) obj).getTime()).atZone(zone);
+            LocalDateTime local = time.toLocalDateTime();
 
-         cal.add(getInterval(dtype), (int) n);
+            if(dtype == TimeScale.HOUR) {
+               local = local.plusHours(n);
+            }
+            else if(dtype == TimeScale.MINUTE) {
+               local = local.plusMinutes(n);
+            }
+            else {
+               local = local.plusSeconds(n);
+            }
 
-         if(obj instanceof Timestamp) {
-            return new Timestamp(cal.getTimeInMillis());
-         }
-         else if(obj instanceof java.sql.Date) {
-            return new java.sql.Date(cal.getTimeInMillis());
-         }
-         else if(obj instanceof java.sql.Time) {
-            return new java.sql.Time(cal.getTimeInMillis());
+            millis = ZonedDateTime.ofLocal(local, zone, time.getOffset()).toInstant().toEpochMilli();
          }
          else {
-            return cal.getTime();
+            GregorianCalendar cal = new GregorianCalendar();
+            cal.setTime((Date) obj);
+
+            if(dtype == TimeScale.QUARTER) {
+               n *= 3;
+            }
+
+            cal.add(getInterval(dtype), (int) n);
+            millis = cal.getTimeInMillis();
+         }
+
+         if(obj instanceof Timestamp) {
+            return new Timestamp(millis);
+         }
+         else if(obj instanceof java.sql.Date) {
+            return new java.sql.Date(millis);
+         }
+         else if(obj instanceof java.sql.Time) {
+            return new java.sql.Time(millis);
+         }
+         else {
+            return new Date(millis);
          }
       }
 

@@ -243,6 +243,14 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
                        jsonProvider.setArrayIndex(json, i, newEntity);
                     }
                 }
+
+                // entities past the row limit get no lookup, but their field with the lookup's
+                // name is moved the same way so that the column stays consistent
+                final String lookupName = getLookupName(query, lookupQuery);
+
+                for(int i = Math.max(length, 0); i < lookups; i++) {
+                    moveCollidingField(jsonProvider.getArrayIndex(transformedJson, i), lookupName);
+                }
             }
         }
     }
@@ -261,6 +269,8 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
                lookupService.createQueryFromLookupQuery((EndpointJsonQuery<?>) query,
                                                         (EndpointJsonQuery<?>) parentQuery,
                                                         lookupQuery, jsonEntity);
+            // move after the key is read, before a skipped lookup returns
+            moveCollidingField(jsonEntity, getLookupName(parentQuery, lookupQuery));
 
            if(!(endpointQuery instanceof EndpointJsonQuery<?>)) {
                return null;
@@ -271,6 +281,13 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
         else {
             queryFromLookupQuery = lookupService.createQueryFromLookupQuery(query, parentQuery,
                                                                 lookupQuery, jsonEntity);
+            // move after the key is read, before a skipped lookup returns
+            moveCollidingField(jsonEntity, getLookupName(parentQuery, lookupQuery));
+
+            // the entity doesn't have the lookup key
+            if(queryFromLookupQuery == null) {
+                return null;
+            }
         }
 
         Object lookupJson = runLookupQuery(queryFromLookupQuery);
@@ -290,7 +307,6 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
             lookupJson = lookupList;
         }
 
-        // todo property name conflicts
         if(queryFromLookupQuery instanceof EndpointJsonQuery<?>) {
            jsonProvider.setProperty(jsonEntity, ((EndpointJsonQuery<?>)queryFromLookupQuery).getEndpoint(),
                                     lookupJson);
@@ -302,6 +318,30 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
        }
 
        return lookupJson;
+    }
+
+    /**
+     * Get the name a lookup result is attached under in the parent entity.
+     */
+    private String getLookupName(RestJsonQuery parentQuery, JsonLookupQuery lookupQuery) {
+        if(query instanceof EndpointJsonQuery) {
+            return lookupQuery.getLookupEndpoint().endpoint();
+        }
+
+        return "lookup" + (parentQuery.getLookupDepth() + 1);
+    }
+
+    /**
+     * Move a parent field that has the lookup's name so the lookup result doesn't overwrite it.
+     */
+    private void moveCollidingField(Object jsonEntity, String lookupName) {
+        final String newName = lookupService.moveCollidingField(jsonEntity, lookupName);
+
+        if(newName != null && !collisionWarned) {
+            collisionWarned = true;
+            LOG.warn("The field \"{}\" has the name of a lookup and is renamed to \"{}\"",
+                     lookupName, newName);
+        }
     }
 
     /**
@@ -371,4 +411,5 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
    private final LookupService lookupService;
    protected final JsonTransformer transformer;
    private final JsonProvider jsonProvider;
+   private boolean collisionWarned;
 }

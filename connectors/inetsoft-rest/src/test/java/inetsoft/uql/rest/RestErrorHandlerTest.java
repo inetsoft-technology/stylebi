@@ -22,7 +22,6 @@ import inetsoft.test.EndpointsSpringContext;
 import inetsoft.test.SreeHome;
 import inetsoft.test.TestHttpResponse;
 import inetsoft.uql.rest.pagination.HttpHeader;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -39,6 +38,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @EndpointsSpringContext
 @SreeHome
 class RestErrorHandlerTest {
+   // the limits of RestErrorHandler
+   private static final int MAX_RETRY_ATTEMPTS = 3;
+   private static final long MIN_RETRY_WAIT_MILLIS = 1000L;
+
    @Test
    void aSuccessfulCallGivesItsValue() throws Exception {
       RestErrorResponse<String> response = new RestErrorHandler().catchError(() -> "value");
@@ -159,11 +162,12 @@ class RestErrorHandlerTest {
    }
 
    @Test
-   @Disabled("Bug #81940: a service that keeps answering 429 with a short Retry-After is retried " +
-             "for ever, with no limit on the attempts; enable when it is fixed")
    void theRetriesOfATooManyRequestsHaveALimit() throws Exception {
+      // Bug #81940: a service that keeps answering 429 with a short Retry-After was retried for
+      // ever; now it is retried MAX_RETRY_ATTEMPTS times, each after at least MIN_RETRY_WAIT_MILLIS
       AtomicInteger calls = new AtomicInteger();
       ExecutorService executor = Executors.newSingleThreadExecutor();
+      long start = System.nanoTime();
 
       try {
          Future<RestErrorResponse<String>> result = executor.submit(
@@ -173,12 +177,14 @@ class RestErrorHandlerTest {
             }));
 
          try {
-            RestErrorResponse<String> response = result.get(3, TimeUnit.SECONDS);
+            RestErrorResponse<String> response = result.get(15, TimeUnit.SECONDS);
             assertFalse(response.shouldContinue());
-            assertTrue(calls.get() <= 20, calls.get() + " attempts");
+            assertEquals(1 + MAX_RETRY_ATTEMPTS, calls.get(), calls.get() + " attempts");
+            assertTrue(millisSince(start) >= MAX_RETRY_ATTEMPTS * MIN_RETRY_WAIT_MILLIS - 100,
+                       "did not wait between the retries");
          }
          catch(TimeoutException e) {
-            fail("still retrying after 3 seconds and " + calls.get() + " attempts");
+            fail("still retrying after 15 seconds and " + calls.get() + " attempts");
          }
       }
       finally {
@@ -187,10 +193,9 @@ class RestErrorHandlerTest {
    }
 
    @Test
-   @Disabled("Bug #81941: a Retry-After that is a date in the past makes the wait negative, and " +
-             "the query fails with an IllegalArgumentException instead of retrying at once; " +
-             "enable when it is fixed")
    void anAdviceThatIsADateInThePastRetriesAtOnce() throws Exception {
+      // Bug #81941: a date in the past made the wait negative and the query failed with an
+      // IllegalArgumentException instead of retrying
       AtomicInteger calls = new AtomicInteger();
 
       RestErrorResponse<String> response = new RestErrorHandler().catchError(() -> {
@@ -203,6 +208,25 @@ class RestErrorHandlerTest {
 
       assertTrue(response.shouldContinue());
       assertEquals("second try", response.getHandledResult());
+      assertEquals(2, calls.get());
+   }
+
+   @Test
+   void aNegativeAdviceRetriesAtOnce() throws Exception {
+      // Bug #81941: a negative number of seconds made the wait negative as well
+      AtomicInteger calls = new AtomicInteger();
+
+      RestErrorResponse<String> response = new RestErrorHandler().catchError(() -> {
+         if(calls.incrementAndGet() == 1) {
+            throw failure(429, "-5");
+         }
+
+         return "second try";
+      });
+
+      assertTrue(response.shouldContinue());
+      assertEquals("second try", response.getHandledResult());
+      assertEquals(2, calls.get());
    }
 
    private static RestResponseException failure(int status, String retryAfter) {

@@ -106,6 +106,20 @@ class ScriptValueConverterTest {
       assertSame(scope, v);
    }
 
+   // Bug #81904: a Java array of scopes reaches script as an array whose elements are the
+   // scopes' script views (ScopeProxy/ArrayProxy), not raw host objects, and toHost gives
+   // the same Java array back.
+   @Test void scopeArrayElementsAreScriptViews() {
+      ScriptScope[] scopes = { new SimpleScope(), new SimpleArrayScope() };
+      ctx.getBindings("js").putMember("arr", ScriptValueConverter.toGuest(scopes));
+      assertEquals(2, ctx.eval("js", "arr.length").asInt());
+      assertTrue(ctx.eval("js", "arr[0]").isProxyObject());
+      assertTrue(ctx.eval("js", "arr[1]").isProxyObject());
+      assertTrue(ctx.eval("js", "arr[2] === undefined").asBoolean());
+      assertSame(scopes[0], ScriptValueConverter.toHost(ctx.eval("js", "arr[0]")));
+      assertSame(scopes, ScriptValueConverter.toHost(ctx.getBindings("js").getMember("arr")));
+   }
+
    /** Minimal ScriptScope so toGuest produces a ScopeProxy. */
    private static class SimpleScope implements ScriptScope {
       public Object getMember(String name) { return null; }
