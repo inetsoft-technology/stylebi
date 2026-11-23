@@ -847,8 +847,8 @@ public final class ScriptHostAccess {
                   // fractional or non-numeric string still prefers a double overload
                   // and otherwise stays refused rather than truncating or clamping.
                   // Short and Byte follow the int/long rule (whole number in range).
-                  // Float converts only a string that is exactly representable as a
-                  // float: any string would make the float overload the more
+                  // Float converts only a string whose parsed double value a float
+                  // holds unchanged: any string would make the float overload the more
                   // specific one and hijack Math.abs('-3.7') and the
                   // Color(int,int,int) vs Color(float,float,float) choice. Even so,
                   // for an exactly representable string such as '1.5' the float

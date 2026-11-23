@@ -187,6 +187,10 @@ class ScriptHostAccessNarrowNumberDateTest {
       String b = "Java.type('java.lang.Byte').toUnsignedInt";
       assertEquals("128", str(s + "('-32768')"));
       refused(s + "('-32769')");
+      assertEquals("-129", str(s + "('32767')")); // 0x7FFF reversed is 0xFF7F
+      refused(s + "('32768')");
+      assertEquals("128", str(b + "('-128')"));
+      refused(b + "('-129')");
       assertEquals("127", str(b + "('127')"));
       refused(b + "('128')");
       assertEquals("255", str(b + "('-1')"));
