@@ -5105,6 +5105,19 @@ public class IdentityService {
     *         or the permissions cannot be read. It never throws.
     */
    public List<String> findEmptiedPermissions(int type, IdentityID id) {
+      return findEmptiedPermissions(type, id, Map.of());
+   }
+
+   /**
+    * Same as {@link #findEmptiedPermissions(int, IdentityID)}, treating the identities that
+    * earlier changes of the same changeset delete as already removed, so a preview of a changeset
+    * that deletes every grantee of a resource names it as the apply does.
+    *
+    * @param alsoDeleted the grantees deleted before this one, by identity type.
+    */
+   public List<String> findEmptiedPermissions(
+      int type, IdentityID id, Map<Integer, Set<Permission.PermissionIdentity>> alsoDeleted)
+   {
       List<String> emptied = new ArrayList<>();
 
       if(id == null || type != Identity.USER && type != Identity.GROUP && type != Identity.ROLE) {
@@ -5158,6 +5171,9 @@ public class IdentityService {
                      {
                         if(identityType == type && grantee.equals(g)) {
                            granted = true;
+                        }
+                        else if(alsoDeleted.getOrDefault(identityType, Set.of()).contains(g)) {
+                           continue;
                         }
                         else {
                            othersRemain = true;

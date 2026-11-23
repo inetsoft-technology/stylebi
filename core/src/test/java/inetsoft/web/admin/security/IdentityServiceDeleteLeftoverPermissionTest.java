@@ -896,6 +896,27 @@ class IdentityServiceDeleteLeftoverPermissionTest {
    }
 
    @Test
+   void findEmptied_coGranteesDeletedTogetherAreTreatedAsRemoved() {
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.USER, new HashSet<>(Set.of(
+         new Permission.PermissionIdentity(ALICE), new Permission.PermissionIdentity(CAROL))));
+      perm.updateGrantAllByOrg(ORG, true);
+      authz.setPermission(ResourceType.VIEWSHEET, SOLO, perm, ORG);
+
+      try {
+         Map<Integer, Set<Permission.PermissionIdentity>> gone =
+            Map.of(Identity.USER, Set.of(new Permission.PermissionIdentity(CAROL)));
+
+         assertEquals(List.of(), service.findEmptiedPermissions(Identity.USER, ALICE));
+         assertEquals(List.of("VIEWSHEET " + SOLO + " (org " + ORG + ")"),
+                      service.findEmptiedPermissions(Identity.USER, ALICE, gone));
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, SOLO, ORG);
+      }
+   }
+
+   @Test
    void findEmptied_groupAndRole() {
       putEdited(SOLO, ORG, Identity.GROUP, ResourceAction.READ, SALES);
       putEdited(SOLO + "2", ORG, Identity.ROLE, ResourceAction.READ, VIEWER);

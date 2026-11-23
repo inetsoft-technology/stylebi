@@ -65,7 +65,8 @@ class IdentityProjectionSeparatorTest {
    private MockedStatic<Audit> auditStatic;
 
    @BeforeEach void setUp() {
-      planService = new IdentityChangePlanService(securityService, securityEngine);
+      planService = new IdentityChangePlanService(securityService, securityEngine,
+                                                 identityService);
       applyService = new IdentityChangesetApplyService(planService, securityService,
                                                        identityService, securityEngine,
                                                        backupService);

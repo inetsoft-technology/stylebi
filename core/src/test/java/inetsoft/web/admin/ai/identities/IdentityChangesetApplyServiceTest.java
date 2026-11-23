@@ -84,7 +84,7 @@ class IdentityChangesetApplyServiceTest {
    private Audit auditMock;
 
    @BeforeEach void setUp() throws Exception {
-      planService = new IdentityChangePlanService(securityService, securityEngine);
+      planService = new IdentityChangePlanService(securityService, securityEngine, identityService);
       service = new IdentityChangesetApplyService(planService, securityService, identityService,
                                                   securityEngine, backupService);
 
@@ -262,7 +262,7 @@ class IdentityChangesetApplyServiceTest {
       when(securityService.getUser(eq(id), eq(user)))
          .thenReturn(existingUser(id), existingUser(id), existingUser(id))
          .thenThrow(new MissingResourceException("gone"));
-      when(identityService.findEmptiedPermissions(Identity.USER, id))
+      when(identityService.findEmptiedPermissions(eq(Identity.USER), eq(id), any()))
          .thenReturn(List.of("DASHBOARD / (org host-org)"));
 
       var result = service.apply(applyRequest("delete bob", deleteUser("bob")), user);
@@ -281,7 +281,7 @@ class IdentityChangesetApplyServiceTest {
       when(identityService.getDeleteTaskImpacts(any(), any(), eq(user)))
          .thenReturn(DeleteIdentitiesTaskImpactResponse.builder()
             .ownedTasks(List.of("nightly-refresh")).executeAsTasks(List.of()).build());
-      when(identityService.findEmptiedPermissions(Identity.USER, id))
+      when(identityService.findEmptiedPermissions(eq(Identity.USER), eq(id), any()))
          .thenReturn(List.of("VIEWSHEET a/b (org host-org)"));
 
       String advisory = service.apply(applyRequest("delete bob", deleteUser("bob")), user)
@@ -296,7 +296,7 @@ class IdentityChangesetApplyServiceTest {
       when(securityService.getGroup(eq(id), eq(user)))
          .thenReturn(existingGroup(id), existingGroup(id), existingGroup(id))
          .thenThrow(new MissingResourceException("gone"));
-      when(identityService.findEmptiedPermissions(Identity.GROUP, id))
+      when(identityService.findEmptiedPermissions(eq(Identity.GROUP), eq(id), any()))
          .thenReturn(List.of("VIEWSHEET a/b (org host-org)"));
 
       var result = service.apply(applyRequest("delete analysts", deleteGroup("analysts")), user);
@@ -309,12 +309,29 @@ class IdentityChangesetApplyServiceTest {
       when(securityService.getRole(eq(id), eq(user)))
          .thenReturn(existingRole(id), existingRole(id), existingRole(id))
          .thenThrow(new MissingResourceException("gone"));
-      when(identityService.findEmptiedPermissions(Identity.ROLE, id))
+      when(identityService.findEmptiedPermissions(eq(Identity.ROLE), eq(id), any()))
          .thenReturn(List.of("VIEWSHEET a/b (org host-org)"));
 
       var result = service.apply(applyRequest("delete viewer", deleteRole("viewer")), user);
 
       assertTrue(result.results().get(0).advisory().contains("VIEWSHEET a/b (org host-org)"));
+   }
+
+   @Test void roleDeleteRefusedByValidationStillCarriesTheConditionalAdvisory() throws Exception {
+      IdentityID id = new IdentityID("viewer", "host-org");
+      SecurityRole existing = existingRole(id);
+      when(securityService.getRole(eq(id), eq(user)))
+         .thenReturn(existing, existing, existing, existing);
+      when(identityService.findEmptiedPermissions(eq(Identity.ROLE), eq(id), any()))
+         .thenReturn(List.of("VIEWSHEET a/b (org host-org)"));
+      doThrow(new SecurityService.PreMutationRefusalException("em.security.noSystemAdmin"))
+         .when(securityService).deleteRole(eq(id), eq(user));
+
+      var result = service.apply(applyRequest("delete viewer", deleteRole("viewer")), user);
+
+      String advisory = result.results().get(0).advisory();
+      assertTrue(advisory.contains("would be left"), advisory);
+      assertFalse(advisory.contains("will be left"), advisory);
    }
 
    @Test void deleteRoleWithNoEmptiedPermissionHasNoAdvisory() throws Exception {
