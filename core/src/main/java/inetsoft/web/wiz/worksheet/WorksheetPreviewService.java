@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.internal.Util;
@@ -68,6 +69,7 @@ public class WorksheetPreviewService {
     */
    public static final String TIMEOUT_PROPERTY = "wiz.preview.timeout";
    private static final long DEFAULT_TIMEOUT_MILLIS = 110_000L;
+   private static final long MAX_TIMEOUT_MILLIS = 24L * 60 * 60 * 1000;
 
    // test hook; negative means read TIMEOUT_PROPERTY
    private long timeoutMillis = -1L;
@@ -81,24 +83,47 @@ public class WorksheetPreviewService {
          return timeoutMillis;
       }
 
-      String value = SreeEnv.getProperty(TIMEOUT_PROPERTY);
+      return parseTimeoutMillis(SreeEnv.getProperty(TIMEOUT_PROPERTY));
+   }
 
-      if(value != null && !value.isBlank()) {
-         try {
-            return (long) (Double.parseDouble(value.trim()) * 1000);
-         }
-         catch(NumberFormatException e) {
-            LOG.warn("Invalid value '{}' for {}, using the default", value, TIMEOUT_PROPERTY);
-         }
+   /**
+    * Converts the {@link #TIMEOUT_PROPERTY} value (seconds) to milliseconds. Blank or invalid
+    * values give the default; zero or negative disables the limit (returns 0); huge values are
+    * clamped so the scheduled time cannot overflow.
+    */
+   static long parseTimeoutMillis(String value) {
+      if(value == null || value.isBlank()) {
+         return DEFAULT_TIMEOUT_MILLIS;
       }
 
-      return DEFAULT_TIMEOUT_MILLIS;
+      double seconds;
+
+      try {
+         seconds = Double.parseDouble(value.trim());
+      }
+      catch(NumberFormatException e) {
+         seconds = Double.NaN;
+      }
+
+      if(Double.isNaN(seconds)) {
+         LOG.warn("Invalid value '{}' for {}, using the default", value, TIMEOUT_PROPERTY);
+         return DEFAULT_TIMEOUT_MILLIS;
+      }
+
+      if(seconds <= 0) {
+         return 0L;
+      }
+
+      return (long) Math.min(seconds * 1000, MAX_TIMEOUT_MILLIS);
    }
 
    /**
     * Bounds one preview. On expiry it flags the preview and cancels the table lens (if it
     * exists yet), which releases a reader blocked in {@code moreRows} and stops the summary
-    * worker.
+    * worker. It bounds the row read: a query still being built inside {@code getTableLens}
+    * (a non-lazy join/sort or a tabular fetch) is cancelled as soon as its lens exists, so the
+    * request returns only after that build finishes. The cancel runs on the shared
+    * {@link TimedQueue} thread, so it must stay non-blocking.
     */
    private static final class Watchdog {
       private final long millis;
@@ -148,6 +173,10 @@ public class WorksheetPreviewService {
          }
       }
 
+      private static String formatSeconds(long millis) {
+         return millis % 1000 == 0 ? String.valueOf(millis / 1000) : String.valueOf(millis / 1000.0);
+      }
+
       /**
        * Never let a cut-short read pass as a complete result, whatever cancelled it.
        */
@@ -158,10 +187,11 @@ public class WorksheetPreviewService {
                + " an aggregation to reduce the data, or preview a smaller table.");
          }
 
+         // deep check: a cancelled shared base under a non-cancelled outer lens also cuts the
+         // rows short while the outer lens completes normally
          TableLens l = lens.get();
-         TableLens nested = l == null ? null : Util.getNestedTable(l, CancellableTableLens.class);
 
-         if(nested != null && ((CancellableTableLens) nested).isCancelled()) {
+         if(l != null && AssetDataCache.isCancelled(l)) {
             throw new PairingException("Preview of worksheet table '" + tableName
                + "' was cancelled before it finished (the query was stopped, e.g. the worksheet"
                + " was closed or loading was cancelled), so the rows are incomplete. Retry.");
