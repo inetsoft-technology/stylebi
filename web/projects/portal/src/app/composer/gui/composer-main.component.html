@@ -21,6 +21,8 @@
     <div class="header composer-header">
       <composer-toolbar #toolbar
                         [sheet]="focusedSheet" [focusedTab]="focusedTab"
+                        [agentConnectedCount]="agentConnectedCount"
+                        (onConnectWithoutSheet)="openNewViewsheet(null)"
                         [snapToGrid]="snapToGrid" [snapToObjects]="snapToObjects"
                         [showPaste]="showPaste" [deployed]="deployed"
                         [viewsheetPermission]="viewsheetPermission" [worksheetPermission]="worksheetPermission"

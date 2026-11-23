@@ -34,8 +34,8 @@ import {
    ViewChildren,
 } from "@angular/core";
 import { NgbDropdown, NgbModal, NgbTooltipConfig, NgbDropdownToggle, NgbTooltip, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
-import { Observable, of as observableOf, Subject, Subscription } from "rxjs";
-import { takeUntil } from "rxjs/operators";
+import { interval, Observable, of as observableOf, Subject, Subscription } from "rxjs";
+import { take, takeUntil } from "rxjs/operators";
 import { AiAssistantDialogService } from "../../../common/services/ai-assistant-dialog.service";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import {
@@ -161,6 +161,10 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    @Input() showHelpButton = false;
    @Input() wsWizard: boolean;
    @Input() focusedTab: ComposerTabModel;
+   /** Number of open sheets (any tab, not just the focused one) with a connected AI agent. */
+   @Input() agentConnectedCount: number = 0;
+   /** The AI connect icon was clicked with no worksheet/viewsheet focused; the host opens a blank viewsheet. */
+   @Output() onConnectWithoutSheet = new EventEmitter<void>();
    @Output() onCopy: EventEmitter<Sheet> = new EventEmitter<Sheet>();
    @Output() onCut: EventEmitter<Sheet> = new EventEmitter<Sheet>();
    @Output() onPaste: EventEmitter<Sheet> = new EventEmitter<Sheet>();
@@ -206,6 +210,9 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    @ViewChild("vpmPrincipalDialog") vpmPrincipalDialog: TemplateRef<any>;
    @ViewChild("newWSDialog") newWSDialog: TemplateRef<any>;
    @ViewChildren(NgbDropdown) dropdowns: QueryList<NgbDropdown>;
+   @ViewChild("wizConnectDropdown") wizConnectDropdown: NgbDropdown;
+   @ViewChild(ConnectToClaudeComponent) connectToClaude: ConnectToClaudeComponent;
+   private pendingConnect: Subscription = null;
    scriptTreeModel: ScriptPaneTreeModel;
    variableInputDialogModel: VariableInputDialogModel;
    tabularDataSourceTypes: TabularDataSourceTypeModel[];
@@ -352,7 +359,61 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
       });
    }
 
+   get connectedTooltipText(): string {
+      return `_#(js:AI agent connected) (${this.agentConnectedCount})`;
+   }
+
+   /**
+    * Pairing needs a runtime to anchor on, so with no worksheet/viewsheet focused the host opens
+    * a blank viewsheet (not a worksheet: only one worksheet session per identity is allowed, so
+    * the agent's first worksheet open would otherwise close the session it acts through). Once
+    * that sheet has its runtimeId and socket, the normal mint flow runs against it. Gives up
+    * quietly after 30s if the sheet never gets a runtime.
+    */
+   connectWithoutSheet(): void {
+      if(this.pendingConnect) {
+         return;
+      }
+
+      this.onConnectWithoutSheet.emit();
+      const sub = interval(200).pipe(take(150)).subscribe({
+         next: () => {
+            if(this.tryAutoConnect()) {
+               this.clearPendingConnect();
+            }
+         },
+         complete: () => this.clearPendingConnect()
+      });
+
+      if(!sub.closed) {
+         this.pendingConnect = sub;
+      }
+   }
+
+   private clearPendingConnect(): void {
+      if(this.pendingConnect) {
+         this.pendingConnect.unsubscribe();
+         this.pendingConnect = null;
+      }
+   }
+
+   private tryAutoConnect(): boolean {
+      const sheet = this.sheet;
+      const connect = this.connectToClaude;
+
+      if(!this.isViewsheet || !sheet.runtimeId || !sheet.socketConnection || !connect ||
+         connect.runtimeId !== sheet.runtimeId || connect.socketConnection !== sheet.socketConnection)
+      {
+         return false;
+      }
+
+      this.wizConnectDropdown?.open();
+      connect.requestCode();
+      return true;
+   }
+
    ngOnDestroy(): void {
+      this.clearPendingConnect();
       this.subscriptions.unsubscribe();
       this.dropdownSubject.next();
       this.dropdownSubject.unsubscribe();

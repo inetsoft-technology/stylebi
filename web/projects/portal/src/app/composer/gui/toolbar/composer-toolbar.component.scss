@@ -83,5 +83,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
+
+    &.agent-connected {
+      color: #2e9e50;
+      background-color: rgba(46, 158, 80, 0.15);
+    }
   }
 }

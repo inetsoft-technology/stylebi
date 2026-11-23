@@ -414,3 +414,107 @@ describe("ComposerToolbarComponent — snappingOperations: visible and enabled g
       expect(comp.snappingOperations.enabled!()).toBe(false);
    });
 });
+
+// ---------------------------------------------------------------------------
+// Group 8: AI connect icon without a focused sheet + composer-level connected state (bug #81980)
+// ---------------------------------------------------------------------------
+
+describe("ComposerToolbarComponent — AI connect icon (bug #81980)", () => {
+   async function renderWithPairing(enabled: boolean, props: Record<string, any> = {}) {
+      const r = await renderComponent(props);
+      (r.comp as any).wizService.sheetAgentPairingEnabled = enabled;
+      r.fixture.detectChanges();
+      return r;
+   }
+
+   const toggle = (fixture: any) =>
+      fixture.nativeElement.querySelector("button.wiz-connect-toggle") as HTMLButtonElement;
+
+   it("renders the icon with no sheet focused when pairing is enabled", async () => {
+      const { fixture } = await renderWithPairing(true, { sheet: null });
+      expect(toggle(fixture)).not.toBeNull();
+   });
+
+   it("hides the icon when pairing is disabled", async () => {
+      const { fixture } = await renderWithPairing(false, { sheet: null });
+      expect(toggle(fixture)).toBeNull();
+   });
+
+   it("clicking with no sheet asks the host to open a blank viewsheet", async () => {
+      const { fixture, comp } = await renderWithPairing(true, { sheet: null });
+      const emitted = vi.fn();
+      comp.onConnectWithoutSheet.subscribe(emitted);
+      toggle(fixture).click();
+      expect(emitted).toHaveBeenCalledTimes(1);
+      toggle(fixture).click();
+      expect(emitted).toHaveBeenCalledTimes(1);
+   });
+
+   it("mints against the new viewsheet once it has a runtimeId", async () => {
+      vi.useFakeTimers();
+
+      try {
+         const { fixture, comp } = await renderWithPairing(true, { sheet: null });
+         toggle(fixture).click();
+
+         const vs = new Viewsheet();
+         vs.localId = 7;
+         vs.socketConnection = {} as any;
+         (comp as any)._sheet = vs;
+
+         const connect = { runtimeId: undefined as any, socketConnection: undefined as any,
+                           requestCode: vi.fn() };
+         (comp as any).connectToClaude = connect;
+         vi.advanceTimersByTime(400);
+         expect(connect.requestCode).not.toHaveBeenCalled();
+
+         vs.runtimeId = "rt-1";
+         connect.runtimeId = "rt-1";
+         connect.socketConnection = vs.socketConnection;
+         vi.advanceTimersByTime(400);
+         expect(connect.requestCode).toHaveBeenCalledTimes(1);
+         vi.advanceTimersByTime(2000);
+         expect(connect.requestCode).toHaveBeenCalledTimes(1);
+      }
+      finally {
+         vi.useRealTimers();
+      }
+   });
+
+   it("gives up quietly when the new sheet never gets a runtime", async () => {
+      vi.useFakeTimers();
+
+      try {
+         const { fixture, comp } = await renderWithPairing(true, { sheet: null });
+         toggle(fixture).click();
+         vi.advanceTimersByTime(31000);
+         expect((comp as any).pendingConnect).toBeNull();
+         toggle(fixture).click();
+         expect((comp as any).pendingConnect).not.toBeNull();
+      }
+      finally {
+         vi.useRealTimers();
+      }
+   });
+
+   it("has no connected class when no open sheet is connected", async () => {
+      const { fixture } = await renderWithPairing(true, { sheet: null, agentConnectedCount: 0 });
+      expect(toggle(fixture).classList.contains("agent-connected")).toBe(false);
+   });
+
+   it("shows connected class and count tooltip when any open sheet is connected, even if the focused sheet is not", async () => {
+      const vs = new Viewsheet();
+      vs.localId = 3;
+      vs.agentConnected = false;
+      const { comp } = await renderComponent({ agentConnectedCount: 2 });
+      comp.sheet = vs;
+      expect(comp.sheet.agentConnected).toBe(false);
+      expect(comp.agentConnectedCount).toBe(2);
+      expect(comp.connectedTooltipText).toContain("(2)");
+   });
+
+   it("shows connected class on the icon when a sheet is connected", async () => {
+      const { fixture } = await renderWithPairing(true, { sheet: null, agentConnectedCount: 1 });
+      expect(toggle(fixture).classList.contains("agent-connected")).toBe(true);
+   });
+});

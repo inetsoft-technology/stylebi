@@ -336,6 +336,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    previewMode: boolean = false;
    printLayout: boolean = false;
    sheets: Sheet[] = [];
+
+   get agentConnectedCount(): number {
+      return this.sheets.filter(s => s.agentConnected).length;
+   }
    _focusedSheet: Sheet;
    touchDevice: boolean = false;
    lastClick: Point = new Point();
