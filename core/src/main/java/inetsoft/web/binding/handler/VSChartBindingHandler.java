@@ -323,7 +323,7 @@ public class VSChartBindingHandler {
       }
 
       VSChartInfo cinfo = info.getVSChartInfo();
-      dndHandler.dropToGantt(ref, cinfo, transfer, target);
+      dndHandler.dropToGantt(ref, cinfo, transfer, target, VizContext.of(info));
    }
 
    private ChartRef dropToChartView(ChartRef ref, ChartVSAssemblyInfo info,
