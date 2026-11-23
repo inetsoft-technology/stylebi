@@ -65,7 +65,7 @@ public final class XIntFragment extends XSwappable {
     */
    public XIntFragment(int[] arr) {
       this();
-      this.size = (char) arr.length;
+      this.size = arr.length;
       this.pos = this.size;
       this.arr = arr;
       complete();
@@ -488,7 +488,8 @@ public final class XIntFragment extends XSwappable {
     * @return the byte length of this fragment, <tt>-1</tt> unknown.
     */
    private long length() {
-      return 4 * pos + 2;
+      // an int header with the position, then the values
+      return 4L * pos + 4;
    }
 
    /**
@@ -501,7 +502,7 @@ public final class XIntFragment extends XSwappable {
       // completed without throwing - a mid-read failure must leave the fields exactly as
       // they were (the still-intact array a failed swap0() write may have preserved), not
       // a new pos paired with the old, differently-sized arr
-      char newPos = XSwapUtil.readChar(buf);
+      int newPos = XSwapUtil.readInt(buf);
       int[] newArr = new int[newPos];
 
       for(int i = 0; i < newPos; i++) {
@@ -522,7 +523,7 @@ public final class XIntFragment extends XSwappable {
     */
    private int serialize(ByteBuffer buf) {
       if(buf != null) {
-         XSwapUtil.writeChar(buf, pos);
+         XSwapUtil.writeInt(buf, pos);
 
          for(int i = 0; i < pos; i++) {
             XSwapUtil.writeInt(buf, arr[i]);
@@ -599,8 +600,9 @@ public final class XIntFragment extends XSwappable {
 
    private long iaccessed;
    private int[] arr;
-   private char size;
-   private char pos;
+   // int, not char: a fragment built from an int[] may hold more than 65535 values (bug #82040)
+   private int size;
+   private int pos;
    private boolean valid; // valid flag
    private boolean lastValid;
    private boolean completed; // completed flag
