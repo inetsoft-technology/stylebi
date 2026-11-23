@@ -669,6 +669,7 @@ public class ImageVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
       popComponentValue.setRValue(null);
       popLocationValue.setRValue(null);
       alphaValue.setRValue(null);
+      imageAlphaValue.setRValue(null);
       scaleInfo.resetRuntimeValues();
    }
    /*

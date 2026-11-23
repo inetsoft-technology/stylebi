@@ -242,6 +242,15 @@ public class GroupContainerVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
+    * Reset runtime values.
+    */
+   @Override
+   public void resetRuntimeValues() {
+      super.resetRuntimeValues();
+      imageAlphaValue.setRValue(null);
+   }
+
+   /**
     * Return scale9.
     */
    public Insets getScale9() {
