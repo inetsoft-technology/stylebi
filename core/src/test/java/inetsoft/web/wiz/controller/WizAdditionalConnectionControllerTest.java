@@ -324,6 +324,20 @@ class WizAdditionalConnectionControllerTest {
       assertEquals("stored-id", auth.getCredentialId());
    }
 
+   @Test
+   void updateKeepsTheStoredUrlPropertiesWhenTheCallerDoesNotEditThem() throws Exception {
+      Fixture f = new Fixture();
+      f.allowAll();
+      f.stored("reports");
+      f.additionals.get(0).getInfo().setProperties("useSSL=true");
+
+      f.controller.updateAdditionalConnection(
+         BASE, "reports", new WizAdditionalDefinitionRequest(wiz("reports")), f.principal);
+
+      assertEquals("useSSL=true", f.savedModel(ActionRecord.ACTION_NAME_EDIT)
+         .additionalDataSources()[0].getInfo().getProperties());
+   }
+
    // ---- remove -----------------------------------------------------------------------------
 
    @Test

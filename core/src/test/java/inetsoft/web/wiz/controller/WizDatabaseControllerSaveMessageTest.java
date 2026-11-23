@@ -175,6 +175,20 @@ class WizDatabaseControllerSaveMessageTest {
    }
 
    @Test
+   void updateKeepsTheStoredUrlPropertiesWhenTheCallerDoesNotEditThem() throws Exception {
+      Fixture f = new Fixture();
+      f.existing("db/orders").getInfo().setProperties("useSSL=true");
+
+      f.controller.updateDatabase("db/orders", wiz("orders", null), f.principal);
+
+      ArgumentCaptor<DataSourceSettingsModel> model =
+         ArgumentCaptor.forClass(DataSourceSettingsModel.class);
+      verify(f.service).saveDatabase(eq("db/orders"), model.capture(),
+                                     eq(ActionRecord.ACTION_NAME_EDIT), eq(f.principal));
+      assertEquals("useSSL=true", model.getValue().dataSource().getInfo().getProperties());
+   }
+
+   @Test
    void updateKeepsAReferenceTheCallerDidSet() throws Exception {
       Fixture f = new Fixture();
       f.existing("db/orders").getAuthentication().setUseCredentialId(true);

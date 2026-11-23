@@ -1540,17 +1540,16 @@ public class WizDatabaseController {
     *
     * <p>Every field of the stored definition that the wire contract omits would otherwise be reset
     * to its default by an update, since the definition handed to the save path is built from
-    * scratch. Two are worth preserving: {@code unasgn} governs whether users with no explicit grant
+    * scratch. Three are worth preserving: {@code unasgn} governs whether users with no explicit grant
     * are denied data, and the cloud-secret credential reference replaces the user name and password
-    * entirely — clearing either through a connection edit would be a silent security change. A credential
+    * entirely — clearing either through a connection edit would be a silent security change. The third is the URL properties (and the Access data source name), which the formatted URL would otherwise lose; they are carried only when the type is unchanged. A credential
     * reference the caller did set is kept as sent, see
     * {@link WizDatabaseMapper#carryOverCredentialReference}.</p>
     */
    private static void carryOverUneditedSettings(DatabaseDefinition current,
                                                  DatabaseDefinition updated)
    {
-      updated.setUnasgn(current.isUnasgn());
-      WizDatabaseMapper.carryOverCredentialReference(current, updated);
+      WizDatabaseMapper.carryOverUneditedSettings(current, updated);
    }
 
    /**

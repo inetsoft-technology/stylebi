@@ -185,8 +185,7 @@ public class WizAdditionalConnectionController {
       // password.
       DatabaseDefinition updated = mapper.toDatabaseDefinition(definition, existing);
       DatabaseDefinition current = stored.get(index);
-      updated.setUnasgn(current.isUnasgn());
-      WizDatabaseMapper.carryOverCredentialReference(current, updated);
+      WizDatabaseMapper.carryOverUneditedSettings(current, updated);
       stored.set(index, updated);
 
       return save(base, stored, name, principal);
