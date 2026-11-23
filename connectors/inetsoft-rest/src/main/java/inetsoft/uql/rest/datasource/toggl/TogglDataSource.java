@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.rest.datasource.toggl;
 
+import inetsoft.uql.rest.HttpResponse;
+import inetsoft.uql.rest.RestResponseException;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
@@ -31,6 +33,10 @@ import java.util.Objects;
 })
 public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
    static final String TYPE = "Rest.Toggl";
+   static final String TOGGL_2_KEY_PREFIX = "toggl_sk_";
+   static final String TOGGL_2_KEY_HINT =
+      "Toggl 2.0 API keys (toggl_sk_...) are not accepted by the Toggl Track API; " +
+      "use the API token from your Toggl Track profile settings.";
    
    public TogglDataSource() {
       super(TYPE, TogglDataSource.class);
@@ -101,6 +107,31 @@ public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
    @Override
    protected String getTestSuffix() {
       return "/api/v9/me";
+   }
+
+   /**
+    * For a Toggl 2.0 (Focus) API key, adds a hint to a 401/403 test failure. Such keys (prefix
+    * {@code toggl_sk_}) are not accepted by the Toggl Track API. The response body is dropped
+    * from the message (it contains words that make the Status column show the generic login
+    * error instead). Nothing is rejected by prefix.
+    */
+   @Override
+   protected Exception translateTestFailure(RestResponseException e) {
+      HttpResponse response = e.getResponse();
+      String token = getApiToken();
+
+      if(response == null || token == null || !token.startsWith(TOGGL_2_KEY_PREFIX)) {
+         return e;
+      }
+
+      int code = response.getResponseStatusCode();
+
+      if(code != 401 && code != 403) {
+         return e;
+      }
+
+      return new Exception("Test request returned " + code + ": " +
+                              response.getResponseStatusText() + ". " + TOGGL_2_KEY_HINT, e);
    }
 
    @Override
