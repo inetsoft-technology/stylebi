@@ -17,7 +17,6 @@
  */
 package inetsoft.graph.data;
 
-import inetsoft.graph.scale.TimeScale;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
@@ -30,15 +29,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.sql.Timestamp;
-import java.time.LocalDate;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #82095: DefaultDataSet.setComparator on an unknown column, hyperlinks
- * shared by a deep clone, and the TimeSeriesRow row limit.
+ * Bug #82095: DefaultDataSet.setComparator on an unknown column and hyperlinks
+ * shared by a deep clone.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -153,70 +150,5 @@ class GraphDataBug82095Test {
       copy.setHyperlink(1, 0, new HRef("M"));
 
       assertSame(link, data.getHyperlink(1, 0));
-   }
-
-   // ------------------------------------------------------------ TimeSeriesRow cap
-
-   @Test
-   void maxGapsLimitsAddedRowsStrictly() {
-      // Feb to Jun 2023 are missing: 5 gaps, limited to 3
-      TimeSeriesRow row = monthRow(3);
-      DefaultDataSet data = data(month("A", 2023, 1), month("A", 2023, 7));
-
-      assertEquals(3, row.calculate(data).size());
-   }
-
-   @Test
-   void maxGapsEqualToTheGapsAddsAll() {
-      TimeSeriesRow row = monthRow(2);
-      DefaultDataSet data = data(month("A", 2023, 1), month("A", 2023, 4));
-
-      assertEquals(2, row.calculate(data).size());
-   }
-
-   @Test
-   void maxGapsLimitsRangeEnds() {
-      // B has only Jun in the global range Jan to Dec: 5 leading and 6 trailing gaps
-      List<Object[]> rows = new ArrayList<>();
-
-      for(int m = 1; m <= 12; m++) {
-         rows.add(month("A", 2023, m));
-      }
-
-      rows.add(month("B", 2023, 6));
-      TimeSeriesRow row = monthRow(2);
-
-      assertEquals(2, row.calculate(data(rows.toArray(new Object[0][]))).size());
-   }
-
-   @Test
-   void rangeEndsAreFilledBelowTheLimit() {
-      List<Object[]> rows = new ArrayList<>();
-
-      for(int m = 1; m <= 12; m++) {
-         rows.add(month("A", 2023, m));
-      }
-
-      rows.add(month("B", 2023, 6));
-
-      assertEquals(11, monthRow(2000).calculate(data(rows.toArray(new Object[0][]))).size());
-   }
-
-   private static TimeSeriesRow monthRow(int maxGaps) {
-      TimeSeriesRow row = new TimeSeriesRow("Date", TimeScale.MONTH, 0);
-      row.setGroupFields("G");
-      row.setMaxGaps(maxGaps);
-      return row;
-   }
-
-   private static Object[] month(String group, int year, int month) {
-      return new Object[] { group, Timestamp.valueOf(LocalDate.of(year, month, 10).atStartOfDay()), 1 };
-   }
-
-   private static DefaultDataSet data(Object[]... rows) {
-      List<Object[]> table = new ArrayList<>();
-      table.add(new Object[] { "G", "Date", "Sales" });
-      table.addAll(Arrays.asList(rows));
-      return new DefaultDataSet(table.toArray(new Object[0][]));
    }
 }

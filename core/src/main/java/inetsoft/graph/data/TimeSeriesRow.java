@@ -135,13 +135,19 @@ public class TimeSeriesRow implements CalcRow {
 
    /**
     * Get the maximum number of rows to add to fill the gaps.
+    * @see #setMaxGaps(int)
     */
    public int getMaxGaps() {
       return maxrows;
    }
 
    /**
-    * Set the maximum number of rows to add to fill the gaps.
+    * Set the maximum number of rows to add to fill the gaps. The limit is on
+    * the total number of rows added across all series of the chart (default
+    * 2000). It is only checked while filling the gaps between two values, after
+    * a row is added, so the result can exceed it by one. The leading and
+    * trailing gaps (filled up to the range of the chart) are not limited, but
+    * count toward the total.
     */
    public void setMaxGaps(int max) {
       this.maxrows = max;
@@ -255,10 +261,6 @@ public class TimeSeriesRow implements CalcRow {
          long part2 = getPart(vals.get(0).value, this.dtype);
 
          while(part0 < part2) {
-            if(isMaxRows(rows)) {
-               return false;
-            }
-
             rows.add(createRow(data, vals.get(0).row, prev, min.value));
             prev = add(prev, 1);
             part0 = getPart(prev, this.dtype);
@@ -273,10 +275,6 @@ public class TimeSeriesRow implements CalcRow {
          long part2 = getPart(max.value, this.dtype);
 
          while(part0 <= part2) {
-            if(isMaxRows(rows)) {
-               return false;
-            }
-
             rows.add(createRow(data, vals.get(0).row, prev, lastval.value));
             prev = add(prev, 1);
             part0 = getPart(prev, this.dtype);
@@ -300,35 +298,24 @@ public class TimeSeriesRow implements CalcRow {
                break;
             }
 
-            if(isMaxRows(rows)) {
+            rows.add(createRow(data, vals.get(i).row, prev, vals.get(i - 1).value));
+
+            if(rows.size() > maxrows) {
+               String msg = GTool.getString("viewer.viewsheet.chart.timeSeriesMax");
+               //Tool.addUserMessage(msg);
+               // showing a warning to end user is more distracting than
+               // helpful. in any case, when the max is reached, the graph
+               // is generally so over crowed that any truncation is
+               // unlikely to be noticeable or significant
+               LOG.warn(msg);
                return false;
             }
-
-            rows.add(createRow(data, vals.get(i).row, prev, vals.get(i - 1).value));
          }
 
          part = part2;
       }
 
       return true;
-   }
-
-   /**
-    * Check if the max number of rows is reached, so no more row can be added.
-    */
-   private boolean isMaxRows(List<Object[]> rows) {
-      if(rows.size() >= maxrows) {
-         String msg = GTool.getString("viewer.viewsheet.chart.timeSeriesMax");
-         //Tool.addUserMessage(msg);
-         // showing a warning to end user is more distracting than
-         // helpful. in any case, when the max is reached, the graph
-         // is generally so over crowed that any truncation is
-         // unlikely to be noticeable or significant
-         LOG.warn(msg);
-         return true;
-      }
-
-      return false;
    }
 
    /**
