@@ -36,7 +36,6 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.*;
 import java.util.function.Consumer;
@@ -290,14 +289,10 @@ class RestResponseCacheKeyTest {
    }
 
    /**
-    * Clears the property and the parsed value that SreeEnv keeps for it: {@code getLong} keeps the
-    * first value it parsed, so a later change of the property is not seen (Bug #81932).
+    * Clears the property, so the response cache is off unless a test turns it on.
     */
-   private static void forgetTheTimeout() throws Exception {
+   private static void forgetTheTimeout() {
       SreeEnv.remove(CACHE_TIMEOUT);
-      Field field = SreeEnv.class.getDeclaredField("cache");
-      field.setAccessible(true);
-      ((Map<?, ?>) field.get(null)).remove(CACHE_TIMEOUT);
    }
 
    private static String key(AbstractRestQuery query) {
