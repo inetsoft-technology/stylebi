@@ -32,14 +32,12 @@ import inetsoft.graph.scale.LinearScale;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.geom.Rectangle2D;
@@ -47,8 +45,15 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.*;
+import inetsoft.graph.*;
+import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.coord.*;
+import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.scale.*;
+import inetsoft.test.*;
+import java.awt.*;
+import java.util.*;
 
 /**
  * {@link Bar3DVO}: front face geometry, and the colors of the top and right faces found by
@@ -304,34 +309,135 @@ class Bar3DVOTest {
       assertEquals(1.0, largestBarRatio(false), 1e-3);
       assertEquals(1 - 2 / (1000.0 / 3), largestBarRatio(true), 1e-3);
    }
-
-   @Disabled("Bug #82056: Bar3DVO.getBounds is the front face only")
    @Test
-   @DisplayName("the bounds contain the top and right faces")
    void boundsCoverFaces() {
-      Chart chart = new Chart().plot();
-      Bar3DVO vo = chart.bar(1);
-      BufferedImage img = paint(vo);
-      int minx = Integer.MAX_VALUE, maxx = -1, miny = Integer.MAX_VALUE, maxy = -1;
+      for(boolean horizontal : new boolean[] { false, true }) {
+         int w = horizontal ? 600 : 2000;
+         int h = horizontal ? 2000 : 600;
+         VGraph vg = bar(40, horizontal, false, false, w, h);
+         List<Bar3DVO> bars = Chart3DTestUtil.collect(vg, Bar3DVO.class);
+         assertEquals(40, bars.size());
 
-      for(int x = 0; x < img.getWidth(); x++) {
-         for(int y = 0; y < img.getHeight(); y++) {
-            if(img.getRGB(x, y) != BACKGROUND.getRGB()) {
-               minx = Math.min(minx, x);
-               maxx = Math.max(maxx, x);
-               miny = Math.min(miny, y);
-               maxy = Math.max(maxy, y);
+         for(Bar3DVO vo : bars) {
+            Rectangle2D bounds = vo.getBounds();
+            Rectangle2D paintBounds = vo.getPaintBounds();
+            Rectangle2D front = vo.getShapes()[0].getBounds2D();
+
+            // getBounds() stays the front face (plus the half border)
+            assertTrue(grow(front, 0.5 + 1e-6).contains(bounds),
+                       "bounds " + bounds + " larger than the front face " + front);
+            assertTrue(paintBounds.contains(bounds));
+
+            // every painted pixel (front, right and top faces) is in the paint bounds
+            Rectangle painted = Chart3DTestUtil.paintedBox(vg, vo, w, h);
+            Rectangle2D img = Chart3DTestUtil.toImage(vg, paintBounds);
+            assertTrue(grow(img, 1).contains(painted),
+                       (horizontal ? "horizontal" : "vertical") + " bar painted " + painted +
+                       " outside " + img);
+         }
+      }
+   }
+
+   @Test
+   void tileCoveringOnlySideFacePaintsBar() {
+      // few wide bars, so the right face of a bar is in the gap before the next bar
+      VGraph vg = bar(6, false, false, false, 2000, 600);
+      Bar3DVO vo = Chart3DTestUtil.collect(vg, Bar3DVO.class).get(2);
+      Rectangle2D front = Chart3DTestUtil.toImage(vg, vo.getBounds());
+      Rectangle painted = Chart3DTestUtil.paintedBox(vg, vo, 2000, 600);
+      int x0 = (int) Math.ceil(front.getMaxX()) + 2;
+      assertTrue(painted.getMaxX() > x0 + 5, "no right face painted");
+
+      Rectangle tile = new Rectangle(x0, 0, (int) painted.getMaxX() - x0, 600);
+      assertEquals(0, Chart3DTestUtil.missingPixels(vg, 2000, 600, tile),
+                   "tile holding only the side face lost its pixels");
+   }
+
+   @Test
+   void tilesPaintVerticalBars() {
+      assertEquals(0, Chart3DTestUtil.sweepTiles(bar(40, false, false, false, 2000, 600),
+                                                 2000, 600));
+   }
+
+   @Test
+   void tilesPaintHorizontalBars() {
+      assertEquals(0, Chart3DTestUtil.sweepTiles(bar(40, true, false, false, 600, 2000),
+                                                 600, 2000));
+   }
+
+   @Test
+   void tilesPaintStackedBars() {
+      assertEquals(0, Chart3DTestUtil.sweepTiles(bar(30, false, true, false, 2000, 600),
+                                                 2000, 600));
+   }
+
+   @Test
+   void tilesPaintFacetedBars() {
+      assertEquals(0, Chart3DTestUtil.sweepTiles(bar(20, false, false, true, 2400, 600),
+                                                 2400, 600));
+   }
+
+   private static VGraph bar(int n, boolean horizontal, boolean stack, boolean facet,
+                             int w, int h)
+   {
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { "x", "y", "c", "g" });
+      int groups = facet ? 3 : 1;
+
+      for(int gi = 0; gi < groups; gi++) {
+         for(int i = 0; i < n; i++) {
+            double v = 20 + (i * 37 + gi * 11) % 80;
+            rows.add(new Object[] { "C" + i, v, "s1", "G" + gi });
+
+            if(stack) {
+               rows.add(new Object[] { "C" + i, v / 2, "s2", "G" + gi });
             }
          }
       }
 
-      Rectangle2D bounds = vo.getBounds();
-      Rectangle2D painted = new Rectangle2D.Double(minx, FLIP - maxy - 1, maxx - minx + 1,
-                                                   maxy - miny + 1);
+      EGraph graph = new EGraph();
+      IntervalElement elem = new IntervalElement("x", "y");
 
-      assertTrue(bounds.getX() <= painted.getX() + 2 && bounds.getY() <= painted.getY() + 2
-                    && bounds.getMaxX() >= painted.getMaxX() - 2
-                    && bounds.getMaxY() >= painted.getMaxY() - 2,
-                 "bounds " + bounds + " do not contain the painted faces " + painted);
+      if(stack) {
+         elem.setCollisionModifier(GraphElement.MOVE_STACK);
+         CategoricalColorFrame colors = new CategoricalColorFrame("c");
+         colors.getLegendSpec().setVisible(false);
+         elem.setColorFrame(colors);
+      }
+
+      graph.addElement(elem);
+      // no axes or legend: the tiles only need the bars, and their text needs the SVG support
+      CategoricalScale xscale = new CategoricalScale("x");
+      xscale.getAxisSpec().setAxisStyle(AxisSpec.AXIS_NONE);
+      LinearScale yscale = new LinearScale("y");
+      yscale.getAxisSpec().setAxisStyle(AxisSpec.AXIS_NONE);
+
+      if(stack) {
+         yscale.setScaleRange(new StackRange());
+      }
+
+      Rect25Coord coord = new Rect25Coord(xscale, yscale);
+
+      if(horizontal) {
+         coord.transpose();
+      }
+
+      if(facet) {
+         CategoricalScale g = new CategoricalScale("g");
+         g.getAxisSpec().setAxisStyle(AxisSpec.AXIS_NONE);
+         RectCoord outer = horizontal ? new RectCoord(null, g) : new RectCoord(g, null);
+         graph.setCoordinate(new FacetCoord(outer, coord));
+      }
+      else {
+         graph.setCoordinate(coord);
+      }
+
+      return Plotter.getPlotter(graph).plotAndLayout(
+         new DefaultDataSet(rows.toArray(new Object[0][])), 0, 0, w, h);
+   }
+
+   private static Rectangle2D grow(Rectangle2D r, double d) {
+      return new Rectangle2D.Double(r.getX() - d, r.getY() - d, r.getWidth() + 2 * d,
+                                    r.getHeight() + 2 * d);
    }
 }

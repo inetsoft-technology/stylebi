@@ -387,7 +387,6 @@ class BoxDataSetTest {
    }
 
    @Test
-   @Disabled("Bug #82055: BoxDataSet keeps values as float")
    @DisplayName("values above 2^24 keep their digits: median of 100000001..100000005")
    void largeValuesKeepPrecision() {
       BoxDataSet box = boxOf(buildSingleGroupDataset(100000001, 100000002, 100000003, 100000004,
@@ -397,7 +396,6 @@ class BoxDataSetTest {
    }
 
    @Test
-   @Disabled("Bug #82055: BoxDataSet keeps values as float")
    @DisplayName("2^24 + 1 is kept exactly")
    void valueJustAboveTwoToTheTwentyFour() {
       BoxDataSet box = boxOf(buildSingleGroupDataset(16777217, 16777218, 16777219));

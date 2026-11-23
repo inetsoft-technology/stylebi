@@ -303,7 +303,7 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("An unset or null parameter reads as undefined, an empty array index fails " +
+   @DisplayName("An unset or null parameter reads as null, an empty array index fails " +
       "the table")
    void missingNullAndEmptyArrayParameter() throws Exception {
       Worksheet unset = ws();
@@ -313,8 +313,10 @@ class AssetQueryExpressionColumnTest {
                     true);
       Tool.clearUserMessage();
       TableLens t = box(unset).getTableLens("T", RUNTIME);
-      assertEquals(Arrays.asList(null, null), column(t, "p1"));
-      assertEquals(Arrays.asList("Albany undefined", "Fresno undefined"), column(t, "p2"));
+      // Bug #81929: an unset parameter reads as null, as in 13.8 (Rhino), not undefined,
+      // so it adds as 0 and concatenates as "null"
+      assertEquals(Arrays.asList(3, 10), column(t, "p1"));
+      assertEquals(Arrays.asList("Albany null", "Fresno null"), column(t, "p2"));
       assertNull(Tool.getUserMessage());
 
       // PIN (class B): an index into an empty array fails the table, the sample row is shown

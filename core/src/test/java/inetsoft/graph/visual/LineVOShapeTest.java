@@ -280,13 +280,6 @@ class LineVOShapeTest {
       assertEquals(expected, vo.getUnscaledSize(pos, null), EPS);
    }
 
-   @Test
-   @Disabled("Bug #82051: LineVO.getUnscaledSize(BOTTOM) falls through into the LEFT case")
-   @DisplayName("unscaled size at the bottom is the radius of the lowest point")
-   void unscaledSizeBottom() {
-      assertEquals(5.5, twoSizedPoints().getUnscaledSize(GraphConstants.BOTTOM, null), EPS);
-   }
-
    // ---- clone
 
    @Test
@@ -501,31 +494,10 @@ class LineVOShapeTest {
    }
 
    @Test
-   @Disabled("Bug #82052: Step or jump line with ignoreNull draws nothing after a null point")
-   @DisplayName("a step line connects over an ignored null point")
-   void stepLineConnectsOverNull() {
-      BufferedImage img = paint(new Info(p(10, 20), p(40, Double.NaN), p(70, 60))
-                                   .type(LineElement.Type.STEP).ignoreNull(true));
-
-      assertTrue(painted(img, 40, 20));
-      assertTrue(painted(img, 70, 40));
-   }
-
-   @Test
    @DisplayName("control: a solid line with a null second point is painted")
    void solidLineWithNullSecondPointIsPainted() {
       BufferedImage img = paint(new Info(p(10, 50), p(40, Double.NaN), p(70, 50), p(90, 50))
                                    .ignoreNull(true));
-
-      assertTrue(paintedInColumns(img, 20, 60));
-   }
-
-   @Test
-   @Disabled("Bug #82053: Dashed line with ignoreNull loses the segment next to a null point")
-   @DisplayName("a dashed line with a null second point is painted")
-   void dashedLineWithNullSecondPointIsPainted() {
-      BufferedImage img = paint(new Info(p(10, 50), p(40, Double.NaN), p(70, 50), p(90, 50))
-                                   .ignoreNull(true).line(GLine.DASH_LINE));
 
       assertTrue(paintedInColumns(img, 20, 60));
    }

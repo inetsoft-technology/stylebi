@@ -39,13 +39,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
-
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.HashSet;
+import java.util.Set;
+import org.junit.jupiter.params.provider.CsvSource;
 
 /**
  * Tests the geometry that LineElement.createGeometry() builds: stacking arithmetic, null gaps,
@@ -429,19 +430,6 @@ class LineElementGeometryTest {
       assertArrayEquals(new double[] { 30 }, ys(line(g, "m", 1)), D);
    }
 
-   @Disabled("Bug #82050: Line/area chart fails to render when a measure name contains a pipe")
-   @Test
-   @DisplayName("a measure whose name contains a pipe still produces its geometry")
-   void measureNameWithPipe() {
-      DefaultDataSet ds = new DefaultDataSet(new Object[][] {
-         { "Cat", "a|b" }, { "A", 10.0 } });
-      LineElement elem = stacked(new LineElement("Cat", "a|b"));
-      GGraph g = plot(elem, ds, categories(ds), lin(0, 100, "a|b"));
-
-      assertEquals(1, count(g));
-      assertArrayEquals(new double[] { 10 }, ys(line(g, "a|b")), D);
-   }
-
    @ParameterizedTest(name = "{0}")
    @EnumSource(value = Branch.class)
    @DisplayName("setClosed(true) reaches every geometry of every createGeometry branch")
@@ -681,5 +669,72 @@ class LineElementGeometryTest {
       }
 
       return x;
+   }
+   private static final String MEASURE = "Sales|Q1";
+   private static final String MEASURE2 = "Profit";
+
+   /**
+    * One geometry per (color group, measure), each holding exactly the rows of its group, for
+    * line and area elements, and also when the group value itself contains '|'.
+    */
+   @ParameterizedTest(name = "{0}, regions {1}/{2}")
+   @CsvSource({
+      "line, East, West",
+      "area, East, West",
+      "line, East|1, West|2",
+      "area, East|1, West|2",
+   })
+   void measureNameWithPipe(String type, String region1, String region2) {
+      DefaultDataSet data = new DefaultDataSet(new Object[][] {
+         { "Month", "Region", MEASURE, MEASURE2 },
+         { "Jan",   region1,  10.0,    1.0 },
+         { "Jan",   region2,  20.0,    2.0 },
+         { "Feb",   region1,  30.0,    3.0 },
+         { "Feb",   region2,  40.0,    4.0 },
+         { "Mar",   region1,  50.0,    5.0 },
+         { "Mar",   region2,  60.0,    6.0 },
+      });
+
+      CategoricalScale xScale = new CategoricalScale("Month");
+      xScale.init(data);
+      LinearScale yScale = new LinearScale(MEASURE, MEASURE2);
+      yScale.init(data);
+
+      LineElement element = "area".equals(type) ? new AreaElement() : new LineElement();
+      element.addDim("Month");
+      element.addVar(MEASURE);
+      element.addVar(MEASURE2);
+      element.setColorFrame(new CategoricalColorFrame("Region"));
+      element.setCollisionModifier(GraphElement.MOVE_STACK);
+      element.setStackGroup(true);
+
+      EGraph egraph = new EGraph();
+      egraph.addElement(element);
+      RectCoord coord = new RectCoord(xScale, yScale);
+      egraph.setCoordinate(coord);
+
+      GGraph ggraph = egraph.createGGraph(coord, data);
+
+      assertEquals(4, ggraph.getGeometryCount(), "2 regions x 2 measures");
+      Set<String> series = new HashSet<>();
+
+      for(int i = 0; i < ggraph.getGeometryCount(); i++) {
+         LineGeometry geom = (LineGeometry) ggraph.getGeometry(i);
+         int[] rows = geom.getRowIndexes();
+
+         assertEquals(3, rows.length, "one point per month for " + geom.getVar());
+         assertEquals(3, geom.getTupleCount(), "one tuple per month for " + geom.getVar());
+         Object region = data.getData("Region", rows[0]);
+
+         for(int row : rows) {
+            assertEquals(region, data.getData("Region", row),
+                         "a series must hold the rows of one region only");
+         }
+
+         series.add(region + "/" + geom.getVar());
+      }
+
+      assertEquals(Set.of(region1 + "/" + MEASURE, region2 + "/" + MEASURE,
+                          region1 + "/" + MEASURE2, region2 + "/" + MEASURE2), series);
    }
 }
