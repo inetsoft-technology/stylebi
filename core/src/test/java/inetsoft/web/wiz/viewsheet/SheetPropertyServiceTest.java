@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.composer.model.vs.ConvertToWorksheetResponseModel;
+import inetsoft.web.composer.model.vs.ScreensPaneModel;
 import inetsoft.web.composer.model.vs.SelectDataSourceDialogModel;
 import inetsoft.web.composer.model.vs.ViewsheetParametersDialogModel;
 import inetsoft.web.composer.model.vs.ViewsheetPropertyDialogModel;
@@ -796,6 +797,99 @@ class SheetPropertyServiceTest {
 
       service.set("tok", principal(), Map.of("desc", "new"), "");
 
+      verify(dialog).setViewsheetInfo(any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void screenSizingScalarsWriteThroughAndLeaveTheLayoutListsAlone() throws Exception {
+      ViewsheetPropertyDialogModel model = modelWith(20, "old");
+      model.screensPane().setBalancePadding(true);
+      List<?> layoutsBefore = model.screensPane().getDeviceLayouts();
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put("targetScreen", true);
+      patch.put("templateWidth", 1280);
+      patch.put("templateHeight", "720");
+      patch.put("scaleToScreen", true);
+      patch.put("fitToWidth", true);
+      patch.put("balancePadding", false);
+      service.set("tok", principal(), patch, "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(dialog).setViewsheetInfo(any(), captor.capture(), any(), any(), any(), any());
+      ScreensPaneModel written = captor.getValue().screensPane();
+      assertTrue(written.isTargetScreen());
+      assertEquals(1280, written.getTemplateWidth());
+      assertEquals(720, written.getTemplateHeight());
+      assertTrue(written.isScaleToScreen());
+      assertTrue(written.isFitToWidth());
+      assertFalse(written.isBalancePadding());
+      assertSame(layoutsBefore, written.getDeviceLayouts());
+   }
+
+   @Test
+   void screenSizingRefusalsWriteNothing() throws Exception {
+      Object[][] cases = {
+         // {sheet has targetScreen on, patch, text the message must contain}
+         { false, Map.of("fitToWidth", true), "'fitToWidth'" },
+         { false, Map.of("screensPane.fitToWidth", "true"), "'fitToWidth'" },
+         { false, Map.of("templateWidth", 800), "'targetScreen'" },
+         { false, Map.of("templateHeight", 600), "'targetScreen'" },
+         { true, Map.of("templateWidth", -1), "'templateWidth'" },
+         { true, Map.of("screensPane.templateHeight", -5), "'templateHeight'" },
+         { true, Map.of("templateWidth", 1.5), "templateWidth" },
+         { true, Map.of("templateWidth", 3000000000L), "templateWidth" }
+      };
+
+      for(Object[] c : cases) {
+         ViewsheetPropertyDialogModel model = modelWith(20, "old");
+         model.screensPane().setTargetScreen((Boolean) c[0]);
+         ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+         when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+         SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+         @SuppressWarnings("unchecked")
+         Map<String, Object> patch = (Map<String, Object>) c[1];
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), patch, ""), patch.toString());
+         assertTrue(thrown.getMessage().contains((String) c[2]), thrown.getMessage());
+         verify(dialog, never()).setViewsheetInfo(any(), any(), any(), any(), any(), any());
+      }
+   }
+
+   @Test
+   void screenSizingCouplingsAreEvaluatedOnTheMergedModel() throws Exception {
+      // fitToWidth alone is fine when the sheet already has scaleToScreen on, a size alone when
+      // targetScreen is already on, and turning scale off leaves a stored fitToWidth alone.
+      ViewsheetPropertyDialogModel model = modelWith(20, "old");
+      model.screensPane().setScaleToScreen(true);
+      model.screensPane().setTargetScreen(true);
+      model.screensPane().setFitToWidth(true);
+
+      for(Map<String, Object> patch : List.of(
+         Map.<String, Object>of("fitToWidth", true), Map.<String, Object>of("templateWidth", 0),
+         Map.<String, Object>of("scaleToScreen", false),
+         Map.<String, Object>of("fitToWidth", false, "scaleToScreen", false),
+         Map.<String, Object>of("targetScreen", false)))
+      {
+         ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+         when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+         SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+         service.set("tok", principal(), patch, "");
+         verify(dialog).setViewsheetInfo(any(), any(), any(), any(), any(), any());
+      }
+
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class)))
+         .thenReturn(modelWith(20, "old"));
+      new SheetPropertyService(sessionsMock(), dialog).set(
+         "tok", principal(),
+         Map.of("fitToWidth", true, "scaleToScreen", true, "templateWidth", 1, "targetScreen", true),
+         "");
       verify(dialog).setViewsheetInfo(any(), any(), any(), any(), any(), any());
    }
 

@@ -983,14 +983,32 @@ public final class PropertyAliases {
             "get_viewsheet_properties with raw=true.";
       }
 
-      if(isOrUnder(pathOrKey, "screensPane")) {
-         return "'screensPane' is not settable through set_viewsheet_properties. Device " +
-            "layouts, print layout and screen sizing are their own capability, not a corner of " +
-            "a properties patch.";
+      // Canonicalised first: PropertyPath accepts a capitalised initial on any segment, so a
+      // leaf spelled "screensPane.ScaleToScreen" must be recognised as the allowed scalar.
+      String canonical = lowerSegmentInitials(pathOrKey);
+
+      if(isOrUnder(canonical, "screensPane")) {
+         if(SCREEN_SIZING_PATHS.contains(canonical)) {
+            return null;
+         }
+
+         return "'screensPane' is not settable through set_viewsheet_properties, except its " +
+            "screen-sizing scalars (targetScreen, templateWidth, templateHeight, scaleToScreen, " +
+            "fitToWidth, balancePadding). Device layouts are managed with manage_device_layout " +
+            "and the print layout with set_print_layout.";
       }
 
       return null;
    }
+
+   /**
+    * The Layout tab's Target Screen / Scale to Screen block: the only {@code screensPane} fields
+    * that are plain main-layout scalars. The rest (device layouts, print layout, the device
+    * catalogue) stay refused.
+    */
+   private static final Set<String> SCREEN_SIZING_PATHS = Set.of(
+      "screensPane.targetScreen", "screensPane.templateWidth", "screensPane.templateHeight",
+      "screensPane.scaleToScreen", "screensPane.fitToWidth", "screensPane.balancePadding");
 
    /** The Options dialog's Data Source sub-model; see {@link #viewsheetWriteRefusal}. */
    private static final String DATA_SOURCE_DIALOG = "vsOptionsPane.selectDataSourceDialogModel";
@@ -2213,10 +2231,10 @@ public final class PropertyAliases {
    /**
     * {@code VSOptionsPaneModel} has no name field of its own — {@code alias} is the viewsheet
     * asset's display name, writable here exactly as {@code set_worksheet_properties} already
-    * exposes it for the sibling worksheet type. {@code screensPane} is excluded entirely: it
-    * reaches device layouts, print layout and screen sizing through {@code refLayoutName}, which
-    * is its own capability, not a corner of this one. {@code vsScriptPane} is excluded from the
-    * vocabulary the same way — see {@link #resolveForWrite} for why both write-refuse, and why
+    * exposes it for the sibling worksheet type. Of {@code screensPane} only the six screen-sizing
+    * scalars are aliased; device layouts and the print layout are their own capability
+    * ({@code manage_device_layout}, {@code set_print_layout}), not a corner of this one.
+    * {@code vsScriptPane} is excluded from the vocabulary the same way — see {@link #resolveForWrite} for why both write-refuse, and why
     * {@code filtersPane}/{@code localizationPane} are listed here (readable) but still refuse a
     * write.
     */
@@ -2235,6 +2253,12 @@ public final class PropertyAliases {
       aliases.put("maxRowsWarning", "vsOptionsPane.maxRowsWarning");
       aliases.put("hideNotifications", "vsOptionsPane.hideNotifications");
       aliases.put("listOnPortalTree", "vsOptionsPane.listOnPortalTree");
+      aliases.put("targetScreen", "screensPane.targetScreen");
+      aliases.put("templateWidth", "screensPane.templateWidth");
+      aliases.put("templateHeight", "screensPane.templateHeight");
+      aliases.put("scaleToScreen", "screensPane.scaleToScreen");
+      aliases.put("fitToWidth", "screensPane.fitToWidth");
+      aliases.put("balancePadding", "screensPane.balancePadding");
       // The "Customize" button under Prompt for Parameters (Redmine #76739) — a plain
       // String[]/String[] pair on ViewsheetParametersDialogModel, genuinely applied by
       // setViewsheetInfo via ViewsheetSettingsService.setViewsheetParameterInfo. Unlike
