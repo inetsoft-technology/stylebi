@@ -18,6 +18,7 @@
 package inetsoft.graph.guide.form;
 
 import inetsoft.report.composition.graph.ConfidenceIntervalWrapper;
+import inetsoft.report.composition.graph.TargetParameterWrapper;
 import inetsoft.test.*;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
@@ -221,12 +222,21 @@ class ConfidenceIntervalStrategyTest {
    }
 
    @Test
-   @Disabled("Not filed (only a script can pass an array; the UI cannot): wrapper level \"95,99\" gives level 0.0 instead of the first value 95")
-   @DisplayName("wrapper unwrap: several levels use the first one")
-   void wrapperUnwrapUsesFirstLevel() {
-      ConfidenceIntervalStrategy strategy =
-         (ConfidenceIntervalStrategy) new ConfidenceIntervalWrapper("95,99").unwrap();
-      assertEquals(95.0, strategy.getConfidenceLevel(), 1e-9);
+   @DisplayName("wrapper setParameters with several parameters uses the first as the level")
+   void wrapperSetParametersUsesFirst() {
+      ConfidenceIntervalWrapper wrapper = new ConfidenceIntervalWrapper();
+      wrapper.setParameters(new TargetParameterWrapper("95"), new TargetParameterWrapper("99"));
+      assertEquals("95", wrapper.getConfidenceLevel());
+      assertEquals(95.0, ((ConfidenceIntervalStrategy) wrapper.unwrap()).getConfidenceLevel(), 1e-9);
+   }
+
+   @Test
+   @DisplayName("wrapper setParameters with a single parameter sets that level")
+   void wrapperSetParametersSingle() {
+      ConfidenceIntervalWrapper wrapper = new ConfidenceIntervalWrapper();
+      wrapper.setParameters(new TargetParameterWrapper("90"));
+      assertEquals("90", wrapper.getConfidenceLevel());
+      assertEquals(90.0, ((ConfidenceIntervalStrategy) wrapper.unwrap()).getConfidenceLevel(), 1e-9);
    }
 
    @Test

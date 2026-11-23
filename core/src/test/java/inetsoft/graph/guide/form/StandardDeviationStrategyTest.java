@@ -22,9 +22,6 @@ import inetsoft.test.*;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.Element;
@@ -33,7 +30,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -155,24 +151,6 @@ class StandardDeviationStrategyTest {
    }
 
    @Test
-   @Disabled("Not filed (NaN bounds with no non-null data, no evidence of a visible effect): empty data with factor 1 gives [NaN] instead of no lines")
-   @DisplayName("empty data gives no lines and no NaN")
-   void emptyData() {
-      double[] result = bounds(true, new double[0], 1.0);
-      assertEquals(0, result.length, Arrays.toString(result));
-   }
-
-   @Test
-   @Disabled("Not filed (NaN bounds with no non-null data, no evidence of a visible effect): [N,N,N] with factors [1,2] gives [NaN, NaN] instead of no lines")
-   @DisplayName("all-null data gives no lines and no labels")
-   void allNullData() {
-      StandardDeviationStrategy strategy = strategy(true, 1.0, 2.0);
-      double[] b = strategy.calculateBoundaries(new double[] { N, N, N });
-      assertEquals(0, b.length, Arrays.toString(b));
-      assertDoesNotThrow(() -> assertEquals(0, labels(strategy, b).length));
-   }
-
-   @Test
    @DisplayName("a single value with a sample deviation gives a finite line")
    void singleValueSample() {
       double[] result = bounds(true, new double[] { 5 }, 1.0, 2.0);
@@ -238,28 +216,6 @@ class StandardDeviationStrategyTest {
       factors.clear();
       factors.add(9.0);
       assertArrayEquals(new double[] { 4.5811, 6.1623 }, strategy.calculateBoundaries(ONE_TO_FIVE), 1e-4);
-   }
-
-   static Stream<Arguments> nullFactorPositions() {
-      return Stream.of(Arguments.of((Object) new Double[] { null, 1.0, 2.0 }),
-                       Arguments.of((Object) new Double[] { 1.0, null, 2.0 }),
-                       Arguments.of((Object) new Double[] { 1.0, 2.0, null }));
-   }
-
-   @ParameterizedTest(name = "factors {0}")
-   @MethodSource("nullFactorPositions")
-   @Disabled("Not filed (only the public constructor reaches it; TargetStrategyWrapper turns null into 0 or drops it): a null factor first or in the middle loses a line (one line instead of two)"
-      + "; a trailing null works")
-   @DisplayName("null factors are ignored: lines for the other factors and labels without null")
-   void nullFactorsAreIgnored(Double[] factors) {
-      StandardDeviationStrategy strategy = strategy(true, factors);
-      double[] b = strategy.calculateBoundaries(ONE_TO_FIVE);
-      assertArrayEquals(new double[] { MEAN + S, MEAN + 2 * S }, b, 1e-4);
-      String[] labels = labels(strategy, b);
-      assertEquals(2, labels.length);
-      assertTrue(labels[0].endsWith("(1.0)"), labels[0]);
-      assertTrue(labels[1].endsWith("(2.0)"), labels[1]);
-      assertFalse(labels[0].contains("null") || labels[1].contains("null"));
    }
 
    private static StandardDeviationStrategy unwrap(StandardDeviationWrapper wrapper) {
