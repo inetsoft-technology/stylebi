@@ -68,6 +68,7 @@ class MailchimpEnvelopeLinksTest {
    @Test
    void emptyEnvelopeYieldsNoColumnsAndNoRows() throws Exception {
       Result r = run(mailchimp("Campaign Feedback List"), q -> feedback(0));
+      assertEquals(0, r.colCount, "column count");
       assertTrue(r.columns.isEmpty(), "columns: " + r.columns);
       assertEquals(0, r.rows);
    }
@@ -160,6 +161,49 @@ class MailchimpEnvelopeLinksTest {
                     .contains("$..['_links']"));
    }
 
+   @Test
+   void eepurlSummaryWithEmptyReferrersIsNotSkipped() throws Exception {
+      Result r = run(mailchimp("Campaign Feedback List"), q ->
+         "{\"twitter\":{\"tweets\":4,\"first_tweet\":null},\"clicks\":{\"clicks\":7}," +
+         "\"referrers\":[],\"eepurl\":\"e\",\"campaign_id\":\"c\",\"total_items\":0,\"_links\":" +
+         LINKS + "}");
+      assertEquals(1, r.rows);
+      assertTrue(r.columns.contains("twitter.tweets"), r.columns.toString());
+      assertTrue(r.columns.contains("clicks.clicks"), r.columns.toString());
+      assertTrue(r.cells.contains(4) || r.cells.contains(4L) || r.cells.contains("4"), r.cells.toString());
+      assertNoLinks(r);
+   }
+
+   @Test
+   void envelopeWithTwoListsIsNotSkipped() throws Exception {
+      Result r = run(mailchimp("Campaign Feedback List"), q ->
+         "{\"promos\":[],\"lines\":[{\"id\":1}],\"total_items\":0,\"_links\":" + LINKS + "}");
+      assertTrue(r.colCount > 0 && r.rows >= 1, "rows=" + r.rows + " cols=" + r.columns);
+   }
+
+   @Test
+   void emptyListWithoutTotalItemsIsNotSkipped() throws Exception {
+      Result r = run(mailchimp("Campaign Feedback List"), q ->
+         "{\"feedback\":[],\"campaign_id\":\"c\",\"_links\":" + LINKS + "}");
+      assertTrue(r.colCount > 0 && r.rows >= 1, "rows=" + r.rows + " cols=" + r.columns);
+   }
+
+   @Test
+   void emptyEnvelopeOnLaterPageIsSkippedAndKeepsEarlierRows() throws Exception {
+      JsonTransformer transformer = new JsonTransformer();
+      List<String> pages = List.of(feedback(2), feedback(0));
+      XTableNode table = new EndpointJsonQueryRunner(
+         mailchimp("Campaign Feedback List"), q -> new MultiPage(transformer, pages),
+         new LookupService(), transformer).run();
+      int rows = 0;
+
+      while(table.next()) {
+         rows++;
+      }
+
+      assertEquals(2, rows);
+   }
+
    private static void assertNoLinks(Result r) {
       assertFalse(r.columns.stream().anyMatch(c -> c.contains("_links")), r.columns.toString());
    }
@@ -187,6 +231,8 @@ class MailchimpEnvelopeLinksTest {
          return r;
       }
 
+      r.colCount = table.getColCount();
+
       while(table.next()) {
          r.rows++;
 
@@ -208,6 +254,7 @@ class MailchimpEnvelopeLinksTest {
       final List<String> columns = new ArrayList<>();
       final List<Object> cells = new ArrayList<>();
       int rows;
+      int colCount;
    }
 
    private static final class OnePage implements RestDataIteratorStrategy<Object> {
@@ -238,5 +285,36 @@ class MailchimpEnvelopeLinksTest {
 
       private final Object json;
       private boolean served;
+   }
+
+   private static final class MultiPage implements RestDataIteratorStrategy<Object> {
+      MultiPage(JsonTransformer transformer, List<String> bodies) {
+         try {
+            for(String body : bodies) {
+               pages.add(transformer.transform(
+                  new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8))));
+            }
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex);
+         }
+      }
+
+      @Override
+      public boolean hasNext() {
+         return next < pages.size();
+      }
+
+      @Override
+      public Object next() {
+         return pages.get(next++);
+      }
+
+      @Override
+      public void close() {
+      }
+
+      private final List<Object> pages = new ArrayList<>();
+      private int next;
    }
 }

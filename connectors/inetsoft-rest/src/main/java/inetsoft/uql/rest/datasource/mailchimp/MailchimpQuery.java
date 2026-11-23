@@ -118,8 +118,8 @@ public class MailchimpQuery extends EndpointJsonQuery<MailchimpEndpoint>  {
    }
 
    /**
-    * An envelope is {@code total_items} plus exactly one list besides {@code _links}. When that
-    * list is empty the page has no records, so it must not be loaded as a row of scalars.
+    * An envelope is {@code total_items} plus exactly one list besides {@code _links} and no
+    * object-valued sibling. When that list is empty the page has no records, so it must not be loaded as a row of scalars.
     */
    @Override
    public boolean isEmptyRecordEnvelope(Object json) {
@@ -137,6 +137,11 @@ public class MailchimpQuery extends EndpointJsonQuery<MailchimpEndpoint>  {
       int lists = 0;
 
       for(Map.Entry<?, ?> e : map.entrySet()) {
+         if(e.getValue() instanceof Map<?, ?>) {
+            // a summary object (e.g. Campaign Eepurl Activity's twitter/clicks) is data of its own
+            return false;
+         }
+
          if(e.getValue() instanceof List<?> && !"_links".equals(e.getKey())) {
             records = e.getValue();
             lists++;
