@@ -96,12 +96,12 @@
           border-bottom: 4px solid var(--inet-em-navbar-selected-border-color, mat.m2-get-color-from-palette($accent));
 
           .mat-icon {
-            color: var(--inet-em-navbar-text-color, mat.m2-get-color-from-palette($accent, '500-contrast'));
+            color: var(--inet-em-navbar-text-color, mat.m2-get-color-from-palette($primary, '500-contrast'));
           }
         }
 
         .mat-icon {
-          color: var(--inet-em-navbar-text-color, mat.m2-get-color-from-palette($accent, '500-contrast'));
+          color: var(--inet-em-navbar-text-color, mat.m2-get-color-from-palette($primary, '500-contrast'));
           font-size: 24px;
         }
       }
