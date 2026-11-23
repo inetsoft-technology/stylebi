@@ -419,7 +419,8 @@ class ViewsheetFormatServiceReadTest {
       assertTrue(refused(service, null, "object", null).getMessage()
                     .contains("requires 'assembly'"));
       assertTrue(refused(service, "Chart1", "object", "Sum(Total)").getMessage()
-                    .contains("'field' only applies to targets 'plotLabel', 'text', 'data' and 'header'"));
+                    .contains("'field' only applies to targets 'plotLabel', 'text', 'data', " +
+                              "'header' and 'headerRow'"));
    }
 
    @Test

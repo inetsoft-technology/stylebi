@@ -156,7 +156,9 @@ public class ViewsheetFormatService {
     *                   the table-style gate that strips whole-object background/borders/alignment
     *                   (a user-set whole-object foreground already wins over the style);
     *                   {@code "header"} does the same for the HEADER (row/column dimension label)
-    *                   cells; {@code "cell"}, {@code "measureText"} and {@code "measureBar"}
+    *                   cells; {@code "headerRow"} does the same for only a Crosstab's header
+    *                   band (every header row above the data -- not the row labels);
+    *                   {@code "cell"}, {@code "measureText"} and {@code "measureBar"}
     *                   format a Selection List/Tree's item labels, measure text and measure bar
     *                   separately, each for one tree {@code level} or all -- see
     *                   {@link #requireTarget}
@@ -1182,6 +1184,11 @@ public class ViewsheetFormatService {
    private static final String VIEWSHEET = "viewsheet";
    /** Normalized (lower-cased) form of target {@code activeTab}, see requireTarget. */
    private static final String ACTIVE_TAB = "activetab";
+   /**
+    * Normalized (lower-cased) form of target {@code headerRow}, see requireTarget: a Crosstab's
+    * header band only (every header row above the data, all columns).
+    */
+   private static final String HEADER_ROW = "headerrow";
    /** Normalized (lower-cased) form of target {@code axisLabel}, see requireTarget. */
    private static final String AXIS_LABEL = "axislabel";
    /** Normalized (lower-cased) form of target {@code axisLabel2}, see requireTarget. */
@@ -1687,7 +1694,9 @@ public class ViewsheetFormatService {
                }
 
                if(numericCheck) {
-                  refuseDateFormatOverNumericCells(viewsheet, name, target,
+                  // The band is a subset of the header region, so it is checked as that region.
+                  refuseDateFormatOverNumericCells(viewsheet, name,
+                                                   HEADER_ROW.equals(target) ? "header" : target,
                                                    request.format().getFormat());
                }
 
@@ -1879,7 +1888,9 @@ public class ViewsheetFormatService {
                event.setObjects(remaining.toArray(new String[0]));
                event.setData(data);
             }
-            else if("header".equals(target)) {
+            else if("header".equals(target) || HEADER_ROW.equals(target)) {
+               // headerRow narrows the header region to the Crosstab's header band, see
+               // computeHeaderRegionPaths.
                // Same event.getData() per-path mechanism as "data" above, but computed over the
                // header-family paths that method deliberately excludes -- bug 76917: a Crosstab/
                // Table's HEADER/GROUP_HEADER/SUMMARY_HEADER cells had no route to a format write
@@ -1888,8 +1899,10 @@ public class ViewsheetFormatService {
                ArrayList<TableDataPath[]> data = new ArrayList<>();
 
                for(String name : request.assemblies()) {
-                  data.add(requirePaths(computeHeaderRegionPaths(rvs, name, request.field()),
-                                        name, "header"));
+                  data.add(requirePaths(
+                     computeHeaderRegionPaths(rvs, name, request.field(),
+                                              HEADER_ROW.equals(target)),
+                     name, "header"));
                }
 
                event.setData(data);
@@ -3050,7 +3063,8 @@ public class ViewsheetFormatService {
 
       boolean hasField = request.field() != null && !request.field().isBlank();
       return "object".equals(target) ||
-         ("data".equals(target) || "header".equals(target)) && !hasField;
+         ("data".equals(target) || "header".equals(target) || HEADER_ROW.equals(target)) &&
+         !hasField;
    }
 
    /**
@@ -3204,6 +3218,7 @@ public class ViewsheetFormatService {
    private static String regionName(String target) {
       return "data".equals(target) ? "body cells" :
          "header".equals(target) ? "header cells" :
+         HEADER_ROW.equals(target) ? "header row cells" :
          "cell".equals(target) ? "item label cells" :
          "measuretext".equals(target) ? "measure text" :
          "measurebar".equals(target) ? "measure bar" :
@@ -3644,12 +3659,29 @@ public class ViewsheetFormatService {
                                                             String field)
       throws Exception
    {
+      return computeHeaderRegionPaths(rvs, name, field, false);
+   }
+
+   /**
+    * @param bandOnly target {@code headerRow}: on a Crosstab keep only the header band -- every
+    *                 cell in the rows above the data ({@code row < getHeaderRowCount()}), in
+    *                 every column -- so the row-dimension labels (and, in a stacked-measure
+    *                 layout, the measure-name labels under them) keep their own format. It is a
+    *                 positional cut of the same header region, so it is a subset of it and
+    *                 disjoint from the row-label and body cells. A plain Table has a single
+    *                 header row, so there it equals the whole header region.
+    */
+   private static TableDataPath[] computeHeaderRegionPaths(RuntimeViewsheet rvs, String name,
+                                                            String field, boolean bandOnly)
+      throws Exception
+   {
       Viewsheet viewsheet = rvs.getViewsheet();
       VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
 
       if(!(assembly instanceof CrosstabVSAssembly) && !(assembly instanceof TableVSAssembly)) {
          throw new IllegalArgumentException(
-            "set_format: target 'header' only applies to a Crosstab or Table assembly; '" +
+            "set_format: target '" + (bandOnly ? "headerRow" : "header") +
+            "' only applies to a Crosstab or Table assembly; '" +
             name + "' is " + (assembly == null ? "not found" :
                        assembly.getClass().getSimpleName()) + "." +
             selectionTargetsHint(assembly));
@@ -3690,7 +3722,8 @@ public class ViewsheetFormatService {
                continue;
             }
 
-            boolean isHeader = isCrosstab ? !isBodyCell(lens, row, col) :
+            boolean isHeader = isCrosstab ?
+               bandOnly ? row < lens.getHeaderRowCount() : !isBodyCell(lens, row, col) :
                isHeaderFamilyType(path.getType());
 
             // Field-scoped on a Crosstab: within the header band, keep only this measure's own
@@ -4243,13 +4276,14 @@ public class ViewsheetFormatService {
             "'viewsheet'.");
       }
 
-      boolean tableRegion = "data".equals(target) || "header".equals(target);
+      boolean tableRegion = "data".equals(target) || "header".equals(target) ||
+         HEADER_ROW.equals(target);
       boolean selectionRegion = isSelectionRegionTarget(target);
 
       if(field != null && !chartLabel && !tableRegion) {
          throw new IllegalArgumentException(
-            "get_format: 'field' only applies to targets 'plotLabel', 'text', 'data' and " +
-            "'header'; target '" + request.target() + "' reads one format per assembly. " +
+            "get_format: 'field' only applies to targets 'plotLabel', 'text', 'data', " +
+            "'header' and 'headerRow'; target '" + request.target() + "' reads one format per assembly. " +
             "Omit 'field'.");
       }
 
@@ -4361,8 +4395,8 @@ public class ViewsheetFormatService {
       }
 
       if(OBJECT.equals(name) || "title".equals(name) || "text".equals(name) ||
-         "data".equals(name) || "header".equals(name) || isSelectionRegionTarget(name) ||
-         VIEWSHEET.equals(name) || ACTIVE_TAB.equals(name) || isCalendarTarget(name) ||
+         "data".equals(name) || "header".equals(name) || HEADER_ROW.equals(name) ||
+         isSelectionRegionTarget(name) || VIEWSHEET.equals(name) || ACTIVE_TAB.equals(name) || isCalendarTarget(name) ||
          PLOT_LABEL.equals(name) || OPTION_TEXT.equals(name) || INPUT_LABEL_TARGET.equals(name))
       {
          return name;
@@ -4459,7 +4493,7 @@ public class ViewsheetFormatService {
    {
       if(paths == null || paths.length == 0) {
          throw new IllegalArgumentException(
-            "get_format: could not find any " + ("header".equals(target) ? "header" : "body") +
+            "get_format: could not find any " + ("header".equals(target) || HEADER_ROW.equals(target) ? "header" : "body") +
             " cells on '" + assembly + "' to read (it has no rendered rows, or its data could " +
             "not be computed). Render or refresh the viewsheet and try again.");
       }
@@ -4538,6 +4572,8 @@ public class ViewsheetFormatService {
       throws Exception
    {
       return "header".equals(target) ? computeHeaderRegionPaths(rvs, assembly, field) :
+         HEADER_ROW.equals(target) ?
+            computeHeaderRegionPaths(rvs, assembly, field, true) :
          computeDataRegionPaths(rvs, assembly, field, null);
    }
 
@@ -4917,13 +4953,15 @@ public class ViewsheetFormatService {
 
       if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name) &&
          !VIEWSHEET.equals(name) &&
-         !"data".equals(name) && !"header".equals(name) && !"field".equals(name) &&
+         !"data".equals(name) && !"header".equals(name) && !HEADER_ROW.equals(name) &&
+         !"field".equals(name) &&
          !isCalendarTarget(name) && !isSelectionRegionTarget(name) && !ACTIVE_TAB.equals(name) &&
          !isChartRegionTarget(name) && !OPTION_TEXT.equals(name) &&
          !INPUT_LABEL_TARGET.equals(name))
       {
          throw new IllegalArgumentException(
-            "set_format 'target' must be 'object', 'title', 'text', 'data', 'header', 'field', " +
+            "set_format 'target' must be 'object', 'title', 'text', 'data', 'header', 'headerRow', " +
+            "'field', " +
             "'cell', 'measureText', 'measureBar', 'measureBarNegative', 'calendarHeader', " +
             "'calendarGrid', 'activeTab', 'axisLabel', 'axisLabel2', 'legendTitle', " +
             "'legendContent', 'plotLabel', 'optionText', 'inputLabel' or 'viewsheet', got '" +
@@ -4950,7 +4988,9 @@ public class ViewsheetFormatService {
             "x/y axis titles, use set_chart_region_properties with region 'title' instead. " +
             "'text' formats a single chart's text-aesthetic-bound field (its data labels) — " +
             "requires 'field'. 'data' formats a Crosstab or Table's body cells per cell; " +
-            "'header' does the same for its header (row/column dimension label) cells. A " +
+            "'header' does the same for its header (row/column dimension label) cells; " +
+            "'headerRow' formats only a Crosstab's header band -- every header row above the " +
+            "data, not the row labels or the stacked measure-name labels under them. A " +
             "whole-object 'color' you set yourself takes precedence over the table style's " +
             "text colour on header and body text; use 'data'/'header' to scope a colour, or " +
             "for background/border/alignment overrides when a table style applies.");
