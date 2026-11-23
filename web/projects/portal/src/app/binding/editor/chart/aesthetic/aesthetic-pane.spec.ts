@@ -267,7 +267,7 @@ describe("Aesthetic Pane Unit Test", () => {
       aestheticPane.chartModel = TestUtils.createMockVSChartModel("vsChart1");
       fixture.detectChanges();
 
-      let shapeCellIcon = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon i")).nativeElement;
+      let shapeCellIcon = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon svg.shape-glyph")).nativeElement;
       let shapeField = fixture.debugElement.query(By.css(".shape_field_id .visual-field chart-fieldmc"));
       expect(shapeField).toBeNull();
    });
@@ -472,14 +472,14 @@ describe("Aesthetic Pane Unit Test", () => {
       fixture.detectChanges();
 
       //Bug #19609
-      let editShapeIcon: Element = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon i")).nativeElement;
+      let editShapeIcon: Element = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon svg.shape-glyph")).nativeElement;
       // expect(editShapeIcon.getAttribute("class")).toContain("icon-disabled");
 
       //Bug #19607
       allAgg.shapeField = createMockAestheticInfo("orderdate", mockCategoricalTextureModel("orderdate"));
       fixture.detectChanges();
 
-      editShapeIcon = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon i")).nativeElement;
+      editShapeIcon = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon svg.shape-glyph")).nativeElement;
 
       let toggle = fixture.debugElement.query(By.css(".chevron-circle-arrow-right-icon")).nativeElement;
       toggle.click();
@@ -512,7 +512,7 @@ describe("Aesthetic Pane Unit Test", () => {
       fixture.detectChanges();
 
       //Bug #19185
-      let shapeEditIcon: HTMLElement = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon i")).nativeElement;
+      let shapeEditIcon: HTMLElement = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon svg.shape-glyph")).nativeElement;
       let sizeEditIcon: Element = fixture.debugElement.query(By.css(".size_field_id .visual-edit-icon svg.size-glyph")).nativeElement;
 
       //Bug #21174, Bug #21465

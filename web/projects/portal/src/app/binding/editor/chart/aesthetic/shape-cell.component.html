@@ -15,7 +15,7 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<div>
+<div [attr.title]="tooltip">
   @if (isStaticShape && !isMixed) {
     <div>
       <shape-item [shapeStr]="shapeModel.shape" [isBiggerImage]="true"></shape-item>
@@ -73,52 +73,51 @@
 </div>
 
 <!--
-  The three "mixed or linear" glyphs, drawn at 20px on a 20-unit grid with the same 3-unit margin on
-  every side, so the art is centred in its box. They replace the icon-font glyphs of the same names,
-  which are inline text and so are placed by font metrics and line boxes. Block-level svgs have
-  neither.
+  The three "mixed or linear" glyphs, drawn at 20px on a 20-unit grid with the art filling the box,
+  so it is centred in its tile. The tile's own border is the only frame. They replace the icon-font
+  glyphs of the same names, which are inline text and so are placed by font metrics and line boxes.
+  Block-level svgs have neither. The shape glyph is a triangle, circle and square: three different
+  shapes read as "varies with the data".
 -->
 <ng-template #pointsGlyph>
   <svg class="shape-cell__glyph" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"
        fill="currentColor">
-    <rect x="0.5" y="0.5" width="19" height="19" fill="none" stroke="currentColor"/>
-    <circle cx="7.2" cy="7.2" r="4.2"/>
-    <rect x="9.5" y="9.5" width="7.5" height="7.5"/>
+    <polygon points="10,0.7 16.2,10 3.8,10"/>
+    <circle cx="5.8" cy="15.3" r="4.5"/>
+    <rect x="11" y="11.3" width="8" height="8" rx="0.5"/>
   </svg>
 </ng-template>
 <ng-template #patternsGlyph>
   <svg class="shape-cell__glyph" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"
        fill="currentColor">
-    <rect x="0.5" y="0.5" width="19" height="19" fill="none" stroke="currentColor"/>
-    <rect x="2.5" y="2.5" width="3.5" height="3.5"/>
-    <rect x="8.25" y="2.5" width="3.5" height="3.5"/>
-    <rect x="14" y="2.5" width="3.5" height="3.5"/>
-    <rect x="2.5" y="8.25" width="3.5" height="3.5"/>
-    <rect x="8.25" y="8.25" width="3.5" height="3.5"/>
-    <rect x="14" y="8.25" width="3.5" height="3.5"/>
-    <rect x="2.5" y="14" width="3.5" height="3.5"/>
-    <rect x="8.25" y="14" width="3.5" height="3.5"/>
-    <rect x="14" y="14" width="3.5" height="3.5"/>
+    <rect x="1" y="1" width="4.8" height="4.8" rx="0.6"/>
+    <rect x="7.6" y="1" width="4.8" height="4.8" rx="0.6"/>
+    <rect x="14.2" y="1" width="4.8" height="4.8" rx="0.6"/>
+    <rect x="1" y="7.6" width="4.8" height="4.8" rx="0.6"/>
+    <rect x="7.6" y="7.6" width="4.8" height="4.8" rx="0.6"/>
+    <rect x="14.2" y="7.6" width="4.8" height="4.8" rx="0.6"/>
+    <rect x="1" y="14.2" width="4.8" height="4.8" rx="0.6"/>
+    <rect x="7.6" y="14.2" width="4.8" height="4.8" rx="0.6"/>
+    <rect x="14.2" y="14.2" width="4.8" height="4.8" rx="0.6"/>
   </svg>
 </ng-template>
 <ng-template #linesGlyph>
   <svg class="shape-cell__glyph" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"
        fill="currentColor">
-    <rect x="0.5" y="0.5" width="19" height="19" fill="none" stroke="currentColor"/>
-    <rect x="3" y="3.5" width="14" height="1.5"/>
-    <rect x="3" y="6.375" width="6" height="1.5"/>
-    <rect x="11" y="6.375" width="6" height="1.5"/>
-    <rect x="3" y="9.25" width="3.5" height="1.5"/>
-    <rect x="8.25" y="9.25" width="3.5" height="1.5"/>
-    <rect x="13.5" y="9.25" width="3.5" height="1.5"/>
-    <rect x="3" y="12.125" width="2" height="1.5"/>
-    <rect x="7" y="12.125" width="2" height="1.5"/>
-    <rect x="11" y="12.125" width="2" height="1.5"/>
-    <rect x="15" y="12.125" width="2" height="1.5"/>
-    <rect x="3" y="15" width="1.5" height="1.5"/>
-    <rect x="6.125" y="15" width="1.5" height="1.5"/>
-    <rect x="9.25" y="15" width="1.5" height="1.5"/>
-    <rect x="12.375" y="15" width="1.5" height="1.5"/>
-    <rect x="15.5" y="15" width="1.5" height="1.5"/>
+    <rect x="1.0" y="1.5" width="18.0" height="2"/>
+    <rect x="1.0" y="5.5" width="8.2" height="2"/>
+    <rect x="10.8" y="5.5" width="8.2" height="2"/>
+    <rect x="1.0" y="9.5" width="4.933" height="2"/>
+    <rect x="7.533" y="9.5" width="4.933" height="2"/>
+    <rect x="14.067" y="9.5" width="4.933" height="2"/>
+    <rect x="1.0" y="13.5" width="3.3" height="2"/>
+    <rect x="5.9" y="13.5" width="3.3" height="2"/>
+    <rect x="10.8" y="13.5" width="3.3" height="2"/>
+    <rect x="15.7" y="13.5" width="3.3" height="2"/>
+    <rect x="1.0" y="17.5" width="2.32" height="2"/>
+    <rect x="4.92" y="17.5" width="2.32" height="2"/>
+    <rect x="8.84" y="17.5" width="2.32" height="2"/>
+    <rect x="12.76" y="17.5" width="2.32" height="2"/>
+    <rect x="16.68" y="17.5" width="2.32" height="2"/>
   </svg>
 </ng-template>
