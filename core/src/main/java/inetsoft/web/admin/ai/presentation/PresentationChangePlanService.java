@@ -190,6 +190,10 @@ public class PresentationChangePlanService {
          if(subModel == PresentationSubModel.LOOK_AND_FEEL) {
             spec = sanitizeLookAndFeelFileNames(label, spec);
             requireNoDerivedLookAndFeelNameFields(label, spec);
+
+            if(global) {
+               spec = deriveLookAndFeelFonts(label, spec, currentNode);
+            }
          }
 
          requireNoSecretFields(label, subModel, spec);
@@ -223,7 +227,10 @@ public class PresentationChangePlanService {
          String property = subModel.key() + ":" + scopeLabel;
 
          JsonNode readbackNode = switch(subModel) {
-            case LOOK_AND_FEEL -> simulateLookAndFeelReadback(mergedNode, global, orgId);
+            case LOOK_AND_FEEL -> namesFontField(spec)
+               ? simulateLookAndFeelReadback(PresentationJson.toNode(proposedModel), global, orgId,
+                                             true)
+               : simulateLookAndFeelReadback(mergedNode, global, orgId, false);
             case PORTAL_INTEGRATION -> simulatePortalReadback(mergedNode);
             default -> mergedNode;
          };
@@ -1001,7 +1008,9 @@ public class PresentationChangePlanService {
     * real read-back will actually show, for the {@code proposedValue} projection only -- the
     * unmodified {@code mergedNode} is still what gets deserialized into the object that is actually
     * written ({@link #resolveEntries}'s {@code proposedModel}). */
-   private static JsonNode simulateLookAndFeelReadback(JsonNode merged, boolean global, String orgId) {
+   private static JsonNode simulateLookAndFeelReadback(JsonNode merged, boolean global, String orgId,
+                                                       boolean fonts)
+   {
       ObjectNode node = merged.deepCopy();
       applyFileFieldReadback(node, "logo", "logoFile", "defaultLogo", global, orgId);
       applyFileFieldReadback(node, "favicon", "faviconFile", "defaultFavicon", global, orgId);
@@ -1009,7 +1018,151 @@ public class PresentationChangePlanService {
       // userformatFile has no corresponding *Name field and no default-* gate at all -- setModel
       // applies it unconditionally whenever content is present, and getModel never round-trips it.
       node.putNull("userformatFile");
+
+      if(fonts) {
+         applyFontReadback(node, global);
+      }
+
       return node;
+   }
+
+   private static boolean namesFontField(JsonNode spec) {
+      return spec.has("defaultFont") || spec.has("userFonts") || spec.has("fontFaces") ||
+         spec.has("newFontFaces") || spec.has("deleteFontFaces");
+   }
+
+   /** The font part of the read-back is simulated only for a spec that names a font field, so every
+    * other lookAndFeel plan projects, and hashes, exactly as before. The expected value is then
+    * taken from the deserialized model rather than the raw merged JSON: the read-back is the
+    * serialized model, in which every nullable field of a font face is present as {@code null}.
+    * Mirrors {@code LookAndFeelService.updateFonts} (global scope only): {@code newFontFaces} and
+    * {@code deleteFontFaces} are write-only and never read back. When {@code defaultFont} is set or
+    * {@code userFonts} is empty the server deletes every user font and stores none, otherwise it
+    * stores the font faces grouped by font name and the read-back {@code userFonts} are those
+    * font names, in that order. */
+   private static void applyFontReadback(ObjectNode node, boolean global) {
+      node.putNull("newFontFaces");
+      node.putNull("deleteFontFaces");
+
+      if(!global) {
+         return;
+      }
+
+      JsonNode userFonts = node.get("userFonts");
+      boolean none = node.path("defaultFont").asBoolean(false) || userFonts == null ||
+         !userFonts.isArray() || userFonts.isEmpty();
+      Map<String, List<JsonNode>> byName = new LinkedHashMap<>();
+
+      if(none) {
+         node.put("defaultFont", true);
+      }
+      else {
+         JsonNode faces = node.get("fontFaces");
+
+         if(faces != null && faces.isArray()) {
+            faces.forEach(f -> byName.computeIfAbsent(f.path("fontName").asText(),
+                                                      k -> new ArrayList<>()).add(f));
+         }
+      }
+
+      ArrayNode names = PresentationJson.MAPPER.createArrayNode();
+      ArrayNode grouped = PresentationJson.MAPPER.createArrayNode();
+      byName.forEach((name, list) -> {
+         names.add(name);
+         list.forEach(grouped::add);
+      });
+      node.set("userFonts", names);
+      node.set("fontFaces", grouped);
+   }
+
+   /** The server keeps user fonts only when {@code defaultFont} is off and {@code userFonts} is
+    * non-empty, and writes CSS and the stored face list from {@code userFonts}/{@code fontFaces}
+    * (the Enterprise Manager sends all four lists in one model). A spec that names fonts to
+    * add therefore gets the rest of that model filled in from the live lists: {@code defaultFont}
+    * false when not given, and each new face's name and face entry added to {@code userFonts} and
+    * {@code fontFaces} unless already present. An explicit {@code defaultFont:true} next to fonts is
+    * a contradiction the server would silently discard, so it is refused. */
+   private static JsonNode deriveLookAndFeelFonts(String label, JsonNode spec, JsonNode current) {
+      JsonNode newFaces = spec.get("newFontFaces");
+      boolean hasNew = newFaces != null && newFaces.isArray() && !newFaces.isEmpty();
+
+      if(!hasNew && !nonEmptyArray(spec, "userFonts") && !nonEmptyArray(spec, "fontFaces")) {
+         return spec;
+      }
+
+      if(spec.path("defaultFont").asBoolean(false)) {
+         throw new IllegalArgumentException(
+            label + ".spec.defaultFont: true together with userFonts/fontFaces/newFontFaces -- " +
+            "with Default Fonts on the server removes every user font and discards the fonts in " +
+            "this spec. Set defaultFont:false (or omit it) to install fonts, or send defaultFont:" +
+            "true alone to remove them");
+      }
+
+      ObjectNode out = spec.deepCopy();
+      out.put("defaultFont", false);
+      ArrayNode faces = fontList(spec, current, "fontFaces");
+      ArrayNode users = fontList(spec, current, "userFonts");
+
+      if(hasNew) {
+         for(JsonNode face : newFaces) {
+            String name = face.path("name").asText("");
+            String identifier = face.path("identifier").asText("");
+
+            if(name.isEmpty()) {
+               continue;
+            }
+
+            boolean listed = false;
+
+            for(JsonNode f : faces) {
+               listed |= name.equals(f.path("fontName").asText()) &&
+                  identifier.equals(f.path("identifier").asText());
+            }
+
+            if(!listed) {
+               ObjectNode entry = faces.addObject();
+               entry.put("fontName", name).put("identifier", identifier);
+               entry.set("fontWeight", face.path("fontWeight").isMissingNode()
+                  ? PresentationJson.MAPPER.nullNode() : face.get("fontWeight"));
+               entry.set("fontStyle", face.path("fontStyle").isMissingNode()
+                  ? PresentationJson.MAPPER.nullNode() : face.get("fontStyle"));
+            }
+         }
+      }
+
+      for(JsonNode f : faces) {
+         String name = f.path("fontName").asText("");
+         boolean listed = false;
+
+         for(JsonNode u : users) {
+            listed |= name.equals(u.asText());
+         }
+
+         if(!name.isEmpty() && !listed) {
+            users.add(name);
+         }
+      }
+
+      out.set("fontFaces", faces);
+      out.set("userFonts", users);
+      return out;
+   }
+
+   private static boolean nonEmptyArray(JsonNode node, String field) {
+      JsonNode value = node.get(field);
+      return value != null && value.isArray() && !value.isEmpty();
+   }
+
+   /** The list the spec names, else the live one, as a fresh array that may be appended to. */
+   private static ArrayNode fontList(JsonNode spec, JsonNode current, String field) {
+      JsonNode source = spec.has(field) ? spec.get(field) : current.get(field);
+      ArrayNode copy = PresentationJson.MAPPER.createArrayNode();
+
+      if(source != null && source.isArray()) {
+         source.forEach(e -> copy.add(e.deepCopy()));
+      }
+
+      return copy;
    }
 
    /** Bug #79434: {@code viewsheetCSSEntries} comes from a {@code ConcurrentHashMap}, so its read order
@@ -1148,6 +1301,27 @@ public class PresentationChangePlanService {
       if(vsContent != null && !merged.path("defaultViewsheet").asBoolean(false)) {
          addFileDigest(hidden, key, "viewsheet",
                        global ? "" : merged.path("viewsheetFile").path("name").asText(""), vsContent);
+      }
+
+      JsonNode newFaces = merged.get("newFontFaces");
+
+      if(global && newFaces != null && newFaces.isArray() && !merged.path("defaultFont").asBoolean(false)) {
+         int i = 0;
+
+         for(JsonNode face : newFaces) {
+            String id = face.path("name").asText("") + SEP + face.path("identifier").asText("");
+
+            for(String format : new String[] {"ttf", "eot", "svg", "woff"}) {
+               String fontContent = fileContent(face, format);
+
+               if(fontContent != null) {
+                  addFileDigest(hidden, key, "font" + i + "." + format,
+                                id + SEP + face.path(format).path("name").asText(""), fontContent);
+               }
+            }
+
+            i++;
+         }
       }
 
       String formatContent = fileContent(merged, "userformatFile");

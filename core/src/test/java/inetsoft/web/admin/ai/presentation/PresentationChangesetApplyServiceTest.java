@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.FontFaceModel;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
@@ -53,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
@@ -699,7 +701,9 @@ class PresentationChangesetApplyServiceTest {
          .defaultLogo(true).logoName("")
          .defaultFavicon(true).faviconName("")
          .defaultViewsheet(true).viewsheetName("")
-         .defaultFont(true).viewsheetCSSEntries(List.of()).vsEnabled(true);
+         // getModel always returns the two font lists, empty when Default Fonts is on
+         .defaultFont(true).userFonts(List.of()).fontFaces(List.of())
+         .viewsheetCSSEntries(List.of()).vsEnabled(true);
    }
 
    /** Overrides the generic identity write/read fake (set up in {@link #setUp}) for
@@ -752,7 +756,26 @@ class PresentationChangesetApplyServiceTest {
 
       Collections.reverse(entries);
 
+      // LookAndFeelService.updateFonts + getModel: with Default Fonts on, or no user font, every
+      // user font is deleted and none stored; otherwise the faces are stored grouped by font name
+      // and the read-back user fonts are those names. The two font upload lists are never read back.
+      boolean noFonts = proposed.defaultFont() || proposed.userFonts() == null
+         || proposed.userFonts().isEmpty();
+      Map<String, List<FontFaceModel>> stored = new LinkedHashMap<>();
+
+      if(!noFonts && proposed.fontFaces() != null) {
+         for(FontFaceModel face : proposed.fontFaces()) {
+            stored.computeIfAbsent(face.fontName(), k -> new ArrayList<>()).add(face);
+         }
+      }
+
+      List<FontFaceModel> storedFaces = new ArrayList<>();
+      stored.values().forEach(storedFaces::addAll);
+
       return LookAndFeelSettingsModel.builder().from(proposed)
+         .defaultFont(noFonts)
+         .userFonts(new ArrayList<>(stored.keySet())).fontFaces(storedFaces)
+         .newFontFaces(null).deleteFontFaces(null)
          .logoName(logoName).logoFile(null)
          .faviconName(faviconName).faviconFile(null)
          .viewsheetName(viewsheetName).viewsheetFile(null)
@@ -791,6 +814,70 @@ class PresentationChangesetApplyServiceTest {
       var after = MAPPER.readTree(outcome.after());
       assertEquals("portal/logo.png", after.get("logoName").asText());
       assertTrue(after.get("logoFile").isNull());
+   }
+
+   private static ObjectNode newFont(String name, String identifier) {
+      ObjectNode font = obj().put("name", name).put("identifier", identifier).put("fontWeight", "normal");
+      font.putObject("ttf").put("name", name + ".ttf")
+         .put("content", Base64.getEncoder().encodeToString("fake-ttf".getBytes()));
+      return font;
+   }
+
+   private static FontFaceModel face(String name, String identifier) {
+      return FontFaceModel.builder().fontName(name).identifier(identifier).fontWeight("normal")
+         .build();
+   }
+
+   private PresentationApplyOutcome applyFont(ObjectNode spec) throws Exception {
+      var result = service.apply(applyRequest("t", "ok", true, change("lookAndFeel", "global", spec)),
+                                 user);
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      PresentationApplyOutcome outcome = result.results().get(0);
+      assertEquals("verified", outcome.status(), outcome.error());
+      return outcome;
+   }
+
+   @Test
+   void applyVerifiesAFontInstalledFromNewFontFacesAlone() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+      mockLookAndFeelRealWrite();
+
+      ObjectNode spec = obj();
+      spec.putArray("newFontFaces").add(newFont("F", "f"));
+
+      var after = MAPPER.readTree(applyFont(spec).after());
+      assertFalse(after.get("defaultFont").asBoolean());
+      assertEquals("F", after.get("userFonts").get(0).asText());
+      assertEquals("f", after.get("fontFaces").get(0).get("identifier").asText());
+      assertTrue(after.get("newFontFaces").isNull());
+   }
+
+   @Test
+   void applyVerifiesASecondFontAddedBesideALiveOne() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().defaultFont(false)
+         .addUserFonts("A").addFontFaces(face("A", "a")).build());
+      mockLookAndFeelRealWrite();
+
+      ObjectNode spec = obj();
+      spec.putArray("newFontFaces").add(newFont("B", "b"));
+
+      var after = MAPPER.readTree(applyFont(spec).after());
+      assertEquals("A", after.get("userFonts").get(0).asText());
+      assertEquals("B", after.get("userFonts").get(1).asText());
+      assertEquals(2, after.get("fontFaces").size());
+   }
+
+   @Test
+   void applyVerifiesTheFontResetToDefault() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().defaultFont(false)
+         .addUserFonts("A").addFontFaces(face("A", "a")).build());
+      mockLookAndFeelRealWrite();
+
+      var after = MAPPER.readTree(applyFont(obj().put("defaultFont", true)).after());
+      assertTrue(after.get("defaultFont").asBoolean());
+      assertEquals(0, after.get("userFonts").size());
+      assertEquals(0, after.get("fontFaces").size());
    }
 
    @Test
