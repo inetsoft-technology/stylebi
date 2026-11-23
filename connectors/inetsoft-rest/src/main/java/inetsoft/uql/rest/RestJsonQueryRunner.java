@@ -240,6 +240,9 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
                     break;
                 }
 
+                // The lookup endpoint's own excludes, not the top-level query's: the page is
+                // stripped before doLookups so nested lookups and the graft never carry them.
+                removeExcludedFields(lookupQuery, json);
                 doLookups(lookupQuery, json);
                 final Object selectedJson = selectData(json, lookupQuery.getValidJsonPath(), transformer);
 
@@ -268,6 +271,13 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
     * out of the runner. Nothing to remove here: only endpoint queries declare any.
     */
    protected void removeExcludedFields(Object json) {
+   }
+
+   /**
+    * Removes, in place, the fields the given lookup query's own endpoint declares as never to be
+    * exposed. Nothing to remove here: only endpoint queries declare any.
+    */
+   protected void removeExcludedFields(RestJsonQuery lookupQuery, Object json) {
    }
 
    @Override
