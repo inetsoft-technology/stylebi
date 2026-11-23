@@ -18,10 +18,12 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.graph.GraphTarget;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -103,7 +105,7 @@ public class ChartTargetLineService {
       throws Exception
    {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
-      requireChart(rvs, assemblyName);
+      ChartVSAssembly chart = requireChart(rvs, assemblyName);
       ChartPropertyDialogModel model =
          chartService.getChartPropertyDialogModel(rvs.getID(), assemblyName, user);
       ChartTargetLinesPaneModel pane = requirePane(model, assemblyName);
@@ -111,8 +113,35 @@ public class ChartTargetLineService {
       List<Map<String, Object>> targets = new ArrayList<>();
       TargetInfo[] existing = targets(pane);
 
+      // The pane model blanks a target's measure when it is not among the chart's current
+      // measures (ChartPropertyService.getMeasure), so an orphaned target reads the same as an
+      // unbound one. The raw GraphTarget keeps the stale name; the pane is built from the same
+      // descriptor in the same order, so the two line up by index.
+      ChartDescriptor descriptor = chart.getChartDescriptor();
+      boolean aligned = descriptor != null && descriptor.getTargetCount() == existing.length;
+      Set<String> orphanedMeasures = new LinkedHashSet<>();
+
       for(int i = 0; i < existing.length; i++) {
-         targets.add(describe(existing[i], i));
+         Map<String, Object> entry = describe(existing[i], i);
+
+         if(aligned) {
+            GraphTarget raw = descriptor.getTarget(i);
+            String stored = raw == null ? null : raw.getField();
+
+            if(stored != null && stored.isEmpty()) {
+               stored = null;
+            }
+
+            boolean orphaned = stored != null && ALL_MEASURES.equals(entry.get("measure"));
+            entry.put("storedMeasure", stored);
+            entry.put("orphaned", orphaned);
+
+            if(orphaned) {
+               orphanedMeasures.add(stored);
+            }
+         }
+
+         targets.add(entry);
       }
 
       Map<String, Object> out = new LinkedHashMap<>();
@@ -130,6 +159,15 @@ public class ChartTargetLineService {
          out.put("note",
                  "This is a map. A target line bound to a geographic measure is dropped when the " +
                  "graph is generated, even though it saves and lists back here.");
+      }
+
+      if(!orphanedMeasures.isEmpty()) {
+         String orphanNote =
+            "Target(s) marked orphaned still hold a measure the chart no longer has (" +
+            String.join(", ", orphanedMeasures) + "), so they are not drawn. Their measure " +
+            "reads \"" + ALL_MEASURES + "\" like an unbound line, but an unbound line has no " +
+            "storedMeasure.";
+         out.merge("note", orphanNote, (a, b) -> a + " " + b);
       }
 
       return out;
