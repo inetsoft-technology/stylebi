@@ -85,6 +85,11 @@ public class GraphQLIteratorStrategy extends HttpRestDataIteratorStrategy<GraphQ
       final Object json = handleRequest(request).getHandledResult();
 
       if(json != null && isEmpty(json, spec)) {
+         // The response was received and parsed, it just holds no (more) rows. Returning null
+         // ends the iteration, and the runner cannot tell that from a failure, so record the
+         // completed run here (see TabularQuery.isRunCompleted); an empty first page then reads
+         // as "matched no rows" rather than "check the credentials".
+         query.setRunCompleted(true);
          return null;
       }
 

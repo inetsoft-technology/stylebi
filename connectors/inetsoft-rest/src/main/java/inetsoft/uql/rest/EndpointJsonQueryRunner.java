@@ -70,6 +70,11 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
                break;
             }
 
+            // A response was received and parsed; see RestJsonQueryRunner.runStream.
+            if(!isCancelled()) {
+               query.setRunCompleted(true);
+            }
+
             // Remove the fields the endpoint declares as never to be exposed, FIRST: the shape, the
             // sample and the table below are all taken from this same object, and each of them
             // would otherwise carry the value out of the connector.
