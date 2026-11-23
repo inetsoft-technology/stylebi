@@ -395,14 +395,18 @@ class MVManagerFindRuntimeMVTest {
    }
 
    @Test
-   void aStaleMVIsNotUsedByAUserWithoutTheMaterializationPermission() throws Exception {
-      // pinned: the stale MV is not returned at all, the user gets live data
+   void aStaleMVIsUsedButNotRebuiltForAUserWithoutTheMaterializationPermission()
+      throws Exception
+   {
+      // the permission gates only the rebuild; the stale MV is still used
       SreeEnv.setProperty("mv.freshness", "60000");
       AssetEntry entry = entry();
       staleMV(entry);
 
       try(MockedStatic<SecurityEngine> security = permission(false)) {
-         assertNull(manager.findRuntimeMV(entry, vs, "", "Orders", user, box, true));
+         RuntimeMV rmv = manager.findRuntimeMV(entry, vs, "", "Orders", user, box, true);
+         assertNotNull(rmv);
+         assertEquals("mv-orders", rmv.getMV());
       }
 
       assertNoRebuild(entry);
