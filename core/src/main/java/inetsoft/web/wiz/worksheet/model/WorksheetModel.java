@@ -429,10 +429,13 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
        * @param percentageOf the Percentage setting, in set_group_aggregate's own vocabulary:
        *                {@code "group"} (Sub Total) or {@code "grand_total"}; {@code null} when
        *                the aggregate is not shown as a percentage
+       * @param secondaryColumn the By column of First/Last or the With column of Correlation,
+       *                Covariance and Weighted Average, as set_group_aggregate's
+       *                {@code secondaryColumn}; {@code null} for a one-column formula
        */
       @JsonInclude(JsonInclude.Include.NON_NULL)
       public record AggregateRefModel(String column, String formula, String alias, Integer n,
-                                      String percentageOf) {}
+                                      String percentageOf, String secondaryColumn) {}
    }
 
    /**

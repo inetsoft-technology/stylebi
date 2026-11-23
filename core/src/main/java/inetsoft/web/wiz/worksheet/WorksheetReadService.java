@@ -1203,8 +1203,11 @@ public class WorksheetReadService {
          default -> null;
       };
 
+      DataRef secondary = ar.getSecondaryColumn();
+      String secondaryColumn = secondary != null ? secondary.getAttribute() : null;
+
       return new WorksheetModel.AggregateModel.AggregateRefModel(column, formulaName, alias, n,
-                                                                 percentageOf);
+                                                                 percentageOf, secondaryColumn);
    }
 
    // -------------------------------------------------------------------------
