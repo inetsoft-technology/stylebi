@@ -175,7 +175,7 @@ class AllEndpointsPaginationReplayTest {
 
    // OFFSET paging is zero-based here: the first record is at offset 0
    @Test
-   @Disabled("Bug #81836 (HubSpot), #80276 (ServiceNow), #81880 (TeamDesk): OFFSET paging starts at offset 1 and skips the first record; fixed on epic-test-coverage, enable when that branch reaches main")
+   @Disabled("Bug #81836 (HubSpot), #80276 (ServiceNow), #81880 (TeamDesk): OFFSET paging starts at offset 1 and skips the first record; already fixed in 13.8, not yet in 2.1.0, enable when the fix reaches main")
    void offsetPagingStartsAtZero() throws Exception {
       List<String> problems = sweep(true, OFFSET_STARTS_AT_ONE);
       assertTrue(problems.isEmpty(), problems.size() + " problem(s):\n" +
