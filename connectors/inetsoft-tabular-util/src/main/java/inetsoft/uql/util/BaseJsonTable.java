@@ -248,6 +248,11 @@ abstract public class BaseJsonTable extends XTableNode {
          DateTime.parse(str, CoreTool.getDateTimeConfig(dmyOrder));
    }
 
+   // removes the UTC offset (Z, +02:00, +0200, +02) that follows the time of a date-time text
+   private static String stripOffset(String str) {
+      return OFFSET_PATTERN.matcher(str).replaceFirst("$1");
+   }
+
    // parse string as date/time if type is date/time
    protected Object parseValue(String header, Object obj) {
       String type = colTypes.get(header);
@@ -302,7 +307,9 @@ abstract public class BaseJsonTable extends XTableNode {
                   isoDateFailed.add(header);
                }
 
-               return new java.sql.Date(parseFlexible(str).toMillis());
+               // a date column keeps the calendar date as written, so the offset of a
+               // date-time text is dropped rather than converted to the server zone
+               return new java.sql.Date(parseFlexible(stripOffset(str)).toMillis());
             }
             else if(XSchema.TIME_INSTANT.equals(type)) {
                try {
@@ -491,6 +498,8 @@ abstract public class BaseJsonTable extends XTableNode {
    private Boolean dmyOrder;
    private Object jsonMetadata;
 
+   private static final java.util.regex.Pattern OFFSET_PATTERN = java.util.regex.Pattern.compile(
+      "^(.*\\d:\\d{2}(?::\\d{2}(?:[.,]\\d+)?)?)\\s*(?:Z|[+-]\\d{2}(?::?\\d{2})?)$");
    private final static DateTimeFormatter US_DATE = DateTimeFormatter.ofPattern("MM/dd/yyyy");
    private final static DateTimeFormatter EUROPE_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
    private final static DateTimeFormatter US_DATE_TIME = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss");
