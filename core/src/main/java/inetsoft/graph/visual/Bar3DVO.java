@@ -91,6 +91,29 @@ public class Bar3DVO extends BarVO {
    }
 
    /**
+    * The right and top faces are painted outside of getBounds() (the front face), which
+    * must stay the front face for the plot fit and the 3D bar paint order (VGraph.sort3DBar).
+    */
+   @Override
+   public Rectangle2D getPaintBounds() {
+      Rectangle2D box = getBounds();
+
+      if(box == null || box.isEmpty()) {
+         return box;
+      }
+
+      if(paintRight) {
+         box = box.createUnion(getRightFace().getBounds2D());
+      }
+
+      if(paintTop) {
+         box = box.createUnion(getTopFace().getBounds2D());
+      }
+
+      return box;
+   }
+
+   /**
     * Get the width ratio for overlay.
     */
    @Override
@@ -107,11 +130,7 @@ public class Bar3DVO extends BarVO {
    private void paintTopShape(Graphics2D g, Color color, GTexture fill,
                               GLine line, Color lineColor)
    {
-      Rectangle2D rect = getTopShape();
-      AffineTransform trans = new AffineTransform();
-      trans.shear(1, 0);
-      trans.translate(-(rect.getY() - rect.getHeight()), -rect.getHeight());
-      Shape shape = trans.createTransformedShape(rect);
+      Shape shape = getTopFace();
 
       Graphics2D g2 = (Graphics2D) g.create();
       g2.setColor(color);
@@ -139,11 +158,7 @@ public class Bar3DVO extends BarVO {
    private void paintRightShape(Graphics2D g, Color color, GTexture fill,
                                 GLine line, Color lineColor)
    {
-      Rectangle2D rect = getRightShape();
-      AffineTransform trans = new AffineTransform();
-      trans.shear(0, 1);
-      trans.translate(0, -rect.getX());
-      Shape shape = trans.createTransformedShape(rect);
+      Shape shape = getRightFace();
 
       Graphics2D g2 = (Graphics2D) g.create();
       g2.setColor(color);
@@ -160,6 +175,28 @@ public class Bar3DVO extends BarVO {
       }
 
       g2.dispose();
+   }
+
+   /**
+    * Get the top face as painted (the top side shape sheared by the depth).
+    */
+   private Shape getTopFace() {
+      Rectangle2D rect = getTopShape();
+      AffineTransform trans = new AffineTransform();
+      trans.shear(1, 0);
+      trans.translate(-(rect.getY() - rect.getHeight()), -rect.getHeight());
+      return trans.createTransformedShape(rect);
+   }
+
+   /**
+    * Get the right face as painted (the right side shape sheared by the depth).
+    */
+   private Shape getRightFace() {
+      Rectangle2D rect = getRightShape();
+      AffineTransform trans = new AffineTransform();
+      trans.shear(0, 1);
+      trans.translate(0, -rect.getX());
+      return trans.createTransformedShape(rect);
    }
 
    /**

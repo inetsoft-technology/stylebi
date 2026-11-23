@@ -77,7 +77,7 @@ public class LinearLineFrame extends LineFrame {
       double min = scale.getMin();
       double max = scale.getMax();
 
-      return getLine(Math.min(1, (v - min) / (max - min)));
+      return getLine(Math.max(0, Math.min(1, (v - min) / (max - min))));
    }
 
    /**

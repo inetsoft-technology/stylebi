@@ -146,7 +146,7 @@ public class SreeEnv {
       Integer val = null;
 
       if(str != null) {
-         val = (Integer) cache.computeIfAbsent(name, key -> Integer.valueOf(str));
+         val = Integer.valueOf(str);
       }
 
       return val;
@@ -160,7 +160,7 @@ public class SreeEnv {
       Long val = null;
 
       if(str != null) {
-         val = (Long) cache.computeIfAbsent(name, key -> Long.valueOf(str));
+         val = Long.valueOf(str);
       }
 
       return val;
@@ -174,7 +174,7 @@ public class SreeEnv {
       Boolean val = null;
 
       if(str != null) {
-         val = (Boolean) cache.computeIfAbsent(name, key -> Boolean.valueOf(str));
+         val = Boolean.valueOf(str);
       }
 
       return val;
@@ -378,7 +378,6 @@ public class SreeEnv {
       return ConfigurationContext.getContext().getApplicationContext() != null;
    }
 
-   private static final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
    private static final Map<String, Font> fontMap = new ConcurrentHashMap<>();
 
    /**

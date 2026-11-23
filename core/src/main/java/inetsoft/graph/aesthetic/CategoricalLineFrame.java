@@ -45,12 +45,12 @@ public class CategoricalLineFrame extends LineFrame implements CategoricalFrame 
    public CategoricalLineFrame() {
       lines = new GLine[] {GLine.THIN_LINE, GLine.DOT_LINE, GLine.DASH_LINE,
          GLine.MEDIUM_DASH, GLine.LARGE_DASH, GLine.THIN_LINE, GLine.DOT_LINE,
-         GLine.DASH_LINE, GLine.MEDIUM_DASH, GLine.LARGE_DASH, GLine.LARGE_DASH,
-         GLine.THIN_LINE, GLine.DOT_LINE, GLine.DASH_LINE, GLine.MEDIUM_DASH,
-         GLine.LARGE_DASH,GLine.THIN_LINE, GLine.DOT_LINE, GLine.DASH_LINE,
-         GLine.MEDIUM_DASH, GLine.LARGE_DASH, GLine.THIN_LINE, GLine.DOT_LINE,
          GLine.DASH_LINE, GLine.MEDIUM_DASH, GLine.LARGE_DASH, GLine.THIN_LINE,
-         GLine.DOT_LINE, GLine.DASH_LINE, GLine.MEDIUM_DASH, GLine.LARGE_DASH};
+         GLine.DOT_LINE, GLine.DASH_LINE, GLine.MEDIUM_DASH, GLine.LARGE_DASH,
+         GLine.THIN_LINE, GLine.DOT_LINE, GLine.DASH_LINE, GLine.MEDIUM_DASH,
+         GLine.LARGE_DASH, GLine.THIN_LINE, GLine.DOT_LINE, GLine.DASH_LINE,
+         GLine.MEDIUM_DASH, GLine.LARGE_DASH, GLine.THIN_LINE, GLine.DOT_LINE,
+         GLine.DASH_LINE, GLine.MEDIUM_DASH, GLine.LARGE_DASH};
    }
 
    /**
@@ -221,6 +221,17 @@ public class CategoricalLineFrame extends LineFrame implements CategoricalFrame 
    }
 
    /**
+    * Replace the line palette, keeping the scale and the lines assigned to values. A null or
+    * empty palette is ignored.
+    * @hidden
+    */
+   public void setLines(GLine[] lines) {
+      if(lines != null && lines.length > 0) {
+         this.lines = lines.clone();
+      }
+   }
+
+   /**
     * Get the number of lines in the frame.
     */
    @TernMethod
@@ -255,7 +266,8 @@ public class CategoricalLineFrame extends LineFrame implements CategoricalFrame 
          }
       }
 
-      return true;
+      CategoricalLineFrame frame2 = (CategoricalLineFrame) obj;
+      return cmap.equals(frame2.cmap) && scripted.equals(frame2.scripted);
    }
 
    /**

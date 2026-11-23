@@ -17,8 +17,8 @@
  */
 package inetsoft.graph.data;
 
-import it.unimi.dsi.fastutil.floats.FloatArrayList;
-import it.unimi.dsi.fastutil.floats.FloatList;
+import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
+import it.unimi.dsi.fastutil.doubles.DoubleList;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 import java.util.*;
@@ -208,7 +208,7 @@ public class BoxDataSet extends AbstractDataSet {
     */
    private void process(DataSet base, int[] dimcols, int[] mcols) {
       // dim tuple -> {measure -> measure values in the group}
-      Map<List,Map<Integer, FloatList>> grpmap = new Object2ObjectOpenHashMap<>();
+      Map<List,Map<Integer, DoubleList>> grpmap = new Object2ObjectOpenHashMap<>();
 
       // collect all values for each group
       for(int i = 0; i < base.getRowCount() && !isDisposed(); i++) {
@@ -226,20 +226,20 @@ public class BoxDataSet extends AbstractDataSet {
                continue;
             }
 
-            FloatList values = grpmap.get(grp).get(mcol);
+            DoubleList values = grpmap.get(grp).get(mcol);
 
             if(values == null) {
-               values = new FloatArrayList();
+               values = new DoubleArrayList();
                grpmap.get(grp).put(mcol, values);
             }
 
-            values.add(((Number) val).floatValue());
+            values.add(((Number) val).doubleValue());
          }
       }
 
       // sort the values
-      for(Map<Integer, FloatList> map : grpmap.values()) {
-         for(FloatList values : map.values()) {
+      for(Map<Integer, DoubleList> map : grpmap.values()) {
+         for(DoubleList values : map.values()) {
             values.sort(null);
          }
       }
@@ -270,7 +270,7 @@ public class BoxDataSet extends AbstractDataSet {
     * @param grp the dimension values.
     * @param midx the measure index (in the measure list).
     */
-   private List calculateQuartiles(FloatList values, List grp, int midx) {
+   private List calculateQuartiles(DoubleList values, List grp, int midx) {
       List<Number> qs = new ArrayList<>();
 
       if(values == null || values.size() == 0) {
@@ -278,20 +278,20 @@ public class BoxDataSet extends AbstractDataSet {
          return qs;
       }
       else if(values.size() == 1) {
-         Number v = values.get(0);
+         Double v = values.getDouble(0);
          qs.add(v); qs.add(v); qs.add(v); qs.add(v); qs.add(v);
          return qs;
       }
       else if(values.size() == 2) {
-         Float v1 = values.get(0);
-         Float v2 = values.get(1);
+         double v1 = values.getDouble(0);
+         double v2 = values.getDouble(1);
          qs.add(v1); qs.add(v1); qs.add((v1 + v2) / 2); qs.add(v2); qs.add(v2);
          return qs;
       }
 
-      double min = values.getFloat(0);
+      double min = values.getDouble(0);
       final int n = values.size() - 1;
-      double max = values.getFloat(n);
+      double max = values.getDouble(n);
       double medium = getValue2(values, n * 0.5);
       double q25 = getValue2(values, n * 0.25);
       double q75 = getValue2(values, n * 0.75);
@@ -303,8 +303,8 @@ public class BoxDataSet extends AbstractDataSet {
          max = q75 + iqr * 1.5;
 
          for(int i = values.size() - 1; i >= 0; i--) {
-            if(values.getFloat(i) > max) {
-               addOutlier(grp, midx, values.get(i));
+            if(values.getDouble(i) > max) {
+               addOutlier(grp, midx, values.getDouble(i));
             }
          }
       }
@@ -313,8 +313,8 @@ public class BoxDataSet extends AbstractDataSet {
          min = q25 - iqr * 1.5;
 
          for(int i = 0; i < values.size(); i++) {
-            if(values.getFloat(i) < min) {
-               addOutlier(grp, midx, values.get(i));
+            if(values.getDouble(i) < min) {
+               addOutlier(grp, midx, values.getDouble(i));
             }
          }
       }
@@ -347,10 +347,10 @@ public class BoxDataSet extends AbstractDataSet {
     * Get the value at the index if it's an integer, or the average of the
     * two adjacent values if not.
     */
-   private double getValue2(FloatList values, double idx) {
+   private double getValue2(DoubleList values, double idx) {
       return (idx == Math.ceil(idx))
-         ? values.getFloat((int) idx)
-         : (values.getFloat((int) Math.floor(idx)) + values.getFloat((int) Math.ceil(idx))) / 2;
+         ? values.getDouble((int) idx)
+         : (values.getDouble((int) Math.floor(idx)) + values.getDouble((int) Math.ceil(idx))) / 2;
    }
 
    /**

@@ -38,9 +38,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.lang.reflect.Field;
-import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -58,22 +55,20 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 class ResponseCacheReplayTest {
    @BeforeEach
-   void turnTheCacheOn() throws Exception {
-      try {
-         forgetTheTimeout();
-         SreeEnv.setProperty(TIMEOUT, "600000");
-      }
-      catch(Exception | Error e) {
-         // @AfterEach still runs when this fails, but make sure nothing stays set
-         SreeEnv.remove(TIMEOUT);
-         throw e;
-      }
+   void turnTheCacheOn() {
+      oldTimeout = SreeEnv.getProperty(TIMEOUT);
+      SreeEnv.setProperty(TIMEOUT, "600000");
    }
 
    @AfterEach
-   void turnTheCacheOff() throws Exception {
+   void turnTheCacheOff() {
       // the cache would stay on for every other class that runs in this JVM
-      forgetTheTimeout();
+      if(oldTimeout == null) {
+         SreeEnv.remove(TIMEOUT);
+      }
+      else {
+         SreeEnv.setProperty(TIMEOUT, oldTimeout);
+      }
    }
 
    @Test
@@ -133,26 +128,6 @@ class ResponseCacheReplayTest {
                    "the POST was served the cached response of the GET: " + http.requests());
    }
 
-   /**
-    * Clears the property and the parsed value that SreeEnv keeps for it: {@code getLong} keeps the
-    * first value it parsed, so a later change of the property is not seen (Bug #81932).
-    */
-   private static void forgetTheTimeout() throws Exception {
-      SreeEnv.remove(TIMEOUT);
-
-      try {
-         Field field = SreeEnv.class.getDeclaredField("cache");
-         field.setAccessible(true);
-         ((Map<?, ?>) field.get(null)).remove(TIMEOUT);
-      }
-      catch(NoSuchFieldException | ClassCastException e) {
-         // SreeEnv keeps its own copy of the property, so the cache cannot be switched off without it
-         throw new AssertionError("SreeEnv no longer has a private static Map field 'cache'; " +
-                                  "update forgetTheTimeout(), which resets the REST response " +
-                                  "cache timeout (see Bug #81932)", e);
-      }
-   }
-
    private static RestJsonQuery basicQuery(String url, String suffix, String user) {
       RestJsonQuery query = query(url, suffix);
       RestJsonDataSource dataSource = (RestJsonDataSource) query.getDataSource();
@@ -180,4 +155,6 @@ class ResponseCacheReplayTest {
    }
 
    private static final String TIMEOUT = "rest.cache.timeout.millis";
+
+   private String oldTimeout;
 }
