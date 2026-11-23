@@ -636,12 +636,18 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }
 
-      if(!Tool.equals(sortTypeValue, linfo.sortTypeValue)) {
+      // DynamicValue.equals compares only the design value, so also compare the runtime
+      // value, which scripts set through setSortType/setEdataDown
+      if(!Tool.equals(sortTypeValue, linfo.sortTypeValue) ||
+         getSortType() != linfo.getSortType())
+      {
          sortTypeValue = linfo.sortTypeValue;
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }
 
-      if(!Tool.equals(edataDownValue, linfo.edataDownValue)) {
+      if(!Tool.equals(edataDownValue, linfo.edataDownValue) ||
+         isEmbeddedDataDown() != linfo.isEmbeddedDataDown())
+      {
          edataDownValue = linfo.edataDownValue;
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }

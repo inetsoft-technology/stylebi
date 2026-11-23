@@ -121,6 +121,29 @@ class DrillFilterAndListInputCopyInfoTest {
       int hint = ((VSAssembly) assembly.clone()).setVSAssemblyInfo(changed.getVSAssemblyInfo());
       assertNotEquals(0, hint & VSAssembly.INPUT_DATA_CHANGED,
                       "a real sortType change must still be reported");
+
+      // scripts set only the runtime value (setSortType/setEmbeddedDataDown), which
+      // DynamicValue.equals ignores; the change must still be copied and reported
+      ListInputVSAssembly runtimeSort = (ListInputVSAssembly) assembly.clone();
+      ((ListInputVSAssemblyInfo) runtimeSort.getVSAssemblyInfo()).setSortType(XConstants.SORT_DESC);
+      ListInputVSAssembly target = (ListInputVSAssembly) assembly.clone();
+      hint = target.setVSAssemblyInfo(runtimeSort.getVSAssemblyInfo());
+      assertNotEquals(0, hint & VSAssembly.INPUT_DATA_CHANGED,
+                      "a runtime-only sortType change must be reported");
+      assertEquals(XConstants.SORT_DESC,
+                   ((ListInputVSAssemblyInfo) target.getVSAssemblyInfo()).getSortType(),
+                   "a runtime-only sortType change must be copied");
+
+      ListInputVSAssembly runtimeDown = (ListInputVSAssembly) assembly.clone();
+      ListInputVSAssemblyInfo downInfo = (ListInputVSAssemblyInfo) runtimeDown.getVSAssemblyInfo();
+      boolean down = !downInfo.isEmbeddedDataDown();
+      downInfo.setEmbeddedDataDown(down);
+      target = (ListInputVSAssembly) assembly.clone();
+      hint = target.setVSAssemblyInfo(runtimeDown.getVSAssemblyInfo());
+      assertNotEquals(0, hint & VSAssembly.INPUT_DATA_CHANGED,
+                      "a runtime-only edataDown change must be reported");
+      assertEquals(down, ((ListInputVSAssemblyInfo) target.getVSAssemblyInfo()).isEmbeddedDataDown(),
+                   "a runtime-only edataDown change must be copied");
    }
 
    @Test

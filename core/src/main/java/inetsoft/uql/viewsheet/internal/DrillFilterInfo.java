@@ -268,10 +268,16 @@ public class DrillFilterInfo implements Cloneable {
 
       DrillFilterInfo info = (DrillFilterInfo) obj;
 
+      // snapshot the other list under its own lock so the two locks are never held together,
+      // which could deadlock when a.equals(b) and b.equals(a) run at the same time
+      List<DrillCondition> other;
+
+      synchronized(info.drillConds) {
+         other = new ArrayList<>(info.drillConds);
+      }
+
       synchronized(drillConds) {
-         synchronized(info.drillConds) {
-            return drillConds.equals(info.drillConds);
-         }
+         return drillConds.equals(other);
       }
    }
 
