@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -186,7 +187,7 @@ public final class TabularQueryContractSupport {
       for(String name : order) {
          TabularQuerySchema.Param param = schema.getParam(name);
          PropertyMeta prop = pmap.get(name);
-         Object value = queryParams.get(name);
+         Object value = canonicalStaticTag(param, name, queryParams.get(name), dsName);
          Class<?> type = prop.getDescriptor().getPropertyType();
          boolean composite = TabularSchemaExtractor.isCompositeType(type) && type != File.class;
 
@@ -250,7 +251,11 @@ public final class TabularQueryContractSupport {
       warnInapplicable(query, queryParams.keySet(), dsName);
 
       // POST REFUSAL, after the whole fill: updatePagination(endpoint), a side effect of
-      // writing endpoint above, is what decides requestType.
+      // writing endpoint above, is what decides requestType. Only a query whose body is a plain,
+      // directly settable property (the generic REST query) may be POST: a catalogue connector's
+      // body comes from a template its dialog button fills, and a query that overrides
+      // getRequestBody builds the body from other properties, so a body written here would never
+      // be sent.
       PropertyMeta requestTypeProp = pmap.get("requestType");
 
       if(requestTypeProp != null && "POST".equals(requestTypeProp.getValue(query))) {
@@ -258,12 +263,80 @@ public final class TabularQueryContractSupport {
          String subject = endpointValue != null && !text(endpointValue).isBlank()
             ? "Endpoint '" + text(endpointValue) + "' of '" + dsName + "'"
             : "The query on '" + dsName + "'";
-         throw new IllegalArgumentException(
-            subject + " is a POST endpoint, which cannot be created this way yet: its request " +
-            "body comes from a template that only the connector's own dialog populates.");
+
+         if(pmap.get("endpoint") != null) {
+            throw new IllegalArgumentException(
+               subject + " is a POST endpoint, which cannot be created this way yet: its request " +
+               "body comes from a template that only the connector's own dialog populates.");
+         }
+
+         if(!hasPlainRequestBody(pmap.get("requestBody"))) {
+            throw new IllegalArgumentException(
+               subject + " is a POST query whose request body is built from other properties of " +
+               "the query rather than set directly, which cannot be created this way yet.");
+         }
       }
 
       return String.join(", ", applied);
+   }
+
+   private static final Set<String> STATIC_TAG_PARAMS = Set.of("requestType", "contentType");
+
+   /**
+    * The legal spelling of a {@code requestType}/{@code contentType} value. Both are fixed
+    * lists (GET/POST, five media types) that nothing else enforces on write: an unlisted value
+    * would be stored, and a request type such as PUT would then run as a GET. A value that
+    * differs only in case is mapped to the listed one; anything else is refused by name.
+    */
+   private static Object canonicalStaticTag(TabularQuerySchema.Param param, String name,
+                                            Object value, String dsName)
+   {
+      if(!STATIC_TAG_PARAMS.contains(name) || value == null || param.getTags() == null ||
+         param.getTags().isEmpty())
+      {
+         return value;
+      }
+
+      String requested = text(value).trim();
+
+      for(String tag : param.getTags()) {
+         if(tag.equalsIgnoreCase(requested)) {
+            return tag;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "'" + name + "' has no value '" + requested + "' on '" + dsName + "'. Legal values: " +
+         String.join(", ", param.getTags()) + ".");
+   }
+
+   /**
+    * Whether {@code requestBody} is a plain property: present and settable, and its getter not
+    * overridden by a subclass of the class that declares it (an override is how a query derives
+    * the body from other properties).
+    */
+   private static boolean hasPlainRequestBody(PropertyMeta bodyProp) {
+      if(bodyProp == null || bodyProp.getDescriptor().getReadMethod() == null ||
+         bodyProp.getDescriptor().getWriteMethod() == null)
+      {
+         return false;
+      }
+
+      Method getter = bodyProp.getDescriptor().getReadMethod();
+
+      for(Class<?> c = getter.getDeclaringClass().getSuperclass(); c != null;
+          c = c.getSuperclass())
+      {
+         try {
+            c.getDeclaredMethod(getter.getName());
+            return false;
+         }
+         catch(NoSuchMethodException ignore) {
+            // not declared at this level
+         }
+      }
+
+      return true;
    }
 
    /**

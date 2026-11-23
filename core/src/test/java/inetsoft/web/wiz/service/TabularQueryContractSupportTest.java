@@ -188,6 +188,92 @@ class TabularQueryContractSupportTest {
       assertTrue(ex.getMessage().contains("POST endpoint"), ex.getMessage());
    }
 
+   // ─── generic REST POST (bug #81983, BUG-63) ───────────────────────────────
+
+   @Test
+   void genericRestQueryAcceptsPostWithContentTypeAndBody() throws Exception {
+      FakeRestPostQuery query = new FakeRestPostQuery();
+
+      apply(query, params("suffix", "/echo", "requestType", "POST",
+         "contentType", "text/plain", "requestBody", "hello"));
+
+      assertEquals("POST", query.getRequestType());
+      assertEquals("text/plain", query.getContentType());
+      assertEquals("hello", query.getRequestBody());
+   }
+
+   @Test
+   void genericRestPostWithoutABodyIsAccepted() throws Exception {
+      FakeRestPostQuery query = new FakeRestPostQuery();
+
+      apply(query, params("suffix", "/echo", "requestType", "POST"));
+
+      assertEquals("POST", query.getRequestType());
+   }
+
+   @Test
+   void genericRestRequestTypeAndContentTypeMatchCaseInsensitively() throws Exception {
+      FakeRestPostQuery query = new FakeRestPostQuery();
+
+      apply(query, params("suffix", "/echo", "requestType", "post",
+         "contentType", "Application/JSON", "requestBody", "{}"));
+
+      assertEquals("POST", query.getRequestType());
+      assertEquals("application/json", query.getContentType());
+   }
+
+   @Test
+   void genericRestRefusesARequestTypeThatIsNotListed() {
+      FakeRestPostQuery query = new FakeRestPostQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(query, params("suffix", "/echo", "requestType", "PUT")));
+      assertTrue(ex.getMessage().contains("requestType"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("PUT"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("GET, POST"), ex.getMessage());
+      assertEquals("GET", query.getRequestType());
+   }
+
+   @Test
+   void genericRestRefusesAContentTypeThatIsNotListed() {
+      FakeRestPostQuery query = new FakeRestPostQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(query, params("suffix", "/echo", "requestType", "POST",
+            "contentType", "application/garbage")));
+      assertTrue(ex.getMessage().contains("contentType"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("text/plain"), ex.getMessage());
+   }
+
+   @Test
+   void aPostQueryWhoseBodyIsDerivedFromOtherPropertiesIsStillRefused() {
+      FakeDerivedBodyRestQuery query = new FakeDerivedBodyRestQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(query, params("suffix", "/graphql", "requestType", "POST")));
+      assertTrue(ex.getMessage().contains("built from other properties"), ex.getMessage());
+   }
+
+   @Test
+   void aGetQueryWhoseBodyIsDerivedIsStillAccepted() throws Exception {
+      FakeDerivedBodyRestQuery query = new FakeDerivedBodyRestQuery();
+
+      apply(query, params("suffix", "/graphql", "requestType", "GET"));
+
+      assertEquals("GET", query.getRequestType());
+   }
+
+   @Test
+   void restatingAGenericRestQueryAsPostIsAccepted() throws Exception {
+      FakeRestPostQuery query = new FakeRestPostQuery();
+      apply(query, params("suffix", "/echo"));
+
+      restate(query, params("suffix", "/echo", "requestType", "POST", "requestBody", "{\"q\":1}"));
+
+      assertEquals("POST", query.getRequestType());
+      assertEquals("{\"q\":1}", query.getRequestBody());
+   }
+
    // ─── Kind A composite fill (RestParameters) ───────────────────────────────
 
    @Test
