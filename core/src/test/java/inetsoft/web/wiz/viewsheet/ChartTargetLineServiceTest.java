@@ -551,6 +551,20 @@ class ChartTargetLineServiceTest {
       assertEquals("Average(Product:Total)", target.get("storedMeasure"));
    }
 
+   /** The pane and the descriptor disagree on how many targets there are: do not guess a pairing. */
+   @Test
+   void listWithMismatchedTargetCountOmitsOrphanFields() throws Exception {
+      Harness h = harness(chartWithStored(storedTarget("Sum(Total)"), storedTarget(null)),
+                          paneWith(existingLineTarget(0, "10")));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+      Map<String, Object> target = targetsOf(out).get(0);
+
+      assertFalse(target.containsKey("orphaned"));
+      assertFalse(target.containsKey("storedMeasure"));
+      assertNull(out.get("note"));
+   }
+
    /** No orphan, no note; and a missing descriptor omits the new keys instead of failing. */
    @Test
    void listWithoutDescriptorOmitsOrphanFields() throws Exception {
