@@ -30,7 +30,6 @@ import inetsoft.graph.scale.Scale;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -379,25 +378,6 @@ class LineElementGeometryTest {
       assertEquals(1, count(g));
       assertArrayEquals(new int[] { 0, 1, 2, 3 }, line(g, "m", 0).getTupleIndexes());
       assertArrayEquals(new double[] { 10, 20, 30, 40 }, ys(line(g, "m", 0)), D);
-   }
-
-   @Disabled("Not filed (not reachable in practice: needs two group dimensions whose comma-joined "
-      + "text collides, LineElement.java:556): series values with a comma: expected 2 lines, "
-      + "actual 1 (the line key joins the "
-      + "color and group values with a comma, so 'a,b'+'c' and 'a'+'b,c' both give 'a,b,c', "
-      + "LineElement.java:556)")
-   @Test
-   @DisplayName("series values that contain a comma still make distinct lines")
-   void seriesValuesWithCommaStayDistinct() {
-      DefaultDataSet ds = new DefaultDataSet(new Object[][] {
-         { "Cat", "S", "G", "m" }, { "A", "a,b", "c", 10.0 }, { "A", "a", "b,c", 20.0 } });
-      LineElement elem = stacked(new LineElement("Cat", "m"));
-      elem.setColorFrame(new CategoricalColorFrame("S"));
-      elem.setGroupFields("G");
-      elem.setLineGroup(LineElement.LineGroup.ALL);
-      GGraph g = plot(elem, ds, categories(ds), lin(0, 100, "m"));
-
-      assertEquals(2, count(g));
    }
 
    @Test

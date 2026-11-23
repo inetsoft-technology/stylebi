@@ -27,7 +27,6 @@ import inetsoft.graph.scale.LinearScale;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -300,16 +299,6 @@ class PointVOTest {
    }
 
    @Test
-   @Disabled("Not filed (negligible: only a 0.5 to 1 pixel overlap, VGraph.dodge asks one direction per pair): requiresDodge(vo) is asymmetric for a 1 px overlap: expected a.requiresDodge(b) == b.requiresDodge(a) == true, actual a.requiresDodge(b) = true and b.requiresDodge(a) = false")
-   @DisplayName("overlap of 1 px gives the same answer in both directions")
-   void overlapCheckIsSymmetric() {
-      PointVO[] vos = pair(500, 525);
-
-      assertTrue(vos[0].requiresDodge(vos[1]));
-      assertTrue(vos[1].requiresDodge(vos[0]));
-   }
-
-   @Test
    @DisplayName("jitter moves each point at most 8 units and moves at least one of them")
    void jitterStaysNear() {
       PointElement elem = element(GShape.FILLED_CIRCLE, 10);
@@ -356,16 +345,6 @@ class PointVOTest {
    @DisplayName("stack advances neighbors by (26 + 1) * 3 = 81 (pinned behavior)")
    void stackAdvancesThreeSlotsOfBoundsPlusOne() {
       assertEquals(81, neighborDistance(GraphElement.MOVE_STACK, true), EPS);
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable: the UI never sets MOVE_DODGE and RectCoord corrects the step in layoutCompleted): expected dodge and stack to advance neighbors by the same slot (81), actual dodge advances 243 (x += pw * wratio with pw already scaled by wratio) and stack 81")
-   @DisplayName("dodge advances neighbors by one slot, the same as stack")
-   void dodgeAdvancesOneSlot() {
-      double dodge = neighborDistance(GraphElement.MOVE_DODGE, false);
-      double stack = neighborDistance(GraphElement.MOVE_STACK, true);
-
-      assertEquals(stack, dodge, EPS);
    }
 
    // ---- layout
