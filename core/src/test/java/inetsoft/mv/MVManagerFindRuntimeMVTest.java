@@ -238,6 +238,27 @@ class MVManagerFindRuntimeMVTest {
       assertNoJob(entry, true);
    }
 
+   @Test
+   void aStaleMVIsStillUsedWithoutTheMaterializationPermission() {
+      // Bug #82140: the permission only gates the rebuild, not the use of the existing MV
+      SreeEnv.setProperty("mv.ondemand", "true");
+      SreeEnv.setProperty("mv.freshness", "1000");
+      vs.getViewsheetInfo().setMVOnDemand(true);
+      MVDef def = def("mv-orders", false);
+      when(def.getLastUpdateTime()).thenReturn(1L);
+      doReturn(def).when(manager).findMV(any(), eq("Orders"), any(), any(), any());
+      AssetEntry entry = entry();
+
+      try(MockedStatic<SecurityEngine> security = permission(false)) {
+         RuntimeMV rmv = manager.findRuntimeMV(entry, vs, "", "Orders", user, box, true);
+
+         assertNotNull(rmv);
+         assertEquals("mv-orders", rmv.getMV());
+      }
+
+      assertFalse(manager.isPending(entry, user), "no rebuild without the permission");
+   }
+
    // ---------------------------------------------------------------- the runtime MV
 
    @Test
