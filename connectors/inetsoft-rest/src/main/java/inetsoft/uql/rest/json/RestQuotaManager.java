@@ -148,12 +148,16 @@ public class RestQuotaManager {
          if(this == o) return true;
          if(!(o instanceof RestQuotaKey)) return false;
          RestQuotaKey that = (RestQuotaKey) o;
-         return Objects.equals(dataSource, that.dataSource);
+         // the limits are part of the identity: a data source that keeps its name but changes
+         // its limits (e.g. a Salesforce account type) must not reuse the quota of the old ones
+         return Objects.equals(dataSource, that.dataSource) &&
+            Double.compare(requestsPerSecond, that.requestsPerSecond) == 0 &&
+            maxConnections == that.maxConnections;
       }
 
       @Override
       public int hashCode() {
-         return Objects.hash(dataSource);
+         return Objects.hash(dataSource, requestsPerSecond, maxConnections);
       }
 
       private final String dataSource;
