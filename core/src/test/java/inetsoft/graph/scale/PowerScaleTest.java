@@ -153,22 +153,6 @@ class PowerScaleTest {
    }
 
    @Test
-   @DisplayName("exponent 0 is rejected, or if accepted unmap(map(2)) is 2")
-   @Disabled("Not filed (nobody passes exponent 0): setExponent(0) is accepted (LogScale.setBase rejects <= 0) and unmap(map(2)) is NaN, expected 2.0")
-   void exponentZero() {
-      PowerScale s = new PowerScale();
-
-      try {
-         s.setExponent(0);
-      }
-      catch(RuntimeException ex) {
-         return;
-      }
-
-      assertEquals(2.0, s.unmap(s.map(2.0)), DELTA);
-   }
-
-   @Test
    void negativeExponent() {
       PowerScale s = scale(-1);
       assertEquals(0.5, s.map(2.0), DELTA);
@@ -291,14 +275,6 @@ class PowerScaleTest {
    }
 
    @Test
-   @DisplayName("an explicit maximum below zero is kept like LinearScale.init")
-   @Disabled("Not filed (only a developer can decide the intent): getTicks reuses max after rounding and the ZERO clamp turns an explicit max -1 into 0: getMax is 0.0, expected -1.0")
-   void explicitMaxBelowZero() {
-      PowerScale s = new PowerScale(-16, -1);
-      assertEquals(-1, s.getMax(), DELTA);
-   }
-
-   @Test
    @DisplayName("large range with the default exponent gives a short tick list")
    void largeRange() {
       PowerScale s = new PowerScale(0, 4e6);
@@ -365,26 +341,7 @@ class PowerScaleTest {
       assertArray(expected, reversed.getTicks());
    }
 
-   @Test
-   @DisplayName("a second init keeps the range of the first init after ticks were computed")
-   @Disabled("Not filed (same design as LogScale, production calls init before getTicks): getTicks stores mapped values in the range containers and the next init merges raw values into them: getMax is 2.0, expected 4.0")
-   void initAfterGetTicks() {
-      PowerScale s = new PowerScale("v");
-      s.init(column(16));
-      s.getTicks();
-      s.init(column(3));
-      s.getTicks();
-      assertEquals(4, s.getMax(), DELTA);
-   }
-
    // ---- equals and clone ----
-
-   @Test
-   @DisplayName("scales with different exponents are not equal")
-   @Disabled("Not filed (only affects scripts that change only the exponent): PowerScale has no equals override and LinearScale.equals ignores the exponent: scales with exponent 0.5 and 2 are equal, expected not equal")
-   void equalsDependsOnExponent() {
-      assertNotEquals(scale(0.5), scale(2));
-   }
 
    @Test
    void cloneKeepsExponent() {

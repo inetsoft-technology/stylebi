@@ -158,15 +158,6 @@ class AbstractMapLayoutTest {
                   new double[] { 0, 2, 4, 2 });
    }
 
-   @Test
-   @Disabled("Not filed (not reachable: TreemapSizeFrame guarantees sizes of at least 1 (TreemapSizeFrame.java:45-84)): sliceLayout of all-zero weights yields NaN coordinates: total 0 gives 0/0; " +
-             "expected finite coordinates, actual NaN")
-   void sliceLayoutOfAllZeroWeightsStaysFinite() {
-      MapItem[] items = items(0, 0);
-      sliceLayout(items, 0, 1, new Rect(0, 0, 4, 4), VERTICAL);
-      assertFinite(items);
-   }
-
    @ParameterizedTest
    @EnumSource(Combo.class)
    void sliceLayoutOfSingleItemFillsBounds(Combo combo) {

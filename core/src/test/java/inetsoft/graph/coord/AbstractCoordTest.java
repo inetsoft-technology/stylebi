@@ -302,34 +302,6 @@ class AbstractCoordTest {
 
    @ParameterizedTest(name = "{0}")
    @MethodSource("coords")
-   @DisplayName("a clone has its own coord cache and shared scales")
-   @Disabled("Not filed (not reachable: clones are always taken from an EGraph that was not plotted yet): clone shares the coordCache and sharedScales maps with the original (AbstractCoord.clone is shallow); expected: a cache entry put on the clone is not visible in the original, actual: original.getCoordCache().containsKey(\"clone\") is true")
-   void cloneHasOwnCaches(String name, Supplier<AbstractCoord> factory) {
-      AbstractCoord coord = factory.get();
-      coord.getCoordCache().put("orig", 1);
-      CategoricalScale shared = new CategoricalScale("f");
-      coord.addSharedScale(shared, subset("A"));
-
-      AbstractCoord clone = (AbstractCoord) coord.clone();
-      CategoricalScale cloneShared = new CategoricalScale("f");
-      clone.getCoordCache().put("clone", 2);
-      clone.addSharedScale(cloneShared, subset("B"));
-
-      assertFalse(coord.getCoordCache().containsKey("clone"), "cache shared with clone");
-      assertNull(coord.getSharedScale(cloneShared, subset("B")), "shared scales shared with clone");
-
-      clone.layoutCompleted();
-      assertTrue(coord.getCoordCache().containsKey("orig"));
-      assertSame(shared, coord.getSharedScale(shared, subset("A")));
-
-      coord.layoutCompleted();
-      clone.getCoordCache().put("again", 3);
-      coord.layoutCompleted();
-      assertTrue(clone.getCoordCache().containsKey("again"));
-   }
-
-   @ParameterizedTest(name = "{0}")
-   @MethodSource("coords")
    @DisplayName("a clone starts with the visibility masks of the original and changes independently")
    void cloneKeepsVisibilityMasks(String name, Supplier<AbstractCoord> factory) {
       AbstractCoord coord = factory.get();

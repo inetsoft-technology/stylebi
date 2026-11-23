@@ -364,29 +364,6 @@ class DefaultAxisGridLineTest {
    }
 
    @Test
-   @DisplayName("grid lines recreated after the axes moved are all visible")
-   @Disabled("Not filed (negligible: only triggers when the first new grid line lands within 4px of the old last line and hides one line at most): Axis.addGridLine keeps lastVisibleLine across removeAllGridLines, so the first line " +
-      "of the new set (x=998) is compared with the last line of the old set (x=1000) and hidden " +
-      "(zIndex -1); expected all 5 new lines at zIndex 30")
-   void recreateAfterMoveKeepsAllVisible() {
-      Scale scale = lin();
-      style(scale);
-      DefaultAxis x1 = x1(scale);
-      DefaultAxis x2 = x2(scale);
-      x2.createGridLines(x1, true);
-
-      x1.setScreenTransform(AffineTransform.getTranslateInstance(998, 0));
-      x2.setScreenTransform(AffineTransform.getTranslateInstance(998, 1000));
-      x2.createGridLines(x1, true);
-
-      assertEquals(5, x2.getGridLineCount());
-
-      for(int i = 0; i < 5; i++) {
-         assertEquals(30, x2.getGridLine(i).getZIndex(), "line " + i);
-      }
-   }
-
-   @Test
    @DisplayName("a line closer than four pixels to the last visible line is hidden")
    void closeLinesHidden() {
       Scale scale = lin();

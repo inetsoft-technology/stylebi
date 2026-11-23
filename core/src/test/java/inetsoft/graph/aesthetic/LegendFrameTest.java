@@ -138,12 +138,6 @@ class LegendFrameTest {
    }
 
    @Test
-   @Disabled("Not filed (by design: frames of one field merge on purpose for brush (#57627, #57648, #58689)): VisualFrame.equals ignores the values, frames of one field with values [A,B] and [A,B,C] are equal (expected not equal)")
-   void framesOfOneFieldWithOtherValuesAreNotEqual() {
-      assertNotEquals(color("S", "A", "B"), color("S", "A", "B", "C"));
-   }
-
-   @Test
    void framesOfTheSameFieldAndValuesAreEqualAndOtherFieldsAreNot() {
       assertEquals(color("S", "A", "B"), color("S", "A", "B"));
       assertNotEquals(color("S", "A", "B"), color("T", "A", "B"));
@@ -152,7 +146,7 @@ class LegendFrameTest {
    // ----------------------------------------------------------- legend spec
 
    @Test
-   @Disabled("Not filed (dormant code: production sets the format on the legend spec directly): createLegendSpec sets the axis format on the original spec after cloning, the returned spec has text format null (expected the axis format 0.0)")
+   @Disabled("Bug #82108 (unused code, delete it or fix it: production sets the format on the legend spec directly): createLegendSpec sets the axis format on the original spec after cloning, the returned spec has text format null (expected the axis format 0.0)")
    void legendTextFormatIsTakenFromTheAxisFormatOfTheScale() {
       CategoricalColorFrame frame = new CategoricalColorFrame("S");
       CategoricalScale scale = new CategoricalScale();
@@ -165,7 +159,7 @@ class LegendFrameTest {
    }
 
    @Test
-   @Disabled("Not filed (dormant code: production sets the format on the legend spec directly): legend spec is cached before the scale is set and never updated, text format is null (expected the axis format 0.0)")
+   @Disabled("Bug #82108 (unused code, delete it or fix it: production sets the format on the legend spec directly): legend spec is cached before the scale is set and never updated, text format is null (expected the axis format 0.0)")
    void legendSpecReadBeforeTheScaleIsSetStillGetsTheAxisFormatLater() {
       CategoricalColorFrame frame = new CategoricalColorFrame("S");
       frame.getLegendSpec();

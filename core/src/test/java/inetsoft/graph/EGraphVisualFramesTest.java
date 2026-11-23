@@ -186,16 +186,6 @@ class EGraphVisualFramesTest {
    }
 
    @Test
-   @Disabled("Not filed (by design: frames of one field merge on purpose for brush (#57627, #57648, #58689)): equal() ignores values so frames of one field with values [CA,NY] and [CA,NY,TX] are merged into one frame, expected 2 frames but was 1")
-   void sameFieldWithOtherValuesKeepsTwoLegends() {
-      VisualFrame[] frames = graphOf(withColor(cat("State", "CA", "NY")),
-                                     withColor(cat("State", "CA", "NY", "TX")))
-         .getVisualFrames();
-
-      assertEquals(2, frames.length, describe(frames));
-   }
-
-   @Test
    void frameTypesAreOrderedColorSizeShapeTextureLine() {
       PointElement elem = element();
       CategoricalColorFrame color = cat("c", "A", "B");

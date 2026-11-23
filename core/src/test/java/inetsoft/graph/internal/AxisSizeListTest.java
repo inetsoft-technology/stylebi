@@ -92,16 +92,6 @@ class AxisSizeListTest {
    }
 
    @Test
-   @DisplayName("getSize of an empty list is 0 and does not throw")
-   @Disabled("Not filed (not reachable: an empty list never reaches size queries and add always precedes them): AxisSizeList.getSize() on a list without coordinates throws " +
-      "IndexOutOfBoundsException (coords.get(0)); expected 0 with no exception")
-   void emptyListSize() {
-      AxisSizeList list = list();
-
-      assertEquals(0, list.getSize(), 1e-9);
-   }
-
-   @Test
    @DisplayName("setSize assigns the size once to every coordinate with the strategy axis")
    void setSizeReachesEveryCoordinate() {
       ICoordinate a = coord(true, 1, 2, 0);
@@ -143,20 +133,6 @@ class AxisSizeListTest {
 
       assertEquals(50, list.getMinSize(), 1e-9);
       assertEquals(70, list.getPreferredSize(), 1e-9);
-   }
-
-   @Test
-   @DisplayName("a coordinate added after the min size was read is included in the min size")
-   @Disabled("Not filed (not reachable: an empty list never reaches size queries and add always precedes them): AxisSizeList.add() does not clear the cached sizes: after getMinSize() returned 30, " +
-      "adding a coordinate with min size 80 still gives 30; expected 80")
-   void addAfterCaching() {
-      AxisSizeList list = list(coord(true, 30, 40, 0));
-
-      assertEquals(30, list.getMinSize(), 1e-9);
-
-      list.add(coord(true, 80, 90, 0));
-
-      assertEquals(80, list.getMinSize(), 1e-9);
    }
 
    @ParameterizedTest

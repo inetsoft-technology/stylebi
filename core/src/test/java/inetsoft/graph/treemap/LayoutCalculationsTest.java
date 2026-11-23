@@ -58,7 +58,7 @@ class LayoutCalculationsTest {
    }
 
    @Test
-   @Disabled("Not filed (dead code: no caller in the project): averageAspectRatio(null) throws NullPointerException (m.length is read before the " +
+   @Disabled("Bug #82108 (unused code, delete it or fix it: no caller in the project): averageAspectRatio(null) throws NullPointerException (m.length is read before the " +
              "null check); expected 0.0")
    void averageAspectRatioOfNullIsZero() {
       assertEquals(0.0, LayoutCalculations.averageAspectRatio((Mappable[]) null), 0);
@@ -75,7 +75,7 @@ class LayoutCalculationsTest {
    }
 
    @Test
-   @Disabled("Not filed (dead code: no caller in the project): getReadability of a model with 0 items is NaN (0/0); expected 1.0 like the array " +
+   @Disabled("Bug #82108 (unused code, delete it or fix it: no caller in the project): getReadability of a model with 0 items is NaN (0/0); expected 1.0 like the array " +
              "overload")
    void readabilityOfEmptyModelIsOne() {
       assertEquals(1.0, LayoutCalculations.getReadability(model(new Mappable[0])), 1e-12);

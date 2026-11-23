@@ -117,14 +117,6 @@ class LegendGroupTest {
       assertNull(group.getLegend(7));
    }
 
-   @Test
-   @Disabled("Not filed (not reachable: the client only sends valid legend indexes): getLegend(-1) throws IndexOutOfBoundsException (expected null)")
-   void negativeLegendIndexIsNull() {
-      LegendGroup group = group(RIGHT, color("F1", "A", "B"), shape("F2", "A", "B"));
-
-      assertNull(group.getLegend(-1));
-   }
-
    private static StackedMeasuresColorFrame stacked(CategoricalColorFrame first,
                                                     CategoricalColorFrame second)
    {
@@ -196,7 +188,7 @@ class LegendGroupTest {
 
    @ParameterizedTest
    @ValueSource(ints = { RIGHT, TOP })
-   @Disabled("Not filed (harmless: the accumulated minimum size has no consumer): initSizes adds to minW/minH without resetting, the minimum size doubles on the second setLayoutSize (RIGHT minHeight 77 -> 154, TOP minWidth 113 -> 226)")
+   @Disabled("Not filed (kept on purpose, not yet judged: VGraph calls setLayoutSize twice per layout (VGraph.java:251 and :637) and reads getMinWidth/getMinHeight at VGraph.java:688/701, so the doubled minimum can reach a layout; effect only suspected in very small charts, not checked in the UI): initSizes adds to minW/minH without resetting, the minimum size doubles on the second setLayoutSize (RIGHT minHeight 77 -> 154, TOP minWidth 113 -> 226)")
    void sizingTheGroupTwiceWithTheSameSizeGivesTheSameSizes(int layout) {
       LegendGroup group = twoLegends(layout, true);
       DimensionD size = new DimensionD(400, 300);
@@ -320,14 +312,4 @@ class LegendGroupTest {
       assertEquals(200 - 6, left.getLegend(0).getBounds().getWidth(), EPS);
    }
 
-   @Test
-   @Disabled("Not filed (only a developer can decide: layout order kept for existing charts): layoutLR places the last legend at the top, legend 0 is below legend 1 (expected legend 0 above)")
-   void verticalGroupPutsTheFirstLegendAboveTheSecond() {
-      LegendGroup group = group(RIGHT, color("F1", "A", "B"), shape("F2", "x", "y"));
-      group.setLayoutSize(new DimensionD(200, 300));
-      group.setBounds(0, 0, 200, 300);
-      group.layout();
-
-      assertTrue(group.getLegend(0).getBounds().getY() > group.getLegend(1).getBounds().getY());
-   }
 }

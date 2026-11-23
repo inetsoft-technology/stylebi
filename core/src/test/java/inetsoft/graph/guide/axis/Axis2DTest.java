@@ -254,52 +254,6 @@ class Axis2DTest {
       }
    }
 
-   @Test
-   @DisplayName("filled categorical scale without grid gives the same tick positions as DefaultAxis")
-   @Disabled("Not filed (only a developer can decide: Axis2D may center filled categorical ticks on purpose in 2.5D charts, no report found): Axis2D.getTickLocations adds 0.5 for any filled CategoricalScale: first grid line is at x=250 (before the depth shift) where DefaultAxis puts it at 0; expected equal positions [0, 500, 1000]")
-   void filledCategoricalLikeDefaultAxis() {
-      CategoricalScale s1 = cat3();
-      s1.setFill(true);
-      CategoricalScale s2 = cat3();
-      s2.setFill(true);
-      Axis2D a1 = axis2d(s1, top());
-      Axis2D a2 = axis2d(s1, bottom());
-      a2.createGridLines(a1, true);
-      DefaultAxis d1 = axis(s2, top());
-      DefaultAxis d2 = axis(s2, bottom());
-      d2.createGridLines(d1, true);
-
-      List<Line2D> actual = shapes(a2);
-      List<Line2D> expected = shapes(d2);
-
-      assertEquals(3, expected.size());
-      assertEquals(expected.size(), actual.size());
-
-      for(int i = 0; i < 3; i++) {
-         assertEquals(L * i / 2, expected.get(i).getX1(), EPS, "default axis " + i);
-         assertEquals(expected.get(i).getX1(), actual.get(i).getX1() - 15, EPS, "line " + i);
-      }
-   }
-
-   @Test
-   @DisplayName("a zero range scale gives finite grid line coordinates")
-   @Disabled("Not filed (not reached: the scales widen a zero range before the axis is built, so min never equals max on a 2.5D axis): Axis2D.getTickLocations divides by max-min = 0 and has no zero-range guard, so the grid line x coordinate is NaN; expected finite coordinates")
-   void zeroRangeFinite() {
-      LinearScale scale = new LinearScale("m");
-      scale.setMin(5);
-      scale.setMax(5);
-      scale.getAxisSpec().setGridStyle(GraphConstants.THIN_LINE);
-      Axis2D a1 = axis2d(scale, top());
-      Axis2D a2 = axis2d(scale, bottom());
-
-      a2.createGridLines(a1, true);
-
-      for(Line2D line : shapes(a2)) {
-         assertTrue(Double.isFinite(line.getX1()) && Double.isFinite(line.getY1()) &&
-                    Double.isFinite(line.getX2()) && Double.isFinite(line.getY2()), "line " + line.getP1());
-      }
-   }
-
    private BufferedImage paint(Axis2D axis) {
       BufferedImage image = new BufferedImage(1200, 200, BufferedImage.TYPE_INT_ARGB);
       g = image.createGraphics();

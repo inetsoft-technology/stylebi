@@ -67,17 +67,6 @@ class LegendSpecTest {
    }
 
    @Test
-   @Disabled("Not filed (no visible harm: only the script-modified flag is shared): clone shares hiddenItems with the original, hiding A on the clone hides it on the original (expected still visible)")
-   void hidingAnItemOnACloneDoesNotHideItOnTheOriginal() {
-      LegendSpec original = new LegendSpec();
-      LegendSpec clone = original.clone();
-      clone.setVisible("A", false);
-
-      assertFalse(clone.isVisible("A"));
-      assertTrue(original.isVisible("A"));
-   }
-
-   @Test
    void cloneEqualsTheOriginalAndTextSpecChangesStayOnTheClone() {
       LegendSpec original = new LegendSpec();
       original.getTextSpec().setFormat(new DecimalFormat("0.0"));
@@ -112,12 +101,6 @@ class LegendSpecTest {
       b = new LegendSpec();
       b.setSymbolSize(20);
       assertNotEquals(a, b);
-   }
-
-   @Test
-   @Disabled("Not filed (harmless: LegendSpec is never a hash key): two default LegendSpec are equal but have different hashCode (nested TextSpec has no hashCode)")
-   void equalSpecsHaveTheSameHashCode() {
-      assertEquals(new LegendSpec().hashCode(), new LegendSpec().hashCode());
    }
 
    @Test

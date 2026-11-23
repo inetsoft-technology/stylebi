@@ -120,19 +120,11 @@ class OrderedTreemapTest {
    }
 
    @Test
-   @Disabled("Not filed (dead code: no caller in the project): layout of an empty model throws ArrayIndexOutOfBoundsException (computePivotIndex " +
+   @Disabled("Bug #82108 (unused code, delete it or fix it: no caller in the project): layout of an empty model throws ArrayIndexOutOfBoundsException (computePivotIndex " +
              "reads sizes[0]); expected no exception")
    void emptyModelDoesNotThrow() {
       assertDoesNotThrow(() -> new OrderedTreemap().layout(model(new Mappable[0]),
                                                            new Rect(0, 0, 4, 4)));
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable: TreemapSizeFrame guarantees sizes of at least 1 (TreemapSizeFrame.java:45-84)): all-zero weights give NaN coordinates (scale factor sqrt(area/0)); expected finite")
-   void allZeroWeightsStayFinite() {
-      MapItem[] items = items(0, 0);
-      new OrderedTreemap().layout(model(items), new Rect(0, 0, 4, 4));
-      assertFinite(items);
    }
 
    @Test

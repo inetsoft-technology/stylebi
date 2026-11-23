@@ -145,13 +145,6 @@ class OneVarParallelCoordTest {
    }
 
    @Test
-   @DisplayName("a NaN group index is no group: no point, like index -1")
-   @Disabled("Not filed (not reachable: NaN tuples are filtered at GraphElement.java:585): expected null (NaN is no group, like index -1), actual Point2D(166.67, 400.0): (int) NaN becomes axis 0")
-   void nanIndex() {
-      assertNull(coord(abc()).getPosition(new double[] { Double.NaN, 40 }));
-   }
-
-   @Test
    @DisplayName("parallel axes share one value range that covers the data")
    void sharedRange() {
       OneVarParallelCoord coord = new OneVarParallelCoord("m", "g", new LinearScale("m"));

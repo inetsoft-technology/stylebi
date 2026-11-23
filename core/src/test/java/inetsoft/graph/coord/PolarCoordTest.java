@@ -607,25 +607,6 @@ class PolarCoordTest {
    // ---- general shape transform
 
    @Test
-   @Disabled("Not filed (not reachable: under polar the BarVO shape stays a Rectangle2D, the generic Shape "
-      + "branch has no reachable path): SEG_CLOSE emits moveTo with the untransformed rect-space start point "
-      + "(800,800), so the closed triangle's bounds reach x 800; expected every point inside the [-500,500] disc")
-   @DisplayName("a closed path stays inside the polar disc")
-   void closedPathStaysInsideDisc() {
-      Path2D.Double tri = new Path2D.Double();
-
-      tri.moveTo(800, 800);
-      tri.lineTo(800, 900);
-      tri.lineTo(900, 800);
-      tri.closePath();
-
-      Rectangle2D b = ((Shape) thetaRho().transformShape(tri)).getBounds2D();
-
-      assertTrue(b.getMinX() >= -500 && b.getMaxX() <= 500, "x range " + b);
-      assertTrue(b.getMinY() >= -500 && b.getMaxY() <= 500, "y range " + b);
-   }
-
-   @Test
    @DisplayName("an open polyline has its vertices polar transformed")
    void openPolylineVertices() {
       Path2D.Double path = new Path2D.Double();

@@ -452,30 +452,6 @@ class DefaultAxisLayoutTest {
       assertEquals(2 * line, multi.getPreferredHeight() - single.getPreferredHeight(), TOL);
    }
 
-   @Disabled("Not filed (harmless: only a 1px difference on the length dimension of a label-less axis, "
-      + "callers wrap it in Math.max): min width 49 is above preferred width 48 for a horizontal "
-      + "axis without labels, expected min <= preferred; getWidth0 adds the label spacing times "
-      + "(labels - 1) = -1 for min and -2 for preferred")
-   @Test
-   @DisplayName("axis without labels: minimum size does not exceed preferred size, none negative")
-   void noLabelsMinNotAbovePreferred() {
-      LinearScale hscale = lin();
-      hscale.getAxisSpec().setLabelVisible(false);
-      DefaultAxis horizontal = axis(hscale, hz(), 40);
-      assertTrue(horizontal.getMinWidth() <= horizontal.getPreferredWidth(),
-                 "width min " + horizontal.getMinWidth() + " pref " +
-                 horizontal.getPreferredWidth());
-      assertTrue(horizontal.getMinWidth() >= 0 && horizontal.getPreferredWidth() >= 0);
-
-      LinearScale vscale = lin();
-      vscale.getAxisSpec().setLabelVisible(false);
-      DefaultAxis vertical = axis(vscale, vt(), 60);
-      assertTrue(vertical.getMinHeight() <= vertical.getPreferredHeight(),
-                 "height min " + vertical.getMinHeight() + " pref " +
-                 vertical.getPreferredHeight());
-      assertTrue(vertical.getMinHeight() >= 0 && vertical.getPreferredHeight() >= 0);
-   }
-
    static Stream<Arguments> scaleAndOrientation() {
       List<Arguments> list = new ArrayList<>();
 
@@ -654,45 +630,6 @@ class DefaultAxisLayoutTest {
    }
 
    // ---------------------------------------------------------------- setters and size caches
-
-   @Disabled("Not filed (not reachable: no production code calls setLabelVisible/setScale after a size "
-      + "query): preferred height is 21 after setLabelVisible(false), expected 5, the value of an "
-      + "axis built without labels")
-   @Test
-   @DisplayName("hiding the labels after a size query gives the size of an axis built without labels")
-   void setterRefreshesSize() {
-      DefaultAxis axis = axis(lin(), hz(), 40);
-      axis.getPreferredHeight();
-      axis.setLabelVisible(false);
-
-      LinearScale hidden = lin();
-      hidden.getAxisSpec().setLabelVisible(false);
-      DefaultAxis fresh = axis(hidden, hz(), 40);
-
-      assertEquals(fresh.getPreferredHeight(), axis.getPreferredHeight(), TOL);
-      assertEquals(5, axis.getPreferredHeight(), TOL);
-   }
-
-   @Disabled("Not filed (not reachable: no production code calls setLabelVisible/setScale after a size "
-      + "query): preferred width is 24 after setScale with 10-digit labels, expected 63, the value "
-      + "of a fresh axis on the new scale")
-   @Test
-   @DisplayName("changing the scale after a size query gives the size of a fresh axis on the new scale")
-   void scaleChangeRefreshesSize() {
-      LinearScale shortLabels = lin();
-      DefaultAxis axis = axis(shortLabels, vt(), 60);
-      axis.getPreferredWidth();
-
-      LinearScale wide = lin();
-      wide.getAxisSpec().getTextSpec().setFormat(decimal("0000000000"));
-      axis.setScale(wide);
-
-      LinearScale wide2 = lin();
-      wide2.getAxisSpec().getTextSpec().setFormat(decimal("0000000000"));
-      DefaultAxis fresh = axis(wide2, vt(), 60);
-
-      assertEquals(fresh.getPreferredWidth(), axis.getPreferredWidth(), TOL);
-   }
 
    @Test
    @DisplayName("zero length weighted categorical axis lays out, zero-width labels are hidden")

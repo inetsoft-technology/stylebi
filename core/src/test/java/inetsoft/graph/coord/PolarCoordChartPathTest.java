@@ -812,20 +812,4 @@ class PolarCoordChartPathTest {
                       ((PolarCoord) graphs.get(1).getCoordinate()).getRadius());
    }
 
-   @Test
-   @Disabled("Not filed (not reachable: production clones an EGraph that was not plotted, the radius cache "
-      + "is never reused): PolarCoord.getRadius caches pradius and clone() copies it, a clone given new "
-      + "coordinate bounds keeps the radius of the original, 197.5 instead of 48.0 for a 150x100 area")
-   @DisplayName("a clone of a fitted coordinate recomputes its radius for its own bounds")
-   void cloneRecomputesRadius() {
-      Pie pie = new Pie().plot();
-
-      assertTrue(pie.coord().getRadius() > 100);
-
-      PolarCoord clone = (PolarCoord) pie.coord().clone();
-
-      clone.setCoordBounds(new Rectangle2D.Double(0, 0, 150, 100));
-
-      assertEquals(minSide(clone) / 2 - 2, clone.getRadius(), 1e-9);
-   }
 }

@@ -161,23 +161,6 @@ class ParallelCoordTest {
    }
 
    @Test
-   @DisplayName("a rejected setScales call leaves the previous scales in place")
-   @Disabled("Not filed (not reachable: production never calls setScales after a failure or on a clone, and never serializes an EGraph): expected 3 original scales kept after the rejected setScales call, actual 1 (scales assigned before validation)")
-   void rejectedSetScalesKeepsState() {
-      Scale[] original = { lin("a", 0, 1), lin("b", 0, 1), lin("c", 0, 1) };
-      ParallelCoord coord = new ParallelCoord(original);
-
-      assertThrows(RuntimeException.class, () -> coord.setScales(lin("x", 0, 1)));
-
-      Scale[] after = coord.getParallelScales();
-      assertEquals(3, after.length);
-
-      for(int i = 0; i < 3; i++) {
-         assertSame(original[i], after[i]);
-      }
-   }
-
-   @Test
    @DisplayName("label scale lists the measure fields with ticks at slot centres, hidden line and ticks")
    void labelScale() {
       ParallelCoord coord = new ParallelCoord(
@@ -223,46 +206,6 @@ class ParallelCoordTest {
       copy[1] = lin("zzz", 0, 1);
       assertEquals("m2", coord.getParallelScales()[1].getFields()[0]);
       assertEquals(0, clone.getAxes(false).length);
-   }
-
-   @Test
-   @DisplayName("setScales on a clone relabels the clone from its own scales")
-   @Disabled("Not filed (not reachable: production never calls setScales after a failure or on a clone, and never serializes an EGraph): expected clone label values [x1,x2,x3], actual 2 values (the label scale of the clone reads the scales of the original coord)")
-   void cloneThenSetScales() {
-      ParallelCoord coord = new ParallelCoord(lin("m1", 0, 1), lin("m2", 0, 1));
-      ParallelCoord clone = (ParallelCoord) coord.clone(false);
-
-      clone.setScales(lin("x1", 0, 1), lin("x2", 0, 1), lin("x3", 0, 1));
-
-      assertArrayEquals(new Object[] { "x1", "x2", "x3" },
-                        clone.getAxisLabelScale().getValues());
-   }
-
-   @Test
-   @DisplayName("serialization round trip keeps the label scale and the positions")
-   @Disabled("Not filed (not reachable: production never calls setScales after a failure or on a clone, and never serializes an EGraph): expected label scale non-null after Java deserialization, actual null (pscale is transient, no readObject)")
-   void serialization() throws Exception {
-      ParallelCoord coord = new ParallelCoord(
-         lin("m1", 0, 100), lin("m2", 0, 100), lin("m3", 0, 100));
-      ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-
-      try(ObjectOutputStream out = new ObjectOutputStream(bytes)) {
-         out.writeObject(coord);
-      }
-
-      ParallelCoord copy;
-
-      try(ObjectInputStream in = new ObjectInputStream(
-         new ByteArrayInputStream(bytes.toByteArray())))
-      {
-         copy = (ParallelCoord) in.readObject();
-      }
-
-      assertNotNull(copy.getAxisLabelScale());
-      assertArrayEquals(new Object[] { "m1", "m2", "m3" }, copy.getAxisLabelScale().getValues());
-      Point2D pt = copy.getPosition(new double[] { NAN, 40, NAN });
-      assertEquals(500, pt.getX(), EPS);
-      assertEquals(400, pt.getY(), EPS);
    }
 
    @Test

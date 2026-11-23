@@ -64,17 +64,6 @@ class BinaryTreeLayoutTest {
    }
 
    @Test
-   @Disabled("Not filed (harmless: TreeModel.java:98 stores the same Rect): single item receives the caller's Rect instance (SliceLayout creates a new Rect); " +
-             "expected a copy, actual same instance, so a later in-place change of the item " +
-             "bounds mutates the caller's bounds")
-   void singleItemGetsACopyOfTheBounds() {
-      MapItem[] items = items(5);
-      Rect bounds = new Rect(1, 2, 7, 3);
-      layout.layout(items, bounds);
-      assertNotSame(bounds, items[0].getBounds());
-   }
-
-   @Test
    void subRangeLeavesOutsideItemsUntouched() {
       MapItem[] items = items(5, 1, 3);
       layout.layout(items, 1, 2, new Rect(0, 0, 8, 4));
@@ -98,15 +87,6 @@ class BinaryTreeLayoutTest {
       MapItem[] items = items(3, 1);
       layout.layout(items, new Rect(0, 0, 8, 4));
       assertRects(items, new double[] { 0, 0, 6, 4 }, new double[] { 6, 0, 2, 4 });
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable: TreemapSizeFrame guarantees sizes of at least 1 (TreemapSizeFrame.java:45-84)): adjacent zero-weight pair gives NaN coordinates (0/0 in the sub-tree split): " +
-             "expected finite coordinates for [0,0,1]")
-   void adjacentZeroWeightPairStaysFinite() {
-      MapItem[] items = items(0, 0, 1);
-      layout.layout(items, new Rect(0, 0, 4, 4));
-      assertFinite(items);
    }
 
    @Test

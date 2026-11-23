@@ -186,14 +186,6 @@ class LegendTest {
    }
 
    @Test
-   @Disabled("Not filed (by design: init(Object...) takes values as given, like CategoricalScale): createItems keeps duplicate values, expected items [A, B] but was [A, A, B]")
-   void duplicateValuesShowOneItem() {
-      Legend legend = legend(color("S", "A", "A", "B"), RIGHT);
-
-      assertEquals(List.of("A", "B"), labels(legend));
-   }
-
-   @Test
    void nullValueShowsAnItemWithEmptyLabel() {
       Legend legend = legend(color("S", "A", null, "B"), RIGHT);
       List<LegendItem> items = items(legend);
@@ -232,17 +224,6 @@ class LegendTest {
       Legend legend = legend(color("S", values("v", 5)), RIGHT);
 
       assertEquals(List.of("v0", "v1", "v2"), labels(legend));
-   }
-
-   @Test
-   @Disabled("Not filed (by design: same parsing as the sibling property graph.axislabel.maxcount): graph.legend.maxcount=abc throws NumberFormatException from the Legend constructor, expected the default limit")
-   void invalidItemLimitPropertyFallsBackToTheDefault() {
-      SreeEnv.setProperty(MAX_COUNT, "abc");
-      CategoricalColorFrame frame = color("S", values("v", 5));
-      Legend[] legend = new Legend[1];
-
-      assertDoesNotThrow(() -> legend[0] = legend(frame, RIGHT));
-      assertEquals(5, items(legend[0]).size());
    }
 
    @ParameterizedTest
@@ -381,25 +362,6 @@ class LegendTest {
       for(LegendItem item : items(legend)) {
          assertTrue(tolerant.contains(item.getBounds()), item + " " + item.getBounds());
       }
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable: each legend is laid out once and read with the same arguments): getItems caches the grid of the first call, expected 1 row after the wide layout but was 5")
-   void itemGridFollowsTheLastLayout() {
-      CategoricalColorFrame frame = color("S", "A", "B", "C", "D", "E");
-      double p = maxItemWidth(frame, RIGHT);
-      Legend legend = legend(frame, RIGHT);
-      layout(legend, p, 1000);
-      assertEquals(5, legend.getItems().length);
-
-      layout(legend, 6 * p, 1000);
-      Set<Double> ys = new HashSet<>();
-
-      for(LegendItem item : items(legend)) {
-         ys.add(item.getBounds().getY());
-      }
-
-      assertEquals(ys.size(), legend.getItems().length);
    }
 
    private static Legend stackedLegend(boolean stack, boolean polar) {
@@ -572,29 +534,6 @@ class LegendTest {
       Legend longLabel = legend(color("S", "a".repeat(30), "def"), RIGHT);
 
       assertTrue(longLabel.getPreferredWidth() > shortLabel.getPreferredWidth());
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable: each legend is laid out once and read with the same arguments): getPreferredHeight(w,maxh) caches by width only, expected 64.0 (fresh legend) but was 169.0")
-   void preferredHeightWithAnotherMaxHeightEqualsAFreshLegend() {
-      CategoricalColorFrame frame = color("S", longValues(10));
-      double w = 1.5 * maxItemWidth(frame, RIGHT);
-      Legend reused = legend(frame, RIGHT);
-      reused.getPreferredHeight(w, 1000);
-
-      assertEquals(legend(frame, RIGHT).getPreferredHeight(w, 50),
-                   reused.getPreferredHeight(w, 50), 1e-9);
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable: each legend is laid out once and read with the same arguments): getPreferredWidth(h,maxw) caches by height only, expected 122.0 (fresh legend) but was 602.0")
-   void preferredWidthWithAnotherMaxWidthEqualsAFreshLegend() {
-      CategoricalColorFrame frame = color("S", longValues(10));
-      Legend reused = legend(frame, RIGHT);
-      reused.getPreferredWidth(60, 1000);
-
-      assertEquals(legend(frame, RIGHT).getPreferredWidth(60, 30),
-                   reused.getPreferredWidth(60, 30), 1e-9);
    }
 
    @Test
@@ -774,14 +713,4 @@ class LegendTest {
       return image;
    }
 
-   @Test
-   @Disabled("Not filed (not reachable: no production caller passes a null title spec): paintTitle dereferences the null title text spec, NullPointerException instead of no exception")
-   void paintWithoutTitleTextSpecDoesNotFail() {
-      CategoricalColorFrame frame = color("S", "A", "B");
-      frame.getLegendSpec().setTitleTextSpec(null);
-      Legend legend = legend(frame, RIGHT);
-      layout(legend, 200, 100);
-
-      assertDoesNotThrow(() -> paint(legend, 300, 300));
-   }
 }

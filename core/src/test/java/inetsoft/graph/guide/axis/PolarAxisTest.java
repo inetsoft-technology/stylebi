@@ -224,22 +224,8 @@ class PolarAxisTest {
    }
 
    @Test
-   @DisplayName("the oval size survives a change of the tick visibility")
-   @Disabled("Not filed (not reachable: no production code calls setTickVisible/setLabelVisible/setLineVisible/setScale on a PolarAxis): setTickVisible(false) on an axis built with PolarAxis(scale, vgraph) throws ArrayIndexOutOfBoundsException at PolarAxis.createVisuals (empty non-null measures array), so the oval size cannot be read back; expected axis line min width 200 and height 100")
-   void sizeKeptAfterRebuild() {
-      PolarAxis axis = axis(cat("A", "B", "C"));
-      axis.setWidth(200);
-      axis.setHeight(100);
-
-      axis.setTickVisible(false);
-
-      assertEquals(200, axis.getAxisLine().getMinWidth(), 0);
-      assertEquals(100, axis.getAxisLine().getMinHeight(), 0);
-   }
-
-   @Test
    @DisplayName("an axis created with measure names labels its ticks with measure titles")
-   @Disabled("Not filed (dead code: the only new PolarAxis (PolarCoord.java:464) passes no measures): PolarAxis(scale, vgraph, measures...) builds its labels in the super constructor before the measures field is assigned, so the labels are VDimensionLabel; expected VMeasureTitle")
+   @Disabled("Bug #82108 (unused code, delete it or fix it: the only new PolarAxis (PolarCoord.java:464) passes no measures): PolarAxis(scale, vgraph, measures...) builds its labels in the super constructor before the measures field is assigned, so the labels are VDimensionLabel; expected VMeasureTitle")
    void measureTitles() {
       PolarAxis axis = new PolarAxis(cat("A", "B", "C"), vg, "m1", "m2", "m3");
 
@@ -247,20 +233,6 @@ class PolarAxisTest {
 
       for(VLabel label : axis.getLabels()) {
          assertInstanceOf(VMeasureTitle.class, label);
-      }
-   }
-
-   @Test
-   @DisplayName("an axis created without measures can show its labels again and keeps dimension labels")
-   @Disabled("Not filed (not reachable: no production code calls setTickVisible/setLabelVisible/setLineVisible/setScale on a PolarAxis): setLabelVisible(true) on an axis built with PolarAxis(scale, vgraph) throws ArrayIndexOutOfBoundsException at PolarAxis.createVisuals (measures is an empty non-null array after construction, measures[i] is read); expected no exception and dimension labels")
-   void rebuildWithDefaultConstructor() {
-      PolarAxis axis = axis(cat("A", "B", "C"));
-
-      assertDoesNotThrow(() -> axis.setLabelVisible(true));
-      assertEquals(3, axis.getLabels().length);
-
-      for(VLabel label : axis.getLabels()) {
-         assertInstanceOf(VDimensionLabel.class, label);
       }
    }
 
@@ -347,27 +319,6 @@ class PolarAxisTest {
          assertEquals(down, painted(image, 99, 101, 152, 153), "outside, tickDown=" + down);
          assertEquals(!down, painted(image, 99, 101, 147, 148), "inside, tickDown=" + down);
       }
-   }
-
-   @Test
-   @DisplayName("a hidden min and max tick leaves no tick at the angle-zero point")
-   @Disabled("Not filed (not reachable: nobody hides min/max ticks of a PolarAxis): PolarAxisLine.paintTicks compares the tick angle with the scale min and max (angle 0 vs min 10), so the tick at the min is still drawn with setMinTickVisible(false); expected no tick pixel at the angle-0 point")
-   void minMaxTickHiddenNoTickAtStart() {
-      LinearScale scale = lin();
-      scale.setMin(10);
-      scale.setMax(110);
-      PolarAxis axis = axis(scale);
-      axis.setLabelVisible(false);
-      axis.setLineVisible(false);
-      axis.setMinTickVisible(false);
-      axis.setMaxTickVisible(false);
-      axis.setWidth(100);
-      axis.setHeight(100);
-
-      BufferedImage image = paint(axis);
-
-      // the point at angle 0 is (150, 100); the major tick reaches 4 px outward there
-      assertFalse(painted(image, 153, 154, 99, 101), "tick at angle 0");
    }
 
    @Test

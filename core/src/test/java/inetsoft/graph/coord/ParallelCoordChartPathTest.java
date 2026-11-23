@@ -368,34 +368,6 @@ class ParallelCoordChartPathTest {
       return plotParallel(scales, data, 600, 400);
    }
 
-   @Test
-   @DisplayName("unit height does not depend on the axis order and is the maximum over the axes")
-   @Disabled("Not filed (negligible: only the script API with a categorical scale, a few pixels): expected unit min height == max over axes of (axis height * labels for categorical, axis height for linear) = 132.0, actual 141.0 for order (linear, categorical): AbstractParallelCoord.getScalesHeight multiplies the running maximum by the label count")
-   void unitHeightIndependentOfOrder() {
-      double[][] heights = new double[2][];
-
-      for(int k = 0; k < 2; k++) {
-         VGraph vg = plotMixed(k == 1);
-         double min = 0;
-         double pref = 0;
-
-         for(DefaultAxis axis : axes(vg)) {
-            boolean cat = axis.getScale() instanceof CategoricalScale;
-            int len = axis.getLabels().length;
-            min = Math.max(min, axis.getMinHeight() * (cat ? len : 1));
-            pref = Math.max(pref, axis.getPreferredHeight() * (cat ? len : 1));
-         }
-
-         AbstractParallelCoord coord = coord(vg);
-         assertEquals(min, coord.getUnitMinHeight(), EPS, "min, categorical first=" + (k == 1));
-         assertEquals(pref, coord.getUnitPreferredHeight(), EPS,
-                      "preferred, categorical first=" + (k == 1));
-         heights[k] = new double[] { coord.getUnitMinHeight(), coord.getUnitPreferredHeight() };
-      }
-
-      assertArrayEquals(heights[0], heights[1], EPS);
-   }
-
    // ---------------------------------------------------------------- one variable
 
    private static DefaultDataSet groups(Object... groupAndValue) {

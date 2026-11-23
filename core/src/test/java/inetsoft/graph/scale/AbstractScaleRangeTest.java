@@ -91,16 +91,6 @@ class AbstractScaleRangeTest {
    }
 
    @Test
-   @DisplayName("a second range for the same measure is merged into the existing range")
-   @Disabled("Not filed (reach through GraphGenerator.java:3357 not reproduced in the UI): setMeasureRange replaces the range: result is [2,7], expected [2,10] (ScaleRange javadoc says the new range is merged)")
-   void measureRangeMerge() {
-      LinearRange range = new LinearRange();
-      range.setMeasureRange("m", 5, 10);
-      range.setMeasureRange("m", 2, 7);
-      assertArrayEquals(new int[] { 2, 10 }, range.getMeasureRange("m"));
-   }
-
-   @Test
    @DisplayName("copyMeasureRanges copies only measures that are not defined yet")
    void copyMeasureRanges() {
       LinearRange target = new LinearRange();
@@ -178,17 +168,6 @@ class AbstractScaleRangeTest {
    }
 
    @Test
-   @DisplayName("a measure without a range uses all rows even when another has a range")
-   @Disabled("Not filed (reach not reproduced in the UI): getStartRow/getEndRow ignore the unranged measure: start is 5 and end is 8, expected 0 and 10")
-   void rowRangeMixedRangedAndUnranged() {
-      LinearRange range = new LinearRange();
-      range.setMeasureRange("a", 5, 8);
-      DefaultDataSet data = tenRows();
-      assertEquals(0, range.getStartRow(data, "a", "b"));
-      assertEquals(10, range.getEndRow(data, "a", "b"));
-   }
-
-   @Test
    @DisplayName("filtered data set: rows are mapped like the GraphElement static methods")
    void rowRangeFilteredDataSet() {
       DefaultDataSet base = tenRows();
@@ -245,16 +224,6 @@ class AbstractScaleRangeTest {
    // ---- equals / hashCode ----
 
    @Test
-   @Disabled("Not filed (only causes an extra redraw, no wrong picture): equals compares the Map<String,int[]> values by array identity: two ranges with the same measure range [1,5] are not equal, expected equal")
-   void equalsSameContent() {
-      LinearRange a = new LinearRange();
-      LinearRange b = new LinearRange();
-      a.setMeasureRange("m", 1, 5);
-      b.setMeasureRange("m", 1, 5);
-      assertEquals(a, b);
-   }
-
-   @Test
    void equalsDifferentContent() {
       LinearRange base = new LinearRange();
       base.setMeasureRange("m", 1, 5);
@@ -273,23 +242,4 @@ class AbstractScaleRangeTest {
       assertNotEquals(base, otherName);
    }
 
-   @Test
-   @DisplayName("LinearRange and StackRange in default state are not equal, in both directions")
-   @Disabled("Not filed (only causes an extra redraw, no wrong picture): LinearRange.equals(StackRange) is true (only StackRange.equals(LinearRange) is false), expected false in both directions")
-   void equalsAcrossTypes() {
-      LinearRange linear = new LinearRange();
-      StackRange stack = new StackRange();
-      assertFalse(linear.equals(stack), "linear.equals(stack)");
-      assertFalse(stack.equals(linear), "stack.equals(linear)");
-   }
-
-   @Test
-   @DisplayName("equal ranges have the same hash code")
-   @Disabled("Not filed (only causes an extra redraw, no wrong picture): hashCode is not overridden (identity hash) while equals is: two equal default LinearRange have different hash codes")
-   void hashCodeContract() {
-      LinearRange a = new LinearRange();
-      LinearRange b = new LinearRange();
-      assertEquals(a, b);
-      assertEquals(a.hashCode(), b.hashCode());
-   }
 }

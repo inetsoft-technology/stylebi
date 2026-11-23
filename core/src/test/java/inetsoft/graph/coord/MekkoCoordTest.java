@@ -316,27 +316,6 @@ class MekkoCoordTest {
    }
 
    @Test
-   @DisplayName("clone(true) and clone(false) own their scales, have no axes, leave the original weights")
-   @Disabled("Not filed (not reachable: clones are always taken from an EGraph that was not plotted yet): MekkoCoord.clone(boolean) is the shallow Coordinate.clone; expected: the clone owns its three scales, actual: clone.getScales()[0] is the same instance as the original xscale (deep=true)")
-   void cloneIndependence() {
-      for(boolean deep : new boolean[] { true, false }) {
-         MekkoCoord coord = coord(standard());
-         MekkoCoord clone = (MekkoCoord) coord.clone(deep);
-         Scale[] orig = coord.getScales();
-         Scale[] copy = clone.getScales();
-
-         for(int i = 0; i < 3; i++) {
-            assertNotSame(orig[i], copy[i], "scale " + i + " deep=" + deep);
-         }
-
-         assertEquals(0, clone.getAxes(false).length);
-
-         ((CategoricalScale) copy[0]).setWeight("East", 7);
-         assertEquals(40, ((CategoricalScale) orig[0]).getWeight("East"), EPS);
-      }
-   }
-
-   @Test
    @DisplayName("axis spec setters: getter returns the same spec, the matching scale uses it")
    void axisSpecSetters() {
       MekkoCoord coord = new MekkoCoord();

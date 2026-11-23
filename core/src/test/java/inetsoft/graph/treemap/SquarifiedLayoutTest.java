@@ -160,40 +160,6 @@ class SquarifiedLayoutTest {
    }
 
    @Test
-   @Disabled("Not filed (not reachable: TreemapSizeFrame guarantees sizes of at least 1 (TreemapSizeFrame.java:45-84)): zero-width bounds: items keep the default 1x1 rect outside the bounds (width 1, " +
-             "expected 0): SquarifiedLayout returns on 'mid > end' without laying out")
-   void zeroWidthBoundsKeepEveryItemInsideBounds() {
-      MapItem[] items = items(4, 3, 2, 1);
-      layout.layout(items, new Rect(0, 0, 0, 5));
-
-      for(MapItem item : items) {
-         assertEquals(0, item.getBounds().w, EPS, item.getBounds().toString());
-      }
-   }
-
-   @Test
-   @Disabled("Not filed (by design: ported strip heuristic, not the textbook worst-aspect algorithm): textbook squarified result expected (2x2 grid of unit squares); actual code " +
-             "builds three stacked strips plus one of width 1.5 and 0.5")
-   void fourEqualItemsInSquareGiveFourUnitSquares() {
-      MapItem[] items = items(1, 1, 1, 1);
-      layout.layout(items, new Rect(0, 0, 2, 2));
-      assertRects(items, new double[] { 0, 0, 1, 1 }, new double[] { 1, 0, 1, 1 },
-                  new double[] { 0, 1, 1, 1 }, new double[] { 1, 1, 1, 1 });
-   }
-
-   @Test
-   @Disabled("Not filed (not reachable: TreemapSizeFrame guarantees sizes of at least 1 (TreemapSizeFrame.java:45-84)): zero-weight item alone in its strip gets NaN coordinates (0/0): expected finite " +
-             "rect with area 0")
-   void zeroWeightItemGetsFiniteZeroAreaRect() {
-      MapItem[] items = items(5, 0, 3);
-      layout.layout(items, new Rect(0, 0, 4, 2));
-      assertRect("size 5", 0, 0, 2.5, 2, items[0]);
-      assertRect("size 3", 2.5, 0, 1.5, 2, items[2]);
-      assertFinite(items);
-      assertEquals(0, items[1].getBounds().w * items[1].getBounds().h, EPS);
-   }
-
-   @Test
    void twentyThousandEqualItemsDoNotOverflowTheStackAndConserveArea() {
       MapItem[] items = new MapItem[20000];
 
@@ -215,13 +181,4 @@ class SquarifiedLayoutTest {
       assertEquals(1e6, area, 1e6 * 1e-9);
    }
 
-   @Test
-   @Disabled("Not filed (by design: ported strip heuristic, not the textbook worst-aspect algorithm): squarified worst-aspect rule not implemented: expected (0,0,4,4),(4,0,3,8/3)," +
-             "(4,8/3,3,4/3) for [4,2,1] in 7x4 (van Wijk), actual (0,0,4,4),(4,0,2,4),(6,0,1,4)")
-   void textbookWorstAspectResultForFourTwoOne() {
-      MapItem[] items = items(4, 2, 1);
-      layout.layout(items, new Rect(0, 0, 7, 4));
-      assertRects(items, new double[] { 0, 0, 4, 4 }, new double[] { 4, 0, 3, 8.0 / 3 },
-                  new double[] { 4, 8.0 / 3, 3, 4.0 / 3 });
-   }
 }
