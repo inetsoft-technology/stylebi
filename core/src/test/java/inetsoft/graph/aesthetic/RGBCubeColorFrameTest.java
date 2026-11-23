@@ -85,7 +85,7 @@ class RGBCubeColorFrameTest {
       }
    }
 
-   @Disabled("Not filed (degenerate script input: one colour path, script only): one colour path throws ArrayIndexOutOfBoundsException (index 1, length 1) for ratio below 1; expected (255,0,0) at every ratio")
+   @Disabled("Bug #82070: RGBCubeColorFrame with one colour path or an end component above 1 throws")
    @Test
    void singleColorPathHasThatColorEverywhere() {
       RGBCubeColorFrame frame = new RGBCubeColorFrame(new double[][] { { 1, 0, 0 } });
@@ -109,7 +109,7 @@ class RGBCubeColorFrameTest {
       assertRgb(255, 0, 0, frame.getColor(0.75));
    }
 
-   @Disabled("Not filed (invalid script input: components outside 0..1 are not valid RGB cube input, script only): end colour component 1.2 at ratio 1 throws IllegalArgumentException (Red out of range); expected red 255 like the interior clamp")
+   @Disabled("Bug #82070: RGBCubeColorFrame with one colour path or an end component above 1 throws")
    @Test
    void endComponentAboveOneIsClampedLikeTheInterior() {
       RGBCubeColorFrame frame = new RGBCubeColorFrame(new double[][] { { 0, 0, 0 }, { 1.2, 0, 0 } });
