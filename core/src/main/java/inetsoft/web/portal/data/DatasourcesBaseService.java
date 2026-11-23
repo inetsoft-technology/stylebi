@@ -25,6 +25,7 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.jdbc.util.JDBCUtil;
@@ -483,15 +484,91 @@ public abstract class DatasourcesBaseService {
       }
    }
 
+   /**
+    * Checks that no asset depends on a data source. The dependents are the sheets that use the
+    * outer dependencies of its logical models, and the sheets built directly on the data source
+    * (a worksheet table from one of its physical or SQL tables), which the dependency storage
+    * keeps under the data source itself.
+    *
+    * @throws DependencyException if a sheet depends on the data source.
+    */
    public void checkDataSourceOuterDependencies(String dxname) throws Exception {
       XDataModel model = repository.getDataModel(dxname);
+      DependencyException modelEx = null;
 
       if(model != null) {
          for(String name : model.getLogicalModelNames()) {
             XLogicalModel lmodel = model.getLogicalModel(name);
-            checkModelOuterDependencies(lmodel);
+
+            try {
+               checkModelOuterDependencies(lmodel);
+            }
+            catch(DependencyException ex) {
+               modelEx = ex;
+               break;
+            }
          }
       }
+
+      DependencyException sheetEx = getSourceSheetDependencies(dxname, modelEx);
+
+      if(modelEx != null && sheetEx != null) {
+         throw new DependencyException(Arrays.asList(modelEx, sheetEx));
+      }
+      else if(modelEx != null) {
+         throw modelEx;
+      }
+      else if(sheetEx != null) {
+         throw sheetEx;
+      }
+   }
+
+   /**
+    * Gets the sheets built directly on a data source that are not already reported through a
+    * logical model. Models, queries and other non-sheet dependents are not reported, they go
+    * away with the data source.
+    */
+   private DependencyException getSourceSheetDependencies(String dxname,
+                                                          DependencyException modelEx)
+   {
+      List<AssetObject> dependents = DependencyTool.getDependencies(
+         DependencyTool.getAssetId(dxname, AssetEntry.Type.DATA_SOURCE));
+
+      if(dependents == null || dependents.isEmpty()) {
+         return null;
+      }
+
+      Set<String> reported = new HashSet<>();
+
+      if(modelEx != null) {
+         for(Object entry : modelEx.getEntries()) {
+            if(entry instanceof AssetEntry) {
+               reported.add(((AssetEntry) entry).toIdentifier());
+            }
+         }
+      }
+
+      List<Object> sheets = new ArrayList<>();
+
+      for(AssetObject dependent : dependents) {
+         if(dependent instanceof AssetEntry && ((AssetEntry) dependent).isSheet() &&
+            reported.add(((AssetEntry) dependent).toIdentifier()))
+         {
+            sheets.add(dependent);
+         }
+      }
+
+      // Bug #78430, don't report sheets that were renamed, moved or deleted
+      Object[] existing = DependencyException.getExistingDependencies(sheets.toArray());
+
+      if(existing == null || existing.length == 0) {
+         return null;
+      }
+
+      DependencyException ex = new DependencyException(dxname);
+      ex.addDependencies(existing);
+
+      return ex.isEmpty() ? null : ex;
    }
 
    public void checkModelOuterDependencies(XLogicalModel model) {
