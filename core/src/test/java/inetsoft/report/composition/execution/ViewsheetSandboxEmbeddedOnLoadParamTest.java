@@ -170,7 +170,8 @@ class ViewsheetSandboxEmbeddedOnLoadParamTest {
       box.processOnInit();
       // creates the child without running the wrapper's onLoad
       box.reset(null, f.wrapper.getAssemblies(), new ChangedAssemblyList(), true, false, null);
-      assertEquals("P=undefined", f.text(box, "Viewsheet1"));
+      // Bug #81929: an unset parameter reads as null, as in 13.8
+      assertEquals("P=null", f.text(box, "Viewsheet1"));
 
       // the root table changes after the child copied it, then onLoad overwrites the value
       VariableTable vt = new VariableTable();
@@ -196,6 +197,7 @@ class ViewsheetSandboxEmbeddedOnLoadParamTest {
       box.processOnInit();
       // the child is created with p77=SEED, then the wrapper's onLoad removes it
       f.reset(box);
-      assertEquals("P=undefined", f.text(box, "Viewsheet1"));
+      // Bug #81929: the removed (now unset) parameter reads as null, as in 13.8
+      assertEquals("P=null", f.text(box, "Viewsheet1"));
    }
 }
