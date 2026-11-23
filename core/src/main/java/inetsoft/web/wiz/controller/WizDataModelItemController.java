@@ -246,7 +246,9 @@ public class WizDataModelItemController {
          also.addAll(extendedChildren(dataModel, ref));
       }
 
-      if(KIND_PHYSICAL_VIEW.equals(ref.kind())) {
+      // an extended view is used by nothing: models and VPMs bind base views, so the users of a
+      // base view that happens to share the name are not its users
+      if(KIND_PHYSICAL_VIEW.equals(ref.kind()) && !info.get().extended()) {
          for(Dependent user : visibleOnly(ctx, viewUsers(dataModel, database, ref.name()), false)) {
             dangling.add(new Dangling(user.type(), user.name(), "uses physical view " +
                ref.name()));
@@ -268,9 +270,13 @@ public class WizDataModelItemController {
                          describe(dependents), List.of(), also, dangling);
    }
 
-   /** An extended logical model carries its base as {@code parent}. */
+   /**
+    * An extended logical model or extended physical view carries its base as {@code parent}; the
+    * gate knows base items only, so such a ref is resolved by the kind's own lookup.
+    */
    private static boolean byParent(String kind, String parent) {
-      return KIND_LOGICAL_MODEL.equals(kind) && parent != null && !parent.isEmpty();
+      return (KIND_LOGICAL_MODEL.equals(kind) || KIND_PHYSICAL_VIEW.equals(kind)) &&
+         parent != null && !parent.isEmpty();
    }
 
    private static boolean usedByModels(List<Dependent> dependents) {

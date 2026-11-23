@@ -93,6 +93,12 @@ class WizPhysicalViewOps implements WizModelKindOps {
 
    @Override
    public List<DependentRef> dependents(Ctx ctx, ModelRef ref) throws Exception {
+      // models and VPMs bind base views: an extended view has no users, whatever a base view of
+      // the same name is used by
+      if(!StringUtils.isEmpty(ref.parent())) {
+         return new ArrayList<>();
+      }
+
       List<Dependent> all = new ArrayList<>(
          WizDataModelSupport.viewUsers(ctx.dataModel(), ctx.database(), ref.name()));
       all.addAll(WizDataModelSupport.toDependents(
