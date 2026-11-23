@@ -1418,9 +1418,10 @@ class PresentationChangePlanServiceTest {
    }
 
    @Test
-   void lookAndFeelNewFontFaceBytesAreAlreadyHashedViaTheProjection() throws Exception {
-      // Pin: newFontFaces is not nulled by the read-back simulation, so its bytes are in the
-      // projection. If a future change nulls it, this fails and reopens the Bug #79429 hole.
+   void lookAndFeelNewFontFaceBytesAreHashed() throws Exception {
+      // newFontFaces is write-only and nulled in the projected read-back, so its bytes are bound
+      // into the plan hash by their own digest instead. If that digest is dropped this fails and
+      // reopens the Bug #79429 hole.
       assertNotEquals(lafHash("global", fontSpec("QUJD")), lafHash("global", fontSpec("REVG")));
    }
 
@@ -1430,6 +1431,128 @@ class PresentationChangePlanServiceTest {
       font.put("name", "F").put("identifier", "f");
       font.putObject("ttf").put("name", "f.ttf").put("content", ttfContent);
       return spec;
+   }
+
+   // ---------------------------------------------------------------- Bug #81983 BUG-58: font plan derivation
+
+   private JsonNode fontPlanProposed(LookAndFeelSettingsModel current, ObjectNode spec)
+      throws Exception
+   {
+      stub(PresentationSubModel.LOOK_AND_FEEL, current);
+      var plan = service.resolve(request("t", change("lookAndFeel", "global", spec)), PRINCIPAL);
+      return MAPPER.readTree(plan.changes().get(0).proposedValue());
+   }
+
+   private static ObjectNode newFont(String name, String identifier) {
+      ObjectNode font = obj().put("name", name).put("identifier", identifier);
+      font.putObject("ttf").put("name", name + ".ttf").put("content", "QUJD");
+      return font;
+   }
+
+   private static LookAndFeelSettingsModel cleanLaf() {
+      return (LookAndFeelSettingsModel) currentFor(PresentationSubModel.LOOK_AND_FEEL);
+   }
+
+   private static LookAndFeelSettingsModel liveFont(String name) {
+      return LookAndFeelSettingsModel.builder().from(cleanLaf())
+         .defaultFont(false).addUserFonts(name)
+         .addFontFaces(inetsoft.sree.portal.FontFaceModel.builder().fontName(name).identifier("x")
+                          .fontWeight("normal").build())
+         .build();
+   }
+
+   @Test
+   void newFontFacesAloneDerivesDefaultFontOffUserFontsAndFontFaces() throws Exception {
+      ObjectNode spec = obj();
+      spec.putArray("newFontFaces").add(newFont("F", "f"));
+
+      JsonNode proposed = fontPlanProposed(cleanLaf(), spec);
+
+      assertFalse(proposed.get("defaultFont").asBoolean());
+      assertEquals("[\"F\"]", proposed.get("userFonts").toString());
+      assertEquals(1, proposed.get("fontFaces").size());
+      assertEquals("F", proposed.get("fontFaces").get(0).get("fontName").asText());
+      assertEquals("f", proposed.get("fontFaces").get(0).get("identifier").asText());
+      // write-only upload list: never part of the expected read-back
+      assertTrue(proposed.get("newFontFaces").isNull());
+   }
+
+   @Test
+   void newFontFacesKeepTheLiveFontsWhenTheSpecNamesNoLists() throws Exception {
+      ObjectNode spec = obj();
+      spec.putArray("newFontFaces").add(newFont("B", "b"));
+
+      JsonNode proposed = fontPlanProposed(liveFont("A"), spec);
+
+      assertEquals("[\"A\",\"B\"]", proposed.get("userFonts").toString());
+      assertEquals(2, proposed.get("fontFaces").size());
+   }
+
+   @Test
+   void newFontFaceAlreadyListedInFontFacesIsNotDuplicated() throws Exception {
+      ObjectNode spec = obj();
+      spec.putArray("newFontFaces").add(newFont("F", "f"));
+      spec.putArray("fontFaces").addObject().put("fontName", "F").put("identifier", "f")
+         .put("fontWeight", "bold");
+
+      JsonNode proposed = fontPlanProposed(cleanLaf(), spec);
+
+      assertEquals(1, proposed.get("fontFaces").size());
+      assertEquals("bold", proposed.get("fontFaces").get(0).get("fontWeight").asText());
+      assertEquals("[\"F\"]", proposed.get("userFonts").toString());
+   }
+
+   @Test
+   void defaultFontOffWithoutUserFontsStillGetsTheFontInstalled() throws Exception {
+      ObjectNode spec = obj().put("defaultFont", false);
+      spec.putArray("newFontFaces").add(newFont("F", "f"));
+
+      JsonNode proposed = fontPlanProposed(cleanLaf(), spec);
+
+      assertFalse(proposed.get("defaultFont").asBoolean());
+      assertEquals("[\"F\"]", proposed.get("userFonts").toString());
+   }
+
+   @Test
+   void explicitDefaultFontTrueWithFontsIsRefused() throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL, cleanLaf());
+
+      for(String field : List.of("newFontFaces", "userFonts", "fontFaces")) {
+         ObjectNode spec = obj().put("defaultFont", true);
+         ArrayNode list = spec.putArray(field);
+
+         if(field.equals("newFontFaces")) {
+            list.add(newFont("F", "f"));
+         }
+         else if(field.equals("userFonts")) {
+            list.add("F");
+         }
+         else {
+            list.addObject().put("fontName", "F").put("identifier", "f");
+         }
+
+         assertTrue(refusedSpec("lookAndFeel", "global", spec).getMessage()
+                       .contains("spec.defaultFont"), field);
+      }
+   }
+
+   @Test
+   void defaultFontTrueAloneProjectsAnEmptyFontList() throws Exception {
+      JsonNode proposed = fontPlanProposed(liveFont("A"), obj().put("defaultFont", true));
+
+      assertTrue(proposed.get("defaultFont").asBoolean());
+      assertEquals(0, proposed.get("userFonts").size());
+      assertEquals(0, proposed.get("fontFaces").size());
+   }
+
+   @Test
+   void fontDerivationLeavesOrganizationScopeToItsOwnRefusal() throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL, cleanLaf());
+      ObjectNode spec = obj();
+      spec.putArray("newFontFaces").add(newFont("F", "f"));
+
+      assertTrue(refusedSpec("lookAndFeel", "organization", spec).getMessage()
+                    .contains("spec.newFontFaces"));
    }
 
    @Test
