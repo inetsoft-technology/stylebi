@@ -135,7 +135,6 @@ class VisualFrameColorLegendTest {
 
    @Test
    @DisplayName("legend text format is merged from the scale format")
-   @Disabled("Bug #82073: Frame legend ignores the scale format on the first getLegendSpec() call")
    void legendFormatComesFromScale() {
       Format fmt = new DecimalFormat("0.0");
       GradientColorFrame f = frameWithAxisFormat(fmt);
@@ -144,7 +143,6 @@ class VisualFrameColorLegendTest {
 
    @Test
    @DisplayName("legend text format of a clone is the scale format on the first call and later")
-   @Disabled("Bug #82073: Frame legend ignores the scale format on the first getLegendSpec() call")
    void legendFormatOfCloneDoesNotDependOnCallHistory() {
       Format fmt = new DecimalFormat("0.0");
       GradientColorFrame f = frameWithAxisFormat(fmt);

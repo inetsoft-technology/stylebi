@@ -1,4 +1,4 @@
-/*
+/**
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -34,7 +34,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
+/*
  * Tests for {@link StackedMeasuresColorFrame} (and the shared {@link StackedMeasuresFrame}
  * defaults): the frame keeps a map measure name to frame plus a default frame, and decides which
  * frames form the legend and which field the legend is bound to.
@@ -271,32 +271,13 @@ class StackedMeasuresColorFrameTest {
       assertNotNull(b.getScale());
    }
 
-   /*
-    * KEPT ON PURPOSE, DISABLED FOR NOW (a known limitation, not an unfixed bug, not a pending
-    * Redmine issue; unlike the @Disabled("Bug #...") tests, do not enable it when a fix lands).
-    *
-    * Purpose: records that clone() shares frameMap (and the sub frames) with the original, so
-    * a setFrame() on the clone would also change the original.
-    *
-    * Why it is not enabled: nothing calls setFrame() on a clone. GraphGenerator fills the frame
-    * once (setupStackedMeasureFrame) before the element is cloned. The sub frames are shared
-    * state too (init(data) is applied to them), so a correct copy needs a deep copy of every
-    * sub frame, with the risk of changing legend and scale behavior of cloned elements.
-    */
-   @Test
-   @DisplayName("clone owns its measure map and copies of the frames")
-   @Disabled("Not filed (latent: nothing mutates the clone): clone shares the final measure map with the original; after copy.setFrame the original has 2 frames, expected 1")
-   void cloneIsIndependent() {
-      StaticColorFrame red = new StaticColorFrame(Color.RED);
-      StackedMeasuresColorFrame f = new StackedMeasuresColorFrame(null);
-      f.setFrame("m1", red);
-      StackedMeasuresColorFrame copy = (StackedMeasuresColorFrame) f.clone();
-      copy.setFrame("m2", new StaticColorFrame(Color.BLUE));
-      assertEquals(1, f.getFrames().size());
-      assertEquals(2, copy.getFrames().size());
-      assertNotSame(red, copy.getFrames().iterator().next());
-   }
-
+   // Known limitation, no test (a permanently disabled test gives no signal, so it was
+   // removed). clone() shares frameMap (and the sub frames) with the original, so a
+   // setFrame() on the clone would also change the original. Nothing calls setFrame() on a
+   // clone: GraphGenerator fills the frame once (setupStackedMeasureFrame) before the
+   // element is cloned. The sub frames are shared state too (init(data) is applied to
+   // them), so a correct copy needs a deep copy of every sub frame, with the risk of
+   // changing legend and scale behavior of cloned elements.
    @Test
    @DisplayName("pinned: equals ignores the measure map, frames with different colours per measure are equal")
    void pinnedEqualsIgnoresMeasureMap() {

@@ -331,24 +331,13 @@ class CompositeColorFrameTest {
       assertColor(100, 50, 20, stat.getColor("x"));
    }
 
-   /*
-    * KEPT DISABLED (not a pending Redmine issue). CompositeColorFrame does not override
-    * setGrayscale, so a grayscale flag set on the composite never reaches the sub frames.
-    * Nothing in the product calls it: the binding panels have no grayscale option, and
-    * CompositeColorFrame is not a script class. Only a graph script that gets the composite
-    * of a highlighted or brushed chart (graph.getElement(0).getColorFrame()) and calls
-    * setGrayscale on it reaches this. Enable it if that script path is ever supported.
-    */
-   @Test
-   @DisplayName("grayscale reaches sub frames like brightness does")
-   @Disabled("Not filed (unreachable): CompositeColorFrame does not override setGrayscale, so the sub frame keeps its colour; expected (123,123,123), actual (200,100,40)")
-   void grayscaleReachesSubFrames() {
-      CompositeColorFrame c = new CompositeColorFrame();
-      c.addFrame(new StaticColorFrame(new Color(200, 100, 40)));
-      c.setGrayscale(true);
-      assertColor(123, 123, 123, c.getColor(data(), "c", 0));
-   }
-
+   // Known limitation, no test (a permanently disabled test gives no signal, so it was
+   // removed). CompositeColorFrame does not override setGrayscale, so a grayscale flag set
+   // on the composite never reaches the sub frames. Nothing in the product calls it: the
+   // binding panels have no grayscale option and CompositeColorFrame is not a script class.
+   // Only a graph script calling setGrayscale on the composite of a highlighted or brushed
+   // chart (graph.getElement(0).getColorFrame()) reaches this. Add a test if that script
+   // path is ever supported.
    @Test
    void scaleOptionAndInitReachEveryFrame() {
       StubColor hidden = new StubColor(null, false);
