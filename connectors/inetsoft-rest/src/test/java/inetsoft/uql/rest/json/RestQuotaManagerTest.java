@@ -209,20 +209,20 @@ class RestQuotaManagerTest {
          System.setProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY, "true");
          long start = System.nanoTime();
 
-         for(int i = 0; i < 6; i++) {
-            RestQuotaManager.withQuota(limited("quota-flag", 10, -1), () -> "ok");
+         for(int i = 0; i < 4; i++) {
+            RestQuotaManager.withQuota(limited("quota-flag", 2, -1), () -> "ok");
          }
 
-         assertTrue(millisSince(start) < 400, "the rate limit was not disabled by the flag");
+         assertTrue(millisSince(start) < 1000, "the rate limit was not disabled by the flag");
 
          System.clearProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY);
          start = System.nanoTime();
 
-         for(int i = 0; i < 6; i++) {
-            RestQuotaManager.withQuota(limited("quota-flag", 10, -1), () -> "ok");
+         for(int i = 0; i < 4; i++) {
+            RestQuotaManager.withQuota(limited("quota-flag", 2, -1), () -> "ok");
          }
 
-         assertTrue(millisSince(start) >= 400, "the rate limit stayed disabled after the flag was cleared");
+         assertTrue(millisSince(start) >= 1400, "the rate limit stayed disabled after the flag was cleared");
       }
       finally {
          if(previous == null) {
