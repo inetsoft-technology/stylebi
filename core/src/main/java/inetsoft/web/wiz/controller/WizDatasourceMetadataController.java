@@ -23,6 +23,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.wiz.model.WizMetadataRefreshResult;
 import inetsoft.web.wiz.request.WizMetadataRefreshRequest;
@@ -82,6 +83,14 @@ public class WizDatasourceMetadataController {
          if(dataSource == null) {
             return new WizMetadataRefreshResult(
                false, WizMetadataRefreshResult.DATASOURCE_LOST, null);
+         }
+
+         // An XMLA source has no table metadata to refresh: reporting ok:true here would claim a
+         // refresh that never loaded a cube.
+         if(dataSource instanceof XMLADataSource) {
+            return new WizMetadataRefreshResult(
+               false, WizMetadataRefreshResult.XMLA_DATASOURCE,
+               "XMLA data sources load cube metadata through POST /api/wiz/xmla/refresh-cubes.");
          }
 
          xrepository.refreshMetaData(path);

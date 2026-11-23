@@ -23,11 +23,14 @@ package inetsoft.web.wiz.model;
  * The outcome of refreshing a data source's metadata.
  *
  * @param ok      whether the refresh ran.
- * @param reason  null when ok; {@code DATASOURCE_LOST} (no data source at the path) or
+ * @param reason  null when ok; {@code DATASOURCE_LOST} (no data source at the path),
+ *                {@code XMLA_DATASOURCE} (an XMLA source has no table metadata; its cubes are
+ *                loaded by the XMLA refresh-cubes endpoint) or
  *                {@code UNKNOWN} (the engine call threw; see message).
  * @param message the engine's text when {@code UNKNOWN}.
  */
 public record WizMetadataRefreshResult(boolean ok, String reason, String message) {
    public static final String DATASOURCE_LOST = "DATASOURCE_LOST";
+   public static final String XMLA_DATASOURCE = "XMLA_DATASOURCE";
    public static final String UNKNOWN = "UNKNOWN";
 }

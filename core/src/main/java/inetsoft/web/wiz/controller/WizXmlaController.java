@@ -33,6 +33,7 @@ import inetsoft.web.security.PermissionPath;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import inetsoft.web.wiz.model.*;
+import inetsoft.web.wiz.request.WizMetadataRefreshRequest;
 import inetsoft.web.wiz.request.WizXmlaCreateRequest;
 import inetsoft.web.wiz.request.WizXmlaDraftRequest;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
@@ -43,6 +44,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.FileNotFoundException;
 import java.security.Principal;
 
 /**
@@ -61,7 +63,8 @@ import java.security.Principal;
  * {@code @ExceptionHandler}, which would take precedence over {@code WizControllerErrorHandler}.</p>
  *
  * <p>Cube/domain metadata is not edited: an update sends no {@code domain}, which the service reads
- * as "leave the stored domain unchanged".</p>
+ * as "leave the stored domain unchanged". It is loaded only by {@link #refreshCubes}, which keeps
+ * the edits already made to a stored domain.</p>
  */
 @RestController
 @RequestMapping("/api/wiz")
@@ -206,6 +209,38 @@ public class WizXmlaController {
       }
 
       return WizXmlaSaveResult.ok(fullPath);
+   }
+
+   /**
+    * Loads the cube metadata of an existing XMLA data source from its endpoint and saves it.
+    *
+    * <p>Needs WRITE on the data source, as the Portal save that persists the same domain does. The
+    * stored domain's edited cube settings are kept. The result names the endpoint when it could
+    * not be reached, and is ok only once the saved domain has been read back.</p>
+    *
+    * @throws UnsupportedDatasourceException if the path is not an XMLA data source (422).
+    */
+   @PostMapping(value = "/xmla/refresh-cubes", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizXmlaRefreshResult refreshCubes(@RequestBody WizMetadataRefreshRequest request,
+                                            Principal principal)
+      throws Exception
+   {
+      String source = requirePath(request == null ? null : request.path());
+      gates.requireDataSourcePermission(source, ResourceAction.WRITE, principal);
+      requireXmla(source);
+
+      XmlaDatasourceService.CubeRefreshResult result;
+
+      try {
+         result = xmlaDatasourceService.refreshStoredCubes(source);
+      }
+      catch(FileNotFoundException ex) {
+         return WizXmlaRefreshResult.failed(WizXmlaRefreshResult.DATASOURCE_LOST);
+      }
+
+      return new WizXmlaRefreshResult(result.ok(), result.ok() ? null : result.status(),
+                                      result.ok() ? result.cubeCount() : null, result.url(),
+                                      result.message());
    }
 
    /**

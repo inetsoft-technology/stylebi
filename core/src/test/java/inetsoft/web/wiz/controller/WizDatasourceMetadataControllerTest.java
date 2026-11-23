@@ -94,6 +94,21 @@ class WizDatasourceMetadataControllerTest {
    }
 
    @Test
+   void refusesAnXmlaSourceInsteadOfReportingASuccessfulRefresh() throws Exception {
+      Fixture f = new Fixture();
+      f.readable();
+      when(f.repository.getDataSource("olap/sales"))
+         .thenReturn(mock(inetsoft.uql.xmla.XMLADataSource.class));
+
+      WizMetadataRefreshResult result = f.controller.refreshMetadata(
+         new WizMetadataRefreshRequest("olap/sales"), f.principal);
+
+      assertFalse(result.ok(), "no cube was loaded, so this must not read as refreshed");
+      assertEquals(WizMetadataRefreshResult.XMLA_DATASOURCE, result.reason());
+      verify(f.repository, never()).refreshMetaData(anyString());
+   }
+
+   @Test
    void reportsAMissingSourceAndRejectsABlankPath() throws Exception {
       Fixture f = new Fixture();
       f.readable();
