@@ -777,8 +777,10 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
 }
 
 // The dark-marked calendar keeps today's values in the light shell too. The rule above leaves it out
-// and its own block (_shell-dark.scss) declares only its text, muted text and button tokens, so every
-// other property of the rule above is pinned here to the value :root gave it before. As literals: the
+// and of that rule's properties its own block (_shell-dark.scss) re-declares only its muted text, its
+// secondary text (--bs-secondary-color) and the default button text, default button hover and light
+// button hover tokens, so every other property of the rule above is pinned here to the value :root
+// gave it before. As literals: the
 // calendar declares a dark muted token, which var(--inet-text-muted-color) would resolve from. Off in
 // the dark shell, where the calendar follows the shell's ring and hover, and on themed pages. Same
 // specificity as the calendar block, which declares none of these.

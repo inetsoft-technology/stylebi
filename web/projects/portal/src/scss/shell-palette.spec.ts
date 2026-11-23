@@ -294,7 +294,10 @@ describe("dark-marked calendar in the light shell", () => {
 
    it("is gated off on themed pages and in the dark shell, where the calendar follows the shell", () => {
       expect(calRule()).toContain(CAL_RULE);
-      expect(CAL_RULE).toMatch(/^:where\(:root:not\(\.custom-theme\):not\(\.shell-dark\)\) /);
+      // the selector in the source, ahead of the pin rule's brace, is exactly the gated one
+      const selectors = [...variables().matchAll(/^(:where\(:root[^\r\n{]*\.dropdown-datepicker\.viz-dark)\s*\{/gm)]
+         .map(m => m[1]);
+      expect(selectors).toEqual([CAL_RULE]);
    });
 
    it("pins every content-rule property the calendar block does not re-declare, and no other", () => {
