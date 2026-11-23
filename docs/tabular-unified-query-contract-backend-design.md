@@ -468,6 +468,9 @@ section 4.2 for the dependsOn addition that makes this explicit instead of coinc
         requestTypeProp = pmap.get("requestType")
         if requestTypeProp != null and "POST".equals(requestTypeProp.getValue(query)):
            throw "... is a POST endpoint, which cannot be created this way yet ..."
+           -- only when the query has an endpoint property (catalogue connector) or builds its
+           body from other properties (getRequestBody overridden, e.g. GraphQL); a generic
+           REST query, whose requestBody is a plain property, may be POST (bug #81983)
 
      7. return String.join(", ", applied)
 
@@ -790,6 +793,13 @@ requestType. Message unchanged:
 
 with the endpoint-name clause replaced by "The query on" when queryParams has no endpoint
 entry at all.
+
+Since bug #81983 the refusal applies only to a query that has an endpoint property, or whose
+requestBody getter is overridden (the body is built from other properties, e.g. GraphQL). A
+generic REST/REST-XML query, whose requestBody is a plain property, may be POST. requestType and
+contentType are validated against their fixed lists on write (a value differing only in case is
+mapped to the listed one; anything else is refused naming the field and the legal values), because
+nothing else enforced them and a request type such as PUT would otherwise run as a GET.
 
 ### 3.8 Capability 5 - java.io.File params accept a string path, PLUS 5b - Excel
     multi-sheet-ambiguity refusal (KEPT per D4, cross-repo contract)
