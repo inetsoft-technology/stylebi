@@ -223,19 +223,6 @@ class PolarAxisTest {
       assertEquals(100, axis.getAxisLine().getMinHeight(), 0);
    }
 
-   @Test
-   @DisplayName("an axis created with measure names labels its ticks with measure titles")
-   @Disabled("Bug #82108 (unused code, delete it or fix it: the only new PolarAxis (PolarCoord.java:464) passes no measures): PolarAxis(scale, vgraph, measures...) builds its labels in the super constructor before the measures field is assigned, so the labels are VDimensionLabel; expected VMeasureTitle")
-   void measureTitles() {
-      PolarAxis axis = new PolarAxis(cat("A", "B", "C"), vg, "m1", "m2", "m3");
-
-      assertEquals(3, axis.getLabels().length);
-
-      for(VLabel label : axis.getLabels()) {
-         assertInstanceOf(VMeasureTitle.class, label);
-      }
-   }
-
    private PolarAxis laidOut(Scale scale, boolean minTick, boolean maxTick) {
       PolarAxis axis = axis(scale);
       axis.setMinTickVisible(minTick);

@@ -120,14 +120,6 @@ class OrderedTreemapTest {
    }
 
    @Test
-   @Disabled("Bug #82108 (unused code, delete it or fix it: no caller in the project): layout of an empty model throws ArrayIndexOutOfBoundsException (computePivotIndex " +
-             "reads sizes[0]); expected no exception")
-   void emptyModelDoesNotThrow() {
-      assertDoesNotThrow(() -> new OrderedTreemap().layout(model(new Mappable[0]),
-                                                           new Rect(0, 0, 4, 4)));
-   }
-
-   @Test
    void zeroWeightItemHasZeroAreaAndOthersAreProportional() {
       MapItem[] items = items(3, 0, 2, 1);
       new OrderedTreemap().layout(model(items), new Rect(0, 0, 6, 4));

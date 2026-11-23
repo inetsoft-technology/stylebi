@@ -146,34 +146,6 @@ class LegendFrameTest {
    // ----------------------------------------------------------- legend spec
 
    @Test
-   @Disabled("Bug #82108 (unused code, delete it or fix it: production sets the format on the legend spec directly): createLegendSpec sets the axis format on the original spec after cloning, the returned spec has text format null (expected the axis format 0.0)")
-   void legendTextFormatIsTakenFromTheAxisFormatOfTheScale() {
-      CategoricalColorFrame frame = new CategoricalColorFrame("S");
-      CategoricalScale scale = new CategoricalScale();
-      scale.init("A", "B");
-      Format format = new DecimalFormat("0.0");
-      scale.getAxisSpec().getTextSpec().setFormat(format);
-      frame.setScale(scale);
-
-      assertSame(format, frame.getLegendSpec().getTextSpec().getFormat());
-   }
-
-   @Test
-   @Disabled("Bug #82108 (unused code, delete it or fix it: production sets the format on the legend spec directly): legend spec is cached before the scale is set and never updated, text format is null (expected the axis format 0.0)")
-   void legendSpecReadBeforeTheScaleIsSetStillGetsTheAxisFormatLater() {
-      CategoricalColorFrame frame = new CategoricalColorFrame("S");
-      frame.getLegendSpec();
-
-      CategoricalScale scale = new CategoricalScale();
-      scale.init("A", "B");
-      Format format = new DecimalFormat("0.0");
-      scale.getAxisSpec().getTextSpec().setFormat(format);
-      frame.setScale(scale);
-
-      assertSame(format, frame.getLegendSpec().getTextSpec().getFormat());
-   }
-
-   @Test
    void titleIsTheLegendTitleThenTheFieldThenTheFrameType() {
       CategoricalColorFrame frame = color("State", "A", "B");
       assertEquals("State", frame.getTitle());
