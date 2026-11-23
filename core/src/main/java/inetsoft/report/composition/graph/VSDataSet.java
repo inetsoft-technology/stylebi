@@ -1729,6 +1729,7 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
          data.comparer = comparer.clone();
       }
 
+      data.links = links == null ? null : links.copy();
       return data;
    }
 

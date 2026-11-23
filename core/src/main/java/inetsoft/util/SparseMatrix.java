@@ -128,6 +128,28 @@ public class SparseMatrix implements Cloneable, Serializable {
    }
 
    /**
+    * Create a copy of this matrix that shares no state with it, so a set on
+    * the copy does not change this matrix and the reverse.
+    */
+   public SparseMatrix copy() {
+      SparseMatrix matrix = new SparseMatrix(size);
+      ObjectList[] arr = olist;
+
+      if(arr != null) {
+         ObjectList[] narr = new ObjectList[arr.length];
+
+         for(int i = 0; i < arr.length; i++) {
+            ObjectList list = (ObjectList) BUCKET.getAcquire(arr, i);
+            narr[i] = list == null ? null : list.copy();
+         }
+
+         matrix.olist = narr;
+      }
+
+      return matrix;
+   }
+
+   /**
     * To string.
     */
    public String toString() {
@@ -321,6 +343,20 @@ public class SparseMatrix implements Cloneable, Serializable {
             sb.append("]");
 
             return sb.toString();
+         }
+         finally {
+            lock.unlockRead(stamp);
+         }
+      }
+
+      /**
+       * Create a copy of a consistent state, with its own lock.
+       */
+      public ObjectList copy() {
+         long stamp = lock.readLock();
+
+         try {
+            return new ObjectList(llist.clone(), new ArrayList(olist), usedpos);
          }
          finally {
             lock.unlockRead(stamp);
