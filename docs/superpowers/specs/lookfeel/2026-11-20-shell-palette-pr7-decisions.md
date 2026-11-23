@@ -126,15 +126,14 @@ light-only colour rule); the login gap is one rule in `login.css`.
 - **The orange ring on the danger button is kept.** With the gap it never touches the red fill;
   its neighbours are white (4.51:1) and the dark surface (7.62:1). Carbon, Primer and Polaris keep
   their normal focus colour on destructive buttons.
-- **The tree-toolbar icon button stays flush:** 3.72:1 on its chip and 4.51:1 on the surface.
 - **The dark navbar ring stays `#F0A75A`.** On the selected tab it meets the `#D97A1A` underline
   (1.54:1), so the ring's bottom edge and the underline read as one orange edge. A white ring (the
   navbar text colour, as in the light shell: 18.51:1 on the navbar, 3.11:1 against the underline)
   was compared side by side; the product owner kept the orange ring, since it appears only on
   keyboard focus and keeps the dark navbar's ring the same colour as the rest of the dark shell.
-- **The tree-toolbar search button's ring sits tight against the search field** and can read as a
-  bordered box; contrast passes (3.72:1 on its chip, 4.51:1 on the surface). Spacing it 1-2px from
-  the field is a layout change, left as a follow-up with Bug #81489 (focus-ring polish).
+- **The tree-toolbar search button's ring stays flush** (3.72:1 on its chip, 4.51:1 on the
+  surface). It sits tight against the search field and can read as a bordered box. Spacing it 1-2px
+  from the field is a layout change, left as a follow-up with Bug #81489 (focus-ring polish).
 
 ## D4 and D5. Kept as they are
 
