@@ -157,7 +157,10 @@ public class BindingReadService {
 
          // Dimensions bound to color/shape/size/text carry their own sort/ranking (bug #78803),
          // keyed with a channel qualifier so they never merge with the same column's shelf entry.
-         sorts.putAll(ChartBindingMutator.describeAestheticSorts(chart));
+         sorts.putAll(ChartBindingMutator.describeAestheticSorts(
+            chart, assembly instanceof ChartVSAssembly chartAssembly &&
+               chartAssembly.getVSChartInfo() != null &&
+               chartAssembly.getVSChartInfo().isMultiAesthetic()));
 
          // The ten single-field shelves. Left out of this read until now, so a
          // set_chart_single_shelf write could not be read back at all: four OHLC shelves bound and

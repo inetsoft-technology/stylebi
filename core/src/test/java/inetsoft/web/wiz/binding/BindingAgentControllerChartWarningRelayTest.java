@@ -62,10 +62,10 @@ class BindingAgentControllerChartWarningRelayTest {
          principal()));
       assertEquals(expected, controller.setChartSort(
          "tok", new BindingAgentController.ChartSortRequest(
-            "Chart1", "x", "Region", null, "asc", null, null), "", principal()));
+            "Chart1", "x", "Region", null, "asc", null, null, null), "", principal()));
       assertEquals(expected, controller.setChartRanking(
          "tok", new BindingAgentController.ChartRankingRequest(
-            "Chart1", "x", "Region", null, "top", 3, "Sales", null), "", principal()));
+            "Chart1", "x", "Region", null, "top", 3, "Sales", null, null), "", principal()));
       assertEquals(expected, controller.setChartType(
          "tok", new BindingAgentController.ChartTypeRequest(
             "Chart1", 3, null, null, null, null), "", principal()));
@@ -122,9 +122,9 @@ class BindingAgentControllerChartWarningRelayTest {
       when(chart.setSingleShelf(anyString(), any(), anyString(), anyString(), any(), any(),
                                 anyString())).thenReturn(warnings);
       when(chart.setSort(anyString(), any(), anyString(), anyString(), anyString(), any(),
-                         any(), anyString())).thenReturn(warnings);
+                         any(), any(), anyString())).thenReturn(warnings);
       when(chart.setRanking(anyString(), any(), anyString(), anyString(), anyString(), any(),
-                            any(), anyString())).thenReturn(warnings);
+                            any(), any(), anyString())).thenReturn(warnings);
       when(chart.setChartType(anyString(), any(), anyString(), anyInt(), any(), any(), any(),
                               any(), anyString())).thenReturn(warnings);
       when(chart.swapAxes(anyString(), any(), anyString(), anyString())).thenReturn(warnings);
