@@ -26,6 +26,13 @@ import inetsoft.graph.schema.SchemaTestSupport.Fixture;
 import inetsoft.graph.schema.SchemaTestSupport.Mapping;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -43,6 +50,10 @@ import static org.mockito.Mockito.when;
  * frame and the slot, the base width, the alpha hint, the tuple handed to the coordinate and the
  * coordinate transform of the shapes. The protected helpers are called from the same package.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class SchemaPainterTest {
    private static Stream<SchemaPainter> painters() {

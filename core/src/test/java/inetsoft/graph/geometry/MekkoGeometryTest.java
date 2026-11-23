@@ -22,6 +22,13 @@ import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.scale.Scale;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -32,6 +39,10 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * {@link MekkoGeometry#calcGroupTotals}: the per-group totals that size the marimekko columns.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class MekkoGeometryTest {
    private static final double EPS = 1e-9;

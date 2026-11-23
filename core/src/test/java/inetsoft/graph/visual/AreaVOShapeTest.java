@@ -40,6 +40,7 @@ import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -246,13 +247,18 @@ class AreaVOShapeTest {
       AreaVO vo = area(40.0, 80.0, 20.0, 60.0);
       Rectangle2D bounds = vo.getBounds();
 
+      // Rectangle2D.contains is half-open, so compare against the bounds grown by EPS
+      Rectangle2D grown = new Rectangle2D.Double(bounds.getX() - EPS, bounds.getY() - EPS,
+                                                 bounds.getWidth() + 2 * EPS,
+                                                 bounds.getHeight() + 2 * EPS);
+
       for(Point2D pt : vo.getTransformedPoints()) {
-         assertTrue(bounds.contains(pt), pt.toString());
+         assertTrue(grown.contains(pt), pt.toString());
       }
    }
 
    @Test
-   @Disabled("Bug #75419: Bottom of area chart missing in tiled plots: the fix 2d67f5576d is on other branches, not on main")
+   @Disabled("Bug #75419: Bottom of area chart missing in tiled plots: the fix 2d67f5576d is on other branches, not on main; it is ported in PR #8637, which must remove this @Disabled")
    @DisplayName("bounds contain the filled area down to the base line")
    void boundsContainFilledArea() throws Exception {
       AreaVO vo = area(40.0, 80.0, 20.0, 60.0);
@@ -291,27 +297,20 @@ class AreaVOShapeTest {
    }
 
    /*
-    * KEPT ON PURPOSE, DISABLED FOR NOW (a known limitation, not an unfixed bug, not a pending
-    * Redmine issue; unlike the other @Disabled tests in this class, do not enable it when
-    * a fix lands, there is no bug to wait for).
-    *
-    * Purpose: records that clone() shares the base points array with the original, so
-    * clone.transform(coord) would move the original too.
-    *
-    * Why it is not enabled: no code path does that. Clones only come from
-    * Coordinate.getScaledVGraph() (element bounds during layout) and only get a screen
-    * transform; only VGraph.layout() calls transform(coord), on the originals. Copying the
-    * array in clone() is not a safe fix either: the scaled clone currently relies on sharing
-    * the already transformed points, so a deep copy made before VGraph.layout() transforms
-    * them would give wrong element bounds. Enable it only together with a change that
-    * makes a clone transformable, and re-check facet, GeoCoord and RelationCoord layouts.
+    * Pins the current, intended behavior: clone() shares the base points array with the
+    * original, so clone.transform(coord) also moves the original. No code path does that:
+    * clones only come from Coordinate.getScaledVGraph() (element bounds during layout) and
+    * only get a screen transform; only VGraph.layout() calls transform(coord), on the
+    * originals. The scaled clone relies on sharing the already transformed points, so
+    * copying the array in clone() would give wrong element bounds. If this test fails,
+    * clone() changed: re-check facet, GeoCoord and RelationCoord layouts first.
     */
    @Test
-   @Disabled("Not filed (latent: only VGraph.layout transforms the points, clones only get a screen transform): expected a clone to own its base points, actual AreaVO shares the base points array with its clone, so transform(coord) on the clone moves the base points of the original")
-   @DisplayName("transforming a clone leaves the base points of the original alone")
-   void cloneKeepsOwnBasePoints() throws Exception {
+   @DisplayName("a clone shares the base points of the original (pinned behavior)")
+   void cloneSharesBasePoints() throws Exception {
       AreaVO vo = area(40.0, 80.0, 20.0, 60.0);
-      Point2D[] before = basePoints(vo);
+      Point2D[] before = Arrays.stream(basePoints(vo))
+         .map(p -> new Point2D.Double(p.getX(), p.getY())).toArray(Point2D[]::new);
       AreaVO clone = (AreaVO) vo.clone();
       RectCoord shifting = new RectCoord(new LinearScale("x"), lin(0, 100, "y")) {
          @Override
@@ -325,8 +324,12 @@ class AreaVOShapeTest {
 
       Point2D[] after = basePoints(vo);
 
+      Point2D[] cloneBases = basePoints(clone);
+
       for(int i = 0; i < before.length; i++) {
-         assertEquals(before[i], after[i], "base " + i);
+         // the base points are read through the screen transform, so the shift is scaled
+         assertTrue(after[i].getX() > before[i].getX() + EPS, "original base moved " + i);
+         assertEquals(cloneBases[i].getX(), after[i].getX(), EPS, "same base " + i);
       }
    }
 }

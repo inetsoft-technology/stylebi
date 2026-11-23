@@ -28,7 +28,6 @@ import inetsoft.graph.scale.LinearScale;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -257,8 +256,13 @@ class LineVOShapeTest {
       LineVO vo = createVO(size, row(1, 10.0, size), row(2, 50.0, size), row(3, 30.0, size));
       Rectangle2D bounds = vo.getBounds();
 
+      // Rectangle2D.contains is half-open, so compare against the bounds grown by EPS
+      Rectangle2D grown = new Rectangle2D.Double(bounds.getX() - EPS, bounds.getY() - EPS,
+                                                 bounds.getWidth() + 2 * EPS,
+                                                 bounds.getHeight() + 2 * EPS);
+
       for(Shape shape : vo.getShapes()) {
-         assertTrue(bounds.contains(shape.getBounds2D()), "size " + size);
+         assertTrue(grown.contains(shape.getBounds2D()), "size " + size);
       }
    }
 
@@ -281,6 +285,17 @@ class LineVOShapeTest {
       };
 
       assertEquals(expected, vo.getUnscaledSize(pos, null), EPS);
+   }
+
+   @Test
+   @DisplayName("with two top-most points of different size, the first one decides the TOP size")
+   void unscaledSizeTopTie() {
+      // P0 (x 0.5, radius 5) and P1 (x 9, radius 1) are both at y 50, P2 is lower; TOP uses a
+      // strict comparison, so the first top-most point (the big one) wins
+      LineVO vo = createVO(new StaticSizeFrame("s"), row(0.5, 50.0, 19), row(9, 50.0, 3),
+                           row(5, 10.0, 3));
+
+      assertEquals(5.5, vo.getUnscaledSize(GraphConstants.TOP, null), EPS);
    }
 
    // ---- clone
@@ -309,27 +324,20 @@ class LineVOShapeTest {
    }
 
    /*
-    * KEPT ON PURPOSE, DISABLED FOR NOW (a known limitation, not an unfixed bug, not a pending
-    * Redmine issue; unlike the other @Disabled tests in this class, do not enable it when
-    * a fix lands, there is no bug to wait for).
-    *
-    * Purpose: records that clone() shares the points array with the original, so
-    * clone.transform(coord) would move the original too.
-    *
-    * Why it is not enabled: no code path does that. Clones only come from
-    * Coordinate.getScaledVGraph() (element bounds during layout) and only get a screen
-    * transform; only VGraph.layout() calls transform(coord), on the originals. Copying the
-    * array in clone() is not a safe fix either: the scaled clone currently relies on sharing
-    * the already transformed points, so a deep copy made before VGraph.layout() transforms
-    * them would give wrong element bounds. Enable it only together with a change that
-    * makes a clone transformable, and re-check facet, GeoCoord and RelationCoord layouts.
+    * Pins the current, intended behavior: clone() shares the points array with the original,
+    * so clone.transform(coord) also moves the original. No code path does that: clones only
+    * come from Coordinate.getScaledVGraph() (element bounds during layout) and only get a
+    * screen transform; only VGraph.layout() calls transform(coord), on the originals. The
+    * scaled clone relies on sharing the already transformed points, so copying the array in
+    * clone() would give wrong element bounds. If this test fails, clone() changed: re-check
+    * facet, GeoCoord and RelationCoord layouts before adjusting it.
     */
    @Test
-   @Disabled("Not filed (latent: only VGraph.layout transforms the points, clones only get a screen transform): expected a clone to own its points, actual LineVO.clone keeps the same points array, so transform(coord) on the clone moves the points of the original")
-   @DisplayName("transforming the points of a clone leaves the original points alone")
-   void cloneHasOwnPoints() {
+   @DisplayName("a clone shares the points of the original (pinned behavior)")
+   void cloneSharesPoints() {
       LineVO vo = createVO(3, row(1, 10.0, 3), row(2, 50.0, 3));
-      Point2D[] before = vo.getTransformedPoints();
+      Point2D[] before = Arrays.stream(vo.getTransformedPoints())
+         .map(p -> new Point2D.Double(p.getX(), p.getY())).toArray(Point2D[]::new);
       LineVO clone = (LineVO) vo.clone();
       RectCoord shifting = new RectCoord(lin(0, 10, "x"), lin(0, 100, "y")) {
          @Override
@@ -344,7 +352,7 @@ class LineVOShapeTest {
       Point2D[] after = vo.getTransformedPoints();
 
       for(int i = 0; i < before.length; i++) {
-         assertEquals(before[i], after[i], "point " + i);
+         assertEquals(before[i].getX() + 25, after[i].getX(), EPS, "point " + i);
       }
    }
 

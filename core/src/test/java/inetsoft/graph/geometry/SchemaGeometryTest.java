@@ -25,6 +25,13 @@ import inetsoft.graph.schema.SchemaTestSupport.Mapping;
 import inetsoft.graph.visual.SchemaVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -36,6 +43,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * Schema geometry: the variable part of the tuple, and a visual object that is built from its own
  * tuple and carries the row and column indexes.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class SchemaGeometryTest {
    private static SchemaElement element(int dims) {
