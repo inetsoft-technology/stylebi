@@ -960,3 +960,44 @@ ChartPalette[name='Contrast'][index='7'] {
 ChartPalette[name='Contrast'][index='8'] {
    color: #5fa83c;
 }
+
+/* Token sets of the Modern bases: the non-series colors the modern look needs beside a palette.
+   Not user-selectable: reached only through ColorPalettes.getTokenPalette() and filtered out of
+   getPaletteNames(). Slots: 1 rising, 2 falling, 3 neutral, 4 card background, 5 text on a dark
+   card (the light set declares no text). An org's format.css can override any slot; a missing
+   slot falls back to the value the Java code seeds, which is the value below. */
+ChartPalette[name='Modern-tokens'][index='1'] {
+   color: #1c857b;
+}
+
+ChartPalette[name='Modern-tokens'][index='2'] {
+   color: #ad6119;
+}
+
+ChartPalette[name='Modern-tokens'][index='3'] {
+   color: #767676;
+}
+
+ChartPalette[name='Modern-tokens'][index='4'] {
+   color: #ffffff;
+}
+
+ChartPalette[name='Modern Dark-tokens'][index='1'] {
+   color: #3fbfb2;
+}
+
+ChartPalette[name='Modern Dark-tokens'][index='2'] {
+   color: #e8954a;
+}
+
+ChartPalette[name='Modern Dark-tokens'][index='3'] {
+   color: #a8a5ad;
+}
+
+ChartPalette[name='Modern Dark-tokens'][index='4'] {
+   color: #252428;
+}
+
+ChartPalette[name='Modern Dark-tokens'][index='5'] {
+   color: #e6e0e9;
+}

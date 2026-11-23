@@ -62,7 +62,7 @@ public final class VSObjectChromeDefaults {
     * on the card (= --dark-surface-default, one step above the darker page).
     */
    public static String cardBackgroundCss(VizContext ctx) {
-      Color bg = ctx.dark ? CARD_BG_DARK : CARD_BG;
+      Color bg = cardBackground(ctx);
       return String.format("#%06x", bg.getRGB() & 0xFFFFFF);
    }
 
@@ -97,7 +97,8 @@ public final class VSObjectChromeDefaults {
 
    /** Opaque object-card color: white in light, the lifted surface in dark. */
    public static Color cardBackground(VizContext ctx) {
-      return ctx.dark ? CARD_BG_DARK : CARD_BG;
+      return VSChartPaletteDefaults.token(ctx.dark, VSChartPaletteDefaults.TOKEN_CARD,
+                                          ctx.dark ? CARD_BG_DARK : CARD_BG);
    }
 
    /**
@@ -147,7 +148,9 @@ public final class VSObjectChromeDefaults {
     * into a stored DEFAULT tier at creation rather than substituting it at read time.
     */
    public static String darkForegroundValue() {
-      return String.format("0x%06x", TEXT_FG_DARK.getRGB() & 0xFFFFFF);
+      Color ink = VSChartPaletteDefaults.token(true, VSChartPaletteDefaults.TOKEN_TEXT,
+                                               TEXT_FG_DARK);
+      return String.format("0x%06x", ink.getRGB() & 0xFFFFFF);
    }
 
    /**
