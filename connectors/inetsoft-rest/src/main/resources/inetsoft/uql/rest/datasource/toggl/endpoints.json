@@ -17,12 +17,19 @@
       "lookups": [
         {
           "endpoints": [
-            "Workspace Project Users",
+            "Workspace Project Users"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Project IDs"
+        },
+        {
+          "endpoints": [
             "Workspace Project Tasks"
           ],
           "jsonPath": "$.[*]",
           "key": "id",
-          "parameterName": "Workspace ID"
+          "parameterName": "Project ID"
         }
       ]
     },
@@ -34,12 +41,12 @@
     {
       "name": "Workspace Project Users",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/project_users"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/project_users?project_ids={Project IDs?}"
     },
     {
       "name": "Workspace Project Tasks",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}/tasks/"
+      "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}/tasks"
     },
     {
       "name": "Workspace Task",
