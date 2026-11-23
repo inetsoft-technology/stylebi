@@ -872,13 +872,64 @@ describe("navbar ring: inset and tile-sized; the light shell's in the navbar tex
       }
    }, 60000);
 
-   it("keeps the link's ring where :has() is not supported", () => {
-      const css = compiledGlobal().replace(/\s+/g, " ");
-      const supports = css.match(/@supports selector\(:has\(\*\)\) \{((?:[^{}]*\{[^{}]*\})*) \}/);
+   // The @supports selector(:has(*)) block that holds the navbar suppression rule, found from that rule and
+   // never as the first such block in the file. The suppression is the compiled rule whose selector is
+   // exactly LINK_RULE (not preceded by a gate). Its nearest enclosing at-rule must be the :has() @supports.
+   // Positions are in `css`, whitespace collapsed: `start` is the block's "{", `end` its "}".
+   const supportsHoldingSuppression = (css: string) => {
+      const escaped = LINK_RULE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const hits = [...css.matchAll(new RegExp(`(?<=[{}] |^)${escaped} \\{`, "g"))];
 
-      expect(supports, "no @supports selector(:has(*)) block").not.toBeNull();
-      expect(supports[1]).toContain(`${LINK_RULE} {`);
-      expect(supports[1]).toContain(`${TILE_RULE} {`);
+      expect(hits.length, "navbar suppression rules in the compiled CSS").toBe(1);
+
+      const at = hits[0].index;
+      let depth = 0;
+      let start = -1;
+
+      // walk back to the unmatched "{" that opens the block holding the suppression
+      for(let i = at - 1; i >= 0; i--) {
+         if(css[i] === "}") {
+            depth++;
+         }
+         else if(css[i] === "{") {
+            if(depth === 0) {
+               start = i;
+               break;
+            }
+
+            depth--;
+         }
+      }
+
+      expect(start, "the suppression rule is inside a block").toBeGreaterThanOrEqual(0);
+
+      const before = Math.max(css.lastIndexOf("{", start - 1), css.lastIndexOf("}", start - 1),
+                              css.lastIndexOf(";", start - 1));
+      expect(css.slice(before + 1, start).trim(), "at-rule enclosing the suppression rule")
+         .toBe("@supports selector(:has(*))");
+
+      depth = 0;
+      let end = -1;
+
+      for(let i = start; i < css.length; i++) {
+         if(css[i] === "{") {
+            depth++;
+         }
+         else if(css[i] === "}" && --depth === 0) {
+            end = i;
+            break;
+         }
+      }
+
+      expect(end, "end of the block holding the suppression rule").toBeGreaterThan(at);
+      return { start, end, at, body: css.slice(start + 1, end) };
+   };
+
+   it("keeps the link's ring where :has() is not supported", () => {
+      const supports = supportsHoldingSuppression(compiledGlobal().replace(/\s+/g, " "));
+
+      expect(supports.body).toContain(`${LINK_RULE} {`);
+      expect(supports.body).toContain(`${TILE_RULE} {`);
    }, 60000);
 
    it("draws the light shell's link ring in the navbar text colour where :has() is not supported", () => {
@@ -891,20 +942,20 @@ describe("navbar ring: inset and tile-sized; the light shell's in the navbar tex
 
    it("yields the fallback to the tile ring where :has() is supported, and outranks Bootstrap's ring", () => {
       const css = compiledGlobal().replace(/\s+/g, " ");
-      const supports = css.match(/@supports selector\(:has\(\*\)\) \{((?:[^{}]*\{[^{}]*\})*) \}/);
+      const supports = supportsHoldingSuppression(css);
       const fallbackAt = css.indexOf(`${FALLBACK_RULE} {`);
       const order = compareSpecificity(specificity(FALLBACK_RULE), specificity(LINK_RULE));
 
-      expect(supports, "no @supports selector(:has(*)) block").not.toBeNull();
       expect(fallbackAt, "fallback rule in the compiled CSS").toBeGreaterThanOrEqual(0);
       expect(css.indexOf(`${FALLBACK_RULE} {`, fallbackAt + 1), "one fallback rule").toBe(-1);
       // outside the @supports block, so it applies where :has() is not supported
-      expect(supports[1]).not.toContain(FALLBACK_RULE);
+      expect(supports.body).not.toContain(FALLBACK_RULE);
       // where :has() is supported the suppression wins: lower specificity, or equal and earlier
       expect(order).toBeLessThanOrEqual(0);
 
       if(order === 0) {
-         expect(fallbackAt).toBeLessThan(supports.index);
+         // before the block that holds the suppression, so the suppression wins on order
+         expect(fallbackAt).toBeLessThan(supports.start);
       }
 
       // and where it is not, the fallback beats Bootstrap's light ring on the link
