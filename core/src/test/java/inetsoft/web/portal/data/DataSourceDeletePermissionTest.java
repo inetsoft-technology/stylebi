@@ -21,6 +21,7 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.test.*;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -35,6 +36,7 @@ import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
+import org.mockito.MockedStatic;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -74,9 +76,16 @@ class DataSourceDeletePermissionTest {
    private DatasourcesService datasourcesService;
    private DataSourceBrowserService browserService;
    private DataSourceController controller;
+   private MockedStatic<DependencyTool> dependencyTool;
 
    @BeforeEach
    void setUp() throws Exception {
+      // the dependency storage is not part of this test context, no sheet is recorded under a source
+      dependencyTool = mockStatic(DependencyTool.class);
+      dependencyTool.when(() -> DependencyTool.getAssetId(anyString(), any()))
+         .thenReturn("source-key");
+      dependencyTool.when(() -> DependencyTool.getDependencies(anyString())).thenReturn(null);
+
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(any(Principal.class), any(ResourceType.class),
                                           any(String.class), any(ResourceAction.class)))
@@ -99,6 +108,11 @@ class DataSourceDeletePermissionTest {
       controller = new DataSourceController(
          datasourcesService, browserService, mock(DatabaseDatasourcesService.class),
          securityEngine, mock(DataSourceStatusService.class), mock(FileSystemService.class));
+   }
+
+   @AfterEach
+   void tearDown() {
+      dependencyTool.close();
    }
 
    // ---- checkOuterDependencies ----
