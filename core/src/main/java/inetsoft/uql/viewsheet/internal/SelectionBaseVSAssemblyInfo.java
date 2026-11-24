@@ -919,6 +919,8 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       titleInfo.resetRuntimeValues();
       measureValue.setRValue(null);
       formulaValue.setRValue(null);
+      mbarValue.setRValue(null);
+      mtextValue.setRValue(null);
    }
 
    /**
