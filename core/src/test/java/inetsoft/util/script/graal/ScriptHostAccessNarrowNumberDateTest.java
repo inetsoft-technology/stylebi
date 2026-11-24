@@ -61,6 +61,17 @@ class ScriptHostAccessNarrowNumberDateTest {
       public String of(float f) { return "F"; }
       public String sd(String s) { return "S"; }
       public String sd(double s) { return "D"; }
+      public String lg(long s) { return "L"; }
+      public String lg(java.util.Date s) { return "D"; }
+      public String it(int s) { return "I"; }
+      public String it(java.util.Date s) { return "D"; }
+      public String db(double s) { return "DBL"; }
+      public String db(java.util.Date s) { return "D"; }
+      public String ob(Object s) { return "O"; }
+      public String ob(java.util.Date s) { return "D"; }
+      public String t(java.util.Date a, java.util.Date b) { return "DD"; }
+      public String t(String... f) { return "VA"; }
+      public String ms(java.util.Date s) { return "D:" + s.getTime(); }
    }
 
    private String str(String js) {
@@ -206,5 +217,73 @@ class ScriptHostAccessNarrowNumberDateTest {
       assertEquals("1.50", str("Java.type('java.lang.String').valueOf('1.50')"));
       assertEquals("O", str("d.os('5')"));
       assertEquals("O", str("d.of('1.5')"));
+   }
+
+   @Test
+   void numberToDateIsEpochMillis() {
+      assertEquals("D", str("d.e(45000)"));
+      assertEquals("D:45000", str("d.ms(45000)"));
+      assertEquals("D:-5", str("d.ms(-5)"));
+      assertEquals("D:1700000000000", str("d.ms(1.7e12)"));
+      assertEquals("D:true", str("'D:' + (d.ms(Date.now()).length > 2)"));
+      assertEquals("D:0", str("d.ms(new Date(0))"));
+   }
+
+   @Test
+   void numberToDateRefusesNonWholeValues() {
+      refused("d.e(NaN)");
+      refused("d.e(Infinity)");
+      refused("d.e(-Infinity)");
+      refused("d.e(1.5)");
+      refused("d.e(1e30)");
+   }
+
+   @Test
+   void stringIsNotConvertedToDate() {
+      refused("d.e('2024-03-05')");
+      refused("d.e('45000')");
+   }
+
+   @Test
+   void fractionalNumberKeepsNumericOverload() {
+      assertEquals("L", str("d.lg(5.5)"));
+      assertEquals("I", str("d.it(5.5)"));
+   }
+
+   @Test
+   void exactNumericOverloadsStillWin() {
+      assertEquals("L", str("d.lg(5)"));
+      assertEquals("L", str("d.lg(Date.now())"));
+      assertEquals("I", str("d.it(5)"));
+      assertEquals("DBL", str("d.db(5)"));
+      assertEquals("DBL", str("d.db(5.5)"));
+      assertEquals("O", str("d.ob(5)"));
+      assertEquals("D", str("d.ob(new Date(0))"));
+   }
+
+   @Test
+   void dateAndStringPairGivenNumberIsAmbiguous() {
+      PolyglotException ex = assertThrows(PolyglotException.class, () -> str("d.c(45000)"));
+      assertTrue(ex.getMessage().contains("Multiple applicable overloads"),
+                 ex.getMessage());
+      assertEquals("D", str("d.c(new Date(0))"));
+      assertEquals("S", str("d.c('x')"));
+   }
+
+   @Test
+   void dateRangeOverloadBeatsVarargsForNumbers() {
+      assertEquals("DD", str("d.t(new Date(0), 45000)"));
+      assertEquals("DD", str("d.t(45000, new Date(0))"));
+      assertEquals("DD", str("d.t(1, 2)"));
+      assertEquals("VA", str("d.t('a', 'b')"));
+      assertEquals("VA", str("d.t('2024-03-05', '2024-03-06')"));
+      assertEquals("VA", str("d.t(1.5, 2.5)"));
+   }
+
+   @Test
+   void timeScaleGetsRealRange() {
+      assertEquals("45000", str(
+         "new (Java.type('inetsoft.graph.scale.TimeScale'))(new Date(0), 45000)" +
+         ".getMax()"));
    }
 }
