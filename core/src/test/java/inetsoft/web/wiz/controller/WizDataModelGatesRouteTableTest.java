@@ -292,6 +292,21 @@ class WizDataModelGatesRouteTableTest {
                f.db, null, "pv", new LinkedHashMap<>(Map.of("name", "pe")), true), f.bob),
          "DS:{db}:READ", "body", NOT_FOUND,
          "DMF:{db}/F:WRITE", "body", NOT_FOUND));
+      // auto join reads a stored view like get does (unseen = missing); a draft has no folder, so
+      // it needs the edit permission of the data source, refused before anything is built
+      routes.add(route("physical/autojoin", f -> f.physical.autoJoin(
+            new WizPhysicalViewWire.AutoJoinRequest(f.db, "pv", null, null, null, null, null),
+            f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DMF:{db}/F:WRITE", "body", NOT_FOUND));
+      routes.add(route("physical/autojoin (draft)", f -> f.physical.autoJoin(
+            new WizPhysicalViewWire.AutoJoinRequest(
+               f.db, null, null,
+               List.of(new LinkedHashMap<>(Map.of("name", "T1")),
+                       new LinkedHashMap<>(Map.of("name", "T2"))),
+               null, null, null), f.bob),
+         "DS:{db}:READ", "body", NOT_FOUND,
+         "DS:{db}:WRITE", "throw", "{db}"));
       routes.add(route("physical/update (folder change)", f -> f.physical.update(
             new WizPhysicalViewWire.WriteRequest(
                f.db, "pv", null, new LinkedHashMap<>(Map.of("folder", "G")), true), f.bob),
@@ -330,7 +345,7 @@ class WizDataModelGatesRouteTableTest {
          "physical/tables", "dependencies", "delete", "rename", "folders/create", "folders/rename",
          "move", "logical/get", "logical/create", "logical/update", "vpm/get", "vpm/create",
          "vpm/update", "vpm/test", "physical/get", "physical/create",
-         "physical/update")), covered.toString());
+         "physical/update", "physical/autojoin")), covered.toString());
       // browse never throws for a missing grant: the services filter, see browseNeverThrows...
    }
 
