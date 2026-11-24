@@ -1175,6 +1175,20 @@ public class DefaultAxis extends Axis {
          }
 
          lsize = width ? vlabel.getPreferredWidth() : vlabel.getPreferredHeight();
+         String[] texts = compactTexts == null ? null : compactTexts.get(vlabel);
+
+         // a compact date may take its year after thinning, so leave room for it across the axis
+         if(width != hor && texts != null && !texts[0].equals(vlabel.getLabel())) {
+            Dimension2D labelMax = vlabel.getMaxSize();
+            double full = width ? vlabel.getPreferredWidth(texts[0])
+               : vlabel.getPreferredHeight(texts[0]);
+
+            if(labelMax != null) {
+               full = Math.min(full, width ? labelMax.getWidth() : labelMax.getHeight());
+            }
+
+            lsize = Math.max(lsize, full);
+         }
 
          if(lsize > maxSize) {
             maxSize = lsize;

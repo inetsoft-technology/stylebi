@@ -29,6 +29,7 @@ import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.aesthetic.DefaultTextFrame;
 import inetsoft.graph.scale.LinearScale;
+import inetsoft.graph.scale.Scale;
 import inetsoft.graph.scale.TimeScale;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
@@ -45,8 +46,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.geom.Rectangle2D;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -656,8 +659,8 @@ class ModernAxisLabelTest {
 
             for(int i : topDownIndices(axis)) {
                VDimensionLabel label = (VDimensionLabel) axis.getLabels()[i];
-               // the label's own text: the column is sized before a year moves, and may cut it
-               String text = String.valueOf(label.getLabel());
+               // the drawn text: the column has room for a year that moves
+               String text = text(label);
                cal.setTime((Date) label.getValue());
                int year = cal.get(Calendar.YEAR);
 
@@ -679,6 +682,127 @@ class ModernAxisLabelTest {
          }
 
          assertTrue(moved, "premise: a year moved past a hidden January at limit " + limit);
+      }
+   }
+
+   @Test
+   void aVerticalDateAxisDrawsAMovedYearInFull() {
+      Date[][] monthly = { months(2024, Calendar.JANUARY, 24), months(2024, Calendar.JULY, 24) };
+      Date[] daily = days(2025, Calendar.DECEMBER, 1, 62);
+      int moved = 0;
+
+      for(int height = 70; height <= 400; height += 5) {
+         for(double limit : new double[] { 0, 66 }) {
+            for(boolean reversed : new boolean[] { true, false }) {
+               String where = "limit " + limit + (reversed ? " top-down" : " bottom-up") +
+                  " at " + height;
+
+               for(Date[] dates : monthly) {
+                  DefaultAxis axis = sideDateAxis(dates, TimeScale.MONTH, limit, reversed, height);
+                  assertTrue(axis.isVertical(), "premise: the axis runs down the side");
+                  moved += assertYearsDrawnInFull(axis, "MMM yyyy", "month " + where);
+               }
+
+               DefaultAxis axis = sideDateAxis(daily, TimeScale.DAY, limit, reversed, height);
+               moved += assertYearsDrawnInFull(axis, "MMM d, yyyy", "day " + where);
+            }
+         }
+
+         for(int month : new int[] { Calendar.JANUARY, Calendar.FEBRUARY, Calendar.JULY }) {
+            DefaultAxis axis = sideAxis(timeSeries(66, 0), dateRows(months(2024, month, 24)),
+                                        height);
+            assertTrue(axis.isVertical(), "premise: the time axis runs down the side");
+            moved += assertYearsDrawnInFull(axis, "MMM yyyy",
+                                            "time series from " + (month + 1) + " at " + height);
+         }
+      }
+
+      assertTrue(moved > 0, "premise: a year moved off the date that starts it");
+   }
+
+   @Test
+   void anAuthorRotatedDateAxisDrawsAMovedYearInFull() {
+      Date[] dates = months(2024, Calendar.JULY, 24);
+      // the Linux default font, in which the cut shows
+      Font font = new Font("DejaVu Sans", Font.PLAIN, 10);
+      int moved = 0;
+
+      for(int rotation : new int[] { 45, 90 }) {
+         for(int width = 100; width <= 400; width += 5) {
+            CategoricalScale category = new CategoricalScale("Date");
+            category.getAxisSpec().setCompactDates(new CompactDates(TimeScale.MONTH, Locale.US));
+            category.getAxisSpec().getTextSpec().setRotation(rotation);
+
+            for(Scale scale : new Scale[] { category, timeSeries(0, rotation) }) {
+               scale.getAxisSpec().getTextSpec().setFont(font);
+               DefaultAxis axis = layout(scale, dateRows(dates), width, 240);
+               String where = scale.getClass().getSimpleName() + " at " + rotation +
+                  " degrees, " + width + " wide";
+
+               assertTrue(axis.isHorizontal(), "premise: the axis runs along the bottom");
+               moved += assertYearsDrawnInFull(axis, "MMM yyyy", where);
+            }
+         }
+      }
+
+      assertTrue(moved > 0, "premise: a year moved off the date that starts it");
+   }
+
+   @Test
+   void aFlatDateAxisReservesNoYearAlongTheAxis() {
+      // a year from Jul 2024, and the texts its labels start with as names
+      Date[] dates = months(2024, Calendar.JULY, 12);
+      String[] texts = new String[dates.length];
+
+      for(int i = 0; i < dates.length; i++) {
+         String pattern = i == 0 || year(dates[i]) != year(dates[i - 1]) ? "MMM yyyy" : "MMM";
+         texts[i] = new SimpleDateFormat(pattern, Locale.US).format(dates[i]);
+      }
+
+      for(double limit : new double[] { 0, 66 }) {
+         CategoricalScale dateScale = new CategoricalScale("Date");
+         dateScale.getAxisSpec().setCompactDates(new CompactDates(TimeScale.MONTH, Locale.US));
+         dateScale.getAxisSpec().setLabelLimit(limit);
+         CategoricalScale nameScale = new CategoricalScale("Name");
+         nameScale.getAxisSpec().setLabelLimit(limit);
+         DefaultAxis compact = layout(dateScale, dateRows(dates), 400, 240);
+         DefaultAxis twin = layout(nameScale, names(texts), 400, 240);
+         String where = "limit " + limit + " " + shownTexts(compact);
+
+         assertTrue(compact.isHorizontal(), "premise: the axis runs along the bottom");
+         assertEquals(twin.getAxisSize(), compact.getAxisSize(), 1e-9, "the axis " + where);
+         assertEquals(twin.vgraph.getMinPlotWidth(), compact.vgraph.getMinPlotWidth(), 1e-9,
+                      "the min plot width " + where);
+      }
+   }
+
+   @Test
+   void aClassicVerticalDateColumnFitsItsOwnTexts() {
+      // a classic month axis without the year, and the same texts as names
+      Date[] dates = months(2025, Calendar.JANUARY, 12);
+      String[] texts = new String[dates.length];
+
+      for(int i = 0; i < dates.length; i++) {
+         texts[i] = new SimpleDateFormat("MMM", Locale.US).format(dates[i]);
+      }
+
+      for(double limit : new double[] { 0, 66 }) {
+         for(boolean reversed : new boolean[] { true, false }) {
+            CategoricalScale dateScale = new CategoricalScale("Date");
+            dateScale.getAxisSpec().getTextSpec().setFormat(new SimpleDateFormat("MMM", Locale.US));
+            dateScale.getAxisSpec().setLabelLimit(limit);
+            dateScale.setReversed(reversed);
+            CategoricalScale nameScale = new CategoricalScale("Name");
+            nameScale.getAxisSpec().setLabelLimit(limit);
+            nameScale.setReversed(reversed);
+            DefaultAxis classic = sideAxis(dateScale, dateRows(dates), 300);
+            DefaultAxis twin = sideAxis(nameScale, names(texts), 300);
+            List<String> shown = topDownTexts(classic);
+            String where = "limit " + limit + " reversed " + reversed + " " + shown;
+
+            assertEquals(texts.length, shown.size(), "premise: every month shown " + where);
+            assertEquals(twin.getAxisSize(), classic.getAxisSize(), 1e-9, "the column " + where);
+         }
       }
    }
 
@@ -980,13 +1104,11 @@ class ModernAxisLabelTest {
       return Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, width, height);
    }
 
-   private static DefaultAxis layout(CategoricalScale xscale, Object[][] rows, int width,
-                                     int height)
-   {
+   private static DefaultAxis layout(Scale xscale, Object[][] rows, int width, int height) {
       return layout(xscale, new LinearScale("Sales"), rows, width, height);
    }
 
-   private static DefaultAxis layout(CategoricalScale xscale, LinearScale yscale, Object[][] rows,
+   private static DefaultAxis layout(Scale xscale, LinearScale yscale, Object[][] rows,
                                      int width, int height)
    {
       EGraph graph = new EGraph();
@@ -1082,6 +1204,11 @@ class ModernAxisLabelTest {
    // a category axis down the side of a transposed chart, its scale reversed
    private static DefaultAxis reversedAxis(CategoricalScale xscale, Object[][] rows, int height) {
       xscale.setReversed(true);
+      return sideAxis(xscale, rows, height);
+   }
+
+   // the X axis down the side of a transposed chart
+   private static DefaultAxis sideAxis(Scale xscale, Object[][] rows, int height) {
       RectCoord coord = new RectCoord(xscale, new LinearScale("Sales"));
       coord.transpose();
       EGraph graph = new EGraph();
@@ -1092,6 +1219,75 @@ class ModernAxisLabelTest {
       DefaultAxis axis = ((RectCoord) vgraph.getCoordinate()).getXAxis1();
       axis.prepareLabels();
       return axis;
+   }
+
+   // a monthly time axis in compact dates
+   private static TimeScale timeSeries(double limit, int rotation) {
+      TimeScale scale = new TimeScale("Date");
+      scale.setType(TimeScale.MONTH);
+      scale.getAxisSpec().setCompactDates(new CompactDates(CompactDates.FROM_SCALE, Locale.US));
+      scale.getAxisSpec().setLabelLimit(limit);
+      scale.getAxisSpec().getTextSpec().setRotation(rotation);
+      return scale;
+   }
+
+   // compact dates down the side, from the top or from the bottom
+   private static DefaultAxis sideDateAxis(Date[] dates, int unit, double limit, boolean reversed,
+                                           int height)
+   {
+      CategoricalScale xscale = new CategoricalScale("Date");
+      xscale.getAxisSpec().setCompactDates(new CompactDates(unit, Locale.US));
+      xscale.getAxisSpec().setLabelLimit(limit);
+      xscale.setReversed(reversed);
+      return sideAxis(xscale, dateRows(dates), height);
+   }
+
+   // every shown label draws its own text, and the first shown label of each year draws the
+   // year; returns how many of those labels took the year from an earlier date
+   private static int assertYearsDrawnInFull(DefaultAxis axis, String pattern, String where) {
+      SimpleDateFormat full = new SimpleDateFormat(pattern, Locale.US);
+      VLabel[] labels = axis.getLabels();
+      List<VDimensionLabel> byDate = new ArrayList<>();
+      String at = where + " " + topDownTexts(axis);
+      Integer prevYear = null;
+      int moved = 0;
+
+      for(VLabel label : labels) {
+         byDate.add((VDimensionLabel) label);
+      }
+
+      byDate.sort(Comparator.comparing(label -> (Date) label.getValue()));
+
+      for(int p = 0; p < byDate.size(); p++) {
+         VDimensionLabel label = byDate.get(p);
+
+         if(label.getZIndex() < 0) {
+            continue;
+         }
+
+         Date date = (Date) label.getValue();
+         int year = year(date);
+
+         assertEquals(String.valueOf(label.getLabel()), text(label), "cut at " + at);
+
+         if(prevYear == null || year != prevYear) {
+            assertEquals(full.format(date), text(label), "the year at " + at);
+
+            if(p > 0 && year((Date) byDate.get(p - 1).getValue()) == year) {
+               moved++;
+            }
+         }
+
+         prevYear = year;
+      }
+
+      return moved;
+   }
+
+   private static int year(Date date) {
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(date);
+      return cal.get(Calendar.YEAR);
    }
 
    private static DefaultAxis reversedDateAxis(Date[] dates, CompactDates compact, double limit,
