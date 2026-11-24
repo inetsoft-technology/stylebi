@@ -96,6 +96,16 @@ class GraphQLNullObjectColumnsTest {
    }
 
    @Test
+   void nonNullListOfObjectsStaysTheSingleColumn() {
+      Map<String, Object> board = new LinkedHashMap<>();
+      board.put("id", "1");
+      board.put("items", List.of(Map.of("id", "i1")));
+
+      assertEquals(List.of("id", "items"),
+                   columns(build(ITEMS, "$.data.boards[*]", List.of(board), q -> {})));
+   }
+
+   @Test
    void notExpandedDeclaresNothing() {
       assertEquals(List.of("id", "items"),
                    columns(build(ITEMS, "$.data.boards[*]", nullItemsRows(),

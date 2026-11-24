@@ -118,8 +118,10 @@ public class GraphQLQuery extends RestJsonQuery implements DerivedRequestBodyQue
 
    @Override
    public Map<String, List<String>> declaredObjectColumns() {
-      // Without Expand Arrays a list of objects is one column, never leaf columns. In the other modes
-      // the selection set cannot tell a list from an object, see the PR notes.
+      // Off when Expand Arrays is off (a null scalar object then still collapses to one column).
+      // Otherwise every selected object is declared; the selection set cannot tell a list from an
+      // object, so a list that is null on every row builds its leaves while a non-empty one stays
+      // one column.
       if(!isExpanded()) {
          return Collections.emptyMap();
       }
