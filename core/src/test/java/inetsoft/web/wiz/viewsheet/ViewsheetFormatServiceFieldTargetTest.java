@@ -34,9 +34,11 @@ import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.CompositeTextFormat;
 import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GanttVSChartInfo;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
@@ -277,6 +279,41 @@ class ViewsheetFormatServiceFieldTargetTest {
 
       assertEquals(java.util.Set.of(), handler.applyFieldFormats(rvs, chart, clear));
       assertNull(axisUserFormat(revenue).getFormat());
+   }
+
+   /**
+    * Bug #82247: formatting a measure must not write the wizard's default numeric format onto the
+    * colour legend of a numeric dimension (it renders 2025 as "2K"); the named field is still formatted.
+    */
+   @Test
+   void aFieldFormatLeavesTheLegendOfANumericDimensionAlone() {
+      VSChartAggregateRef revenue = aggregate("Revenue");
+      VSChartDimensionRef year = dimension("Year", XSchema.INTEGER, -1);
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(year);
+      color.setVisualFrameWrapper(new CategoricalColorFrameWrapper());
+      info.addXField(dimension("Region", XSchema.STRING, -1));
+      info.addYField(revenue);
+      info.setColorField(color);
+      info.setSeparatedGraph(true);
+      CompositeTextFormat legend = chart.getChartDescriptor().getLegendsDescriptor().getColorLegendDescriptor()
+         .getContentTextFormat();
+      assertTrue(legend.getDefaultFormat().getFormat().isEmpty(), "control: legend starts unformatted");
+
+      assertEquals(java.util.Set.of(),
+                   handler.applyFieldFormats(rvs, chart, Map.of(revenue.getFullName(), userFormat())));
+
+      assertEquals("DecimalFormat", axisUserFormat(revenue).getFormat());
+      assertTrue(legend.getDefaultFormat().getFormat().isEmpty(),
+                 "the Year legend keeps its own (unformatted) default");
+      assertTrue(legend.getUserDefinedFormat().getFormat().isEmpty());
+   }
+
+   private static VSFormat userFormat() {
+      VSFormat format = new VSFormat();
+      format.setFormatValue("DecimalFormat");
+      format.setFormatExtentValue("'$'#,##0K");
+      return format;
    }
 
    /** WizAutoBindingService shares the check: a numeric format now fits a part level too. */
