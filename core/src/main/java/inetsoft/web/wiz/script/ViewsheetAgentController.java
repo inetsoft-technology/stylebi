@@ -132,9 +132,15 @@ public class ViewsheetAgentController {
     *                      fresh from the live {@link JoinSession} on every call, never cached.
     * @param followFocusEnabled whether Follow Focus is opted in for this session (see
     *                      {@code SheetSessionService.setFollowFocus}).
+    * @param unsavedChanges {@code true} when the runtime viewsheet's undo position differs from
+    *                      its save point (the test behind the Composer tab's "*"), or when the
+    *                      sheet has never been saved (temporary scope), so the Viewer still shows
+    *                      the last saved version, or nothing. Reads only the viewsheet's own undo
+    *                      stack: an edit made solely in a print or device layout uses a separate
+    *                      stack and is not reflected.
     */
    public record SessionInfo(String runtimeId, String sheetType, EditorContext editorContext,
-                             boolean followFocusEnabled) {}
+                             boolean followFocusEnabled, boolean unsavedChanges) {}
 
    /**
     * Reports this session's OWN current scope, resolved fresh from the live {@link JoinSession}
@@ -162,10 +168,28 @@ public class ViewsheetAgentController {
       throws PairingException
    {
       requireEnabled();
-      editService.resolve(sessionToken, user);
+      RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
       JoinSession session = resolveSession(sessionToken, user);
       return new SessionInfo(session.runtimeId(), session.sheetType().name().toLowerCase(),
-                             session.editorContext(), session.followFocusEnabled());
+                             session.editorContext(), session.followFocusEnabled(),
+                             hasUnsavedChanges(rvs));
+   }
+
+   /**
+    * Whether the runtime viewsheet differs from what is saved: its undo position is not its save
+    * point (a save point discarded by an edit after an undo reads {@code -1}, so it stays unsaved
+    * until the next save), or it is a never-saved sheet, whose position and save point both start
+    * at the same index even though nothing exists in the repository (the same test {@code save}
+    * uses to ask for a name).
+    */
+   private static boolean hasUnsavedChanges(RuntimeViewsheet rvs) {
+      if(rvs == null) {
+         return false;
+      }
+
+      AssetEntry entry = rvs.getEntry();
+      return rvs.getCurrent() != rvs.getSavePoint() ||
+         entry != null && entry.getScope() == AssetRepository.TEMPORARY_SCOPE;
    }
 
    /**
