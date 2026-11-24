@@ -905,9 +905,10 @@ public final class ScriptHostAccess {
                   // #82139: a number or a string is deliberately NOT converted to a
                   // java.util.Date parameter; pass new Date(n) or a JS Date. GraalJS
                   // host instanceof shares the conversion path, so a Number -> Date
-                  // mapping would make 0 instanceof java.util.Date true. Rhino 13.8
-                  // did not convert either: new TimeScale(date, 45000) fell back to the
-                  // String... fields overload (a silent 0 range); use new Date(45000).
+                  // mapping would make 0 instanceof java.util.Date true. 13.8 returned
+                  // 0 for new TimeScale(date, 45000), which appears to be the same
+                  // String... fields fallback (not verified on Rhino); use new Date(45000).
+                  //
                   // a JS or host Date has the JS toString text (Rhino did the same);
                   // only a String parameter, Object/Date/Instant overloads still win.
                   // LOWEST, not LOW: the Date -> Instant conversion sits on the LOW
