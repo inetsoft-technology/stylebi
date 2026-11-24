@@ -47,6 +47,7 @@ import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.calc.PercentCalcInfo;
 import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
+import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -3960,16 +3961,44 @@ class TableBindingMutatorTest {
       }
    }
 
+   private static final RuntimeViewsheet LIVE = mock(RuntimeViewsheet.class);
+
+   private static void setShelfLive(BaseTableBindingModel model, String shelf,
+                                    List<FieldRef> fields)
+   {
+      try {
+         TableBindingMutator.setShelf(model, shelf, fields, LIVE, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   private static void addFieldLive(BaseTableBindingModel model, String shelf, FieldRef field) {
+      try {
+         TableBindingMutator.addField(model, shelf, field, null, LIVE, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
    @Test
    void refusesATableShelfWriteThatWouldExceedTheOrgColumnLimit() {
       withColumnLimit(2, () -> {
          TableBindingModel model = new TableBindingModel();
-         TableBindingMutator.setShelf(model, "details", List.of(dim("A"), dim("B")));
+         setShelfLive(model, "details", List.of(dim("A"), dim("B")));
 
-         assertThrows(IllegalArgumentException.class, () -> TableBindingMutator.setShelf(
+         assertThrows(IllegalArgumentException.class, () -> setShelfLive(
             model, "details", List.of(dim("A"), dim("B"), dim("C"))));
          assertThrows(IllegalArgumentException.class,
-                      () -> TableBindingMutator.addField(model, "details", dim("C"), null));
+                      () -> addFieldLive(model, "details", dim("C")));
          assertEquals(2, model.getDetails().size(), "a refused write must not mutate the model");
       });
    }
@@ -3978,12 +4007,12 @@ class TableBindingMutatorTest {
    void countsACrosstabsRowsColsAndAggregatesTogether() {
       withColumnLimit(3, () -> {
          CrosstabBindingModel model = new CrosstabBindingModel();
-         TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
-         TableBindingMutator.setShelf(model, "cols", List.of(dim("Year")));
-         TableBindingMutator.addField(model, "aggregates", measure("Sales", "Sum"), null);
+         setShelfLive(model, "rows", List.of(dim("Region")));
+         setShelfLive(model, "cols", List.of(dim("Year")));
+         addFieldLive(model, "aggregates", measure("Sales", "Sum"));
 
          Exception thrown = assertThrows(IllegalArgumentException.class,
-            () -> TableBindingMutator.addField(model, "aggregates", measure("Cost", "Sum"), null));
+            () -> addFieldLive(model, "aggregates", measure("Cost", "Sum")));
          assertTrue(thrown.getMessage().contains("3"), thrown.getMessage());
          assertEquals(1, model.getAggregates().size());
       });
@@ -3993,28 +4022,38 @@ class TableBindingMutatorTest {
    void replacingAShelfDoesNotDoubleCountItsOwnPriorFields() {
       withColumnLimit(2, () -> {
          TableBindingModel model = new TableBindingModel();
-         TableBindingMutator.setShelf(model, "details", List.of(dim("A"), dim("B")));
+         setShelfLive(model, "details", List.of(dim("A"), dim("B")));
+
+         assertDoesNotThrow(() -> setShelfLive(
+            model, "details", List.of(dim("C"), dim("D"))));
+      });
+   }
+
+   @Test
+   void aWriteWithNoLiveViewsheetIsNotChecked() {
+      withColumnLimit(1, () -> {
+         TableBindingModel model = new TableBindingModel();
 
          assertDoesNotThrow(() -> TableBindingMutator.setShelf(
-            model, "details", List.of(dim("C"), dim("D"))));
+            model, "details", List.of(dim("A"), dim("B"))));
       });
    }
 
    @Test
    void aTableOverTheLimitCanStillBeShrunkOrMovedBetweenShelves() {
       CrosstabBindingModel model = new CrosstabBindingModel();
-      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region"), dim("State")));
-      TableBindingMutator.setShelf(model, "cols", List.of(dim("Year")));
-      TableBindingMutator.addField(model, "aggregates", measure("Sales", "Sum"), null);
+      setShelfLive(model, "rows", List.of(dim("Region"), dim("State")));
+      setShelfLive(model, "cols", List.of(dim("Year")));
+      addFieldLive(model, "aggregates", measure("Sales", "Sum"));
 
       withColumnLimit(2, () -> {
          assertDoesNotThrow(
             () -> TableBindingMutator.moveField(model, "rows", "cols", "State", null));
-         assertDoesNotThrow(() -> TableBindingMutator.setShelf(
+         assertDoesNotThrow(() -> setShelfLive(
             model, "cols", List.of(dim("Year"))));
          assertDoesNotThrow(() -> TableBindingMutator.removeField(model, "rows", "Region"));
          assertThrows(IllegalArgumentException.class,
-                      () -> TableBindingMutator.addField(model, "rows", dim("Zip"), null));
+                      () -> addFieldLive(model, "rows", dim("Zip")));
       });
    }
 }

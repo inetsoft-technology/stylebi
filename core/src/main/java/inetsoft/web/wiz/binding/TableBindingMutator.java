@@ -145,7 +145,8 @@ public final class TableBindingMutator {
                                DataRefModelFactoryService refModelService)
       throws Exception
    {
-      requireColumnLimit(model, requireShelf(model, shelf), fields == null ? 0 : fields.size());
+      requireColumnLimit(rvs, model, requireShelf(model, shelf),
+                         fields == null ? 0 : fields.size());
       setShelf(model, shelf, fields, null, null, rvs, source, refModelService);
    }
 
@@ -291,20 +292,24 @@ public final class TableBindingMutator {
     * Refuses a shelf write that would push the table's or crosstab's total column count past
     * {@code Util.getOrganizationMaxColumn()}, the limit a drag-drop add already enforces
     * ({@code VSTableDndService}, {@code VSCrosstabDndService}). The total is the shown details
-    * of a table, or rows + cols + aggregates of a crosstab; a table's {@code groups} shelf is not
-    * part of it, as in the drag-drop count.
+    * of a table, or rows + cols + aggregates of a crosstab, as in the drag-drop count.
     *
     * <p>Only the public {@code setShelf} and {@code addField} call this, never {@code moveField}
     * (total-neutral) or {@code removeField}, and it fires only on net growth of the edited shelf,
-    * so a table already over the limit can still be shrunk or reshuffled.
+    * so a table already over the limit can still be shrunk or reshuffled. {@code rvs == null}
+    * skips the check: there is no live viewsheet to enforce it for, the same as
+    * {@code ChartBindingMutator.requireColumnLimit} with no {@code chartInfo}.
     */
-   private static void requireColumnLimit(BaseTableBindingModel model, String shelf,
-                                          int newShelfCount)
+   private static void requireColumnLimit(RuntimeViewsheet rvs, BaseTableBindingModel model,
+                                          String shelf, int newShelfCount)
    {
-      boolean counted = model instanceof CrosstabBindingModel || "details".equals(shelf);
+      if(rvs == null) {
+         return;
+      }
+
       int oldShelfCount = read(model, shelf).size();
 
-      if(!counted || newShelfCount <= oldShelfCount) {
+      if(newShelfCount <= oldShelfCount) {
          return;
       }
 
@@ -363,7 +368,7 @@ public final class TableBindingMutator {
             current.size() + " field(s). Valid positions are 0 to " + current.size() + ".");
       }
 
-      requireColumnLimit(model, name, current.size() + 1);
+      requireColumnLimit(rvs, model, name, current.size() + 1);
       current.add(index, field);
       List<BDimensionRefModel> carried = carriedModels(model, name);
       List<BAggregateRefModel> carriedAggregates = carriedAggregateModels(model, name);
