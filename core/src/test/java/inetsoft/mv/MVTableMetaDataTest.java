@@ -127,7 +127,8 @@ class MVTableMetaDataTest {
          "List1", Map.of("Region", List.of("West", "East"), "Product", List.of("Chair")),
          refs("Amount"), null, aggregation());
 
-      assertEquals(Set.of(10, 30), singles(values));
+      // the set keeps numbers normalized to double
+      assertEquals(Set.of(10.0, 30.0), singles(values));
    }
 
    // the selection of a tree comes as paths: a value with a "/" of its own (Desk/Pro) is kept
@@ -139,7 +140,7 @@ class MVTableMetaDataTest {
          "List1", Map.of(key, List.of("North/CHILD_SELECTION_EXISTS", "North/Desk/Pro")),
          refs("Amount"), null, aggregation());
 
-      assertEquals(Set.of(7), singles(values));
+      assertEquals(Set.of(7.0), singles(values));
    }
 
    // a measure is aggregated per associated value: the bounds over all values and a sum per value
@@ -194,12 +195,14 @@ class MVTableMetaDataTest {
          .toArray(DataRef[]::new);
    }
 
-   // the associated values of a single list
+   // the associated values of a single list: the set holds a tuple per prefix of the list
+   // columns, and SelectionSet.normalize stores a tuple of one value as the value itself, so
+   // the values of the first column are the elements that are not tuples
    private static Set<Object> singles(SelectionSet values) {
       Set<Object> result = new HashSet<>();
 
-      for(Object obj : DATA_VALUES) {
-         if(values.contains(new SelectionSet.Tuple(new Object[] { obj }, 1))) {
+      for(Object obj : values) {
+         if(!(obj instanceof SelectionSet.Tuple)) {
             result.add(obj);
          }
       }
@@ -221,15 +224,6 @@ class MVTableMetaDataTest {
       }
 
       return values;
-   }
-
-   // every value of the data, to look up which ones are associated
-   private static final Set<Object> DATA_VALUES = new HashSet<>();
-
-   static {
-      for(int r = 1; r < DATA.length; r++) {
-         DATA_VALUES.addAll(Arrays.asList(DATA[r]));
-      }
    }
 
    private AssetQuerySandbox sandbox;

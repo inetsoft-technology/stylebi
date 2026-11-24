@@ -95,12 +95,14 @@ class MVScriptableMultiBlockTest {
    // The dictionary of a block keeps NULL as its first (smallest) value and the blocks are
    // compared with NULL lowest. SQL MIN ignores NULLs, and so does the path of a column without a
    // dictionary since Bug #78246 ("an all-null block has no min").
+   // When #82219 is fixed, change the assertNull below to assertEquals("b", ...) rather than
+   // removing it.
    @Test
    void nullValueMakesMinValueNull() {
       Built built = build(XSchema.STRING, null, "m", "c", "b", "y", "z", "k", "p");
 
       assertEquals("z", built.scriptable().getMember("MaxValue"));
-      assertNull(built.scriptable().getMember("MinValue"));
+      assertNull(built.scriptable().getMember("MinValue")); // #82219: should be "b"
 
       // without the NULL the smallest value is found
       assertEquals("b", build(XSchema.STRING, "n", "m", "c", "b", "y", "z", "k", "p")

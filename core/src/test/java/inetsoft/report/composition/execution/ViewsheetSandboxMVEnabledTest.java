@@ -27,6 +27,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -53,6 +56,12 @@ class ViewsheetSandboxMVEnabledTest {
    @AfterEach
    void tearDown() {
       SreeEnv.setProperty("mv.detail.data", oldDetailData);
+
+      for(ViewsheetSandbox box : boxes) {
+         box.dispose();
+      }
+
+      boxes.clear();
    }
 
    // at runtime the MV is used also with the meta data option
@@ -102,9 +111,14 @@ class ViewsheetSandboxMVEnabledTest {
       assertTrue(box.isMVEnabled(true));
    }
 
-   private static ViewsheetSandbox sandbox(int mode, boolean metaData) {
+   // a sandbox of an empty viewsheet with or without the meta data option, disposed after the test
+   private ViewsheetSandbox sandbox(int mode, boolean metaData) {
       Viewsheet vs = new Viewsheet();
       vs.getViewsheetInfo().setMetadata(metaData);
-      return new ViewsheetSandbox(vs, mode, null, false, null);
+      ViewsheetSandbox box = new ViewsheetSandbox(vs, mode, null, false, null);
+      boxes.add(box);
+      return box;
    }
+
+   private final List<ViewsheetSandbox> boxes = new ArrayList<>();
 }
