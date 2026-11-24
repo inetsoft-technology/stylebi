@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
+import inetsoft.web.binding.model.graph.calc.PercentCalcInfo;
 import inetsoft.web.binding.model.graph.calc.ValueOfCalcInfo;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.DataRef;
@@ -1853,6 +1854,13 @@ public final class TableBindingMutator {
          !blank(ranking.measure()))
       {
          requireKnownMeasure(model, ranking.measure(), "measure", true);
+
+         String canonical = canonicalRankingMeasure(model, ranking.measure());
+
+         if(!canonical.equals(ranking.measure())) {
+            ranking = new DimensionSortRanking.Ranking(
+               ranking.mode(), ranking.n(), canonical, ranking.others());
+         }
       }
 
       DimensionSortRanking.applyRanking(dimension, ranking);
@@ -2298,16 +2306,19 @@ public final class TableBindingMutator {
 
    /**
     * The name {@code VSAggregateRef.getFullName(true)} renders for a measure whose calculator
-    * sorts by value (percent of total), up to but not including the closing parenthesis, or
-    * {@code null} for any other measure. A ranking is kept by {@code VSAssemblyInfoHandler
-    * .validateTopN} only when it equals this name; any other spelling silently falls back to the
-    * first aggregate. The prefix depends on the crosstab's current {@code percentageBy}, so it is
-    * read from the live calculator, never assumed.
+    * is percent of total, up to but not including the closing parenthesis, or {@code null} for
+    * any other measure. A ranking is kept by {@code VSAssemblyInfoHandler.validateTopN} only when
+    * it equals this name (case-sensitively); any other spelling silently falls back to the first
+    * aggregate. The prefix depends on the crosstab's current {@code percentageBy}, so it is read
+    * from the live calculator, never assumed. Limited to percent of total, the one calculator
+    * proven against a rendered result; the previous-period "value of" calculators also sort by
+    * value but are not covered.
     */
    private static String rankableCalculatorBase(FieldRef field) {
       CalculateInfo calc = field.calculateInfo();
 
-      return calc != null && calc.isSupportSortByValue() && !blank(calc.getPrefix()) &&
+      return calc instanceof PercentCalcInfo && calc.isSupportSortByValue() &&
+         !blank(calc.getPrefix()) &&
          field.aggregate() != null && field.column() != null
          ? calc.getPrefix() + field.aggregate() + "(" + field.column() : null;
    }
@@ -2319,8 +2330,36 @@ public final class TableBindingMutator {
       return base != null && measure != null &&
          ((base + ")").equalsIgnoreCase(measure) ||
           MULTI_ARG_FORMULA_NAMES.contains(field.aggregate().toLowerCase()) &&
-          measure.regionMatches(true, 0, base + ",", 0, base.length() + 1) &&
+          measure.regionMatches(true, 0, base + ", ", 0, base.length() + 2) &&
           measure.trim().endsWith(")"));
+   }
+
+   /**
+    * The spelling {@code validateTopN} compares a ranking measure with, when {@code measure}
+    * names the calculator-prefixed full name of a bound measure in any case, or {@code measure}
+    * unchanged. {@code validateTopN} compares with a case-sensitive {@code equals}, so storing the
+    * typed text would let a mis-cased name pass the check above and then fall back to the first
+    * aggregate silently. A two-column form keeps its second column as typed: {@code FieldRef}
+    * carries no second column to rebuild it from.
+    */
+   private static String canonicalRankingMeasure(BaseTableBindingModel model, String measure) {
+      if(measure == null) {
+         return null;
+      }
+
+      for(FieldRef field : read(model, "aggregates")) {
+         if(!namesRankableCalculator(field, measure)) {
+            continue;
+         }
+
+         String base = rankableCalculatorBase(field);
+         String typed = measure.trim();
+
+         return (base + ")").equalsIgnoreCase(typed) ? base + ")"
+            : base + ", " + typed.substring(base.length() + 2);
+      }
+
+      return measure;
    }
 
    /**
@@ -2386,14 +2425,14 @@ public final class TableBindingMutator {
             known.add(calculatorBase + ")");
 
             if(MULTI_ARG_FORMULA_NAMES.contains(field.aggregate().toLowerCase())) {
-               multiArgPrefixes.add(calculatorBase + ",");
+               multiArgPrefixes.add(calculatorBase + ", ");
             }
          }
          else if(calculatorBase != null && namesRankableCalculator(field, measure)) {
             throw new IllegalArgumentException(
                "'" + param + "' is '" + measure + "', the calculator-prefixed name of a bound " +
-               "measure, which StyleBI accepts only when ranking. Sort by the column name '" +
-               field.column() + "' instead.");
+               "measure, which is accepted for a ranking. A sort takes the column name '" +
+               field.column() + "'.");
          }
       }
 
