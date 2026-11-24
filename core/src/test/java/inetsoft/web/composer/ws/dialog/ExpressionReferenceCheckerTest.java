@@ -73,4 +73,17 @@ class ExpressionReferenceCheckerTest {
       assertNull(ExpressionReferenceChecker.check("a", "1 + 1", COLS, Map.of()));
       assertNull(ExpressionReferenceChecker.check("a", null, COLS, Map.of()));
    }
+
+   // Bug #81656: SQL option expressions use the same field['x'] syntax
+   @Test
+   void sqlExpressionsAreChecked() {
+      assertEquals(Kind.MISSING, ExpressionReferenceChecker.check(
+         "a", "field['nope']", COLS, Map.of()).kind());
+      assertEquals(Kind.SELF, ExpressionReferenceChecker.check(
+         "a1", "field['a1']+1", Set.of("id"), Map.of()).kind());
+      assertEquals(Kind.CYCLE, ExpressionReferenceChecker.check(
+         "a", "field['b']+1", COLS, Map.of("b", "field['a']+1")).kind());
+      assertNull(ExpressionReferenceChecker.check(
+         "c", "field['id'] + field['b']", COLS, Map.of("b", "field['id']")));
+   }
 }

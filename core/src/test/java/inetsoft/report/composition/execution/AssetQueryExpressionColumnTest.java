@@ -203,6 +203,26 @@ class AssetQueryExpressionColumnTest {
       assertEquals(2, column(box(ws).getTableLens("T", RUNTIME), "top").size());
    }
 
+   @Test
+   @DisplayName("Bug #81656: SQL option expressions that refer to each other fail with a message")
+   void sqlCircularReference_failsWithMessage() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "a", "field['b'] + 1", XSchema.INTEGER, true, true);
+      addExpression(ws, "b", "field['a'] + 1", XSchema.INTEGER, true, true);
+      assertCircularFailure(ws);
+   }
+
+   @Test
+   @DisplayName("Bug #81656: SQL option expressions that only share a dependency are not a cycle")
+   void sqlDiamondReference_isNotACycle() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "base1", "field['customer_id'] + 1", XSchema.INTEGER, true, false);
+      addExpression(ws, "left", "field['base1'] + 10", XSchema.INTEGER, true, false);
+      addExpression(ws, "right", "field['base1'] + 100", XSchema.INTEGER, true, false);
+      addExpression(ws, "top", "field['left'] + field['right']", XSchema.INTEGER, true, true);
+      assertEquals(2, column(box(ws).getTableLens("T", RUNTIME), "top").size());
+   }
+
    private void assertCircularFailure(Worksheet ws) {
       // the whole table fails with a message, no StackOverflowError and no order dependent value
       Throwable ex = assertThrows(Throwable.class, () -> box(ws).getTableLens("T", RUNTIME));
