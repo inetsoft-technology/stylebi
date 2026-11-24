@@ -239,6 +239,8 @@ class DynamicLineStrategyTest {
    void labelDatePatternWins(boolean timeTarget) {
       String expected = localDate(JAN_15, "yyyy/MM/dd");
 
+      // the branches below only sanity-check the localDate helper in two known zones; the real
+      // assertions further down compare against it and hold in any time zone
       if("UTC".equals(ZoneId.systemDefault().getId())) {
          assertEquals("2024/01/15", expected);
       }

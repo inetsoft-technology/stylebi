@@ -24,6 +24,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
+import java.util.regex.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -41,6 +42,15 @@ class TargetStrategyOrderTest {
       return strategy.generateLabels(bounds, null, "f", null, false, false);
    }
 
+   /**
+    * The leading (possibly negative) integer of a label, so that "5th" is not mistaken for "50th".
+    */
+   private static int leadingNumber(String label) {
+      Matcher matcher = Pattern.compile("^-?\\d+").matcher(label);
+      assertTrue(matcher.find(), "label does not start with a number: " + label);
+      return Integer.parseInt(matcher.group());
+   }
+
    @Test
    @DisplayName("percentile target with unsorted percentiles: ascending values, labels follow")
    void percentileOrder() {
@@ -48,9 +58,9 @@ class TargetStrategyOrderTest {
       double[] b = strategy.calculateBoundaries(new double[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
       assertArrayEquals(new double[] { 2.75, 5.5, 8.25 }, b, 1e-9);
       String[] labels = labels(strategy, b);
-      assertTrue(labels[0].startsWith("25"), labels[0]);
-      assertTrue(labels[1].startsWith("50"), labels[1]);
-      assertTrue(labels[2].startsWith("75"), labels[2]);
+      assertEquals(25, leadingNumber(labels[0]), labels[0]);
+      assertEquals(50, leadingNumber(labels[1]), labels[1]);
+      assertEquals(75, leadingNumber(labels[2]), labels[2]);
    }
 
    @Test
@@ -60,9 +70,9 @@ class TargetStrategyOrderTest {
       double[] b = strategy.calculateBoundaries(new double[] { 3, 9, 6 });
       assertArrayEquals(new double[] { 0.9, 4.5, 9.0 }, b, 1e-9);
       String[] labels = labels(strategy, b);
-      assertTrue(labels[0].startsWith("10"), labels[0]);
-      assertTrue(labels[1].startsWith("50"), labels[1]);
-      assertTrue(labels[2].startsWith("100"), labels[2]);
+      assertTrue(labels[0].startsWith("10%"), labels[0]);
+      assertTrue(labels[1].startsWith("50%"), labels[1]);
+      assertTrue(labels[2].startsWith("100%"), labels[2]);
    }
 
    @Test
@@ -118,7 +128,7 @@ class TargetStrategyOrderTest {
          String[] labels = labels(percentile, b);
 
          for(int i = 0; i < 6; i++) {
-            assertTrue(labels[i].startsWith(String.valueOf(sorted.get(i).intValue())),
+            assertEquals(sorted.get(i).intValue(), leadingNumber(labels[i]),
                        "percentile " + factors + " label " + i + ": " + labels[i]);
          }
 

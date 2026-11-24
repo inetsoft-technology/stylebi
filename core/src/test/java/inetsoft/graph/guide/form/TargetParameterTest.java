@@ -25,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -168,7 +169,7 @@ class TargetParameterTest {
    }
 
    @ParameterizedTest(name = "{0} characters")
-   @org.junit.jupiter.params.provider.ValueSource(ints = { 20, 21, 25 })
+   @ValueSource(ints = { 20, 21, 25 })
    @DisplayName("text longer than 20 characters is cut to 17 characters plus an ellipsis")
    void longTextIsTrimmed(int length) {
       String name = "abcdefghijklmnopqrstuvwxyz".substring(0, length);

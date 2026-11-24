@@ -21,6 +21,8 @@ import inetsoft.test.*;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -115,8 +117,8 @@ class TargetUtilTest {
       assertEquals(0, TargetUtil.getNonNulls(new Double[0]).length);
    }
 
-   @org.junit.jupiter.params.ParameterizedTest(name = "percentile {0}")
-   @org.junit.jupiter.params.provider.ValueSource(doubles = { 0, -5 })
+   @ParameterizedTest(name = "percentile {0}")
+   @ValueSource(doubles = { 0, -5 })
    @DisplayName("percentile of zero or below is clamped without an exception and gives the minimum")
    void percentileBelowRangeGivesMinimum(double percentile) {
       PercentileStrategy strategy = new PercentileStrategy(Arrays.asList(percentile));
