@@ -399,4 +399,166 @@ class WizPhysicalViewDiffTest {
                             List.of(join("T2", "X", "T1", "Y", "LEFT_OUTER", false)));
       assertTrue(WizPhysicalViewDiff.mismatch(stored, same, otherType).startsWith("joins["));
    }
+
+   // -- auto aliases ---------------------------------------------------------------------------
+
+   private static AutoAliasDef auto(String from, String alias, boolean keep, String prefix) {
+      return new AutoAliasDef(from, alias, keep, prefix);
+   }
+
+   private static TableDef withAuto(TableDef table, AutoAliasDef... autoAliases) {
+      return new TableDef(table.name(), table.kind(), table.schema(), table.catalog(),
+                          table.aliasOf(), table.sql(), table.oldName(), table.baseElement(),
+                          List.of(autoAliases));
+   }
+
+   @Test
+   void anAutoAliasOnAJoinedTableIsPlanned() {
+      View stored = view(List.of(withAuto(plain("T1", false)), plain("T2", false)),
+                         List.of(join("T2", "X", "T1", "Y", "EQUAL", false)));
+      Plan plan = WizPhysicalViewDiff.plan(stored, desired(
+         List.of(withAuto(plain("T1", false), auto("T2", "t2a", true, "p_")), plain("T2", false)),
+         stored.joins()), false);
+
+      assertEquals(1, plan.autoAliasChanges.size());
+      assertEquals("T1", plan.autoAliasChanges.get(0).table());
+      assertTrue(plan.autoAliasChanges.get(0).stored().isEmpty());
+      assertEquals(List.of(auto("T2", "t2a", true, "p_")), plan.autoAliasChanges.get(0).desired());
+      assertFalse(plan.isEmpty());
+   }
+
+   @Test
+   void theSameAutoAliasesPlanNothingAndAnUnusedPrefixDoesNotCount() {
+      View stored = view(
+         List.of(withAuto(plain("T1", false), auto("T2", "t2a", false, null)),
+                 plain("T2", false)),
+         List.of(join("T2", "X", "T1", "Y", "EQUAL", false)));
+      Plan plan = WizPhysicalViewDiff.plan(stored, desired(
+         List.of(withAuto(plain("T1", false), auto("T2", "t2a", false, "stale")),
+                 plain("T2", false)), stored.joins()), false);
+
+      assertTrue(plan.isEmpty());
+   }
+
+   @Test
+   void anEmptyListClearsAndAnAbsentKeyKeeps() {
+      View stored = view(
+         List.of(withAuto(plain("T1", false), auto("T2", "t2a", false, null)),
+                 plain("T2", false)),
+         List.of(join("T2", "X", "T1", "Y", "EQUAL", false)));
+      Plan cleared = WizPhysicalViewDiff.plan(stored, desired(
+         List.of(withAuto(plain("T1", false)), plain("T2", false)), stored.joins()), false);
+      Plan kept = WizPhysicalViewDiff.plan(stored, desired(
+         List.of(plain("T1", false), plain("T2", false)), stored.joins()), false);
+
+      assertEquals(1, cleared.autoAliasChanges.size());
+      assertTrue(cleared.autoAliasChanges.get(0).desired().isEmpty());
+      assertTrue(kept.isEmpty());
+   }
+
+   @Test
+   void removingTheLastJoinOfAKeptAutoAliasIsRefusedByName() {
+      View stored = view(
+         List.of(withAuto(plain("T1", false), auto("T2", "t2a", false, null)),
+                 plain("T2", false)),
+         List.of(join("T2", "X", "T1", "Y", "EQUAL", false)));
+      DmFailure failure = assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         stored, desired(List.of(plain("T1", false), plain("T2", false)), List.of()), false));
+
+      assertEquals("tables[T1].autoAliases[0].from", failure.toBody().errors().get(0).field());
+      assertEquals("AUTO_ALIAS_DROPPED", failure.toBody().errors().get(0).code());
+   }
+
+   @Test
+   void removingTheTableAnAutoAliasIsDerivedForIsRefused() {
+      View stored = view(
+         List.of(withAuto(plain("T1", false), auto("T2", "t2a", false, null)),
+                 plain("T2", false)),
+         List.of(join("T2", "X", "T1", "Y", "EQUAL", false)));
+      DmFailure failure = assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         stored, desired(List.of(plain("T1", false)), List.of()), false));
+
+      assertEquals("AUTO_ALIAS_DROPPED", failure.toBody().errors().get(0).code());
+   }
+
+   @Test
+   void droppingTheAutoAliasInTheSameRequestAllowsTheJoinRemoval() {
+      View stored = view(
+         List.of(withAuto(plain("T1", false), auto("T2", "t2a", false, null)),
+                 plain("T2", false)),
+         List.of(join("T2", "X", "T1", "Y", "EQUAL", false)));
+      Plan plan = WizPhysicalViewDiff.plan(stored, desired(
+         List.of(withAuto(plain("T1", false)), plain("T2", false)), List.of()), false);
+
+      assertEquals(1, plan.removeJoins.size());
+      assertEquals(1, plan.autoAliasChanges.size());
+   }
+
+   @Test
+   void anAutoAliasNeedsAJoinAPlainTableAndAFreeName() {
+      View stored = view(List.of(plain("T1", false), plain("T2", false), plain("T3", false),
+                                 alias("A", "T1", null)),
+                         List.of(join("T2", "X", "T1", "Y", "EQUAL", false)));
+
+      // not joined
+      DmFailure notJoined = assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         stored, desired(
+            List.of(withAuto(plain("T1", false), auto("T3", "t3a", false, null)),
+                    plain("T2", false), plain("T3", false), alias("A", "T1", null)),
+            stored.joins()), false));
+      assertEquals("tables[T1].autoAliases[0].from", notJoined.toBody().errors().get(0).field());
+
+      // on an alias table (it would delete the alias)
+      DmFailure onAlias = assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         stored, desired(
+            List.of(plain("T1", false), plain("T2", false), plain("T3", false),
+                    withAuto(alias("A", "T1", null), auto("T2", "x", false, null))),
+            stored.joins()), false));
+      assertEquals("tables[A].autoAliases", onAlias.toBody().errors().get(0).field());
+
+      // a name that is a table
+      DmFailure taken = assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         stored, desired(
+            List.of(withAuto(plain("T1", false), auto("T2", "T3", false, null)),
+                    plain("T2", false), plain("T3", false), alias("A", "T1", null)),
+            stored.joins()), false));
+      assertEquals("tables[T1].autoAliases[0].alias", taken.toBody().errors().get(0).field());
+   }
+
+   @Test
+   void anInheritedTableKeepsItsAutoAliases() {
+      View stored = view(
+         List.of(withAuto(plain("T1", true), auto("T2", "t2a", false, null)),
+                 plain("T2", true)),
+         List.of(join("T2", "X", "T1", "Y", "EQUAL", true)));
+      Plan same = WizPhysicalViewDiff.plan(stored, desired(
+         List.of(withAuto(plain("T1", true), auto("T2", "t2a", false, null)), plain("T2", true)),
+         stored.joins()), false);
+
+      assertTrue(same.isEmpty());
+      DmFailure failure = assertThrows(DmFailure.class, () -> WizPhysicalViewDiff.plan(
+         stored, desired(
+            List.of(withAuto(plain("T1", true), auto("T2", "other", false, null)),
+                    plain("T2", true)), stored.joins()), false));
+      assertEquals(WizDataModelWire.BASE_ELEMENT_READ_ONLY, failure.reason());
+   }
+
+   @Test
+   void theReadBackComparesTheStatedAutoAliases() {
+      View stored = view(
+         List.of(withAuto(plain("T1", false), auto("T2", "t2a", true, "p_")), plain("T2", false)),
+         List.of());
+      Desired same = desired(
+         List.of(withAuto(plain("T1", false), auto("T2", "t2a", true, "p_")), plain("T2", false)),
+         List.of());
+      Desired other = desired(
+         List.of(withAuto(plain("T1", false), auto("T2", "t2b", true, "p_")), plain("T2", false)),
+         List.of());
+      Desired silent = desired(List.of(plain("T1", false), plain("T2", false)), List.of());
+
+      assertNull(WizPhysicalViewDiff.mismatch(same.view(), same, stored));
+      assertEquals("tables[T1].autoAliases",
+                   WizPhysicalViewDiff.mismatch(other.view(), other, stored));
+      assertNull(WizPhysicalViewDiff.mismatch(silent.view(), silent, stored));
+   }
 }

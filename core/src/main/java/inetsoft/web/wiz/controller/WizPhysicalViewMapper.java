@@ -28,8 +28,9 @@ import java.util.*;
  * The declarative physical view of the bridge (design 3.4 and 8): the wire map of a definition
  * to a canonical in-memory {@link View}, and the Portal's {@link PhysicalModelDefinition} of a
  * stored view to the same form. The wire form drops everything that is server state (the
- * runtime id, bounds, columns, path, auto aliases) and keeps only what a model can declare:
- * tables (plain, alias, inline view), joins, connection, folder, description.
+ * runtime id, bounds, columns, path) and keeps only what a model can declare: tables (plain,
+ * alias, inline view) with the auto aliases of a plain table, joins, connection, folder,
+ * description.
  *
  * <p>A table is named by the name the view references it by (what joins use): for a plain
  * table the stored qualified name, for an alias or an inline view its own name.</p>
@@ -41,14 +42,41 @@ final class WizPhysicalViewMapper {
    enum Kind { PLAIN, ALIAS, VIEW }
 
    /**
+    * An auto alias of a table: for the join between the table and {@code from} the server derives
+    * an alias table {@code alias}. {@code prefix} is only meaningful, and only carried, when
+    * {@code keepOutgoing} is on (the Portal's Auto Alias dialog enables the prefix input only then).
+    */
+   record AutoAliasDef(String from, String alias, boolean keepOutgoing, String prefix) {
+      /** The comparable form: a prefix that is not used does not count. */
+      AutoAliasDef canonical() {
+         return new AutoAliasDef(from, alias, keepOutgoing, keepOutgoing ? prefix : null);
+      }
+   }
+
+   /**
     * A table of a view. {@code oldName} is the rename marker of an alias or inline view and is
-    * only ever set on a submitted definition.
+    * only ever set on a submitted definition. {@code autoAliases} is the table's auto aliases:
+    * null in a submitted definition that does not mention them (the stored ones are kept), a
+    * list otherwise (empty removes them all); a stored view always carries a list.
     */
    record TableDef(String name, Kind kind, String schema, String catalog, String aliasOf,
-                   String sql, String oldName, boolean baseElement)
+                   String sql, String oldName, boolean baseElement,
+                   List<AutoAliasDef> autoAliases)
    {
+      TableDef(String name, Kind kind, String schema, String catalog, String aliasOf,
+               String sql, String oldName, boolean baseElement)
+      {
+         this(name, kind, schema, catalog, aliasOf, sql, oldName, baseElement, null);
+      }
+
       TableDef withBase(boolean base) {
-         return new TableDef(name, kind, schema, catalog, aliasOf, sql, oldName, base);
+         return new TableDef(name, kind, schema, catalog, aliasOf, sql, oldName, base,
+                             autoAliases);
+      }
+
+      TableDef withNames(String newName, String newAliasOf, List<AutoAliasDef> newAutoAliases) {
+         return new TableDef(newName, kind, schema, catalog, newAliasOf, sql, oldName,
+                             baseElement, newAutoAliases);
       }
    }
 
@@ -109,7 +137,9 @@ final class WizPhysicalViewMapper {
    private static final Set<String> TOP_READ_ONLY = Set.of(
       "readOnly", "extended", "warnings", "errorMessage");
    private static final Set<String> TABLE_KEYS = Set.of(
-      "name", "schema", "catalog", "aliasOf", "sql", "oldName");
+      "name", "schema", "catalog", "aliasOf", "sql", "oldName", "autoAliases");
+   private static final Set<String> AUTO_ALIAS_KEYS = Set.of(
+      "from", "alias", "keepOutgoing", "prefix");
    private static final Set<String> JOIN_KEYS = Set.of(
       "from", "to", "type", "mergingRule", "weak", "priority", "cardinality");
    private static final Set<String> END_KEYS = Set.of("table", "column");
@@ -270,8 +300,84 @@ final class WizPhysicalViewMapper {
          }
       }
 
+      List<AutoAliasDef> autoAliases = parseAutoAliases(map.get("autoAliases"),
+                                                        path + ".autoAliases", errors);
       return new TableDef(name, kind, schema, catalog, aliasOf, sql, oldName,
-                          Boolean.TRUE.equals(map.get("baseElement")));
+                          Boolean.TRUE.equals(map.get("baseElement")), autoAliases);
+   }
+
+   /** Null when the key is absent (or null); a list, possibly empty, when it is sent. */
+   @SuppressWarnings("unchecked")
+   private static List<AutoAliasDef> parseAutoAliases(Object value, String path,
+                                                      List<Err> errors)
+   {
+      if(value == null) {
+         return null;
+      }
+
+      if(!(value instanceof List<?> list)) {
+         errors.add(new Err(path, "autoAliases must be a list of {from, alias, keepOutgoing, " +
+            "prefix} (an empty list removes the auto aliases of the table)", "TYPE_INVALID"));
+         return null;
+      }
+
+      List<AutoAliasDef> result = new ArrayList<>();
+
+      for(int i = 0; i < list.size(); i++) {
+         String itemPath = path + "[" + i + "]";
+
+         if(!(list.get(i) instanceof Map<?, ?>)) {
+            errors.add(new Err(itemPath, "an auto alias must be an object {from, alias, " +
+               "keepOutgoing, prefix}", "TYPE_INVALID"));
+            continue;
+         }
+
+         Map<String, Object> map = (Map<String, Object>) list.get(i);
+
+         for(String key : map.keySet()) {
+            if(!AUTO_ALIAS_KEYS.contains(key)) {
+               errors.add(unknownKey(itemPath + "." + key, AUTO_ALIAS_KEYS));
+            }
+         }
+
+         String from = text(map, "from", itemPath + ".from", errors);
+         String alias = text(map, "alias", itemPath + ".alias", errors);
+         String prefix = text(map, "prefix", itemPath + ".prefix", errors);
+         boolean keep = false;
+
+         if(map.get("keepOutgoing") != null) {
+            if(map.get("keepOutgoing") instanceof Boolean b) {
+               keep = b;
+            }
+            else {
+               errors.add(new Err(itemPath + ".keepOutgoing",
+                                  "keepOutgoing must be true or false", "TYPE_INVALID"));
+            }
+         }
+
+         if(from == null || from.isBlank()) {
+            errors.add(new Err(itemPath + ".from", "an auto alias needs from: the name of the " +
+               "table joined to this one that the alias is derived for", "AUTO_ALIAS_INVALID"));
+         }
+
+         if(alias == null || alias.isBlank()) {
+            errors.add(new Err(itemPath + ".alias", "an auto alias needs an alias name",
+                               "AUTO_ALIAS_INVALID"));
+         }
+
+         if(keep && (prefix == null || prefix.isBlank())) {
+            errors.add(new Err(itemPath + ".prefix", "keepOutgoing needs a prefix (the prefix " +
+               "of the kept outgoing columns)", "AUTO_ALIAS_INVALID"));
+         }
+         else if(!keep && prefix != null && !prefix.isBlank()) {
+            errors.add(new Err(itemPath + ".prefix", "prefix applies only with keepOutgoing " +
+               "true; remove it or set keepOutgoing", "AUTO_ALIAS_INVALID"));
+         }
+
+         result.add(new AutoAliasDef(from, alias, keep, keep ? prefix : null));
+      }
+
+      return result;
    }
 
    @SuppressWarnings("unchecked")
@@ -436,19 +542,21 @@ final class WizPhysicalViewMapper {
       for(PhysicalTableModel table : dto.getTables()) {
          String name = table.getQualifiedName() != null ? table.getQualifiedName() :
             table.getName();
+         List<AutoAliasDef> autoAliases = selectedAutoAliases(table);
 
          if(table.getAlias() != null) {
             tables.add(new TableDef(table.getAlias(), Kind.ALIAS, null, null,
-                                    table.getAliasSource(), null, null, table.isBaseTable()));
+                                    table.getAliasSource(), null, null, table.isBaseTable(),
+                                    autoAliases));
          }
          else if(table.getType() == TableType.VIEW) {
             tables.add(new TableDef(name, Kind.VIEW, null, null, null, table.getSql(), null,
-                                    table.isBaseTable()));
+                                    table.isBaseTable(), autoAliases));
          }
          else {
             tables.add(new TableDef(name, Kind.PLAIN, blankToNull(table.getSchema()),
                                     blankToNull(table.getCatalog()), null, null, null,
-                                    table.isBaseTable()));
+                                    table.isBaseTable(), autoAliases));
          }
 
          if(table.getJoins() != null) {
@@ -470,9 +578,29 @@ final class WizPhysicalViewMapper {
                       blankToNull(parent), tables, joins);
    }
 
+   /**
+    * The auto aliases that are set on a table: the selected rows of the Portal's list (its
+    * unselected rows are only candidates, the join neighbours), sorted by the table they are
+    * derived for.
+    */
+   private static List<AutoAliasDef> selectedAutoAliases(PhysicalTableModel table) {
+      List<AutoAliasDef> result = new ArrayList<>();
+
+      for(AutoAliasJoinModel row : table.getAutoAliases()) {
+         if(row.isSelected()) {
+            result.add(new AutoAliasDef(row.getForeignTable(), row.getAlias(),
+                                        row.isKeepOutgoing(),
+                                        blankToNull(row.getPrefix())).canonical());
+         }
+      }
+
+      result.sort(Comparator.comparing(AutoAliasDef::from));
+      return result;
+   }
+
    // -- view -> wire ---------------------------------------------------------------------------
 
-   /** The wire form: no runtime id, no bounds, no columns, no path, no auto aliases. */
+   /** The wire form: no runtime id, no bounds, no columns, no path. */
    static Map<String, Object> toWire(View view) {
       Map<String, Object> map = new LinkedHashMap<>();
       map.put("name", view.name());
@@ -493,6 +621,21 @@ final class WizPhysicalViewMapper {
             putIf(t, "schema", table.schema());
             putIf(t, "catalog", table.catalog());
          }
+         }
+
+         if(table.autoAliases() != null && !table.autoAliases().isEmpty()) {
+            List<Map<String, Object>> autoAliases = new ArrayList<>();
+
+            for(AutoAliasDef autoAlias : table.autoAliases()) {
+               Map<String, Object> a = new LinkedHashMap<>();
+               a.put("from", autoAlias.from());
+               a.put("alias", autoAlias.alias());
+               a.put("keepOutgoing", autoAlias.keepOutgoing());
+               putIf(a, "prefix", autoAlias.keepOutgoing() ? autoAlias.prefix() : null);
+               autoAliases.add(a);
+            }
+
+            t.put("autoAliases", autoAliases);
          }
 
          if(table.baseElement()) {
