@@ -4072,7 +4072,7 @@ public class WorksheetAgentController {
             }
          }
          assembly.setPixelOffset(new Point(10, maxY + 10));
-         assembly.setPixelSize(new Dimension(AssetUtil.defw, nrows + 1));
+         assembly.setPixelSize(new Dimension(AssetUtil.defw, AssetUtil.defh));
 
          assembly.setEmbeddedData(table);
          ws.addAssembly(assembly);
