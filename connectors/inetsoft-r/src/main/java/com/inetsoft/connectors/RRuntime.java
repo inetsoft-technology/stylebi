@@ -36,7 +36,6 @@ import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.apache.commons.io.IOUtils;
 import org.rosuda.REngine.REXP;
-import org.rosuda.REngine.REXPMismatchException;
 import org.rosuda.REngine.Rserve.RConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,8 +56,13 @@ public class RRuntime extends TabularRuntime {
       ScriptSpan span = ScriptSpan.NONE;
 
       try {
-         connection = createConnection((RDataSource) dataSource);
          RQuery rQuery = (RQuery) query;
+
+         if(rQuery.getScript() == null || rQuery.getScript().trim().isEmpty()) {
+            throw new IllegalArgumentException(NO_SCRIPT_MESSAGE);
+         }
+
+         connection = createConnection((RDataSource) dataSource);
          boolean hasPreScript = rQuery.getPreExecute() != null &&
             !rQuery.getPreExecute().trim().isEmpty();
          boolean hasPostScript = rQuery.getPostExecute() != null &&
@@ -102,12 +106,10 @@ public class RRuntime extends TabularRuntime {
 
          return result;
       }
-      catch(REXPMismatchException me) {
-         LOG.error("Operation not supported on: {}", me.getSender().toDebugString(), me);
-         LOG.error("Make sure object being returned by R script is a data frame.");
-      }
       catch(Exception e) {
          LOG.error("Error running query", e);
+         // the connection is still open here, so R's own error text can be asked for
+         Tool.addUserMessage(describeFailure(e, connection, dataSource));
          handleError(params, e, () -> null);
       }
       finally {
@@ -123,6 +125,77 @@ public class RRuntime extends TabularRuntime {
       }
 
       return null;
+   }
+
+   /**
+    * Builds the single-line message that tells the user why the query failed. It never
+    * contains the script or the data source password.
+    */
+   static String describeFailure(Exception e, RConnection connection, XDataSource dataSource) {
+      String message = e.getMessage();
+
+      if(e instanceof IllegalArgumentException && NO_SCRIPT_MESSAGE.equals(message)) {
+         return message;
+      }
+
+      String server = describeServer(dataSource);
+
+      if(connection == null) {
+         if(message != null && message.startsWith("login failed")) {
+            return limit("Could not log in to the R server at " + server + " (" + message +
+                         "); check the data source's user and password");
+         }
+
+         return limit("Could not connect to the R server at " + server + " (" + message + ")");
+      }
+
+      for(Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+         if(t.getMessage() != null && t.getMessage().contains("error code")) {
+            String rError = readRError(connection);
+
+            if(rError != null) {
+               return limit("The R script failed: " + rError);
+            }
+
+            break;
+         }
+      }
+
+      return limit("The R query failed: " + message);
+   }
+
+   private static String describeServer(XDataSource dataSource) {
+      if(dataSource instanceof RDataSource) {
+         RDataSource rds = (RDataSource) dataSource;
+         String url = rds.getUrl();
+         return (url == null || url.isEmpty() ? "127.0.0.1" : url) + ":" + rds.getPort();
+      }
+
+      return "the configured address";
+   }
+
+   // R keeps the text of the last error; ask for it only right after a failed eval, as it is
+   // stale otherwise. The session may be gone (e.g. quit()), so any failure means no text.
+   private static String readRError(RConnection connection) {
+      try {
+         REXP x = connection.eval("geterrmessage()");
+
+         if(x != null && x.isString()) {
+            String text = x.asString();
+            return text == null || text.trim().isEmpty() ? null : text;
+         }
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to read the R error message", ex);
+      }
+
+      return null;
+   }
+
+   private static String limit(String message) {
+      String text = String.valueOf(message).replaceAll("\\s+", " ").trim();
+      return text.length() > MAX_MESSAGE_LENGTH ?
+         text.substring(0, MAX_MESSAGE_LENGTH) + "..." : text;
    }
 
    public RConnection createConnection(RDataSource rDataSource) throws Exception {
@@ -253,5 +326,8 @@ public class RRuntime extends TabularRuntime {
       }
    }
 
+   static final String NO_SCRIPT_MESSAGE =
+      "The R query has no script; enter the R script to run (it must return a data frame)";
+   private static final int MAX_MESSAGE_LENGTH = 300;
    private static final Logger LOG = LoggerFactory.getLogger(RRuntime.class.getName());
 }
