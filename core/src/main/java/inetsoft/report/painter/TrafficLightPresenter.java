@@ -372,8 +372,12 @@ public class TrafficLightPresenter implements Presenter {
       COLORS[2] = clr;
    }
 
-   private Color[] COLORS = {
-      new Color(0, 235, 0), new Color(235, 235, 0), new Color(235, 0, 0)};
+   /** The default green, yellow and red. A color still equal to one is taken as not chosen. */
+   public static final Color DEFAULT_GREEN = new Color(0, 235, 0);
+   public static final Color DEFAULT_YELLOW = new Color(235, 235, 0);
+   public static final Color DEFAULT_RED = new Color(235, 0, 0);
+
+   private Color[] COLORS = {DEFAULT_GREEN, DEFAULT_YELLOW, DEFAULT_RED};
 
    private double low = 0, high = 100;
    private boolean highRed = true; // true to show hi as red, otherwise green

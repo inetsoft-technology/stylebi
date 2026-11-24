@@ -29,6 +29,10 @@ import inetsoft.report.internal.*;
 import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.report.painter.Bar2Presenter;
 import inetsoft.report.painter.BarPresenter;
+import inetsoft.report.painter.BulletGraphPresenter;
+import inetsoft.report.painter.ButtonPresenter;
+import inetsoft.report.painter.ShadowPresenter;
+import inetsoft.report.painter.TrafficLightPresenter;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
@@ -124,10 +128,13 @@ public class PresenterPropertyDialogService {
             PresenterPainter painter = (PresenterPainter) data;
             pr = painter.getPresenter();
 
-            // the table fills in a modern default color on a bar that has none, and the dialog
-            // reads its values off this presenter, so pressing OK would save that default as the
-            // author's choice. A fresh one shows only what the author stored.
-            if(pr instanceof BarPresenter || pr instanceof Bar2Presenter) {
+            // the table fills in a modern default color on a presenter that has none, and the
+            // dialog reads its values off this presenter, so pressing OK would save that default
+            // as the author's choice. A fresh one shows only what the author stored.
+            if(pr instanceof BarPresenter || pr instanceof Bar2Presenter ||
+               pr instanceof BulletGraphPresenter || pr instanceof TrafficLightPresenter ||
+               pr instanceof ButtonPresenter || pr instanceof ShadowPresenter)
+            {
                pr = ref.createPresenter();
             }
          }

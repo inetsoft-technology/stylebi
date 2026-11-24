@@ -95,6 +95,56 @@ public final class VSObjectChromeDefaults {
                    cardBackground(ctx));
    }
 
+   /**
+    * The default Traffic Light colors (green, amber, red) on a modern table: status colors with
+    * the modern palette's saturation, kept apart from the series colors because a traffic light
+    * has to read as go, caution and stop. Null for a classic table, which keeps the presenter's own.
+    */
+   public static Color[] trafficLightColors(VizContext ctx) {
+      if(ctx == null || !ctx.modern) {
+         return null;
+      }
+
+      return (ctx.dark ? TRAFFIC_LIGHT_DARK : TRAFFIC_LIGHT).clone();
+   }
+
+   /**
+    * The default Bullet Graph range bands on a modern table, darkest first: a neutral grey ramp
+    * instead of the presenter's faintly purple one. Null for a classic table.
+    */
+   public static Color[] bulletBandColors(VizContext ctx) {
+      if(ctx == null || !ctx.modern) {
+         return null;
+      }
+
+      return (ctx.dark ? BULLET_BANDS_DARK : BULLET_BANDS).clone();
+   }
+
+   /**
+    * The default Button face on a modern light table: a soft neutral in place of the classic
+    * light grey. Null otherwise: the button's text is always black, so a dark table keeps the
+    * light face it is readable on.
+    */
+   public static Color buttonFaceColor(VizContext ctx) {
+      return ctx != null && ctx.modern && !ctx.dark ? BUTTON_FACE : null;
+   }
+
+   /**
+    * The default Shadow face on a dark modern table: the card surface, in place of a white box.
+    * Null otherwise: white already fits a light card.
+    */
+   public static Color shadowShadingColor(VizContext ctx) {
+      return ctx != null && ctx.modern && ctx.dark ? cardBackground(ctx) : null;
+   }
+
+   /**
+    * The default Shadow text on a dark modern table: the dark-theme text color, in place of black.
+    * Null otherwise.
+    */
+   public static Color shadowTextColor(VizContext ctx) {
+      return ctx != null && ctx.modern && ctx.dark ? TEXT_FG_DARK : null;
+   }
+
    /** Opaque object-card color: white in light, the lifted surface in dark. */
    public static Color cardBackground(VizContext ctx) {
       return VSChartPaletteDefaults.token(ctx.dark, VSChartPaletteDefaults.TOKEN_CARD,
@@ -186,6 +236,18 @@ public final class VSObjectChromeDefaults {
 
    // modern selection teal, mirroring --inet-viz-selected-border-modern/-dark in _viz-tokens.scss
    private static final Color CLASSIC_NEGATIVE_BAR = new Color(0xFF4040);
+
+   // green, amber, red
+   private static final Color[] TRAFFIC_LIGHT = {
+      new Color(0x22C55E), new Color(0xF59E0B), new Color(0xEF4444)};
+   private static final Color[] TRAFFIC_LIGHT_DARK = {
+      new Color(0x34D874), new Color(0xFBBF24), new Color(0xF87171)};
+   // the four range bands, darkest first
+   private static final Color[] BULLET_BANDS = {
+      new Color(0x8C8F94), new Color(0xAEB1B6), new Color(0xCFD1D5), new Color(0xEBECEE)};
+   private static final Color[] BULLET_BANDS_DARK = {
+      new Color(0x505359), new Color(0x686B72), new Color(0x83868D), new Color(0x9EA1A7)};
+   private static final Color BUTTON_FACE = new Color(0xE9EBEF);
    private static final Color ACTIVE_INDICATOR = new Color(0xBFDDE5);
    private static final Color ACTIVE_INDICATOR_DARK = new Color(0x2DD4BF);
 }

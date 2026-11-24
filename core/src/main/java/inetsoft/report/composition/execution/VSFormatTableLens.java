@@ -23,6 +23,10 @@ import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.painter.Bar2Presenter;
 import inetsoft.report.painter.BarPresenter;
+import inetsoft.report.painter.BulletGraphPresenter;
+import inetsoft.report.painter.ButtonPresenter;
+import inetsoft.report.painter.ShadowPresenter;
+import inetsoft.report.painter.TrafficLightPresenter;
 import inetsoft.report.script.formula.CalcRef;
 import inetsoft.report.script.viewsheet.TableDataVSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
@@ -174,7 +178,9 @@ public final class VSFormatTableLens extends FormatTableLens {
    /**
     * A bar presenter with no colour of its own paints in the cell's text colour, which is
     * near-black and makes a heavy bar. On a modern table it takes the data bar colour instead; a
-    * colour the author picked is kept, and a classic table is untouched.
+    * colour the author picked is kept, and a classic table is untouched. The other presenters
+    * with colours of their own (Bullet Graph, Traffic Light, Button, Shadow) get modern defaults
+    * the same way.
     */
    @Override
    public Presenter getPresenter(int r, int c) {
@@ -202,8 +208,83 @@ public final class VSFormatTableLens extends FormatTableLens {
             bar.setNegativeColor(defaultNegativeBarColor());
          }
       }
+      else if(presenter instanceof BulletGraphPresenter) {
+         applyBulletBands((BulletGraphPresenter) presenter);
+      }
+      else if(presenter instanceof TrafficLightPresenter) {
+         applyTrafficLightColors((TrafficLightPresenter) presenter);
+      }
+      else if(presenter instanceof ButtonPresenter) {
+         ButtonPresenter button = (ButtonPresenter) presenter;
+         Color face = VSObjectChromeDefaults.buttonFaceColor(barContext());
+
+         // the presenter's own face is a real color, so one still equal to it is not chosen
+         if(face != null && Color.lightGray.equals(button.getColor())) {
+            button.setColor(face);
+         }
+      }
+      else if(presenter instanceof ShadowPresenter) {
+         ShadowPresenter shadow = (ShadowPresenter) presenter;
+         VizContext ctx = barContext();
+         Color shading = VSObjectChromeDefaults.shadowShadingColor(ctx);
+         Color text = VSObjectChromeDefaults.shadowTextColor(ctx);
+
+         if(shading != null && Color.white.equals(shadow.getShading())) {
+            shadow.setShading(shading);
+         }
+
+         if(text != null && Color.black.equals(shadow.getTextColor())) {
+            shadow.setTextColor(text);
+         }
+      }
 
       return presenter;
+   }
+
+   // a band with no color is derived by the presenter from a fixed purple-grey
+   private void applyBulletBands(BulletGraphPresenter bullet) {
+      Color[] bands = VSObjectChromeDefaults.bulletBandColors(barContext());
+
+      if(bands == null) {
+         return;
+      }
+
+      if(bullet.getColor1() == null) {
+         bullet.setColor1(bands[0]);
+      }
+
+      if(bullet.getColor2() == null) {
+         bullet.setColor2(bands[1]);
+      }
+
+      if(bullet.getColor3() == null) {
+         bullet.setColor3(bands[2]);
+      }
+
+      if(bullet.getColor4() == null) {
+         bullet.setColor4(bands[3]);
+      }
+   }
+
+   // the presenter's own colors are real colors, so one still equal to its default is not chosen
+   private void applyTrafficLightColors(TrafficLightPresenter light) {
+      Color[] colors = VSObjectChromeDefaults.trafficLightColors(barContext());
+
+      if(colors == null) {
+         return;
+      }
+
+      if(TrafficLightPresenter.DEFAULT_GREEN.equals(light.getColor1())) {
+         light.setColor1(colors[0]);
+      }
+
+      if(TrafficLightPresenter.DEFAULT_YELLOW.equals(light.getColor2())) {
+         light.setColor2(colors[1]);
+      }
+
+      if(TrafficLightPresenter.DEFAULT_RED.equals(light.getColor3())) {
+         light.setColor3(colors[2]);
+      }
    }
 
    // null for a classic table, which leaves the bar to the cell's text colour as it always was.
