@@ -2520,11 +2520,19 @@ public class XEngine implements XRepository, XQueryRepository {
    }
 
    private void resetAllHandlers() {
+      try {
+         // closed first: resetting a handler waits for its metadata lock, and the pools must not
+         // stay open (Bug #82097) if that is held or the reset fails
+         connectionPoolFactory.closeAllConnectionsPools();
+      }
+      catch(Exception e) {
+         LOG.error("Failed to close the connection pools", e);
+      }
+
       sessionrun.values().stream()
          .filter(JDBCHandler.class::isInstance)
          .map(JDBCHandler.class::cast)
          .forEach(JDBCHandler::resetConnection);
-      connectionPoolFactory.closeAllConnectionsPools();
    }
 
    public class MetaDataLoader implements Runnable {
