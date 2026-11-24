@@ -45,7 +45,7 @@ public class RQuery extends TabularQuery implements ScriptedQuery {
    // R string literals use backslash escapes in '...' and "...", '' is not an
    // escaped quote, backtick-quoted names are identifiers and comments run
    // from # to the end of the line (Bug #78757)
-   @Property(label = "Script", sql = true,
+   @Property(label = "Script", required = true, sql = true,
              literalEscapeStyle = VarSQL.LiteralEscapeStyle.BACKSLASH,
              backtickIdentifiers = true,
              commentSyntax = VarSQL.CommentSyntax.HASH)
