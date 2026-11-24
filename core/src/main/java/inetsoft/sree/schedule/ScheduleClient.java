@@ -727,6 +727,26 @@ public class ScheduleClient {
       return null;
    }
 
+   /**
+    * Gets the start time of the scheduler on each server listed in the scheduler status table,
+    * in display order. A {@code null} start time means the scheduler on that server is not ready.
+    * Unlike {@link #getScheduleServers()}, an override may list servers that
+    * {@link #getScheduleServers()} does not, so the status table must be built from this method.
+    *
+    * @return the start time of each server's scheduler, keyed by server name.
+    */
+   public Map<String, Date> getScheduleStartDates() {
+      Map<String, Date> startDates = new LinkedHashMap<>();
+
+      for(String server : getScheduleServers()) {
+         if(!startDates.containsKey(server)) {
+            startDates.put(server, getScheduleStartDate(server));
+         }
+      }
+
+      return startDates;
+   }
+
    public ServerMetrics getServerMetrics(ServerMetrics oldMetrics, long timestamp,
                                          String address) throws RemoteException
    {

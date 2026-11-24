@@ -192,6 +192,7 @@ public class Scheduler {
       }
 
       startTime = null;
+      publishStartTime(null);
 
       // only shutdown the cluster when running in a separate process
       if("true".equals(System.getProperty("ScheduleServer"))) {
@@ -502,6 +503,7 @@ public class Scheduler {
             try {
                initialize0();
                startTime = new Date(System.currentTimeMillis());
+               publishStartTime(startTime);
             }
             catch(Exception ex) {
                startMsg = "Scheduler failed to start: " + ex;
@@ -661,6 +663,33 @@ public class Scheduler {
       }
       finally {
          lock.unlock();
+      }
+   }
+
+   /**
+    * Publishes the time this scheduler started as a property of the local cluster node, so the
+    * other nodes can list this scheduler in the status table of a cloud runner cluster. Removes
+    * the property when the scheduler stops, so a stopped scheduler is not listed.
+    *
+    * @param time the start time, or {@code null} when the scheduler stopped.
+    */
+   private void publishStartTime(Date time) {
+      try {
+         if(InetsoftConfig.getInstance().getCloudRunner() == null) {
+            return;
+         }
+
+         Cluster cluster = Cluster.getInstance();
+
+         if(time == null) {
+            cluster.clearLocalNodeProperty(SCHEDULER_START_TIME);
+         }
+         else {
+            cluster.setLocalNodeProperty(SCHEDULER_START_TIME, time.getTime());
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to publish the scheduler start time", ex);
       }
    }
 
@@ -1056,4 +1085,8 @@ public class Scheduler {
    private static final String INTERNAL_GROUP_NAME = "inetsoft_internal";
    public static final String INIT_LOCK = Scheduler.class.getName() + ".initLock";
    public static final String CLOUD_RUNNER_SCHEDULER_TASK_LOADED = "CLOUD_RUNNER_SCHEDULER_TASK_LOADED";
+   /**
+    * Cluster node property holding the epoch milliseconds at which the node's scheduler started.
+    */
+   public static final String SCHEDULER_START_TIME = "SCHEDULER_START_TIME";
 }

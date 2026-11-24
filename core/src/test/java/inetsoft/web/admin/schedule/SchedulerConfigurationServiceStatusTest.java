@@ -31,15 +31,21 @@ package inetsoft.web.admin.schedule;
  *   [start timeout]         IllegalStateException, startScheduler never called
  *   [restart]               same wait as start
  *   [stop]                  no wait, no start
+ *   [cluster status table]  getStatus() lists one row per node of getScheduleStartDates(), in order
  */
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleClient;
+import inetsoft.storage.ExternalStorageService;
+import inetsoft.web.admin.schedule.model.ScheduleClusterStatusModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -129,6 +135,27 @@ class SchedulerConfigurationServiceStatusTest {
          service.setStatus("restart");
 
          sutil.verify(SUtil::startScheduler);
+      }
+   }
+
+   @Test
+   void clusterStatusTableHasOneRowPerNodeTheClientLists() {
+      ExternalStorageService storage = mock(ExternalStorageService.class);
+      when(storage.getStorageLocation()).thenReturn("local");
+      Map<String, Date> startDates = new LinkedHashMap<>();
+      startDates.put("172.22.0.3", new Date(System.currentTimeMillis() - 90_000L));
+      startDates.put("172.22.0.4", new Date(System.currentTimeMillis() - 5_000L));
+      when(scheduleClient.getScheduleStartDates()).thenReturn(startDates);
+      service = new SchedulerConfigurationService(scheduleClient, null, null, storage);
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         sutil.when(SUtil::isCluster).thenReturn(true);
+
+         List<ScheduleClusterStatusModel> rows = service.getStatus().clusterStatusTable();
+
+         assertEquals(List.of("172.22.0.3", "172.22.0.4"),
+                      rows.stream().map(ScheduleClusterStatusModel::server)
+                         .collect(Collectors.toList()));
       }
    }
 
