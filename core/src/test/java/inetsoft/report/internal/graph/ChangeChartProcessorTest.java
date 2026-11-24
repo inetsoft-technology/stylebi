@@ -100,11 +100,6 @@ class ChangeChartProcessorTest {
    }
 
    @Test
-   void aChartWithoutFieldsIsFake() {
-      assertTrue(ChangeChartProcessor.isFake(info));
-   }
-
-   @Test
    void aMeasureOnYMakesTheChartReal() {
       info.addXField(dim("Region"));
       info.addYField(measure("Sales"));

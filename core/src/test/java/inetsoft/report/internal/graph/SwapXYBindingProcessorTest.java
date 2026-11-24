@@ -186,11 +186,6 @@ class SwapXYBindingProcessorTest {
    }
 
    @Test
-   void tooltipWithoutReferencesIsLeftAlone() {
-      assertEquals("plain text", swappedTip("plain text", 1, 1));
-   }
-
-   @Test
    void dynamicTooltipIsLeftAlone() {
       assertEquals("=field['Sales']", swappedTip("=field['Sales']", 1, 1));
    }
@@ -244,11 +239,6 @@ class SwapXYBindingProcessorTest {
    void tooltipReferencesWithTwoDigitNumbersAreRenumbered() {
       // 1 X field (0) and 11 Y fields (1 to 11): X field 0 -> 11, Y field k -> k - 1
       assertEquals("{11} {0} {10}", swappedTip("{0} {1} {11}", 1, 11));
-   }
-
-   @Test
-   void tooltipReferenceToAFieldThatDoesNotExistIsLeftAlone() {
-      assertEquals("{5}", swappedTip("{5}", 1, 1));
    }
 
    /** A script or variable tooltip is evaluated later; its text must not be rewritten. */

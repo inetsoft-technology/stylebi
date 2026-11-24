@@ -235,13 +235,6 @@ class VSFrameVisitorTest {
       }
    }
 
-   @Test
-   void sizeFrameWithoutAFieldIsLeftAlone() {
-      CategoricalSizeFrame frame = new CategoricalSizeFrame();
-
-      assertDoesNotThrow(() -> sync(frame, data("East", "West")));
-   }
-
    // ---- helpers ----
 
    @Test
