@@ -361,3 +361,42 @@ describe("DatabasePhysicalModelComponent - showTreeContextMenu - source event ow
       expect(contextmenu["actions"].length).toBeGreaterThan(0);
    });
 });
+
+// ---------------------------------------------------------------------------
+// Group 5 - save: stale-view refusal message [Bug #82212]
+// ---------------------------------------------------------------------------
+
+describe("DatabasePhysicalModelComponent - save - save error message [Group 5, Bug #82212]", () => {
+   async function saveWithPutResponse(response: any) {
+      const { fixture } = await renderPhysical(createPhysicalModel({ id: "rt1" }));
+      const comp = fixture.componentInstance;
+      const notifications = { danger: vi.fn(), success: vi.fn() };
+      comp.notifications = notifications as any;
+      comp.editing = true;
+      server.use(
+         http.get("*/api/data/physicalmodel/warnings/*", () => MswHttpResponse.json(null)),
+         http.put("*/api/data/physicalmodel/models", () => response)
+      );
+
+      comp.save();
+
+      await waitFor(() => expect(notifications.danger).toHaveBeenCalledTimes(1));
+      return notifications;
+   }
+
+   it("should show the server's message when the save is refused as a message exception", async () => {
+      const message = "The physical view \"v\" was changed elsewhere since you opened it.";
+      const notifications = await saveWithPutResponse(
+         MswHttpResponse.json({ error: "messageException", message }, { status: 500 }));
+
+      expect(notifications.danger).toHaveBeenCalledWith(message);
+   });
+
+   it("should show the generic message for any other save error", async () => {
+      const notifications = await saveWithPutResponse(
+         new MswHttpResponse("boom", { status: 500 }));
+
+      expect(notifications.danger).toHaveBeenCalledWith(
+         expect.stringContaining("data.physicalmodel.saveModelError"));
+   });
+});

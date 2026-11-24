@@ -55,6 +55,7 @@ class PhysicalViewStaleSaveTest {
       new ConcurrentHashMap<>();
    private final AtomicLong clock = new AtomicLong(1000);
    private final XDataModel dataModel = mock(XDataModel.class);
+   private RuntimePartitionService runtimePartitionService;
    private PhysicalModelManagerService manager;
    private XPartition stored;
 
@@ -71,7 +72,7 @@ class PhysicalViewStaleSaveTest {
       when(cluster.getCache(anyString(), anyBoolean(), any())).thenReturn((Cache) cache);
       when(cluster.runInTransaction(anyLong(), any(), any())).thenAnswer(
          i -> i.<inetsoft.sree.internal.cluster.TransactionalAction<?, ?>>getArgument(2).run());
-      RuntimePartitionService runtimePartitionService = new RuntimePartitionService(cluster);
+      runtimePartitionService = spy(new RuntimePartitionService(cluster));
       runtimePartitionService.init();
 
       stored = new XPartition("v");
@@ -136,6 +137,18 @@ class PhysicalViewStaleSaveTest {
       String second = open();
       save(second);
       assertThrows(MessageException.class, () -> save(first));
+   }
+
+   @Test
+   void saveStaysUsableWhenTheRuntimeRefreshFailsOnceAfterTheWrite() throws Exception {
+      String id = open();
+      // the view is written, then the runtime is busy once
+      doThrow(new MessageException("busy")).doCallRealMethod()
+         .when(runtimePartitionService).update(anyString(), any());
+
+      save(id);
+      save(id);
+      assertNotNull(stored.getPartitionTable("ORDERS"));
    }
 
    private void externalWrite(String table) {

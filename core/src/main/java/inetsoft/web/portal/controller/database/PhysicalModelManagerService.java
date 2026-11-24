@@ -240,16 +240,29 @@ public class PhysicalModelManagerService {
       XPartition partition = saved.getPartition();
 
       // Bug #78428, don't write the copy back over the runtime
-      runtimePartitionService.update(saved.getId(), rp -> {
-         rp.setStoredModified(storedModified);
+      try {
+         runtimePartitionService.update(saved.getId(), rp -> {
+            rp.setStoredModified(storedModified);
 
-         if(rp.getVersion() == version) {
-            rp.setPartition(partition);
-            rp.clearMovedTables();
-         }
+            if(rp.getVersion() == version) {
+               rp.setPartition(partition);
+               rp.clearMovedTables();
+            }
 
-         return null;
-      });
+            return null;
+         });
+      }
+      catch(MessageException e) {
+         // the view is already saved; without the new stored time the next save from this
+         // editor would be refused as stale, so record it alone, which fails only if the
+         // runtime still can't be written
+         LOG.warn("Failed to refresh the physical view runtime {} after a save, retrying",
+                  saved.getId(), e);
+         runtimePartitionService.update(saved.getId(), rp -> {
+            rp.setStoredModified(storedModified);
+            return null;
+         });
+      }
    }
 
    private void createAndSaveModel(XDataModel dataModel,
