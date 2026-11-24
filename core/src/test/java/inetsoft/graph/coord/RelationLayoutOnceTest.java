@@ -106,6 +106,7 @@ class RelationLayoutOnceTest {
                       algo + ": premise: the reference lays out the expanded graph twice");
          assertTrue(once.main().placed && once.expanded().placed, algo + ": nodes placed");
          assertEquals(twice.print(), once.print(), algo.toString());
+         assertLabels(twice.labels(), once.labels(), algo.toString());
       }
    }
 
@@ -201,6 +202,8 @@ class RelationLayoutOnceTest {
 
    private static final int W = 376;
    private static final int H = 190;
+   // overlapping labels that share a centre are shaken apart at random, by under 0.01px
+   private static final double LABEL_TOLERANCE = 0.5;
    private static final Algorithm[] FITTED = {
       Algorithm.ORGANIC, Algorithm.CIRCLE, Algorithm.COMPACT_TREE };
 
@@ -344,7 +347,7 @@ class RelationLayoutOnceTest {
       return count;
    }
 
-   // the visuals, with their labels when asked, less the rings
+   // the visuals, with where their labels are when asked, less the rings
    private static String print(VGraph vgraph, double minW, double minH, boolean texts) {
       StringBuilder sb = new StringBuilder();
       sb.append("bounds ").append(rect(vgraph.getBounds()))
@@ -358,15 +361,54 @@ class RelationLayoutOnceTest {
             continue;
          }
 
-         sb.append('\n').append(visual.getClass().getSimpleName()).append(' ')
-            .append(rect(visual.getBounds()));
+         sb.append('\n').append(visual.getClass().getSimpleName());
+
+         // label boxes are compared by labels(), with a tolerance
+         if(!(visual instanceof VOText)) {
+            sb.append(' ').append(rect(visual.getBounds()));
+         }
 
          if(texts && visual instanceof ElementVO vo && vo.getVOText() != null) {
-            sb.append(" text ").append(rect(vo.getVOText().getBounds()));
+            sb.append(" text");
          }
       }
 
       return sb.toString();
+   }
+
+   // the label boxes, in the order print() lists them
+   private static List<Rectangle2D> labels(VGraph vgraph) {
+      List<Rectangle2D> labels = new ArrayList<>();
+
+      for(int i = 0; i < vgraph.getVisualCount(); i++) {
+         Visualizable visual = vgraph.getVisual(i);
+
+         if(visual instanceof VOText) {
+            labels.add(visual.getBounds());
+         }
+         else if(visual instanceof ElementVO vo && vo.getVOText() != null) {
+            labels.add(vo.getVOText().getBounds());
+         }
+      }
+
+      return labels;
+   }
+
+   private static void assertLabels(List<Rectangle2D> expected, List<Rectangle2D> actual,
+                                    String msg)
+   {
+      assertEquals(expected.size(), actual.size(), msg + ": labels");
+
+      for(int i = 0; i < expected.size(); i++) {
+         Rectangle2D e = expected.get(i);
+         Rectangle2D a = actual.get(i);
+         String at = msg + ": label " + i + ", expected " + rect(e) + " but was " + rect(a);
+
+         assertEquals(e.getX(), a.getX(), LABEL_TOLERANCE, at);
+         assertEquals(e.getY(), a.getY(), LABEL_TOLERANCE, at);
+         assertEquals(e.getWidth(), a.getWidth(), LABEL_TOLERANCE, at);
+         assertEquals(e.getHeight(), a.getHeight(), LABEL_TOLERANCE, at);
+      }
    }
 
    private static String rect(Rectangle2D r) {
@@ -384,6 +426,10 @@ class RelationLayoutOnceTest {
             "\nexpanded " + ew + "x" + eh + " " +
             RelationLayoutOnceTest.print(evgraph, evgraph.getMinPlotWidth(),
                                          evgraph.getMinPlotHeight(), true);
+      }
+
+      List<Rectangle2D> labels() {
+         return RelationLayoutOnceTest.labels(evgraph);
       }
    }
 
