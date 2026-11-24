@@ -609,11 +609,18 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
    }
 
    get presenter(): string {
-      // Account for padding.
+      // The image has to fit inside the cell's padding. A cell with padding of its own, as a
+      // modern table's cells have, is padded by that; any other keeps the stylesheet's default of
+      // 2px on each side and 1px above and below.
+      const padding = this.cell.vsFormatModel?.padding;
+      const horizontal = padding ? padding.left + padding.right : 4;
+      const vertical = padding ? padding.top + padding.bottom : 2;
+
       return this.linkUri + "vs/table/presenter/" +
          encodeURIComponent(this.tableName) + "/"
          + this.cell.row + "/" + this.cell.col
-         + "/" + Math.floor(this.width - 4) + "/" + Math.floor(this.height - 2) + "/"
+         + "/" + Math.max(1, Math.floor(this.width - horizontal))
+         + "/" + Math.max(1, Math.floor(this.height - vertical)) + "/"
          + Tool.encodeURIPath(this.viewsheetClientService.runtimeId)
          // Force reload in case image changes.
          + "?" + this.table.genTime;
