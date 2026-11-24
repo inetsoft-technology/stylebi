@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
@@ -70,8 +71,8 @@ class CrossTabFilterTopNTest {
 
    // ---- values ----
 
-   static Stream<org.junit.jupiter.params.provider.Arguments> rowConfigs() {
-      List<org.junit.jupiter.params.provider.Arguments> list = new ArrayList<>();
+   static Stream<Arguments> rowConfigs() {
+      List<Arguments> list = new ArrayList<>();
 
       for(int rl = 1; rl <= 2; rl++) {
          for(int cl = 1; cl <= 2; cl++) {
@@ -79,7 +80,7 @@ class CrossTabFilterTopNTest {
                for(boolean reverse : new boolean[] { false, true }) {
                   for(boolean others : new boolean[] { true, false }) {
                      for(boolean aggTopN : new boolean[] { false, true }) {
-                        list.add(org.junit.jupiter.params.provider.Arguments.of(
+                        list.add(Arguments.of(
                            rl, cl, n, reverse, others, aggTopN));
                      }
                   }
@@ -123,15 +124,15 @@ class CrossTabFilterTopNTest {
       assertSame(expected, actual, others || aggTopN);
    }
 
-   static Stream<org.junit.jupiter.params.provider.Arguments> columnConfigs() {
-      List<org.junit.jupiter.params.provider.Arguments> list = new ArrayList<>();
+   static Stream<Arguments> columnConfigs() {
+      List<Arguments> list = new ArrayList<>();
 
       for(int rl = 1; rl <= 2; rl++) {
          for(int cl = 1; cl <= 2; cl++) {
             for(int n : new int[] { 1, 3 }) {
                for(boolean reverse : new boolean[] { false, true }) {
                   for(boolean aggTopN : new boolean[] { false, true }) {
-                     list.add(org.junit.jupiter.params.provider.Arguments.of(
+                     list.add(Arguments.of(
                         rl, cl, n, reverse, aggTopN));
                   }
                }
@@ -343,13 +344,13 @@ class CrossTabFilterTopNTest {
    private static final String[] COUNTS = { "Qty", "Dc" };
    private static final String[] OTHERS_SAFE = { "Sales", "Pr", "Hi", "Lo" };
 
-   static Stream<org.junit.jupiter.params.provider.Arguments> emptyCellOptions() {
+   static Stream<Arguments> emptyCellOptions() {
       return Stream.of(
-         org.junit.jupiter.params.provider.Arguments.of(null, false, false),
-         org.junit.jupiter.params.provider.Arguments.of(100, false, false),
-         org.junit.jupiter.params.provider.Arguments.of(100, true, false),
-         org.junit.jupiter.params.provider.Arguments.of(100, false, true),
-         org.junit.jupiter.params.provider.Arguments.of(100, true, true));
+         Arguments.of(null, false, false),
+         Arguments.of(100, false, false),
+         Arguments.of(100, true, false),
+         Arguments.of(100, false, true),
+         Arguments.of(100, true, true));
    }
 
    /**
@@ -401,11 +402,11 @@ class CrossTabFilterTopNTest {
       }
    }
 
-   static Stream<org.junit.jupiter.params.provider.Arguments> emptyCountOptions() {
+   static Stream<Arguments> emptyCountOptions() {
       return Stream.of(
-         org.junit.jupiter.params.provider.Arguments.of(true, false),
-         org.junit.jupiter.params.provider.Arguments.of(false, true),
-         org.junit.jupiter.params.provider.Arguments.of(true, true));
+         Arguments.of(true, false),
+         Arguments.of(false, true),
+         Arguments.of(true, true));
    }
 
    /** "Fill blank with zero" turns every empty cell into 0, with or without Top N. */
