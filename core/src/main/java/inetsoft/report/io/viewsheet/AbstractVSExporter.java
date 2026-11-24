@@ -2047,6 +2047,12 @@ public abstract class AbstractVSExporter implements VSExporter {
             }
          }
 
+         // an unstyled table's cells read the object foreground, which a dark table seeds light
+         // (TableDataVSAssemblyInfo), and a spreadsheet's cells are unfilled white
+         if(vinfo instanceof TableDataVSAssemblyInfo) {
+            applyDarkOptOutInPlace(vinfo.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH));
+         }
+
          // the painted sliders: both draw their labels from the object foreground rather than a
          // cell path
          if(vinfo instanceof SliderVSAssemblyInfo || vinfo instanceof TimeSliderVSAssemblyInfo) {

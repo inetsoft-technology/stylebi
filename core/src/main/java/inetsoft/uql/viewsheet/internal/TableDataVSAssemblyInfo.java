@@ -1711,6 +1711,22 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
          }
       }
 
+      // the text of a table with no style. The cells then read the object foreground, which is
+      // black and unreadable on a dark card. A table style drops the object foreground in
+      // VSFormatTableLens, so a styled table still takes its text color from the style. Dark
+      // writes the light text, and a Revert puts the black back only over what dark wrote, so a
+      // restored asset's own default is not touched
+      if(objFormat != null) {
+         VSFormat def = objFormat.getDefaultFormat();
+
+         if(ctx.modern && ctx.dark) {
+            def.setForegroundValue(VSObjectChromeDefaults.darkForegroundValue());
+         }
+         else if(VSObjectChromeDefaults.darkForegroundValue().equals(def.getForegroundValue())) {
+            def.setForegroundValue(BLACK_TEXT_VALUE);
+         }
+      }
+
       // the title lane: modern is unfilled with a bottom rule, legacy is the filled band and the
       // four-side box setDefaultFormat(border = true) writes. Both branches write, because the
       // legacy one is what Revert relies on to restore a never-modernized table
@@ -1896,6 +1912,9 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
          return false;
       }
    }
+
+   // the object text every table starts with
+   private static final String BLACK_TEXT_VALUE = "0";
 
    private static final Logger LOG =
       LoggerFactory.getLogger(TableDataVSAssemblyInfo.class);
