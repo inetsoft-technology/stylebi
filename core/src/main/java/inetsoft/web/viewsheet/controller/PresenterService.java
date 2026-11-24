@@ -116,8 +116,21 @@ public class PresenterService {
             Color bg = lens.getBackground(row, column) != null ?
                lens.getBackground(row, column) : new Color(255, 255, 255, 0);
             g.setFont(lens.getFont(row, column));
-            g.setColor(bg);
-            g.fillRect(0, 0, width, height);
+
+            // A modern table paints the cell's own background under the image. Filling the image
+            // with it too laid a translucent tint on twice, and the image is inset by the cell's
+            // padding, so it showed as a darker box a little smaller than the cell.
+            Assembly tableAssembly = vs.getAssembly(assembly);
+            VSAssemblyInfo tableInfo = tableAssembly instanceof VSAssembly ?
+               ((VSAssembly) tableAssembly).getVSAssemblyInfo() : null;
+            boolean modern = tableInfo != null && VizContext.of(tableInfo).modern;
+            Color fill = presenterFill(lens.getBackground(row, column), modern);
+
+            if(fill != null) {
+               g.setColor(fill);
+               g.fillRect(0, 0, width, height);
+            }
+
             Color fg = lens.getForeground(row, column);
             fg = fg == null ? Color.black : fg;
             g.setColor(fg);
@@ -145,11 +158,7 @@ public class PresenterService {
                alpha = lens.getTable().getAlpha(row, column);
             }
 
-            Assembly tableAssembly = vs.getAssembly(assembly);
-            VSAssemblyInfo tableInfo = tableAssembly instanceof VSAssembly ?
-               ((VSAssembly) tableAssembly).getVSAssemblyInfo() : null;
-            alpha = presenterAlpha(alpha, lens.getBackground(row, column),
-                                   tableInfo != null && VizContext.of(tableInfo).modern);
+            alpha = presenterAlpha(alpha, lens.getBackground(row, column), modern);
 
             if(alpha != 100) {
                g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha / 100f));
@@ -193,6 +202,20 @@ public class PresenterService {
       }
 
       return alpha;
+   }
+
+   /**
+    * The color a presenter's image is filled with before the presenter paints, or null for no
+    * fill. A modern table's cell already paints its own background, so the image is left clear
+    * and does not double it. A classic table fills the image with the cell's background, or
+    * with a clear color when it has none, as it always did.
+    */
+   static Color presenterFill(Color background, boolean modern) {
+      if(modern) {
+         return null;
+      }
+
+      return background != null ? background : new Color(255, 255, 255, 0);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
