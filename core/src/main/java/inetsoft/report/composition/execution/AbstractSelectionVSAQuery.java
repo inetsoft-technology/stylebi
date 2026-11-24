@@ -17,7 +17,6 @@
  */
 package inetsoft.report.composition.execution;
 
-import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.mv.MVManager;
 import inetsoft.mv.trans.AbstractTransformer;
 import inetsoft.mv.trans.TransformationDescriptor;
@@ -474,7 +473,8 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
 
       if(!objfmt.getUserDefinedFormat().isForegroundValueDefined()) {
          format.getDefaultFormat().setForegroundValue(
-            CategoricalColorFrame.COLOR_PALETTE.get(0).getRGB() + "");
+            VSObjectChromeDefaults.dataBarColor(
+               VizContext.of(getAssembly().getVSAssemblyInfo())).getRGB() + "");
       }
    }
 
@@ -488,7 +488,8 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
 
       if(!objfmt.getUserDefinedFormat().isForegroundValueDefined()) {
          format.getDefaultFormat().setForegroundValue(
-            SOFT_RED.getRGB() + "");
+            VSObjectChromeDefaults.dataBarNegativeColor(
+               VizContext.of(getAssembly().getVSAssemblyInfo())).getRGB() + "");
       }
    }
 
@@ -812,6 +813,5 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
       }
    }
 
-   private static final Color SOFT_RED = new Color(0xFF4040);
    private static final Logger LOG = LoggerFactory.getLogger(AbstractSelectionVSAQuery.class);
 }
