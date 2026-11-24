@@ -393,6 +393,50 @@ describe("VSTableCell", () => {
          expect(comp.isShowLinkedHeader).toBe(true);
       });
 
+      it("should request a presenter image that fits inside the cell's own padding", () => {
+         const { comp } = createComponent({
+            cell: {
+               vsFormatModel: {
+                  padding: { top: 4, left: 6, bottom: 4, right: 6 },
+               } as any,
+            },
+         });
+         comp.linkUri = "/";
+         comp.tableName = "Table1";
+         comp.width = 100;
+         comp.height = 24;
+
+         // 100 - (6 + 6) wide and 24 - (4 + 4) high
+         expect(comp.presenter).toContain("/Table1/0/0/88/16/");
+      });
+
+      it("should keep the default padding allowance for a cell without padding of its own", () => {
+         const { comp } = createComponent();
+         comp.linkUri = "/";
+         comp.tableName = "Table1";
+         comp.width = 100;
+         comp.height = 24;
+
+         // 100 - 4 wide and 24 - 2 high
+         expect(comp.presenter).toContain("/Table1/0/0/96/22/");
+      });
+
+      it("should never request an image smaller than one pixel", () => {
+         const { comp } = createComponent({
+            cell: {
+               vsFormatModel: {
+                  padding: { top: 4, left: 6, bottom: 4, right: 6 },
+               } as any,
+            },
+         });
+         comp.linkUri = "/";
+         comp.tableName = "Table1";
+         comp.width = 8;
+         comp.height = 6;
+
+         expect(comp.presenter).toContain("/Table1/0/0/1/1/");
+      });
+
       it("should format the cell height string for the current browser", () => {
          const { comp } = createComponent();
          comp.height = 40;
