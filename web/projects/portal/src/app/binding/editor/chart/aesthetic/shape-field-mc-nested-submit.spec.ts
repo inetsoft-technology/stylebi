@@ -207,7 +207,7 @@ describe("ShapeFieldMc nested texture/line pick submit (Bug #78604)", () => {
             expect(c.value(binding)).not.toEqual(before);
             expect(changeChartAesthetic).toHaveBeenCalledTimes(c.submitsOnPick ? 1 : 0);
 
-            last(`${c.pane} .submit-icon`).click();
+            last(`${c.pane} .sp-footer .btn-primary`).click();
             await tick(10);
             fixture.detectChanges();
 

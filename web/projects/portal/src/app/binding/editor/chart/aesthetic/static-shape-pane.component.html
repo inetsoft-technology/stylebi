@@ -15,38 +15,44 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<div class="static-shape-pane" blockMouse>
-  <div class="toolbar-row">
-    <i class="add-icon icon-size-small icon-color-default" aria-hidden="true"
-    (click)="addShape()" title="_#(Add Shape)"></i>&nbsp;
+<div class="static-shape-pane sp-root" blockMouse>
+  <div class="sp-toolbar">
+    <button type="button" class="sp-btn" title="_#(Previous)" aria-label="_#(Previous)"
+      [disabled]="!previousEnabled" (click)="showPrevious()">
+      <span class="sp-chevron sp-chevron--prev" aria-hidden="true"></span>
+    </button>
+    <span class="sp-range">{{rangeText}}</span>
+    <button type="button" class="sp-btn" title="_#(Next)" aria-label="_#(Next)"
+      [disabled]="!nextEnabled" (click)="showNext()">
+      <span class="sp-chevron sp-chevron--next" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="sp-btn sp-toolbar__add" title="_#(Add Shape)"
+      aria-label="_#(Add Shape)" (click)="addShape()">
+      <i class="add-icon icon-size-small" aria-hidden="true"></i>
+    </button>
     <input #uploadInput class="hidden-input col-10" type="file" id="imageInput" name="imageInput"
       accept=".jpg,.png,.svg,.gif" hidden multiple
       (change)="fileChanged($event)"/>
     @if (nilSupported) {
-      <i class="eraser-icon icon-size-small icon-color-default"
-        aria-hidden="true"
-      (click)="clearShape()" title="_#(Clear)"></i>
+      <button type="button" class="sp-btn" title="_#(Clear)" aria-label="_#(Clear)"
+        (click)="clearShape()">
+        <i class="eraser-icon icon-size-small" aria-hidden="true"></i>
+      </button>
     }
   </div>
 
-  <div class="content">
-    <i class="chevron-circle-arrow-left-icon icon-size-small icon-color-default me-3"
-      [class.fade]="!previousEnabled"
-      aria-hidden="true" (click)="showPrevious()">
-    </i>
-
-    <div class="shape-pane">
-      @for (i of currentViewIndices; track $index) {
-        @if (shapes[i]) {
-          <shape-item class="m-1" [shapeStr]="shapes[i]" (click)="selectShape(shapes[i])"
-            [class.bd-gray]="shapes[i] == shapeStr">
-          </shape-item>
-        }
+  <div class="sp-grid">
+    @for (i of currentViewIndices; track $index) {
+      @if (shapes[i]) {
+        <button type="button" class="sp-cell"
+          [class.sp-cell--selected]="shapes[i] == shapeStr"
+          [attr.aria-pressed]="shapes[i] == shapeStr ? 'true' : 'false'"
+          [attr.title]="isBuiltin(i) ? null : shapes[i]"
+          [attr.aria-label]="isBuiltin(i) ? '_#(Shape) ' + (i + 1) : shapes[i]"
+          (click)="selectShape(shapes[i])">
+          <shape-item [shapeStr]="shapes[i]"></shape-item>
+        </button>
       }
-    </div>
-
-    <i class="chevron-circle-arrow-right-icon icon-size-small icon-color-default ms-3"
-      [class.fade]="!nextEnabled"
-    aria-hidden="true" (click)="showNext()"></i>
+    }
   </div>
 </div>

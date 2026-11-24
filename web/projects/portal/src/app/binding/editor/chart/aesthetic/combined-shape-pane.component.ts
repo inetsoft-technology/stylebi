@@ -25,7 +25,7 @@ import { StaticLineEditor } from "./static-line-editor.component";
 @Component({
     selector: "combined-shape-pane",
     templateUrl: "combined-shape-pane.component.html",
-    styleUrls: ["combined-visual-pane.scss"],
+    styleUrls: ["shape-pane.scss", "combined-shape-pane.component.scss"],
     imports: [StaticLineEditor, StaticTextureEditor, StaticShapeEditor]
 })
 export class CombinedShapePane extends AbstractCombinedPane {

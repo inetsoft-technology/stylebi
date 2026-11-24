@@ -31,7 +31,7 @@ import { ShapeComboBox } from "./shape-combo-box.component";
 @Component({
     selector: "categorical-shape-pane",
     templateUrl: "categorical-shape-pane.component.html",
-    styleUrls: ["categorical-pane.scss"],
+    styleUrls: ["shape-pane.scss"],
     imports: [ShapeComboBox, LineComboBox, TextureComboBox]
 })
 export class CategoricalShapePane extends CategoricalFramePane {

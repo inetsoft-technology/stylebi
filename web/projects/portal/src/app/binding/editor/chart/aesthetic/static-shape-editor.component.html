@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (aggrName) {
-  <div class="col text-style">{{aggrName}}</div>
+  <div class="col text-style sp-aggr-name" [attr.title]="aggrName">{{aggrName}}</div>
 }
 <div [class.col-auto]="aggrName">
   <shape-combo-box [(shapeStr)]="shapeStr" (shapeChanged)="changeShape($event)">
