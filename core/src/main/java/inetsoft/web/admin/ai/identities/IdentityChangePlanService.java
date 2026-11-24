@@ -298,6 +298,7 @@ public class IdentityChangePlanService {
          IdentityID id = parseIdentityId(label, rawId, currentOrgId, unitType, directory());
          String key = key(unitType, id.convertToKey());
          requireUnseen(label, key, seenKeys);
+         requireNotDeletingCaller(label, id, user);
          SecurityUser existing = requireGet(label, () -> securityService.getUser(id, user), key);
          String before = IdentityProjection.projectUser(existing);
          return new PlanChange(key, id.getOrgID(), before, null, AdminChangeRecord.RISK_HIGH,
@@ -441,6 +442,22 @@ public class IdentityChangePlanService {
             label + ".spec.active: the calling user (" + id.getLabel() + ") cannot be " +
             "deactivated; the Enterprise Manager forbids it and apply would force the account " +
             "back to active");
+      }
+   }
+
+   /**
+    * Refuses deleting the calling user. The Enterprise Manager refuses it ("Cannot delete
+    * yourself.") and apply fails the change, so the plan must not be offered for sign-off. The
+    * test is the Enterprise Manager's own, {@link IdentityService#isSelfAndEMUser}, on the
+    * parsed id, so every id spelling resolves alike and the same bare name in another
+    * organization is not the caller.
+    */
+   private static void requireNotDeletingCaller(String label, IdentityID id, Principal user) {
+      if(user != null && IdentityService.isSelfAndEMUser(user, id, Identity.USER)) {
+         throw new IllegalArgumentException(
+            label + ".id: the calling user (" + id.getLabel() + ") cannot be deleted; the " +
+            "Enterprise Manager refuses it (\"Cannot delete yourself.\") and apply would fail " +
+            "this change");
       }
    }
 

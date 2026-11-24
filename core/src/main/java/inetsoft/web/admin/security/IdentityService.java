@@ -4474,7 +4474,7 @@ public class IdentityService {
    /**
     * Check if the em user is self.
     */
-   private boolean isSelfAndEMUser(Principal principal, IdentityID identityID, int type) {
+   public static boolean isSelfAndEMUser(Principal principal, IdentityID identityID, int type) {
       if(type != Identity.USER) {
          return false;
       }

@@ -851,6 +851,57 @@ class IdentityChangePlanServiceTest {
          resolveUserActive("admin~;~other-org", "admin", false, null).changes().size());
    }
 
+   // -------------------------------------------------------------------------
+   // Bug #82220: deleting the calling user
+   // -------------------------------------------------------------------------
+
+   private void assertDeleteCallerRefused(String callerKey, String id) throws Exception {
+      lenient().when(user.getName()).thenReturn(callerKey);
+      lenient().when(securityService.getUser(any(IdentityID.class), eq(user)))
+         .thenAnswer(inv -> existingUser(inv.getArgument(0)));
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(deleteUser(id))), user));
+      assertTrue(ex.getMessage().contains("changes[0].id"));
+      assertTrue(ex.getMessage().contains("calling user"));
+      assertTrue(ex.getMessage().contains("admin"));
+   }
+
+   @Test void resolveDeleteRefusesTheCallingUserByBareName() throws Exception {
+      assertDeleteCallerRefused("admin~;~host-org", "admin");
+   }
+
+   @Test void resolveDeleteRefusesTheCallingUserByKeyFormId() throws Exception {
+      assertDeleteCallerRefused("admin~;~host-org", "admin~;~host-org");
+   }
+
+   @Test void resolveDeleteRefusesTheCallingUserByOrgQualifiedId() throws Exception {
+      assertDeleteCallerRefused("admin~;~host-org", "admin:host-org");
+   }
+
+   @Test void resolveDeleteRefusesTheCallingUserByCaretId() throws Exception {
+      assertDeleteCallerRefused("admin~;~host-org", "admin^host-org");
+   }
+
+   @Test void resolveDeleteAllowsDeletingAnotherUser() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+      lenient().when(user.getName()).thenReturn("admin~;~host-org");
+      when(securityService.getUser(eq(bob), eq(user))).thenReturn(existingUser(bob));
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(deleteUser("bob"))), user);
+      assertEquals(1, plan.changes().size());
+      assertTrue(plan.changes().get(0).recognized());
+   }
+
+   @Test void resolveDeleteAllowsTheSameNameInAnotherOrganization() throws Exception {
+      // The caller is admin in another organization; admin in the current one is a different user.
+      IdentityID other = new IdentityID("admin", "host-org");
+      lenient().when(user.getName()).thenReturn("admin~;~other-org");
+      when(securityService.getUser(eq(other), eq(user))).thenReturn(existingUser(other));
+
+      assertEquals(1,
+         service.resolve(request("task", List.of(deleteUser("admin"))), user).changes().size());
+   }
+
    @Test void resolveUpdateProducesADiffLimitedToTheTouchedField() throws Exception {
       IdentityID id = new IdentityID("bob", "host-org");
       SecurityUser existing = existingUser(id);
