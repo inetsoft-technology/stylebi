@@ -35,6 +35,8 @@ public class PairingException extends Exception {
     *   <li>{@link #SESSION_EXPIRED}  — session or runtime not found / expired → HTTP 404</li>
     *   <li>{@link #USER_MISMATCH}    — pairing code belongs to a different user → HTTP 403</li>
     *   <li>{@link #FEATURE_DISABLED} — feature flag off → HTTP 403</li>
+    *   <li>{@link #VIEWER_MODE}      — session is paired to a portal Viewer dashboard and the call
+    *                                   is not a read/export → HTTP 403</li>
     *   <li>{@link #RATE_LIMITED}     — too many failed join attempts → HTTP 429</li>
     *   <li>{@link #INTERNAL}         — unexpected server error → HTTP 500</li>
     * </ul>
@@ -50,6 +52,8 @@ public class PairingException extends Exception {
       FEATURE_DISABLED,
       /** Too many failed join attempts from the same caller in a short window. Maps to HTTP 429. */
       RATE_LIMITED,
+      /** The session is read-only (paired to a portal Viewer runtime). Maps to HTTP 403. */
+      VIEWER_MODE,
       /** Unexpected internal error. Maps to HTTP 500. */
       INTERNAL
    }
