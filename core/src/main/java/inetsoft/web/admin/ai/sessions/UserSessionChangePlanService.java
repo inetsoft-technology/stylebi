@@ -56,20 +56,37 @@ public class UserSessionChangePlanService {
       this.userService = userService;
    }
 
-   /** Resolves the optional cluster node filter exactly as the EM controller does. */
+   /**
+    * Resolves the optional cluster node filter exactly as the EM controller does, except that a
+    * value naming no node of this cluster is refused. {@code SUtil.computeServerClusterNode}
+    * returns {@code null} for it, which every caller reads as "the node serving this request",
+    * so the list and a logout would silently run on whichever node the load balancer picked
+    * (Bug #82186).
+    */
    static String resolveAddress(String clusterNode) {
       if(clusterNode == null || clusterNode.trim().isEmpty()) {
          return null;
       }
 
+      String node;
+
       try {
-         return SUtil.computeServerClusterNode(clusterNode.trim());
+         node = SUtil.computeServerClusterNode(clusterNode.trim());
       }
       catch(Exception e) {
          throw new IllegalArgumentException(
             "clusterNode: cannot resolve \"" + clusterNode + "\" to a cluster node: " +
             e.getMessage());
       }
+
+      if(node == null || node.isEmpty()) {
+         throw new IllegalArgumentException(
+            "clusterNode: \"" + clusterNode + "\" is not a server node of this cluster; use an " +
+            "address list_cluster_nodes returns, or omit clusterNode for the node serving " +
+            "this request");
+      }
+
+      return node;
    }
 
    public ResolvedPlan resolve(UserSessionChangePlanRequest req, Principal user) {

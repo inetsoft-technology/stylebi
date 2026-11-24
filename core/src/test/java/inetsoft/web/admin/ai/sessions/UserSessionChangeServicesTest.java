@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.sessions;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -242,6 +243,40 @@ class UserSessionChangeServicesTest {
          planService.resolve(request("t", "s3", "s4"), user).changes();
       assertTrue(changes.get(0).description().contains("WARNING"));
       assertFalse(changes.get(1).description().contains("WARNING"));
+   }
+
+   // Bug #82186: a clusterNode naming no node of the cluster resolved to null, which every
+   // caller reads as "the node serving this request", so it was silently ignored.
+   @Test void resolveAddressRefusesAnUnknownClusterNodeNamingTheValue() {
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         sutil.when(() -> SUtil.computeServerClusterNode("10.9.9.9")).thenReturn(null);
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> UserSessionChangePlanService.resolveAddress("10.9.9.9"));
+         assertTrue(ex.getMessage().contains("clusterNode"));
+         assertTrue(ex.getMessage().contains("10.9.9.9"));
+      }
+   }
+
+   @Test void previewRefusesAnUnknownClusterNodeWithoutListingSessions() {
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         sutil.when(() -> SUtil.computeServerClusterNode("10.9.9.9")).thenReturn(null);
+         UserSessionChangePlanRequest req = request("t", "s1");
+         req.setClusterNode("10.9.9.9");
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> planService.resolve(req, user));
+         assertTrue(ex.getMessage().contains("10.9.9.9"));
+         verify(userService, never()).getServerSessionModel(any(), any());
+      }
+   }
+
+   @Test void resolveAddressReturnsTheResolvedNodeAndTreatsBlankAsLocal() {
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         sutil.when(() -> SUtil.computeServerClusterNode("172.22.0.3"))
+            .thenReturn("172.22.0.3:5701");
+         assertEquals("172.22.0.3:5701", UserSessionChangePlanService.resolveAddress(" 172.22.0.3 "));
+         assertNull(UserSessionChangePlanService.resolveAddress(null));
+         assertNull(UserSessionChangePlanService.resolveAddress("  "));
+      }
    }
 
    private static UserSessionMonitoringTableModel session(String id, String name) {
