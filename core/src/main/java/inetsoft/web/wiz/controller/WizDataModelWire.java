@@ -58,6 +58,8 @@ public final class WizDataModelWire {
    public static final String BASE_ELEMENT_READ_ONLY = "BASE_ELEMENT_READ_ONLY";
    public static final String READ_BACK_FAILED = "READ_BACK_FAILED";
    public static final String METADATA_UNAVAILABLE = "METADATA_UNAVAILABLE";
+   /** The storage failed or timed out; the same call can be retried. */
+   public static final String STORAGE_UNAVAILABLE = "STORAGE_UNAVAILABLE";
    public static final String UNKNOWN = "UNKNOWN";
 
    /** A reference to a model, view, VPM or folder; {@code parent} names the base of an extended one. */

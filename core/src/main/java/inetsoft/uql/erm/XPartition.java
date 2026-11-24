@@ -100,6 +100,19 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     * Add a child XPartition.
     */
    public void addPartition(XPartition child, boolean isImport) {
+      addPartition(child, isImport, false);
+   }
+
+   /**
+    * Add a child XPartition and throw if it could not be stored.
+    *
+    * @throws inetsoft.uql.service.DataSourceStorageException if the storage failed.
+    */
+   public void addPartitionOrThrow(XPartition child) {
+      addPartition(child, false, true);
+   }
+
+   private void addPartition(XPartition child, boolean isImport, boolean failOnStorage) {
       // Bug #77918: as XDataModel.addLogicalModel
       if(XUtil.isDirectScriptCall(XPartition.class)) {
          throw new java.lang.SecurityException("A script may not add a partition");
@@ -119,7 +132,12 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
          child.setLastModified(System.currentTimeMillis());
       }
 
-      getRegistry().setObject(entry, child);
+      if(failOnStorage) {
+         getRegistry().setObjectOrThrow(entry, child, true);
+      }
+      else {
+         getRegistry().setObject(entry, child);
+      }
    }
 
    /**

@@ -23,6 +23,7 @@ import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
+import inetsoft.uql.service.DataSourceStorageException;
 import inetsoft.web.portal.model.database.PhysicalModelDefinition;
 import inetsoft.web.portal.model.database.PhysicalTableModel;
 import inetsoft.web.portal.model.database.TableType;
@@ -67,6 +68,7 @@ class PhysicalViewBoundsProbeTest {
    private RuntimePartitionService runtimePartitionService;
    private PhysicalModelManagerService manager;
    private XPartition stored;
+   private DataSourceService dataSourceService;
 
    @SuppressWarnings({ "unchecked", "rawtypes" })
    @BeforeEach
@@ -93,11 +95,11 @@ class PhysicalViewBoundsProbeTest {
       doAnswer(i -> {
          stored = i.getArgument(0);
          return null;
-      }).when(dataModel).addPartition(any());
+      }).when(dataModel).addPartitionOrThrow(any());
 
       XRepository repository = mock(XRepository.class);
       when(repository.getDataModel("ds")).thenReturn(dataModel);
-      DataSourceService dataSourceService = mock(DataSourceService.class);
+      dataSourceService = mock(DataSourceService.class);
       when(dataSourceService.checkPermission(any(), any(), any(), any())).thenReturn(true);
       when(dataSourceService.getModelAssetEntry(any())).thenAnswer(i -> i.getArgument(0));
       PhysicalModelService modelService = spy(new PhysicalModelService(
@@ -116,6 +118,27 @@ class PhysicalViewBoundsProbeTest {
       manager = new PhysicalModelManagerService(
          dataSourceService, modelService, runtimePartitionService, new PhysicalGraphService(),
          repository, null, mock(DependencyHandler.class), null);
+   }
+
+   /**
+    * Bug #82205: when the storage did not save the view, the lookup after the save finds nothing
+    * and the caller gets a retryable storage failure, not a NullPointerException.
+    */
+   @Test
+   void unsavedViewIsAStorageFailureNotANullPointer() throws Exception {
+      when(dataSourceService.getModelAssetEntry(any())).thenReturn(null);
+      PhysicalModelDefinition definition = new PhysicalModelDefinition();
+      definition.setName("v");
+      definition.setTables(new ArrayList<>(List.of(table("ORDERS"))));
+      String id = manager.createModel("ds", null, definition, principal).getId();
+      PhysicalModelDefinition toSave = new PhysicalModelDefinition();
+      toSave.setId(id);
+      toSave.setName("v");
+
+      DataSourceStorageException e = assertThrows(
+         DataSourceStorageException.class,
+         () -> manager.createAndSaveModel("ds", null, null, toSave, principal));
+      assertTrue(e.getMessage().contains("retry"), e.getMessage());
    }
 
    /**

@@ -340,7 +340,7 @@ class ModelEditorPermissionTest {
       assertDenied(() -> manager(runtimes)
          .updateAndSaveModel(DS, FOLDER, null, VIEW, viewDefinition(VIEW, "rt"), principal));
       verify(dataSourceService, never()).getModelAssetEntry(any());
-      verify(dataModel, never()).addPartition(any());
+      verify(dataModel, never()).addPartitionOrThrow(any());
       verify(repository, never()).updateDataModel(any());
    }
 
@@ -352,7 +352,7 @@ class ModelEditorPermissionTest {
 
       assertDenied(() -> manager(runtimes)
          .updateAndSaveModel(DS, FOLDER, null, VIEW, viewDefinition(VIEW, "rt"), principal));
-      verify(dataModel, never()).addPartition(any());
+      verify(dataModel, never()).addPartitionOrThrow(any());
       verify(repository, never()).updateDataModel(any());
    }
 
@@ -385,7 +385,7 @@ class ModelEditorPermissionTest {
       model.setFolder(FOLDER);
 
       assertDenied(() -> manager(runtimes).createAndSaveModel(DS, FOLDER, null, model, principal));
-      verify(dataModel, never()).addPartition(any());
+      verify(dataModel, never()).addPartitionOrThrow(any());
       verify(repository, never()).updateDataModel(any());
    }
 
@@ -399,7 +399,7 @@ class ModelEditorPermissionTest {
          .getModelAssetEntry(any());
 
       assertReached(() -> manager(runtimes).createAndSaveModel(DS, FOLDER, null, model, principal));
-      verify(dataModel).addPartition(argThat(p -> "NewView".equals(p.getName())));
+      verify(dataModel).addPartitionOrThrow(argThat(p -> "NewView".equals(p.getName())));
    }
 
    @Test
@@ -410,7 +410,7 @@ class ModelEditorPermissionTest {
       model.setFolder(FOLDER);
 
       assertDenied(() -> manager(runtimes).createAndSaveModel(DS, FOLDER, null, model, principal));
-      verify(dataModel, never()).addPartition(any());
+      verify(dataModel, never()).addPartitionOrThrow(any());
       verify(repository, never()).updateDataModel(any());
    }
 
@@ -426,7 +426,7 @@ class ModelEditorPermissionTest {
       model.setFolder(FOLDER);
 
       assertDenied(() -> manager(runtimes).createAndSaveModel(DS, FOLDER, VIEW, model, principal));
-      verify(base, never()).addPartition(any(), anyBoolean());
+      verify(base, never()).addPartitionOrThrow(any());
       verify(repository, never()).updateDataModel(any());
    }
 
@@ -453,7 +453,7 @@ class ModelEditorPermissionTest {
 
       // the request names no folder, the base view's folder is what is checked
       assertReached(() -> manager(runtimes).createAndSaveModel(DS, null, VIEW, model, principal));
-      verify(base).addPartition(argThat(p -> "Ext".equals(p.getName())), eq(false));
+      verify(base).addPartitionOrThrow(argThat(p -> "Ext".equals(p.getName())));
       verify(repository).updateDataModel(dataModel);
    }
 
