@@ -121,6 +121,7 @@ public class TreemapVO extends ElementVO {
             vtext.setCollisionModifier(VLabel.MOVE_NONE);
             vtext.setAlignmentX(GraphConstants.CENTER_ALIGNMENT);
             vtext.setAlignmentY(GraphConstants.MIDDLE_ALIGNMENT);
+            vtext.setEllipsis(elem.isLabelEllipsis());
          }
 
          CurrentTextFrame.setCurrentField(null);
@@ -376,6 +377,7 @@ public class TreemapVO extends ElementVO {
       }
 
       Rectangle2D vbounds = vgraph.getPlotBounds();
+      Rectangle2D cell = box;
       int placement = gobj.getLabelPlacement();
       double tx, ty;
       double midx, midy;
@@ -459,6 +461,18 @@ public class TreemapVO extends ElementVO {
          vtext.setAlignmentX(GraphConstants.LEFT_ALIGNMENT);
          vtext.setPlacement(placement);
          break;
+      }
+
+      // a cut label ends inside the cell, so its ellipsis is not clipped
+      if(elem.isLabelEllipsis() && box.getWidth() >= 30) {
+         Rectangle2D fit = box.createIntersection(cell);
+         double left = Math.max(tx, fit.getX());
+         double right = Math.min(tx + prefw, fit.getMaxX());
+
+         if(right - left < prefw) {
+            tx = left;
+            prefw = right - left;
+         }
       }
 
       vtext.setPosition(new Point2D.Double(Math.max(tx, vbounds.getX()), ty));

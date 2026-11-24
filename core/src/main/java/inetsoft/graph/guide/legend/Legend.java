@@ -762,6 +762,10 @@ public abstract class Legend extends BoundedContainer {
             item.setLabelFormat(stepFormat);
          }
 
+         if(graph.isLegendEllipsis()) {
+            item.setEllipsis(true);
+         }
+
          Color itemColor = getElementColor(values[i]);
 
          if(itemColor != null) {

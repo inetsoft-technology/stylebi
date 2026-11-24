@@ -1334,6 +1334,7 @@ public abstract class GraphGenerator {
          graph.setLegendAlignment(row ? legends.getAlignment() : 0);
          graph.setLegendInMarkOrder(vizContext.modern);
          graph.setLegendDistinctLabels(vizContext.modern);
+         graph.setLegendEllipsis(vizContext.modern);
       }
 
       // for separator chart, we must use measure to get chart type
@@ -5344,6 +5345,7 @@ public abstract class GraphGenerator {
       }
 
       elem.setContrastInk(true);
+      elem.setLabelEllipsis(true);
 
       if(elem instanceof IntervalElement interval) {
          interval.setCornerFloor(true);
@@ -5381,6 +5383,7 @@ public abstract class GraphGenerator {
          relation.setCornerFloor(true);
          // an author's plot resize keeps today's layout
          relation.setPlotFit(!info.isWidthResized() && !info.isHeightResized());
+         relation.setLabelLimit(ModernLabelRule.LIMIT_PX);
       }
       else if(elem instanceof TreemapElement treemap &&
               (treemap.getMapType() == TreemapElement.Type.SUNBURST ||

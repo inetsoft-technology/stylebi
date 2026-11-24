@@ -94,6 +94,14 @@ public abstract class LegendItem extends BoundedContainer {
    }
 
    /**
+    * Set whether a cut label ends in an ellipsis character instead of "..".
+    */
+   void setEllipsis(boolean ellipsis) {
+      vlabel.setEllipsis(ellipsis);
+      initSizes();
+   }
+
+   /**
     * Get the value of the legend item.
     * @return value the symbol's type.
     */
