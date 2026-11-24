@@ -427,7 +427,14 @@ public class PolarUtil {
             continue;
          }
 
-         String cut = text.substring(0, n) + ELLIPSIS;
+         // end on the last letter, not on a space before the ellipsis
+         String head = text.substring(0, n).stripTrailing();
+
+         if(head.isEmpty()) {
+            continue;
+         }
+
+         String cut = head + ELLIPSIS;
 
          if(width.applyAsDouble(cut) <= room) {
             return cut;

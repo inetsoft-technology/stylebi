@@ -71,6 +71,13 @@ class CircularVOTextFitTest {
       SVGSupport._CACHE[0] = savedSvgSupport;
    }
 
+   // one unit per character, so "Field …" (7) fits a room of 7 and "Field S…" (8) does not
+   @Test
+   void aCutAfterASpaceEndsOnTheLastLetter() {
+      assertEquals("Field…", PolarUtil.fitText("Field Services", 7, String::length));
+      assertEquals("Field Services", PolarUtil.fitText("Field Services", 14, String::length));
+   }
+
    @Test
    void aRadialLabelTooLongForItsRingIsCutWithAnEllipsis() {
       CircularVOText text = radial(label(LONG, true), RIGHT_HALF);
