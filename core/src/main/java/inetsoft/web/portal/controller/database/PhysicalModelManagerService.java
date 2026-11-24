@@ -34,6 +34,7 @@ import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.rgraph.TableNode;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -223,7 +224,7 @@ public class PhysicalModelManagerService {
          dataSource, model.getId(), model.getName(), folder, !isExtended, principal);
       long version = p.getVersion();
       createAndSaveModel(dataModel, p, path, parent, isExtended, principal);
-      updateSavedRuntime(p, version);
+      updateSavedRuntime(p, version, storedModified(dataModel, parent, model.getName()));
    }
 
    /**
@@ -235,19 +236,34 @@ public class PhysicalModelManagerService {
     * @param version the version of the runtime the copy was read at.
     */
    private void updateSavedRuntime(RuntimePartitionService.RuntimeXPartition saved,
-                                   long version)
+                                   long version, long storedModified)
    {
       XPartition partition = saved.getPartition();
 
       // Bug #78428, don't write the copy back over the runtime
-      runtimePartitionService.update(saved.getId(), rp -> {
-         if(rp.getVersion() == version) {
-            rp.setPartition(partition);
-            rp.clearMovedTables();
-         }
+      try {
+         runtimePartitionService.update(saved.getId(), rp -> {
+            rp.setStoredModified(storedModified);
 
-         return null;
-      });
+            if(rp.getVersion() == version) {
+               rp.setPartition(partition);
+               rp.clearMovedTables();
+            }
+
+            return null;
+         });
+      }
+      catch(MessageException e) {
+         // the view is already saved; without the new stored time the next save from this
+         // editor would be refused as stale, so record it alone, which fails only if the
+         // runtime still can't be written
+         LOG.warn("Failed to refresh the physical view runtime {} after a save, retrying",
+                  saved.getId(), e);
+         runtimePartitionService.update(saved.getId(), rp -> {
+            rp.setStoredModified(storedModified);
+            return null;
+         });
+      }
    }
 
    private void createAndSaveModel(XDataModel dataModel,
@@ -368,6 +384,14 @@ public class PhysicalModelManagerService {
          dsName, model.getId(), name, storedPartition.getFolder(), !isExtended, principal);
       long version = p.getVersion();
 
+      // the stored view was saved by someone else since this editor copied it
+      XPartition current = isExtended ? storedPartition.getPartition(name) : storedPartition;
+
+      if(p.getStoredModified() >= 0 && current.getLastModified() != p.getStoredModified()) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "data.physicalmodel.staleView", name));
+      }
+
       for(PhysicalTableModel table: model.getTables()) {
          if(!Tool.equals(table.getOldAlias(), table.getAlias())) {
             for(String logicalModelName : dataModel.getLogicalModelNames()) {
@@ -388,7 +412,21 @@ public class PhysicalModelManagerService {
       AssetEntry entry = dataSourceService.getModelAssetEntry(
          new AssetEntry(AssetRepository.QUERY_SCOPE, entryType, path, null));
       updateAndSaveModel(dataModel, p, parent, name, entry, isExtended);
-      updateSavedRuntime(p, version);
+      updateSavedRuntime(p, version, storedModified(dataModel, parent, name));
+   }
+
+   /**
+    * Gets the last-modified time of the stored view, or -1 if it is not stored.
+    */
+   private long storedModified(XDataModel dataModel, String parent, String name) {
+      boolean isExtended = !StringUtils.isBlank(parent);
+      XPartition partition = dataModel.getPartition(isExtended ? parent : name);
+
+      if(partition != null && isExtended) {
+         partition = partition.getPartition(name);
+      }
+
+      return partition == null ? -1 : partition.getLastModified();
    }
 
    /**

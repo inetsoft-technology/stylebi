@@ -954,7 +954,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                   this.notifications.success(msg);
                },
                err => {
-                  this.notifications.danger("_#(js:data.physicalmodel.saveModelError)");
+                  let message = err?.error?.error === "messageException" ? err.error.message : null;
+                  this.notifications.danger(message || "_#(js:data.physicalmodel.saveModelError)");
                }
             );
       };
