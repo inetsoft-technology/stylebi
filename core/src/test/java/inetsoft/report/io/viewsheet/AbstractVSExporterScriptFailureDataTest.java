@@ -72,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.*;
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "/inetsoft/graph/GraphRenderTest.zip")
-@Tag("core")
+@Tag("slow")
 @Tag("integration")
 class AbstractVSExporterScriptFailureDataTest {
    private static final String BAD = "noSuchFunction123();";
