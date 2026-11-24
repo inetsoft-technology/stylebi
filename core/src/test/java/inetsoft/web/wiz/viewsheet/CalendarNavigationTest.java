@@ -37,7 +37,7 @@ class CalendarNavigationTest {
                                                             String cur1, String cur2)
    {
       return CalendarDisplayService.resolveNavigation(
-         month, second, dual, year, hasDates, range, cur1, cur2, "Cal1");
+         month, second, dual, year, hasDates, range, cur1, cur2, 0, "Cal1");
    }
 
    @Test

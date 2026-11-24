@@ -585,11 +585,59 @@ class CalendarInputServiceTest {
       Exception e = assertThrows(IllegalArgumentException.class,
          () -> CalendarDisplayService.validateInRange(
             new String[]{ "d2025-11-1", "d2030-0-1" }, new String[]{ "d2025-11-1", "d2025-11-30" },
-            new String[]{ "2022-2-13", "2025-11-30" }, "Cal1"));
+            new String[]{ "2022-2-13", "2025-11-30" }, 0, "Cal1"));
 
       assertTrue(e.getMessage().contains("select 2030-01-01:"), e.getMessage());
       assertFalse(e.getMessage().contains("2025-12-01"), e.getMessage());
       assertTrue(e.getMessage().contains("2022-03-13 to 2025-12-30"), e.getMessage());
+   }
+
+   /** With no design sample limit the range is the whole column, and the message says so. */
+   @Test
+   void saysTheRangeCoversTheColumnWhenTheDesignSampleIsUnlimited() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.validateInRange(
+            new String[]{ "d2030-0-1" }, new String[]{ "d2025-11-30" },
+            new String[]{ "2022-2-13", "2025-11-30" }, 0, "Cal1"));
+
+      assertTrue(e.getMessage().contains("which covers the bound column's data"), e.getMessage());
+      assertFalse(e.getMessage().contains("maxRows"), e.getMessage());
+   }
+
+   /**
+    * With a design sample limit the range may stop short of the table's later dates, so the
+    * message must not claim it covers the column; it names the limit and how to change it.
+    */
+   @Test
+   void namesTheDesignSampleLimitInsteadOfClaimingTheRangeCoversTheColumn() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.validateInRange(
+            new String[]{ "d2030-0-1" }, new String[]{ "d2025-11-30" },
+            new String[]{ "2022-2-13", "2025-11-30" }, 50000, "Cal1"));
+
+      String m = e.getMessage();
+      assertTrue(m.startsWith("'Cal1' cannot select 2030-01-01: it is outside its selectable "
+         + "range (2022-03-13 to 2025-12-30)."), m);
+      assertFalse(m.contains("covers the bound column"), m);
+      assertTrue(m.contains("only the first 50000 rows of the source"), m);
+      assertTrue(m.contains("maxRows"), m);
+      assertTrue(m.contains("set_viewsheet_properties"), m);
+      assertTrue(m.endsWith("to the nearest end of that range instead."), m);
+   }
+
+   /** The month check of set_calendar_display words the same limit, and keeps its prefix. */
+   @Test
+   void theMonthRangeCheckNamesTheDesignSampleLimitToo() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.resolveNavigation(
+            "2099-06", null, false, false, false, new String[]{ "2022-2-13", "2025-11-30" },
+            "", null, 30000, "Cal1"));
+
+      String m = e.getMessage();
+      assertTrue(m.startsWith("'month' 2099-06 is outside the selectable range of 'Cal1' "), m);
+      assertFalse(m.contains("covers the bound column"), m);
+      assertTrue(m.contains("only the first 30000 rows of the source"), m);
+      assertTrue(m.endsWith("Nothing was changed."), m);
    }
 
    @Test
@@ -605,7 +653,7 @@ class CalendarInputServiceTest {
       String[] dates = { "d2025-11-1", "d2025-11-10" };
 
       assertDoesNotThrow(() -> CalendarDisplayService.validateInRange(
-         dates, dates.clone(), new String[]{ "2022-2-13", "2025-11-30" }, "Cal1"));
+         dates, dates.clone(), new String[]{ "2022-2-13", "2025-11-30" }, 50000, "Cal1"));
    }
 
    // ── input value checks (Bug #77033) ───────────────────────────────────────
