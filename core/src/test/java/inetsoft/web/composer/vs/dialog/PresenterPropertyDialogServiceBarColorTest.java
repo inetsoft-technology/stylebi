@@ -25,6 +25,8 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.report.painter.Bar2Presenter;
 import inetsoft.report.painter.BarPresenter;
+import inetsoft.report.painter.BulletGraphPresenter;
+import inetsoft.report.painter.TrafficLightPresenter;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.TableVSAssembly;
@@ -67,6 +69,8 @@ import static org.mockito.Mockito.when;
 public class PresenterPropertyDialogServiceBarColorTest {
    private static final String BAR = "inetsoft.report.painter.BarPresenter";
    private static final String BAR2 = "inetsoft.report.painter.Bar2Presenter";
+   private static final String BULLET = "inetsoft.report.painter.BulletGraphPresenter";
+   private static final String LIGHT = "inetsoft.report.painter.TrafficLightPresenter";
    private static final Color TINT = new Color(0x75C2FF);
    private static final Color AUTHOR = new Color(0x123456);
 
@@ -110,6 +114,25 @@ public class PresenterPropertyDialogServiceBarColorTest {
       assertEquals("", colour(model, "color"));
       assertEquals("#" + Tool.colorToHTMLString(Bar2Presenter.DEFAULT_NEGATIVE_COLOR),
                    colour(model, "negativeColor"));
+   }
+
+   @Test
+   public void aBulletGraphsFilledInBandsAreNotShown() throws Exception {
+      BulletGraphPresenter live = new BulletGraphPresenter();
+      live.setColor1(new Color(0x8A8F99));
+      store(new PresenterRef(BULLET), new PresenterPainter(5, live));
+
+      assertEquals("", colour(model(BULLET), "color1"));
+   }
+
+   @Test
+   public void aTrafficLightsFilledInColoursShowTheStoredDefault() throws Exception {
+      TrafficLightPresenter live = new TrafficLightPresenter();
+      live.setColor1(new Color(0x22C55E));
+      store(new PresenterRef(LIGHT), new PresenterPainter(5, live));
+
+      assertEquals("#" + Tool.colorToHTMLString(TrafficLightPresenter.DEFAULT_GREEN),
+                   colour(model(LIGHT), "color1"));
    }
 
    private void store(PresenterRef ref, PresenterPainter painter) {
