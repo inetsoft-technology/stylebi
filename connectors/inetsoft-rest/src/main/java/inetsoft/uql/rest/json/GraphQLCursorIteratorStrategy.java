@@ -84,19 +84,19 @@ public class GraphQLCursorIteratorStrategy extends HttpRestDataIteratorStrategy<
       final RestRequest request = RestRequest.builder().query(query).build();
       final Object json = handleRequest(request).getHandledResult();
 
-      if(json != null && isEmpty(json, spec)) {
-         // The response was received and parsed, it just holds no (more) rows. Returning null
-         // ends the iteration, and the runner cannot tell that from a failure, so record the
-         // completed run here (see TabularQuery.isRunCompleted); an empty first page then reads
-         // as "matched no rows" rather than "check the credentials".
-         query.setRunCompleted(true);
-         return null;
+      // the page just read always belongs to the result; a missing or unchanged cursor only
+      // means there is no next page
+      if(json != null && !advanceCursor(json, spec)) {
+         complete();
       }
 
       return json;
    }
 
-   private boolean isEmpty(Object json, PaginationSpec spec) {
+   /**
+    * @return true if the page contains a new cursor to request the next page with.
+    */
+   private boolean advanceCursor(Object json, PaginationSpec spec) {
       try {
          Object result = transformer.transform(json, spec.getRecordCountPath());
          String cursor = null;
@@ -123,15 +123,14 @@ public class GraphQLCursorIteratorStrategy extends HttpRestDataIteratorStrategy<
          // end of pagination to avoid looping forever
          if(cursor != null && !cursor.isEmpty() && !cursor.equals(lastCursor)) {
             lastCursor = cursor;
-            return false;
+            return true;
          }
       }
       catch(Exception e) {
-         LOG.debug("Failed to determine if results are empty", e);
-         return true;
+         LOG.debug("Failed to read the pagination cursor", e);
       }
 
-      return true;
+      return false;
    }
 
    private String lastCursor = null;
