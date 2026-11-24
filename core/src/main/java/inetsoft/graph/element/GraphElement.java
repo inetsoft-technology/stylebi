@@ -941,6 +941,37 @@ public abstract class GraphElement extends Graphable {
    }
 
    /**
+    * Check whether a label cut to fit ends in an ellipsis character instead of "..".
+    */
+   public boolean isLabelEllipsis() {
+      return labelEllipsis;
+   }
+
+   /**
+    * Set whether a label cut to fit ends in an ellipsis character instead of "..". This is
+    * only supported by treemap and relation marks.
+    */
+   public void setLabelEllipsis(boolean labelEllipsis) {
+      this.labelEllipsis = labelEllipsis;
+   }
+
+   /**
+    * Get the longest a label outside its mark may be, in px for 10px text.
+    */
+   public double getLabelLimit() {
+      return labelLimit;
+   }
+
+   /**
+    * Set the longest a label outside its mark may be, in px for 10px text. A label in another
+    * font size scales it with the size. 0 for no limit. This is only supported by relation
+    * labels outside the node.
+    */
+   public void setLabelLimit(double labelLimit) {
+      this.labelLimit = labelLimit;
+   }
+
+   /**
     * Set the text spec for a tree dim's labels.
     */
    @TernMethod
@@ -1125,6 +1156,8 @@ public abstract class GraphElement extends Graphable {
          autoTextColor == elem2.autoTextColor &&
          contrastInk == elem2.contrastInk &&
          valueFitInside == elem2.valueFitInside &&
+         labelEllipsis == elem2.labelEllipsis &&
+         labelLimit == elem2.labelLimit &&
          Objects.equals(textSpec, elem2.textSpec) &&
          Objects.equals(textSpecMap, elem2.textSpecMap) &&
          Objects.equals(borderColor, elem2.borderColor) &&
@@ -1206,6 +1239,8 @@ public abstract class GraphElement extends Graphable {
    private boolean autoTextColor = false;
    private boolean contrastInk = false;
    private boolean valueFitInside = false;
+   private boolean labelEllipsis = false;
+   private double labelLimit = 0;
    private Map<String, TextSpec> textSpecMap = new HashMap<>();
    private GraphtDataSelector selector;
    private Color borderColor;

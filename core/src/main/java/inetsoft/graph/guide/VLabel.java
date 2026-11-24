@@ -407,10 +407,14 @@ public class VLabel extends BoundedVisualizable {
           (dlabelHeight <= height + 1 || horizontalLabel && dlabels.length == 1)))
       {
          int lineTotal = Arrays.stream(dlabels).mapToInt(d -> d.length() + 1).sum() - 1;
+         // a line cut next to a space keeps the length, so the ellipsis counts letters
+         boolean cut = ellipsis ? countLetters(dlabels) < countLetters(label)
+            : lineTotal < label.length();
 
-         if(lineTotal < label.length() && dlabels.length > 0) {
+         if(cut && dlabels.length > 0) {
             String last = dlabels[dlabels.length - 1].trim();
-            dlabels[dlabels.length - 1] = last.substring(0, Math.max(0, last.length() - 2)) + "...";
+            dlabels[dlabels.length - 1] = ellipsis ? cutLine(last, verticalLabel, width, height)
+               : last.substring(0, Math.max(0, last.length() - 2)) + "...";
          }
 
          return dlabels;
@@ -436,6 +440,29 @@ public class VLabel extends BoundedVisualizable {
       dlabels = truncate(dlabels, width, height);
 
       return dlabels0 = dlabels;
+   }
+
+   // cut a line until it and the ellipsis fit the label
+   private String cutLine(String line, boolean vertical, double width, double height) {
+      String cut = line;
+
+      while(cut.length() > 1) {
+         Rectangle2D bounds = getTransformedBounds0(0, 0, cut + "…").getBounds2D();
+
+         if(vertical ? bounds.getHeight() <= height : bounds.getWidth() <= width) {
+            break;
+         }
+
+         cut = cut.substring(0, cut.length() - 1);
+      }
+
+      return cut.stripTrailing() + "…";
+   }
+
+   // the number of characters that are not white space
+   private static long countLetters(String... lines) {
+      return Arrays.stream(lines).flatMapToInt(String::chars)
+         .filter(c -> !Character.isWhitespace(c)).count();
    }
 
    private String[] truncate(String[] dlabels, double width, double height) {
@@ -1581,7 +1608,7 @@ public class VLabel extends BoundedVisualizable {
 
    /**
     * Get visual label width when it displays specified count char. If count is
-    * greater than label char count, ".." displays at the end of the label.
+    * greater than label char count, ".." (or the ellipsis) displays at the end of the label.
     * @hidden
     * @return specified count char label width.
     */
@@ -1589,7 +1616,7 @@ public class VLabel extends BoundedVisualizable {
       String label = getText();
 
       if(label.length() > count) {
-         label = label.substring(0, count) + "..";
+         label = label.substring(0, count) + (ellipsis ? "…" : "..");
       }
 
       return getPreferredWidth(label);

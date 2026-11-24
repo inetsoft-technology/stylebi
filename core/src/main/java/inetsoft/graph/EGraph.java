@@ -296,6 +296,20 @@ public class EGraph implements Cloneable, Serializable {
    }
 
    /**
+    * Check whether a legend entry cut to fit ends in an ellipsis character instead of "..".
+    */
+   public boolean isLegendEllipsis() {
+      return legendEllipsis;
+   }
+
+   /**
+    * Set whether a legend entry cut to fit ends in an ellipsis character instead of "..".
+    */
+   public void setLegendEllipsis(boolean ellipsis) {
+      this.legendEllipsis = ellipsis;
+   }
+
+   /**
     * Get the space in pixels kept empty above the graph content.
     * @hidden
     */
@@ -636,6 +650,7 @@ public class EGraph implements Cloneable, Serializable {
       legendAlignment = 0;
       legendInMarkOrder = false;
       legendDistinctLabels = false;
+      legendEllipsis = false;
       topInset = 0;
       xTitleSpec = new TitleSpec();
       yTitleSpec = new TitleSpec();
@@ -740,6 +755,7 @@ public class EGraph implements Cloneable, Serializable {
    private int legendAlignment;
    private boolean legendInMarkOrder;
    private boolean legendDistinctLabels;
+   private boolean legendEllipsis;
    private double topInset;
    private TitleSpec xTitleSpec;
    private TitleSpec yTitleSpec;

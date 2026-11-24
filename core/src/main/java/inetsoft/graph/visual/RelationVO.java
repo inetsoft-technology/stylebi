@@ -83,6 +83,7 @@ public class RelationVO extends ElementVO {
             }
 
             vtext.setWrapping(true);
+            vtext.setEllipsis(elem.isLabelEllipsis());
             vtext.setCollisionModifier(VLabel.MOVE_FREE);
             vtext.setAlignmentX(GraphConstants.CENTER_ALIGNMENT);
             vtext.setAlignmentY(GraphConstants.MIDDLE_ALIGNMENT);
@@ -261,6 +262,12 @@ public class RelationVO extends ElementVO {
       // inside labels: confine wrapping to inscribed rect so text stays within curved edges
       Rectangle2D textBox = elem.isLabelInside() ? getInsideTextBox(box, elem) : box;
       double prefw = getVOTextWidth(vtext, vgraph, (ElementGeometry) getGeometry());
+
+      // a label outside the node is cut at the label limit, scaled from 10px text
+      if(!elem.isLabelInside() && elem.getLabelLimit() > 0) {
+         prefw = Math.min(prefw, elem.getLabelLimit() * vtext.getFont().getSize2D() / 10);
+      }
+
       double prefh = elem.isLabelInside()
          ? vtext.getPreferredHeight(textBox.getWidth(), textBox.getHeight()) : vtext.getPreferredHeight();
 
