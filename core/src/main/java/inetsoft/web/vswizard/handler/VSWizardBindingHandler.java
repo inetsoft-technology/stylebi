@@ -1789,10 +1789,11 @@ public class VSWizardBindingHandler {
     * the refs themselves; a hand-rolled loop silently misses most of those places.
     *
     * <p>The VSTemporaryInfo here is a throwaway holding nothing but these formats — it is never
-    * attached to the runtime. That works because in the updateAssembly=true direction changeFormat only
-    * READS it (getUserFormat/getDefaultFormat); it writes back only when updateAssembly is false. Refs
-    * with no entry therefore resolve to a null user format and are left untouched, which is what makes
-    * "reformat only the named fields" fall out with no matching logic here.
+    * attached to the runtime. In the updateAssembly=true direction changeFormat only READS it
+    * (getUserFormat/getDefaultFormat); it writes back only when updateAssembly is false. It is a
+    * {@link NamedFieldsFormatInfo}, which tells changeFormat to skip a ref with no entry entirely,
+    * including the numeric default format it would otherwise force onto every numeric ref (a numeric
+    * dimension on a legend would render 2025 as "2K"), so only the named fields are reformatted.
     *
     * <p>Keys are ref FULL names, the names a caller sees in the binding. They are translated to the
     * internal format-map key by getNameForFormat — dimensions and most aggregates key by full name,
@@ -1809,7 +1810,7 @@ public class VSWizardBindingHandler {
          return Collections.emptySet();
       }
 
-      VSTemporaryInfo tempInfo = new VSTemporaryInfo();
+      VSTemporaryInfo tempInfo = new NamedFieldsFormatInfo();
       Set<String> unmatched = new LinkedHashSet<>(formatsByFullName.keySet());
 
       for(ChartRef ref : collectFormattableRefs(chart.getVSChartInfo())) {
@@ -1833,6 +1834,13 @@ public class VSWizardBindingHandler {
       }
 
       return unmatched;
+   }
+
+   /**
+    * The throwaway format holder of {@link #applyFieldFormats}: changeFormat leaves a ref that has no
+    * entry in it untouched, instead of applying the wizard's default numeric format to every ref.
+    */
+   private static final class NamedFieldsFormatInfo extends VSTemporaryInfo {
    }
 
    /**
@@ -2378,6 +2386,10 @@ public class VSWizardBindingHandler {
       VSFormat format2 = tempInfo.getUserFormat(refName);
       VSFormat fieldDefaultFormat = tempInfo.getDefaultFormat(refName);
       final XFormatInfo defaultFormat = format.getDefaultFormat().getFormat();
+
+      if(updateAssembly && format2 == null && tempInfo instanceof NamedFieldsFormatInfo) {
+         return;
+      }
 
       if(XSchema.isNumericType(ref.getDataType())) {
          String numberFormatSpec = ExtendedDecimalFormat.AUTO_FORMAT;
