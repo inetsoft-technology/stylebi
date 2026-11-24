@@ -159,7 +159,7 @@ public final class ViewerModePolicy {
          return false;
       }
 
-      String m = "HEAD".equalsIgnoreCase(method) ? "GET" : method.toUpperCase();
+      String m = "HEAD".equalsIgnoreCase(method) ? "GET" : method.toUpperCase(java.util.Locale.ROOT);
       return ALLOWED.contains(new Route(m, pattern));
    }
 

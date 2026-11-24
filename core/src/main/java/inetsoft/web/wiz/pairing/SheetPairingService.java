@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.function.LongSupplier;
 
 /** Mints and validates single-use, short-TTL pairing codes binding an agent to an open runtime. */
@@ -102,6 +103,7 @@ public class SheetPairingService {
    private final ConcurrentHashMap<String, PairingGrant> grants;
    private final SecureRandom random = new SecureRandom();
    private final LongSupplier clock;
+   private final Supplier<String> nodeId;
    private final SheetDirectAccessor worksheetAccessor;
    private final SheetDirectAccessor viewsheetAccessor;
 
@@ -120,7 +122,33 @@ public class SheetPairingService {
    public SheetPairingService(WorksheetService worksheetService, ViewsheetService viewsheetService)
    {
       this(System::currentTimeMillis, asAccessor(worksheetService, "WorksheetService"),
-           asAccessor(viewsheetService, "ViewsheetService"), worksheetService);
+           asAccessor(viewsheetService, "ViewsheetService"), worksheetService,
+           SheetPairingService::clusterNodeId);
+   }
+
+   /** This node's cluster member id, or null when it cannot be read (no cluster). */
+   private static String clusterNodeId() {
+      try {
+         return inetsoft.sree.internal.cluster.Cluster.getInstance().getLocalMember();
+      }
+      catch(Throwable ex) {
+         return null;
+      }
+   }
+
+   /** This node's id as recorded in {@link PairingGrant#mintNode()}; null when unknown. */
+   String localNode() {
+      return nodeId.get();
+   }
+
+   /**
+    * Whether this node minted {@code grant}, or the grant does not say (then it is assumed so,
+    * the single-node case). The join's page-socket check is only valid on this node.
+    */
+   boolean isMintNode(PairingGrant grant) {
+      String minted = grant.mintNode();
+      String local = localNode();
+      return minted == null || local == null || minted.equals(local);
    }
 
    /** Back-compat convenience constructor: no editorContext validation is possible. */
@@ -133,6 +161,7 @@ public class SheetPairingService {
    /** Test constructor: shares the grants map of an existing service with a different clock. */
    SheetPairingService(LongSupplier clock, SheetPairingService source) {
       this.clock = clock;
+      this.nodeId = source.nodeId;
       this.grants = source.grants;
       this.worksheetAccessor = source.worksheetAccessor;
       this.viewsheetAccessor = source.viewsheetAccessor;
@@ -146,14 +175,22 @@ public class SheetPairingService {
    SheetPairingService(LongSupplier clock, SheetDirectAccessor worksheetAccessor,
                        SheetDirectAccessor viewsheetAccessor)
    {
-      this(clock, worksheetAccessor, viewsheetAccessor, null);
+      this(clock, worksheetAccessor, viewsheetAccessor, null, () -> null);
+   }
+
+   /** Test constructor: as above with a fixed cluster node id (null for none). */
+   SheetPairingService(LongSupplier clock, SheetDirectAccessor worksheetAccessor,
+                       SheetDirectAccessor viewsheetAccessor, Supplier<String> nodeId)
+   {
+      this(clock, worksheetAccessor, viewsheetAccessor, null, nodeId);
    }
 
    private SheetPairingService(LongSupplier clock, SheetDirectAccessor worksheetAccessor,
                                SheetDirectAccessor viewsheetAccessor,
-                               WorksheetService worksheetEngine)
+                               WorksheetService worksheetEngine, Supplier<String> nodeId)
    {
       this.clock = clock;
+      this.nodeId = nodeId;
       this.grants = new ConcurrentHashMap<>();
       this.worksheetAccessor = worksheetAccessor;
       this.viewsheetAccessor = viewsheetAccessor;
@@ -196,8 +233,34 @@ public class SheetPairingService {
       String code = newCode();
       grants.put(code, new PairingGrant(code, runtimeId, ownerIdentity, socketSessionId,
                                         socketUserName, clock.getAsLong(), TTL_MILLIS, sheetType,
-                                        editorContext));
+                                        editorContext, deriveRuntimeKind(sheetType, runtimeId),
+                                        localNode()));
       return code;
+   }
+
+   /**
+    * What the runtime is, read once here on the node that holds the browser's socket, so the join
+    * (and so the viewer gate) does not depend on a lookup that is null for a runtime hosted
+    * elsewhere. A worksheet is never a viewer; a viewsheet is a viewer iff its runtime says so; a
+    * viewsheet runtime that cannot be resolved records nothing ({@code null}), and the join then
+    * refuses rather than guess.
+    */
+   private PairingGrant.RuntimeKind deriveRuntimeKind(SheetType sheetType, String runtimeId) {
+      if(sheetType == SheetType.WORKSHEET) {
+         return PairingGrant.RuntimeKind.DESIGN;
+      }
+
+      if(sheetType != SheetType.VIEWSHEET) {
+         return null;
+      }
+
+      RuntimeSheet rs = viewsheetAccessor.getSheetDirect(runtimeId);
+
+      if(!(rs instanceof RuntimeViewsheet rvs)) {
+         return null;
+      }
+
+      return rvs.isViewer() ? PairingGrant.RuntimeKind.VIEWER : PairingGrant.RuntimeKind.DESIGN;
    }
 
    /**

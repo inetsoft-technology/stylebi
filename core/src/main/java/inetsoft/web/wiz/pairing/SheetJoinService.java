@@ -70,12 +70,15 @@ public class SheetJoinService {
       this(pairing, sessions, feature, runtimeAccess, broadcast, registryCheck(userRegistry));
    }
 
-   /** Back-compat constructor: no STOMP registry, so a viewer join never checks its socket. */
-   public SheetJoinService(SheetPairingService pairing,
-                           SheetSessionService sessions,
-                           SheetAgentFeature feature,
-                           SheetRuntimeAccess runtimeAccess,
-                           SheetAgentBroadcastService broadcast) {
+   /**
+    * No STOMP registry, so a viewer join never checks its socket. Package-private on purpose:
+    * production wiring must use the injected constructor above.
+    */
+   SheetJoinService(SheetPairingService pairing,
+                    SheetSessionService sessions,
+                    SheetAgentFeature feature,
+                    SheetRuntimeAccess runtimeAccess,
+                    SheetAgentBroadcastService broadcast) {
       this(pairing, sessions, feature, runtimeAccess, broadcast, (Predicate<String>) null);
    }
 
@@ -225,7 +228,28 @@ public class SheetJoinService {
       // one this node cannot resolve, stays PAIRED -- and ViewerModeInterceptor re-derives the
       // mode from the live runtime on every call, so an unresolved runtime is still gated once it
       // resolves as a viewer.
-      JoinSession.ConnectionMode mode = ViewerModePolicy.isViewerRuntime(runtimeSheet)
+      //
+      // The grant's runtimeKind (derived at mint, on the node that holds the page's socket) also
+      // counts: either source saying viewer makes a VIEWER session. A runtime hosted on another
+      // cluster node resolves to null here, so the local lookup alone must never decide PAIRED: a
+      // viewsheet that cannot be resolved here is only PAIRED when the mint recorded design,
+      // otherwise the join is refused rather than guessed.
+      boolean viewer = grant.runtimeKind() == PairingGrant.RuntimeKind.VIEWER ||
+         ViewerModePolicy.isViewerRuntime(runtimeSheet);
+
+      if(!viewer && grant.sheetType() == SheetType.VIEWSHEET && runtimeSheet == null &&
+         grant.runtimeKind() != PairingGrant.RuntimeKind.DESIGN)
+      {
+         LOG.warn("Sheet agent pairing join rejected: viewsheet runtime cannot be resolved and " +
+                  "its mode was not recorded at mint (runtimeId={}, agent={})",
+                  grant.runtimeId(), PairingUtil.label(agentUser));
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+            "The dashboard could not be found on this server, so Claude cannot tell whether it " +
+            "is open for viewing or editing and did not pair. Ask the user to click Connect to " +
+            "Claude again once the page has finished loading.");
+      }
+
+      JoinSession.ConnectionMode mode = viewer
          ? JoinSession.ConnectionMode.VIEWER : JoinSession.ConnectionMode.PAIRED;
 
       // A viewer session lives only as long as the page it was minted from, and
@@ -234,8 +258,10 @@ public class SheetJoinService {
       // whose keep-alive holds the orphaned runtime open (C7). Refuse it with the same text an
       // already-reaped viewer session gets. Design (PAIRED) sessions are not subject to this: they
       // deliberately survive a socket drop. The code is spent; the user clicks Connect again.
+      // The STOMP registry is node-local, so the check runs only on the node that minted the grant
+      // (known cluster limit, C7: off that node a closed page is not detected at join).
       if(mode == JoinSession.ConnectionMode.VIEWER && grant.socketSessionId() != null &&
-         !socketConnected.test(grant.socketSessionId()))
+         pairing.isMintNode(grant) && !socketConnected.test(grant.socketSessionId()))
       {
          LOG.warn("Sheet agent pairing join rejected: viewer page socket is gone " +
                   "(runtimeId={}, agent={})", grant.runtimeId(), PairingUtil.label(agentUser));

@@ -94,11 +94,13 @@ class SheetJoinServiceViewerModeTest {
                    svc.join(mintWholeSheet(ALICE_KEY), ALICE).session().connectionMode());
    }
 
-   /** The live per-call check still gates a runtime this node could not resolve at join. */
+   /** A viewsheet nobody could resolve at mint or at join is refused, never guessed PAIRED. */
    @Test
-   void anUnresolvableRuntimeIsStampedPairedAndNotRefused() throws Exception {
-      assertEquals(JoinSession.ConnectionMode.PAIRED,
-                   svc.join(mintWholeSheet(ALICE_KEY), ALICE).session().connectionMode());
+   void anUnresolvableViewsheetWithNoRecordedModeIsRefused() throws Exception {
+      String code = mintWholeSheet(ALICE_KEY);
+
+      assertEquals(PairingException.Kind.SESSION_EXPIRED,
+         assertThrows(PairingException.class, () -> svc.join(code, ALICE)).getKind());
    }
 
    @Test
