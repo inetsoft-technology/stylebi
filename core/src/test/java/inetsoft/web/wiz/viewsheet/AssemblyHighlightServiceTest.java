@@ -1779,4 +1779,79 @@ class AssemblyHighlightServiceTest {
    private static Principal principal() {
       return () -> "admin";
    }
+
+   // ── font-only highlight (Bug #82159) ──────────────────────────────────────
+
+   private static AssemblyHighlightService.Highlight fontOnly(String name, String family) {
+      inetsoft.web.adhoc.model.FontInfo font = new inetsoft.web.adhoc.model.FontInfo();
+      font.setFontFamily(family);
+      return new AssemblyHighlightService.Highlight(
+         name, null, null, font,
+         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false, false, 0)),
+         false);
+   }
+
+   @Test
+   void acceptsAFontOnlyHighlightOnATable() throws Exception {
+      Harness h = harness(model());
+
+      h.service.set("tok", principal(), "Table1", null, fontOnly("Bold", "Arial"), false, "");
+
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
+
+   @Test
+   void acceptsAFontOnlyHighlightOnAText() throws Exception {
+      Harness h = harness(model());
+      TextVSAssembly text = mock(TextVSAssembly.class);
+      when(text.getVSAssemblyInfo()).thenReturn(mock(TextVSAssemblyInfo.class));
+      when(h.rvs.getViewsheet().getAssembly("Text1")).thenReturn(text);
+
+      h.service.set("tok", principal(), "Text1", null, fontOnly("Bold", "Arial"), false, "");
+
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
+
+   @Test
+   void refusesAFontOnlyHighlightWithoutAFontFamily() {
+      Harness h = harness(model());
+
+      for(String family : new String[]{ null, "", "  " }) {
+         Exception thrown = assertThrows(
+            Exception.class,
+            () -> h.service.set("tok", principal(), "Table1", null, fontOnly("Bold", family),
+                                false, ""));
+         assertTrue(thrown.getMessage().contains("colour"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void refusesAFontOnlyHighlightOnAnImage() {
+      Harness h = harness(model());
+      ImageVSAssembly image = mock(ImageVSAssembly.class);
+      when(image.getVSAssemblyInfo()).thenReturn(mock(ImageVSAssemblyInfo.class));
+      when(h.rvs.getViewsheet().getAssembly("Image1")).thenReturn(image);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Image1", null, fontOnly("Bold", "Arial"),
+                             false, ""));
+
+      assertTrue(thrown.getMessage().contains("foreground"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesAFontOnlyHighlightOnAChartMarkButAcceptsItOnTheLabelRegions() throws Exception {
+      Harness h = chartHarness();
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Chart1", null, fontOnly("Bold", "Arial"), false,
+                             ""));
+      assertTrue(thrown.getMessage().contains("mark"), thrown.getMessage());
+
+      h.service.set("tok", principal(), "Chart1", axis("Region"), fontOnly("Bold", "Arial"),
+                    false, "");
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
 }

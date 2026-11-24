@@ -215,9 +215,11 @@ public class AssemblyHighlightService {
       RuntimeViewsheet current = sessions.resolve(sessionToken, user);
       requireAssemblyExists(current, assemblyName);
       requireHighlightRenderable(current, assemblyName);
+      requireHighlightEffect(current, assemblyName, region, highlight);
 
       List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireHighlightRenderable(rvs, assemblyName);
+         requireHighlightEffect(rvs, assemblyName, region, highlight);
          requireChartRegionDrawn(rvs, assemblyName, region);
          HighlightDialogModel model = read(rvs, assemblyName, region, user);
 
@@ -738,12 +740,52 @@ public class AssemblyHighlightService {
             "A highlight needs a 'name' — it is how the highlight is addressed for updates and " +
             "deletion.");
       }
+   }
 
-      if(highlight.foreground() == null && highlight.background() == null) {
+   /**
+    * Refuses a highlight that would be stored and render nothing on this target, which reads as a
+    * condition that never matched. What renders depends on the assembly: a Table, Crosstab,
+    * CalcTable or Text paints a colour or a font; an Image only tints with the foreground; on a
+    * Chart the axis and data-label text regions paint a colour or a font, while a mark is a
+    * colour frame and has nowhere to put a font.
+    */
+   private static void requireHighlightEffect(RuntimeViewsheet rvs, String assemblyName,
+                                              Region region, Highlight highlight)
+   {
+      boolean colour = highlight.foreground() != null || highlight.background() != null;
+      boolean font = highlight.font() != null && highlight.font().getFontFamily() != null &&
+         !highlight.font().getFontFamily().isBlank();
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(colour) {
+         return;
+      }
+
+      if(assembly instanceof ImageVSAssembly) {
          throw new IllegalArgumentException(
-            "Highlight '" + highlight.name() + "' sets no colour. A highlight with no " +
-            "foreground and no background is stored and renders nothing, which reads as a " +
-            "condition that never matched.");
+            "Highlight '" + highlight.name() + "' sets no foreground. An Image highlight only " +
+            "tints the image with its foreground; a font or a background paints nothing on it.");
+      }
+
+      if(assembly instanceof ChartVSAssembly) {
+         if(font && region != null && (region.axis() || region.text())) {
+            return;
+         }
+
+         throw new IllegalArgumentException(
+            "Highlight '" + highlight.name() + "' sets no colour" + (font
+               ? ", and a font alone does not render on a chart mark. Set a foreground, or " +
+                 "pass text:true or axis:true with a colName to highlight the label font."
+               : ". A highlight with no foreground, no background and no font is stored and " +
+                 "renders nothing, which reads as a condition that never matched."));
+      }
+
+      if(!font) {
+         throw new IllegalArgumentException(
+            "Highlight '" + highlight.name() + "' sets no colour and no font. A highlight with " +
+            "no foreground, no background and no font family is stored and renders nothing, " +
+            "which reads as a condition that never matched.");
       }
    }
 
