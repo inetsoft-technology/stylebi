@@ -1047,6 +1047,27 @@ class WizDataModelBridgeTest {
    }
 
    @Test
+   void aStorageFailureIsARetryableFailureWithPlainText() throws Exception {
+      Failure typed = ok(WizDataModelErrors.run(() -> {
+         throw new inetsoft.uql.service.DataSourceStorageException("not saved; retry the call");
+      }), Failure.class);
+      assertEquals(STORAGE_UNAVAILABLE, typed.reason());
+      assertEquals("not saved; retry the call", typed.message());
+
+      for(Exception cause : new Exception[] {
+         new java.io.IOException("Failed to create directory jdbc:mysql://u:Sup3rSecret@h/x"),
+         new java.util.concurrent.TimeoutException("Sup3rSecret") })
+      {
+         Failure wrapped = ok(WizDataModelErrors.run(() -> {
+            throw new RuntimeException("save failed", cause);
+         }), Failure.class);
+         assertEquals(STORAGE_UNAVAILABLE, wrapped.reason());
+         assertFalse(wrapped.message().contains("Sup3rSecret"), wrapped.message());
+         assertTrue(wrapped.message().contains("retry"), wrapped.message());
+      }
+   }
+
+   @Test
    void moveThatMovesNothingWritesNothing() throws Exception {
       addFolder("F");
       addLogical("lm", "pv", "F");

@@ -573,6 +573,21 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * @param isImport
     */
    public void addPartition(XPartition partition, boolean isImport) {
+      addPartition(partition, isImport, false);
+   }
+
+   /**
+    * Add a partition to this model and throw if the partition could not be stored.
+    *
+    * @param partition the partition to add.
+    *
+    * @throws inetsoft.uql.service.DataSourceStorageException if the storage failed.
+    */
+   public void addPartitionOrThrow(XPartition partition) {
+      addPartition(partition, false, true);
+   }
+
+   private void addPartition(XPartition partition, boolean isImport, boolean failOnStorage) {
       // Bug #77918: as addLogicalModel
       if(XUtil.isDirectScriptCall(XDataModel.class)) {
          throw new java.lang.SecurityException("A script may not add a partition");
@@ -595,7 +610,13 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
          partition.setLastModified(System.currentTimeMillis());
       }
 
-      getRegistry().setObject(entry, partition);
+      if(failOnStorage) {
+         getRegistry().setObjectOrThrow(entry, partition, true);
+      }
+      else {
+         getRegistry().setObject(entry, partition);
+      }
+
       partition.updateReference();
    }
 

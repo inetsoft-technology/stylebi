@@ -3146,6 +3146,26 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void setObject(AssetEntry entry, XMLSerializable obj, boolean fireEvent) {
       try {
+         setObjectOrThrow(entry, obj, fireEvent);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to set object: " + entry.getPath(), e);
+      }
+   }
+
+   /**
+    * Stores an object like {@link #setObject(AssetEntry, XMLSerializable, boolean)}, but a
+    * failure of the storage is thrown instead of logged, for a caller that must not go on as
+    * if the object was saved. A failed save leaves no changed root in the cache.
+    *
+    * @param entry AssetEntry that describes the object
+    * @param obj   the Object to be stored
+    * @param fireEvent whether to fire an event after storing the object
+    *
+    * @throws DataSourceStorageException if the object could not be stored
+    */
+   public void setObjectOrThrow(AssetEntry entry, XMLSerializable obj, boolean fireEvent) {
+      try {
          // Bug #81435, the root is read, changed and written back under the cluster lock
          Lock lock = lockRoot();
 
@@ -3187,7 +3207,12 @@ public class DataSourceRegistry implements MessageListener {
          }
       }
       catch(Exception e) {
-         LOG.error("Failed to set object: " + entry.getPath(), e);
+         // the cached root is shared and was changed before it was written, a later successful
+         // save would store the entry of an object that was never written
+         evictCachedRoot(entry.getOrgID());
+         throw new DataSourceStorageException(
+            "The object " + entry.getPath() + " was not saved because the storage failed or " +
+            "did not respond in time; retry the same call", e);
       }
       finally {
          indexedStorage.close();
@@ -4279,6 +4304,14 @@ public class DataSourceRegistry implements MessageListener {
     * first is only moved by an asynchronous event from the other node, so it is not used here.
     * A cached root that a failed save left changed is kept, as before.
     */
+   private void evictCachedRoot(String orgId) {
+      AssetEntry plain = getRootEntry();
+      AssetEntry withOrg = getRootEntry();
+      withOrg.setOrgID(orgId);
+      cachemap.remove(plain);
+      cachemap.remove(withOrg);
+   }
+
    private void dropCachedRootIfStale() {
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       AssetEntry plain = getRootEntry();

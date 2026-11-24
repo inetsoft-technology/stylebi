@@ -29,6 +29,7 @@ import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.XMetaDataNode;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.service.DataSourceStorageException;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.rgraph.TableNode;
@@ -259,7 +260,7 @@ public class PhysicalModelManagerService {
       graphService.unfoldColumnHeight(rPartition, null);
 
       if(!isExtended) {
-         dataModel.addPartition(partition);
+         dataModel.addPartitionOrThrow(partition);
       }
       else {
          XPartition parentModel = dataModel.getPartition(parent);
@@ -288,7 +289,15 @@ public class PhysicalModelManagerService {
                                  path, null);
       }
 
-      entry = dataSourceService.getModelAssetEntry(entry);
+      AssetEntry saved = dataSourceService.getModelAssetEntry(entry);
+
+      if(saved == null) {
+         throw new DataSourceStorageException(
+            "The physical view " + path + " was not saved because the storage did not " +
+            "respond in time; nothing was saved; retry the same call");
+      }
+
+      entry = saved;
       entry.setCreatedUsername(principal == null ? null : pId.name);
       dataSourceService.updateDataSourceAssetEntry(entry);
       dependencyHandler.updatePhysicalDependencies(entry, dataModel.getDataSource());
