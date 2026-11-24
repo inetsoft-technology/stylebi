@@ -49,7 +49,7 @@ class AdminClusterControllerTest {
    private AdminClusterController controller;
 
    @BeforeEach void setUp() {
-      controller = new AdminClusterController(planService, applyService, client);
+      controller = new AdminClusterController(planService, applyService, () -> client);
    }
 
    @Test void handleTaskTokenMismatchReturnsConflictStatusWithCurrentPlan() {

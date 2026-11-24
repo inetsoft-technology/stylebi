@@ -62,8 +62,8 @@ class ClusterChangesetApplyServiceTest {
    private MockedStatic<Tool> tool;
 
    @BeforeEach void setUp() {
-      planService = new ClusterChangePlanService(clusterService, client);
-      service = new ClusterChangesetApplyService(planService, clusterService, client);
+      planService = new ClusterChangePlanService(clusterService, () -> client);
+      service = new ClusterChangesetApplyService(planService, clusterService, () -> client);
       lenient().when(clusterService.getClusterEnabled())
          .thenReturn(ClusterEnabledModel.builder().enabled(true).pauseEnabled(true).build());
       lenient().when(client.getConfiguredServers()).thenReturn(Set.of("s1", "s2"));

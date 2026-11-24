@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.cluster;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -31,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.function.Supplier;
 
 /**
  * Resolves a requested list of cluster pause/resume changes into a {@link ResolvedPlan} and hashes
@@ -45,21 +47,17 @@ import java.util.*;
  * {@code AdminRiskClassifier}'s two axes" (03-reconcile.md's precision line) means reusing the two
  * label values it would have produced, not invoking it.
  *
- * <p><b>Required disclosure, at the same prominence as every other risk fact this area carries
- * (03-reconcile.md, not optional): a paused node's pause state does NOT survive that node leaving and
- * rejoining the cluster.</b> {@code ServerClusterClient}'s {@code memberRemoved} listener
- * unconditionally clears a node's paused flag the instant it drops cluster membership -- a crash, a
- * planned restart (the very action "pause for maintenance" exists to precede), or a transient network
- * partition all trigger it, with no error, no log line above {@code DEBUG}, and no signal to any
- * caller, including this area's own tools, that the operator's last explicit action silently stopped
- * being true. A successful {@code apply_cluster_changes} pause result is a point-in-time
- * confirmation, not a standing guarantee -- re-issue pause after any such event if the intent was to
- * keep the node out of rotation. No mechanism-level fix is in scope for this cut (closing it would
- * need a persisted "operator intent" store that does not exist today, predating admin-chat entirely);
- * this class and {@link ClusterChangesetApplyService} disclose it, they do not attempt to work around
- * it. The plugin (TypeScript) tool descriptions for {@code preview_cluster_changes}/
- * {@code apply_cluster_changes} must state this plainly too (03-reconcile.md item 2) -- carried here
- * as the authoritative Java-side statement of the fact for that layer to restate, not duplicate.
+ * <p><b>Required disclosure (03-reconcile.md, not optional): a pause is not persisted.</b> The paused
+ * flag is an entry in the cluster's shared in-memory status map, keyed by the node's host address --
+ * not on disk or in a database. While at least one node keeps holding that map, a paused node that
+ * restarts or rejoins at the same address comes back still paused. The flag is lost when no node
+ * holds the map (every node down at once, or the only node restarting), and a node that comes back
+ * at a different address starts Running. Nothing clears the flag when a node crashes, and the clean-
+ * leave reset in {@code ServerClusterClient.memberRemoved} was not observed to take effect (bug
+ * #82188). A successful {@code apply_cluster_changes} pause result is a point-in-time confirmation,
+ * not a standing guarantee -- re-read the node after any restart, rejoin or failover. The plugin
+ * (TypeScript) tool descriptions for {@code preview_cluster_changes}/{@code apply_cluster_changes}
+ * restate this.
  *
  * <p>Wraps {@link ClusterService}/{@link ServerClusterClient} directly -- there is no Public API
  * (*ApiService) layer for cluster (01-spec.md section 0), and both live entirely in
@@ -67,10 +65,17 @@ import java.util.*;
  */
 @Component
 public class ClusterChangePlanService {
+   /** Takes the {@link Cluster}, not the shared {@code ServerClusterClient} bean, so that every
+    * resolve reads the live node list and node statuses through a new client (bugs #82187, #82189);
+    * see {@code AdminClusterController}. */
    @Autowired
-   public ClusterChangePlanService(ClusterService clusterService, ServerClusterClient client) {
+   public ClusterChangePlanService(ClusterService clusterService, Cluster cluster) {
+      this(clusterService, () -> new ServerClusterClient(false, cluster));
+   }
+
+   ClusterChangePlanService(ClusterService clusterService, Supplier<ServerClusterClient> clients) {
       this.clusterService = clusterService;
-      this.client = client;
+      this.clients = clients;
    }
 
    /**
@@ -94,6 +99,7 @@ public class ClusterChangePlanService {
          throw new IllegalArgumentException("changes: at least one change is required");
       }
 
+      ServerClusterClient client = clients.get();
       Set<String> configured = client.getConfiguredServers();
       List<PlanChange> changes = new ArrayList<>();
       Map<String, String> seenServerVerb = new LinkedHashMap<>();
@@ -110,7 +116,7 @@ public class ClusterChangePlanService {
          String server = requireNonBlank(label + ".server", change.getServer());
          requireNoConflict(label, server, verb, seenServerVerb);
          requireConfigured(label, server, configured);
-         changes.add(resolveOne(server, verb));
+         changes.add(resolveOne(client, server, verb));
       }
 
       // 01-spec.md section 5 step 5: checked once per plan, after every entry resolves, not per
@@ -124,7 +130,7 @@ public class ClusterChangePlanService {
                               planHash, TaskAuditToken.issue(planHash, task));
    }
 
-   private PlanChange resolveOne(String server, String verb) {
+   private static PlanChange resolveOne(ServerClusterClient client, String server, String verb) {
       ServerClusterStatus status = client.getStatus(server);
       String currentLabel = ClusterStatusLabel.displayStatus(status);
       boolean paused = status.isPaused();
@@ -197,7 +203,9 @@ public class ClusterChangePlanService {
    private static void requireConfigured(String label, String server, Set<String> configured) {
       if(!configured.contains(server)) {
          throw new IllegalArgumentException(
-            label + ".server: \"" + server + "\" is not a configured server in this cluster");
+            label + ".server: \"" + server + "\" is not in this cluster's live node list -- a node " +
+            "that is stopped or has left the cluster is not listed (list_cluster_nodes shows the " +
+            "current nodes)");
       }
    }
 
@@ -278,5 +286,5 @@ public class ClusterChangePlanService {
     * the way providers needed). */
    private static final String NOT_ORG_SCOPED = null;
    private final ClusterService clusterService;
-   private final ServerClusterClient client;
+   private final Supplier<ServerClusterClient> clients;
 }

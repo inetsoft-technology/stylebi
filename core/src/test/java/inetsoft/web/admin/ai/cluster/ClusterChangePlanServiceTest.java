@@ -54,7 +54,7 @@ class ClusterChangePlanServiceTest {
    private MockedStatic<Tool> tool;
 
    @BeforeEach void setUp() {
-      service = new ClusterChangePlanService(clusterService, client);
+      service = new ClusterChangePlanService(clusterService, () -> client);
       lenient().when(clusterService.getClusterEnabled())
          .thenReturn(ClusterEnabledModel.builder().enabled(true).pauseEnabled(true).build());
       tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)

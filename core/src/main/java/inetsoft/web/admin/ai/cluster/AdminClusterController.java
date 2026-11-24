@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.cluster;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -32,6 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.function.Supplier;
 
 /**
  * REST controller for the cluster admin-plugin area (01-spec.md section 10). Placed in
@@ -51,13 +53,24 @@ import java.util.*;
  */
 @RestController
 public class AdminClusterController {
+   /** Reads the node list through a new {@code ServerClusterClient} per request, as EM's
+    * {@code ClusterService} does: the shared {@code ServerClusterClient} bean keeps the node list it
+    * saw at startup and caches node addresses, so it never lists a node that joined later and keeps
+    * reporting a departed node from its last status-map entry (bugs #82187, #82189). */
    @Autowired
    public AdminClusterController(ClusterChangePlanService planService,
-                                 ClusterChangesetApplyService applyService, ServerClusterClient client)
+                                 ClusterChangesetApplyService applyService, Cluster cluster)
+   {
+      this(planService, applyService, () -> new ServerClusterClient(false, cluster));
+   }
+
+   AdminClusterController(ClusterChangePlanService planService,
+                          ClusterChangesetApplyService applyService,
+                          Supplier<ServerClusterClient> clients)
    {
       this.planService = planService;
       this.applyService = applyService;
-      this.client = client;
+      this.clients = clients;
    }
 
    /** Neither read tool requires {@code cluster.pause.enabled} (01-spec.md item 10) -- matching the
@@ -69,10 +82,11 @@ public class AdminClusterController {
    @GetMapping("/api/wiz/v1/admin/cluster/nodes")
    public List<ClusterNodeStatus> listClusterNodes(Principal user) {
       requireSiteAdmin(user);
+      ServerClusterClient client = clients.get();
       List<ClusterNodeStatus> nodes = new ArrayList<>();
 
       for(String server : client.getConfiguredServers()) {
-         nodes.add(projection(server));
+         nodes.add(projection(client, server));
       }
 
       return nodes;
@@ -90,8 +104,9 @@ public class AdminClusterController {
    @GetMapping("/api/wiz/v1/admin/cluster/nodes/{server}")
    public ClusterNodeStatus getClusterNode(@PathVariable("server") String server, Principal user) {
       requireSiteAdmin(user);
+      ServerClusterClient client = clients.get();
       requireExists(server, client.getConfiguredServers());
-      return projection(server);
+      return projection(client, server);
    }
 
    /**
@@ -126,7 +141,7 @@ public class AdminClusterController {
       return applyService.apply(req, user);
    }
 
-   private ClusterNodeStatus projection(String server) {
+   private static ClusterNodeStatus projection(ServerClusterClient client, String server) {
       ServerClusterStatus status = client.getStatus(server);
       return new ClusterNodeStatus(server, ClusterStatusLabel.displayStatus(status),
                                    ClusterStatusLabel.reachable(status));
@@ -144,7 +159,8 @@ public class AdminClusterController {
    private static void requireExists(String server, Set<String> configured) {
       if(!configured.contains(server)) {
          throw new ResponseStatusException(HttpStatus.NOT_FOUND,
-            "not found: no server named \"" + server + "\" in this cluster");
+            "not found: no server named \"" + server + "\" in this cluster's live node list -- a " +
+            "node that is stopped or has left the cluster is not listed");
       }
    }
 
@@ -177,5 +193,5 @@ public class AdminClusterController {
 
    private final ClusterChangePlanService planService;
    private final ClusterChangesetApplyService applyService;
-   private final ServerClusterClient client;
+   private final Supplier<ServerClusterClient> clients;
 }
