@@ -23,6 +23,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
@@ -131,6 +132,20 @@ class DataBarColorTest {
    void aSelectionBornModernStartsWithTheSoftenedNegativeBar() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       assertEquals(barValue(new Color(0xD2A881)), negativeBar(newSelection(), 0));
+   }
+
+   @Test
+   void theSeededBarResolvesToAnOpaqueColour() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SelectionListVSAssemblyInfo info = newSelection();
+      VSCompositeFormat bar =
+         info.getFormatInfo().getFormat(SelectionBaseVSAssemblyInfo.getMeasureBarPath(0));
+      VSCompositeFormat negative =
+         info.getFormatInfo().getFormat(SelectionBaseVSAssemblyInfo.getMeasureNBarPath(0));
+
+      assertEquals(new Color(0x75C2FF), bar.getForeground());
+      assertEquals(255, bar.getForeground().getAlpha());
+      assertEquals(new Color(0xD2A881), negative.getForeground());
    }
 
    private static String barValue(Color color) {
