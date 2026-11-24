@@ -256,10 +256,11 @@ public class MvChangesetApplyService {
       mutationEntered.set(true);
       mvGateway.setDataCycle(List.of(fc.mvName), analysisResult, fc.source.getCycle(), orgId);
 
+      // Bug #82222: findFirst() before map(): a cleared cycle is a null element, which
+      // Stream.findFirst() rejects with a NullPointerException.
       String after = analysisResult.getStatus().stream()
          .filter(s -> s.getDefinition().getName().equals(fc.mvName))
-         .map(s -> s.getDefinition().getCycle())
-         .findFirst().orElse(null);
+         .findFirst().map(s -> s.getDefinition().getCycle()).orElse(null);
       boolean verified = Objects.equals(normalizeCycle(after), normalizeCycle(fc.source.getCycle()));
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ApplyOutcome(fc.mvName, before, after, status,
@@ -324,10 +325,10 @@ public class MvChangesetApplyService {
                MVSupportService.AnalysisResult analysisResult =
                   mvGateway.getAnalysisResult(undo.analysisId, user);
                mvGateway.setDataCycle(List.of(undo.mvName), analysisResult, undo.oldCycle, undo.orgId);
+               // Bug #82222: findFirst() before map(), a null old cycle must not NPE here either.
                String after = analysisResult.getStatus().stream()
                   .filter(s -> s.getDefinition().getName().equals(undo.mvName))
-                  .map(s -> s.getDefinition().getCycle())
-                  .findFirst().orElse(null);
+                  .findFirst().map(s -> s.getDefinition().getCycle()).orElse(null);
                boolean verified = Objects.equals(normalizeCycle(after), normalizeCycle(undo.oldCycle));
                writeAudit(txId, task, undo.mvName, AdminChangeRecord.ACTION_ROLLBACK, null, null,
                          verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,

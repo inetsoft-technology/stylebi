@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.mv;
 import inetsoft.mv.MVDef;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
+import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.content.repository.MVSupportService;
 import inetsoft.web.admin.model.NameLabelTuple;
@@ -71,6 +72,7 @@ class MvChangePlanServiceTest {
       lenient().when(result.getStatus()).thenReturn(candidates);
       lenient().when(mvGateway.getAnalysisResult(eq("A1"), any())).thenReturn(result);
       availableCycles("MV Cycle");
+      lenient().when(mvGateway.existsInOrg(anyString(), anyString())).thenReturn(true);
    }
 
    @AfterEach
@@ -171,5 +173,29 @@ class MvChangePlanServiceTest {
       String msg = refused(change(MvChangeRequest.VERB_CREATE, "Nope", "NoSuchCycle"))
          .getMessage();
       assertTrue(msg.contains("changes[0].mvNames"), msg);
+   }
+
+   // Bug #82221: set_cycle on a candidate that was never created persists the candidate's
+   // definition (registers the mv) at low risk, so it is refused at resolve time.
+   @Test void setCycleOnNotYetCreatedCandidateIsRefused() {
+      lenient().when(mvGateway.existsInOrg(eq("MV2"), anyString())).thenReturn(false);
+      String msg = refused(change(MvChangeRequest.VERB_SET_CYCLE, "MV2", "MV Cycle")).getMessage();
+      assertTrue(msg.contains("changes[0].mvNames"), msg);
+      assertTrue(msg.contains("\"MV2\""), msg);
+      assertTrue(msg.contains("has not been created yet"), msg);
+   }
+
+   @Test void setCycleOnExistingMvStaysLowRisk() throws Exception {
+      lenient().when(mvGateway.existsInOrg(eq("MV2"), anyString())).thenReturn(false);
+      ResolvedPlan plan = resolve(change(MvChangeRequest.VERB_SET_CYCLE, "MV1", "MV Cycle"));
+      assertEquals(AdminChangeRecord.RISK_LOW, plan.changes().get(0).risk());
+      assertFalse(plan.requiresAgentSignoff());
+   }
+
+   @Test void unknownCycleOnNotYetCreatedCandidateKeepsCycleRefusal() {
+      lenient().when(mvGateway.existsInOrg(eq("MV2"), anyString())).thenReturn(false);
+      String msg = refused(change(MvChangeRequest.VERB_SET_CYCLE, "MV2", "NoSuchCycle"))
+         .getMessage();
+      assertTrue(msg.contains("changes[0].cycle"), msg);
    }
 }

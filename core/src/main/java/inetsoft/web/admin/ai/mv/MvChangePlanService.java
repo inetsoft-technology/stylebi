@@ -64,8 +64,9 @@ public class MvChangePlanService {
     *                                 list, an unrecognized verb, a duplicate mv name across
     *                                 entries, a missing/blank required field, an mvName not present
     *                                 in the named analysisId's candidate list (create/set_cycle),
-    *                                 a non-empty cycle that is not an existing data cycle, or
-    *                                 an mvName that does not currently exist (delete).
+    *                                 a non-empty cycle that is not an existing data cycle, an
+    *                                 mvName that does not currently exist (delete), or an mvName
+    *                                 that has not been created yet (set_cycle).
     * @throws AnalysisExpiredException if a referenced analysisId is unknown or has expired.
     */
    public ResolvedPlan resolve(MvChangePlanRequest req, Principal user) throws Exception {
@@ -138,6 +139,19 @@ public class MvChangePlanService {
    {
       MVSupportService.MVStatus status = requireCandidate(fc, candidatesByAnalysisId, user);
       requireKnownCycle(fc, cycleNames);
+
+      // Bug #82221: MVSupportService.setDataCycle(List, AnalysisResult, ...) persists the
+      // candidate's definition via mvManager.add and fires MV_CHANGE_EVENT, so on a candidate that
+      // does not exist yet it would register the mv (and a DataCycle task) at low risk. Use the
+      // live existence check; MVStatus.isExists() is only as fresh as the analysis.
+      if(!mvGateway.existsInOrg(fc.mvName, orgId)) {
+         throw new IllegalArgumentException(
+            fc.label + ".mvNames: materialized view \"" + fc.mvName + "\" has not been created " +
+            "yet; set_cycle only retargets an existing materialized view (applying it to an " +
+            "analysis candidate would register the view without a create). Use verb=\"create\" " +
+            "with cycle to create it on that cycle.");
+      }
+
       String currentCycle = status.getDefinition().getCycle();
       return new PlanChange(fc.mvName, orgId, currentCycle, fc.source.getCycle(),
                             AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
