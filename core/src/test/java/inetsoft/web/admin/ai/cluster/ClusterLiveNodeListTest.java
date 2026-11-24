@@ -177,6 +177,7 @@ class ClusterLiveNodeListTest {
          assertEquals("failed", outcome.status());
          assertEquals("Stopped", outcome.after());
          assertTrue(outcome.error().contains("not in the cluster"), outcome.error());
+         assertTrue(outcome.error().contains("could not be confirmed"), outcome.error());
       }
    }
 

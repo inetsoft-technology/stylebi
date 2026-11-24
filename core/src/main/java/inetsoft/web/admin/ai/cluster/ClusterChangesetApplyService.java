@@ -189,7 +189,7 @@ public class ClusterChangesetApplyService {
          ClusterStatusLabel.STATUS_STOPPED.equals(afterLabel) ?
             "the server did not answer: read-back status \"" + afterLabel + "\" means it is not in " +
             "the cluster's live node list (stopped or left the cluster) or has not reported a " +
-            "status, so the " + verb + " did not take effect" :
+            "status, so the " + verb + " could not be confirmed" :
             "read-back status \"" + afterLabel + "\" does not match the proposed state \"" +
             change.proposedValue() + "\" after retrying past the status-map write debounce window " +
             "-- the pause/resume message did not complete";
