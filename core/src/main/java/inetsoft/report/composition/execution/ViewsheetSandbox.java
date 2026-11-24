@@ -1849,6 +1849,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // not be reused. could check for dependency to be more precise in the future. (61427)
       for(AssemblyEntry dataEntry : clist.getDataList()) {
          resetDataMap(dataEntry.getName());
+         // a script or text expression run in reset before processSelections() cached the
+         // table it read in the assembly's scriptable, drop it so later reads see the data
+         // filtered by the saved selections (82168)
+         clearScriptableCache(dataEntry.getName());
       }
 
       List<AssemblyEntry> processedList = clist.getProcessedList();
@@ -2390,6 +2394,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                scriptable.clearCache(type);
             }
          }
+      }
+   }
+
+   /**
+    * Clear the script caches of an assembly, the table array and the data array of a table.
+    */
+   private void clearScriptableCache(String name) {
+      VSAScriptable scriptable = getScope().getVSAScriptable(name);
+
+      if(scriptable != null) {
+         scriptable.clearCache(ALL);
+      }
+
+      if(scriptable instanceof TableDataVSAScriptable) {
+         ((TableDataVSAScriptable) scriptable).clearDataArray();
       }
    }
 
