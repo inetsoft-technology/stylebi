@@ -315,9 +315,21 @@ public class ServerClusterClient {
       }
    }
 
+   /**
+    * Gets the metrics of one server. The metrics map is keyed by host only ({@link #setMetrics}
+    * strips the discovery port from the local member name), so a cluster node name in
+    * {@code host:port} form, as {@link SUtil#computeServerClusterNode} returns it, is reduced to
+    * its host the same way before the lookup. Without that, such a caller always read no
+    * metrics (Bug #82186).
+    *
+    * @param type   the metrics type.
+    * @param server the server host or cluster node name; {@code null} or empty for the local
+    *               server.
+    */
    public <T> T getMetrics(StatusMetricsType type, String server) {
       Map<String, T> map = cluster.getMap(CLUSTER_STATUS_MAP + type);
-      return map.get(server == null || server.isEmpty() ? getLocalServer(cluster) : server);
+      return map.get(server == null || server.isEmpty() ?
+                        getLocalServer(cluster) : getLocalServer(server));
    }
 
    public <T> void setMetrics(StatusMetricsType type, T metrics) {
