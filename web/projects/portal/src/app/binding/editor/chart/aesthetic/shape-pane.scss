@@ -1,0 +1,161 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+// Shared chrome of the four Shape pop-ups (Linear, Categorical, Static, Combined) and of the
+// shape slot trigger. Follows the Color pop-up (categorical-color-pane.component.scss).
+.sp-root {
+  box-sizing: border-box;
+  padding: var(--inet-space-4);
+}
+
+.sp-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--inet-control-height-md);
+  height: var(--inet-control-height-md);
+  padding: 0;
+  border: 1px solid var(--inet-shell-border-strong);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-shell-surface-default);
+  color: inherit;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+  }
+
+  &:focus-visible {
+    outline: var(--inet-focus-ring-outline);
+    box-shadow: var(--inet-focus-ring);
+  }
+
+  &:active:not(:disabled) {
+    background-color: var(--inet-shell-selected-bg-color);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.sp-chevron {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+
+  &--prev {
+    margin-left: 3px;
+    transform: rotate(135deg);
+  }
+
+  &--next {
+    margin-right: 3px;
+    transform: rotate(-45deg);
+  }
+}
+
+.sp-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--inet-text-muted-color);
+}
+
+.sp-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--inet-space-4);
+  margin-top: var(--inet-space-5);
+  padding-top: var(--inet-space-5);
+  border-top: 1px solid var(--inet-default-border-color);
+}
+
+// Shape slot trigger rendered by shape-combo-box
+button.sp-btn.dropdown-toggle {
+  gap: 2px;
+  padding: 0;
+  color: var(--inet-text-muted-color);
+
+  &::after {
+    margin: 0;
+    border-width: 4px 3px 0;
+  }
+
+  > shape-item {
+    display: inline-flex;
+  }
+}
+
+// Categorical slot row
+.sp-slots {
+  display: grid;
+  grid-template-columns: 30px repeat(8, 30px) 30px;
+  column-gap: var(--inet-space-2);
+  align-items: start;
+  margin-top: var(--inet-space-5);
+}
+
+.sp-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 46px;
+}
+
+.sp-slot__number {
+  position: absolute;
+  top: 33px;
+  left: 0;
+  right: 0;
+  font-size: 11px;
+  line-height: 13px;
+  text-align: center;
+  color: var(--inet-text-muted-color);
+}
+
+@media (max-width: 395px) {
+  .sp-slots {
+    grid-template-columns: 30px repeat(8, minmax(24px, 1fr)) 30px;
+  }
+
+  .sp-slot ::ng-deep shape-combo-box > div {
+    width: 100%;
+  }
+
+  .sp-slot ::ng-deep button.sp-btn.dropdown-toggle {
+    width: 100%;
+    max-width: 30px;
+
+    &::after {
+      display: none;
+    }
+  }
+}
+
+.sp-aggr-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

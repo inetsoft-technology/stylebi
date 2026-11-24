@@ -16,14 +16,15 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div>
-   <shape-item [fixedDropdown]="dropdownMenu" [autoClose]="false"
-      class="dropdown-toggle"
+   <button type="button" class="sp-btn dropdown-toggle"
+      [fixedDropdown]="dropdownMenu" [autoClose]="false"
       [class.visual-combo-trigger--open]="open"
-      [shapeStr]="shapeStr"
-      [isBiggerImage]="true"
       title="{{titleLabel}}"
+      aria-haspopup="true" [attr.aria-expanded]="open"
+      [attr.aria-label]="index != null ? '_#(Shape) ' + (index + 1) : '_#(Shape)'"
       (openChange)="open = $event">
-   </shape-item>
+      <shape-item [shapeStr]="shapeStr" [isBiggerImage]="true"></shape-item>
+   </button>
    <ng-template #dropdownMenu>
       <div class="dropdown-pane">
          <static-shape-pane [shapeStr]="shapeStr" (shapeChanged)="changeShape($event)">

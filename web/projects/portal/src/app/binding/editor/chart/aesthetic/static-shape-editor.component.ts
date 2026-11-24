@@ -23,7 +23,7 @@ import { StaticShapeModel } from "../../../../common/data/visual-frame-model";
 @Component({
     selector: "static-shape-editor",
     templateUrl: "static-shape-editor.component.html",
-    styleUrls: ["combined-visual-pane.scss"],
+    styleUrls: ["combined-visual-pane.scss", "shape-pane.scss"],
     imports: [ShapeComboBox]
 })
 

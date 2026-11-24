@@ -125,4 +125,93 @@ describe("Categorical Shape Pane Unit Test", () => {
       let items = fixture.nativeElement.querySelectorAll("texture-combo-box[ng-reflect-texture]");
       expect(items.length).toEqual(8);
    });
+
+   describe("pop-up chrome", () => {
+      // i18n keys are not resolved in unit tests
+      const plain = (s: string) => (s || "").replace(/_#\((.*?)\)/g, "$1");
+
+      function create(model: any): void {
+         configureTestEnv();
+         fixture = TestBed.createComponent(CategoricalShapePane);
+         shapePane = <CategoricalShapePane>fixture.componentInstance;
+         shapePane.frameModel = model;
+         fixture.detectChanges();
+      }
+
+      const pager = (i: number) =>
+         fixture.nativeElement.querySelectorAll(".sp-slots > .sp-btn")[i] as HTMLButtonElement;
+
+      it("should disable Previous on the first page and Next on the last page", () => {
+         create(mockCategoricalTextureModel());
+         expect(pager(0).disabled).toBe(true);
+         expect(pager(1).disabled).toBe(false);
+
+         shapePane.showNext();
+         shapePane.showNext();
+         shapePane.showNext();
+         fixture.detectChanges();
+         expect(shapePane.currIndex).toBe(3);
+         expect(pager(0).disabled).toBe(false);
+         expect(pager(1).disabled).toBe(true);
+      });
+
+      it("should disable Next and keep the start index with fewer than eight items", () => {
+         let model = mockCategoricalShapeModel();
+         model.shapes = ["909", "910", "902"];
+         create(model);
+         expect(pager(1).disabled).toBe(true);
+         expect(shapePane.currIndex).toBe(0);
+      });
+
+      it("should number the slots by page and label the shape slots", () => {
+         let model = mockCategoricalShapeModel();
+         model.shapes = model.shapes.concat(["909", "910", "902", "903"]);
+         create(model);
+         const numbers = () => Array.from<HTMLElement>(
+            fixture.nativeElement.querySelectorAll(".sp-slot__number"))
+            .map(e => e.textContent.trim());
+         expect(numbers()).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
+
+         const slots = fixture.nativeElement.querySelectorAll("shape-combo-box button.sp-btn");
+         expect(slots.length).toBe(8);
+         expect(plain(slots[0].getAttribute("aria-label"))).toBe("Shape 1");
+         expect(plain(slots[7].getAttribute("aria-label"))).toBe("Shape 8");
+         expect(slots[0].getAttribute("aria-haspopup")).toBe("true");
+
+         pager(1).click();
+         fixture.detectChanges();
+         expect(numbers()[0]).toBe("2");
+         expect(plain(fixture.nativeElement.querySelector("shape-combo-box button.sp-btn")
+            .getAttribute("aria-label"))).toBe("Shape 2");
+      });
+
+      it("should show the shape hint", () => {
+         create(mockCategoricalShapeModel());
+         expect(plain(fixture.nativeElement.querySelector(".sp-hint").textContent.trim()))
+            .toBe("Shapes are assigned to the values in order.");
+      });
+
+      it("should show the texture hint", () => {
+         create(mockCategoricalTextureModel());
+         expect(plain(fixture.nativeElement.querySelector(".sp-hint").textContent.trim()))
+            .toBe("Textures are assigned to the values in order.");
+      });
+
+      it("should wire the footer: Apply emits once, Reset only resets in memory", () => {
+         let model = mockCategoricalShapeModel();
+         create(model);
+         let applied: any[] = [];
+         shapePane.apply.subscribe(v => applied.push(v));
+         const buttons = fixture.nativeElement.querySelectorAll(".sp-footer button");
+         expect(buttons.length).toBe(2);
+         expect(plain(buttons[1].getAttribute("title"))).toBe("Apply");
+
+         buttons[0].click();
+         expect(applied.length).toBe(0);
+         expect(model.shapes).toEqual(ChartConfig.SHAPE_STYLES.concat(ChartConfig.IMAGE_SHAPES));
+
+         buttons[1].click();
+         expect(applied).toEqual([false]);
+      });
+   });
 });

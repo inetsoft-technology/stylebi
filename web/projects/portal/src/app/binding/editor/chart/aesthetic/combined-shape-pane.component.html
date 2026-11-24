@@ -15,36 +15,33 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<div class="popup-editor__container">
-  <div class="popup-editor__button-group">
-    <button class="popup-editor__button btn" title="_#(Apply)"
-      (click)="apply.emit(false)">
-      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
-    </button>
-  </div>
-  <div class="container">
+<div class="sp-root csp-root">
+  <div class="csp-list">
     @for (i of aggrsNum; track i) {
       @if (isLineType && frameInfos[i].frame) {
         <static-line-editor
-          class="row shell-form-row--field"
+          class="csp-row"
           [aggrName]="frameInfos[i].name" [(line)]="frameInfos[i].frame.line"
           (lineChanged)="changeLine($event, i)">
         </static-line-editor>
       }
       @if (isTextureType && frameInfos[i].frame) {
         <static-texture-editor
-          class="row shell-form-row--field"
+          class="csp-row"
           [aggrName]="frameInfos[i].name" [(texture)]="frameInfos[i].frame.texture"
           (textureChanged)="changeTexture($event, i)">
         </static-texture-editor>
       }
       @if (!isLineType && !isTextureType && frameInfos[i].frame) {
         <static-shape-editor
-          class="row shell-form-row--field"
+          class="csp-row"
           [aggrName]="frameInfos[i].name" [(shapeStr)]="frameInfos[i].frame.shape"
           (shapeChanged)="changeShape($event, i)">
         </static-shape-editor>
       }
     }
+  </div>
+  <div class="sp-footer">
+    <button type="button" class="btn btn-primary" (click)="apply.emit(false)">_#(Done)</button>
   </div>
 </div>

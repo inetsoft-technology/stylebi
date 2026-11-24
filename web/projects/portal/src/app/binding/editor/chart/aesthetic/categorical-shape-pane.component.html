@@ -15,26 +15,30 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<div>
-  <!--toolbar-->
-  <div class="toolbar">
-    <a (click)="reset()">
-      <i class="reset-icon icon-size-small" title="_#(Reset to Default)"></i>
-    </a>
-    <div class="ms-2">
-      <i class="submit-icon icon-size-small" aria-hidden="true" (click)="applyClick()" title="_#(Apply)"></i>
-    </div>
-  </div>
-
+<div class="sp-root">
   @if (isPaneVisible()) {
     @let numItems = getNumItems();
-    <div class="content m-1">
-      <i class="chevron-circle-arrow-left-icon icon-size-small me-2"
-        [class.fade]="currIndex <= 0"
-      aria-hidden="true" (click)="showPrevious()"></i>
-      <!--display eight color editors-->
+    <p class="sp-hint">
+      @switch (type) {
+        @case ("linetype") {
+          _#(Lines are assigned to the values in order.)
+        }
+        @case ("texturetype") {
+          _#(Textures are assigned to the values in order.)
+        }
+        @default {
+          _#(Shapes are assigned to the values in order.)
+        }
+      }
+    </p>
+    <div class="sp-slots">
+      <button type="button" class="sp-btn" title="_#(Previous)" aria-label="_#(Previous)"
+        [disabled]="currIndex <= 0" (click)="showPrevious()">
+        <span class="sp-chevron sp-chevron--prev" aria-hidden="true"></span>
+      </button>
+      <!--display eight editors-->
       @for (i of currentViewIndices; track i) {
-        <span class="shape-pane m-1">
+        <div class="sp-slot">
           @if (type == 'shapetype') {
             <shape-combo-box [index]="i"
               [(shapeStr)]="shapeModel.shapes[i]" (shapeChanged)="changeShape($event, i)">
@@ -51,11 +55,19 @@
               (textureChanged)="changeShape($event, i)">
             </texture-combo-box>
           }
-        </span>
+          <span class="sp-slot__number" aria-hidden="true">{{i + 1}}</span>
+        </div>
       }
-      <i class="chevron-circle-arrow-right-icon icon-size-small ms-2"
-        [class.fade]="currIndex >= numItems - NUM_EDITORS"
-      aria-hidden="true" (click)="showNext()"></i>
+      <button type="button" class="sp-btn" title="_#(Next)" aria-label="_#(Next)"
+        [disabled]="currIndex >= numItems - NUM_EDITORS" (click)="showNext()">
+        <span class="sp-chevron sp-chevron--next" aria-hidden="true"></span>
+      </button>
+    </div>
+    <div class="sp-footer">
+      <button type="button" class="btn btn-secondary" title="_#(Reset to Default)"
+        (click)="reset()">_#(Reset to Default)</button>
+      <button type="button" class="btn btn-primary" title="_#(Apply)"
+        (click)="applyClick()">_#(Apply)</button>
     </div>
   }
 </div>

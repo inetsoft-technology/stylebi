@@ -14,85 +14,58 @@
   ~
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div style="width:270px">
-   <div class="shell-form-row shell-form-row--checkbox">
-      <div class="col-5">
-        <div class="form-check">
-          <input type="radio" class="form-check-input" name="lsgroup" value="{{fillClazz}}"
-               (ngModelChange)="changeFrame($event)" id="fill"
-               [ngModel]="frameModel.clazz"/>
-          <label class="form-check-label" for="fill">
-            _#(Fill)
-          </label>
-        </div>
-      </div>
-      <div class="col-auto">
-        <i class="shape-circle-icon"></i>
-        <i class="shape-filled-25-circle-icon"></i>
-        <i class="shape-filled-50-circle-icon"></i>
-        <i class="shape-filled-75-circle-icon"></i>
-        <i class="shape-filled-circle-icon"></i>
-      </div>
-   </div>
-
-   <div class="shell-form-row shell-form-row--checkbox">
-      <div class="col-5">
-        <div class="form-check">
-          <input type="radio" class="form-check-input" name="lsgroup" value="{{triangleClazz}}"
-               (ngModelChange)="changeFrame($event)" id="triangle"
-               [ngModel]="frameModel.clazz"/>
-          <label class="form-check-label" for="triangle">
-            _#(Triangle)
-          </label>
-        </div>
-      </div>
-      <div class="col-auto">
-        <i class="shape-triangle-icon"></i>
-        <i class="shape-trapezium-icon"></i>
-        <i class="shape-rectangle-icon"></i>
-        <i class="shape-trapezium-icon transform-180"></i>
-        <i class="shape-triangle-icon transform-180"></i>
-      </div>
-   </div>
-
-   <div class="shell-form-row shell-form-row--checkbox">
-     <div class="col-5">
-       <div class="form-check">
-         <input type="radio" class="form-check-input" name="lsgroup" value="{{polygonClazz}}"
-              (ngModelChange)="changeFrame($event)" id="polygon"
-              [ngModel]="frameModel.clazz"/>
-         <label class="form-check-label" for="polygon">
-           _#(Polygon)
-         </label>
-       </div>
-     </div>
-     <div class="col-auto">
-       <i class="shape-triangle-icon"></i>
-       <i class="shape-diamond-icon"></i>
-       <i class="shape-hexagon-icon"></i>
-       <i class="shape-octagon-icon"></i>
-       <i class="shape-dodecagon-icon"></i>
-     </div>
-   </div>
-
-   <div class="shell-form-row shell-form-row--checkbox">
-     <div class="col-5">
-       <div class="form-check">
-         <input type="radio" class="form-check-input" name="lsgroup"
-              (ngModelChange)="changeFrame($event)" id="orientation"
-              value="{{orientationClazz}}" [ngModel]="frameModel.clazz"/>
-         <label class="form-check-label" for="orientation">
-           _#(Orientation)
-         </label>
-       </div>
-     </div>
-     <div class="col-auto">
-       <i class="shape-horizontal-bar-icon"></i>
-       <i class="shape-horizontal-bar-icon transform-22_5"></i>
-       <i class="shape-horizontal-bar-icon transform-45"></i>
-       <i class="shape-horizontal-bar-icon transform-67_5"></i>
-       <i class="shape-horizontal-bar-icon transform-90"></i>
-     </div>
-   </div>
-<div>
+-->
+<div class="sp-root lsp-root">
+   <label class="lsp-row" [class.lsp-row--checked]="frameModel.clazz == fillClazz">
+     <input type="radio" class="form-check-input" name="lsgroup" value="{{fillClazz}}"
+          (ngModelChange)="changeFrame($event)" id="fill"
+          [ngModel]="frameModel.clazz"/>
+     <span class="lsp-label">_#(Fill)</span>
+     <span class="lsp-glyphs">
+       <span class="lsp-cell"><i class="shape-circle-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-filled-25-circle-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-filled-50-circle-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-filled-75-circle-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-filled-circle-icon"></i></span>
+     </span>
+   </label>
+   <label class="lsp-row" [class.lsp-row--checked]="frameModel.clazz == triangleClazz">
+     <input type="radio" class="form-check-input" name="lsgroup" value="{{triangleClazz}}"
+          (ngModelChange)="changeFrame($event)" id="triangle"
+          [ngModel]="frameModel.clazz"/>
+     <span class="lsp-label">_#(Triangle)</span>
+     <span class="lsp-glyphs">
+       <span class="lsp-cell"><i class="shape-triangle-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-trapezium-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-rectangle-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-trapezium-icon transform-180"></i></span>
+       <span class="lsp-cell"><i class="shape-triangle-icon transform-180"></i></span>
+     </span>
+   </label>
+   <label class="lsp-row" [class.lsp-row--checked]="frameModel.clazz == polygonClazz">
+     <input type="radio" class="form-check-input" name="lsgroup" value="{{polygonClazz}}"
+          (ngModelChange)="changeFrame($event)" id="polygon"
+          [ngModel]="frameModel.clazz"/>
+     <span class="lsp-label">_#(Polygon)</span>
+     <span class="lsp-glyphs">
+       <span class="lsp-cell"><i class="shape-triangle-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-diamond-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-hexagon-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-octagon-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-dodecagon-icon"></i></span>
+     </span>
+   </label>
+   <label class="lsp-row" [class.lsp-row--checked]="frameModel.clazz == orientationClazz">
+     <input type="radio" class="form-check-input" name="lsgroup" value="{{orientationClazz}}"
+          (ngModelChange)="changeFrame($event)" id="orientation"
+          [ngModel]="frameModel.clazz"/>
+     <span class="lsp-label">_#(Orientation)</span>
+     <span class="lsp-glyphs">
+       <span class="lsp-cell"><i class="shape-horizontal-bar-icon"></i></span>
+       <span class="lsp-cell"><i class="shape-horizontal-bar-icon transform-22_5"></i></span>
+       <span class="lsp-cell"><i class="shape-horizontal-bar-icon transform-45"></i></span>
+       <span class="lsp-cell"><i class="shape-horizontal-bar-icon transform-67_5"></i></span>
+       <span class="lsp-cell"><i class="shape-horizontal-bar-icon transform-90"></i></span>
+     </span>
+   </label>
+</div>

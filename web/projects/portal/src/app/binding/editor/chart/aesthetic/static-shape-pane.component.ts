@@ -40,7 +40,7 @@ const NUM_SHAPES: number = 16;
 @Component({
     selector: "static-shape-pane",
     templateUrl: "static-shape-pane.component.html",
-    styleUrls: ["static-shape-pane.component.scss"],
+    styleUrls: ["shape-pane.scss", "static-shape-pane.component.scss"],
     imports: [BlockMouseDirective, ShapeItem]
 })
 export class StaticShapePane implements OnInit {
@@ -76,6 +76,25 @@ export class StaticShapePane implements OnInit {
    get currentViewIndices(): number[] {
       return Array.from(new Array(NUM_SHAPES),
          (x, i) => i + NUM_SHAPES * this.currentPage);
+   }
+
+   /** First-last (or just first) number of the shapes on the current page. */
+   get rangeText(): string {
+      const total = this.shapes ? this.shapes.length : 0;
+
+      if(total == 0) {
+         return "";
+      }
+
+      const first = this.currentPage * NUM_SHAPES + 1;
+      const last = Math.min(first + NUM_SHAPES - 1, total);
+      return first >= last ? "" + first : first + "-" + last;
+   }
+
+   isBuiltin(index: number): boolean {
+      const shape = this.shapes[index];
+      return ChartConfig.SHAPE_STYLES.indexOf(shape) >= 0 ||
+         ChartConfig.IMAGE_SHAPES.indexOf(shape) >= 0;
    }
 
    get previousEnabled(): boolean {
