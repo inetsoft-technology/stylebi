@@ -31,12 +31,14 @@ import inetsoft.report.painter.Bar2Presenter;
 import inetsoft.report.painter.BarPresenter;
 import inetsoft.report.painter.BulletGraphPresenter;
 import inetsoft.report.painter.ButtonPresenter;
+import inetsoft.report.painter.ImagePresenter;
 import inetsoft.report.painter.ShadowPresenter;
 import inetsoft.report.painter.TrafficLightPresenter;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Tool;
 import inetsoft.web.adhoc.model.FontInfo;
@@ -289,7 +291,9 @@ public class PresenterPropertyDialogService {
             value = ((StringDescriptorModel) descModel).value();
          }
 
-         ref.setParameter(descModel.name(), value);
+         ref.setParameter(descModel.name(),
+                          valueToSave(model.presenter(), descModel.name(), value,
+                                      assembly != null && isModern(assembly)));
       }
 
       int hint = AbstractVSAssembly.VIEW_CHANGED;
@@ -308,6 +312,28 @@ public class PresenterPropertyDialogService {
       return null;
    }
 
+
+   /**
+    * The value to store for a presenter property the dialog returned. The dialog shows the
+    * effective value, which for an Image presenter's Maintain Aspect Ratio on a modern table is
+    * the default of keeping it. Ticked is that default, so it is not stored as the author's
+    * choice (null removes it): a stored value would no longer follow the default, and would also
+    * hold on a table that is turned back to classic.
+    */
+   static Object valueToSave(String presenter, String property, Object value, boolean modern) {
+      if(modern && Boolean.TRUE.equals(value) && "maintainAspectRatio".equals(property) &&
+         ImagePresenter.class.getName().equals(presenter))
+      {
+         return null;
+      }
+
+      return value;
+   }
+
+   private static boolean isModern(VSAssembly assembly) {
+      VizContext ctx = VizContext.of(assembly.getVSAssemblyInfo());
+      return ctx != null && ctx.modern;
+   }
 
    private PresenterDescriptorModel getDescriptorModel(RuntimeViewsheet rvs,
                                                        PropertyDescriptor desc,

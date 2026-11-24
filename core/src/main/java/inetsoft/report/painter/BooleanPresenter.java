@@ -184,6 +184,7 @@ public class BooleanPresenter implements Presenter {
       Shape clip = g.getClip();
       Graphics2D g2 = (Graphics2D) g;
       Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+      Object strokeControl = g2.getRenderingHint(RenderingHints.KEY_STROKE_CONTROL);
       Stroke stroke = g2.getStroke();
 
       g2.clipRect(x, y, w, h);
@@ -216,6 +217,10 @@ public class BooleanPresenter implements Presenter {
 
       if(aa != null) {
          g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
+      }
+
+      if(strokeControl != null) {
+         g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, strokeControl);
       }
 
       g2.setClip(clip);
