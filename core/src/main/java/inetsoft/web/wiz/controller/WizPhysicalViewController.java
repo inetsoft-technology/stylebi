@@ -24,6 +24,7 @@ import inetsoft.uql.XRepository;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.web.portal.controller.database.*;
 import inetsoft.web.portal.service.database.PhysicalGraphService;
 import inetsoft.web.wiz.controller.WizDataModelErrors.DmFailure;
@@ -153,6 +154,7 @@ public class WizPhysicalViewController {
       }
 
       requireConnection(database, want.connection(), principal);
+      requireFullOuterSupported(database, want.connection(), want.joins(), Set.of());
       Desired desired = withFolder(parsed, folder);
       WizPhysicalViewSession.Outcome outcome = session.create(
          database, dataModel, parent, desired, Boolean.TRUE.equals(request.dryRun()), principal);
@@ -217,6 +219,19 @@ public class WizPhysicalViewController {
                "view " + name + " changed since it was read; read it again and redo the edit; " +
                   "nothing was written");
          }
+      }
+
+      if(parsed.hasJoins()) {
+         Set<String> keep = new HashSet<>();
+
+         for(JoinDef stored : session.read(database, dataModel, parent, name).joins()) {
+            if("FULL_OUTER".equals(stored.type())) {
+               keep.add(stored.key());
+            }
+         }
+
+         requireFullOuterSupported(database, parsed.hasConnection() ? want.connection() :
+                                      view.getConnection(), want.joins(), keep);
       }
 
       boolean dryRun = Boolean.TRUE.equals(request.dryRun());
@@ -361,6 +376,50 @@ public class WizPhysicalViewController {
          throw new DmFailure(
             WizDataModelWire.FOLDER_NOT_FOUND, "definition.folder",
             "no data-model folder \"" + folder + "\"; create it with manage_data_model_folder");
+      }
+   }
+
+   /**
+    * A FULL_OUTER join is refused on a database whose SQL helper does not support it, as the
+    * Portal's Edit Join dialog does not offer the type there. A join already stored as FULL_OUTER
+    * ({@code keep}, by join key) is left alone so an unrelated edit is not blocked.
+    */
+   private void requireFullOuterSupported(String database, String connection,
+                                          List<JoinDef> joins, Set<String> keep)
+      throws Exception
+   {
+      if(joins == null || joins.stream().noneMatch(j -> "FULL_OUTER".equals(j.type()))) {
+         return;
+      }
+
+      XDataSource dataSource = dataSourceService.getDataSource(database);
+      JDBCDataSource jdbc = dataSource instanceof JDBCDataSource ? (JDBCDataSource) dataSource :
+         null;
+
+      if(jdbc != null && connection != null && !connection.isEmpty() &&
+         jdbc.getDataSource(connection) != null)
+      {
+         jdbc = jdbc.getDataSource(connection);
+      }
+
+      checkFullOuter(database, joins, keep, jdbc == null || JDBCUtil.supportFullOuterJoin(jdbc, true));
+   }
+
+   static void checkFullOuter(String database, List<JoinDef> joins, Set<String> keep,
+                              boolean supported)
+   {
+      if(supported || joins == null) {
+         return;
+      }
+
+      for(int i = 0; i < joins.size(); i++) {
+         JoinDef join = joins.get(i);
+
+         if("FULL_OUTER".equals(join.type()) && !keep.contains(join.key())) {
+            throw invalid("definition.joins[" + join.label() + "].type", "JOIN_TYPE_UNSUPPORTED",
+                          "join type FULL_OUTER is not supported by the database of " + database +
+                             "; use EQUAL, LEFT_OUTER or RIGHT_OUTER; nothing changed");
+         }
       }
    }
 
