@@ -520,6 +520,18 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
    }
 
    /**
+    * Reset runtime values.
+    */
+   @Override
+   public void resetRuntimeValues() {
+      super.resetRuntimeValues();
+
+      sortTypeValue.setRValue(null);
+      edataDownValue.setRValue(null);
+      selectFirstItem.setRValue(null);
+   }
+
+   /**
     * Clone this object.
     * @param shallow <tt>true</tt> to perform shallow clone,
     * <tt>false</tt> to perform deep clone.
@@ -545,6 +557,7 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
 
             info.sortTypeValue = (DynamicValue2) sortTypeValue.clone();
             info.edataDownValue = (DynamicValue2) edataDownValue.clone();
+            info.selectFirstItem = (DynamicValue2) selectFirstItem.clone();
          }
 
          return info;
@@ -652,7 +665,9 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }
 
-      if(selectFirstItem != linfo.selectFirstItem) {
+      if(!Tool.equals(selectFirstItem, linfo.selectFirstItem) ||
+         isSelectFirstItem() != linfo.isSelectFirstItem())
+      {
          selectFirstItem = linfo.selectFirstItem;
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }

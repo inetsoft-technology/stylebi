@@ -593,6 +593,16 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
    }
 
    /**
+    * Reset runtime values.
+    */
+   @Override
+   public void resetRuntimeValues() {
+      super.resetRuntimeValues();
+
+      shadow.setRValue(null);
+   }
+
+   /**
     * Clone this object.
     * @param shallow <tt>true</tt> to perform shallow clone,
     * <tt>false</tt> to perform deep clone.

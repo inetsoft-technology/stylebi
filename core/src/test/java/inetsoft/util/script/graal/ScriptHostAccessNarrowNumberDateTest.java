@@ -207,4 +207,44 @@ class ScriptHostAccessNarrowNumberDateTest {
       assertEquals("O", str("d.os('5')"));
       assertEquals("O", str("d.of('1.5')"));
    }
+
+   @Test
+   void numberAndStringAreNotConvertedToDate() {
+      // #82139: documented refusal, pass new Date(n) instead
+      refused("d.e(45000)");
+      refused("d.e(1.5)");
+      refused("d.e(NaN)");
+      refused("d.e('2024-03-05')");
+      assertEquals("D", str("d.e(new Date(45000))"));
+   }
+
+   @Test
+   void numberIsNotInstanceOfDate() {
+      assertEquals("false", str("0 instanceof Java.type('java.util.Date')"));
+      assertEquals("false", str("45000 instanceof Java.type('java.util.Date')"));
+      assertEquals("true", str("new (Java.type('java.util.Date'))(0) instanceof " +
+                               "Java.type('java.util.Date')"));
+   }
+
+   @Test
+   void timeScaleWithNumberFallsBackToFieldsNotARange() {
+      // on current main (Date->String and Number->String at LOWEST) the call binds the
+      // String... overload: a scale over fields, min/max never set, no Date range
+      String ts = "new (Java.type('inetsoft.graph.scale.TimeScale'))(new Date(0), 45000)";
+      assertEquals("0", str(ts + ".getMax()"));
+      assertNotEquals("45000", str(ts + ".getMax()"));
+   }
+
+   @Test
+   void timeScaleWithDatesIsTheWorkaround() {
+      assertEquals("45000", str(
+         "new (Java.type('inetsoft.graph.scale.TimeScale'))(new Date(0), " +
+         "new Date(45000)).getMax()"));
+   }
+
+   @Test
+   void dateAndStringPairKeepsStringForNumber() {
+      assertEquals("S", str("d.c(45000)"));
+      assertEquals("D", str("d.c(new Date(0))"));
+   }
 }

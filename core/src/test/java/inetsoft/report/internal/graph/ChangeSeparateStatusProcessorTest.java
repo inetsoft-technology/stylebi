@@ -24,7 +24,6 @@ import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.graph.*;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -247,9 +246,6 @@ class ChangeSeparateStatusProcessorTest {
     * descriptors of the fields back into the shape and size legends).
     */
    @Test
-   @Disabled("Bug #82214 (follow-up of #81993, which was fixed on 13.8 only): switching to multiple "
-      + "styles gives the shape and size fields a clone of the COLOR legend descriptor "
-      + "(legends.getColorLegendDescriptor() in all three branches)")
    void multiStylesCopiesTheShapeAndSizeLegendsToTheirOwnFields() {
       LegendsDescriptor legends = cdesc.getLegendsDescriptor();
       LegendDescriptor colorLegend = new LegendDescriptor();
@@ -275,5 +271,60 @@ class ChangeSeparateStatusProcessorTest {
                  "the shape field must get the shape legend (visible), not the color legend");
       assertTrue(sales.getSizeField().getLegendDescriptor().isVisible(),
                  "the size field must get the size legend (visible), not the color legend");
+   }
+
+   /** Identical legends on all three channels give the same result as before the fix. */
+   @Test
+   void multiStylesWithEqualLegendsCopiesThemUnchanged() {
+      LegendsDescriptor legends = cdesc.getLegendsDescriptor();
+      for(LegendDescriptor l : new LegendDescriptor[] {
+         legends.getColorLegendDescriptor(), legends.getShapeLegendDescriptor(),
+         legends.getSizeLegendDescriptor() }) {
+         l.setVisible(false);
+      }
+
+      sales.setColorField(field("Region"));
+      sales.setShapeField(field("Country"));
+      sales.setSizeField(field("Quantity"));
+
+      process(false, true);
+
+      assertFalse(sales.getColorField().getLegendDescriptor().isVisible());
+      assertFalse(sales.getShapeField().getLegendDescriptor().isVisible());
+      assertFalse(sales.getSizeField().getLegendDescriptor().isVisible());
+   }
+
+   /** Leaving multiple styles reads each field's own legend back into its own legend. */
+   @Test
+   void leavingMultiStylesCopiesEachFieldLegendBackToItsOwnLegend() {
+      info.setMultiStyles(true);
+      LegendDescriptor c = new LegendDescriptor();
+      c.setVisible(false);
+      LegendDescriptor sh = new LegendDescriptor();
+      sh.setVisible(true);
+      LegendDescriptor sz = new LegendDescriptor();
+      sz.setVisible(false);
+      VSAestheticRef color = field("Region");
+      VSAestheticRef shape = field("Country");
+      VSAestheticRef size = field("Quantity");
+      color.setLegendDescriptor(c);
+      shape.setLegendDescriptor(sh);
+      size.setLegendDescriptor(sz);
+      sales.setColorField(color);
+      sales.setShapeField(shape);
+      sales.setSizeField(size);
+
+      process(false, false);
+
+      LegendsDescriptor legends = cdesc.getLegendsDescriptor();
+      assertFalse(legends.getColorLegendDescriptor().isVisible());
+      assertTrue(legends.getShapeLegendDescriptor().isVisible());
+      assertFalse(legends.getSizeLegendDescriptor().isVisible());
+   }
+
+   private static VSAestheticRef field(String column) {
+      VSAestheticRef ref = new VSAestheticRef();
+      ref.setDataRef(new VSChartDimensionRef(new ColumnRef(new AttributeRef(null, column))));
+      return ref;
    }
 }
