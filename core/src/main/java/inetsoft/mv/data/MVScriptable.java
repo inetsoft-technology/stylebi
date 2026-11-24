@@ -139,7 +139,14 @@ public class MVScriptable implements ScriptScope {
          else {
             for(int i = 0; i < mv.getBlockSize(); i++) {
                Object max0 = mv.getDictionary(c, i).max();
-               max = Tool.compare(max0, max) > 0 ? max0 : max;
+
+               // an all-null block has no max, it must not replace a known one (Bug #82219)
+               if(max == null) {
+                  max = max0;
+               }
+               else if(max0 != null) {
+                  max = Tool.compare(max0, max) > 0 ? max0 : max;
+               }
             }
          }
       }
@@ -175,11 +182,16 @@ public class MVScriptable implements ScriptScope {
             }
          }
          else {
-            min = mv.getDictionary(c, 0).min();
-
-            for(int i = 1; i < mv.getBlockSize(); i++) {
+            for(int i = 0; i < mv.getBlockSize(); i++) {
                Object min0 = mv.getDictionary(c, i).min();
-               min = Tool.compare(min0, min) < 0 ? min0 : min;
+
+               // an all-null block has no min, it must not replace a known one (Bug #82219)
+               if(min == null) {
+                  min = min0;
+               }
+               else if(min0 != null) {
+                  min = Tool.compare(min0, min) < 0 ? min0 : min;
+               }
             }
          }
       }
