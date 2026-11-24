@@ -20,6 +20,8 @@ package inetsoft.web.wiz.script;
 import static org.mockito.Mockito.doThrow;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.script.model.FunctionSignature;
 import inetsoft.web.wiz.script.model.ScriptError;
@@ -458,6 +460,67 @@ class ViewsheetAgentControllerTest {
                   "session() must reflect the NEW target with no caching of its own");
       assertEquals("viewsheet", after.sheetType());
       assertEquals(PANE_RUNTIME_ID, after.runtimeId());
+   }
+
+   /**
+    * Calls {@code session()} for a viewsheet whose undo position, save point and entry scope are
+    * the given values, and returns {@code unsavedChanges}.
+    */
+   private static boolean sessionUnsavedChanges(int current, int savePoint, int scope)
+      throws PairingException
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      SheetSessionService sessionService = mock(SheetSessionService.class);
+      when(sessionService.resolve(eq(PANE_TOKEN), eq("admin"))).thenReturn(wholeSheetSession());
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getCurrent()).thenReturn(current);
+      when(rvs.getSavePoint()).thenReturn(savePoint);
+      when(rvs.getEntry()).thenReturn(new AssetEntry(scope, AssetEntry.Type.VIEWSHEET,
+                                                     "Dashboard", null));
+      ScriptEditService editService = mock(ScriptEditService.class);
+      when(editService.resolve(eq(PANE_TOKEN), any())).thenReturn(rvs);
+
+      ViewsheetAgentController controller = new ViewsheetAgentController(feature,
+         mock(SheetJoinService.class), sessionService, editService,
+         mock(ScriptReadService.class), mock(ScriptExecuteService.class),
+         mock(ScriptStateRefreshService.class),
+         mock(ScriptContextService.class), mock(ScriptApiService.class),
+         mock(ScriptImageService.class), mock(ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      return controller.session(PANE_TOKEN, principal()).unsavedChanges();
+   }
+
+   @Test
+   void sessionAtTheSavePointHasNoUnsavedChanges() throws Exception {
+      assertFalse(sessionUnsavedChanges(2, 2, AssetRepository.GLOBAL_SCOPE));
+   }
+
+   @Test
+   void sessionAfterAnEditHasUnsavedChanges() throws Exception {
+      // addCheckpoint moves the undo position past the save point
+      assertTrue(sessionUnsavedChanges(3, 2, AssetRepository.GLOBAL_SCOPE));
+   }
+
+   @Test
+   void sessionBackAtTheSavePointAfterUndoOrSaveHasNoUnsavedChanges() throws Exception {
+      // undo back to the saved position, or a save that moved the save point to the position
+      assertFalse(sessionUnsavedChanges(2, 2, AssetRepository.GLOBAL_SCOPE));
+      assertTrue(sessionUnsavedChanges(1, 2, AssetRepository.GLOBAL_SCOPE));
+   }
+
+   @Test
+   void sessionWithADiscardedSavePointStaysUnsaved() throws Exception {
+      // an edit after an undo past the save point drops the save point (-1)
+      assertTrue(sessionUnsavedChanges(3, -1, AssetRepository.GLOBAL_SCOPE));
+   }
+
+   @Test
+   void sessionOfANeverSavedViewsheetHasUnsavedChangesEvenAtItsSavePoint() throws Exception {
+      // a new untitled viewsheet starts with position and save point both 0
+      assertTrue(sessionUnsavedChanges(0, 0, AssetRepository.TEMPORARY_SCOPE));
    }
 
    /**
