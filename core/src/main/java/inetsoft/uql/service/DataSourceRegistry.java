@@ -30,6 +30,7 @@ import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
+import inetsoft.uql.jdbc.ConnectionPoolFactory;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.util.*;
@@ -1267,9 +1268,11 @@ public class DataSourceRegistry implements MessageListener {
       AssetEntry[] children = getDataSourceEntries(dxname, dxname + "/", null, true, false);
 
       // Bug #82097, read before the data source is removed
+      // (an unreadable data source is treated as pooled, closing the pools of a node is cheap)
       XDataSource removed = getDataSource(dxname);
-      boolean pooled = removed instanceof JDBCDataSource ||
+      boolean pooled = removed == null || removed instanceof JDBCDataSource ||
          removed instanceof AdditionalConnectionDataSource;
+      boolean removedObject = false;
 
       try {
          // read before the data source and its additional connections are removed. The test
@@ -1291,23 +1294,28 @@ public class DataSourceRegistry implements MessageListener {
             resources.add(dxname);
          }
 
+         boolean existed = containObject(entry);
          removeObject(entry);
+         removedObject = existed;
          removeObjects(children);
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
             AssetEntry.Type.DATA_MODEL, dxname, null));
          removeConnectionTestQueries(dxname, additionalNames);
          removeDataSourcePermissions(resources);
          removeDataModelPermissions(modelResources);
-
-         // Bug #82097, the connection pools of the removed data source are otherwise kept open
-         // on every node until restart
-         if(pooled) {
-            fireConnectionChangeEvent();
-         }
       }
       catch(Exception e) {
          LOG.error(
             "Failed to remove data source: " + dxname, e);
+      }
+      finally {
+         // Bug #82097, the connection pools of the removed data source are otherwise kept open
+         // on every node until restart. Done even if a later step of the removal failed, the
+         // data source is already gone then.
+         if(pooled && removedObject) {
+            closeConnectionPoolsOfRemovedSource();
+            fireConnectionChangeEvent();
+         }
       }
    }
 
@@ -3106,6 +3114,19 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void removeModifiedListener(PropertyChangeListener listener) {
       modifiedListeners.remove(listener);
+   }
+
+   /**
+    * Closes the connection pools of this node at once, without waiting for the cluster message
+    * (which is debounced and handled after the handlers are reset) to come back.
+    */
+   protected void closeConnectionPoolsOfRemovedSource() {
+      try {
+         ConnectionPoolFactory.getInstance().closeAllConnectionsPools();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to close the connection pools of a removed data source", e);
+      }
    }
 
    /**
