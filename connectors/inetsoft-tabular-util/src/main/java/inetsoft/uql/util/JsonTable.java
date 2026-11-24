@@ -121,6 +121,8 @@ public class JsonTable extends BaseJsonTable {
    public void finishStreamedLoading() {
       data.complete();
 
+      applyDeclaredObjects();
+
       if(metadata != null) {
          transformTableWithMetadata();
       }
@@ -140,6 +142,60 @@ public class JsonTable extends BaseJsonTable {
             setColumnType(name, Tool.getDataType(types.get(i)));
          }
       }
+   }
+
+   private void applyDeclaredObjects() {
+      final int rcnt = Math.min(data.size(), HEADER_SCAN_ROWS);
+
+      List<String> updated = applyDeclaredObjectColumns(names, name -> {
+         final Integer idx = nameIdx.get(name);
+
+         for(int r = 0; idx != null && r < rcnt; r++) {
+            Object[] row = data.get(r);
+
+            if(row != null && idx < row.length && row[idx] != null) {
+               return false;
+            }
+         }
+
+         return true;
+      });
+
+      if(updated == names) {
+         return;
+      }
+
+      final XSwappableObjectList<Object[]> newData = new XSwappableObjectList<>(null);
+      final Map<String, Integer> newNameIdx = new HashMap<>();
+      final List<Class<?>> newTypes = new ArrayList<>();
+
+      for(int i = 0; i < updated.size(); i++) {
+         final Integer old = nameIdx.get(updated.get(i));
+         newNameIdx.put(updated.get(i), i);
+         newTypes.add(old == null ? null : types.get(old));
+      }
+
+      for(int r = 0; r < data.size(); r++) {
+         final Object[] row = data.get(r);
+         final Object[] newRow = new Object[updated.size()];
+
+         for(int i = 0; row != null && i < newRow.length; i++) {
+            final Integer old = nameIdx.get(updated.get(i));
+
+            if(old != null && old < row.length) {
+               newRow[i] = row[old];
+            }
+         }
+
+         newData.add(newRow);
+      }
+
+      newData.complete();
+      data.dispose();
+      data = newData;
+      names = updated;
+      nameIdx = newNameIdx;
+      types = newTypes;
    }
 
    /**

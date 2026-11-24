@@ -110,7 +110,7 @@ public class ExpandedJsonTable extends BaseJsonTable {
 
       // get headers
       Set<String> names = new HashSet<>(headers);
-      int rcnt = Math.min(rows.size(), 10000);
+      int rcnt = Math.min(rows.size(), HEADER_SCAN_ROWS);
 
       for(int r = 0; r < rcnt; r++) {
          Map<String, Object> row = rows.get(r);
@@ -124,6 +124,8 @@ public class ExpandedJsonTable extends BaseJsonTable {
             }
          }
       }
+
+      applyDeclaredObjects(rcnt);
 
       // initialize types
       types = new Class[headers.size()];
@@ -166,6 +168,25 @@ public class ExpandedJsonTable extends BaseJsonTable {
          if(columnType == null) {
             setColumnType(name, Tool.getDataType(types[i]));
          }
+      }
+   }
+
+   private void applyDeclaredObjects(int rcnt) {
+      List<String> updated = applyDeclaredObjectColumns(headers, name -> {
+         for(int r = 0; r < rcnt; r++) {
+            Map<String, Object> row = rows.get(r);
+
+            if(row != null && row.get(name) != null) {
+               return false;
+            }
+         }
+
+         return true;
+      });
+
+      if(updated != headers) {
+         headers.clear();
+         headers.addAll(updated);
       }
    }
 

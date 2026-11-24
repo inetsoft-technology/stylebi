@@ -117,6 +117,17 @@ public class GraphQLQuery extends RestJsonQuery implements DerivedRequestBodyQue
    }
 
    @Override
+   public Map<String, List<String>> declaredObjectColumns() {
+      // Without Expand Arrays a list of objects is one column, never leaf columns. In the other modes
+      // the selection set cannot tell a list from an object, see the PR notes.
+      if(!isExpanded()) {
+         return Collections.emptyMap();
+      }
+
+      return GraphQLSelectionLeaves.declare(queryString, getValidJsonPath());
+   }
+
+   @Override
    public PaginationType getPaginationType() {
       if(usePagination) {
          return cursorPagination ? PaginationType.GRAPHQL_CURSOR : PaginationType.GRAPHQL;
